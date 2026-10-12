@@ -1,7 +1,13 @@
 //! Sealed Bayesian quadratic-basis conditional-effect execution.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, BayesianConfig, CausalError, CausalPosterior, CausalQuery, Dag, EffectEstimate,
+    EstimatorId, ExecutionContext, GraphClass, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
+    IdentifiedResultContext, IdentifierId, InferenceMode, Instant, OverlapPolicy,
+    PhysicalExecutionPlan, StudyResult, TableView, TabularData, VariableId, bayesian_draw_count,
+    elapsed_ns, finish_identified_execute_with_context, identify_static, select_claim,
+};
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
     ConditionalEffectQuery, ParametricAssumption, PriorAssumption,

@@ -22,7 +22,7 @@ use super::prepared::CachedTemporalClassIdentification;
 use super::route_guards::same_accepted_graph;
 
 /// A complete, checked completion envelope per requested horizon for a
-/// TemporalCpdag or TemporalPag response. The per-horizon envelopes and their
+/// `TemporalCpdag` or `TemporalPag` response. The per-horizon envelopes and their
 /// aligned unfolding indexers stay together with the source graph, so no
 /// completion can be evaluated against another completion's time window and no
 /// execution can re-derive the class from a different graph.

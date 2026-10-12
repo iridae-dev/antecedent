@@ -95,7 +95,7 @@ pub(super) fn checked_bayesian_settings(
     Ok(config.clone())
 }
 
-/// Read-only target and procedure of a sealed Bayesian TemporalDag effect.
+/// Read-only target and procedure of a sealed Bayesian `TemporalDag` effect.
 #[derive(Clone, Debug)]
 pub struct CheckedBayesianTemporalDagEffectInfo {
     /// Exact pulse or one-step sustained target.
@@ -108,7 +108,7 @@ pub struct CheckedBayesianTemporalDagEffectInfo {
     pub validation: crate::analysis::builder::RefuteSuite,
     /// Requested posterior draws.
     pub posterior_draws: usize,
-    /// Signature of the retained TemporalDag.
+    /// Signature of the retained `TemporalDag`.
     pub graph_signature: std::sync::Arc<str>,
 }
 

@@ -1,4 +1,4 @@
-//! CPDAG/PAG graph-posterior AverageEffect: class envelope per atom, then policy.
+//! CPDAG/PAG graph-posterior `AverageEffect`: class envelope per atom, then policy.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -6,7 +6,19 @@ use super::atom_mix::{
     AtomBoundRule, AtomEvalView, AtomMixInput, AtomRefuterBatch, ScalarRefuterMix,
     drive_posterior_refuters, mix_atom_evals,
 };
-use super::*;
+use super::{
+    Arc, AverageEffectQuery, BayesianGCompWorkspace, CausalError, CausalPosterior, CausalQuery,
+    ConditionalLinearAdjustment, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
+    EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId, ExecutionContext, GraphPosterior,
+    IdentificationResult, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
+    IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant,
+    OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite,
+    StaticEstimateWorkspaces, Study, StudyResult, TabularData, bayesian_gcomp,
+    effect_from_posterior, elapsed_ns, envelope_se_omission_diagnostic, estimate_static_effect,
+    mass_fields, mix_static_envelope_se, mix_weighted_analytic_se, mixed_static_influence,
+    overlap_diagnostic, provenance_ids, resolve_posterior_status, run_envelope_effect_refuters,
+    static_aligned_influence,
+};
 use crate::analysis::prepared::{
     CachedClassPosteriorAtomIdentification, CachedGraphPosteriorIdentification,
 };
@@ -445,7 +457,7 @@ impl AtomEvalView for ClassAtomEval {
     }
 
     fn analytic_se(&self) -> Option<f64> {
-        self.estimate.as_ref().map(|estimate| estimate.se_analytic())
+        self.estimate.as_ref().map(antecedent_estimate::EffectEstimate::se_analytic)
     }
 
     fn influence(&self) -> Option<&[f64]> {

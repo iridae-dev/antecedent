@@ -1,4 +1,4 @@
-//! Sealed temporal response execution for a fixed TemporalDag: a dose × horizon
+//! Sealed temporal response execution for a fixed `TemporalDag`: a dose × horizon
 //! mean curve or a single-step intervention response, frequentist or Bayesian.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -171,7 +171,7 @@ impl TemporalResponseHorizonEvidence {
     }
 }
 
-/// Checked TemporalDag response operation.
+/// Checked `TemporalDag` response operation.
 ///
 /// The operation fixes the response functional (an ordered dose grid for a
 /// mean curve, or one single-step intervention), every horizon's
@@ -412,7 +412,7 @@ impl CheckedTemporalResponseOperation {
                 data,
                 antecedent_estimate::TemporalIdentification {
                     horizons: &pairs,
-                    status: status,
+                    status,
                     assumptions: self.assumptions.clone(),
                 },
                 &self.query,

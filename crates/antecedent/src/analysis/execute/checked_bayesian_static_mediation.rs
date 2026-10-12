@@ -1,7 +1,14 @@
 //! Sealed Bayesian execution for static DAG natural mediation.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, BayesianConfig, CausalError, CausalQuery, CheckedStaticMediationInfo, Dag, EstimatorId,
+    ExecutionContext, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
+    IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId, InferenceMode, Instant,
+    PhysicalExecutionPlan, RefuteSuite, Study, StudyResult, TableView, TabularData, VariableId,
+    bayesian_gcomp, elapsed_ns, finish_identified_execute_with_context, identify_static_query,
+    select_claim,
+};
 use crate::analysis::prepared::Inspect;
 use antecedent_expr::{FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable};
 
@@ -211,7 +218,7 @@ impl CheckedBayesianStaticMediationOperation {
         let (mediation, posterior) =
             antecedent_estimate::estimate_static_mediation_bayesian_outcome_prior(
                 &antecedent_estimate::StaticMediationProblem {
-                    data: data,
+                    data,
                     graph: &bound.graph,
                     query: &bound.query,
                     extra: &[],

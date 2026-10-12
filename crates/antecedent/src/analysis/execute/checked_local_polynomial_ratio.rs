@@ -1,7 +1,14 @@
 //! Retained graphless fuzzy-discontinuity and regression-kink execution.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, CausalError, CausalExprArena, CausalQuery, DerivationTrace, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext, GraphClass,
+    IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
+    IdentifiedExecuteFinish, IdentifierId, InferenceMode, PhysicalExecutionPlan,
+    RandomizedTrialOperation, RandomizedTrialQuery, RefuteSuite, Study, StudyResult, TableView,
+    TabularData, finish_identified_execute_with_context,
+};
 use antecedent_estimate::local_polynomial_ratio::fit_local_polynomial_ratio;
 
 pub(crate) type CheckedLocalPolynomialRatioOperation =

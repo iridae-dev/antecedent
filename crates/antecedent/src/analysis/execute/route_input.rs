@@ -232,9 +232,8 @@ impl Study {
     /// `ensure_supported_combination` plus `(route, class)` catch-all.
     pub(super) fn route_input(&self) -> Result<RouteInput<'_>, CausalError> {
         self.ensure_supported_combination()?;
-        self.route_input_classified().ok_or_else(|| CausalError::Unsupported {
-            message: "unsupported data/graph/query combination",
-        })
+        self.route_input_classified()
+            .ok_or(CausalError::Unsupported { message: "unsupported data/graph/query combination" })
     }
 
     /// Payload extraction without a second admission pass.

@@ -1,6 +1,20 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    AnalysisRoute, Arc, CausalError, CausalQuery, CheckedInterferenceOperation,
+    DEFAULT_ADMG_ESTIMATOR_ID, DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_CONDITIONAL_ESTIMATOR_ID,
+    DEFAULT_CONDITIONAL_IDENTIFIER_ID, DEFAULT_DISTRIBUTION_ESTIMATOR_ID,
+    DEFAULT_DISTRIBUTION_IDENTIFIER_ID, DEFAULT_ESTIMATOR_ID, DEFAULT_IDENTIFIER_ID,
+    DEFAULT_PAG_ESTIMATOR_ID, DEFAULT_PAG_IDENTIFIER_ID, DEFAULT_PATH_ESTIMATOR_ID,
+    DEFAULT_PATH_IDENTIFIER_ID, DEFAULT_RESPONSE_IDENTIFIER_ID, DataInput, DataModality,
+    Diagnostic, DiagnosticKind, DiagnosticSeverity, EstimatorId, ExecutionContext, GraphClass,
+    GraphPosterior, GraphRef, IdentificationResult, IdentifierId, InferenceMode, OverlapPolicy,
+    PhysicalExecutionPlan, RandomizedTrialQuery, RefuteSuite, ResponseQuery, RouteInput,
+    StaticMediationSource, StudyResult, TableView, TabularData, TimeSeriesData, VariableId,
+    admg_has_bidirected, admg_without_latents_to_dag, classify_analysis_route, classify_route,
+    data_modality, graph_posterior_response_supported, reject_dag_only_on_pag,
+    response_functional_is_derivative, temporal_admg_projection,
+};
 use crate::analysis::route_guards::{complete_mean_response, mean_all_observed};
 use crate::planner::RouteDefaults;
 
@@ -323,7 +337,7 @@ impl super::Study {
 
     /// Resolve identifier/estimator for ADMG ATE (general ID + functional effect).
     ///
-    /// CoDetermined tier-closure is generalized adjustment + AIPW, not `general.id`.
+    /// `CoDetermined` tier-closure is generalized adjustment + AIPW, not `general.id`.
     /// A same-tier bidirected clique must not kick a licensed AIPW study onto the
     /// functional-effect identifier.
     pub(super) fn resolve_admg_pair(&self) -> (Arc<str>, Arc<str>) {
@@ -340,7 +354,7 @@ impl super::Study {
         }
     }
 
-    /// Resolve identifier/estimator for ConditionalEffect.
+    /// Resolve identifier/estimator for `ConditionalEffect`.
     pub(super) fn resolve_conditional_pair(&self) -> (Arc<str>, Arc<str>) {
         let estimator = if matches!(self.inference, InferenceMode::Bayesian(_)) {
             EstimatorId::BayesianConditional
@@ -410,7 +424,7 @@ impl super::Study {
         )
     }
 
-    /// Resolve identifier/estimator for Cpdag/Pag ConditionalEffect.
+    /// Resolve identifier/estimator for Cpdag/Pag `ConditionalEffect`.
     pub(super) fn resolve_class_conditional_pair(&self) -> (Arc<str>, Arc<str>) {
         let estimator = if matches!(self.inference, InferenceMode::Bayesian(_)) {
             EstimatorId::BayesianConditional
@@ -425,7 +439,7 @@ impl super::Study {
         )
     }
 
-    /// Resolve identifier/estimator for PathSpecific queries.
+    /// Resolve identifier/estimator for `PathSpecific` queries.
     pub(super) fn resolve_path_pair(&self) -> (Arc<str>, Arc<str>) {
         let identifier = self.identifier.unwrap_or(DEFAULT_PATH_IDENTIFIER_ID);
         let estimator = self
@@ -729,11 +743,9 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         match route {
-            AnalysisRoute::TemporalCrossWorld => {
-                return Err(CausalError::Unsupported {
-                    message: "temporal cross-world effect requires series data and a TemporalDag",
-                });
-            }
+            AnalysisRoute::TemporalCrossWorld => Err(CausalError::Unsupported {
+                message: "temporal cross-world effect requires series data and a TemporalDag",
+            }),
             AnalysisRoute::Response => {
                 let CausalQuery::Response(q) = &self.query else { unreachable!() };
                 match self.graph.graph_ref() {

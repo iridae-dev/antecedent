@@ -1,7 +1,15 @@
 //! Sealed Bayesian quadratic-basis ATE execution.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, AverageEffectQuery, BayesianConfig, CausalError, CausalPosterior, CausalQuery, Dag,
+    Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext,
+    GraphClass, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext,
+    IdentifierId, InferenceMode, Instant, OverlapPolicy, PhysicalExecutionPlan, StudyResult,
+    TableView, TabularData, bayesian_draw_count, elapsed_ns,
+    finish_identified_execute_with_context, identify_static_query, project_for_ate_estimate,
+    select_claim,
+};
 use crate::analysis::prepared::Inspect;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,

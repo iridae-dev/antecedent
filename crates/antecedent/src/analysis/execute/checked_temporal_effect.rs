@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, CausalError, ExecutionContext, IdentifiedResultContext, InferenceMode, Instant,
+    PhysicalExecutionPlan, StudyResult, TimeSeriesData, elapsed_ns,
+};
 use crate::analysis::prepared::Inspect;
 
 #[derive(Clone)]
@@ -97,7 +100,7 @@ impl CheckedTemporalEffectExecution {
     }
 }
 
-/// Read-only target, proof, and procedure of a prepared TemporalDag effect.
+/// Read-only target, proof, and procedure of a prepared `TemporalDag` effect.
 #[derive(Clone, Debug)]
 pub struct CheckedTemporalDagEffectInfo {
     /// Exact temporal policy, intervention levels, horizon, and population.

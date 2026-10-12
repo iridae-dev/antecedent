@@ -3,7 +3,7 @@
 //! This route intentionally has a separate state type from classical transport.
 //! It evaluates whichever formula the bounded z-transport derivation checked and
 //! bound to the catalog: the registered surrogate formula, a direct source joint
-//! under the declared experiment, or a recursive TRz formula whose factors cite
+//! under the declared experiment, or a recursive `TRz` formula whose factors cite
 //! source experiments and the target's observational joint. The search runs
 //! under the z-transport contract's observed-variable and controllable bounds;
 //! it is not an unbounded sIDz decision procedure. Separately prepared factors
@@ -669,7 +669,7 @@ impl StudyBuilder {
     ///
     /// This entry point accepts exact laws or empirical plugin tables. It does
     /// not license a general bounded sIDz search, interval estimates, or a
-    /// PreparedStudy artifact/replay contract.
+    /// `PreparedStudy` artifact/replay contract.
     ///
     /// # Errors
     ///

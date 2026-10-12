@@ -1,7 +1,7 @@
 //! Per-design point and interval fits for randomized-trial effect queries.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{Arc, CausalError, EstimatorId, TableView, TabularData};
 use antecedent_core::{RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand};
 use std::collections::BTreeMap;
 

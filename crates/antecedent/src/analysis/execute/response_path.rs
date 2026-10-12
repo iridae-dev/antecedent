@@ -1,7 +1,24 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::completion_fit_memo::{CompletionFitKey, CompletionFitMemo};
-use super::*;
+use super::{
+    Arc, AverageEffectQuery, BayesianConfig, CausalError, CausalQuery, CausalResponse,
+    CheckedCellAipwResponseOperation, ContinuousResponseEstimator, Dag, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, EffectEstimate, EstimandMethod, EstimationWorkspace, EstimatorId,
+    EvalError, ExecutionContext, FunctionalDistributionWorkspace, FunctionalEffect, GraphClass,
+    GraphIdentFlag, GraphPosterior, IdentificationEnvelope, IdentificationResult,
+    IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
+    IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant, Intervention,
+    ObservationMechanismEstimator, ObservationSpec, OverlapPolicy, PhysicalExecutionPlan,
+    PosteriorMassSummary, RefuteSuite, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, StudyResult, TableView, TabularData, VariableId,
+    bayesian_gcomp, elapsed_ns, envelope_se_omits_between_atom_variance,
+    envelope_to_identification_result_for, functional_cell_unevaluable,
+    identification_from_cache_or, identification_status_ok_for_case, identify_cached_diagnostic,
+    identify_static_query, interactive_subsample_graphs_accounted, provenance_ids,
+    report_identify_compute, resolve_posterior_status, run_plugin_level_refuters, run_refuters,
+    scalar_identified_set, support_from_functional_eval,
+};
 use crate::analysis::prepared::Inspect;
 use crate::planner::RouteDefaults;
 
@@ -1719,7 +1736,7 @@ impl super::Study {
                     outcome: *outcome,
                     adjustment: &estimand.adjustment_set,
                     functional: &query.outcome_functional,
-                    continuous: continuous,
+                    continuous,
                 },
                 antecedent_estimate::SharedCellInputs {
                     fold_ids: fold_ids.as_deref(),

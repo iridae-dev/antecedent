@@ -14,7 +14,13 @@ use antecedent_identify::{
     TransportIdentification, TransportIdentifier, bind_transport_derivation, lower_transport_mean,
 };
 
-use super::*;
+use super::{
+    Arc, BayesianConfig, CausalExprArena, CausalPosterior, DerivationMeta, DerivationTrace,
+    DomainRef, ExprNode, IdentificationPerformanceRecord, IdentificationResult,
+    IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteFinish, InferenceDiagnostics,
+    InferenceMode, OutcomeExprId, PhysicalExecutionPlan, StudyResult, TabularData, VariableId,
+    effect_from_posterior, elapsed_ns, report_identify_compute,
+};
 use crate::error::CausalError;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 

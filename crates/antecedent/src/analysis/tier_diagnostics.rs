@@ -20,7 +20,7 @@
 //!   report (a propensity-based estimator). Typed unavailable for `Unknown`, and for a
 //!   `CoDetermined` result whose estimator fits no propensity.
 //! * **E-value, point.** The `CoDetermined` cell attaches a point E-value from the
-//!   effect and the outcome SD (`RR ~ exp(0.91 d)`, VanderWeele and Ding). It is reported
+//!   effect and the outcome SD (`RR ~ exp(0.91 d)`, `VanderWeele` and Ding). It is reported
 //!   with its method. When the E-value on the result instead came from the E-value
 //!   refuter (which reports the smaller of a point and a converted interval-limit
 //!   E-value, one number), it embeds a converted endpoint and is not reported as a point

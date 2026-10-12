@@ -1683,7 +1683,7 @@ impl PreparedStudy {
     ///
     /// # Errors
     ///
-    /// `route_not_supported` outside static AverageEffect and discrete joint cells on tabular
+    /// `route_not_supported` outside static `AverageEffect` and discrete joint cells on tabular
     /// data; the resource limit; cancellation.
     pub fn diagnose(&self, ctx: &ExecutionContext) -> Result<PreflightReport, CausalError> {
         preflight_design(&input_of(self.study())?, ctx)

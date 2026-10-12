@@ -4,8 +4,6 @@
 
 //! Private execution helpers.
 
-#![allow(clippy::too_many_lines, clippy::doc_markdown, clippy::too_many_arguments)]
-
 use std::sync::Arc;
 
 use antecedent_contract::{
@@ -869,7 +867,7 @@ pub(crate) fn conditional_thresholds(
     Ok(Some(antecedent_estimate::empirical_threshold_grid(&y, 19)?))
 }
 
-/// Whether binary 0/1 ConditionalEffect exceedance/quantile uses cross-fitted AIPW scores.
+/// Whether binary 0/1 `ConditionalEffect` exceedance/quantile uses cross-fitted AIPW scores.
 #[must_use]
 pub(crate) fn conditional_uses_crossfit_aipw(query: &ConditionalEffectQuery) -> bool {
     let functional = &query.inner.outcome_functional;
@@ -883,13 +881,13 @@ pub(crate) fn conditional_uses_crossfit_aipw(query: &ConditionalEffectQuery) -> 
     )
 }
 
-/// Name the estimator that actually produced a ConditionalEffect exceedance or
+/// Name the estimator that actually produced a `ConditionalEffect` exceedance or
 /// quantile on binary 0/1 arms.
 ///
 /// Those cells record `aipw` (not `conditional.linear.adjustment`): the scalar,
 /// arm CDFs, and influence columns come from cross-fitted AIPW scores with the
 /// modifier added to the adjustment set. Non-binary levels and mean
-/// ConditionalEffect keep the linear plugin.
+/// `ConditionalEffect` keep the linear plugin.
 pub(crate) fn conditional_score_estimator_diagnostic(
     query: &ConditionalEffectQuery,
 ) -> Option<Diagnostic> {
@@ -964,7 +962,7 @@ pub(crate) fn attach_conditional_quantile(
     Ok(())
 }
 
-/// Evaluate each exceedance threshold on ConditionalEffect and attach `F_a(c)`.
+/// Evaluate each exceedance threshold on `ConditionalEffect` and attach `F_a(c)`.
 ///
 /// Joint covariance and simultaneous bands are the 2K raw per-arm CDF
 /// coordinates. Sparse tails refuse a finite band rather than publishing an

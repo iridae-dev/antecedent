@@ -12,7 +12,7 @@ use antecedent_validate::{PredictiveCheckReport, RefutationReport};
 
 use crate::error::CausalError;
 
-/// Canonical progressive-execute stage ids (stable ProgressSink contract).
+/// Canonical progressive-execute stage ids (stable `ProgressSink` contract).
 pub const STAGE_IDENTIFY: &str = "identify";
 pub const STAGE_ESTIMATE_POINT: &str = "estimate_point";
 pub const STAGE_UNCERTAINTY: &str = "uncertainty";

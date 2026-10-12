@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{Arc, CausalError, CausalQuery, ExecutionContext, StudyResult, TimeSeriesData};
 
 impl super::Study {
     /// Execute a retained TemporalCpdag/TemporalPag response through the class

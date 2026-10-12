@@ -1,7 +1,15 @@
 //! Sealed Bayesian-bootstrap orthogonal ATE execution.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, AverageEffectQuery, CausalError, CausalPosterior, CausalQuery, Dag, Diagnostic,
+    DiagnosticKind, DiagnosticSeverity, EstimatorId, ExecutionContext, GraphClass,
+    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext,
+    IdentifierId, InferenceDiagnostics, InferenceMode, Instant, PhysicalExecutionPlan, StudyResult,
+    TableView, TabularData, VariableId, effect_from_posterior, elapsed_ns,
+    finish_identified_execute_with_context, identify_static_query_with_rd,
+    project_for_ate_estimate, select_claim,
+};
 use crate::analysis::prepared::Inspect;
 use antecedent_estimate::bayesian_robust_ate::{
     BayesianRobustAteInput, BayesianRobustAteOptions, estimate_bayesian_robust_ate,

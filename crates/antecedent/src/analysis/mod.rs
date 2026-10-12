@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, clippy::doc_markdown, clippy::too_many_arguments)]
-
 mod admg_conditional_transport;
 mod batch;
 mod batch_export;

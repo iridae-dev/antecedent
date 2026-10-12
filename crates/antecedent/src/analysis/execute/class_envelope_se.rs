@@ -1,7 +1,12 @@
 // Shared circular-block mixture SE for temporal class / DBN envelopes.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
+    EstimationWorkspace, ExecutionContext, IdentificationStatus, IdentifiedEstimand, OverlapPolicy,
+    RandomizedTrialQuery, TableView, TemporalDag, TemporalEffectQuery, TemporalIndexer,
+    TemporalLinearAdjustment, TimeSeriesData,
+};
 
 /// Shared circular-block SE for a frozen-weight temporal class / DBN mixture.
 pub struct SharedCircularBlockSe {
@@ -152,12 +157,7 @@ impl TemporalAtomDesign {
         ctx: &ExecutionContext,
     ) -> Result<Self, CausalError> {
         let design = antecedent_estimate::SequentialContrastDesign::prepare(
-            &antecedent_estimate::SequentialProblem {
-                data: data,
-                graph: graph,
-                indexer: indexer,
-                estimand: estimand,
-            },
+            &antecedent_estimate::SequentialProblem { data, graph, indexer, estimand },
             query,
             status,
             ctx,

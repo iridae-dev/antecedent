@@ -1,7 +1,10 @@
 //! Shared frozen shape of the graphless randomized-trial operations.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    CausalError, ExecutionContext, IdentificationResult, IdentifiedEstimand,
+    IdentifiedResultContext, PhysicalExecutionPlan, Study, TableView, TabularData,
+};
 
 /// Query-specific facts a [`RandomizedTrialOperation`] needs but cannot derive.
 pub(super) trait RandomizedTrialQuery: std::fmt::Debug + Sized {

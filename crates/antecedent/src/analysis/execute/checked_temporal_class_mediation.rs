@@ -1,7 +1,11 @@
-//! Checked TemporalCpdag class-envelope and graph-posterior temporal mediation.
+//! Checked `TemporalCpdag` class-envelope and graph-posterior temporal mediation.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    AcceptedGraph, Arc, CausalError, CausalQuery, DataInput, EstimatorId, ExecutionContext,
+    GraphClass, GraphPosterior, IdentifierId, InferenceMode, PhysicalExecutionPlan, RefuteSuite,
+    Study, StudyResult, TableView, TimeSeriesData,
+};
 use crate::analysis::prepared::Inspect;
 use crate::analysis::prepared::{
     CachedDbnPosteriorIdentification, CachedTemporalClassIdentification,
@@ -17,20 +21,20 @@ use antecedent_discovery::GraphPosteriorAtomKind;
 /// and the plan against these before any estimation runs.
 #[derive(Clone)]
 pub(crate) enum CheckedTemporalMediationProof {
-    /// Fixed TemporalCpdag: one completion envelope per requested horizon.
+    /// Fixed `TemporalCpdag`: one completion envelope per requested horizon.
     ClassEnvelope {
         graph: AcceptedGraph,
         cache: Arc<CachedTemporalClassIdentification>,
         max_completions: Option<usize>,
         class_prior: Option<crate::ClassPrior>,
     },
-    /// TemporalCpdag posterior atoms, each carrying its completion envelope.
+    /// `TemporalCpdag` posterior atoms, each carrying its completion envelope.
     ClassPosterior {
         posterior: GraphPosterior,
         cache: Arc<CachedTemporalClassPosteriorIdentification>,
         max_completions: Option<usize>,
     },
-    /// TemporalDag (DBN) posterior atoms with per-horizon mediation sets.
+    /// `TemporalDag` (DBN) posterior atoms with per-horizon mediation sets.
     DbnPosterior { posterior: GraphPosterior, cache: Arc<CachedDbnPosteriorIdentification> },
 }
 
@@ -45,7 +49,7 @@ impl CheckedTemporalMediationProof {
 }
 
 /// Frozen mediation target, structural proof, inference procedure, and
-/// validation contract for a TemporalCpdag envelope or a temporal graph
+/// validation contract for a `TemporalCpdag` envelope or a temporal graph
 /// posterior. Execution composes the retained proof over the existing class
 /// and posterior mediation executors without consulting the builder.
 #[derive(Clone)]
@@ -78,8 +82,8 @@ impl std::fmt::Debug for CheckedTemporalClassMediationOperation {
 
 impl CheckedTemporalClassMediationOperation {
     /// Whether `study` is a coordinate this operation seals: a series mediation
-    /// target on a fixed TemporalCpdag, a TemporalCpdag posterior, or a
-    /// TemporalDag posterior, with the default point-estimate settings.
+    /// target on a fixed `TemporalCpdag`, a `TemporalCpdag` posterior, or a
+    /// `TemporalDag` posterior, with the default point-estimate settings.
     ///
     /// The one-shot facade and the prepared builder share this predicate so a
     /// study that prepares into this operation is exactly the study the facade
@@ -345,7 +349,7 @@ impl CheckedTemporalClassMediationOperation {
                 join_bits(&posterior.weights),
                 join_u64(&posterior.adjacency),
                 join_u64(&posterior.graph_keys),
-                posterior.lag_masks.as_deref().map(join_u64).unwrap_or_else(|| "none".to_string()),
+                posterior.lag_masks.as_deref().map_or_else(|| "none".to_string(), join_u64),
                 posterior.max_lag.map_or_else(|| "none".to_string(), |lag| lag.to_string()),
             )),
         }
@@ -555,7 +559,9 @@ fn marked_graph_signature(
             }
             antecedent_graph::NodeRef::Context { variable, environment } => {
                 out.push('c');
-                out.push_str(&environment.map_or(u32::MAX, |id| id.raw()).to_string());
+                out.push_str(
+                    &environment.map_or(u32::MAX, antecedent_core::EnvironmentId::raw).to_string(),
+                );
                 out.push(':');
                 out.push_str(&variable.raw().to_string());
             }
@@ -605,7 +611,7 @@ fn middle_tag(middle: antecedent_graph::MiddleMark) -> char {
 }
 
 /// Read-only target, structural proof, and procedure for a checked
-/// TemporalCpdag class-envelope or temporal graph-posterior mediation family.
+/// `TemporalCpdag` class-envelope or temporal graph-posterior mediation family.
 #[derive(Clone, Debug)]
 pub struct CheckedTemporalClassMediationInfo {
     /// Exact mediation target and requested horizon family.

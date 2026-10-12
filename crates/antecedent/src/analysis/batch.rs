@@ -421,7 +421,7 @@ impl BatchStudy {
 
     /// Start a batch over a declared [`TieredBackground`].
     ///
-    /// CoDetermined materializes as an ADMG; Unknown as a PAG. Identification
+    /// `CoDetermined` materializes as an ADMG; Unknown as a PAG. Identification
     /// uses the same [`crate::StudyBuilder::tiered_background`] path as a single-query study.
     #[must_use]
     pub fn tiered(data: TabularData, background: TieredBackground) -> Self {
@@ -640,9 +640,9 @@ impl BatchStudy {
     /// Compile discrete joint `InterventionResponse` cells into a reusable prepared batch.
     ///
     /// Defaults to [`EstimatorId::CellAipw`] when the batch has no estimator override.
-    /// Licensed on a DAG and on CoDetermined via joint ADMG adjustment on the
+    /// Licensed on a DAG and on `CoDetermined` via joint ADMG adjustment on the
     /// known closure graph. Unknown has no single ADMG. Bare ADMG
-    /// InterventionResponse already refuses.
+    /// `InterventionResponse` already refuses.
     ///
     /// Family p-values use [`Self::family_contrast`] (default
     /// [`CellFamilyContrast::CellMinusControl`]), never the cell level stored

@@ -5,7 +5,23 @@ use super::temporal_path::{
     aggregate_temporal_horizon_evidence, enforce_temporal_response_memory_budget,
     horizon_adjustment_sets_differ, resolve_temporal_response_prior,
 };
-use super::*;
+use super::{
+    Arc, AverageEffectQuery, BayesianGCompWorkspace, BayesianGComputationAte, CausalError,
+    CausalResponse, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
+    EnvelopeAtomFit, EnvelopeOptions, EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId,
+    ExecutionContext, GraphEffectDraws, GraphIdentFlag, GraphPosterior, IdentificationStatus,
+    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights,
+    IdentifierId, InferenceDiagnostics, InferenceMode, Instant, Intervention, ObservationSpec,
+    OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, StudyResult, TableView,
+    TabularData, TemporalAtomDesign, TemporalEffectQuery, TemporalLinearAdjustment,
+    TemporalResponseEstimator, TimeSeriesData, VariableId, WeightedGraphSamples,
+    aggregate_effect_envelope, bayesian_gcomp, bayesian_temporal_gcomp, elapsed_ns,
+    envelope_refute_atoms, identify_cached_diagnostic, provenance_ids, push_conflict_diagnostics,
+    push_graph_posterior_structural_aggregation_diagnostic, resolve_posterior_status,
+    resolve_structural_aggregation, run_envelope_bayesian_full_validation,
+    run_envelope_effect_refuters,
+};
 
 type PulseWitnessReports = (
     Vec<antecedent_validate::RefutationReport>,
@@ -13,8 +29,8 @@ type PulseWitnessReports = (
     Vec<Diagnostic>,
 );
 
-/// TemporalDag graph-posterior response: complete-observation MeanCurve or
-/// one-coordinate InterventionResponse. Sequence overlays stay on the explicit path.
+/// `TemporalDag` graph-posterior response: complete-observation `MeanCurve` or
+/// one-coordinate `InterventionResponse`. Sequence overlays stay on the explicit path.
 /// Collapse a single-coordinate credible pointwise band that retains its draws
 /// into a `Scalar` credible interval (posterior SD as the standard error, the
 /// same draws so the published `[lower, upper]` is reconstructable). Any other

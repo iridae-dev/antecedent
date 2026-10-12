@@ -1,5 +1,5 @@
 //! Sealed checked execution product for joint-cell AIPW responses on a static
-//! DAG or on a CoDetermined tier closure.
+//! DAG or on a `CoDetermined` tier closure.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::analysis::prepared::Inspect;
@@ -23,7 +23,7 @@ use crate::{CausalError, EstimatorId, IdentifierId, RefuteSuite};
 pub(crate) enum CellAipwStructure {
     /// A supplied or accepted static DAG.
     Dag(Dag),
-    /// A CoDetermined tier background and the ancestral ADMG it materializes.
+    /// A `CoDetermined` tier background and the ancestral ADMG it materializes.
     TierClosure { admg: Admg, background: TieredBackground },
 }
 
@@ -61,7 +61,7 @@ pub(crate) struct CheckedCellAipwResponseOperation {
 
 impl CheckedCellAipwResponseOperation {
     /// Validate and seal the licensed joint-cell response route on a static
-    /// DAG or a CoDetermined tier closure.
+    /// DAG or a `CoDetermined` tier closure.
     #[expect(
         clippy::float_cmp,
         reason = "joint binary intervention levels are exact discrete contract values"

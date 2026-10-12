@@ -172,7 +172,10 @@ fn temporal_structure(nodes: &[NodeRef], edges: &[(u32, u32)]) -> String {
             }
             NodeRef::Context { variable, environment } => {
                 out.push('c');
-                push_u32(&mut out, environment.map_or(u32::MAX, |id| id.raw()));
+                push_u32(
+                    &mut out,
+                    environment.map_or(u32::MAX, antecedent_core::EnvironmentId::raw),
+                );
                 out.push(':');
                 push_u32(&mut out, variable.raw());
             }

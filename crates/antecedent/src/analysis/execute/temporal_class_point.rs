@@ -6,7 +6,17 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, CausalError, CausalQuery, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    EffectEstimate, EstimatorId, ExecutionContext, GraphClass, GraphPosterior,
+    IdentificationResult, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
+    IdentifiedExecuteFinish, IdentifiedKeyWeights, InferenceMode, Instant, Intervention,
+    OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StudyResult,
+    TableView, TemporalEffectQuery, TemporalIndexer, TimeSeriesData, VariableId, elapsed_ns,
+    envelope_to_identification_result_for, identification_status_ok_for_case,
+    identify_cached_diagnostic, report_identify_compute, resolve_posterior_status, select_estimand,
+};
 use crate::planner::RouteDefaults;
 use antecedent_core::SupportStatus;
 
@@ -32,7 +42,7 @@ fn isotropic_prior_scale(
         InferenceMode::Bayesian(cfg) => {
             if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
             {
-                return Err(CausalError::Unsupported { message: message.into() });
+                return Err(CausalError::Unsupported { message: message });
             }
             Ok(Some(cfg.prior_scale))
         }
@@ -163,14 +173,12 @@ pub(super) fn assemble_temporal_class_conditional(
         || matches!(query.policy, antecedent_core::TemporalPolicy::Dynamic { .. })
     {
         return Err(CausalError::Unsupported {
-            message: "temporal conditional effect fits one modifier on a single-step pulse or sustained policy".into(),
+            message: "temporal conditional effect fits one modifier on a single-step pulse or sustained policy",
         });
     }
     if refute != RefuteSuite::None {
         return Err(CausalError::Unsupported {
-            message:
-                "temporal conditional effect is point-only; cheap/full refuters are not licensed"
-                    .into(),
+            message: "temporal conditional effect is point-only; cheap/full refuters are not licensed",
         });
     }
     let prior_scale = isotropic_prior_scale(inference, CONDITIONAL_PRIOR_REFUSAL)?;
@@ -227,13 +235,12 @@ impl super::Study {
         })?;
         if temporal.horizons.len() != 1 {
             return Err(CausalError::Unsupported {
-                message: "a temporal derivative is the local slope at one horizon".into(),
+                message: "a temporal derivative is the local slope at one horizon",
             });
         }
         if self.refute != RefuteSuite::None {
             return Err(CausalError::Unsupported {
-                message: "temporal derivative is point-only; cheap/full refuters are not licensed"
-                    .into(),
+                message: "temporal derivative is point-only; cheap/full refuters are not licensed",
             });
         }
         let prior_scale = isotropic_prior_scale(&self.inference, DERIVATIVE_PRIOR_REFUSAL)?;
@@ -378,7 +385,7 @@ impl super::Study {
         let started = Instant::now();
         if self.refute != RefuteSuite::None {
             return Err(CausalError::Unsupported {
-                message: "temporal cross-world effects are point-only; cheap/full refuters are not licensed".into(),
+                message: "temporal cross-world effects are point-only; cheap/full refuters are not licensed",
             });
         }
         let prior_scale = isotropic_prior_scale(&self.inference, CROSS_WORLD_PRIOR_REFUSAL)?;
@@ -413,7 +420,7 @@ impl super::Study {
                     }
                     _ => "temporal cross-world effect is licensed when the back-door set is empty",
                 };
-                return Err(CausalError::Unsupported { message: message.into() });
+                return Err(CausalError::Unsupported { message: message });
             }
             cross_world_point(
                 data,
@@ -585,13 +592,12 @@ impl super::Study {
         })?;
         if temporal.horizons.len() != 1 {
             return Err(CausalError::Unsupported {
-                message: "a temporal derivative is the local slope at one horizon".into(),
+                message: "a temporal derivative is the local slope at one horizon",
             });
         }
         if self.refute != RefuteSuite::None {
             return Err(CausalError::Unsupported {
-                message: "temporal derivative is point-only; cheap/full refuters are not licensed"
-                    .into(),
+                message: "temporal derivative is point-only; cheap/full refuters are not licensed",
             });
         }
         let probe = derivative_probe(query)?;
@@ -669,7 +675,7 @@ impl super::Study {
         let started = Instant::now();
         if self.refute != RefuteSuite::None {
             return Err(CausalError::Unsupported {
-                message: "temporal cross-world effects are point-only; cheap/full refuters are not licensed".into(),
+                message: "temporal cross-world effects are point-only; cheap/full refuters are not licensed",
             });
         }
         let (treatment, outcome, mediator, active, control) = cross_world_endpoints(&self.query)?;
@@ -694,7 +700,7 @@ impl super::Study {
                     select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
                 if !estimand.adjustment_set.is_empty() {
                     return Err(CausalError::Unsupported {
-                        message: "temporal cross-world effect is licensed when the back-door set is empty".into(),
+                        message: "temporal cross-world effect is licensed when the back-door set is empty",
                     });
                 }
                 cross_world_point(
@@ -937,7 +943,7 @@ fn mix_response_value(
             })
         }
         _ => Err(CausalError::Unsupported {
-            message: "temporal linear derivative does not estimate this functional".into(),
+            message: "temporal linear derivative does not estimate this functional",
         }),
     }
 }
@@ -970,8 +976,7 @@ fn cross_world_endpoints(
         CausalQuery::PathSpecific(q) => {
             if q.path_nodes.len() != 1 {
                 return Err(CausalError::Unsupported {
-                    message: "temporal path-specific effect is the one-mediator edge product"
-                        .into(),
+                    message: "temporal path-specific effect is the one-mediator edge product",
                 });
             }
             Ok((
@@ -986,11 +991,11 @@ fn cross_world_endpoints(
             let treatment =
                 q.interventions.first().and_then(Intervention::primary_variable).ok_or_else(
                     || CausalError::Unsupported {
-                        message: "temporal counterfactual needs one hard intervention".into(),
+                        message: "temporal counterfactual needs one hard intervention",
                     },
                 )?;
             let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Unsupported {
-                message: "temporal counterfactual needs one outcome".into(),
+                message: "temporal counterfactual needs one outcome",
             })?;
             Ok((
                 treatment,
@@ -1004,16 +1009,15 @@ fn cross_world_endpoints(
             let treatment =
                 q.interventions.first().and_then(Intervention::primary_variable).ok_or_else(
                     || CausalError::Unsupported {
-                        message: "temporal interventional distribution needs one hard intervention"
-                            .into(),
+                        message: "temporal interventional distribution needs one hard intervention",
                     },
                 )?;
             let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Unsupported {
-                message: "temporal interventional distribution needs one outcome".into(),
+                message: "temporal interventional distribution needs one outcome",
             })?;
             if !q.conditioning.is_empty() {
                 return Err(CausalError::Unsupported {
-                    message: "temporal interventional distribution is unconditional".into(),
+                    message: "temporal interventional distribution is unconditional",
                 });
             }
             Ok((
@@ -1025,7 +1029,7 @@ fn cross_world_endpoints(
             ))
         }
         _ => Err(CausalError::Unsupported {
-            message: "temporal cross-world route does not estimate this query".into(),
+            message: "temporal cross-world route does not estimate this query",
         }),
     }
 }
@@ -1051,11 +1055,11 @@ fn cross_world_point(
             estimand,
             indexer,
             &antecedent_estimate::TemporalSlopeSpec {
-                outcome: outcome,
-                treatments: treatments,
-                treatment_offset: treatment_offset,
-                outcome_offset: outcome_offset,
-                contemporaneous: contemporaneous,
+                outcome,
+                treatments,
+                treatment_offset,
+                outcome_offset,
+                contemporaneous,
             },
             policy,
             prior_scale,
@@ -1084,7 +1088,7 @@ fn cross_world_point(
             Ok(intercept + slopes[0] * active)
         }
         _ => Err(CausalError::Unsupported {
-            message: "temporal cross-world route does not estimate this query".into(),
+            message: "temporal cross-world route does not estimate this query",
         }),
     }
 }

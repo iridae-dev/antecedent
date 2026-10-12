@@ -1,5 +1,12 @@
 //! Validation of composed temporal effects using the same sequential mechanisms.
-use super::*;
+use super::{
+    Arc, BayesianGComputationAte, CausalError, CausalPosterior, DenseNodeId, Diagnostic,
+    DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimationWorkspace, ExecutionContext,
+    IdentificationStatus, IdentifiedEstimand, PosteriorPredictiveCheck, PredictiveCheckReport,
+    PriorPredictiveCheck, RandomizedTrialQuery, RefuteSuite, TableView, TabularData, TemporalDag,
+    TemporalEffectQuery, TemporalRefitContext, TimeIndex, TimeSeriesData, ValidationSuite,
+    VariableId, mix_prior_sensitivity_summaries, temporal_refuter_average, with_prior_sensitivity,
+};
 use antecedent_estimate::temporal_sequential::{
     SequentialBayesianMechanism, estimate_sustained_window,
 };
@@ -321,7 +328,7 @@ pub(super) fn validate_sequential(
                     est.prior_scale = scale;
                     let (effect, _) = estimate_sustained_window(
                         &antecedent_estimate::SequentialProblem {
-                            data: data,
+                            data,
                             graph: &atom.graph,
                             indexer: &atom.indexer,
                             estimand: &atom.estimand,

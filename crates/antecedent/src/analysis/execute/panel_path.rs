@@ -1,7 +1,28 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::completion_fit_memo::{CompletionFitMemo, ResponseFitKey};
-use super::*;
+use super::{
+    AnalyticSeKind, Arc, BayesianGCompWorkspace, BayesianGComputationAte, BootstrapAccounting,
+    CausalError, CausalPosterior, CausalQuery, CausalResponse, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, DiscoveryEstimationSplit, EffectEstimate, EstimationWorkspace, EstimatorId,
+    ExecutionContext, GraphEffectDraws, GraphIdentFlag, IdentificationStatus, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant,
+    Intervention, ObservationSpec, OverlapPolicy, PanelData, PhysicalExecutionPlan,
+    PredictiveCheckReport, PriorSet, RefuteSuite, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, StudyResult, TableView, TemporalBackdoorIdentifier,
+    TemporalDag, TemporalEffectQuery, TemporalIndexer, TemporalLinearAdjustment,
+    TemporalRefitContext, TemporalResponseEstimator, UNFOLDED_LINEAR_SEM,
+    apply_temporal_prior_sensitivity, bayesian_gcomp, bayesian_temporal_gcomp,
+    bootstrap_has_enough_successes, completion_fit_seed, effect_from_posterior, elapsed_ns,
+    envelope_se_omits_between_atom_variance, envelope_to_identification_result_for,
+    identification_status_ok_for_case, identified_set_interval_diagnostics,
+    identify_cached_diagnostic, mag_sequential_unevaluable_diagnostic, mix_weighted_analytic_se,
+    nan_effect, posterior_identified_set_interval, provenance_ids, push_conflict_diagnostics,
+    report_identify_compute, require_identified, resolve_bayesian_prior_with_conflict,
+    run_refuters, same_fit_inputs, same_fitted_mechanisms, same_fitted_problem, select_estimand,
+    sequential_linear_sem_assumption, stack_panel_tabular, temporal_refuter_average,
+    with_conflict_summary,
+};
 use crate::planner::RouteDefaults;
 use antecedent_core::StreamDomain;
 
@@ -1839,7 +1860,7 @@ fn fit_unit_panel_responses(
                             &unit.series,
                             antecedent_estimate::TemporalIdentification {
                                 horizons: &identifications,
-                                status: status,
+                                status,
                                 assumptions: assumptions.clone(),
                             },
                             query,
@@ -1975,12 +1996,12 @@ fn fit_panel_sequential_atom(
                 &antecedent_estimate::SequentialProblem {
                     data: &unit.series,
                     graph: dag,
-                    indexer: indexer,
-                    estimand: estimand,
+                    indexer,
+                    estimand,
                 },
                 query,
                 antecedent_estimate::SequentialInference {
-                    status: status,
+                    status,
                     assumptions: assumptions.clone(),
                     bootstrap_replicates: 0,
                     bayesian: unit_bayes.as_ref(),

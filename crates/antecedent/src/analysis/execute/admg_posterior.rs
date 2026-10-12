@@ -1,4 +1,4 @@
-//! ADMG graph-posterior AverageEffect: general.id + functional.effect per atom.
+//! ADMG graph-posterior `AverageEffect`: general.id + functional.effect per atom.
 //!
 //! Atoms are single graphs, not MEC completions. Outer mix uses posterior
 //! weights and [`StructuralAggregationPolicy`]. Unidentified mass is retained.
@@ -9,7 +9,15 @@ use super::atom_mix::{
     AtomBoundRule, AtomEvalView, AtomMixInput, AtomRefuterBatch, ScalarRefuterMix,
     drive_posterior_refuters, mix_atom_evals,
 };
-use super::*;
+use super::{
+    Arc, AverageEffectQuery, CausalError, CausalPosterior, CausalQuery, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, EffectEstimate, EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId,
+    ExecutionContext, GraphPosterior, IdentificationResult, IdentificationStatus,
+    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights,
+    IdentifierId, InferenceMode, Instant, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite,
+    Study, StudyResult, TabularData, elapsed_ns, mass_fields, overlap_diagnostic, provenance_ids,
+    resolve_posterior_status, run_envelope_effect_refuters,
+};
 use crate::analysis::prepared::CachedGraphPosteriorIdentification;
 use crate::result::{StructuralAggregationPolicy, StructuralResponseMixture};
 

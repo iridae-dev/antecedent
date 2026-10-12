@@ -106,7 +106,7 @@ pub struct ArrivalPoint {
     pub point: MzTransportPointWire,
     /// Scalar outcome mean, absent when the query has joint outcomes.
     pub mean: Option<f64>,
-    /// Always empirical_point_only.
+    /// Always `empirical_point_only`.
     pub inference: String,
     /// Always unmeasured.
     pub calibration: String,

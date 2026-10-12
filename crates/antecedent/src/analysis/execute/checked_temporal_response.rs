@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, CausalError, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
+    ExecutionContext, IdentificationResult, IdentifiedEstimand, IdentifiedExecuteExtras,
+    IdentifiedExecuteFinish, IdentifiedResultContext, InferenceMode, Instant, OverlapPolicy,
+    PhysicalExecutionPlan, StudyResult, TableView, TimeSeriesData, bayesian_gcomp, elapsed_ns,
+    provenance_ids, push_conflict_diagnostics,
+};
 use crate::analysis::prepared::Inspect;
 
 /// Checked operation together with the immutable logical/physical result context.
@@ -61,7 +67,7 @@ impl CheckedTemporalResponseExecution {
         &self.operation
     }
 
-    /// Execute and assemble the ordinary, portable StudyResult contract.
+    /// Execute and assemble the ordinary, portable `StudyResult` contract.
     pub(crate) fn execute(
         &self,
         data: &TimeSeriesData,
@@ -280,7 +286,7 @@ fn lag_aligned_rows(
     .unwrap_or(u64::MAX)
 }
 
-/// Read-only inspection of a retained TemporalDag response operation.
+/// Read-only inspection of a retained `TemporalDag` response operation.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CheckedTemporalDagResponseInfo {
     /// Exact response functional, policy, and requested horizons.

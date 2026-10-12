@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, CausalError, CausalQuery, ExecutionContext, IdentifiedResultContext, InferenceMode,
+    Instant, PhysicalExecutionPlan, StudyResult, TimeSeriesData, elapsed_ns,
+};
 use crate::analysis::prepared::Inspect;
 
 /// Checked class envelope together with its result and physical contracts.

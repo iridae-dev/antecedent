@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_arguments, clippy::too_many_lines)]
-
 use std::sync::Arc;
 
 use antecedent_core::{CausalQuery, PopulationRegistry, VariableId};

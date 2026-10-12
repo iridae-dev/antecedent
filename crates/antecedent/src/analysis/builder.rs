@@ -4,8 +4,6 @@
 
 //! Builder types.
 
-#![allow(clippy::too_many_lines, clippy::doc_markdown, clippy::too_many_arguments)]
-
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -43,7 +41,7 @@ pub enum RefuteSuite {
     Cheap,
     /// Placebo + random common cause (linear backdoor only).
     PlaceboAndRcc,
-    /// Full validation suite (applicable validators only; others NotApplicable).
+    /// Full validation suite (applicable validators only; others `NotApplicable`).
     Full,
 }
 
@@ -553,7 +551,7 @@ pub struct StudyBuilder {
     graph_posterior: Option<GraphPosterior>,
     /// Caller-supplied mass over incomplete-temporal class members.
     class_prior: Option<crate::ClassPrior>,
-    /// Optional cap on TemporalCpdag / TemporalPag completion search.
+    /// Optional cap on `TemporalCpdag` / `TemporalPag` completion search.
     max_completions: Option<usize>,
     /// Set by [`Self::graph`]: `Accepted` vs `Explicit`. Posterior overrides at build.
     structure_source: Option<crate::support::StructureSource>,
@@ -974,7 +972,7 @@ impl StudyBuilder {
 
     /// Declare a tier order over existing ADMG / PAG semantics.
     ///
-    /// CoDetermined certifies the tier-closure set in `O(p)` as
+    /// `CoDetermined` certifies the tier-closure set in `O(p)` as
     /// `generalized.adjustment`. Unknown keeps two canonical sets as an
     /// envelope. Materializes the background as the study graph.
     ///
@@ -1042,7 +1040,7 @@ impl StudyBuilder {
         self
     }
 
-    /// Cap TemporalCpdag / TemporalPag completion search.
+    /// Cap `TemporalCpdag` / `TemporalPag` completion search.
     ///
     /// A cap below the true class size cannot confer class-wide point
     /// identification (`full_mass_scope`, `truncated_atoms`).

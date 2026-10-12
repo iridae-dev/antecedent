@@ -32,7 +32,7 @@ pub(crate) enum CheckedTemporalGraphPosteriorProof {
 }
 
 /// A fixed pulse or sustained effect procedure over posterior-weighted
-/// TemporalDag, TemporalCpdag, or TemporalPag atoms under frequentist or
+/// `TemporalDag`, `TemporalCpdag`, or `TemporalPag` atoms under frequentist or
 /// Bayesian inference. The frozen posterior samples, the per-atom proofs, the
 /// inference settings, and the physical plan are sealed together.
 #[derive(Clone, Debug)]
@@ -52,7 +52,7 @@ pub(crate) struct CheckedTemporalGraphPosteriorEffect {
 
 impl CheckedTemporalGraphPosteriorEffect {
     /// Whether `study` is a coordinate this operation seals: a series pulse or
-    /// sustained effect over TemporalDag, TemporalCpdag, or TemporalPag
+    /// sustained effect over `TemporalDag`, `TemporalCpdag`, or `TemporalPag`
     /// posterior atoms with the default point-estimate settings. The one-shot
     /// facade and the prepared sealer share this predicate.
     #[must_use]
@@ -324,7 +324,7 @@ fn validate_proof_binding(
 pub struct CheckedTemporalGraphPosteriorEffectInfo {
     /// Exact policy, intervention levels, horizon, and target population.
     pub query: antecedent_core::TemporalEffectQuery,
-    /// Atom kind of the frozen posterior (TemporalDag, TemporalCpdag, or TemporalPag).
+    /// Atom kind of the frozen posterior (`TemporalDag`, `TemporalCpdag`, or `TemporalPag`).
     pub atom_kind: antecedent_discovery::GraphPosteriorAtomKind,
     /// Identifier fixed during preparation.
     pub identifier: crate::strategy_table::IdentifierId,

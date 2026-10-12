@@ -31,7 +31,7 @@ use super::route_guards::complete_mean_response;
 /// Per-atom identification retained for a temporal graph posterior.
 #[derive(Clone, Debug)]
 pub(crate) enum TemporalPosteriorResponseProof {
-    /// TemporalDag atoms: per-horizon temporal backdoor proofs.
+    /// `TemporalDag` atoms: per-horizon temporal backdoor proofs.
     Dbn(Arc<CachedDbnPosteriorIdentification>),
     /// TemporalCpdag/TemporalPag atoms: one completion envelope per atom.
     Class(Arc<CachedTemporalClassPosteriorIdentification>),
@@ -69,8 +69,8 @@ pub(crate) struct CheckedTemporalGraphPosteriorResponse {
 
 impl CheckedTemporalGraphPosteriorResponse {
     /// Whether `study` is a coordinate this operation seals: a series
-    /// complete-observation mean temporal response over TemporalDag,
-    /// TemporalCpdag, or TemporalPag posterior atoms with the default
+    /// complete-observation mean temporal response over `TemporalDag`,
+    /// `TemporalCpdag`, or `TemporalPag` posterior atoms with the default
     /// point-estimate settings. The one-shot facade and the prepared sealer
     /// share this predicate.
     #[must_use]

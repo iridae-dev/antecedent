@@ -1,7 +1,10 @@
 // Imbens–Manski / product-posterior envelope diagnostics for class mixtures.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    CausalPosterior, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext,
+    PreparedBayesianProblem, TableView,
+};
 use antecedent_core::StreamDomain;
 
 /// Nominal level of the identified-set interval published on class structural mixtures.

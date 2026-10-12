@@ -4,7 +4,11 @@
 use super::bayesian_specialist_path::{
     BayesianSpecialistInputs, check_bayesian_iv_scope, check_bayesian_rd_scope,
 };
-use super::*;
+use super::{
+    Arc, AverageEffectQuery, BayesianConfig, CausalError, CausalQuery, DataInput, ExecutionContext,
+    InferenceMode, PhysicalExecutionPlan, RefuteSuite, SharpRdConfig, SharpRdIdentifier, Study,
+    StudyResult, TabularData,
+};
 use crate::RdConfig;
 use crate::analysis::prepared::Inspect;
 use crate::strategy_table::{

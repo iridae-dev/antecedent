@@ -2,13 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::too_many_lines,
-    clippy::doc_markdown,
-    clippy::too_many_arguments,
-    clippy::wildcard_imports
-)]
-
 pub(super) use std::sync::Arc;
 pub(super) use std::time::Instant;
 
@@ -165,7 +158,7 @@ pub struct Study {
     pub(crate) graph_posterior: Option<GraphPosterior>,
     /// Caller-supplied mass over incomplete-temporal class members.
     pub(crate) class_prior: Option<crate::ClassPrior>,
-    /// Optional cap on TemporalCpdag / TemporalPag completion search.
+    /// Optional cap on `TemporalCpdag` / `TemporalPag` completion search.
     pub(crate) max_completions: Option<usize>,
     /// Matrix structure-source axis recorded at [`crate::StudyBuilder::build`].
     pub(crate) structure_source: crate::support::StructureSource,

@@ -18,7 +18,7 @@ use super::builder::RefuteSuite;
 use super::prepared::CachedTemporalClassIdentification;
 use super::route_guards::same_accepted_graph;
 
-/// A complete, checked completion envelope for a TemporalCpdag or TemporalPag
+/// A complete, checked completion envelope for a `TemporalCpdag` or `TemporalPag`
 /// pulse or sustained effect. The envelope and its aligned unfolding indexers
 /// remain together so a completion can never be evaluated against another
 /// completion's time window.

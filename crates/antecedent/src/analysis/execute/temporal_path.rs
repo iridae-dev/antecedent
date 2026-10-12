@@ -1,7 +1,34 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::completion_fit_memo::{CompletionFitMemo, MediationFitKey, ResponseFitKey};
-use super::*;
+use super::{
+    Arc, BayesianConfig, BayesianGCompWorkspace, BayesianGComputationAte, CausalError,
+    CausalExprArena, CausalPosterior, CausalQuery, CausalResponse, ClassAtomOutcome,
+    DerivationMeta, Diagnostic, DiagnosticKind, DiagnosticSeverity, DomainRef, EffectEstimate,
+    EnvelopeAtomFit, EnvelopeOptions, EnvelopeRefuteAtom, EstimandMethod, EstimationWorkspace,
+    EstimatorId, ExecutionContext, ExprNode, GraphClass, GraphEffectDraws, GraphIdentFlag,
+    IdentificationEnvelope, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId,
+    InferenceDiagnostics, InferenceMode, Instant, Intervention, MediationRoute,
+    ObservationMechanismEstimator, ObservationSpec, OutcomeExprId, OverlapPolicy,
+    PhysicalExecutionPlan, PriorSet, RefuteSuite, ResponseFunctional, ResponseIdentification,
+    ResponseQuery, ResponseUncertainty, ResponseValue, SEQUENCE_LINEAR_SEM, StudyResult, TableView,
+    TabularData, TemporalBackdoorIdentifier, TemporalDag, TemporalEffectQuery, TemporalIndexer,
+    TemporalLinearAdjustment, TemporalMediationEstimate, TemporalMediationEstimator,
+    TemporalMediationIdentifier, TemporalResponseEstimator, TimeSeriesData, TupleObservationTarget,
+    TupleReplicates, TupleSurface, VariableId, WeightedGraphSamples, aggregate_effect_envelope,
+    bayesian_gcomp, bayesian_temporal_gcomp, completion_fit_seed, effect_from_posterior,
+    elapsed_ns, envelope_to_identification_result_for, identification_status_ok_for_case,
+    identified_set_interval_diagnostics, identify_cached_diagnostic,
+    identify_temporal_cpdag_configured, identify_temporal_pag_configured, mediation_block_stream,
+    mediation_mechanism_seed, merge_posterior_notes, nan_effect, posterior_identified_set_interval,
+    posterior_note_diagnostics, provenance_ids, push_conflict_diagnostics, push_unique_diagnostic,
+    report_identify_compute, require_identified, resolve_bayesian_prior_with_conflict,
+    resolve_envelope_prior_anchor, response_functional_is_derivative,
+    run_envelope_bayesian_full_validation, run_envelope_effect_refuters, same_fit_inputs,
+    same_fitted_problem, select_estimand, sequential_linear_sem_assumption, short_series_warning,
+    temporal_refuter_average, tuple_block_observation_replicates, with_conflict_summary,
+};
 use crate::planner::RouteDefaults;
 #[path = "checked_temporal_response.rs"]
 pub(super) mod checked_temporal_response;
@@ -1123,16 +1150,12 @@ impl super::Study {
             let outcome_offset = i32::try_from(horizon_steps.saturating_sub(1)).unwrap_or(i32::MAX);
             let (effect, posterior) = antecedent_estimate::estimate_sequence_mechanisms(
                 &antecedent_estimate::SequentialProblem {
-                    data: data,
-                    graph: graph,
+                    data,
+                    graph,
                     indexer: &entry.indexer,
                     estimand: &entry.estimand,
                 },
-                &antecedent_estimate::SequenceTarget {
-                    outcome: outcome,
-                    outcome_offset: outcome_offset,
-                    overlays: overlays,
-                },
+                &antecedent_estimate::SequenceTarget { outcome, outcome_offset, overlays },
                 antecedent_estimate::SequentialInference { status: entry.identification.status, assumptions: assumptions.clone(), bootstrap_replicates: // Frequentist bands: the joint tuple bootstrap below.
                 0, bayesian: bayes.as_ref() },
                 ctx,
@@ -1873,12 +1896,12 @@ impl super::Study {
                         &antecedent_estimate::SequentialProblem {
                             data: adjusted.as_ref().unwrap_or(data),
                             graph: &dag,
-                            indexer: indexer,
+                            indexer,
                             estimand: &estimand,
                         },
                         &antecedent_estimate::SequenceTarget {
-                            outcome: outcome,
-                            outcome_offset: outcome_offset,
+                            outcome,
+                            outcome_offset,
                             overlays: &overlays,
                         },
                         antecedent_estimate::SequentialInference {
@@ -4627,8 +4650,7 @@ impl super::Study {
             CausalQuery::PathSpecific(q) => {
                 if q.path_nodes.len() != 1 {
                     return Err(CausalError::Unsupported {
-                        message: "temporal path-specific effect is the one-mediator edge product"
-                            .into(),
+                        message: "temporal path-specific effect is the one-mediator edge product",
                     });
                 }
                 let active = hard_level(&q.active)?;
@@ -4639,11 +4661,11 @@ impl super::Study {
                 let treatment =
                     q.interventions.first().and_then(Intervention::primary_variable).ok_or_else(
                         || CausalError::Unsupported {
-                            message: "temporal counterfactual needs one hard intervention".into(),
+                            message: "temporal counterfactual needs one hard intervention",
                         },
                     )?;
                 let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Unsupported {
-                    message: "temporal counterfactual needs one outcome".into(),
+                    message: "temporal counterfactual needs one outcome",
                 })?;
                 (
                     treatment,
@@ -4659,22 +4681,21 @@ impl super::Study {
                     .first()
                     .and_then(Intervention::primary_variable)
                     .ok_or_else(|| CausalError::Unsupported {
-                        message: "temporal interventional distribution needs one hard intervention"
-                            .into(),
+                        message: "temporal interventional distribution needs one hard intervention",
                     })?;
                 let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Unsupported {
-                    message: "temporal interventional distribution needs one outcome".into(),
+                    message: "temporal interventional distribution needs one outcome",
                 })?;
                 if !q.conditioning.is_empty() {
                     return Err(CausalError::Unsupported {
-                        message: "temporal interventional distribution is unconditional".into(),
+                        message: "temporal interventional distribution is unconditional",
                     });
                 }
                 (treatment, outcome, None, hard_level(&q.interventions[0])?, 0.0)
             }
             _ => {
                 return Err(CausalError::Unsupported {
-                    message: "temporal cross-world route does not estimate this query".into(),
+                    message: "temporal cross-world route does not estimate this query",
                 });
             }
         };
@@ -4710,11 +4731,11 @@ impl super::Study {
                     used,
                     &found.indexer,
                     &antecedent_estimate::TemporalSlopeSpec {
-                        outcome: outcome,
-                        treatments: treatments,
+                        outcome,
+                        treatments,
                         treatment_offset: probe.try_treatment_offset()?,
                         outcome_offset: probe.outcome_offset(),
-                        contemporaneous: contemporaneous,
+                        contemporaneous,
                     },
                     &ctx.kernel_policy,
                     prior_scale,
@@ -4809,11 +4830,10 @@ fn template_scoped_cross_world(
         })
         .unwrap_or_default();
     let mut arena = CausalExprArena::new();
-    let backdoor_method = identification
-        .estimands
-        .first()
-        .map(|estimand| estimand.method.clone())
-        .unwrap_or_else(|| Arc::from("temporal.backdoor.unfolded"));
+    let backdoor_method = identification.estimands.first().map_or_else(
+        || Arc::from("temporal.backdoor.unfolded"),
+        |estimand| estimand.method.clone(),
+    );
     let active_value = antecedent_core::Value::f64(active);
     let control_value = antecedent_core::Value::f64(control);
     // Nested and path points are the direct slope and the mediator-edge product
@@ -4991,7 +5011,7 @@ fn hard_level(intervention: &Intervention) -> Result<f64, CausalError> {
             Ok(*level)
         }
         _ => Err(CausalError::Unsupported {
-            message: "temporal cross-world interventions are finite hard sets".into(),
+            message: "temporal cross-world interventions are finite hard sets",
         }),
     }
 }
@@ -5010,7 +5030,7 @@ pub(super) fn temporal_linear_derivative_response(
     use antecedent_core::{DerivativeScale, DerivativeWeighting, ResponseFunctional as F};
     if query.target_population != antecedent_core::TargetPopulation::AllObserved {
         return Err(CausalError::Unsupported {
-            message: "temporal derivative requires the all-observed population".into(),
+            message: "temporal derivative requires the all-observed population",
         });
     }
     let fit = |outcome, treatments: &[VariableId]| {
@@ -5019,10 +5039,10 @@ pub(super) fn temporal_linear_derivative_response(
             estimand,
             indexer,
             &antecedent_estimate::TemporalSlopeSpec {
-                outcome: outcome,
-                treatments: treatments,
-                treatment_offset: treatment_offset,
-                outcome_offset: outcome_offset,
+                outcome,
+                treatments,
+                treatment_offset,
+                outcome_offset,
                 contemporaneous: &[],
             },
             policy,
@@ -5044,7 +5064,7 @@ pub(super) fn temporal_linear_derivative_response(
                 Ok(at * slope / mean)
             }
             _ => Err(CausalError::Unsupported {
-                message: "temporal derivative scale needs a positive treatment point and a non-zero fitted mean".into(),
+                message: "temporal derivative scale needs a positive treatment point and a non-zero fitted mean",
             }),
         }
     };
@@ -5055,8 +5075,7 @@ pub(super) fn temporal_linear_derivative_response(
         F::AverageDerivative { outcome, treatment, weighting } => {
             if !matches!(weighting, DerivativeWeighting::Observed) {
                 return Err(CausalError::Unsupported {
-                    message: "temporal average derivative is licensed for the observed weighting"
-                        .into(),
+                    message: "temporal average derivative is licensed for the observed weighting",
                 });
             }
             support_treatments = vec![*treatment];
@@ -5067,8 +5086,7 @@ pub(super) fn temporal_linear_derivative_response(
         F::PointDerivative { outcome, treatment, at, order, scale } => {
             if *order != 1 {
                 return Err(CausalError::Unsupported {
-                    message: "temporal point derivative is the first derivative of the linear fit"
-                        .into(),
+                    message: "temporal point derivative is the first derivative of the linear fit",
                 });
             }
             let (intercept, slopes) = fit(*outcome, &[*treatment])?;
@@ -5079,9 +5097,7 @@ pub(super) fn temporal_linear_derivative_response(
         F::DirectionalDerivative { outcomes, treatments, at, direction } => {
             if at.len() != treatments.len() || direction.len() != treatments.len() {
                 return Err(CausalError::Unsupported {
-                    message:
-                        "temporal directional derivative point and direction follow the treatments"
-                            .into(),
+                    message: "temporal directional derivative point and direction follow the treatments",
                 });
             }
             support_treatments = treatments.to_vec();
@@ -5098,7 +5114,7 @@ pub(super) fn temporal_linear_derivative_response(
         F::Jacobian { outcomes, treatments, at, scale } => {
             if at.len() != treatments.len() {
                 return Err(CausalError::Unsupported {
-                    message: "temporal Jacobian is evaluated at one point per treatment".into(),
+                    message: "temporal Jacobian is evaluated at one point per treatment",
                 });
             }
             support_treatments = treatments.to_vec();
@@ -5122,7 +5138,7 @@ pub(super) fn temporal_linear_derivative_response(
                         }
                         _ => {
                             return Err(CausalError::Unsupported {
-                                message: "temporal Jacobian scale needs a positive treatment point and a non-zero fitted mean".into(),
+                                message: "temporal Jacobian scale needs a positive treatment point and a non-zero fitted mean",
                             });
                         }
                     };
@@ -5137,7 +5153,7 @@ pub(super) fn temporal_linear_derivative_response(
         }
         _ => {
             return Err(CausalError::Unsupported {
-                message: "temporal linear derivative does not estimate this functional".into(),
+                message: "temporal linear derivative does not estimate this functional",
             });
         }
     };
@@ -5413,7 +5429,7 @@ fn fit_class_bayesian_response(
             series,
             antecedent_estimate::TemporalIdentification {
                 horizons: &[(estimand, indexer)],
-                status: status,
+                status,
                 assumptions: assumptions.clone(),
             },
             query,

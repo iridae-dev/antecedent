@@ -1,7 +1,11 @@
 // Observation / Sequence tuple-level circular-block bootstrap.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, CausalError, ExecutionContext, IdentificationStatus, IdentifiedEstimand,
+    ObservationMechanismEstimator, ObservationSpec, ResponseQuery, TableView, TemporalDag,
+    TemporalIndexer, TemporalResponseEstimator, TimeSeriesData, VariableId,
+};
 use antecedent_core::StreamDomain;
 
 /// Joint replicate surfaces of every target of one tuple-level bootstrap.
@@ -222,14 +226,14 @@ pub fn tuple_block_observation_replicates(
                         antecedent_estimate::prepare_sequence_level(
                             &antecedent_estimate::SequentialProblem {
                                 data: fit_data,
-                                graph: graph,
-                                indexer: indexer,
-                                estimand: estimand,
+                                graph,
+                                indexer,
+                                estimand,
                             },
                             &antecedent_estimate::SequenceTarget {
                                 outcome: *outcome,
-                                outcome_offset: outcome_offset,
-                                overlays: overlays,
+                                outcome_offset,
+                                overlays,
                             },
                             status,
                             ctx,

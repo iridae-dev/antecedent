@@ -6,7 +6,24 @@ use super::atom_mix::{
     AtomBoundRule, AtomEvalView, AtomMixInput, AtomRefuterBatch, ScalarRefuterMix,
     drive_posterior_refuters, mix_atom_evals,
 };
-use super::*;
+use super::{
+    Arc, BayesianGCompWorkspace, BayesianGComputationAte, BootstrapAccounting, CausalError,
+    CausalPosterior, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
+    EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId, ExecutionContext, GraphPosterior,
+    IdentificationResult, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
+    IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant,
+    OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, Study, StudyResult,
+    TableView, TabularData, TemporalAtomDesign, TemporalEffectQuery, TemporalIndexer,
+    TemporalLinearAdjustment, TimeSeriesData, UNFOLDED_LINEAR_SEM, bayesian_gcomp,
+    bayesian_temporal_gcomp, completion_fit_seed, effect_from_posterior, elapsed_ns,
+    envelope_se_omission_diagnostic, envelope_se_omits_between_atom_variance,
+    identification_status_ok_for_case, identify_cached_diagnostic, is_multi_step_sustained,
+    mass_fields, mix_weighted_analytic_se, overlap_diagnostic, provenance_ids,
+    resolve_posterior_status, run_envelope_effect_refuters, select_estimand,
+    sequential_linear_sem_assumption, shared_block_mixture_message,
+    shared_circular_block_mixture_se, short_series_warning, temporal_class_block_span,
+    temporal_refuter_average,
+};
 use crate::analysis::prepared::{
     CachedTemporalClassPosteriorAtomIdentification, CachedTemporalClassPosteriorIdentification,
 };
@@ -586,9 +603,9 @@ fn evaluate_temporal_class_atom_sequential_bayesian(
         let (estimate, posterior) =
             antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
                 &antecedent_estimate::SequentialProblem {
-                    data: data,
+                    data,
                     graph: &dag,
-                    indexer: indexer,
+                    indexer,
                     estimand: &estimand,
                 },
                 query,
@@ -680,7 +697,7 @@ impl AtomEvalView for TemporalClassAtomEval {
     }
 
     fn analytic_se(&self) -> Option<f64> {
-        self.estimate.as_ref().map(|estimate| estimate.se_analytic())
+        self.estimate.as_ref().map(antecedent_estimate::EffectEstimate::se_analytic)
     }
 
     fn influence(&self) -> Option<&[f64]> {
@@ -728,7 +745,7 @@ fn mix_temporal_class_posterior_evals(
     })
 }
 
-/// Inner: TemporalDag Pulse/Sustained refuters per identified completion.
+/// Inner: `TemporalDag` Pulse/Sustained refuters per identified completion.
 /// Outer: mix those atom reports by frozen posterior weight.
 fn refute_temporal_class_graph_posterior(
     study: &Study,

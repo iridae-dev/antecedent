@@ -10,7 +10,20 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, BayesianConfig, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
+    CausalError, CausalPosterior, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
+    EstimationWorkspace, EstimatorId, ExecutionContext, IdentificationResult, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceMode, OverlapPolicy,
+    PhysicalExecutionPlan, PosteriorPredictiveCheck, PredictiveCheckReport,
+    PreparedBayesianProblem, PriorPredictiveCheck, RefuteSuite, SUSTAINED_LINEAR_SEM, StudyResult,
+    TabularData, TemporalDag, TemporalEffectQuery, TemporalIndexer, TemporalLinearAdjustment,
+    TemporalRefitContext, TimeSeriesData, bayesian_gcomp, bayesian_temporal_gcomp,
+    effect_from_posterior, evaluate_bayesian_prior_sensitivity, provenance_ids,
+    push_conflict_diagnostics, require_identified, resolve_bayesian_prior_with_conflict,
+    run_refuters, sequential_linear_sem_assumption, temporal_refuter_average,
+    with_conflict_summary, with_prior_sensitivity,
+};
 
 /// Everything one temporal-effect fit reads, resolved by the caller.
 pub(super) struct TemporalEffectInputs<'a> {
@@ -165,16 +178,11 @@ fn fit_sustained(
     let mut mechanisms = Vec::new();
     let (estimate, mut posterior) =
         antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
-            &antecedent_estimate::SequentialProblem {
-                data: data,
-                graph: graph,
-                indexer: indexer,
-                estimand: estimand,
-            },
+            &antecedent_estimate::SequentialProblem { data, graph, indexer, estimand },
             query,
             antecedent_estimate::SequentialInference {
                 status: identification.status,
-                assumptions: assumptions,
+                assumptions,
                 bootstrap_replicates: inputs.bootstrap_replicates,
                 bayesian: bayes.as_ref(),
             },

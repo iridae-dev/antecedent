@@ -3,7 +3,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, CausalError, DataInput, ExecutionContext, PhysicalExecutionPlan, StudyResult, TabularData,
+};
 use crate::analysis::{CheckedBayesianGraphPosteriorAte, CheckedClassGraphPosteriorEffect};
 
 impl super::Study {

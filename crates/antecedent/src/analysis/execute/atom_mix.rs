@@ -8,7 +8,13 @@
 
 use std::collections::{HashMap, HashSet};
 
-use super::*;
+use super::{
+    CausalError, CausalPosterior, Diagnostic, EffectEstimate, GraphIdentFlag, IdentificationResult,
+    IdentificationStatus, IdentifiedEstimand, IdentifiedKeyWeights, OverlapPolicy,
+    QueryRefutationPlan, StructuralAggregationPolicy, WeightedGraphSamples,
+    mix_atom_refutation_reports, mix_static_envelope_se, mix_weighted_analytic_se,
+    mixed_static_influence, resolve_structural_aggregation, scalar_identified_set,
+};
 use crate::result::{StructuralResponseAtom, StructuralResponseMixture};
 
 /// One evaluated posterior atom, as the shared mixer reads it.
@@ -208,7 +214,7 @@ where
     let mut outer_atom_ifs: Vec<Vec<f64>> = Vec::new();
     let mut outer_atom_weights = Vec::new();
 
-    let key_weights = IdentifiedKeyWeights::new(&input.graphs);
+    let key_weights = IdentifiedKeyWeights::new(input.graphs);
     for eval in evals {
         let w = key_weights.get(eval.key());
         if input.bounds == AtomBoundRule::SetAlways {

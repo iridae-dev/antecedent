@@ -1,7 +1,15 @@
 //! Builder-independent execution for frequentist DAG attribution operations.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, CausalError, CausalPosterior, CausalQuery, Dag, DataInput, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext, GcmSlot,
+    IdentificationResult, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
+    IdentifiedResultContext, IdentifierId, InferenceMode, Instant, OverlapPolicy,
+    PhysicalExecutionPlan, Study, StudyResult, TableView, TabularData, TimeSeriesData, VariableId,
+    anomaly_attribution_query_with, attribute_distribution_change, bayesian_draw_count, elapsed_ns,
+    finish_identified_execute_with_context, fit_gcm, nan_effect, parametric_scm_identification,
+};
 use crate::analysis::prepared::Inspect;
 
 #[derive(Clone, Debug)]
@@ -27,7 +35,7 @@ pub(crate) struct CheckedAttributionOperation {
     estimator: EstimatorId,
     physical: std::sync::Arc<PhysicalExecutionPlan>,
     result_context: IdentifiedResultContext,
-    /// Present when the source graph was a TemporalDag. The static `graph` is its unfolding.
+    /// Present when the source graph was a `TemporalDag`. The static `graph` is its unfolding.
     lag_aligned: Option<super::temporal_attribution::LagAlignedScm>,
 }
 
@@ -482,7 +490,7 @@ impl CheckedAttributionOperation {
     }
 }
 
-/// A TemporalDag publishes the point, and for Bayesian the posterior mean, with no interval.
+/// A `TemporalDag` publishes the point, and for Bayesian the posterior mean, with no interval.
 fn publish_lag_aligned(
     lag_aligned: bool,
     mut estimate: EffectEstimate,

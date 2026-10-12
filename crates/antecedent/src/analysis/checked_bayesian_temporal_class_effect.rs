@@ -46,7 +46,7 @@ impl std::fmt::Debug for CheckedBayesianTemporalClassEffectOperation {
 
 impl CheckedBayesianTemporalClassEffectOperation {
     /// Whether `study` is a coordinate this operation seals: a series pulse or
-    /// sustained effect on a fixed TemporalCpdag or TemporalPag under Bayesian
+    /// sustained effect on a fixed `TemporalCpdag` or `TemporalPag` under Bayesian
     /// inference with the default point-estimate settings. The one-shot facade
     /// and the prepared sealer share this predicate.
     #[must_use]

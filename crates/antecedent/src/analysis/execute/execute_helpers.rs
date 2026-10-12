@@ -1161,7 +1161,7 @@ pub(super) fn static_aligned_influence(
     Some(full)
 }
 
-/// Mix ConditionalEffect exceedance grids across envelope atoms.
+/// Mix `ConditionalEffect` exceedance grids across envelope atoms.
 ///
 /// Per threshold, each atom is estimated on the same indicator transform, IFs
 /// are aligned to the original row universe, and `F_a(c)` / scores are mixed

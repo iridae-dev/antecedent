@@ -6,7 +6,12 @@ use super::temporal_mediation_core::{
     require_isotropic_mediation_prior,
 };
 use super::temporal_path::MediationHorizonClick;
-use super::*;
+use super::{
+    Arc, BayesianConfig, CausalError, CausalQuery, EstimatorId, ExecutionContext,
+    IdentificationResult, IdentifiedEstimand, IdentifiedResultContext, InferenceMode, Instant,
+    PhysicalExecutionPlan, RefuteSuite, Study, StudyResult, TableView, TemporalIndexer,
+    TimeSeriesData, elapsed_ns, finish_identified_execute_with_context, require_identified,
+};
 use crate::analysis::prepared::Inspect;
 use antecedent_data::LaggedColumn;
 use antecedent_graph::TemporalDag;
@@ -287,7 +292,7 @@ fn adjustment_for_horizon(
 pub struct CheckedTemporalMediationInfo {
     /// Exact mediation target and requested horizon family.
     pub query: antecedent_core::MediationQuery,
-    /// Signature of the fixed TemporalDag.
+    /// Signature of the fixed `TemporalDag`.
     pub graph_signature: std::sync::Arc<str>,
     /// Validation suite selected at preparation.
     pub validation: crate::analysis::builder::RefuteSuite,

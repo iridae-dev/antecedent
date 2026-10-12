@@ -1,6 +1,23 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Admg, Arc, AverageEffectQuery, BootstrapAccounting, CausalError, CausalQuery, ClassAtomOutcome,
+    ConditionalLinearAdjustment, Dag, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    EffectEstimate, EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId, ExecutionContext,
+    FunctionalDistribution, FunctionalDistributionWorkspace, GraphClass, IdentificationEnvelope,
+    IdentificationResult, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
+    IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant, Intervention,
+    LinearAdjustmentAte, OverlapPolicy, PhysicalExecutionPlan, RdWorkspace, RefuteSuite,
+    SharpRdConfig, SharpRdIdentifier, SharpRegressionDiscontinuity, StaticEstimateWorkspaces,
+    StudyResult, TableView, TabularData, bayesian_draw_count, bayesian_gcomp, elapsed_ns,
+    envelope_se_omission_diagnostic, envelope_to_identification_result_for, estimate_static_effect,
+    identification_from_cache_or, identification_status_ok_for_case, identify_cpdag, identify_pag,
+    identify_static, identify_static_query, identify_static_query_with_rd, mix_static_envelope_se,
+    mix_weighted_analytic_se, mixed_static_influence, overlap_diagnostic, project_for_ate_estimate,
+    projection_diagnostic, report_identify_compute, require_identified,
+    run_envelope_effect_refuters, run_refuters, scalar_identified_set, select_claim,
+    select_estimand, static_aligned_influence,
+};
 use crate::estimator_spec::EstimatorSpec;
 use crate::planner::RouteDefaults;
 
@@ -1092,7 +1109,7 @@ impl super::Study {
         ))
     }
 
-    /// Cpdag/Pag ConditionalEffect via the same generalized-adjustment envelope as ATE.
+    /// Cpdag/Pag `ConditionalEffect` via the same generalized-adjustment envelope as ATE.
     pub(in crate::analysis) fn execute_class_conditional(
         &self,
         data: &TabularData,
@@ -1447,12 +1464,7 @@ impl super::Study {
                 source_contrast: d.source_contrast,
             });
             let (mediation, posterior) = antecedent_estimate::estimate_static_mediation_bayesian(
-                &antecedent_estimate::StaticMediationProblem {
-                    data: data,
-                    graph: graph,
-                    query: query,
-                    extra: &[],
-                },
+                &antecedent_estimate::StaticMediationProblem { data, graph, query, extra: &[] },
                 identification.required_assumptions.clone(),
                 &est,
                 identification.status,

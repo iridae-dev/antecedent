@@ -5,7 +5,11 @@ use super::transport_interference_path::{
     TransportTrialInputs, refuse_transport_bayesian_priors, refuse_unestimable_transport,
     transport_primary_pair, transport_sid_identification,
 };
-use super::*;
+use super::{
+    Arc, CausalError, CausalQuery, DataInput, ExecutionContext, GraphClass, IdentificationResult,
+    IdentifiedEstimand, InferenceMode, PhysicalExecutionPlan, RefuteSuite, Study, StudyResult,
+    TableView, TabularData,
+};
 use crate::analysis::prepared::Inspect;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 use antecedent_identify::TransportIdentification;
