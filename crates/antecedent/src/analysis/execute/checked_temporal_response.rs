@@ -3,8 +3,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    Arc, CausalError, CausalQuery, DerivativeSpec, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    EffectEstimate, ExecutionContext, IdentificationResult, IdentifiedEstimand,
+    Arc, CausalError, CausalQuery, CausalResponse, DerivativeSpec, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, EffectEstimate, ExecutionContext, IdentificationResult, IdentifiedEstimand,
     IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext, InferenceMode,
     Instant, OverlapPolicy, PhysicalExecutionPlan, Strategy, StudyResult, TableView,
     TimeSeriesData, bayesian_gcomp, elapsed_ns, provenance_ids, push_conflict_diagnostics,
@@ -67,121 +67,102 @@ impl CheckedTemporalResponseExecution {
         &self.operation
     }
 
-    /// Execute and assemble the ordinary, portable `StudyResult` contract.
-    pub(crate) fn execute(
+    /// The response surface of the sealed operation: the local slope of the
+    /// linear fit for a derivative functional, otherwise the operation's
+    /// frequentist or Bayesian estimate with its prior-conflict summary.
+    fn execute_response_surface(
+        &self,
+        data: &TimeSeriesData,
+        temporal: &antecedent_core::TemporalResponseSpec,
+        (treatment, outcome): (antecedent_core::VariableId, antecedent_core::VariableId),
+        ctx: &ExecutionContext,
+    ) -> Result<(CausalResponse, Option<antecedent_prob::ConflictSummary>), CausalError> {
+        if super::response_functional_is_derivative(&self.operation.query().functional) {
+            return Ok((self.derivative_surface(data, ctx)?, None));
+        }
+        Ok(match self.operation.inference() {
+            InferenceMode::Frequentist => (self.operation.execute(data, ctx)?, None),
+            InferenceMode::Bayesian(cfg) => {
+                let mut bayes = bayesian_gcomp(cfg, ctx);
+                let aligned = self
+                    .operation
+                    .evidence()
+                    .iter()
+                    .map(crate::analysis::TemporalResponseHorizonEvidence::cached_horizon)
+                    .collect::<Vec<_>>();
+                let aligned_refs = aligned.iter().collect::<Vec<_>>();
+                let (resolved, conflict) = super::resolve_temporal_response_prior(
+                    cfg,
+                    data,
+                    temporal,
+                    &aligned_refs,
+                    treatment,
+                    outcome,
+                    ctx,
+                )?;
+                bayes.prior = resolved;
+                (self.operation.execute_bayesian(data, &bayes, ctx)?, conflict)
+            }
+        })
+    }
+
+    /// The local slope of the linear unfolded fit at the single requested
+    /// horizon.
+    fn derivative_surface(
         &self,
         data: &TimeSeriesData,
         ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
-        let started = Instant::now();
-        let temporal = self
-            .operation
-            .query()
-            .temporal
-            .as_ref()
-            .expect("checked temporal response retains its temporal spec");
-        super::enforce_temporal_response_memory_budget(
-            self.operation.query(),
-            temporal,
-            self.operation.procedure().3,
-            ctx,
-        )?;
-        let (treatment, outcome) =
-            self.operation.query().functional.primary_pair().ok_or_else(|| {
-                CausalError::Compile {
-                    message: "temporal response has no treatment/outcome pair".into(),
-                }
-            })?;
-        let mut conflict_summary = None;
-        let mut response = if super::response_functional_is_derivative(
-            &self.operation.query().functional,
-        ) {
-            let evidence = self.operation.evidence();
-            let first = evidence.first().ok_or_else(|| CausalError::Compile {
-                message: "temporal derivative is missing its horizon proof".into(),
-            })?;
-            if evidence.len() != 1 {
-                return Err(CausalError::Unsupported {
-                    message: "a temporal derivative is the local slope at one horizon",
-                });
-            }
-            let prior_scale = match self.operation.inference() {
-                InferenceMode::Bayesian(cfg) => {
-                    if cfg.prior.is_some()
-                        || cfg.prior_artifact.is_some()
-                        || cfg.external_compose.is_some()
-                    {
-                        return Err(CausalError::Unsupported {
-                            message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
-                        });
-                    }
-                    Some(cfg.prior_scale)
-                }
-                InferenceMode::Frequentist => None,
-            };
-            super::temporal_linear_derivative_response(
-                data,
-                self.operation.query(),
-                first.estimand(),
-                first.indexer(),
-                first.identification(),
-                DerivativeSpec {
-                    treatment_offset: first.effect_query().try_treatment_offset()?,
-                    outcome_offset: first.effect_query().outcome_offset(),
-                    policy: &ctx.kernel_policy,
-                    prior_scale,
-                },
-            )?
-        } else {
-            match self.operation.inference() {
-                InferenceMode::Frequentist => self.operation.execute(data, ctx)?,
-                InferenceMode::Bayesian(cfg) => {
-                    let mut bayes = bayesian_gcomp(cfg, ctx);
-                    let aligned = self
-                        .operation
-                        .evidence()
-                        .iter()
-                        .map(crate::analysis::TemporalResponseHorizonEvidence::cached_horizon)
-                        .collect::<Vec<_>>();
-                    let aligned_refs = aligned.iter().collect::<Vec<_>>();
-                    let (resolved, conflict) = super::resolve_temporal_response_prior(
-                        cfg,
-                        data,
-                        temporal,
-                        &aligned_refs,
-                        treatment,
-                        outcome,
-                        ctx,
-                    )?;
-                    bayes.prior = resolved;
-                    conflict_summary = conflict;
-                    self.operation.execute_bayesian(data, &bayes, ctx)?
-                }
-            }
-        };
-        // The estimator accepts one aggregate status; the sealed route keeps the
-        // richer per-horizon proof statuses on the surface, as the fresh path does.
-        if let Some(per_horizon) = response.horizon_identification.as_mut() {
-            for (record, member) in
-                Arc::make_mut(per_horizon).iter_mut().zip(self.operation.evidence())
-            {
-                record.status = member.identification().status;
-            }
+    ) -> Result<CausalResponse, CausalError> {
+        let evidence = self.operation.evidence();
+        let first = evidence.first().ok_or_else(|| CausalError::Compile {
+            message: "temporal derivative is missing its horizon proof".into(),
+        })?;
+        if evidence.len() != 1 {
+            return Err(CausalError::Unsupported {
+                message: "a temporal derivative is the local slope at one horizon",
+            });
         }
-        let (scalar, standard_error) =
-            super::super::response_path::response_scalar_summary(&response);
-        let estimate = EffectEstimate::new(
-            scalar,
-            standard_error,
-            response.assumptions.clone(),
-            OverlapPolicy::ExplicitOverride,
+        let prior_scale = match self.operation.inference() {
+            InferenceMode::Bayesian(cfg) => {
+                if cfg.prior.is_some()
+                    || cfg.prior_artifact.is_some()
+                    || cfg.external_compose.is_some()
+                {
+                    return Err(CausalError::Unsupported {
+                        message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
+                    });
+                }
+                Some(cfg.prior_scale)
+            }
+            InferenceMode::Frequentist => None,
+        };
+        super::temporal_linear_derivative_response(
+            data,
+            self.operation.query(),
+            first.estimand(),
+            first.indexer(),
+            first.identification(),
+            DerivativeSpec {
+                treatment_offset: first.effect_query().try_treatment_offset()?,
+                outcome_offset: first.effect_query().outcome_offset(),
+                policy: &ctx.kernel_policy,
+                prior_scale,
+            },
         )
-        .with_n_obs(lag_aligned_rows(data, self.operation.evidence()));
+    }
+
+    /// The diagnostics of the sealed response, in publication order.
+    fn response_diagnostics(
+        &self,
+        response: &CausalResponse,
+        scalar: f64,
+        conflict_summary: Option<&antecedent_prob::ConflictSummary>,
+    ) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
         for member in self.operation.evidence() {
             diagnostics.extend(member.identification().diagnostics.iter().cloned());
         }
-        if let Some(summary) = conflict_summary.as_ref() {
+        if let Some(summary) = conflict_summary {
             push_conflict_diagnostics(&mut diagnostics, summary);
         }
         if horizons_use_different_adjustments(self.operation.evidence()) {
@@ -215,6 +196,55 @@ impl CheckedTemporalResponseExecution {
             ));
         }
         diagnostics.extend(response.support.warnings.iter().cloned());
+        diagnostics
+    }
+
+    /// Execute and assemble the ordinary, portable `StudyResult` contract.
+    pub(crate) fn execute(
+        &self,
+        data: &TimeSeriesData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let temporal = self
+            .operation
+            .query()
+            .temporal
+            .as_ref()
+            .expect("checked temporal response retains its temporal spec");
+        super::enforce_temporal_response_memory_budget(
+            self.operation.query(),
+            temporal,
+            self.operation.procedure().3,
+            ctx,
+        )?;
+        let (treatment, outcome) =
+            self.operation.query().functional.primary_pair().ok_or_else(|| {
+                CausalError::Compile {
+                    message: "temporal response has no treatment/outcome pair".into(),
+                }
+            })?;
+        let (mut response, conflict_summary) =
+            self.execute_response_surface(data, temporal, (treatment, outcome), ctx)?;
+        // The estimator accepts one aggregate status; the sealed route keeps the
+        // richer per-horizon proof statuses on the surface, as the fresh path does.
+        if let Some(per_horizon) = response.horizon_identification.as_mut() {
+            for (record, member) in
+                Arc::make_mut(per_horizon).iter_mut().zip(self.operation.evidence())
+            {
+                record.status = member.identification().status;
+            }
+        }
+        let (scalar, standard_error) =
+            super::super::response_path::response_scalar_summary(&response);
+        let estimate = EffectEstimate::new(
+            scalar,
+            standard_error,
+            response.assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        )
+        .with_n_obs(lag_aligned_rows(data, self.operation.evidence()));
+        let diagnostics = self.response_diagnostics(&response, scalar, conflict_summary.as_ref());
         let (identifier_id, estimator_id, _, _) = self.operation.procedure();
         let response_provenance = Arc::clone(&response.provenance_id);
         let args = IdentifiedExecuteFinish::new(

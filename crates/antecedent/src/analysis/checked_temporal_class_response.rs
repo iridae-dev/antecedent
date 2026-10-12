@@ -57,6 +57,65 @@ impl std::fmt::Debug for CheckedTemporalClassResponseOperation {
     }
 }
 
+/// Checks one horizon's completion proof: it must hold completions with one
+/// unfolding indexer each, and every completion's certificate must bind back
+/// to the requested treatment, outcome, policy origin and horizon.
+fn check_class_response_horizon(
+    bundle: &CachedTemporalClassIdentification,
+    spec: &antecedent_core::TemporalResponseSpec,
+    query: &ResponseQuery,
+    (treatment, outcome): (antecedent_core::VariableId, antecedent_core::VariableId),
+    horizon: u32,
+) -> Result<(), CausalError> {
+    let (_, envelope) = bundle
+        .by_horizon
+        .iter()
+        .find(|(cached, _)| *cached == horizon)
+        .ok_or_else(|| CausalError::Compile {
+            message: format!(
+                "temporal class response proof lacks a completion envelope for horizon {horizon}"
+            ),
+        })?;
+    if envelope.envelope.cases.is_empty() {
+        return Err(CausalError::Compile {
+            message: format!(
+                "temporal class response proof has no completion cases at horizon {horizon}"
+            ),
+        });
+    }
+    if envelope.indexers.len() != envelope.envelope.cases.len() {
+        return Err(CausalError::Compile {
+            message:
+                "temporal class response proof does not bind one unfolding indexer per completion"
+                    .into(),
+        });
+    }
+    // Every completion proof is an unfolded (dense) adjustment certificate;
+    // bind its treatment/outcome nodes back through that completion's own
+    // indexer to the requested variables, policy origin, and horizon.
+    let witness = TemporalEffectQuery::pulse(treatment, outcome, 1.0)
+        .with_policy(spec.policy.clone())
+        .with_horizon_steps(horizon)
+        .with_max_history_lag(spec.max_history_lag)
+        .with_target_population(query.target_population.clone());
+    let treatment_key =
+        TemporalNodeKey { variable: treatment, offset: witness.try_treatment_offset()? };
+    let outcome_key = TemporalNodeKey { variable: outcome, offset: witness.outcome_offset() };
+    let witness_binds =
+        envelope.envelope.cases.iter().zip(&envelope.indexers).all(|(case, indexer)| {
+            case.result.average_effect().is_none_or(|proof| {
+                Some(proof.treatment.raw()) == indexer.dense_id(treatment_key).ok()
+                    && Some(proof.outcome.raw()) == indexer.dense_id(outcome_key).ok()
+            })
+        });
+    if !witness_binds {
+        return Err(CausalError::Compile {
+                message: "temporal class response proof was certified for a different treatment, outcome, policy, or horizon".into(),
+            });
+    }
+    Ok(())
+}
+
 impl CheckedTemporalClassResponseOperation {
     /// Check and freeze the per-horizon completion proofs and selected procedure.
     #[allow(
@@ -123,51 +182,7 @@ impl CheckedTemporalClassResponseOperation {
             });
         }
         for &horizon in spec.horizons.iter() {
-            let (_, envelope) = bundle
-                .by_horizon
-                .iter()
-                .find(|(cached, _)| *cached == horizon)
-                .ok_or_else(|| CausalError::Compile {
-                    message: format!(
-                        "temporal class response proof lacks a completion envelope for horizon {horizon}"
-                    ),
-                })?;
-            if envelope.envelope.cases.is_empty() {
-                return Err(CausalError::Compile {
-                    message: format!(
-                        "temporal class response proof has no completion cases at horizon {horizon}"
-                    ),
-                });
-            }
-            if envelope.indexers.len() != envelope.envelope.cases.len() {
-                return Err(CausalError::Compile {
-                    message: "temporal class response proof does not bind one unfolding indexer per completion".into(),
-                });
-            }
-            // Every completion proof is an unfolded (dense) adjustment certificate;
-            // bind its treatment/outcome nodes back through that completion's own
-            // indexer to the requested variables, policy origin, and horizon.
-            let witness = TemporalEffectQuery::pulse(treatment, outcome, 1.0)
-                .with_policy(spec.policy.clone())
-                .with_horizon_steps(horizon)
-                .with_max_history_lag(spec.max_history_lag)
-                .with_target_population(query.target_population.clone());
-            let treatment_key =
-                TemporalNodeKey { variable: treatment, offset: witness.try_treatment_offset()? };
-            let outcome_key =
-                TemporalNodeKey { variable: outcome, offset: witness.outcome_offset() };
-            let witness_binds =
-                envelope.envelope.cases.iter().zip(&envelope.indexers).all(|(case, indexer)| {
-                    case.result.average_effect().is_none_or(|proof| {
-                        Some(proof.treatment.raw()) == indexer.dense_id(treatment_key).ok()
-                            && Some(proof.outcome.raw()) == indexer.dense_id(outcome_key).ok()
-                    })
-                });
-            if !witness_binds {
-                return Err(CausalError::Compile {
-                    message: "temporal class response proof was certified for a different treatment, outcome, policy, or horizon".into(),
-                });
-            }
+            check_class_response_horizon(bundle, spec, query, (treatment, outcome), horizon)?;
         }
         Ok(Self {
             source_graph,

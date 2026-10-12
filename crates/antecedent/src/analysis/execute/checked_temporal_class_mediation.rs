@@ -163,90 +163,11 @@ impl CheckedTemporalClassMediationOperation {
             });
         }
         let proof = match study.graph_posterior.as_ref() {
-            None => {
-                Self::check_plan_record(
-                    physical,
-                    "temporal_mediation_class",
-                    "generalized.adjustment",
-                )?;
-                let cache =
-                    study.temporal_class_identification_cache.as_ref().ok_or_else(|| {
-                        CausalError::Compile {
-                            message: "temporal class mediation proof was not prepared".into(),
-                        }
-                    })?;
-                for &horizon in query.horizons.iter() {
-                    let cached = cache
-                        .by_horizon
-                        .iter()
-                        .find(|(member, _)| *member == horizon)
-                        .map(|(_, cached)| cached)
-                        .ok_or_else(|| CausalError::Compile {
-                            message: format!(
-                                "temporal class mediation proof missing horizon {horizon}"
-                            ),
-                        })?;
-                    if cached.envelope.cases.is_empty() {
-                        return Err(CausalError::Compile {
-                            message: format!(
-                                "temporal class mediation proof has no completions at horizon {horizon}"
-                            ),
-                        });
-                    }
-                }
-                CheckedTemporalMediationProof::ClassEnvelope {
-                    graph: (*study.graph).clone(),
-                    cache: Arc::clone(cache),
-                    max_completions: study.max_completions,
-                    class_prior: study.class_prior.clone(),
-                }
-            }
+            None => Self::class_envelope_proof(study, physical, query)?,
             Some(posterior) if posterior.atom_kind == GraphPosteriorAtomKind::Cpdag => {
-                Self::check_plan_record(physical, "temporal_mediation", "temporal.mediation")?;
-                let cache = study
-                    .temporal_class_posterior_identification_cache
-                    .as_ref()
-                    .ok_or_else(|| CausalError::Compile {
-                        message: "temporal class posterior mediation proof was not prepared".into(),
-                    })?;
-                if cache.graphs.weights.as_ref() != posterior.weights.as_ref()
-                    || cache.graphs.n_samples != posterior.n_graphs
-                {
-                    return Err(CausalError::Compile {
-                        message: "temporal class posterior mediation proof does not bind the frozen posterior".into(),
-                    });
-                }
-                CheckedTemporalMediationProof::ClassPosterior {
-                    posterior: posterior.clone(),
-                    cache: Arc::clone(cache),
-                    max_completions: study.max_completions,
-                }
+                Self::class_posterior_proof(study, physical, posterior)?
             }
-            Some(posterior) => {
-                Self::check_plan_record(physical, "temporal_mediation", "temporal.mediation")?;
-                let cache = study.dbn_posterior_identification_cache.as_ref().ok_or_else(|| {
-                    CausalError::Compile {
-                        message: "DBN posterior mediation proof was not prepared".into(),
-                    }
-                })?;
-                if cache.atoms.is_empty() {
-                    return Err(CausalError::Compile {
-                        message: "DBN posterior mediation proof retained no atoms".into(),
-                    });
-                }
-                if cache.graphs.weights.as_ref() != posterior.weights.as_ref()
-                    || cache.graphs.n_samples != posterior.n_graphs
-                {
-                    return Err(CausalError::Compile {
-                        message: "DBN posterior mediation proof does not bind the frozen posterior"
-                            .into(),
-                    });
-                }
-                CheckedTemporalMediationProof::DbnPosterior {
-                    posterior: posterior.clone(),
-                    cache: Arc::clone(cache),
-                }
-            }
+            Some(posterior) => Self::dbn_posterior_proof(study, physical, posterior)?,
         };
         Ok(Self {
             proof,
@@ -259,6 +180,108 @@ impl CheckedTemporalClassMediationOperation {
             structure_source: study.structure_source,
             graph_class: study.graph.class(),
             graph_version: study.graph.version(),
+        })
+    }
+
+    /// The proof of an explicit TemporalCpdag mediation: the prepared class
+    /// envelope must cover every requested horizon with completions.
+    fn class_envelope_proof(
+        study: &Study,
+        physical: &PhysicalExecutionPlan,
+        query: &antecedent_core::MediationQuery,
+    ) -> Result<CheckedTemporalMediationProof, CausalError> {
+        Self::check_plan_record(physical, "temporal_mediation_class", "generalized.adjustment")?;
+        let cache = study.temporal_class_identification_cache.as_ref().ok_or_else(|| {
+            CausalError::Compile {
+                message: "temporal class mediation proof was not prepared".into(),
+            }
+        })?;
+        for &horizon in query.horizons.iter() {
+            let cached = cache
+                .by_horizon
+                .iter()
+                .find(|(member, _)| *member == horizon)
+                .map(|(_, cached)| cached)
+                .ok_or_else(|| CausalError::Compile {
+                    message: format!("temporal class mediation proof missing horizon {horizon}"),
+                })?;
+            if cached.envelope.cases.is_empty() {
+                return Err(CausalError::Compile {
+                    message: format!(
+                        "temporal class mediation proof has no completions at horizon {horizon}"
+                    ),
+                });
+            }
+        }
+
+        Ok(CheckedTemporalMediationProof::ClassEnvelope {
+            graph: (*study.graph).clone(),
+            cache: Arc::clone(cache),
+            max_completions: study.max_completions,
+            class_prior: study.class_prior.clone(),
+        })
+    }
+
+    /// The proof of a TemporalCpdag graph posterior mediation: the prepared
+    /// class posterior cache must bind the frozen posterior weights.
+    fn class_posterior_proof(
+        study: &Study,
+        physical: &PhysicalExecutionPlan,
+        posterior: &antecedent_discovery::GraphPosterior,
+    ) -> Result<CheckedTemporalMediationProof, CausalError> {
+        Self::check_plan_record(physical, "temporal_mediation", "temporal.mediation")?;
+        let cache =
+            study.temporal_class_posterior_identification_cache.as_ref().ok_or_else(|| {
+                CausalError::Compile {
+                    message: "temporal class posterior mediation proof was not prepared".into(),
+                }
+            })?;
+        if cache.graphs.weights.as_ref() != posterior.weights.as_ref()
+            || cache.graphs.n_samples != posterior.n_graphs
+        {
+            return Err(CausalError::Compile {
+                message:
+                    "temporal class posterior mediation proof does not bind the frozen posterior"
+                        .into(),
+            });
+        }
+
+        Ok(CheckedTemporalMediationProof::ClassPosterior {
+            posterior: posterior.clone(),
+            cache: Arc::clone(cache),
+            max_completions: study.max_completions,
+        })
+    }
+
+    /// The proof of a TemporalDag graph posterior mediation: the prepared DBN
+    /// posterior cache must hold atoms and bind the frozen posterior weights.
+    fn dbn_posterior_proof(
+        study: &Study,
+        physical: &PhysicalExecutionPlan,
+        posterior: &antecedent_discovery::GraphPosterior,
+    ) -> Result<CheckedTemporalMediationProof, CausalError> {
+        Self::check_plan_record(physical, "temporal_mediation", "temporal.mediation")?;
+        let cache = study.dbn_posterior_identification_cache.as_ref().ok_or_else(|| {
+            CausalError::Compile {
+                message: "DBN posterior mediation proof was not prepared".into(),
+            }
+        })?;
+        if cache.atoms.is_empty() {
+            return Err(CausalError::Compile {
+                message: "DBN posterior mediation proof retained no atoms".into(),
+            });
+        }
+        if cache.graphs.weights.as_ref() != posterior.weights.as_ref()
+            || cache.graphs.n_samples != posterior.n_graphs
+        {
+            return Err(CausalError::Compile {
+                message: "DBN posterior mediation proof does not bind the frozen posterior".into(),
+            });
+        }
+
+        Ok(CheckedTemporalMediationProof::DbnPosterior {
+            posterior: posterior.clone(),
+            cache: Arc::clone(cache),
         })
     }
 

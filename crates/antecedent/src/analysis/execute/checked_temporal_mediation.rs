@@ -48,6 +48,83 @@ impl std::fmt::Debug for CheckedTemporalMediationOperation {
     }
 }
 
+/// The inference a checked mediation was prepared under, refusing an
+/// estimator or prior that differs from the physical plan.
+fn checked_mediation_inference(
+    study: &Study,
+    physical: &PhysicalExecutionPlan,
+) -> Result<CheckedMediationInference, CausalError> {
+    Ok(match &study.inference {
+        InferenceMode::Frequentist => {
+            if !physical.binding().estimator.is(EstimatorId::TemporalMediation) {
+                return Err(CausalError::Compile {
+                    message: "temporal mediation estimator differs from its checked physical plan"
+                        .into(),
+                });
+            }
+            CheckedMediationInference::Frequentist {
+                bootstrap_replicates: study.bootstrap_replicates,
+            }
+        }
+        InferenceMode::Bayesian(config) => {
+            require_isotropic_mediation_prior(config)?;
+            if !physical.binding().estimator.is(EstimatorId::BayesianTemporalMediation) {
+                return Err(CausalError::Compile {
+                    message: "Bayesian temporal mediation estimator differs from its checked physical plan".into(),
+                });
+            }
+            CheckedMediationInference::Bayesian(config.clone())
+        }
+    })
+}
+
+/// Replays each requested horizon's cached proof against the recomputed one
+/// and collects the identified horizons' mediation clicks.
+fn replay_mediation_horizons(
+    cache: &crate::analysis::prepared::CachedTemporalIdentification,
+    verified: &crate::analysis::prepared::CachedTemporalIdentification,
+    query: &antecedent_core::MediationQuery,
+) -> Result<Vec<MediationHorizonClick>, CausalError> {
+    let mut horizons = Vec::with_capacity(query.horizons.len());
+    for &horizon in query.horizons.iter() {
+        let cached = cache.get(horizon).ok_or_else(|| CausalError::Compile {
+            message: format!("temporal mediation proof missing horizon {horizon}"),
+        })?;
+        let checked = verified.get(horizon).ok_or_else(|| CausalError::Compile {
+            message: format!("recomputed temporal mediation proof missing horizon {horizon}"),
+        })?;
+        if cached.identification.query != checked.identification.query
+            || cached.identification.status != checked.identification.status
+            || cached.estimand.functional != checked.estimand.functional
+            || cached.estimand.method != checked.estimand.method
+            || cached.estimand.adjustment_set != checked.estimand.adjustment_set
+            || cached.estimand.mediators != checked.estimand.mediators
+            || cached.indexer.variable_count() != checked.indexer.variable_count()
+            || cached.indexer.history() != checked.indexer.history()
+            || cached.indexer.horizon() != checked.indexer.horizon()
+        {
+            return Err(CausalError::Compile {
+                message: format!("temporal mediation proof failed replay at horizon {horizon}"),
+            });
+        }
+        if cached.estimand.mediators.len() != 1 {
+            return Err(CausalError::Unsupported {
+                message: "temporal mediation supports exactly one identified mediator",
+            });
+        }
+        require_identified(&cached.identification)?;
+        let adjustment = adjustment_for_horizon(cached)?;
+        horizons.push(MediationHorizonClick {
+            horizon,
+            identification: cached.identification.clone(),
+            estimand: cached.estimand.clone(),
+            indexer: cached.indexer.clone(),
+            adjustment,
+        });
+    }
+    Ok(horizons)
+}
+
 impl CheckedTemporalMediationOperation {
     pub(crate) fn checked(
         study: &Study,
@@ -80,29 +157,7 @@ impl CheckedTemporalMediationOperation {
                 message: "temporal mediation structure, target, validation, or plan changed after preparation".into(),
             });
         }
-        let inference = match &study.inference {
-            InferenceMode::Frequentist => {
-                if !physical.binding().estimator.is(EstimatorId::TemporalMediation) {
-                    return Err(CausalError::Compile {
-                        message:
-                            "temporal mediation estimator differs from its checked physical plan"
-                                .into(),
-                    });
-                }
-                CheckedMediationInference::Frequentist {
-                    bootstrap_replicates: study.bootstrap_replicates,
-                }
-            }
-            InferenceMode::Bayesian(config) => {
-                require_isotropic_mediation_prior(config)?;
-                if !physical.binding().estimator.is(EstimatorId::BayesianTemporalMediation) {
-                    return Err(CausalError::Compile {
-                        message: "Bayesian temporal mediation estimator differs from its checked physical plan".into(),
-                    });
-                }
-                CheckedMediationInference::Bayesian(config.clone())
-            }
-        };
+        let inference = checked_mediation_inference(study, physical)?;
         let estimator_id = match &inference {
             CheckedMediationInference::Frequentist { .. } => EstimatorId::TemporalMediation,
             CheckedMediationInference::Bayesian(_) => EstimatorId::BayesianTemporalMediation,
@@ -121,43 +176,7 @@ impl CheckedTemporalMediationOperation {
                         .into(),
             });
         }
-        let mut horizons = Vec::with_capacity(query.horizons.len());
-        for &horizon in query.horizons.iter() {
-            let cached = cache.get(horizon).ok_or_else(|| CausalError::Compile {
-                message: format!("temporal mediation proof missing horizon {horizon}"),
-            })?;
-            let checked = verified.get(horizon).ok_or_else(|| CausalError::Compile {
-                message: format!("recomputed temporal mediation proof missing horizon {horizon}"),
-            })?;
-            if cached.identification.query != checked.identification.query
-                || cached.identification.status != checked.identification.status
-                || cached.estimand.functional != checked.estimand.functional
-                || cached.estimand.method != checked.estimand.method
-                || cached.estimand.adjustment_set != checked.estimand.adjustment_set
-                || cached.estimand.mediators != checked.estimand.mediators
-                || cached.indexer.variable_count() != checked.indexer.variable_count()
-                || cached.indexer.history() != checked.indexer.history()
-                || cached.indexer.horizon() != checked.indexer.horizon()
-            {
-                return Err(CausalError::Compile {
-                    message: format!("temporal mediation proof failed replay at horizon {horizon}"),
-                });
-            }
-            if cached.estimand.mediators.len() != 1 {
-                return Err(CausalError::Unsupported {
-                    message: "temporal mediation supports exactly one identified mediator",
-                });
-            }
-            require_identified(&cached.identification)?;
-            let adjustment = adjustment_for_horizon(cached)?;
-            horizons.push(MediationHorizonClick {
-                horizon,
-                identification: cached.identification.clone(),
-                estimand: cached.estimand.clone(),
-                indexer: cached.indexer.clone(),
-                adjustment,
-            });
-        }
+        let horizons = replay_mediation_horizons(cache, &verified, query)?;
         Ok(Self {
             graph: graph.clone(),
             query: query.clone(),

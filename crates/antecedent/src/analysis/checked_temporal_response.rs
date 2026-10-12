@@ -192,6 +192,37 @@ pub(crate) struct CheckedTemporalResponseOperation {
     grid: Arc<[f64]>,
 }
 
+/// The dose grid of a direct temporal response, refusing one that is empty or
+/// exceeds the dose-by-horizon materialization limit.
+fn checked_response_grid(
+    query: &ResponseQuery,
+    spec: &antecedent_core::TemporalResponseSpec,
+) -> Result<Vec<f64>, CausalError> {
+    let grid = match &query.functional {
+        ResponseFunctional::MeanCurve { treatment, .. } => treatment.grid.values()?,
+        _ => match antecedent_estimate::plan_from_response_query(query) {
+            Ok(Some(antecedent_estimate::TemporalInterventionPlan::Single {
+                level: Some(level),
+                ..
+            })) => vec![level],
+            _ => Vec::new(),
+        },
+    };
+    let cells_per_horizon = match &query.functional {
+        ResponseFunctional::MeanCurve { .. } => grid.len(),
+        _ => 1,
+    };
+    if cells_per_horizon == 0
+        || cells_per_horizon.saturating_mul(spec.horizons.len())
+            > antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS
+    {
+        return Err(CausalError::Unsupported {
+            message: "temporal response dose-by-horizon grid exceeds its materialization limit",
+        });
+    }
+    Ok(grid)
+}
+
 impl CheckedTemporalResponseOperation {
     /// Seal a point-identified temporal response route.
     pub(crate) fn checked(
@@ -216,28 +247,7 @@ impl CheckedTemporalResponseOperation {
             query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
                 message: "temporal response query has no treatment/outcome pair".into(),
             })?;
-        let grid = match &query.functional {
-            ResponseFunctional::MeanCurve { treatment, .. } => treatment.grid.values()?,
-            _ => match antecedent_estimate::plan_from_response_query(query) {
-                Ok(Some(antecedent_estimate::TemporalInterventionPlan::Single {
-                    level: Some(level),
-                    ..
-                })) => vec![level],
-                _ => Vec::new(),
-            },
-        };
-        let cells_per_horizon = match &query.functional {
-            ResponseFunctional::MeanCurve { .. } => grid.len(),
-            _ => 1,
-        };
-        if cells_per_horizon == 0
-            || cells_per_horizon.saturating_mul(spec.horizons.len())
-                > antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS
-        {
-            return Err(CausalError::Unsupported {
-                message: "temporal response dose-by-horizon grid exceeds its materialization limit",
-            });
-        }
+        let grid = checked_response_grid(query, spec)?;
         let expected_estimator = EstimatorId::temporal_response_for(inference);
         if identifier != IdentifierId::TemporalBackdoorUnfolded || estimator != expected_estimator {
             return Err(CausalError::Compile {
