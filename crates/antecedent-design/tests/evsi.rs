@@ -33,18 +33,21 @@ use antecedent_contract::{
     QuantityRole, ScientificQuantity, SignalProviderContract,
 };
 use antecedent_core::CancellationToken;
+use antecedent_core::CausalRng;
 use antecedent_design::evsi::{
     CostToUtilityMap, EvsiCandidate, EvsiError, EvsiRequest, IntegrationMethod, RankingBasis,
     StudyCostSpec, evaluate_evsi,
 };
+use antecedent_design::preposterior::DecisionSignal;
 use antecedent_design::signal::{
     ExternalDecisionValues, ExternalLaw, ExternalSignal, ExternalSignalBody, NativeBinomialSignal,
     NativeGaussianMeanSignal, SignalLimits, SignalProvider, SignalRequest, SignalTrustLabel,
     SignalUpdateMode,
 };
+use antecedent_design::signal::{PreparedLaw, PreparedSignal, SignalError};
 use antecedent_design::{
-    AffineUtility, CandidateDesign, DecisionPrior, DecisionProblem, DesignCost, DesignRankConfig,
-    SamplingPlan,
+    AffineUtility, CandidateDesign, DecisionPrior, DecisionProblem, DesignCost, DesignError,
+    DesignRankConfig, SamplingPlan,
 };
 use antecedent_test_support::within as near;
 
@@ -574,12 +577,71 @@ fn external_law_for_other_prior_draws_or_sample_size_refuses() {
     assert_eq!(error, EvsiError::PriorStatesMismatch("c".into()));
     assert_eq!(error.to_refusal().detail, "evsi.prior_states_mismatch");
 
-    // The candidate design's declared sample size must equal its signal request's.
+    // The prepared signal's sample size is the request's `n`. A design row count
+    // that differs is not a mismatch: the native provider overrides the design field.
     let provider: Arc<dyn SignalProvider> = Arc::new(NativeBinomialSignal);
-    let mut mismatched = candidate("c", 2, provider, 0.0, "utility");
-    mismatched.design = sampling(3);
-    let error = run(&problem, &prior, &request(&BET_ACTIONS, vec![mismatched], None)).unwrap_err();
+    let mut overridden = candidate("c", 2, Arc::clone(&provider), 0.0, "utility");
+    overridden.design = sampling(3);
+    let report = run(&problem, &prior, &request(&BET_ACTIONS, vec![overridden], None)).unwrap();
+    assert_eq!(report.candidates[0].sample_size, 2);
+    let aligned = run(
+        &problem,
+        &prior,
+        &request(&BET_ACTIONS, vec![candidate("c", 2, provider, 0.0, "utility")], None),
+    )
+    .unwrap();
+    assert_eq!(report.candidates[0].evsi.to_bits(), aligned.candidates[0].evsi.to_bits());
+
+    // A signal whose own rule reports a different n is the mismatch.
+    let provider: Arc<dyn SignalProvider> = Arc::new(ReportingSize(9));
+    let error = run(
+        &problem,
+        &prior,
+        &request(&BET_ACTIONS, vec![candidate("c", 2, provider, 0.0, "utility")], None),
+    )
+    .unwrap_err();
     assert_eq!(error, EvsiError::SampleSizeMismatch("c".into()));
+}
+
+/// Prepared signal that reports `n` regardless of the design.
+struct ReportingSize(u64);
+
+impl DecisionSignal<f64> for ReportingSize {
+    fn name(&self) -> &str {
+        "reporting_size"
+    }
+
+    fn sample_size(&self, _candidate: &CandidateDesign) -> Option<u64> {
+        Some(self.0)
+    }
+
+    fn log_likelihood(
+        &self,
+        _statistic: f64,
+        _n: u64,
+        states: &[f64],
+        out: &mut [f64],
+    ) -> Result<(), DesignError> {
+        out[..states.len()].fill(0.0);
+        Ok(())
+    }
+
+    fn sample_statistic(
+        &self,
+        _state: &f64,
+        _n: u64,
+        _rng: &mut CausalRng,
+    ) -> Result<f64, DesignError> {
+        Ok(0.0)
+    }
+}
+
+impl SignalProvider for ReportingSize {
+    fn prepare(&self, request: &SignalRequest) -> Result<PreparedSignal, SignalError> {
+        let mut prepared = NativeBinomialSignal.prepare(request)?;
+        prepared.law = PreparedLaw::Likelihood(Arc::new(ReportingSize(self.0)));
+        Ok(prepared)
+    }
 }
 
 #[test]

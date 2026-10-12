@@ -509,15 +509,42 @@ impl<'a, O> PreposteriorAnalysis<'a, O> {
     /// replicate (sample a state from the draws, simulate the statistic, update the
     /// draws exactly, and return the regret reduction of the updated Bayes action).
     ///
+    /// The exactness probe is [`Self::evaluation`], which does not allocate the
+    /// likelihood tables. Monte Carlo replicates reuse `log_lik` and `weights`
+    /// through [`Self::draw_evsi_replicate`].
+    ///
     /// # Errors
     ///
     /// Signal failures.
     pub fn sample_evsi(&self, n: u64, rng: &mut CausalRng) -> Result<f64, DesignError> {
-        if let Some(exact) = self.exact_evsi(n)? {
-            return Ok(exact);
+        if self.evaluation(n) == ScoreEvaluation::Exact {
+            return self.exact_evsi(n)?.ok_or_else(|| {
+                DesignError::Numerical("exact EVSI evaluation produced no value".into())
+            });
         }
+        let mut log_lik = Vec::new();
+        let mut weights = Vec::new();
+        self.draw_evsi_replicate(n, rng, &mut log_lik, &mut weights)
+    }
+
+    /// One Monte Carlo EVSI replicate into caller-owned scratch. `log_lik` and
+    /// `weights` are resized to the prior and overwritten. Call only when
+    /// [`Self::evaluation`] is [`ScoreEvaluation::MonteCarlo`].
+    ///
+    /// # Errors
+    ///
+    /// Signal failures, or a call on a model whose EVSI is exact.
+    pub(crate) fn draw_evsi_replicate(
+        &self,
+        n: u64,
+        rng: &mut CausalRng,
+        log_lik: &mut Vec<f64>,
+        weights: &mut Vec<f64>,
+    ) -> Result<f64, DesignError> {
         let Model::Draws { states, gaps, n_admissible } = &self.model else {
-            unreachable!("the normal model is always exact");
+            return Err(DesignError::Config(
+                "draw_evsi_replicate is the Monte Carlo path; the normal model is exact".into(),
+            ));
         };
         let k = states.len();
         #[allow(
@@ -527,20 +554,26 @@ impl<'a, O> PreposteriorAnalysis<'a, O> {
         )]
         let truth = ((rng.next_f64() * k as f64) as usize).min(k - 1);
         let statistic = self.signal.sample_statistic(&states[truth], n, rng)?;
-        let mut log_lik = vec![0.0; k];
-        self.signal.log_likelihood(statistic, n, states, &mut log_lik)?;
-        let Some(max_ll) = finite_max(&log_lik)? else {
+        log_lik.clear();
+        log_lik.resize(k, 0.0);
+        self.signal.log_likelihood(statistic, n, states, log_lik)?;
+        let Some(max_ll) = finite_max(log_lik)? else {
             return Err(DesignError::Numerical(format!(
                 "signal `{}` assigns zero likelihood to its own draw",
                 self.signal.name()
             )));
         };
-        let mut weights: Vec<f64> = log_lik.iter().map(|ll| (ll - max_ll).exp()).collect();
-        let sum_w: f64 = weights.iter().sum();
-        for w in &mut weights {
+        weights.clear();
+        weights.resize(k, 0.0);
+        let mut sum_w = 0.0;
+        for (w, &ll) in weights.iter_mut().zip(log_lik.iter()) {
+            *w = (ll - max_ll).exp();
+            sum_w += *w;
+        }
+        for w in weights.iter_mut() {
             *w /= sum_w;
         }
-        Ok(best_gap(gaps, *n_admissible, &weights))
+        Ok(best_gap(gaps, *n_admissible, weights))
     }
 }
 

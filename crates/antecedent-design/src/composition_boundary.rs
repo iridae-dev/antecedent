@@ -668,16 +668,7 @@ pub enum BoundaryError {
 }
 
 fn refusal(code: &'static str, detail: &str) -> ExternalRefusal {
-    ExternalRefusal {
-        code,
-        stage: "compose",
-        detail: detail.to_owned(),
-        offending: None,
-        expected: None,
-        supplied: None,
-        capability: None,
-        remedy: None,
-    }
+    crate::signal::external_refusal(code, "compose", detail, None)
 }
 
 impl BoundaryError {

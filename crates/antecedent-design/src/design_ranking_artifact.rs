@@ -55,6 +55,7 @@ use crate::decision::{DecisionProblem, DecisionTable};
 use crate::error::DesignError;
 use crate::evsi::{CostToUtilityMap, EvsiReport, EvsiRequest, IntegrationMethod, SearchReceipt};
 use crate::preposterior::{DecisionPrior, DecisionSignal, expected_max_affine};
+use crate::rank_rows::{AdjacentRank, evsi_bound_ok, rank_rows};
 use crate::ranking::{DesignRankingBasis, DesignRankingValue, RankingEntry, RankingError};
 use crate::signal::{
     PreparedLaw, SignalError, SignalLimits, SignalReceipt, SignalRequest, SignalTrustLabel,
@@ -84,9 +85,6 @@ const BODY_SECTION: &str = "design_ranking_body";
 const REPLAY_TOLERANCE: f64 = 1e-8;
 /// Tolerance of probability-mass and coherence checks on retained tables.
 const MASS_TOLERANCE: f64 = 1e-6;
-/// Critical value of the rank-uncertainty comparison (matches the evaluator).
-const RANK_Z: f64 = antecedent_kernels::NORMAL_Q975;
-
 // -- wire -------------------------------------------------------------------------------
 
 /// Cost-to-utility mapping on the wire.
@@ -1667,22 +1665,18 @@ fn verify_candidate(
             return Err(mismatch("integration_error"));
         }
     } else {
-        // Monte Carlo: bound only, error and replicates retained.
-        let tolerance = 1e-9 + 4.0 * candidate.stderr;
+        // Monte Carlo: error and replicates retained. The EVSI bound is the shared
+        // predicate below, the same one the exact branch falls through to.
         if !(candidate.stderr.is_finite() && candidate.stderr >= 0.0 && candidate.replicates > 0)
             || candidate.ess.is_none()
         {
             return Err(mismatch("integration_error"));
         }
-        if candidate.evsi < -tolerance || candidate.evsi > candidate.evpi + tolerance {
-            return Err(mismatch("evsi_bounds"));
-        }
         if candidate.converged != (candidate.stderr <= wire.mc_error_tolerance) {
             return Err(mismatch("converged"));
         }
     }
-    let tolerance = 1e-9 + 4.0 * candidate.stderr;
-    if candidate.evsi < -tolerance || candidate.evsi > candidate.evpi + tolerance {
+    if !evsi_bound_ok(candidate.evsi, candidate.evpi, candidate.stderr) {
         return Err(mismatch("evsi_bounds"));
     }
     match &wire.cost_map {
@@ -1720,28 +1714,27 @@ fn verify_order(wire: &DesignRankingArtifactWire) -> Result<()> {
     rows.sort_by(|a, b| {
         rank_key(b).total_cmp(&rank_key(a)).then_with(|| a.semantic_id.cmp(&b.semantic_id))
     });
-    let mut ties = Vec::new();
-    let mut near = vec![false; rows.len()];
-    for i in 0..rows.len().saturating_sub(1) {
-        let gap = (rank_key(rows[i]) - rank_key(rows[i + 1])).abs();
-        let se = rows[i].stderr.hypot(rows[i + 1].stderr);
-        if gap <= wire.tie_tolerance {
-            ties.push((rows[i].semantic_id.clone(), rows[i + 1].semantic_id.clone()));
-        }
-        if gap <= wire.tie_tolerance.max(RANK_Z * se) {
-            near[i] = true;
-            near[i + 1] = true;
-        }
-    }
+    let ranked = rank_rows(
+        &rows
+            .iter()
+            .map(|row| AdjacentRank {
+                key: rank_key(row),
+                stderr: row.stderr,
+                id: row.semantic_id.as_str(),
+            })
+            .collect::<Vec<_>>(),
+        wire.tie_tolerance,
+    );
     for (i, row) in rows.iter().enumerate() {
         if row.rank != i as u64 {
             return Err(DesignRankingArtifactError::RankMismatch("rank"));
         }
-        if row.rank_uncertain != near[i] {
+        if row.rank_uncertain != ranked.uncertain[i] {
             return Err(DesignRankingArtifactError::RankMismatch("rank_uncertain"));
         }
     }
     let mut stored_ties = wire.ties.clone();
+    let mut ties = ranked.ties;
     stored_ties.sort();
     ties.sort();
     if stored_ties != ties {

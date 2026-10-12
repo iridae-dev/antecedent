@@ -31,6 +31,7 @@ mod plan_common;
 pub mod preposterior;
 pub mod prior_signal;
 pub mod proposal_receipt;
+mod rank_rows;
 pub mod ranker;
 pub mod ranking;
 pub mod repair;

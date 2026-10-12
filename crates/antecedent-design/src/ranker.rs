@@ -31,6 +31,10 @@ use crate::result::{ConstraintViolation, DesignRanking, RankedCandidate, ScoreEv
 /// Stream index of a ranking's shared CRN draws within [`StreamDomain::Design`].
 const RANK_STREAM: u64 = 0xD351_0611;
 
+/// Largest `batch_size * max_batches` a ranking will schedule. A larger product
+/// refuses instead of allocating an unbounded draw store.
+const MAX_RANK_DRAWS: u64 = 1_000_000;
+
 /// Hard resource limits applied before scoring (violations are recorded, not silent).
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct DesignConstraints {
@@ -322,6 +326,12 @@ impl DesignRanker {
         if self.config.max_batches == 0 || self.config.batch_size == 0 {
             return Err(DesignError::Config("max_batches and batch_size must be > 0".into()));
         }
+        let draws = u64::from(self.config.max_batches) * u64::from(self.config.batch_size);
+        if draws > MAX_RANK_DRAWS {
+            return Err(DesignError::Config(format!(
+                "batch_size * max_batches = {draws} exceeds {MAX_RANK_DRAWS}"
+            )));
+        }
         Ok(())
     }
 
@@ -376,53 +386,93 @@ impl DesignRanker {
 
         let min_batches = self.config.min_batches.max(1);
         let max_batches = self.config.max_batches.max(min_batches);
+        let mut stats = RankDrawStats::new(active.len());
+        let mut log_lik = Vec::new();
+        let mut weights = Vec::new();
+        // The entropy channel's expectation depends only on the candidate, so it is
+        // computed once per candidate and reported as exact.
+        let entropy_gain: Option<Vec<f64>> =
+            matches!(objective, DesignObjective::ReduceGraphEntropy).then(|| {
+                active
+                    .iter()
+                    .map(|&cand_i| {
+                        channels.entropy.as_ref().map_or(0.0, |channel| {
+                            channel.exact_gain(observation_reliability(&candidates[cand_i]))
+                        })
+                    })
+                    .collect()
+            });
 
         for batch_i in 0..max_batches {
+            if ctx.cancellation.is_cancelled() {
+                return Err(DesignError::Cancelled);
+            }
             let batch_size = if all_exact { 1 } else { self.config.batch_size };
             for _ in 0..batch_size {
-                // Shared CRN draw index into graph posterior.
+                // Shared CRN draw index into the graph posterior.
                 let g_idx = sample_categorical(&mut rng, &ctx_eval.graphs.weights)
                     .ok_or(DesignError::EmptyPosterior)?;
-                // Decision replicates share one seed across candidates, so every
-                // candidate sees the same sampled state and noise (CRN).
-                let crn_seed = decision.map(|_| rng.next_u64());
-                for (slot, &cand_i) in active.iter().enumerate() {
-                    let score = match (decision, crn_seed) {
-                        (Some(d), Some(seed)) => d.score(cand_i, seed)?,
-                        _ => score_candidate(
+                let replicate: Vec<f64> = if let Some(gains) = &entropy_gain {
+                    gains.clone()
+                } else if let Some(d) = decision {
+                    // Decision replicates share one seed, so every candidate sees the
+                    // same sampled state and noise.
+                    let crn_seed = rng.next_u64();
+                    let mut scores = Vec::with_capacity(active.len());
+                    for &cand_i in active {
+                        scores.push(d.score(cand_i, crn_seed, &mut log_lik, &mut weights)?);
+                    }
+                    scores
+                } else {
+                    // Non-decision scores that consume randomness (model distinction)
+                    // each open a fresh generator from this seed. Sharing the outer
+                    // generator coupled candidates by how many draws the previous
+                    // candidate happened to take.
+                    let draw_seed = rng.next_u64();
+                    let mut scores = Vec::with_capacity(active.len());
+                    for &cand_i in active {
+                        let mut local = CausalRng::from_seed(draw_seed);
+                        scores.push(score_candidate(
                             objective,
                             &candidates[cand_i],
                             ctx_eval,
                             &channels,
                             g_idx,
-                            &mut rng,
-                        )?,
-                    };
-                    draws[slot].push(score);
+                            &mut local,
+                        )?);
+                    }
+                    scores
+                };
+                for (slot, score) in replicate.iter().enumerate() {
+                    draws[slot].push(*score);
                     budget.evaluations += 1;
                 }
+                stats.push(&replicate);
                 n_samples += 1;
                 budget.samples = n_samples;
             }
 
             if all_exact {
-                // The replicates of an exact objective are identical: the stopping test
-                // sees the same zero paired standard error it would at any count >= 2.
-                let replicated: Vec<Vec<f64>> =
-                    draws.iter().map(|d| d.iter().chain(d).copied().collect()).collect();
-                early_stopped =
-                    rank_uncertainty_ok(&replicated, z, self.config.rank_uncertainty_threshold);
+                // One exact draw has no variance. Repeating it is the paired standard
+                // error of zero the stopping test would see at any count >= 2.
+                if let Some(last) = draws.first().map(|d| {
+                    let n = d.len();
+                    (0..active.len()).map(|slot| draws[slot][n - 1]).collect::<Vec<_>>()
+                }) {
+                    stats.push(&last);
+                }
+                early_stopped = stats.uncertainty_ok(z, self.config.rank_uncertainty_threshold);
                 break;
             }
             if batch_i + 1 >= min_batches
-                && rank_uncertainty_ok(&draws, z, self.config.rank_uncertainty_threshold)
+                && stats.uncertainty_ok(z, self.config.rank_uncertainty_threshold)
             {
                 early_stopped = true;
                 break;
             }
-            if ctx.cancellation.is_cancelled() {
-                break;
-            }
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(DesignError::Cancelled);
         }
 
         Ok(ScoringRun { draws, n_samples, budget, early_stopped })
@@ -450,6 +500,9 @@ impl DesignRanker {
         let Some(n) = analysis.signal().sample_size(candidate) else {
             return Ok(None);
         };
+        if ctx.cancellation.is_cancelled() {
+            return Err(DesignError::Cancelled);
+        }
         if let Some(exact) = analysis.exact_evsi(n)? {
             return Ok(Some(DecisionCandidateScore {
                 score: exact,
@@ -462,16 +515,29 @@ impl DesignRanker {
         let min_batches = self.config.min_batches.max(1);
         let max_batches = self.config.max_batches.max(min_batches);
         let mut acc = Welford::new();
+        let mut log_lik = Vec::new();
+        let mut weights = Vec::new();
         for batch_i in 0..max_batches {
+            if ctx.cancellation.is_cancelled() {
+                return Err(DesignError::Cancelled);
+            }
             for _ in 0..self.config.batch_size {
                 // One posterior graph: the categorical draw still advances the stream.
                 sample_categorical(&mut rng, &[1.0]).ok_or(DesignError::EmptyPosterior)?;
                 let crn_seed = rng.next_u64();
-                acc.push(analysis.sample_evsi(n, &mut CausalRng::from_seed(crn_seed))?);
+                acc.push(analysis.draw_evsi_replicate(
+                    n,
+                    &mut CausalRng::from_seed(crn_seed),
+                    &mut log_lik,
+                    &mut weights,
+                )?);
+            }
+            if ctx.cancellation.is_cancelled() {
+                return Err(DesignError::Cancelled);
             }
             // A single candidate has no pair to resolve: the stopping test passes as soon
             // as the minimum batches are in.
-            if batch_i + 1 >= min_batches || ctx.cancellation.is_cancelled() {
+            if batch_i + 1 >= min_batches {
                 break;
             }
         }
@@ -592,31 +658,75 @@ fn paired_difference(a: &[f64], b: &[f64]) -> (f64, f64) {
 /// more than `z·se`; a tie whose half-width is still above the threshold is unresolved.
 /// `z` must be the look-adjusted critical value (see `DesignRankConfig::critical_value`),
 /// never the fixed-sample 1.96, because this test is repeated after every batch.
+#[cfg(test)]
 fn rank_uncertainty_ok(draws: &[Vec<f64>], z: f64, threshold: f64) -> bool {
     let n = draws.first().map_or(0, Vec::len);
     if draws.len() < 2 || n == 0 {
         return true;
     }
-    let means: Vec<f64> = draws
-        .iter()
-        .map(|d| {
-            let mut acc = Welford::new();
-            d.iter().for_each(|&x| acc.push(x));
-            acc.mean()
-        })
-        .collect();
-    let mut order: Vec<usize> = (0..means.len()).collect();
-    order.sort_by(|a, b| means[*b].total_cmp(&means[*a]).then(a.cmp(b)));
-    // Check top adjacent pairs.
-    let top = order.len().min(3);
-    for i in 0..top.saturating_sub(1) {
-        let (gap, se) = paired_difference(&draws[order[i]], &draws[order[i + 1]]);
-        let half_width = z * se;
-        if half_width > threshold && gap.abs() <= half_width {
-            return false;
+    let mut stats = RankDrawStats::new(draws.len());
+    for t in 0..n {
+        let replicate: Vec<f64> = draws.iter().map(|d| d[t]).collect();
+        stats.push(&replicate);
+    }
+    stats.uncertainty_ok(z, threshold)
+}
+
+/// Running means and paired differences for the sequential stopping test.
+///
+/// Each replicate is pushed once. Rebuilding a Welford over the whole history after
+/// every batch made the test quadratic in the number of batches; these accumulators
+/// are the same one-pass updates, so the stop decision matches.
+struct RankDrawStats {
+    means: Vec<Welford>,
+    /// `pairs[i][j - i - 1]` is the Welford of `score_i - score_j` for `j > i`.
+    pairs: Vec<Vec<Welford>>,
+}
+
+impl RankDrawStats {
+    fn new(k: usize) -> Self {
+        Self {
+            means: vec![Welford::new(); k],
+            pairs: (0..k).map(|i| vec![Welford::new(); k - i - 1]).collect(),
         }
     }
-    true
+
+    fn push(&mut self, scores: &[f64]) {
+        for (i, &score) in scores.iter().enumerate() {
+            self.means[i].push(score);
+        }
+        for i in 0..scores.len() {
+            for j in (i + 1)..scores.len() {
+                self.pairs[i][j - i - 1].push(scores[i] - scores[j]);
+            }
+        }
+    }
+
+    fn uncertainty_ok(&self, z: f64, threshold: f64) -> bool {
+        let k = self.means.len();
+        if k < 2 || self.means.first().map(Welford::count).unwrap_or(0) == 0 {
+            return true;
+        }
+        let mut order: Vec<usize> = (0..k).collect();
+        order
+            .sort_by(|a, b| self.means[*b].mean().total_cmp(&self.means[*a].mean()).then(a.cmp(b)));
+        let top = order.len().min(3);
+        for i in 0..top.saturating_sub(1) {
+            let (gap, se) = self.paired(order[i], order[i + 1]);
+            let half_width = z * se;
+            if half_width > threshold && gap.abs() <= half_width {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Mean and standard error of `score_a - score_b`.
+    fn paired(&self, a: usize, b: usize) -> (f64, f64) {
+        let (lo, hi, sign) = if a < b { (a, b, 1.0) } else { (b, a, -1.0) };
+        let acc = &self.pairs[lo][hi - lo - 1];
+        (sign * acc.mean(), acc.stderr_of_mean())
+    }
 }
 
 #[allow(
@@ -852,16 +962,26 @@ impl EntropyChannel {
 
     /// Entropy of the graph posterior after observing category `y`.
     fn posterior_entropy(&self, reliability: f64, y: usize) -> f64 {
-        let mut post = self.weights.clone();
-        for (w, &cat) in post.iter_mut().zip(&self.cat_of) {
-            *w *= self.likelihood(reliability, y, cat);
+        let mut total = 0.0;
+        for (&w, &cat) in self.weights.iter().zip(&self.cat_of) {
+            total += w * self.likelihood(reliability, y, cat);
         }
-        shannon_entropy(&post)
+        if !(total > 0.0) {
+            return 0.0;
+        }
+        let mut h = 0.0;
+        for (&w, &cat) in self.weights.iter().zip(&self.cat_of) {
+            let p = w * self.likelihood(reliability, y, cat) / total;
+            if p > 0.0 {
+                h -= p * p.ln();
+            }
+        }
+        h
     }
 
     /// Exact expected information gain `Σ_g p(g) Σ_y p(y|g) [H(G) − H(G|y)]` by
-    /// enumerating the observation, for checking the Monte Carlo draw.
-    #[cfg(test)]
+    /// enumerating the observation. The expectation depends only on reliability, so
+    /// a ranking reports it directly instead of Monte Carlo draws.
     fn exact_gain(&self, reliability: f64) -> f64 {
         let total: f64 = self.weights.iter().sum();
         (0..self.k)
@@ -920,11 +1040,6 @@ fn observation_reliability(candidate: &CandidateDesign) -> f64 {
             (1.0 - (1.0 + n / 50.0).recip()).clamp(0.0, 0.95)
         }
     }
-}
-
-fn evidence_strength(candidate: &CandidateDesign) -> f64 {
-    // Used only by the DistinguishModels heuristic (not EIG / ID / SE / decisions).
-    observation_reliability(candidate)
 }
 
 /// Identification-mass gain of a candidate. `identified_under_intervention`, when present,
@@ -1195,7 +1310,7 @@ fn model_distinguish_score(
         reason = "the draw is reduced modulo `n_draws`, a usize, so the result is a valid index; only uniform high bits are dropped on 32-bit targets"
     )]
     let draw = (rng.next_u64() as usize) % ll.n_draws;
-    let strength = evidence_strength(candidate);
+    let strength = observation_reliability(candidate);
     // Expected absolute log-score gap over the requested model pairs, scaled by evidence strength.
     let mut gap = 0.0;
     for &(ri, rj) in pairs {
@@ -1211,9 +1326,9 @@ fn model_distinguish_score(
 const fn static_evaluation(objective: &DesignObjective) -> ScoreEvaluation {
     match objective {
         DesignObjective::IncreaseIdentificationProbability { .. }
-        | DesignObjective::ReduceEffectPosteriorWidth { .. } => ScoreEvaluation::Exact,
-        DesignObjective::ReduceGraphEntropy
-        | DesignObjective::DistinguishModels { .. }
+        | DesignObjective::ReduceEffectPosteriorWidth { .. }
+        | DesignObjective::ReduceGraphEntropy => ScoreEvaluation::Exact,
+        DesignObjective::DistinguishModels { .. }
         | DesignObjective::ReduceDecisionRegret { .. } => ScoreEvaluation::MonteCarlo,
     }
 }
@@ -1292,10 +1407,21 @@ impl<'a, O> DecisionScoring<'a, O> {
         }
     }
 
-    fn score(&self, cand_i: usize, crn_seed: u64) -> Result<f64, DesignError> {
+    fn score(
+        &self,
+        cand_i: usize,
+        crn_seed: u64,
+        log_lik: &mut Vec<f64>,
+        weights: &mut Vec<f64>,
+    ) -> Result<f64, DesignError> {
         match self.plans.get(cand_i).copied().flatten() {
             Some((_, Some(exact))) => Ok(exact),
-            Some((n, None)) => self.analysis.sample_evsi(n, &mut CausalRng::from_seed(crn_seed)),
+            Some((n, None)) => self.analysis.draw_evsi_replicate(
+                n,
+                &mut CausalRng::from_seed(crn_seed),
+                log_lik,
+                weights,
+            ),
             None => Err(DesignError::Config(format!(
                 "candidate {cand_i} has no decision sample size and cannot be scored"
             ))),
@@ -2398,5 +2524,136 @@ mod tests {
             assert_eq!(direct.evaluation, top.evaluation);
             assert_eq!(direct.samples, top.monte_carlo.samples);
         }
+    }
+
+    /// Graph-entropy scores are the closed-form channel expectation, not a draw.
+    #[test]
+    fn graph_entropy_ranking_is_the_exact_channel_gain() {
+        let graphs = toy_graphs();
+        let channel = EntropyChannel::new(&graphs, None).expect("channel");
+        let measure = CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(1), VariableId::from_raw(2)]),
+            cost: DesignCost::zero(),
+            tag: 1,
+        });
+        let expected = channel.exact_gain(observation_reliability(&measure));
+        let eval = DesignEvaluationContext::<(), ()> {
+            graphs: &graphs,
+            effect_width: None,
+            model_loglik: None,
+            decisions: None,
+            query_id_unlock: None,
+            env_id_unlock: None,
+            identified_under_intervention: None,
+            graph_features: None,
+        };
+        let ranking = DesignRanker::new()
+            .rank(
+                &DesignObjective::ReduceGraphEntropy,
+                &[measure],
+                &eval,
+                &ExecutionContext::for_tests(9),
+            )
+            .expect("rank");
+        assert_eq!(ranking.ranked[0].evaluation, ScoreEvaluation::Exact);
+        assert_eq!(ranking.budget.samples, 1);
+        assert_eq!(ranking.ranked[0].score.to_bits(), expected.to_bits());
+        assert_eq!(ranking.ranked[0].monte_carlo.stderr, 0.0);
+    }
+
+    /// Two distinguish-model candidates must see the same log-likelihood draw on
+    /// every replicate. Their scores then stay in the ratio of their reliabilities
+    /// even when successive draws have different gaps.
+    #[test]
+    fn non_decision_candidates_share_one_draw_stream() {
+        let graphs = toy_graphs();
+        let m0 = ModelId::from_raw(0);
+        let m1 = ModelId::from_raw(1);
+        let ll = ModelLoglikDraws {
+            models: Arc::from([m0, m1]),
+            // Two draws: gaps 10 and 0. A shared stream keeps the averaged gap identical.
+            loglik: Arc::from([0.0_f64, 0.0, 10.0, 0.0]),
+            n_draws: 2,
+        };
+        let one = CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(0)]),
+            cost: DesignCost::zero(),
+            tag: 0,
+        });
+        let two = CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
+            cost: DesignCost::zero(),
+            tag: 1,
+        });
+        let s1 = observation_reliability(&one);
+        let s2 = observation_reliability(&two);
+        let eval = DesignEvaluationContext::<(), ()> {
+            graphs: &graphs,
+            effect_width: None,
+            model_loglik: Some(&ll),
+            decisions: None,
+            query_id_unlock: None,
+            env_id_unlock: None,
+            identified_under_intervention: None,
+            graph_features: None,
+        };
+        let ranking = DesignRanker::new()
+            .with_config(DesignRankConfig {
+                min_batches: 4,
+                max_batches: 4,
+                batch_size: 8,
+                rank_uncertainty_threshold: 0.0,
+            })
+            .rank(
+                &DesignObjective::DistinguishModels { models: Arc::from([m0, m1]) },
+                &[one, two],
+                &eval,
+                &ExecutionContext::for_tests(3),
+            )
+            .expect("rank");
+        let score = |i: usize| {
+            ranking.ranked.iter().find(|r| r.candidate_index == i).expect("ranked").score
+        };
+        assert!((score(0) / s1 - score(1) / s2).abs() < 1e-9, "{ranking:?}");
+    }
+
+    #[test]
+    fn cancellation_refuses_instead_of_returning_a_short_ranking() {
+        let graphs = toy_graphs();
+        let ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        let eval = DesignEvaluationContext::<(), ()> {
+            graphs: &graphs,
+            effect_width: None,
+            model_loglik: None,
+            decisions: None,
+            query_id_unlock: None,
+            env_id_unlock: None,
+            identified_under_intervention: None,
+            graph_features: None,
+        };
+        let err = DesignRanker::new()
+            .rank(
+                &DesignObjective::IncreaseIdentificationProbability { query: QueryId::from_raw(0) },
+                &[sampling(4, 0)],
+                &eval,
+                &ctx,
+            )
+            .expect_err("cancelled");
+        assert_eq!(err, DesignError::Cancelled);
+    }
+
+    #[test]
+    fn rank_schedule_refuses_an_unbounded_draw_product() {
+        let err = DesignRanker::new()
+            .with_config(DesignRankConfig {
+                min_batches: 1,
+                max_batches: 100_000,
+                batch_size: 100,
+                rank_uncertainty_threshold: 0.05,
+            })
+            .validate_config()
+            .expect_err("cap");
+        assert!(matches!(err, DesignError::Config(_)), "{err:?}");
     }
 }

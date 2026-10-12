@@ -6,7 +6,7 @@ use antecedent_core::{EnvironmentId, ExecutionContext, VariableId};
 use antecedent_design::{
     CandidateDesign, DecisionConstraint, DecisionProblem, DesignCost, DesignEvaluationContext,
     DesignObjective, DesignRankConfig, DesignRanker, EnvironmentPlan, ExperimentPlan,
-    MeasurementPlan, SamplingPlan, Utility, evaluate_decision,
+    MeasurementPlan, SamplingPlan, ScoreEvaluation, Utility, evaluate_decision,
 };
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 use serde_json::Value;
@@ -189,7 +189,8 @@ fn fixed_budget_scores_match_exact_expected_information_gain() {
             &ExecutionContext::for_tests(1_701),
         )
         .expect("fixed-budget rank");
-    assert_eq!(ranking.budget.samples, samples);
+    assert_eq!(ranking.ranked[0].evaluation, ScoreEvaluation::Exact);
+    assert_eq!(ranking.budget.samples, 1);
 
     let cases = fixture["cases"].as_array().expect("cases");
     for ranked in ranking.ranked.iter() {

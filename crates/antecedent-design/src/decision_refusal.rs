@@ -15,16 +15,7 @@ use crate::decision_structural::StructuralError;
 use crate::{DecisionContractError, DesignError};
 
 fn refusal(code: &'static str, stage: &'static str, detail: &str) -> ExternalRefusal {
-    ExternalRefusal {
-        code,
-        stage,
-        detail: detail.to_owned(),
-        offending: None,
-        expected: None,
-        supplied: None,
-        capability: None,
-        remedy: None,
-    }
+    crate::signal::make_refusal(code, stage, detail)
 }
 
 const fn representation_name(representation: SourceRepresentation) -> &'static str {
@@ -236,6 +227,9 @@ impl DesignError {
                     "design_refusal.callback",
                 )
             },
+            Self::Cancelled => {
+                at(antecedent_core::reason_code!("cancelled_no_claim"), "design_refusal.cancelled")
+            }
         }
     }
 }
@@ -454,5 +448,7 @@ mod tests {
             DesignError::Callback { name: "utility".into(), message: "boom".into() }.to_refusal();
         check(&value, unsatisfied, "design", "design_refusal.callback", Some("utility"));
         assert_eq!(value.supplied.as_deref(), Some("boom"));
+        let value = DesignError::Cancelled.to_refusal();
+        check(&value, "cancelled_no_claim", "design", "design_refusal.cancelled", None);
     }
 }

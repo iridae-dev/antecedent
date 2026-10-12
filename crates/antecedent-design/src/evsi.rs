@@ -29,16 +29,13 @@ use crate::candidate::CandidateDesign;
 use crate::decision::{DecisionProblem, DecisionTable, evaluate_decision};
 use crate::error::DesignError;
 use crate::preposterior::{DecisionPrior, DecisionSignal, PreposteriorAnalysis};
+use crate::rank_rows::{AdjacentRank, evsi_bound_violation, rank_rows};
 use crate::ranker::{DesignRankConfig, DesignRanker};
 use crate::result::ScoreEvaluation;
 use crate::signal::{
     ExternalDecisionValues, PreparedLaw, SignalError, SignalProvider, SignalReceipt,
     SignalTrustLabel, SignalUpdateMode, make_refusal, state_key,
 };
-
-/// Critical value for the unpaired rank-uncertainty comparison of two independently
-/// evaluated candidates.
-const RANK_Z: f64 = antecedent_kernels::NORMAL_Q975;
 
 /// Positive linear map from the caller's cost unit to the decision's utility unit:
 /// `StudyCostUtility = utility_per_cost · cost`.
@@ -286,7 +283,10 @@ pub enum EvsiError {
 
 impl From<DesignError> for EvsiError {
     fn from(error: DesignError) -> Self {
-        Self::Design(error)
+        match error {
+            DesignError::Cancelled => Self::Cancelled,
+            other => Self::Design(other),
+        }
     }
 }
 
@@ -438,14 +438,6 @@ fn validate_request<A>(
     validate_costs(request)
 }
 
-const fn declared_sample_size(design: &CandidateDesign) -> Option<u64> {
-    match design {
-        CandidateDesign::IncreaseSamplingRate(plan) => Some(plan.additional_samples),
-        CandidateDesign::ObserveEnvironment(plan) => Some(plan.additional_rows),
-        CandidateDesign::Measure(_) | CandidateDesign::Intervene(_) => None,
-    }
-}
-
 fn overlap_of(request: &EvsiRequest, candidate: &EvsiCandidate) -> SourceOverlapDiagnostics {
     let prior: std::collections::BTreeSet<&str> =
         request.prior_observation_ids.iter().map(String::as_str).collect();
@@ -583,11 +575,6 @@ fn evaluate_candidate<A: Clone>(
     ctx: &ExecutionContext,
 ) -> Result<Evaluated, EvsiError> {
     let id = &candidate.semantic_id;
-    if declared_sample_size(&candidate.design)
-        .is_some_and(|n| n != candidate.signal_request.sample_size)
-    {
-        return Err(EvsiError::SampleSizeMismatch(id.clone()));
-    }
     let overlap = overlap_of(request, candidate);
     if !overlap.overlapping.is_empty() {
         return Err(EvsiError::SourceOverlap(overlap.overlapping));
@@ -610,16 +597,18 @@ fn evaluate_candidate<A: Clone>(
     }
     let (evsi, integration, evpi, prior_expected_utility, bayes_action) = match &prepared.law {
         PreparedLaw::Likelihood(signal) => {
+            // The prepared signal's own sample-size rule is authoritative. A copy of
+            // the default design-field rule refused an overriding signal (one that
+            // answers the request's `n`) whenever the design's row count differed.
+            if signal.sample_size(&candidate.design) != Some(candidate.signal_request.sample_size) {
+                return Err(EvsiError::SampleSizeMismatch(id.clone()));
+            }
             likelihood_value(problem, prior, signal, candidate, request, ctx)?
         }
         PreparedLaw::DecisionValues(values) => values_value(problem, prior, values, request, id)?,
     };
-    let tolerance = 1e-9 + 4.0 * integration.stderr;
-    if evsi < -tolerance {
-        return Err(EvsiError::BoundViolation("negative_evsi"));
-    }
-    if evsi > evpi + tolerance {
-        return Err(EvsiError::BoundViolation("exceeds_evpi"));
+    if let Some(which) = evsi_bound_violation(evsi, evpi, integration.stderr) {
+        return Err(EvsiError::BoundViolation(which));
     }
     Ok(Evaluated {
         evsi,
@@ -730,22 +719,21 @@ fn assemble(
         .collect();
     let key = |row: &CandidateEvsi| row.net_value.unwrap_or(row.evsi);
     rows.sort_by(|a, b| key(b).total_cmp(&key(a)).then_with(|| a.semantic_id.cmp(&b.semantic_id)));
-    let mut ties = Vec::new();
-    let mut close = vec![false; rows.len()];
-    for i in 0..rows.len().saturating_sub(1) {
-        let gap = (key(&rows[i]) - key(&rows[i + 1])).abs();
-        let se = rows[i].integration.stderr.hypot(rows[i + 1].integration.stderr);
-        if gap <= request.tie_tolerance {
-            ties.push((rows[i].semantic_id.clone(), rows[i + 1].semantic_id.clone()));
-        }
-        if gap <= request.tie_tolerance.max(RANK_Z * se) {
-            close[i] = true;
-            close[i + 1] = true;
-        }
-    }
+    let ranked = rank_rows(
+        &rows
+            .iter()
+            .map(|row| AdjacentRank {
+                key: key(row),
+                stderr: row.integration.stderr,
+                id: row.semantic_id.as_str(),
+            })
+            .collect::<Vec<_>>(),
+        request.tie_tolerance,
+    );
+    let ties = ranked.ties;
     for (i, row) in rows.iter_mut().enumerate() {
         row.rank = i;
-        row.rank_uncertain = close[i];
+        row.rank_uncertain = ranked.uncertain[i];
     }
     let first = evaluated.first();
     EvsiReport {

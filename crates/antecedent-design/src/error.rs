@@ -38,4 +38,7 @@ pub enum DesignError {
         /// Failure detail.
         message: String,
     },
+    /// The caller cancelled the evaluation. A partial ranking is not a result.
+    #[error("design evaluation cancelled")]
+    Cancelled,
 }

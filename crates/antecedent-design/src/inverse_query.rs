@@ -441,16 +441,7 @@ pub enum InverseQueryError {
 }
 
 fn refusal(code: &'static str, detail: &str, offending: Option<String>) -> ExternalRefusal {
-    ExternalRefusal {
-        code,
-        stage: STAGE,
-        detail: detail.to_owned(),
-        offending,
-        expected: None,
-        supplied: None,
-        capability: None,
-        remedy: None,
-    }
+    crate::signal::external_refusal(code, STAGE, detail, offending)
 }
 
 impl InverseQueryError {

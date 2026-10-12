@@ -365,21 +365,33 @@ pub enum SignalError {
     PosteriorIncoherent,
 }
 
-pub(crate) fn make_refusal(
+/// Blank structured refusal. `antecedent-contract` only validates this shape; the
+/// constructor belongs there, and that crate is owned by another audit slice.
+pub(crate) fn external_refusal(
     code: &'static str,
     stage: &'static str,
     detail: &str,
+    offending: Option<String>,
 ) -> ExternalRefusal {
     ExternalRefusal {
         code,
         stage,
         detail: detail.to_owned(),
-        offending: None,
+        offending,
         expected: None,
         supplied: None,
         capability: None,
         remedy: None,
     }
+}
+
+/// Blank refusal with no offending coordinate.
+pub(crate) fn make_refusal(
+    code: &'static str,
+    stage: &'static str,
+    detail: &str,
+) -> ExternalRefusal {
+    external_refusal(code, stage, detail, None)
 }
 
 impl SignalError {
