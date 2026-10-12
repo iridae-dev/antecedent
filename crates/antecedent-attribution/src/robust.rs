@@ -418,6 +418,23 @@ impl<'a> RobustMechanismPayoff<'a> {
 }
 
 impl CoalitionPayoff for RobustMechanismPayoff<'_> {
+    fn fork<'a>(&'a self) -> Option<Box<dyn CoalitionPayoff + Send + 'a>> {
+        Some(Box::new(RobustMechanismPayoff {
+            template: self.template.clone(),
+            baseline: self.baseline.clone(),
+            comparison: self.comparison.clone(),
+            outcome: self.outcome,
+            ws: MechanismWorkspace::default(),
+            node_player: self.node_player.clone(),
+            values: vec![0.0; self.values.len()],
+            parent_scratch: Vec::new(),
+            noise_scratch: vec![0.0; self.noise_scratch.len()],
+            n_samples: self.n_samples,
+            seed: self.seed,
+            ctx: self.ctx,
+        }))
+    }
+
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
         let n = self.n_samples;
         // Common random numbers: fresh stream from the same seed every call, so

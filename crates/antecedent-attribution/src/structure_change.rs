@@ -340,6 +340,7 @@ pub(crate) fn hybrid_structure_dag(
 /// hybrid that gives it the same parent-set source. Composing per-mask stores from
 /// these two fits is therefore numerically identical to the previous per-coalition
 /// double refit (pinned by `memoized_fits_match_per_coalition_refit`).
+#[derive(Clone)]
 struct StructureFits {
     baseline: CompiledMechanismStore,
     comparison: CompiledMechanismStore,
@@ -394,6 +395,29 @@ impl crate::change_common::CachedOutcomeLawPayoff for StructureSwapPayoff<'_> {
 impl CoalitionPayoff for StructureSwapPayoff<'_> {
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
         crate::change_common::CachedOutcomeLawPayoff::cached_payoff_value(self, mask)
+    }
+
+    fn fork<'a>(&'a self) -> Option<Box<dyn CoalitionPayoff + Send + 'a>> {
+        Some(Box::new(StructureSwapPayoff {
+            baseline_graph: Arc::clone(&self.baseline_graph),
+            comparison_graph: Arc::clone(&self.comparison_graph),
+            baseline_data: self.baseline_data.clone(),
+            comparison_data: self.comparison_data.clone(),
+            players: self.players.clone(),
+            player_nodes: self.player_nodes.clone(),
+            player_of_node: self.player_of_node.clone(),
+            outcome: self.outcome,
+            measure: self.measure,
+            n_samples: self.n_samples,
+            seed: self.seed,
+            ctx: self.ctx,
+            ws: MechanismWorkspace::default(),
+            values_buf: Vec::new(),
+            baseline_law: self.baseline_law,
+            fits: self.fits.clone(),
+            compiled_cache: self.compiled_cache.clone(),
+            hybrid_cache: self.hybrid_cache.clone(),
+        }))
     }
 }
 

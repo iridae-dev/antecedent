@@ -102,6 +102,20 @@ struct FeaturePayoff<'a> {
 }
 
 impl CoalitionPayoff for FeaturePayoff<'_> {
+    fn fork<'a>(&'a self) -> Option<Box<dyn CoalitionPayoff + Send + 'a>> {
+        Some(Box::new(FeaturePayoff {
+            model: self.model,
+            features: self.features,
+            means: self.means,
+            delta: self.delta,
+            outcome: self.outcome,
+            n_samples: self.n_samples,
+            ctx: self.ctx,
+            ws: MechanismWorkspace::default(),
+            seed: self.seed,
+        }))
+    }
+
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
         let mut interventions = Vec::new();
         for (i, &feat) in self.features.iter().enumerate() {

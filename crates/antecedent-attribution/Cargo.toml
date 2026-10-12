@@ -35,3 +35,7 @@ serde_json = { workspace = true }
 [[bench]]
 name = "shapley"
 harness = false
+
+[[bench]]
+name = "parallel_shapley"
+harness = false
