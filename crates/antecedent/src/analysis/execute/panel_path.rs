@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::completion_fit_memo::{CompletionFitMemo, ResponseFitKey};
 use super::*;
 use antecedent_core::StreamDomain;
 
@@ -1005,6 +1006,8 @@ impl super::Study {
             temporal_h.horizons = Arc::from([horizon]);
             qh.temporal = Some(temporal_h);
             n_fitted = 0;
+            let mut unit_fits: CompletionFitMemo<Vec<CausalResponse>, ResponseFitKey> =
+                CompletionFitMemo::default();
             for (case_index, (case, indexer)) in
                 envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
             {
@@ -1027,16 +1030,33 @@ impl super::Study {
                     estimand: estimand.clone(),
                     indexer: indexer.clone(),
                 };
-                let unit_responses = fit_unit_panel_responses(
-                    panel,
-                    &[&entry],
-                    &qh,
+                // Completions given the same estimand, indexer, status and
+                // assumptions fit every unit once: the panel, the horizon's
+                // query, the inference mode and the seed are fixed here, and
+                // the conflict diagnostics of a repeated fit are already
+                // present (they are reported once per distinct message).
+                let fit_key = ResponseFitKey::new(
+                    &estimand,
+                    indexer,
                     case.result.status,
                     &case.result.required_assumptions,
-                    &self.inference,
-                    ctx,
-                    &mut diagnostics,
-                )?;
+                );
+                let unit_responses = if let Some(hit) = unit_fits.get(&fit_key) {
+                    hit.clone()
+                } else {
+                    let fitted = fit_unit_panel_responses(
+                        panel,
+                        &[&entry],
+                        &qh,
+                        case.result.status,
+                        &case.result.required_assumptions,
+                        &self.inference,
+                        ctx,
+                        &mut diagnostics,
+                    )?;
+                    unit_fits.insert(fit_key, fitted.clone());
+                    fitted
+                };
                 let response = average_unit_panel_responses(
                     &unit_responses,
                     matches!(self.inference, InferenceMode::Bayesian(_)),

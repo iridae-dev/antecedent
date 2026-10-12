@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::completion_fit_memo::{CompletionFitMemo, MediationFitKey, ResponseFitKey};
 use super::*;
 #[path = "checked_temporal_response.rs"]
 pub(super) mod checked_temporal_response;
@@ -57,6 +58,11 @@ impl super::Study {
             let completion_count = envelope.cases.len();
             let mut effects = Vec::new();
             let mut local_diagnostics = Vec::new();
+            // Completions with one method, mediator, adjustment and status run one
+            // fit at this horizon; every other input of a fit is fixed per horizon.
+            let mut bayesian_fits = CompletionFitMemo::default();
+            let mut point_fits = CompletionFitMemo::default();
+            let mut refute_fits = CompletionFitMemo::default();
             // Completions (frequentist or Bayesian) that all fit the same mediation
             // design (same estimand, same S(h)) estimate one contrast; that design is
             // kept for the class interval below.
@@ -112,47 +118,20 @@ impl super::Study {
                 }
                 let frequentist_estimate = match &self.inference {
                     InferenceMode::Bayesian(cfg) => {
-                        let bayes = bayesian_gcomp(cfg, ctx);
-                        let preparations =
-                            antecedent_estimate::bayesian_mediation::prepare_temporal_mediation_adjusted(
-                                data,
-                                &estimand,
-                                &horizon_query,
-                                &adjustment,
-                                ctx,
-                            )
-                            .map_err(CausalError::from)?;
-                        let mechanisms = preparations
-                            .iter()
-                            .enumerate()
-                            .map(|(index, prep)| {
-                                let mut mechanism = bayes.clone();
-                                mechanism.seed =
-                                    mediation_mechanism_seed(mechanism.seed, horizon, index);
-                                let (prior, conflict) =
-                                    resolve_envelope_prior_anchor(cfg, prep, ctx)?;
-                                if let Some(summary) = conflict.as_ref() {
-                                    push_conflict_diagnostics(&mut diagnostics, summary);
-                                }
-                                mechanism.prior = prior;
-                                mechanism
-                                    .fit(
-                                        prep,
-                                        identification.status,
-                                        &mut BayesianGCompWorkspace::default(),
-                                        ctx,
-                                    )
-                                    .map_err(CausalError::from)
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-                        let composed =
-                            antecedent_estimate::bayesian_mediation::compose_temporal_mediation(
-                                &mechanisms[0],
-                                &mechanisms[1],
-                                &horizon_query,
-                                identification.status,
-                            )
-                            .map_err(CausalError::from)?;
+                        let (composed, conflicts) = fit_class_bayesian_mediation(
+                            &mut bayesian_fits,
+                            cfg,
+                            data,
+                            &estimand,
+                            &horizon_query,
+                            &adjustment,
+                            horizon,
+                            identification.status,
+                            ctx,
+                        )?;
+                        for summary in &conflicts {
+                            push_conflict_diagnostics(&mut diagnostics, summary);
+                        }
                         let mean = composed.summaries.mean.first().copied().unwrap_or(f64::NAN);
                         effects.push(mean);
                         structural_atoms.last_mut().expect("mediation atom").posterior =
@@ -165,33 +144,33 @@ impl super::Study {
                         })
                     }
                     InferenceMode::Frequentist => {
-                        let estimate = estimator
-                            .estimate_with_adjustment(
-                                data,
-                                &estimand,
-                                &horizon_query,
-                                &adjustment,
-                                &[],
-                                ctx,
-                            )
-                            .map_err(CausalError::from)?;
+                        let estimate = fit_class_frequentist_mediation(
+                            &mut point_fits,
+                            &estimator,
+                            data,
+                            &estimand,
+                            &horizon_query,
+                            &adjustment,
+                            identification.status,
+                            ctx,
+                        )?;
                         effects.push(estimate.effect.ate);
                         Some(estimate)
                     }
                 };
                 if let Some(estimate) = frequentist_estimate.as_ref() {
                     if self.refute != RefuteSuite::None {
-                        let mut reports =
-                            antecedent_validate::mediation::refute_temporal_mediation_adjusted(
-                                data,
-                                &estimand,
-                                &horizon_query,
-                                estimate,
-                                self.refute == RefuteSuite::Full,
-                                &adjustment,
-                                ctx,
-                            )
-                            .map_err(CausalError::from)?;
+                        let mut reports = refute_class_mediation(
+                            &mut refute_fits,
+                            data,
+                            &estimand,
+                            &horizon_query,
+                            estimate,
+                            self.refute == RefuteSuite::Full,
+                            &adjustment,
+                            identification.status,
+                            ctx,
+                        )?;
                         for report in &mut reports {
                             report.refuter = Arc::from(format!(
                                 "horizon.{horizon}.completion.{completion_idx}.{}",
@@ -300,48 +279,22 @@ impl super::Study {
                             // from the shared design (mirrors the Frequentist branch
                             // above) rather than reusing whichever completion's
                             // composed posterior happened to run last.
-                            let bayes = bayesian_gcomp(cfg, ctx);
                             let status = shared_status
                                 .unwrap_or(IdentificationStatus::NonparametricallyIdentified);
-                            let preparations = antecedent_estimate::bayesian_mediation::prepare_temporal_mediation_adjusted(
+                            let (composed, conflicts) = fit_class_bayesian_mediation(
+                                &mut bayesian_fits,
+                                cfg,
                                 data,
                                 shared_estimand,
                                 &qh,
                                 shared_adjustment,
+                                horizon,
+                                status,
                                 ctx,
-                            )
-                            .map_err(CausalError::from)?;
-                            let mechanisms = preparations
-                                .iter()
-                                .enumerate()
-                                .map(|(index, prep)| {
-                                    let mut mechanism = bayes.clone();
-                                    mechanism.seed =
-                                        mediation_mechanism_seed(mechanism.seed, horizon, index);
-                                    let (prior, conflict) =
-                                        resolve_envelope_prior_anchor(cfg, prep, ctx)?;
-                                    if let Some(summary) = conflict.as_ref() {
-                                        push_conflict_diagnostics(&mut diagnostics, summary);
-                                    }
-                                    mechanism.prior = prior;
-                                    mechanism
-                                        .fit(
-                                            prep,
-                                            status,
-                                            &mut BayesianGCompWorkspace::default(),
-                                            ctx,
-                                        )
-                                        .map_err(CausalError::from)
-                                })
-                                .collect::<Result<Vec<_>, _>>()?;
-                            let composed =
-                                antecedent_estimate::bayesian_mediation::compose_temporal_mediation(
-                                    &mechanisms[0],
-                                    &mechanisms[1],
-                                    &qh,
-                                    status,
-                                )
-                                .map_err(CausalError::from)?;
+                            )?;
+                            for summary in &conflicts {
+                                push_conflict_diagnostics(&mut diagnostics, summary);
+                            }
                             let mediation = TemporalMediationEstimate {
                                 effect: effect_from_posterior(&composed)?,
                                 total: None,
@@ -1491,6 +1444,11 @@ impl super::Study {
             diagnostics.push(temporal_class_envelope_diagnostic(envelope, self.graph.class()));
             let weights = class_weights.for_envelope(&bundle.envelope)?;
             assembly.begin_horizon(envelope);
+            // Completions given the same estimand, indexer, status and assumptions
+            // run one fit at this horizon; every other fit input is fixed per
+            // horizon.
+            let mut bayesian_response_fits = CompletionFitMemo::default();
+            let mut frequentist_response_fits = CompletionFitMemo::default();
             for (case_index, (case, indexer)) in
                 envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
             {
@@ -1571,38 +1529,22 @@ impl super::Study {
                         response
                     }
                     InferenceMode::Bayesian(cfg) => {
-                        let mut bayes = bayesian_gcomp(cfg, ctx);
-                        let entry =
-                            crate::analysis::prepared::CachedTemporalHorizonIdentification {
-                                horizon,
-                                identification: case.result.clone(),
-                                estimand: estimand.clone(),
-                                indexer: indexer.clone(),
-                            };
-                        let (prior, conflict) = resolve_temporal_response_prior(
+                        let (response, conflict) = fit_class_bayesian_response(
+                            &mut bayesian_response_fits,
                             cfg,
                             series,
-                            qh.temporal.as_ref().expect("temporal horizon"),
-                            &[&entry],
-                            treatment,
-                            outcome,
+                            &qh,
+                            horizon,
+                            &estimand,
+                            indexer,
+                            &case.result,
+                            (treatment, outcome),
                             ctx,
                         )?;
                         if let Some(summary) = conflict.as_ref() {
                             push_conflict_diagnostics(&mut diagnostics, summary);
                         }
-                        bayes.prior = prior;
-                        TemporalResponseEstimator::new()
-                            .estimate_bayesian(
-                                series,
-                                &[(&estimand, indexer)],
-                                &qh,
-                                case.result.status,
-                                case.result.required_assumptions.clone(),
-                                &bayes,
-                                ctx,
-                            )
-                            .map_err(CausalError::from)?
+                        response
                     }
                     InferenceMode::Frequentist => {
                         // Requested replicates ride each completion atom. An
@@ -1611,16 +1553,21 @@ impl super::Study {
                         let mut estimator = TemporalResponseEstimator::new();
                         estimator.inner.bootstrap_replicates =
                             if series_owned.is_some() { 0 } else { self.bootstrap_replicates };
-                        estimator
-                            .estimate(
-                                series,
-                                &[(&estimand, indexer)],
-                                &qh,
-                                case.result.status,
-                                case.result.required_assumptions.clone(),
-                                ctx,
-                            )
-                            .map_err(CausalError::from)?
+                        // An observation-adjusted series is built per completion
+                        // from its own adjustment, so only the unadjusted series
+                        // shares fits.
+                        let memo = series_owned.is_none().then_some(&mut frequentist_response_fits);
+                        fit_class_frequentist_response(
+                            memo,
+                            &estimator,
+                            series,
+                            &qh,
+                            &estimand,
+                            indexer,
+                            case.result.status,
+                            &case.result.required_assumptions,
+                            ctx,
+                        )?
                     }
                 };
                 // The class response pools each completion's per-cell band into one
@@ -5341,4 +5288,195 @@ pub(super) fn temporal_cross_world_hard_level(
     intervention: &Intervention,
 ) -> Result<f64, CausalError> {
     hard_level(intervention)
+}
+
+type BayesianMediationFit =
+    (antecedent_estimate::CausalPosterior, Vec<antecedent_prob::ConflictSummary>);
+
+/// The composed Bayesian mediation posterior of one class completion, with the
+/// prior-conflict summaries its mechanism fits resolved, served from `fits`
+/// when an earlier completion (or the shared-design recompute) of the same
+/// horizon fitted the same method, mediator, adjustment and status.
+#[inline(never)]
+fn fit_class_bayesian_mediation(
+    fits: &mut CompletionFitMemo<BayesianMediationFit, MediationFitKey>,
+    cfg: &BayesianConfig,
+    data: &TimeSeriesData,
+    estimand: &IdentifiedEstimand,
+    query: &antecedent_core::MediationQuery,
+    adjustment: &Arc<[antecedent_data::LaggedColumn]>,
+    horizon: u32,
+    status: IdentificationStatus,
+    ctx: &ExecutionContext,
+) -> Result<BayesianMediationFit, CausalError> {
+    let key = MediationFitKey::new(estimand, adjustment, status);
+    if let Some(hit) = fits.get(&key) {
+        return Ok(hit.clone());
+    }
+    let bayes = bayesian_gcomp(cfg, ctx);
+    let preparations =
+        antecedent_estimate::bayesian_mediation::prepare_temporal_mediation_adjusted(
+            data, estimand, query, adjustment, ctx,
+        )
+        .map_err(CausalError::from)?;
+    let mut conflicts = Vec::new();
+    let mut mechanisms = Vec::with_capacity(preparations.len());
+    for (index, prep) in preparations.iter().enumerate() {
+        let mut mechanism = bayes.clone();
+        mechanism.seed = mediation_mechanism_seed(mechanism.seed, horizon, index);
+        let (prior, conflict) = resolve_envelope_prior_anchor(cfg, prep, ctx)?;
+        conflicts.extend(conflict);
+        mechanism.prior = prior;
+        mechanisms.push(
+            mechanism
+                .fit(prep, status, &mut BayesianGCompWorkspace::default(), ctx)
+                .map_err(CausalError::from)?,
+        );
+    }
+    let composed = antecedent_estimate::bayesian_mediation::compose_temporal_mediation(
+        &mechanisms[0],
+        &mechanisms[1],
+        query,
+        status,
+    )
+    .map_err(CausalError::from)?;
+    let fitted = (composed, conflicts);
+    fits.insert(key, fitted.clone());
+    Ok(fitted)
+}
+
+/// The point mediation estimate of one class completion, served from `fits`
+/// when an earlier completion of the horizon fitted the same method, mediator
+/// and adjustment.
+#[inline(never)]
+fn fit_class_frequentist_mediation(
+    fits: &mut CompletionFitMemo<antecedent_estimate::TemporalMediationEstimate, MediationFitKey>,
+    estimator: &TemporalMediationEstimator,
+    data: &TimeSeriesData,
+    estimand: &IdentifiedEstimand,
+    query: &antecedent_core::MediationQuery,
+    adjustment: &Arc<[antecedent_data::LaggedColumn]>,
+    status: IdentificationStatus,
+    ctx: &ExecutionContext,
+) -> Result<antecedent_estimate::TemporalMediationEstimate, CausalError> {
+    let key = MediationFitKey::new(estimand, adjustment, status);
+    if let Some(hit) = fits.get(&key) {
+        return Ok(hit.clone());
+    }
+    let estimate = estimator
+        .estimate_with_adjustment(data, estimand, query, adjustment, &[], ctx)
+        .map_err(CausalError::from)?;
+    fits.insert(key, estimate.clone());
+    Ok(estimate)
+}
+
+/// The refutation reports of one class completion's mediation estimate, served
+/// from `fits` under the key of the estimate they check. The reports read the
+/// estimand only through its mediator and the estimator's method check.
+#[inline(never)]
+fn refute_class_mediation(
+    fits: &mut CompletionFitMemo<Vec<antecedent_validate::RefutationReport>, MediationFitKey>,
+    data: &TimeSeriesData,
+    estimand: &IdentifiedEstimand,
+    query: &antecedent_core::MediationQuery,
+    estimate: &antecedent_estimate::TemporalMediationEstimate,
+    full: bool,
+    adjustment: &Arc<[antecedent_data::LaggedColumn]>,
+    status: IdentificationStatus,
+    ctx: &ExecutionContext,
+) -> Result<Vec<antecedent_validate::RefutationReport>, CausalError> {
+    let key = MediationFitKey::new(estimand, adjustment, status);
+    if let Some(hit) = fits.get(&key) {
+        return Ok(hit.clone());
+    }
+    let reports = antecedent_validate::mediation::refute_temporal_mediation_adjusted(
+        data, estimand, query, estimate, full, adjustment, ctx,
+    )
+    .map_err(CausalError::from)?;
+    fits.insert(key, reports.clone());
+    Ok(reports)
+}
+
+type BayesianResponseFit = (CausalResponse, Option<antecedent_prob::ConflictSummary>);
+
+/// One class completion's Bayesian temporal response and the prior-conflict
+/// summary its prior resolution produced, served from `fits` when an earlier
+/// completion of the horizon was given the same fit inputs.
+#[inline(never)]
+fn fit_class_bayesian_response(
+    fits: &mut CompletionFitMemo<BayesianResponseFit, ResponseFitKey>,
+    cfg: &BayesianConfig,
+    series: &TimeSeriesData,
+    query: &ResponseQuery,
+    horizon: u32,
+    estimand: &IdentifiedEstimand,
+    indexer: &TemporalIndexer,
+    identification: &IdentificationResult,
+    (treatment, outcome): (VariableId, VariableId),
+    ctx: &ExecutionContext,
+) -> Result<BayesianResponseFit, CausalError> {
+    let status = identification.status;
+    let assumptions = &identification.required_assumptions;
+    let key = ResponseFitKey::new(estimand, indexer, status, assumptions);
+    if let Some(hit) = fits.get(&key) {
+        return Ok(hit.clone());
+    }
+    let mut bayes = bayesian_gcomp(cfg, ctx);
+    let entry = crate::analysis::prepared::CachedTemporalHorizonIdentification {
+        horizon,
+        identification: identification.clone(),
+        estimand: estimand.clone(),
+        indexer: indexer.clone(),
+    };
+    let (prior, conflict) = resolve_temporal_response_prior(
+        cfg,
+        series,
+        query.temporal.as_ref().expect("temporal horizon"),
+        &[&entry],
+        treatment,
+        outcome,
+        ctx,
+    )?;
+    bayes.prior = prior;
+    let response = TemporalResponseEstimator::new()
+        .estimate_bayesian(
+            series,
+            &[(estimand, indexer)],
+            query,
+            status,
+            assumptions.clone(),
+            &bayes,
+            ctx,
+        )
+        .map_err(CausalError::from)?;
+    let fitted = (response, conflict);
+    fits.insert(key, fitted.clone());
+    Ok(fitted)
+}
+
+/// One class completion's frequentist temporal response, served from `fits`
+/// (when the caller supplies a memo) under the same condition.
+#[inline(never)]
+fn fit_class_frequentist_response(
+    fits: Option<&mut CompletionFitMemo<CausalResponse, ResponseFitKey>>,
+    estimator: &TemporalResponseEstimator,
+    series: &TimeSeriesData,
+    query: &ResponseQuery,
+    estimand: &IdentifiedEstimand,
+    indexer: &TemporalIndexer,
+    status: IdentificationStatus,
+    assumptions: &antecedent_core::AssumptionSet,
+    ctx: &ExecutionContext,
+) -> Result<CausalResponse, CausalError> {
+    let key = ResponseFitKey::new(estimand, indexer, status, assumptions);
+    if let Some(hit) = fits.as_deref().and_then(|memo| memo.get(&key)) {
+        return Ok(hit.clone());
+    }
+    let response = estimator
+        .estimate(series, &[(estimand, indexer)], query, status, assumptions.clone(), ctx)
+        .map_err(CausalError::from)?;
+    if let Some(memo) = fits {
+        memo.insert(key, response.clone());
+    }
+    Ok(response)
 }
