@@ -95,7 +95,7 @@ const REPORT_ALL: u8 = (1 << 7) - 1;
 /// struct's own order.
 #[must_use]
 #[derive(Clone, Debug)]
-pub struct RefutationReportBuilder {
+pub(crate) struct RefutationReportBuilder {
     refuter: Arc<str>,
     original_ate: f64,
     refuted_ate: f64,
@@ -109,7 +109,7 @@ pub struct RefutationReportBuilder {
 
 impl RefutationReport {
     /// Start a report named `refuter`. Every other field is set by the builder.
-    pub fn builder(refuter: impl Into<Arc<str>>) -> RefutationReportBuilder {
+    pub(crate) fn builder(refuter: impl Into<Arc<str>>) -> RefutationReportBuilder {
         RefutationReportBuilder {
             refuter: refuter.into(),
             original_ate: 0.0,
