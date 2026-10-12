@@ -157,6 +157,21 @@ impl Dag {
         self.directed.push_unchecked(from, to);
     }
 
+    /// Shared directed tables. Cloning bumps the adjacency refcount.
+    pub(crate) fn directed_core(&self) -> &DirectedCore {
+        &self.directed
+    }
+
+    /// Mutable directed tables. Unfolding uses this after the template proved acyclicity.
+    pub(crate) fn directed_mut(&mut self) -> &mut DirectedCore {
+        &mut self.directed
+    }
+
+    /// A DAG over `nodes` with already-validated directed edges.
+    pub(crate) fn from_directed(nodes: Vec<NodeRef>, directed: DirectedCore) -> Self {
+        Self { nodes, directed }
+    }
+
     /// Children of `id` (empty for an id outside the graph).
     #[must_use]
     pub fn children(&self, id: DenseNodeId) -> &[DenseNodeId] {

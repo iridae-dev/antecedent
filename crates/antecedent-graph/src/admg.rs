@@ -4,7 +4,8 @@
 
 use antecedent_core::VariableId;
 
-use crate::algo::{bfs_reaches, closure_into, components_by, is_dag, kahn_order};
+use crate::algo::{closure_into, components_by, is_dag};
+use crate::directed::DirectedCore;
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::{BitSet, GraphWorkspace};
@@ -25,20 +26,15 @@ pub enum CopyLabels {
 #[derive(Clone, Debug)]
 pub struct Admg {
     nodes: Vec<NodeRef>,
-    /// Outgoing children (directed).
-    children: Vec<Vec<DenseNodeId>>,
-    /// Incoming parents (directed).
-    parents: Vec<Vec<DenseNodeId>>,
+    directed: DirectedCore,
     /// Bidirected neighbors (symmetric adjacency).
     bidirected: Vec<Vec<DenseNodeId>>,
-    insert_ws: GraphWorkspace,
 }
 
 impl PartialEq for Admg {
     fn eq(&self, other: &Self) -> bool {
         self.nodes == other.nodes
-            && self.children == other.children
-            && self.parents == other.parents
+            && self.directed.same_edges(&other.directed)
             && self.bidirected == other.bidirected
     }
 }
@@ -49,13 +45,7 @@ impl Admg {
     /// Empty ADMG.
     #[must_use]
     pub fn empty() -> Self {
-        Self {
-            nodes: Vec::new(),
-            children: Vec::new(),
-            parents: Vec::new(),
-            bidirected: Vec::new(),
-            insert_ws: GraphWorkspace::default(),
-        }
+        Self { nodes: Vec::new(), directed: DirectedCore::new(), bidirected: Vec::new() }
     }
 
     /// One static node per variable `0..n`.
@@ -102,7 +92,8 @@ impl Admg {
             let from = DenseNodeId::from_index(i);
             for &to in self.children(from) {
                 if keep_directed(from, to) {
-                    out.insert_directed(from, to)?;
+                    // Dropping directed edges of an acyclic graph cannot create a cycle.
+                    out.directed.push_unchecked(from, to);
                 }
             }
             for &to in self.bidirected_neighbors(from) {
@@ -138,14 +129,13 @@ impl Admg {
     ///
     /// Node capacity (a valid DAG cannot otherwise be refused).
     pub fn from_dag(dag: &crate::dag::Dag) -> Result<Self, GraphError> {
-        let mut out = Self::empty();
-        for node in dag.nodes() {
-            out.add_node(*node)?;
-        }
-        for (from, to) in dag.edges().filter_map(MarkedEdge::parent_child) {
-            out.insert_directed(from, to)?;
-        }
-        Ok(out)
+        // The DAG already validated every directed edge. Sharing the tables skips
+        // that walk and the per-edge cycle search.
+        Ok(Self {
+            nodes: dag.nodes().to_vec(),
+            directed: dag.directed_core().clone(),
+            bidirected: vec![Vec::new(); dag.node_count()],
+        })
     }
 
     /// The DAG of this ADMG's directed edges over the same nodes (labels preserved);
@@ -155,16 +145,7 @@ impl Admg {
     ///
     /// Node capacity (the directed part of an ADMG is acyclic by construction).
     pub fn directed_part(&self) -> Result<crate::dag::Dag, GraphError> {
-        let mut out = crate::dag::Dag::empty();
-        for node in &self.nodes {
-            out.add_node(*node)?;
-        }
-        for (from, kids) in self.node_ids().zip(&self.children) {
-            for &to in kids {
-                out.insert_directed(from, to)?;
-            }
-        }
-        Ok(out)
+        Ok(crate::dag::Dag::from_directed(self.nodes.clone(), self.directed.clone()))
     }
 
     /// Number of nodes.
@@ -198,8 +179,7 @@ impl Admg {
         }
         let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
         self.nodes.push(node);
-        self.children.push(Vec::new());
-        self.parents.push(Vec::new());
+        self.directed.push_node();
         self.bidirected.push(Vec::new());
         Ok(DenseNodeId::from_raw(id))
     }
@@ -233,18 +213,7 @@ impl Admg {
                 message: "Admg rejects directed self-loops",
             });
         }
-        if self.children[from.as_usize()].contains(&to) {
-            return Err(GraphError::DuplicateEdge { from: from.raw(), to: to.raw() });
-        }
-        let mut ws = core::mem::take(&mut self.insert_ws);
-        let cycle = self.reaches_with(to, from, &mut ws);
-        self.insert_ws = ws;
-        if cycle {
-            return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
-        }
-        self.children[from.as_usize()].push(to);
-        self.parents[to.as_usize()].push(from);
-        Ok(())
+        self.directed.try_insert(from, to)
     }
 
     /// Insert bidirected edge `a ↔ b` (latent confounder).
@@ -291,13 +260,13 @@ impl Admg {
     /// Children of `id` (directed; empty for an id outside the graph).
     #[must_use]
     pub fn children(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        self.children.get(id.as_usize()).map_or(&[], Vec::as_slice)
+        self.directed.children_of(id)
     }
 
     /// Parents of `id` (directed; empty for an id outside the graph).
     #[must_use]
     pub fn parents(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        self.parents.get(id.as_usize()).map_or(&[], Vec::as_slice)
+        self.directed.parents_of(id)
     }
 
     /// Bidirected neighbors of `id` (empty for an id outside the graph).
@@ -329,7 +298,7 @@ impl Admg {
         to: DenseNodeId,
         ws: &mut GraphWorkspace,
     ) -> bool {
-        bfs_reaches(&self.children, from, to, ws)
+        self.directed.reaches_with(from, to, ws)
     }
 
     /// Collect directed descendants of `nodes` (including `nodes`) into `out`.
@@ -386,7 +355,7 @@ impl Admg {
     #[must_use]
     pub fn directed_edge_pairs_sorted(&self) -> Vec<(u32, u32)> {
         let mut pairs = Vec::new();
-        for (i, kids) in self.children.iter().enumerate() {
+        for (i, kids) in self.directed.child_adj().iter().enumerate() {
             let from = u32::try_from(i).expect("node fit");
             pairs.extend(kids.iter().map(|to| (from, to.raw())));
         }
@@ -430,7 +399,7 @@ impl Admg {
     #[must_use]
     pub fn static_directed_edges_sorted(&self) -> Option<Vec<(VariableId, VariableId)>> {
         let mut pairs = Vec::new();
-        for (from, kids) in DenseNodeId::all(self.node_count()).zip(&self.children) {
+        for (from, kids) in DenseNodeId::all(self.node_count()).zip(self.directed.child_adj()) {
             let from_var = self.static_variable(from)?;
             for &to in kids {
                 pairs.push((from_var, self.static_variable(to)?));
@@ -455,7 +424,7 @@ impl Admg {
     pub fn strict_ancestor_sets(&self) -> Vec<BitSet> {
         let n = self.node_count();
         let mut ancestors: Vec<BitSet> = (0..n).map(|_| BitSet::with_len(n)).collect();
-        let mut pending: Vec<usize> = self.parents.iter().map(Vec::len).collect();
+        let mut pending: Vec<usize> = self.directed.parent_adj().iter().map(Vec::len).collect();
         let mut ready: Vec<DenseNodeId> =
             self.node_ids().filter(|v| pending[v.as_usize()] == 0).collect();
         while let Some(v) = ready.pop() {
@@ -563,7 +532,7 @@ impl Admg {
     /// `None` only if a directed cycle slipped in; insertion refuses cycles.
     #[must_use]
     pub fn topological_order(&self) -> Option<Vec<DenseNodeId>> {
-        kahn_order(&self.parents, &self.children)
+        self.directed.topological_order()
     }
 
     /// Districts (bidirected-connected components) of the subgraph induced by `nodes`.
@@ -621,7 +590,7 @@ impl Admg {
     ///
     /// Directed cycle detected.
     pub fn validate(&self) -> Result<(), GraphError> {
-        if !is_dag(&self.parents, &self.children) {
+        if !is_dag(self.directed.parent_adj(), self.directed.child_adj()) {
             return Err(GraphError::Cycle { from: 0, to: 0 });
         }
         Ok(())

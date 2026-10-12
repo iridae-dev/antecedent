@@ -133,6 +133,9 @@ impl LazyUnfoldedTemporalGraph {
                 insert_replicated_edges(&mut dag, &self.indexer, from_key, to_key)?;
             }
         }
+        if dag.topological_order().is_none() {
+            return Err(GraphError::Cycle { from: 0, to: 0 });
+        }
 
         Ok(UnfoldedTemporalGraph { dag, indexer: self.indexer.clone() })
     }
@@ -198,10 +201,8 @@ fn insert_replicated_edges(
         if from == to {
             continue;
         }
-        match dag.insert_directed(from, to) {
-            Ok(()) | Err(GraphError::DuplicateEdge { .. }) => {}
-            Err(e) => return Err(e),
-        }
+        // Stationary shifts of an acyclic template stay acyclic. Duplicates are ignored.
+        dag.directed_mut().push_if_absent(from, to);
     }
     Ok(())
 }

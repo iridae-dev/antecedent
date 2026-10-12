@@ -5,7 +5,7 @@
 use antecedent_core::TemporalNodeKey;
 use antecedent_core::{Lag, VariableId};
 
-use crate::algo::bfs_reaches;
+use crate::directed::DirectedCore;
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
@@ -14,16 +14,12 @@ use crate::workspace::GraphWorkspace;
 #[derive(Clone, Debug)]
 pub struct TemporalDag {
     nodes: Vec<NodeRef>,
-    children: Vec<Vec<DenseNodeId>>,
-    parents: Vec<Vec<DenseNodeId>>,
-    insert_ws: GraphWorkspace,
+    directed: DirectedCore,
 }
 
 impl PartialEq for TemporalDag {
     fn eq(&self, other: &Self) -> bool {
-        self.nodes == other.nodes
-            && self.children == other.children
-            && self.parents == other.parents
+        self.nodes == other.nodes && self.directed.same_edges(&other.directed)
     }
 }
 
@@ -33,12 +29,7 @@ impl TemporalDag {
     /// Empty temporal DAG.
     #[must_use]
     pub fn empty() -> Self {
-        Self {
-            nodes: Vec::new(),
-            children: Vec::new(),
-            parents: Vec::new(),
-            insert_ws: GraphWorkspace::default(),
-        }
+        Self { nodes: Vec::new(), directed: DirectedCore::new() }
     }
 
     /// Node count.
@@ -75,8 +66,7 @@ impl TemporalDag {
         }
         let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
         self.nodes.push(node);
-        self.children.push(Vec::new());
-        self.parents.push(Vec::new());
+        self.directed.push_node();
         Ok(DenseNodeId::from_raw(id))
     }
 
@@ -126,35 +116,24 @@ impl TemporalDag {
             }
             crate::types::reject_future_to_past(&self.nodes, from, to)?;
         }
-        if self.children[from.as_usize()].contains(&to) {
-            return Err(GraphError::DuplicateEdge { from: from.raw(), to: to.raw() });
-        }
-        let mut ws = core::mem::take(&mut self.insert_ws);
-        let cycle = bfs_reaches(&self.children, to, from, &mut ws);
-        self.insert_ws = ws;
-        if cycle {
-            return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
-        }
-        self.children[from.as_usize()].push(to);
-        self.parents[to.as_usize()].push(from);
-        Ok(())
+        self.directed.try_insert(from, to)
     }
 
     /// Children.
     #[must_use]
     pub fn children(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        &self.children[id.as_usize()]
+        &self.directed.child_adj()[id.as_usize()]
     }
 
     /// Parents.
     #[must_use]
     pub fn parents(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        &self.parents[id.as_usize()]
+        &self.directed.parent_adj()[id.as_usize()]
     }
 
     /// Iterate directed edges as marked edges.
     pub fn edges(&self) -> impl Iterator<Item = MarkedEdge> + '_ {
-        self.children.iter().enumerate().flat_map(|(i, kids)| {
+        self.directed.child_adj().iter().enumerate().flat_map(|(i, kids)| {
             let from = DenseNodeId::from_index(i);
             kids.iter().map(move |&to| MarkedEdge::directed(from, to))
         })
@@ -175,8 +154,7 @@ impl TemporalDag {
     /// Reachability.
     #[must_use]
     pub fn reaches(&self, from: DenseNodeId, to: DenseNodeId) -> bool {
-        let mut ws = GraphWorkspace::default();
-        bfs_reaches(&self.children, from, to, &mut ws)
+        self.directed.reaches(from, to)
     }
 
     /// Reachability with a reusable workspace.
@@ -186,7 +164,7 @@ impl TemporalDag {
         to: DenseNodeId,
         ws: &mut GraphWorkspace,
     ) -> bool {
-        bfs_reaches(&self.children, from, to, ws)
+        self.directed.reaches_with(from, to, ws)
     }
 
     /// Map dense id to a serializable [`TemporalNodeKey`].
