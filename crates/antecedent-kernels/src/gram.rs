@@ -63,8 +63,24 @@ pub fn equilibrate_into(a: &[f64], scales: &[f64], n: usize, out: &mut [f64]) {
     }
     for i in 0..n {
         for j in 0..n {
-            out[i * n + j] = a[i * n + j] / (scales[i] * scales[j]);
+            // Use one division when the scale product is representable. This preserves
+            // mixed-scale entries that successive division could underflow prematurely.
+            // Fall back to dividing by the larger scale first only when the product
+            // itself overflows or underflows.
+            out[i * n + j] = divide_by_scale_pair(a[i * n + j], scales[i], scales[j]);
         }
+    }
+}
+
+/// Divide by two positive scales without losing a representable result to the scale product.
+fn divide_by_scale_pair(value: f64, left: f64, right: f64) -> f64 {
+    let product = left * right;
+    if product.is_finite() && product > 0.0 {
+        value / product
+    } else if left >= right {
+        value / left / right
+    } else {
+        value / right / left
     }
 }
 
@@ -139,7 +155,8 @@ pub fn gauss_jordan_solve(a: &mut [f64], rhs: &mut [f64], n: usize, nrhs: usize)
 ///
 /// Equilibrates with [`symmetric_scales`], inverts with [`gauss_jordan_solve`],
 /// and unscales. `None` on a short or non-finite buffer, a zero dimension, or a
-/// singular pivot under the module policy.
+/// singular pivot under the module policy, or an inverse that is not representable as
+/// finite `f64` values.
 #[must_use]
 pub fn invert_square(a_in: &[f64], n: usize) -> Option<Vec<f64>> {
     let nn = n.checked_mul(n)?;
@@ -162,8 +179,12 @@ pub fn invert_square(a_in: &[f64], n: usize) -> Option<Vec<f64>> {
     let mut inv = vec![0.0; nn];
     for i in 0..n {
         for j in 0..n {
-            inv[i * n + j] = rhs[j * n + i] / (scales[i] * scales[j]);
+            // As above, do not form a scale product that can overflow.
+            inv[i * n + j] = divide_by_scale_pair(rhs[j * n + i], scales[i], scales[j]);
         }
+    }
+    if inv.iter().any(|value| !value.is_finite()) {
+        return None;
     }
     Some(inv)
 }
@@ -211,6 +232,49 @@ mod tests {
         assert!((inv[0] - 0.01).abs() < 1e-15, "{inv:?}");
         assert!(inv[1].abs() < 1e-30 && inv[2].abs() < 1e-30, "{inv:?}");
         assert!((inv[3] * 9e14 - 1.0).abs() < 1e-12, "{inv:?}");
+    }
+
+    #[test]
+    fn inversion_handles_finite_diagonals_whose_scale_product_overflows() {
+        let value = 1e308;
+        let inv = invert_square(&[value], 1).expect("finite nonzero diagonal");
+        assert!(inv[0].is_finite() && inv[0] > 0.0, "{inv:?}");
+        assert!((inv[0] * value - 1.0).abs() < 1e-12, "{inv:?}");
+
+        let inv =
+            invert_square(&[value, 0.0, 0.0, value], 2).expect("finite two-dimensional diagonal");
+        assert!(inv.iter().all(|entry| entry.is_finite()), "{inv:?}");
+        assert!((inv[0] * value - 1.0).abs() < 1e-12, "{inv:?}");
+        assert!((inv[3] * value - 1.0).abs() < 1e-12, "{inv:?}");
+    }
+
+    #[test]
+    fn mixed_scales_preserve_representable_subnormal_entries() {
+        let scales = [2.0_f64.powi(512), 2.0_f64.powi(-511)];
+        let off_diagonal = 1e-320;
+        let mut equilibrated = [0.0; 4];
+        equilibrate_into(&[0.0, off_diagonal, off_diagonal, 0.0], &scales, 2, &mut equilibrated);
+
+        let expected = off_diagonal / 2.0;
+        assert!(
+            equilibrated[1] > 0.0,
+            "mixed-scale entry was prematurely underflowed: {equilibrated:?}"
+        );
+        assert_eq!(equilibrated[1].to_bits(), expected.to_bits());
+        assert_eq!(equilibrated[2].to_bits(), expected.to_bits());
+    }
+
+    #[test]
+    fn tiny_diagonal_inverse_is_finite_when_representable() {
+        let value = 1e-308;
+        let inv = invert_square(&[value], 1).expect("representable tiny-diagonal inverse");
+        assert!(inv[0].is_finite(), "{inv:?}");
+        assert!((inv[0] / 1e308 - 1.0).abs() < 1e-12, "{inv:?}");
+    }
+
+    #[test]
+    fn tiny_diagonal_inverse_refuses_unrepresentable_result() {
+        assert!(invert_square(&[1e-320], 1).is_none());
     }
 
     #[test]
