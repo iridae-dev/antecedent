@@ -28,8 +28,11 @@ pub fn path_decompose(
     outcome: VariableId,
     max_paths: usize,
     max_len: usize,
-    _ctx: &ExecutionContext,
+    ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(AttributionError::Cancelled);
+    }
     let outcome_dense =
         model.dense_of(outcome).ok_or_else(|| AttributionError::missing_var("outcome", outcome))?;
     let strengths = edge_strength_map(model)?;
@@ -60,6 +63,9 @@ pub fn path_decompose(
     let mut evaluations = 0u64;
 
     for &src in sources {
+        if ctx.cancellation.is_cancelled() {
+            return Err(AttributionError::Cancelled);
+        }
         let src_dense =
             model.dense_of(src).ok_or_else(|| AttributionError::missing_var("source", src))?;
         let (paths, truncated) =

@@ -282,11 +282,9 @@ impl<'p, P: CoalitionPayoff> Prefetched<'p, P> {
             forks.push(Mutex::new(Some(fork)));
         }
         let evaluated = ctx.map_indexed(forks.len(), |t, _| {
-            let mut fork = forks[t]
-                .lock()
-                .ok()
-                .and_then(|mut slot| slot.take())
-                .expect("each chunk's fork is taken once");
+            let Some(mut fork) = forks[t].lock().ok().and_then(|mut slot| slot.take()) else {
+                return Ok(Vec::new());
+            };
             let mut out = Vec::new();
             for &mask in rest.chunks(chunk_len).nth(t).unwrap_or(&[]) {
                 match fork.value(mask) {
@@ -585,7 +583,6 @@ pub(crate) fn sequential_allocate<P: CoalitionPayoff>(
         }
         prev_component = Some((comp, idx));
         v_prev = v_new;
-        let _ = v_s;
     }
 
     Ok(ShapleyEstimate {

@@ -116,14 +116,17 @@ pub fn structure_change(
     // Player → dense-node mapping hoisted out of the per-coalition path (this is
     // invariant across coalitions; it was previously recomputed per mask).
     let variables = &baseline_model.output_layout.variables;
-    let player_nodes: Vec<DenseNodeId> = players
-        .iter()
-        .map(|c| {
-            let idx = variables.iter().position(|v| *v == c.variable()).expect("player in layout");
-            #[allow(clippy::cast_possible_truncation, reason = "idx is a position within the model output layout, whose node ids are u32 by construction")]
-            DenseNodeId::from_raw(idx as u32)
-        })
-        .collect();
+    let mut player_nodes = Vec::with_capacity(players.len());
+    for c in &players {
+        let Some(idx) = variables.iter().position(|v| *v == c.variable()) else {
+            return Err(AttributionError::missing_var("structure player", c.variable()));
+        };
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "idx is a position within the model output layout, whose node ids are u32 by construction"
+        )]
+        player_nodes.push(DenseNodeId::from_raw(idx as u32));
+    }
     let mut player_of_node: Vec<Option<usize>> = vec![None; baseline_model.n_nodes()];
     for (pi, node) in player_nodes.iter().enumerate() {
         player_of_node[node.as_usize()] = Some(pi);
@@ -452,7 +455,11 @@ impl StructureSwapPayoff<'_> {
     fn build_hybrid(&mut self, mask: u64) -> Result<CompiledCausalModel, AttributionError> {
         self.ensure_fits()?;
         let compiled = self.compiled_for(mask)?;
-        let fits = self.fits.as_ref().expect("fits ensured above");
+        let Some(fits) = self.fits.as_ref() else {
+            return Err(AttributionError::invalid_input(
+                "structure-change hybrid was built before its mechanism fits",
+            ));
+        };
         let slots: Vec<MechanismSlot> = (0..compiled.n_nodes())
             .map(|i| {
                 let use_comparison =
