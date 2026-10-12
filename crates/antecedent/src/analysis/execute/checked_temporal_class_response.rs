@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{Arc, CausalError, CausalQuery, ExecutionContext, StudyResult, TimeSeriesData};
+use crate::analysis::proof_support::Procedure;
 
 impl super::Study {
     /// Execute a retained TemporalCpdag/TemporalPag response through the class
@@ -14,7 +15,8 @@ impl super::Study {
         operation: &crate::analysis::CheckedTemporalClassResponseOperation,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let (identifier, estimator, bootstrap_replicates, validation) = operation.procedure();
+        let Procedure { identifier, estimator, bootstrap_replicates, validation } =
+            operation.procedure();
         let mut bound = self.clone();
         bound.graph = Arc::new(operation.source_graph().clone());
         bound.graph_posterior = None;

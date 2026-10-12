@@ -13,6 +13,7 @@ use super::{
     select_claim,
 };
 use crate::analysis::prepared::Inspect;
+use crate::analysis::proof_support::{proof_supplies, verify_proof_against_graph};
 use antecedent_core::{TargetPopulation, VariableId};
 use antecedent_learn::{BasisTargetPopulation, BayesianBasisGComputation, BayesianBasisSpec};
 
@@ -120,11 +121,7 @@ impl CheckedBayesianBasisAteExecution {
             });
         }
         if identification.average_effect() != Some(&query)
-            || !identification.estimands.iter().any(|candidate| {
-                candidate.functional == estimand.functional
-                    && candidate.method == estimand.method
-                    && candidate.adjustment_set == estimand.adjustment_set
-            })
+            || !proof_supplies(&identification, &estimand)
         {
             return Err(CausalError::Compile {
                 message: "Bayesian basis estimand is not supplied by its retained proof".into(),
@@ -138,16 +135,13 @@ impl CheckedBayesianBasisAteExecution {
             )?,
             EstimatorId::BayesianBasisGcomp,
         )?;
-        if checked_identification.status != identification.status
-            || checked_identification.query != identification.query
-            || checked_estimand.functional != estimand.functional
-            || checked_estimand.method != estimand.method
-            || checked_estimand.adjustment_set != estimand.adjustment_set
-        {
-            return Err(CausalError::Compile {
-                message: "Bayesian basis proof is not justified by its retained graph".into(),
-            });
-        }
+        verify_proof_against_graph(
+            &checked_identification,
+            &checked_estimand,
+            &identification,
+            &estimand,
+            "Bayesian basis proof is not justified by its retained graph",
+        )?;
         Ok(Self {
             graph: graph.clone(),
             query,

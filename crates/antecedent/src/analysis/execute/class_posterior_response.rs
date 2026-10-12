@@ -345,21 +345,21 @@ impl super::Study {
                     },
                 )
             }
-        } else if !matches!(self.refute, RefuteSuite::None) {
-            diagnostics.push(Diagnostic::new(
-                "refute.response.skipped",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                if matches!(mixed.policy, StructuralAggregationPolicy::GraphDependentAtoms) {
-                    "query-native validation does not compare refuters against a withheld \
-                     aggregate under GraphDependentAtoms"
-                } else {
-                    "scalar ATE refuters are not applicable to a function-valued class-posterior \
-                     response"
-                },
-            ));
-            Ok((Vec::new(), Vec::new()))
         } else {
+            if !matches!(self.refute, RefuteSuite::None) {
+                diagnostics.push(Diagnostic::new(
+                    "refute.response.skipped",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    if matches!(mixed.policy, StructuralAggregationPolicy::GraphDependentAtoms) {
+                        "query-native validation does not compare refuters against a withheld \
+                         aggregate under GraphDependentAtoms"
+                    } else {
+                        "scalar ATE refuters are not applicable to a function-valued \
+                         class-posterior response"
+                    },
+                ));
+            }
             Ok((Vec::new(), Vec::new()))
         }
     }
@@ -724,17 +724,18 @@ fn class_posterior_response_payload(
     for (_, _, response) in weighted.iter().skip(1) {
         assumptions.extend_unique(&response.assumptions.entries);
     }
-    let estimate_kind = if graph_dependent || !mixable_scalar {
-        ResponseIdentification::GraphDependent(
+    let estimate_kind = match conditional {
+        Some(value) if !graph_dependent && mixable_scalar => {
+            ResponseIdentification::PointIdentified(value.clone())
+        }
+        _ => ResponseIdentification::GraphDependent(
             weighted
                 .iter()
                 .filter_map(|(key, _, response)| {
                     response_identified_value(response).map(|value| (*key, value))
                 })
                 .collect(),
-        )
-    } else {
-        ResponseIdentification::PointIdentified(conditional.clone().expect("mixable scalar"))
+        ),
     };
     let response = CausalResponse {
         estimand: query.functional.clone(),
@@ -862,8 +863,8 @@ fn mix_class_posterior_responses(
 fn atom_plugin_scalar(response: &CausalResponse) -> Option<f64> {
     match response_identified_value(response)? {
         ResponseValue::Scalar(value) if value.is_finite() => Some(value),
-        ResponseValue::Surface { mean, .. } if mean.len() == 1 && mean[0].is_finite() => {
-            Some(mean[0])
+        ResponseValue::Surface { mean, .. } if mean.len() == 1 => {
+            mean.first().copied().filter(|value| value.is_finite())
         }
         _ => None,
     }

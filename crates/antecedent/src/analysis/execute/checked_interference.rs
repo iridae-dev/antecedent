@@ -363,7 +363,12 @@ impl CheckedInterferenceOperation {
                     clusters.iter().copied().collect::<std::collections::BTreeSet<_>>().len();
                 (independent - *treated_clusters, *treated_clusters)
             }
-            _ => unreachable!(),
+            _ => {
+                return Err(CausalError::Compile {
+                    message: "cluster-total inference requires a cluster-randomization assignment"
+                        .into(),
+                });
+            }
         };
         let interval_available = interval.is_some();
         let to_exposed_units = self.assignment.iter().filter(|&&assigned| assigned).count();

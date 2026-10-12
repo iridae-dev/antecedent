@@ -22,7 +22,6 @@ use antecedent_expr::{
 use antecedent_identify::IdentificationStatus;
 
 use crate::accepted::GraphClass;
-use crate::analysis::builder::RefuteSuite;
 use crate::analysis::route_guards::compile_error;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
@@ -117,10 +116,7 @@ fn refuse_unlicensed_premises(
             StructureSource::Explicit | StructureSource::Accepted
         )
         || !matches!(context.inference, InferenceMode::Frequentist)
-        || !matches!(
-            context.refute,
-            RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full
-        )
+        || !context.refute.is_point_or_placebo()
         || !context.custom_validator_names.is_empty()
         || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
     {

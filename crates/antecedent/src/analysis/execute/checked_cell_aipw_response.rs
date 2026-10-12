@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::analysis::prepared::Inspect;
+use crate::analysis::proof_support::EstimandClaim;
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -108,8 +109,7 @@ impl CheckedCellAipwResponseOperation {
             });
         }
         let (treatments, requested_arm) = joint_binary_interventions(interventions)?;
-        let valid_suite =
-            matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full);
+        let valid_suite = validation.is_point();
         let (expected_identifier, structure_ok) = match structure {
             CellAipwStructure::Dag(graph) => (
                 IdentifierId::ResponseBackdoor,
@@ -131,14 +131,10 @@ impl CheckedCellAipwResponseOperation {
             || identification.query != CausalQuery::Response(query.clone())
             || identification.status != IdentificationStatus::NonparametricallyIdentified
             || identification.estimands.is_empty()
-            || identification.estimands.first().is_none_or(|candidate| {
-                candidate.method != estimand.method
-                    || candidate.adjustment_set != estimand.adjustment_set
-                    || candidate.instruments != estimand.instruments
-                    || candidate.mediators != estimand.mediators
-                    || candidate.functional != estimand.functional
-                    || candidate.rd_design != estimand.rd_design
-            })
+            || identification
+                .estimands
+                .first()
+                .is_none_or(|candidate| !candidate.same_full_claim(estimand))
             || estimand.method_kind().ok() != Some(EstimandMethod::BackdoorAdjustment)
             || identification
                 .estimands
@@ -166,7 +162,7 @@ impl CheckedCellAipwResponseOperation {
                 .estimands
                 .iter()
                 .zip(&identification.estimands)
-                .any(|(expected, supplied)| !same_estimand(expected, supplied))
+                .any(|(expected, supplied)| !expected.same_full_claim(supplied))
         {
             return Err(CausalError::Compile {
                 message: "cell AIPW identification does not replay on the retained DAG and query"
@@ -343,15 +339,6 @@ fn admg_contains(
         && treatments.iter().all(|treatment| treatment != &outcome)
         && treatments.iter().all(|treatment| !adjustment.contains(treatment))
         && !adjustment.contains(&outcome)
-}
-
-fn same_estimand(left: &IdentifiedEstimand, right: &IdentifiedEstimand) -> bool {
-    left.method == right.method
-        && left.adjustment_set == right.adjustment_set
-        && left.instruments == right.instruments
-        && left.mediators == right.mediators
-        && left.functional == right.functional
-        && left.rd_design == right.rd_design
 }
 
 fn graph_contains(

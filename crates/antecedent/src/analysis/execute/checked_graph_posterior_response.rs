@@ -15,6 +15,7 @@ use super::{
     LatencyMode, PhysicalExecutionPlan, RefuteSuite, ResponseFunctional, ResponseQuery,
     StudyResult, TabularData,
 };
+use crate::analysis::posterior_binding::{CacheKeys, validate_posterior_cache};
 use crate::analysis::prepared::CachedGraphPosteriorIdentification;
 use crate::analysis::prepared::Inspect;
 use crate::analysis::route_guards::inference_label;
@@ -94,9 +95,7 @@ impl CheckedGraphPosteriorResponse {
         }
         let intervention_response =
             matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
-        if (!intervention_response && validation != RefuteSuite::None)
-            || !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
-        {
+        if (!intervention_response && validation != RefuteSuite::None) || !validation.is_point() {
             return Err(CausalError::Unsupported {
                 message: "checked graph-posterior response supports no refuters for curves and none/cheap/full for intervention responses",
             });
@@ -113,25 +112,21 @@ impl CheckedGraphPosteriorResponse {
             });
         }
         let witness = CausalQuery::AverageEffect(response_witness_ate(&query)?);
-        if posterior.weights.as_ref() != identification.graphs.weights.as_ref()
-            || posterior.graph_keys.as_ref() != identification.graphs.graph_keys.as_ref()
-            || posterior.n_graphs != identification.graphs.n_samples
-            || identification.graphs.identified.len() != posterior.n_graphs
-        {
-            return Err(CausalError::Unsupported {
-                message: "graph-posterior response identification cache does not match frozen posterior atoms",
-            });
-        }
+        validate_posterior_cache(
+            &posterior,
+            &*identification,
+            CacheKeys::PosteriorKeys,
+            "graph-posterior response identification cache does not match frozen posterior atoms",
+        )?;
         let atoms_bound = if class_atoms {
             identification.atoms.is_empty()
-                && identification.class_atoms.iter().all(|atom| {
-                    posterior.graph_keys.contains(&atom.key) && atom.identification.query == witness
-                })
+                && identification
+                    .class_atoms
+                    .iter()
+                    .all(|atom| atom.identification.query == witness)
         } else {
             identification.class_atoms.is_empty()
-                && identification.atoms.iter().all(|atom| {
-                    posterior.graph_keys.contains(&atom.key) && atom.identification.query == witness
-                })
+                && identification.atoms.iter().all(|atom| atom.identification.query == witness)
         };
         if !atoms_bound {
             return Err(CausalError::Unsupported {

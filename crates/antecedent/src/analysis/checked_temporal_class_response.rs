@@ -4,11 +4,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::analysis::prepared::Inspect;
-use crate::analysis::route_guards::inference_label;
-use antecedent_core::{
-    CausalQuery, ObservationSpec, OutcomeFunctional, ResponseQuery, TargetPopulation,
-    TemporalEffectQuery, TemporalNodeKey,
-};
+use crate::analysis::route_guards::{complete_mean_response, inference_label};
+use antecedent_core::{CausalQuery, ResponseQuery, TemporalEffectQuery, TemporalNodeKey};
 use std::sync::Arc;
 
 use crate::error::CausalError;
@@ -19,6 +16,7 @@ use crate::{AcceptedGraph, ClassPrior, GraphClass, InferenceMode};
 use super::builder::RefuteSuite;
 use super::checked_temporal_response::temporal_response_is_direct;
 use super::prepared::CachedTemporalClassIdentification;
+use super::proof_support::{Procedure, require_primary_pair};
 use super::route_guards::same_accepted_graph;
 
 /// A complete, checked completion envelope per requested horizon for a
@@ -160,10 +158,7 @@ impl CheckedTemporalClassResponseOperation {
                 message: "checked temporal class response supports MeanCurve and single-step InterventionResponse only",
             });
         }
-        if query.observation != ObservationSpec::Complete
-            || query.target_population != TargetPopulation::AllObserved
-            || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
-        {
+        if !complete_mean_response(&query) {
             return Err(CausalError::Unsupported {
                 message: "checked temporal class response requires complete observation, the all-observed population, and the mean outcome functional",
             });
@@ -178,10 +173,7 @@ impl CheckedTemporalClassResponseOperation {
                 message: "checked temporal class response supports validation suite none only",
             });
         }
-        let (treatment, outcome) =
-            query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-                message: "temporal class response has no treatment/outcome pair".into(),
-            })?;
+        let (treatment, outcome) = require_primary_pair(&query.functional)?;
         let identifier = IdentifierId::GeneralizedAdjustment;
         let estimator = EstimatorId::temporal_response_for(inference);
         if physical.logical.query != CausalQuery::Response(query.clone())
@@ -254,8 +246,13 @@ impl CheckedTemporalClassResponseOperation {
     }
 
     #[must_use]
-    pub(crate) fn procedure(&self) -> (IdentifierId, EstimatorId, u32, RefuteSuite) {
-        (self.identifier, self.estimator, self.bootstrap_replicates, self.validation)
+    pub(crate) fn procedure(&self) -> Procedure {
+        Procedure {
+            identifier: self.identifier,
+            estimator: self.estimator,
+            bootstrap_replicates: self.bootstrap_replicates,
+            validation: self.validation,
+        }
     }
 
     #[must_use]
@@ -331,7 +328,8 @@ impl Inspect for CheckedTemporalClassResponseOperation {
     type Info = CheckedTemporalClassResponseInfo;
 
     fn info(&self) -> CheckedTemporalClassResponseInfo {
-        let (identifier, estimator, bootstrap_replicates, validation) = self.procedure();
+        let Procedure { identifier, estimator, bootstrap_replicates, validation } =
+            self.procedure();
         let (identified_mass, unidentified_mass) = self.enumeration_mass();
         CheckedTemporalClassResponseInfo {
             query: self.query().clone(),

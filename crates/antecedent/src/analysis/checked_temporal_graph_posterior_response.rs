@@ -8,12 +8,9 @@ use crate::analysis::prepared::Inspect;
 use crate::analysis::route_guards::inference_label;
 use std::sync::Arc;
 
-use antecedent_core::{
-    CausalQuery, ObservationSpec, OutcomeFunctional, ResponseFunctional, ResponseQuery,
-    TargetPopulation,
-};
+use antecedent_core::{CausalQuery, ResponseFunctional, ResponseQuery};
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind};
-use antecedent_prob::GraphIdentFlag;
+use antecedent_prob::WeightedGraphSamples;
 
 use crate::error::CausalError;
 use crate::planner::PhysicalExecutionPlan;
@@ -21,30 +18,17 @@ use crate::strategy_table::{EstimatorId, IdentifierId};
 use crate::{ClassPrior, InferenceMode};
 
 use super::builder::{DataInput, RefuteSuite};
+use super::checked_temporal_graph_posterior_effect::CheckedTemporalGraphPosteriorProof;
 use super::checked_temporal_response::temporal_response_is_direct;
 use super::execute::Study;
-use super::prepared::{
-    CachedDbnPosteriorIdentification, CachedTemporalClassPosteriorIdentification,
-};
+use super::posterior_binding::{CacheKeys, PosteriorProof, validate_posterior_cache};
 use super::route_guards::complete_mean_response;
 
-/// Per-atom identification retained for a temporal graph posterior.
-#[derive(Clone, Debug)]
-pub(crate) enum TemporalPosteriorResponseProof {
-    /// `TemporalDag` atoms: per-horizon temporal backdoor proofs.
-    Dbn(Arc<CachedDbnPosteriorIdentification>),
-    /// TemporalCpdag/TemporalPag atoms: one completion envelope per atom.
-    Class(Arc<CachedTemporalClassPosteriorIdentification>),
-}
-
-impl TemporalPosteriorResponseProof {
-    fn graphs(&self) -> &antecedent_prob::WeightedGraphSamples {
-        match self {
-            Self::Dbn(cache) => &cache.graphs,
-            Self::Class(cache) => &cache.graphs,
-        }
-    }
-}
+/// Per-atom identification retained for a temporal graph posterior response:
+/// the same proof shape the temporal effect route retains (`Dbn` per-horizon
+/// backdoor proofs for `TemporalDag` atoms, `Class` completion envelopes for
+/// TemporalCpdag/TemporalPag atoms).
+pub(crate) type TemporalPosteriorResponseProof = CheckedTemporalGraphPosteriorProof;
 
 /// Frozen temporal graph-posterior response execution.
 ///
@@ -154,9 +138,7 @@ impl CheckedTemporalGraphPosteriorResponse {
         }
         super::execute::dbn_posterior_response_supported(&query)?;
         if !temporal_response_is_direct(&query)
-            || query.observation != ObservationSpec::Complete
-            || query.target_population != TargetPopulation::AllObserved
-            || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
+            || !complete_mean_response(&query)
             || query.functional.primary_pair().is_none()
         {
             return Err(CausalError::Unsupported {
@@ -165,9 +147,7 @@ impl CheckedTemporalGraphPosteriorResponse {
         }
         let intervention_response =
             matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
-        if (!intervention_response && validation != RefuteSuite::None)
-            || !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
-        {
+        if (!intervention_response && validation != RefuteSuite::None) || !validation.is_point() {
             return Err(CausalError::Unsupported {
                 message: "checked temporal graph-posterior response supports no refuters for curves and none/cheap/full for intervention responses",
             });
@@ -180,31 +160,12 @@ impl CheckedTemporalGraphPosteriorResponse {
                 message: "temporal graph-posterior response plan disagrees with its retained query or estimator".into(),
             });
         }
-        let graphs = proof.graphs();
-        if graphs.n_samples != posterior.n_graphs
-            || graphs.weights.as_ref() != posterior.weights.as_ref()
-            || graphs.identified.len() != posterior.n_graphs
-        {
-            return Err(CausalError::Unsupported {
-                message: "temporal graph-posterior identification cache does not match the frozen atoms and weights",
-            });
-        }
-        match &proof {
-            TemporalPosteriorResponseProof::Dbn(cache) => {
-                if cache.atoms.iter().any(|atom| !graphs.graph_keys.contains(&atom.key)) {
-                    return Err(CausalError::Unsupported {
-                        message: "temporal graph-posterior proof names an atom outside the frozen posterior",
-                    });
-                }
-            }
-            TemporalPosteriorResponseProof::Class(cache) => {
-                if cache.class_atoms.iter().any(|atom| !graphs.graph_keys.contains(&atom.key)) {
-                    return Err(CausalError::Unsupported {
-                        message: "temporal graph-posterior proof names an atom outside the frozen posterior",
-                    });
-                }
-            }
-        }
+        validate_posterior_cache(
+            &posterior,
+            &proof,
+            CacheKeys::CacheLocal,
+            "temporal graph-posterior identification cache does not match the frozen atoms and weights",
+        )?;
         Ok(Self {
             posterior: Arc::new(posterior),
             query,
@@ -254,13 +215,6 @@ impl CheckedTemporalGraphPosteriorResponse {
         self.class_prior.as_ref()
     }
 
-    /// Read-only per-sample atom identities, posterior weights, and
-    /// identification flags, including unidentified samples.
-    pub(crate) fn atom_weights(&self) -> (&[u64], &[f64], &[GraphIdentFlag]) {
-        let graphs = self.proof.graphs();
-        (&graphs.graph_keys, &graphs.weights, &graphs.identified)
-    }
-
     /// Verify that a refresh still carries the posterior the proofs were built for.
     #[must_use]
     pub(crate) fn matches_posterior(&self, posterior: Option<&GraphPosterior>) -> bool {
@@ -275,6 +229,16 @@ impl CheckedTemporalGraphPosteriorResponse {
     }
 }
 
+impl PosteriorProof for CheckedTemporalGraphPosteriorResponse {
+    fn graphs(&self) -> &WeightedGraphSamples {
+        self.proof.graphs()
+    }
+
+    fn atom_keys(&self) -> Vec<u64> {
+        self.proof.atom_keys()
+    }
+}
+
 /// Frozen temporal response posterior: atom keys, weights, identification
 /// flags, and the selected inference and validation. The retained fields are
 /// those of [`CheckedGraphPosteriorResponseInfo`].
@@ -284,7 +248,7 @@ impl Inspect for CheckedTemporalGraphPosteriorResponse {
     type Info = CheckedTemporalGraphPosteriorResponseInfo;
 
     fn info(&self) -> CheckedTemporalGraphPosteriorResponseInfo {
-        let (graph_keys, weights, identified) = self.atom_weights();
+        let (graph_keys, weights, identified) = self.sample_mass();
         CheckedGraphPosteriorResponseInfo {
             query: self.query().clone(),
             atom_kind: self.posterior().atom_kind,

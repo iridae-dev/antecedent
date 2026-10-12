@@ -16,7 +16,7 @@ use std::sync::Arc;
 use antecedent_core::{AverageEffectQuery, PopulationRegistry, ResponseQuery};
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind};
 use antecedent_estimate::OverlapPolicy;
-use antecedent_prob::GraphIdentFlag;
+use antecedent_prob::WeightedGraphSamples;
 
 use crate::{
     CausalError, EstimatorId, EstimatorSpec, RefuteSuite,
@@ -24,6 +24,8 @@ use crate::{
 };
 
 use super::GraphPosteriorEffectTarget;
+use super::posterior_binding::{CacheKeys, PosteriorProof, validate_posterior_cache};
+use super::route_guards::complete_mean_response;
 
 /// Sealed average effect over a static CPDAG or PAG completion envelope.
 /// The graph and prepare-time completion cache are retained together so
@@ -116,13 +118,7 @@ impl CheckedStaticClassEffect {
         if !matching_class
             || !identification_binds_query
             || query.treatment == query.outcome
-            || !matches!(
-                validation,
-                RefuteSuite::None
-                    | RefuteSuite::Cheap
-                    | RefuteSuite::PlaceboAndRcc
-                    | RefuteSuite::Full
-            )
+            || !validation.is_point_or_placebo()
             || !physical.binding().names(
                 crate::strategy_table::IdentifierId::GeneralizedAdjustment,
                 expected_estimator,
@@ -231,9 +227,7 @@ impl CheckedAdmgGraphPosteriorResponse {
             });
         }
         if query.temporal.is_some()
-            || query.observation != antecedent_core::ObservationSpec::Complete
-            || query.target_population != antecedent_core::TargetPopulation::AllObserved
-            || !matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+            || !complete_mean_response(&query)
             || !matches!(
                 query.functional,
                 antecedent_core::ResponseFunctional::MeanCurve { .. }
@@ -257,23 +251,17 @@ impl CheckedAdmgGraphPosteriorResponse {
             query.functional,
             antecedent_core::ResponseFunctional::InterventionResponse { .. }
         );
-        if (!intervention_response && validation != RefuteSuite::None)
-            || !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
-        {
+        if (!intervention_response && validation != RefuteSuite::None) || !validation.is_point() {
             return Err(CausalError::Unsupported {
                 message: "checked ADMG graph-posterior response supports no refuters for curves and none/cheap/full for intervention responses",
             });
         }
-        if posterior.weights.as_ref() != identification.graphs.weights.as_ref()
-            || posterior.graph_keys.as_ref() != identification.graphs.graph_keys.as_ref()
-            || posterior.n_graphs != identification.graphs.n_samples
-            || identification.graphs.identified.len() != posterior.n_graphs
-            || identification.atoms.iter().any(|atom| !posterior.graph_keys.contains(&atom.key))
-        {
-            return Err(CausalError::Unsupported {
-                message: "ADMG response identification cache does not match frozen posterior atoms",
-            });
-        }
+        validate_posterior_cache(
+            &posterior,
+            &*identification,
+            CacheKeys::PosteriorKeys,
+            "ADMG response identification cache does not match frozen posterior atoms",
+        )?;
         Ok(Self {
             posterior: Arc::new(posterior),
             query,
@@ -360,24 +348,12 @@ impl CheckedGraphPosteriorEffect {
                 message: "graph-posterior effect query variables must be distinct and in range",
             });
         }
-        let cache_graphs = &identification.graphs;
-        if posterior.weights.as_ref() != cache_graphs.weights.as_ref()
-            || posterior.graph_keys.as_ref() != cache_graphs.graph_keys.as_ref()
-            || posterior.n_graphs != cache_graphs.n_samples
-            || identification
-                .atoms
-                .iter()
-                .any(|atom| !posterior.graph_keys.iter().any(|key| *key == atom.key))
-        {
-            return Err(CausalError::Unsupported {
-                message: "graph-posterior identification cache does not match frozen atoms and weights",
-            });
-        }
-        if cache_graphs.identified.len() != posterior.n_graphs {
-            return Err(CausalError::Unsupported {
-                message: "graph-posterior identification flags do not match frozen atoms",
-            });
-        }
+        validate_posterior_cache(
+            &posterior,
+            &*identification,
+            CacheKeys::PosteriorKeys,
+            "graph-posterior identification cache does not match frozen atoms, weights, and flags",
+        )?;
         Ok(Self {
             posterior: Arc::new(posterior),
             target,
@@ -436,15 +412,15 @@ impl CheckedGraphPosteriorEffect {
     pub(crate) const fn validation(&self) -> RefuteSuite {
         self.validation
     }
+}
 
-    /// Read-only per-sample atom identities and posterior weights, including
-    /// unidentified samples retained in the frozen envelope.
-    pub(crate) fn atom_weights(&self) -> (&[u64], &[f64], &[GraphIdentFlag]) {
-        (
-            &self.posterior.graph_keys,
-            &self.posterior.weights,
-            &self.identification.graphs.identified,
-        )
+impl PosteriorProof for CheckedGraphPosteriorEffect {
+    fn graphs(&self) -> &WeightedGraphSamples {
+        &self.identification.graphs
+    }
+
+    fn atom_keys(&self) -> Vec<u64> {
+        self.identification.atom_keys()
     }
 }
 
@@ -521,7 +497,7 @@ impl Inspect for CheckedGraphPosteriorEffect {
     type Info = CheckedGraphPosteriorEffectInfo;
 
     fn info(&self) -> CheckedGraphPosteriorEffectInfo {
-        let (graph_keys, weights, identified) = self.atom_weights();
+        let (graph_keys, weights, identified) = self.sample_mass();
         CheckedGraphPosteriorEffectInfo {
             query: self.query().clone(),
             conditional: self.target().is_conditional(),
@@ -569,7 +545,7 @@ mod tests {
     use super::*;
     use antecedent_core::VariableId;
     use antecedent_discovery::SamplingSummary;
-    use antecedent_prob::{InferenceDiagnostics, WeightedGraphSamples};
+    use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics};
 
     fn posterior() -> GraphPosterior {
         GraphPosterior::new(
@@ -621,7 +597,7 @@ mod tests {
         assert_eq!(plan.query(), &query);
         assert_eq!(plan.estimator(), EstimatorId::LinearAdjustmentAte);
         assert_eq!(plan.validation(), RefuteSuite::Full);
-        assert_eq!(plan.atom_weights().2, &[GraphIdentFlag::Unidentified; 2]);
+        assert_eq!(plan.sample_mass().2, &[GraphIdentFlag::Unidentified; 2]);
     }
 
     #[test]

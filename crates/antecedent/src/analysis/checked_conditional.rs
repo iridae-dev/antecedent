@@ -15,9 +15,10 @@ use antecedent_expr::{
 };
 use antecedent_identify::{IdentificationResult, IdentificationStatus};
 
+use crate::analysis::proof_support::{EstimandClaim, proof_supplies};
 use crate::analysis::route_guards::{compile_error, envelope_summary};
 use crate::support::StructureSource;
-use crate::{CausalError, EstimatorId, IdentifierId, RefuteSuite};
+use crate::{CausalError, EstimatorId, IdentifierId};
 
 /// Completion proof retained for a conditional effect identified on a static
 /// equivalence class. The class graph and its complete prepare-time envelope
@@ -145,18 +146,14 @@ impl CheckedConditionalOperation {
         if identification.status != IdentificationStatus::NonparametricallyIdentified
             || (identification.query != source_query
                 && identification.query != CausalQuery::AverageEffect(query.inner.clone()))
-            || !identification.estimands.iter().any(|candidate| {
-                candidate.functional == estimand.functional
-                    && candidate.method == estimand.method
-                    && candidate.adjustment_set == estimand.adjustment_set
-            })
+            || !proof_supplies(identification, estimand)
             || !estimand.is_adjustment_shaped()
             || query.inner.effect_modifiers.len() != 1
             || !matches!(
                 common.structure_source,
                 StructureSource::Explicit | StructureSource::Accepted
             )
-            || !matches!(common.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            || !common.refute.is_point()
             || !common.physical.binding().estimator.is(EstimatorId::ConditionalLinearAdjustment)
         {
             return Err(compile_error(
@@ -183,10 +180,7 @@ impl CheckedConditionalOperation {
             if class_identification.query != source_query
                 || class_identification.status != IdentificationStatus::NonparametricallyIdentified
                 || !class_identification.estimands.iter().any(|candidate| {
-                    candidate.functional == estimand.functional
-                        && candidate.method == estimand.method
-                        && candidate.adjustment_set == estimand.adjustment_set
-                        && candidate.is_adjustment_shaped()
+                    candidate.same_claim(estimand) && candidate.is_adjustment_shaped()
                 })
                 || !estimand.is_adjustment_shaped()
             {
@@ -195,8 +189,10 @@ impl CheckedConditionalOperation {
                 ));
             }
         }
-        let mut design_roles =
-            vec![query.inner.treatment, query.inner.outcome, query.inner.effect_modifiers[0]];
+        let Some(&modifier) = query.inner.effect_modifiers.first() else {
+            return Err(compile_error("conditional effect requires an effect modifier"));
+        };
+        let mut design_roles = vec![query.inner.treatment, query.inner.outcome, modifier];
         design_roles.extend(estimand.adjustment_set.iter().copied());
         design_roles.sort_unstable();
         design_roles.dedup();
@@ -301,11 +297,7 @@ fn same_class_envelope<G: PartialEq>(
     retained: &antecedent_identify::IdentificationEnvelope<G>,
 ) -> bool {
     let same_invariant = match (&actual.invariant, &retained.invariant) {
-        (Some(a), Some(b)) => {
-            a.method == b.method
-                && a.adjustment_set == b.adjustment_set
-                && a.functional == b.functional
-        }
+        (Some(a), Some(b)) => a.same_claim(b),
         (None, None) => true,
         _ => false,
     };
@@ -320,11 +312,7 @@ fn same_class_envelope<G: PartialEq>(
                 && (a.weight.0 - b.weight.0).abs() <= f64::EPSILON
                 && a.result.status == b.result.status
                 && a.result.estimands.iter().any(|candidate| {
-                    b.result.estimands.iter().any(|expected| {
-                        candidate.method == expected.method
-                            && candidate.adjustment_set == expected.adjustment_set
-                            && candidate.functional == expected.functional
-                    })
+                    b.result.estimands.iter().any(|expected| candidate.same_claim(expected))
                 })
                 && a.result.required_assumptions == b.result.required_assumptions
         })

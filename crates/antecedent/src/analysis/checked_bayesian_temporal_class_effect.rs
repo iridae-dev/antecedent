@@ -55,12 +55,9 @@ impl CheckedBayesianTemporalClassEffectOperation {
             return false;
         };
         matches!(study.data, DataInput::Temporal(_) | DataInput::Event(_))
-            && study.graph_posterior.is_none()
-            && study.tiered.is_none()
+            && study.plain_fixed_route()
             && matches!(study.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag)
-            && study.fixed_structure()
             && matches!(study.inference, InferenceMode::Bayesian(_))
-            && study.custom_validators.is_empty()
             && study.point_validation()
             && query.policy.is_pulse_or_sustained()
             && study
@@ -76,7 +73,9 @@ impl CheckedBayesianTemporalClassEffectOperation {
         physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let config = checked_settings(inference, validation)?;
-        let (identifier, _, _, _, target_validation, custom_validators) = target.procedure();
+        let procedure = target.procedure();
+        let (identifier, target_validation) = (procedure.identifier, procedure.validation);
+        let custom_validators = procedure.custom_validators;
         if target_validation != validation || !custom_validators.is_empty() {
             return Err(CausalError::Compile {
                 message:
@@ -195,7 +194,7 @@ impl Inspect for CheckedBayesianTemporalClassEffectOperation {
 
     fn info(&self) -> CheckedBayesianTemporalClassEffectInfo {
         let target = self.target();
-        let (identifier, _, _, _, _, _) = target.procedure();
+        let identifier = target.procedure().identifier;
         let envelope = &target.bundle().envelope.envelope;
         CheckedBayesianTemporalClassEffectInfo {
             query: target.query().clone(),

@@ -16,6 +16,7 @@ use crate::strategy_table::{EstimatorId, IdentifierId};
 
 use super::builder::RefuteSuite;
 use super::prepared::CachedTemporalClassIdentification;
+use super::proof_support::Procedure;
 use super::route_guards::same_accepted_graph;
 
 /// A complete, checked completion envelope for a `TemporalCpdag` or `TemporalPag`
@@ -214,14 +215,16 @@ impl CheckedTemporalClassEffectOperation {
 
     #[must_use]
     pub(crate) fn procedure(&self) -> TemporalClassProcedure<'_> {
-        (
-            self.identifier,
-            self.estimator,
-            self.bootstrap_replicates,
-            self.split.as_ref(),
-            self.refute,
-            &self.custom_validators,
-        )
+        TemporalClassProcedure {
+            procedure: Procedure {
+                identifier: self.identifier,
+                estimator: self.estimator,
+                bootstrap_replicates: self.bootstrap_replicates,
+                validation: self.refute,
+            },
+            split: self.split.as_ref(),
+            custom_validators: &self.custom_validators,
+        }
     }
 
     #[must_use]
@@ -230,14 +233,21 @@ impl CheckedTemporalClassEffectOperation {
     }
 }
 
-type TemporalClassProcedure<'a> = (
-    IdentifierId,
-    EstimatorId,
-    u32,
-    Option<&'a DiscoveryEstimationSplit>,
-    RefuteSuite,
-    &'a [Arc<dyn CustomEffectValidator>],
-);
+/// The sealed [`Procedure`] together with the split and caller validators the
+/// class effect retains beside it; dereferences to the procedure.
+pub(crate) struct TemporalClassProcedure<'a> {
+    pub(crate) procedure: Procedure,
+    pub(crate) split: Option<&'a DiscoveryEstimationSplit>,
+    pub(crate) custom_validators: &'a [Arc<dyn CustomEffectValidator>],
+}
+
+impl std::ops::Deref for TemporalClassProcedure<'_> {
+    type Target = Procedure;
+
+    fn deref(&self) -> &Procedure {
+        &self.procedure
+    }
+}
 
 pub(crate) fn same_temporal_class_proof(
     expected: &antecedent_identify::TemporalClassEnvelope,

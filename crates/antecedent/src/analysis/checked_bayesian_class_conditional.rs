@@ -63,7 +63,7 @@ impl CheckedBayesianClassConditional {
             || !physical
                 .binding()
                 .names(IdentifierId::GeneralizedAdjustment, EstimatorId::BayesianConditional)
-            || !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            || !validation.is_point()
         {
             return Err(compile_error(
                 "checked Bayesian class conditional target, identifier, or procedure changed after identification",
@@ -126,10 +126,7 @@ impl CheckedBayesianClassConditional {
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             )
-            || !matches!(
-                analysis.refute,
-                RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
-            )
+            || !analysis.refute.is_point()
             || !analysis.custom_validators.is_empty()
             || query.inner.target_population != TargetPopulation::AllObserved
             || !matches!(query.inner.outcome_functional, OutcomeFunctional::Mean)

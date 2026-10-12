@@ -12,6 +12,7 @@ use super::{
     parametric_scm_identification,
 };
 use crate::analysis::prepared::Inspect;
+use crate::analysis::proof_support::proof_supplies_method_and_functional;
 
 #[derive(Clone, Debug)]
 enum AttributionTarget {
@@ -93,9 +94,7 @@ impl CheckedAttributionOperation {
             });
         }
         let estimand = &cache.estimand;
-        if !cache.identification.estimands.iter().any(|candidate| {
-            candidate.method == estimand.method && candidate.functional == estimand.functional
-        }) {
+        if !proof_supplies_method_and_functional(&cache.identification, estimand) {
             return Err(CausalError::Compile {
                 message: "attribution estimand is absent from its identification result".into(),
             });
@@ -149,10 +148,10 @@ impl CheckedAttributionOperation {
     ) -> Result<StudyResult, CausalError> {
         if self.result_context.query != self.query()
             || self.cache.identification.query != self.query()
-            || !self.cache.identification.estimands.iter().any(|candidate| {
-                candidate.method == self.cache.estimand.method
-                    && candidate.functional == self.cache.estimand.functional
-            })
+            || !proof_supplies_method_and_functional(
+                &self.cache.identification,
+                &self.cache.estimand,
+            )
         {
             return Err(CausalError::Compile {
                 message: "attribution operation lost its checked target or identification binding"

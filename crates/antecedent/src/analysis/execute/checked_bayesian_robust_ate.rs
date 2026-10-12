@@ -11,6 +11,7 @@ use super::{
     project_for_ate_estimate, select_claim,
 };
 use crate::analysis::prepared::Inspect;
+use crate::analysis::proof_support::{proof_supplies, verify_proof_against_graph};
 use antecedent_estimate::bayesian_robust_ate::{
     BayesianRobustAteInput, BayesianRobustAteOptions, estimate_bayesian_robust_ate,
     plan_bayesian_robust_ate_folds,
@@ -256,13 +257,7 @@ fn verify_robust_ate_proof(
     identification: &antecedent_identify::IdentificationResult,
     estimand: &IdentifiedEstimand,
 ) -> Result<(), CausalError> {
-    if identification.average_effect() != Some(query)
-        || !identification.estimands.iter().any(|candidate| {
-            candidate.functional == estimand.functional
-                && candidate.method == estimand.method
-                && candidate.adjustment_set == estimand.adjustment_set
-        })
-    {
+    if identification.average_effect() != Some(query) || !proof_supplies(identification, estimand) {
         return Err(CausalError::Compile {
             message: "Bayesian robust ATE estimand is not supplied by its retained proof".into(),
         });
@@ -276,17 +271,13 @@ fn verify_robust_ate_proof(
         )?,
         EstimatorId::BayesianRobustAte,
     )?;
-    if checked_identification.status != identification.status
-        || checked_identification.query != identification.query
-        || checked_estimand.functional != estimand.functional
-        || checked_estimand.method != estimand.method
-        || checked_estimand.adjustment_set != estimand.adjustment_set
-    {
-        return Err(CausalError::Compile {
-            message: "Bayesian robust ATE proof is not justified by its retained graph".into(),
-        });
-    }
-    Ok(())
+    verify_proof_against_graph(
+        &checked_identification,
+        &checked_estimand,
+        identification,
+        estimand,
+        "Bayesian robust ATE proof is not justified by its retained graph",
+    )
 }
 
 #[expect(clippy::float_cmp, reason = "the Bernoulli treatment contract requires exact 0/1 coding")]

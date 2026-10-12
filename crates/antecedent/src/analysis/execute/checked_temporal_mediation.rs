@@ -148,7 +148,7 @@ impl CheckedTemporalMediationOperation {
         ) || study.split.is_some()
             || study.graph_posterior.is_some()
             || !study.custom_validators.is_empty()
-            || !matches!(study.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            || !study.refute.is_point()
             || physical.logical.query != study.query
             || physical.logical.record.plan_id.as_ref() != "temporal_mediation"
             || !physical.binding().identifier.is_wire("temporal.mediation")

@@ -8,6 +8,7 @@ use super::{
     PhysicalExecutionPlan, StudyResult, TimeSeriesData, elapsed_ns,
 };
 use crate::analysis::prepared::Inspect;
+use crate::analysis::proof_support::Procedure;
 
 #[derive(Clone)]
 pub(crate) struct CheckedTemporalEffectExecution {
@@ -38,7 +39,8 @@ impl CheckedTemporalEffectExecution {
                 message: "temporal effect result context does not match its checked query".into(),
             });
         }
-        let (identifier, estimator, _, _) = operation.procedure();
+        let procedure = operation.procedure();
+        let (identifier, estimator) = (procedure.identifier, procedure.estimator);
         if !physical.binding().names(identifier, estimator) {
             return Err(CausalError::Compile {
                 message: "temporal effect physical plan disagrees on its checked procedure".into(),
@@ -62,7 +64,8 @@ impl CheckedTemporalEffectExecution {
         };
         let started = Instant::now();
         let op = &self.operation;
-        let (_, _, suite, bootstrap_replicates) = op.procedure();
+        let procedure = op.procedure();
+        let (suite, bootstrap_replicates) = (procedure.validation, procedure.bootstrap_replicates);
         let inference = InferenceMode::Frequentist;
         let fit = fit_temporal_effect(
             &TemporalEffectInputs {
@@ -127,7 +130,8 @@ impl Inspect for CheckedTemporalEffectExecution {
 
     fn info(&self) -> CheckedTemporalDagEffectInfo {
         let operation = self.operation();
-        let (identifier, estimator, validation, bootstrap_replicates) = operation.procedure();
+        let Procedure { identifier, estimator, bootstrap_replicates, validation } =
+            operation.procedure();
         let adjustment_set = operation
             .estimand()
             .adjustment_set

@@ -8,6 +8,7 @@ use super::{
     Instant, PhysicalExecutionPlan, StudyResult, TimeSeriesData, elapsed_ns,
 };
 use crate::analysis::prepared::Inspect;
+use crate::analysis::proof_support::Procedure;
 
 /// Checked class envelope together with its result and physical contracts.
 #[derive(Clone)]
@@ -42,7 +43,8 @@ impl CheckedTemporalClassEffectExecution {
         physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let query = CausalQuery::TemporalEffect(operation.query().clone());
-        let (identifier, estimator, _, _, _, _) = operation.procedure();
+        let procedure = operation.procedure();
+        let (identifier, estimator) = (procedure.identifier, procedure.estimator);
         if !operation.matches_query(&result_context.query)
             || result_context.query != query
             || physical.logical.query != query
@@ -75,8 +77,10 @@ impl CheckedTemporalClassEffectExecution {
         let started = Instant::now();
         let operation = &self.operation;
         let bundle = operation.bundle();
-        let (identifier_id, _, bootstrap_replicates, split, refute, custom_validators) =
-            operation.procedure();
+        let procedure = operation.procedure();
+        let (identifier_id, bootstrap_replicates, refute) =
+            (procedure.identifier, procedure.bootstrap_replicates, procedure.validation);
+        let (split, custom_validators) = (procedure.split, procedure.custom_validators);
         let inference = InferenceMode::Frequentist;
         let fit = fit_temporal_class_effect(
             &TemporalClassEffectInputs {
@@ -151,7 +155,8 @@ impl Inspect for CheckedTemporalClassEffectExecution {
 
     fn info(&self) -> CheckedTemporalClassEffectInfo {
         let operation = self.operation();
-        let (identifier, estimator, bootstrap_replicates, _, validation, _) = operation.procedure();
+        let Procedure { identifier, estimator, bootstrap_replicates, validation } =
+            *operation.procedure();
         let envelope = &operation.bundle().envelope.envelope;
         CheckedTemporalClassEffectInfo {
             query: operation.query().clone(),

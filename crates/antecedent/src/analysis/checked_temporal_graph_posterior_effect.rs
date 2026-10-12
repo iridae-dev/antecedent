@@ -9,10 +9,13 @@ use std::sync::Arc;
 use antecedent_core::{CausalQuery, TemporalEffectQuery};
 use antecedent_data::DiscoveryEstimationSplit;
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind};
-use antecedent_prob::GraphIdentFlag;
+use antecedent_prob::WeightedGraphSamples;
 
 use super::builder::{DataInput, RefuteSuite};
 use super::execute::Study;
+use super::posterior_binding::{
+    CacheKeys, PosteriorProof, identified_key_set, validate_posterior_cache,
+};
 use super::prepared::{
     CachedDbnPosteriorIdentification, CachedTemporalClassPosteriorIdentification,
 };
@@ -113,7 +116,7 @@ impl CheckedTemporalGraphPosteriorEffect {
                 message: "checked temporal graph-posterior effect supports pulse and sustained schedules",
             });
         }
-        if !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full) {
+        if !validation.is_point() {
             return Err(CausalError::Unsupported {
                 message: "checked temporal graph-posterior effect supports none, cheap, or full validation",
             });
@@ -244,17 +247,6 @@ impl CheckedTemporalGraphPosteriorEffect {
             && sealed.lag_masks == posterior.lag_masks
     }
 
-    /// Posterior sample keys, weights, and identification flags retain the
-    /// sample-level mass, including unidentified atoms.
-    #[must_use]
-    pub(crate) fn sample_mass(&self) -> (&[u64], &[f64], &[GraphIdentFlag]) {
-        let graphs = match &self.proof {
-            CheckedTemporalGraphPosteriorProof::Dbn(cache) => &cache.graphs,
-            CheckedTemporalGraphPosteriorProof::Class(cache) => &cache.graphs,
-        };
-        (&graphs.graph_keys, &graphs.weights, &graphs.identified)
-    }
-
     /// Number of identified atoms carrying a retained proof.
     #[must_use]
     pub(crate) fn identified_atom_count(&self) -> usize {
@@ -265,12 +257,22 @@ impl CheckedTemporalGraphPosteriorEffect {
     }
 }
 
+impl PosteriorProof for CheckedTemporalGraphPosteriorEffect {
+    fn graphs(&self) -> &WeightedGraphSamples {
+        self.proof.graphs()
+    }
+
+    fn atom_keys(&self) -> Vec<u64> {
+        self.proof.atom_keys()
+    }
+}
+
 fn validate_proof_binding(
     posterior: &GraphPosterior,
     query: &CausalQuery,
     proof: &CheckedTemporalGraphPosteriorProof,
 ) -> Result<(), CausalError> {
-    let (graphs, atom_keys): (_, Vec<u64>) = match proof {
+    match proof {
         CheckedTemporalGraphPosteriorProof::Dbn(cache) => {
             // DBN atoms retain the identifier's average-effect query over each
             // atom's own unfolded graph; bind it through that atom's indexer.
@@ -287,7 +289,6 @@ fn validate_proof_binding(
                     &atom.indexer,
                 )?;
             }
-            (&cache.graphs, cache.atoms.iter().map(|atom| atom.key).collect())
         }
         CheckedTemporalGraphPosteriorProof::Class(cache) => {
             if cache.class_atoms.iter().any(|atom| &atom.identification.query != query) {
@@ -295,29 +296,16 @@ fn validate_proof_binding(
                     message: "temporal graph-posterior proof identifies a different temporal query",
                 });
             }
-            (&cache.graphs, cache.class_atoms.iter().map(|atom| atom.key).collect())
         }
-    };
-    if graphs.n_samples != posterior.n_graphs
-        || graphs.weights.len() != posterior.n_graphs
-        || graphs.identified.len() != posterior.n_graphs
-        || graphs
-            .weights
-            .iter()
-            .zip(posterior.weights.iter())
-            .any(|(a, b)| a.to_bits() != b.to_bits())
-    {
-        return Err(CausalError::Unsupported {
-            message: "temporal graph-posterior proof does not match the frozen posterior samples",
-        });
     }
-    let identified_keys: std::collections::HashSet<u64> = graphs
-        .graph_keys
-        .iter()
-        .zip(graphs.identified.iter())
-        .filter(|(_, flag)| matches!(flag, GraphIdentFlag::Identified))
-        .map(|(key, _)| *key)
-        .collect();
+    validate_posterior_cache(
+        posterior,
+        proof,
+        CacheKeys::CacheLocal,
+        "temporal graph-posterior proof does not match the frozen posterior samples",
+    )?;
+    let identified_keys = identified_key_set(proof.graphs());
+    let atom_keys = proof.atom_keys();
     let mut seen = std::collections::HashSet::with_capacity(atom_keys.len());
     for key in &atom_keys {
         if !seen.insert(*key) || !identified_keys.contains(key) {

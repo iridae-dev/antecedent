@@ -55,11 +55,8 @@ impl CheckedStaticClassResponse {
         let CausalQuery::Response(query) = &study.query else {
             return false;
         };
-        study.graph_posterior.is_none()
-            && study.tiered.is_none()
+        study.plain_fixed_route()
             && matches!(study.graph.class(), GraphClass::Cpdag | GraphClass::Pag)
-            && study.fixed_structure()
-            && study.custom_validators.is_empty()
             && study.refute == RefuteSuite::None
             && class_aware_response_supported(query)
             && mean_all_observed(&query.outcome_functional, &query.target_population)
@@ -89,8 +86,7 @@ impl CheckedStaticClassResponse {
             validation,
         } = premises;
         if !class_aware_response_supported(&query)
-            || query.target_population != antecedent_core::TargetPopulation::AllObserved
-            || !matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+            || !mean_all_observed(&query.outcome_functional, &query.target_population)
         {
             return Err(CausalError::Unsupported {
                 message: "checked class response requires a complete-observation all-observed mean MeanCurve or InterventionResponse",
