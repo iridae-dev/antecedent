@@ -262,7 +262,11 @@ impl CheckedStaticDagResponseOperation {
             (ResponseFunctional::InterventionResponse { .. }, InferenceMode::Frequentist) => {
                 EstimatorId::ResponseInterventionGcomp
             }
-            _ => unreachable!(),
+            _ => {
+                return Err(CausalError::Unsupported {
+                    message: "checked response execution does not cover this functional",
+                });
+            }
         };
         // A Bayesian intervention level publishes a posterior, not the plugin
         // g-computation level the cheap/full refuters are licensed for.
@@ -1782,10 +1786,7 @@ impl super::Study {
         }
         let mut response_scores = None;
         let response = if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if cfg.has_transferred_source()
-                && cfg.prior_mapping.is_none()
-                && cfg.prior.is_none()
-            {
+            if cfg.has_transferred_source() && cfg.prior_mapping.is_none() && cfg.prior.is_none() {
                 return Err(CausalError::Unsupported {
                     message: "Bayesian response prior transfer requires a response-specific \
                               mapping (dose/intervention coordinate to outcome-regression \
@@ -2563,10 +2564,7 @@ impl super::Study {
             response_estimator.options = options.clone();
         }
         let (response, scores) = if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if cfg.has_transferred_source()
-                && cfg.prior_mapping.is_none()
-                && cfg.prior.is_none()
-            {
+            if cfg.has_transferred_source() && cfg.prior_mapping.is_none() && cfg.prior.is_none() {
                 return Err(CausalError::Unsupported {
                     message: "Bayesian class-aware response prior transfer requires a \
                               response-specific mapping; mappings are not a class prior \

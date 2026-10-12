@@ -1045,8 +1045,7 @@ impl super::Study {
         CausalError,
     > {
         if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if cfg.has_transfer()
-            {
+            if cfg.has_transfer() {
                 return Err(CausalError::Unsupported {
                     message: "functional Bayesian prior transfer requires a declared \
                               functional mapping; a backdoor coefficient artifact cannot \
@@ -1501,8 +1500,7 @@ impl super::Study {
                 ),
             ));
         }
-        if self.inference.is_bayesian()
-            || matches!(estimator_id, EstimatorId::BayesianConditional)
+        if self.inference.is_bayesian() || matches!(estimator_id, EstimatorId::BayesianConditional)
         {
             return self.execute_pag_bayesian(data, &query.inner, run, identification, class_tag);
         }

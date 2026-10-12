@@ -25,8 +25,7 @@ impl CounterfactualProcedure {
         match inference {
             InferenceMode::Frequentist => Ok(Self::HeterogeneityBestScorePoint),
             InferenceMode::Bayesian(config) => {
-                if config.has_transfer()
-                {
+                if config.has_transfer() {
                     return Err(CausalError::Unsupported {
                         message: "Bayesian counterfactuals require a declared mechanism mapping; a coefficient artifact cannot be applied as an isotropic GCM prior or hydrated onto fitted GCM mechanisms",
                     });

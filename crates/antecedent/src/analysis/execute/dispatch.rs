@@ -27,8 +27,19 @@ pub(super) const GRAPH_POSTERIOR_QUERY_REFUSAL: &str = concat!(
     "response queries only",
 );
 
+/// The refusal for a route whose data or query kind disagrees with the one the route was
+/// classified from. Classification reads both, so reaching this means a caller swapped the
+/// study's data or query between planning and execution.
+fn route_mismatch() -> CausalError {
+    CausalError::Compile {
+        message: "execution route does not match the study's data or query kind".into(),
+    }
+}
+
 /// The wire names of a typed identifier/estimator pair, as plan records carry them.
-pub(super) fn wire_pair((identifier, estimator): (IdentifierId, EstimatorId)) -> (Arc<str>, Arc<str>) {
+pub(super) fn wire_pair(
+    (identifier, estimator): (IdentifierId, EstimatorId),
+) -> (Arc<str>, Arc<str>) {
     (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
 }
 
@@ -343,10 +354,7 @@ impl super::Study {
         default_identifier: IdentifierId,
         default_estimator: EstimatorId,
     ) -> (IdentifierId, EstimatorId) {
-        (
-            self.identifier.unwrap_or(default_identifier),
-            self.estimator.unwrap_or(default_estimator),
-        )
+        (self.identifier.unwrap_or(default_identifier), self.estimator.unwrap_or(default_estimator))
     }
 
     /// Resolve builder-selected identifier/estimator ids, applying static-ATE defaults.
@@ -446,9 +454,7 @@ impl super::Study {
 
     /// Resolve the response estimator from the functional when the caller did not override it.
     pub(super) fn resolve_response_pair(&self, query: &ResponseQuery) -> (Arc<str>, Arc<str>) {
-        if self.inference.is_bayesian()
-            && !response_functional_is_derivative(&query.functional)
-        {
+        if self.inference.is_bayesian() && !response_functional_is_derivative(&query.functional) {
             return (
                 Arc::from(self.identifier.unwrap_or(DEFAULT_RESPONSE_IDENTIFIER_ID).as_str()),
                 Arc::from(
@@ -651,7 +657,7 @@ impl super::Study {
         }
         match classify_analysis_route(data, &self.query) {
             Some(route) if matches!(data_modality(data), DataModality::Tabular) => {
-                let DataInput::Tabular(data) = data else { unreachable!() };
+                let DataInput::Tabular(data) = data else { return Err(route_mismatch()) };
                 self.execute_tabular_route(
                     route,
                     data,
@@ -662,7 +668,7 @@ impl super::Study {
             }
             Some(AnalysisRoute::TemporalCrossWorld) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
-                    unreachable!()
+                    return Err(route_mismatch());
                 };
                 if self.graph.class().is_incomplete_temporal() {
                     return self.execute_temporal_class_cross_world(data, physical, ctx);
@@ -674,9 +680,9 @@ impl super::Study {
             }
             Some(AnalysisRoute::TemporalMediation) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
-                    unreachable!()
+                    return Err(route_mismatch());
                 };
-                let CausalQuery::Mediation(q) = &self.query else { unreachable!() };
+                let CausalQuery::Mediation(q) = &self.query else { return Err(route_mismatch()) };
                 if self.graph.class() == GraphClass::TemporalCpdag {
                     return self.execute_temporal_cpdag_mediation(data, q, physical, ctx);
                 }
@@ -687,9 +693,11 @@ impl super::Study {
             }
             Some(AnalysisRoute::TemporalEffect) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
-                    unreachable!()
+                    return Err(route_mismatch());
                 };
-                let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
+                let CausalQuery::TemporalEffect(q) = &self.query else {
+                    return Err(route_mismatch());
+                };
                 if self.graph.class().is_incomplete_temporal() {
                     return self.execute_temporal_class(data, q, physical, ctx);
                 }
@@ -700,9 +708,9 @@ impl super::Study {
             }
             Some(AnalysisRoute::TemporalResponse) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
-                    unreachable!()
+                    return Err(route_mismatch());
                 };
-                let CausalQuery::Response(q) = &self.query else { unreachable!() };
+                let CausalQuery::Response(q) = &self.query else { return Err(route_mismatch()) };
                 if self.graph.class().is_incomplete_temporal() {
                     return self.execute_temporal_class_response(data, q, physical, ctx);
                 }
@@ -733,8 +741,8 @@ impl super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let DataInput::Panel(panel) = data else { unreachable!() };
-        let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
+        let DataInput::Panel(panel) = data else { return Err(route_mismatch()) };
+        let CausalQuery::TemporalEffect(q) = &self.query else { return Err(route_mismatch()) };
         if self.graph.class().is_incomplete_temporal() {
             return self.execute_panel_class(panel, q, physical, ctx);
         }
@@ -751,8 +759,8 @@ impl super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let DataInput::Panel(panel) = data else { unreachable!() };
-        let CausalQuery::Response(q) = &self.query else { unreachable!() };
+        let DataInput::Panel(panel) = data else { return Err(route_mismatch()) };
+        let CausalQuery::Response(q) = &self.query else { return Err(route_mismatch()) };
         if self.graph.class().is_incomplete_temporal() {
             return self.execute_panel_class_response(panel, q, physical, ctx);
         }
@@ -769,8 +777,8 @@ impl super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let DataInput::MultiEnv(multi) = data else { unreachable!() };
-        let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
+        let DataInput::MultiEnv(multi) = data else { return Err(route_mismatch()) };
+        let CausalQuery::TemporalEffect(q) = &self.query else { return Err(route_mismatch()) };
         if self.graph.class().is_incomplete_temporal() {
             return Err(CausalError::Unsupported {
                 message: "multi-environment data supports only a supplied TemporalDag",
@@ -867,7 +875,9 @@ impl super::Study {
                 self.execute_tabular_distribution_route(data, physical, execution, ctx)
             }
             AnalysisRoute::PathSpecific => {
-                let CausalQuery::PathSpecific(q) = &self.query else { unreachable!() };
+                let CausalQuery::PathSpecific(q) = &self.query else {
+                    return Err(route_mismatch());
+                };
                 let graph = self
                     .require_execute_dag("PathSpecific execute requires a supplied static DAG")?;
                 self.execute_path_specific(data, graph, q, physical, ctx)
@@ -879,40 +889,48 @@ impl super::Study {
                 self.execute_tabular_static_mediation_route(data, physical, execution, ctx)
             }
             AnalysisRoute::Counterfactual => {
-                let CausalQuery::Counterfactual(q) = &self.query else { unreachable!() };
+                let CausalQuery::Counterfactual(q) = &self.query else {
+                    return Err(route_mismatch());
+                };
                 let graph = self
                     .require_execute_dag("Counterfactual execute requires a supplied static DAG")?;
                 self.execute_counterfactual(data, graph, q, physical, ctx)
             }
             AnalysisRoute::Anomaly => {
-                let CausalQuery::AnomalyAttribution(q) = &self.query else { unreachable!() };
+                let CausalQuery::AnomalyAttribution(q) = &self.query else {
+                    return Err(route_mismatch());
+                };
                 let graph = self.require_execute_dag(
                     "AnomalyAttribution execute requires a supplied static DAG",
                 )?;
                 self.execute_anomaly(data, graph, q, physical, ctx)
             }
             AnalysisRoute::ChangeAttribution => {
-                let CausalQuery::ChangeAttribution(q) = &self.query else { unreachable!() };
+                let CausalQuery::ChangeAttribution(q) = &self.query else {
+                    return Err(route_mismatch());
+                };
                 let graph = self.require_execute_dag(
                     "ChangeAttribution execute requires a supplied static DAG",
                 )?;
                 self.execute_change_attribution(data, graph, q, physical, ctx)
             }
             AnalysisRoute::MechanismChange => {
-                let CausalQuery::MechanismChange(q) = &self.query else { unreachable!() };
+                let CausalQuery::MechanismChange(q) = &self.query else {
+                    return Err(route_mismatch());
+                };
                 let graph = self.require_execute_dag(
                     "MechanismChange execute requires a supplied static DAG",
                 )?;
                 self.execute_mechanism_change(data, graph, q, physical, ctx)
             }
             AnalysisRoute::UnitChange => {
-                let CausalQuery::UnitChange(q) = &self.query else { unreachable!() };
+                let CausalQuery::UnitChange(q) = &self.query else { return Err(route_mismatch()) };
                 let graph =
                     self.require_execute_dag("UnitChange execute requires a supplied static DAG")?;
                 self.execute_unit_change(data, graph, q, physical, ctx)
             }
             AnalysisRoute::Transport => {
-                let CausalQuery::Transport(q) = &self.query else { unreachable!() };
+                let CausalQuery::Transport(q) = &self.query else { return Err(route_mismatch()) };
                 self.execute_transport(data, q, physical, ctx)
             }
             AnalysisRoute::Interference => {
@@ -951,7 +969,7 @@ impl super::Study {
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let CausalQuery::Response(q) = &self.query else { unreachable!() };
+        let CausalQuery::Response(q) = &self.query else { return Err(route_mismatch()) };
         match self.graph.graph_ref() {
             GraphRef::Dag(graph) => {
                 self.execute_response(data, graph, q, physical, execution.response_curve(), ctx)
@@ -1006,7 +1024,7 @@ impl super::Study {
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let CausalQuery::AverageEffect(q) = &self.query else { unreachable!() };
+        let CausalQuery::AverageEffect(q) = &self.query else { return Err(route_mismatch()) };
         if let Some(background) = self.tiered.clone() {
             let (identifier, estimator) = physical.binding().resolve(RouteDefaults::STATIC_ATE)?;
             return self.execute_tiered_average(
@@ -1069,7 +1087,7 @@ impl super::Study {
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let CausalQuery::Distribution(q) = &self.query else { unreachable!() };
+        let CausalQuery::Distribution(q) = &self.query else { return Err(route_mismatch()) };
         match self.graph.graph_ref() {
             GraphRef::Dag(graph) => self.execute_distribution(
                 data,
@@ -1111,7 +1129,7 @@ impl super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let CausalQuery::ConditionalEffect(q) = &self.query else { unreachable!() };
+        let CausalQuery::ConditionalEffect(q) = &self.query else { return Err(route_mismatch()) };
         match self.graph.class() {
             GraphClass::Dag => {
                 let graph = self.require_execute_dag(
@@ -1145,7 +1163,7 @@ impl super::Study {
             CausalQuery::NestedCounterfactual(q) => {
                 self.execute_nested_counterfactual(data, graph, q, physical, execution, ctx)
             }
-            _ => unreachable!(),
+            _ => Err(route_mismatch()),
         }
     }
 
@@ -1156,7 +1174,7 @@ impl super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let CausalQuery::Interference(q) = &self.query else { unreachable!() };
+        let CausalQuery::Interference(q) = &self.query else { return Err(route_mismatch()) };
         if matches!(
             q.assignment,
             antecedent_core::AssignmentDesign::ClusterRandomization { .. }

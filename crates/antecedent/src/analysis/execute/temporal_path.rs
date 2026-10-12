@@ -162,7 +162,7 @@ impl super::Study {
             (input, &estimate),
             (horizon, completion_idx),
         )?;
-        run.structural_atoms.last_mut().expect("mediation atom").value =
+        last_mediation_atom(run)?.value =
             horizon_state.effects.last().copied().map(ResponseValue::Scalar);
         if run.primary.is_none() {
             run.primary = Some((identification.clone(), estimand));
@@ -195,8 +195,7 @@ impl super::Study {
                 }
                 let mean = composed.summaries.mean.first().copied().unwrap_or(f64::NAN);
                 horizon_state.effects.push(mean);
-                run.structural_atoms.last_mut().expect("mediation atom").posterior =
-                    Some(composed.clone());
+                last_mediation_atom(run)?.posterior = Some(composed.clone());
                 Ok(antecedent_estimate::TemporalMediationEstimate {
                     effect: effect_from_posterior(&composed)?,
                     total: None,
@@ -521,7 +520,7 @@ impl super::Study {
             slices: Arc::from(std::mem::take(&mut run.slices)),
             joint_posterior: false,
         };
-        let structural = self.cpdag_structural_mixture(&mut run, &grid, query);
+        let structural = self.cpdag_structural_mixture(&mut run, &grid, query)?;
         Ok(self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
@@ -573,22 +572,20 @@ impl super::Study {
         run: &mut CpdagMediationRun,
         grid: &antecedent_estimate::TemporalMediationGrid,
         query: &antecedent_core::MediationQuery,
-    ) -> crate::result::StructuralResponseMixture {
+    ) -> Result<crate::result::StructuralResponseMixture, CausalError> {
+        let bounds = grid
+            .slices
+            .iter()
+            .map(|slice| slice.identified_set.as_ref().map(|set| (set.lower, set.upper)))
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| CausalError::Compile {
+                message: "CPDAG mediation grid is missing a per-horizon identified set".into(),
+            })?;
         let response_envelope = antecedent_core::ResponseEnvelope {
             grid: query.horizons.iter().map(|h| f64::from(*h)).collect::<Vec<_>>().into(),
             dimension: 1,
-            lower: grid
-                .slices
-                .iter()
-                .map(|slice| slice.identified_set.as_ref().expect("set").lower)
-                .collect::<Vec<_>>()
-                .into(),
-            upper: grid
-                .slices
-                .iter()
-                .map(|slice| slice.identified_set.as_ref().expect("set").upper)
-                .collect::<Vec<_>>()
-                .into(),
+            lower: bounds.iter().map(|&(lower, _)| lower).collect::<Vec<_>>().into(),
+            upper: bounds.iter().map(|&(_, upper)| upper).collect::<Vec<_>>().into(),
         };
         let conditional = self.class_prior.as_ref().and_then(|_| {
             temporal_class_response_mean(
@@ -605,7 +602,7 @@ impl super::Study {
             .map(|atom| atom.weight)
             .sum::<f64>()
             / query.horizons.len() as f64;
-        crate::result::StructuralResponseMixture {
+        Ok(crate::result::StructuralResponseMixture {
             weight_basis: if self.class_prior.is_some() {
                 crate::result::StructuralWeightBasis::CallerSuppliedClassPrior
             } else {
@@ -621,7 +618,7 @@ impl super::Study {
             conditional_on_identified: conditional,
             full_mass_scope: run.full_mass_scope,
             truncated_atoms: run.truncated_atoms,
-        }
+        })
     }
 
     pub(crate) fn mediation_adjustment(
@@ -829,8 +826,8 @@ impl super::Study {
         };
         enforce_temporal_response_memory_budget(query, temporal, self.bootstrap_replicates, ctx)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
-        let observed_bayes = self.inference.is_bayesian()
-            && query.observation != ObservationSpec::Complete;
+        let observed_bayes =
+            self.inference.is_bayesian() && query.observation != ObservationSpec::Complete;
         let (cache, identify_cached) =
             self.temporal_response_identification(graph, query, temporal, (treatment, outcome))?;
         let aligned = identified_horizon_entries(&cache, temporal)?;
@@ -998,8 +995,7 @@ impl super::Study {
         }
         let prior_scale = match &self.inference {
             InferenceMode::Bayesian(cfg) => {
-                if cfg.has_transfer()
-                {
+                if cfg.has_transfer() {
                     return Err(CausalError::Unsupported {
                         message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
                     });
@@ -1154,7 +1150,11 @@ impl super::Study {
         let mut conflict_summary = None;
         let mut observed_posterior = None;
         let mut response = if observed_bayes {
-            let InferenceMode::Bayesian(cfg) = &self.inference else {unreachable!()};
+            let InferenceMode::Bayesian(cfg) = &self.inference else {
+                return Err(CausalError::Unsupported {
+                    message: "an observed Bayesian temporal response requires Bayesian inference",
+                });
+            };
             if cfg.has_transferred_source() {
                 return Err(CausalError::Unsupported {message: "observed temporal mechanisms need independent per-mechanism priors; a transferred response coefficient prior has no such mapping"});
             }
@@ -1293,8 +1293,7 @@ impl super::Study {
             });
         }
         let bayes = if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if cfg.has_transfer()
-            {
+            if cfg.has_transfer() {
                 return Err(CausalError::Unsupported {
                     message: "multi-step Sequence inference requires isotropic per-mechanism priors",
                 });
@@ -1619,28 +1618,27 @@ impl super::Study {
         qh.temporal = Some(temporal_h);
         let observation_query = qh.clone();
         let adjustment = class_atom_adjustment(&estimand, indexer);
-        let series_owned = if qh.observation == ObservationSpec::Complete
-            || self.inference.is_bayesian()
-        {
-            None
-        } else {
-            if self.observation_delayed_entry.is_some() {
-                return Err(CausalError::Unsupported {
-                    message: "delayed entry is not licensed for temporal observation",
-                });
-            }
-            let outcome_regressors = antecedent_estimate::temporal_curve_outcome_regressors(
-                &qh,
-                &[(&estimand, indexer)],
-            )
-            .map_err(CausalError::from)?;
-            let (series, _) = ObservationMechanismEstimator::new(self.observation_options)
-                .adjust_temporal_series(data, &qh, &adjustment, &outcome_regressors)
+        let series_owned =
+            if qh.observation == ObservationSpec::Complete || self.inference.is_bayesian() {
+                None
+            } else {
+                if self.observation_delayed_entry.is_some() {
+                    return Err(CausalError::Unsupported {
+                        message: "delayed entry is not licensed for temporal observation",
+                    });
+                }
+                let outcome_regressors = antecedent_estimate::temporal_curve_outcome_regressors(
+                    &qh,
+                    &[(&estimand, indexer)],
+                )
                 .map_err(CausalError::from)?;
-            qh.observation = ObservationSpec::Complete;
-            qh.observation_assumptions = Arc::from([]);
-            Some(series)
-        };
+                let (series, _) = ObservationMechanismEstimator::new(self.observation_options)
+                    .adjust_temporal_series(data, &qh, &adjustment, &outcome_regressors)
+                    .map_err(CausalError::from)?;
+                qh.observation = ObservationSpec::Complete;
+                qh.observation_assumptions = Arc::from([]);
+                Some(series)
+            };
         let series = series_owned.as_ref().unwrap_or(data);
         let input = ClassResponseInput { series, query: &qh, estimand: &estimand, indexer };
         let Some(mut response) =
@@ -1982,8 +1980,7 @@ impl super::Study {
         })?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
         let bayes = if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if cfg.has_transfer()
-            {
+            if cfg.has_transfer() {
                 return Err(CausalError::Unsupported {
                     message: "multi-step Sequence transfer stays refused on incomplete classes",
                 });
@@ -2083,7 +2080,12 @@ impl super::Study {
         let outcome_offset = i32::try_from(horizon.saturating_sub(1)).unwrap_or(i32::MAX);
         let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
         let mut qh = query.clone();
-        qh.temporal.as_mut().expect("temporal query").horizons = Arc::from([horizon]);
+        qh.temporal
+            .as_mut()
+            .ok_or_else(|| CausalError::Compile {
+                message: "class sequence response query carries no temporal spec".into(),
+            })?
+            .horizons = Arc::from([horizon]);
         let observation_query = qh.clone();
         let adjustment = class_atom_adjustment(&estimand, indexer);
         let (effect, posterior) =
@@ -2140,7 +2142,7 @@ impl super::Study {
         let ClassSequenceSweep { data, query, overlays, bayes, outcome, ctx, .. } = *sweep;
         let ClassResponseSite { horizon, case, indexer, .. } = *site;
         let outcome_offset = i32::try_from(horizon.saturating_sub(1)).unwrap_or(i32::MAX);
-        Ok(if query.observation != ObservationSpec::Complete && bayes.is_some() {
+        Ok(if let Some(bayes) = bayes.filter(|_| query.observation != ObservationSpec::Complete) {
             let (response, posterior) =
                 antecedent_estimate::temporal_observed_bayes::estimate_observed_temporal_response(
                     data,
@@ -2151,7 +2153,7 @@ impl super::Study {
                         assumptions: case.result.required_assumptions.clone(),
                     },
                     qh,
-                    bayes.expect("Bayesian"),
+                    bayes,
                     ctx,
                 )
                 .map_err(CausalError::from)?;
@@ -2960,10 +2962,13 @@ impl<'a> TemporalClassWeights<'a> {
         envelope: &antecedent_identify::TemporalClassEnvelope,
     ) -> Result<Vec<f64>, CausalError> {
         if let Some(prior) = self.prior {
-            if self.binding.is_none() {
-                self.binding = Some(crate::class_prior::ClassPriorBinding::bind(prior, envelope)?);
+            if let Some(binding) = &self.binding {
+                return binding.masses_for_envelope(envelope);
             }
-            return self.binding.as_ref().expect("bound class prior").masses_for_envelope(envelope);
+            let binding = crate::class_prior::ClassPriorBinding::bind(prior, envelope)?;
+            let masses = binding.masses_for_envelope(envelope);
+            self.binding = Some(binding);
+            return masses;
         }
         let raw: Vec<f64> = envelope.envelope.cases.iter().map(|case| case.weight.0).collect();
         let total: f64 = raw.iter().sum();
@@ -5011,8 +5016,7 @@ impl super::Study {
     fn cross_world_prior_scale(&self) -> Result<Option<f64>, CausalError> {
         match &self.inference {
             InferenceMode::Bayesian(cfg) => {
-                if cfg.has_transfer()
-                {
+                if cfg.has_transfer() {
                     return Err(CausalError::Unsupported {
                         message: "temporal cross-world effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
                     });
@@ -5193,12 +5197,12 @@ fn cross_world_point(
     let delta = active - control;
     Ok(match query {
         CausalQuery::NestedCounterfactual(_) => {
-            let mediator = mediator.expect("nested mediator");
+            let mediator = mediator.ok_or_else(missing_cross_world_mediator)?;
             let (_, slopes) = fit(outcome, &[treatment, mediator], &[mediator])?;
             slopes[0] * delta
         }
         CausalQuery::PathSpecific(_) => {
-            let mediator = mediator.expect("path mediator");
+            let mediator = mediator.ok_or_else(missing_cross_world_mediator)?;
             let (_, through) = fit(mediator, &[treatment], &[])?;
             let (_, onward) = fit(outcome, &[treatment, mediator], &[mediator])?;
             through[0] * onward[1] * delta
@@ -5211,8 +5215,15 @@ fn cross_world_point(
             let (intercept, slopes) = fit(outcome, &[treatment], &[])?;
             intercept + slopes[0] * active
         }
-        _ => unreachable!("matched above"),
+        _ => Err(CausalError::Unsupported {
+            message: "temporal cross-world route does not estimate this query",
+        })?,
     })
+}
+
+/// A mediated cross-world contrast whose contrast record carries no mediator.
+fn missing_cross_world_mediator() -> CausalError {
+    CausalError::Compile { message: "cross-world mediated contrast needs a mediator".into() }
 }
 
 /// The variables and levels of one cross-world (mediation) contrast.
@@ -5264,28 +5275,22 @@ pub(super) fn template_scoped_cross_world(
     // Nested and path points are the direct slope and the mediator-edge product
     // that were fit. A counterfactual and an interventional mean stay the
     // back-door formula of the adjustment set that entered that fit.
-    let (method, adjustment, mediators, functional) = match &query {
-        CausalQuery::NestedCounterfactual(_) => {
-            let mediator = mediator.expect("nested mediator");
-            (
-                Arc::from(EstimandMethod::TemporalMediationDirect.as_str()),
-                Arc::from([]),
-                Arc::from([mediator]),
-                direct_slope_functional(&mut arena, treatment, mediator, outcome, active, control),
-            )
-        }
-        CausalQuery::PathSpecific(_) => {
-            let mediator = mediator.expect("path mediator");
-            (
-                Arc::from(EstimandMethod::PathSpecificNatural.as_str()),
-                Arc::from([]),
-                Arc::from([mediator]),
-                mediator_edge_product_functional(
-                    &mut arena, treatment, mediator, outcome, active, control,
-                ),
-            )
-        }
-        CausalQuery::Distribution(_) => {
+    let (method, adjustment, mediators, functional) = match (&query, mediator) {
+        (CausalQuery::NestedCounterfactual(_), Some(mediator)) => (
+            Arc::from(EstimandMethod::TemporalMediationDirect.as_str()),
+            Arc::from([]),
+            Arc::from([mediator]),
+            direct_slope_functional(&mut arena, treatment, mediator, outcome, active, control),
+        ),
+        (CausalQuery::PathSpecific(_), Some(mediator)) => (
+            Arc::from(EstimandMethod::PathSpecificNatural.as_str()),
+            Arc::from([]),
+            Arc::from([mediator]),
+            mediator_edge_product_functional(
+                &mut arena, treatment, mediator, outcome, active, control,
+            ),
+        ),
+        (CausalQuery::Distribution(_), _) => {
             let functional = arena.backdoor_mean(treatment, outcome, &adjustment, active_value);
             (backdoor_method, Arc::from(adjustment), Arc::from([]), functional)
         }
@@ -5743,6 +5748,15 @@ struct CpdagCompletionSite<'a> {
     identification: &'a IdentificationResult,
     indexer: &'a TemporalIndexer,
     envelope: &'a Arc<antecedent_identify::TemporalClassEnvelope>,
+}
+
+/// The completion atom the sweep pushed for the completion being estimated.
+fn last_mediation_atom(
+    run: &mut CpdagMediationRun,
+) -> Result<&mut crate::result::StructuralResponseAtom, CausalError> {
+    run.structural_atoms.last_mut().ok_or_else(|| CausalError::Compile {
+        message: "CPDAG mediation sweep estimated a completion before recording its atom".into(),
+    })
 }
 
 /// Accumulators the CPDAG mediation sweep threads across horizons and
@@ -6518,7 +6532,9 @@ fn fit_class_bayesian_response(
     let (prior, conflict) = resolve_temporal_response_prior(
         cfg,
         series,
-        query.temporal.as_ref().expect("temporal horizon"),
+        query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
+            message: "class temporal response query carries no temporal spec".into(),
+        })?,
         &[&entry],
         treatment,
         outcome,

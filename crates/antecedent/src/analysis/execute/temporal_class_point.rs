@@ -42,8 +42,7 @@ fn isotropic_prior_scale(
 ) -> Result<Option<f64>, CausalError> {
     match inference {
         InferenceMode::Bayesian(cfg) => {
-            if cfg.has_transfer()
-            {
+            if cfg.has_transfer() {
                 return Err(CausalError::Unsupported { message });
             }
             Ok(Some(cfg.prior_scale))

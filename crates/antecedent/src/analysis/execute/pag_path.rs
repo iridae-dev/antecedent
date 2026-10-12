@@ -735,9 +735,7 @@ impl super::Study {
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
-            if self.inference.is_bayesian()
-                || matches!(estimator_id, EstimatorId::BayesianGcomp)
-            {
+            if self.inference.is_bayesian() || matches!(estimator_id, EstimatorId::BayesianGcomp) {
                 return self.execute_pag_nonidentified_prior(query, run, identification, tag);
             }
             return Err(CausalError::not_identified(

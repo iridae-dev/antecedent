@@ -891,10 +891,8 @@ impl super::Study {
             ctx,
             &mut diagnostics,
         )?;
-        let mut response = average_unit_panel_responses(
-            &unit_responses,
-            self.inference.is_bayesian(),
-        )?;
+        let mut response =
+            average_unit_panel_responses(&unit_responses, self.inference.is_bayesian())?;
         if let Some(per_horizon) = response.horizon_identification.as_mut() {
             for (record, entry) in Arc::make_mut(per_horizon).iter_mut().zip(&aligned) {
                 record.status = entry.identification.status;
@@ -1188,10 +1186,8 @@ impl super::Study {
                 unit_fits.insert(fit_key, fitted.clone());
                 fitted
             };
-            let response = average_unit_panel_responses(
-                &unit_responses,
-                self.inference.is_bayesian(),
-            )?;
+            let response =
+                average_unit_panel_responses(&unit_responses, self.inference.is_bayesian())?;
             let atom_assumptions = response.assumptions.clone();
             state.assembly.push_atom(
                 horizon_index,
@@ -1548,10 +1544,7 @@ impl super::Study {
             self.panel_sequential_validation(panel, query, &atoms, bayes.as_ref(), ctx)?;
         diagnostics.extend(validation_diagnostics);
         if self.bootstrap_replicates > 0 {
-            diagnostics.push(
-                panel_unit_average_bootstrap_note(self.bootstrap_replicates)
-                    .expect("a positive replicate request always yields the note"),
-            );
+            diagnostics.extend(panel_unit_average_bootstrap_note(self.bootstrap_replicates));
         }
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());

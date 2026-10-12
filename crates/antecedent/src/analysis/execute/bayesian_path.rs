@@ -1092,9 +1092,7 @@ impl super::Study {
         // all frozen there, so reuse is exact and observable via the
         // `exec.identify.cached` diagnostic below.
         if let Some(operation) = checked_operation {
-            if operation.query != *query
-                || !operation.inference.is_bayesian()
-            {
+            if operation.query != *query || !operation.inference.is_bayesian() {
                 return Err(CausalError::Compile {
                     message: "prepared Bayesian g-computation binding changed after prepare".into(),
                 });
@@ -1352,7 +1350,9 @@ impl super::Study {
         }
         let fits = ctx.map_indexed(kept.len(), |i, inner| {
             let (key, estimand, status, outcome_slot) = &kept[i];
-            let prep = prepared.get(key).expect("kept key is prepared");
+            let prep = prepared.get(key).ok_or_else(|| CausalError::Compile {
+                message: "class atom was kept for fitting without a prepared problem".into(),
+            })?;
             let mut est = est.clone();
             est.prior = atom_priors.get(key).cloned().flatten();
             let mut ws = BayesianGCompWorkspace::default();
@@ -1797,12 +1797,11 @@ impl super::Study {
         )?;
         logical.record.plan_id = Arc::from("temporal_mediation");
         logical.record.identifier = Some(Arc::from("temporal.mediation"));
-        logical.record.estimator =
-            Some(Arc::from(if self.inference.is_frequentist() {
-                EstimatorId::TemporalMediation.as_str()
-            } else {
-                EstimatorId::BayesianTemporalMediation.as_str()
-            }));
+        logical.record.estimator = Some(Arc::from(if self.inference.is_frequentist() {
+            EstimatorId::TemporalMediation.as_str()
+        } else {
+            EstimatorId::BayesianTemporalMediation.as_str()
+        }));
         logical.record.validation_suite = self.validation_suite_id();
         logical.record.query_variables = Arc::from([q.treatment, q.outcome]);
         logical.query = CausalQuery::Mediation(q.clone());
@@ -3390,7 +3389,11 @@ impl super::Study {
         let started = Instant::now();
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
-            InferenceMode::Frequentist => unreachable!("Frequentist DBN mediation is routed above"),
+            InferenceMode::Frequentist => {
+                return Err(CausalError::Unsupported {
+                    message: "Bayesian DBN-posterior mediation requires inference=Bayesian",
+                });
+            }
         };
         if cfg.has_transfer() {
             return Err(CausalError::Unsupported {
@@ -3579,7 +3582,11 @@ impl super::Study {
             state.prepare_demoted += 1;
             return None;
         }
-        let (click, qh, preparations) = published.expect("non-empty clicks");
+        let Some((click, qh, preparations)) = published else {
+            state.flag_unidentified(atom.key);
+            state.prepare_demoted += 1;
+            return None;
+        };
         match state.first_z.as_ref() {
             Some(z) if z.as_ref() != click.adjustment.as_ref() => state.distinct_z = true,
             None => state.first_z = Some(Arc::clone(&click.adjustment)),

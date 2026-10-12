@@ -724,17 +724,18 @@ fn class_posterior_response_payload(
     for (_, _, response) in weighted.iter().skip(1) {
         assumptions.extend_unique(&response.assumptions.entries);
     }
-    let estimate_kind = if graph_dependent || !mixable_scalar {
-        ResponseIdentification::GraphDependent(
+    let estimate_kind = match conditional.clone() {
+        Some(value) if !graph_dependent && mixable_scalar => {
+            ResponseIdentification::PointIdentified(value)
+        }
+        _ => ResponseIdentification::GraphDependent(
             weighted
                 .iter()
                 .filter_map(|(key, _, response)| {
                     response_identified_value(response).map(|value| (*key, value))
                 })
                 .collect(),
-        )
-    } else {
-        ResponseIdentification::PointIdentified(conditional.clone().expect("mixable scalar"))
+        ),
     };
     let response = CausalResponse {
         estimand: query.functional.clone(),

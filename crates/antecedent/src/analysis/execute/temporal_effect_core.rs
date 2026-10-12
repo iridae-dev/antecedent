@@ -399,7 +399,11 @@ fn single_window_predictive_checks(
     predictive_checks.push(post_rep);
 
     if matches!(refute, RefuteSuite::Full) {
-        let InferenceMode::Bayesian(cfg) = inputs.inference else { unreachable!() };
+        let InferenceMode::Bayesian(cfg) = inputs.inference else {
+            return Err(CausalError::Unsupported {
+                message: "Bayesian predictive checks require inference=Bayesian",
+            });
+        };
         let mut ws = BayesianGCompWorkspace::default();
         let (summary, sens) = evaluate_bayesian_prior_sensitivity(
             cfg,
