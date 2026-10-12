@@ -27,8 +27,7 @@ pub(crate) enum BayesianSpecialistFamily {
 pub(crate) struct CheckedBayesianSpecialistOperation {
     query: AverageEffectQuery,
     family: BayesianSpecialistFamily,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
+    cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     config: BayesianConfig,
     physical: std::sync::Arc<PhysicalExecutionPlan>,
 }
@@ -122,20 +121,19 @@ impl CheckedBayesianSpecialistOperation {
             return Ok(None);
         }
         let target = CausalQuery::AverageEffect(query.clone());
-        let (identification, estimand) = match family {
-            BayesianSpecialistFamily::IvJointLinear => {
-                match study.identification_cache.as_deref() {
-                    Some(cache) if cache.identification.query == target => {
-                        (cache.identification.clone(), cache.estimand.clone())
-                    }
-                    _ => {
-                        let identification = identify_static_query(identifier, graph, &target)?;
-                        require_identified(&identification)?;
-                        let estimand = select_estimand(&identification, estimator)?;
-                        (identification, estimand)
-                    }
+        let cache = match family {
+            BayesianSpecialistFamily::IvJointLinear => match study.identification_cache.as_ref() {
+                Some(cache) if cache.identification.query == target => Arc::clone(cache),
+                _ => {
+                    let identification = identify_static_query(identifier, graph, &target)?;
+                    require_identified(&identification)?;
+                    let estimand = select_estimand(&identification, estimator)?;
+                    Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+                        identification,
+                        estimand,
+                    })
                 }
-            }
+            },
             BayesianSpecialistFamily::RdLocalLinear(rd) => {
                 let identification = SharpRdIdentifier::new(SharpRdConfig::new(
                     rd.running_variable,
@@ -146,18 +144,22 @@ impl CheckedBayesianSpecialistOperation {
                 .map_err(CausalError::from)?;
                 require_identified(&identification)?;
                 let estimand = select_estimand(&identification, estimator)?;
-                (identification, estimand)
+                Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+                    identification,
+                    estimand,
+                })
             }
         };
         match family {
-            BayesianSpecialistFamily::IvJointLinear => check_bayesian_iv_scope(&estimand, config)?,
+            BayesianSpecialistFamily::IvJointLinear => {
+                check_bayesian_iv_scope(&cache.estimand, config)?
+            }
             BayesianSpecialistFamily::RdLocalLinear(_) => check_bayesian_rd_scope(query, config)?,
         }
         Ok(Some(Box::new(Self {
             query: query.clone(),
             family,
-            identification,
-            estimand,
+            cache,
             config: config.clone(),
             physical: plan.clone(),
         })))
@@ -174,7 +176,7 @@ impl CheckedBayesianSpecialistOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if self.identification.query != CausalQuery::AverageEffect(self.query.clone())
+        if self.cache.identification.query != CausalQuery::AverageEffect(self.query.clone())
             || self.physical.logical.query != CausalQuery::AverageEffect(self.query.clone())
         {
             return Err(CausalError::Compile {
@@ -187,8 +189,8 @@ impl CheckedBayesianSpecialistOperation {
             });
         }
         let inputs = BayesianSpecialistInputs {
-            identification: &self.identification,
-            estimand: &self.estimand,
+            identification: &self.cache.identification,
+            estimand: &self.cache.estimand,
             config: &self.config,
             identify_cached: true,
         };

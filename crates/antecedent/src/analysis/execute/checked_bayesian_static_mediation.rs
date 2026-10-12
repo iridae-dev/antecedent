@@ -11,8 +11,7 @@ use antecedent_expr::{FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVa
 pub(crate) struct CheckedBayesianStaticMediationOperation {
     graph: Dag,
     query: antecedent_core::MediationQuery,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
+    cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     physical: std::sync::Arc<PhysicalExecutionPlan>,
     program: FunctionalProgram,
     schema: antecedent_core::CausalSchema,
@@ -41,7 +40,7 @@ impl CheckedBayesianStaticMediationOperation {
         study: &Study,
         data: &TabularData,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
-        cache: &crate::analysis::prepared::CachedStaticIdentification,
+        cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::Mediation(query) = &study.query else {
             return Err(CausalError::Compile {
@@ -159,8 +158,7 @@ impl CheckedBayesianStaticMediationOperation {
         Ok(Self {
             graph: graph.clone(),
             query: query.clone(),
-            identification: cache.identification.clone(),
-            estimand: cache.estimand.clone(),
+            cache: Arc::clone(cache),
             physical: physical.clone(),
             program,
             schema: data.schema().clone(),
@@ -176,7 +174,7 @@ impl CheckedBayesianStaticMediationOperation {
         &self,
     ) -> (&antecedent_core::MediationQuery, &IdentifiedEstimand, &FunctionalProgram, RefuteSuite)
     {
-        (&self.query, &self.estimand, &self.program, self.validation)
+        (&self.query, &self.cache.estimand, &self.program, self.validation)
     }
 
     pub(crate) fn graph(&self) -> &Dag {
@@ -185,7 +183,7 @@ impl CheckedBayesianStaticMediationOperation {
 
     pub(crate) fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
         if data.schema() != &self.schema
-            || self.program.mapping().source != self.estimand.functional
+            || self.program.mapping().source != self.cache.estimand.functional
         {
             return Err(CausalError::Compile {
                 message: "Bayesian mediation refresh changed its semantic schema or target".into(),
@@ -220,9 +218,9 @@ impl CheckedBayesianStaticMediationOperation {
                     query: &bound.query,
                     extra: &[],
                 },
-                bound.identification.required_assumptions.clone(),
+                bound.cache.identification.required_assumptions.clone(),
                 &estimator,
-                bound.identification.status,
+                bound.cache.identification.status,
                 bridge,
                 ctx,
             )?;
@@ -245,8 +243,8 @@ impl CheckedBayesianStaticMediationOperation {
             Some(data),
             IdentifiedExecuteFinish::new(
                 &bound.physical,
-                bound.identification.clone(),
-                bound.estimand.clone(),
+                bound.cache.identification.clone(),
+                bound.cache.estimand.clone(),
                 estimate,
                 IdentifierId::PathSpecificNatural,
                 EstimatorId::StaticMediationLinear,
@@ -376,10 +374,10 @@ mod tests {
                     .unwrap();
                     let (identification, estimand) =
                         select_claim(identified, EstimatorId::StaticMediationLinear).unwrap();
-                    let cache = crate::analysis::prepared::CachedStaticIdentification {
+                    let cache = Arc::new(crate::analysis::prepared::CachedStaticIdentification {
                         identification,
                         estimand,
-                    };
+                    });
                     let operation = CheckedBayesianStaticMediationOperation::checked(
                         &study,
                         &data,

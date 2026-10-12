@@ -230,20 +230,22 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if operation.query != *operation.identification.average_effect().unwrap_or(&operation.query)
-            || operation.estimand.functional
+        if operation.query
+            != *operation.cache.identification.average_effect().unwrap_or(&operation.query)
+            || operation.cache.estimand.functional
                 != operation
+                    .cache
                     .identification
                     .estimands
                     .first()
-                    .map_or(operation.estimand.functional, |e| e.functional)
+                    .map_or(operation.cache.estimand.functional, |e| e.functional)
             || operation.estimator != crate::strategy_table::EstimatorId::GlmAdjustment
             || !operation
                 .physical
                 .binding()
                 .names(operation.identifier, crate::strategy_table::EstimatorId::GlmAdjustment)
-            || operation.preparation.method != operation.estimand.method
-            || operation.preparation.adjustment_set != operation.estimand.adjustment_set
+            || operation.preparation.method != operation.cache.estimand.method
+            || operation.preparation.adjustment_set != operation.cache.estimand.adjustment_set
             || !matches!(operation.query.outcome_functional, OutcomeFunctional::Mean)
             || self.analysis.query != CausalQuery::AverageEffect(operation.query.clone())
             || self.analysis.refute != operation.refute
@@ -260,7 +262,7 @@ impl PreparedStudy {
                 &operation.preparation,
                 &mut workspace,
                 ctx,
-                operation.identification.required_assumptions.clone(),
+                operation.cache.identification.required_assumptions.clone(),
             )
             .map_err(CausalError::from)?;
         Self::assemble_checked_operation_effect(
@@ -269,8 +271,8 @@ impl PreparedStudy {
                 &operation.common,
                 &operation.source_query,
                 &operation.query,
-                &operation.identification,
-                &operation.estimand,
+                &operation.cache.identification,
+                &operation.cache.estimand,
             ),
             estimate,
             Some(operation.fitter.bootstrap_replicates),
@@ -300,10 +302,10 @@ impl PreparedStudy {
                     | crate::support::StructureSource::Accepted
             )
             || !matches!(operation.inference, InferenceMode::Frequentist)
-            || lowering.functional != operation.estimand.functional
+            || lowering.functional != operation.cache.estimand.functional
             || lowering.treatment != operation.query.treatment
             || lowering.outcome != operation.query.outcome
-            || operation.preparation.target().functional != operation.estimand.functional
+            || operation.preparation.target().functional != operation.cache.estimand.functional
             || !matches!(operation.query.outcome_functional, OutcomeFunctional::Mean)
             || self.analysis.query != CausalQuery::AverageEffect(operation.source_query.clone())
             || self.analysis.refute != operation.refute
@@ -326,8 +328,8 @@ impl PreparedStudy {
                 &operation.common,
                 &source_query,
                 &operation.query,
-                &operation.identification,
-                &operation.estimand,
+                &operation.cache.identification,
+                &operation.cache.estimand,
             ),
             estimate,
             Some(operation.fitter.bootstrap_replicates),
@@ -375,7 +377,7 @@ impl PreparedStudy {
             &retained.common,
             &retained.source_query,
             operation.query(),
-            &retained.identification,
+            &retained.cache.identification,
             operation.target(),
         );
         metadata.estimator = estimator;
@@ -398,7 +400,7 @@ impl PreparedStudy {
         let started = Instant::now();
         if self.analysis.query != operation.source_query
             || self.plan.binding().estimator != operation.physical.binding().estimator
-            || operation.program.mapping().source != operation.estimand.functional
+            || operation.program.mapping().source != operation.cache.estimand.functional
         {
             return Err(CausalError::Compile {
                 message: "retained conditional operation no longer matches its checked target or procedure".into(),
@@ -414,8 +416,8 @@ impl PreparedStudy {
             &operation.common,
             &operation.source_query,
             &operation.query.inner,
-            &operation.identification,
-            &operation.estimand,
+            &operation.cache.identification,
+            &operation.cache.estimand,
         );
         metadata.estimator = estimator;
         metadata.graph_class = operation.graph_class();
@@ -457,7 +459,7 @@ impl PreparedStudy {
         if let Some(diagnostic) = crate::analysis::helpers::conditional_quantile_grid_diagnostic(
             data,
             &operation.query,
-            operation.estimand.adjustment_set.iter().copied(),
+            operation.cache.estimand.adjustment_set.iter().copied(),
         )? {
             result.diagnostics.push(diagnostic);
         }

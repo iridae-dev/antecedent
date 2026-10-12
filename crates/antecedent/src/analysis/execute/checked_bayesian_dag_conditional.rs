@@ -10,8 +10,7 @@ const PPC_ALPHA: f64 = 0.05;
 #[derive(Clone)]
 pub(crate) struct CheckedBayesianConditionalOperation {
     query: antecedent_core::ConditionalEffectQuery,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
+    cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     inference: InferenceMode,
     refute: RefuteSuite,
     graph: Dag,
@@ -27,8 +26,8 @@ impl std::fmt::Debug for CheckedBayesianConditionalOperation {
         formatter
             .debug_struct("CheckedBayesianConditionalOperation")
             .field("query", &self.query)
-            .field("identification", &self.identification)
-            .field("estimand", &self.estimand)
+            .field("identification", &self.cache.identification)
+            .field("estimand", &self.cache.estimand)
             .field("refute", &self.refute)
             .field("graph", &self.graph)
             .finish_non_exhaustive()
@@ -56,8 +55,7 @@ impl CheckedBayesianConditionalOperation {
     pub(crate) fn checked(
         graph: &Dag,
         query: antecedent_core::ConditionalEffectQuery,
-        identification: IdentificationResult,
-        estimand: IdentifiedEstimand,
+        cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
         inference: InferenceMode,
         refute: RefuteSuite,
         context: IdentifiedResultContext,
@@ -66,6 +64,7 @@ impl CheckedBayesianConditionalOperation {
         validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
         stage_sink: Option<Arc<dyn super::super::stage::StageResultSink>>,
     ) -> Result<Self, CausalError> {
+        let (identification, estimand) = (&cache.identification, &cache.estimand);
         let InferenceMode::Bayesian(_) = inference else {
             return Err(CausalError::Compile {
                 message: "checked Bayesian CATE requires its prepared Bayesian configuration"
@@ -130,8 +129,7 @@ impl CheckedBayesianConditionalOperation {
         }
         Ok(Self {
             query,
-            identification,
-            estimand,
+            cache,
             inference,
             refute,
             graph: graph.clone(),
@@ -148,11 +146,11 @@ impl CheckedBayesianConditionalOperation {
     }
 
     pub(crate) fn identification(&self) -> &IdentificationResult {
-        &self.identification
+        &self.cache.identification
     }
 
     pub(crate) fn estimand(&self) -> &IdentifiedEstimand {
-        &self.estimand
+        &self.cache.estimand
     }
 
     pub(crate) fn inference(&self) -> &InferenceMode {
@@ -174,8 +172,8 @@ impl CheckedBayesianConditionalOperation {
     ) -> Result<StudyResult, CausalError> {
         let mut clock = super::super::stage::StageClock::new();
         clock.begin(ctx, super::super::stage::STAGE_IDENTIFY, 0.05)?;
-        let identification = self.identification.clone();
-        let estimand = self.estimand.clone();
+        let identification = self.cache.identification.clone();
+        let estimand = self.cache.estimand.clone();
         clock.finish(super::super::stage::STAGE_IDENTIFY);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),

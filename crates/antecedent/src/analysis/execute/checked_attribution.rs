@@ -21,8 +21,7 @@ enum AttributionProcedure {
 pub(crate) struct CheckedAttributionOperation {
     graph: Dag,
     target: AttributionTarget,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
+    cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     inference: InferenceMode,
     procedure: AttributionProcedure,
     estimator: EstimatorId,
@@ -36,8 +35,8 @@ impl std::fmt::Debug for CheckedAttributionOperation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CheckedAttributionOperation")
             .field("target", &self.target)
-            .field("estimand", &self.estimand)
-            .field("identification_status", &self.identification.status)
+            .field("estimand", &self.cache.estimand)
+            .field("identification_status", &self.cache.identification.status)
             .field("identifier", &IdentifierId::GcmParametric)
             .field("inference", &self.inference)
             .field("procedure", &self.procedure)
@@ -50,7 +49,7 @@ impl CheckedAttributionOperation {
     pub(crate) fn checked(
         study: &Study,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
-        cache: &crate::analysis::prepared::CachedStaticIdentification,
+        cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
     ) -> Result<Self, CausalError> {
         let (graph, lag_aligned) = if let Some(dag) = study.graph.as_dag() {
             (dag.clone(), None)
@@ -136,7 +135,7 @@ impl CheckedAttributionOperation {
                 message: "attribution target, source graph, identification, or estimator does not match the checked operation".into(),
             });
         }
-        let estimand = cache.estimand.clone();
+        let estimand = &cache.estimand;
         if !cache.identification.estimands.iter().any(|candidate| {
             candidate.method == estimand.method && candidate.functional == estimand.functional
         }) {
@@ -147,8 +146,7 @@ impl CheckedAttributionOperation {
         Ok(Self {
             graph: graph.clone(),
             target,
-            identification: cache.identification.clone(),
-            estimand,
+            cache: Arc::clone(cache),
             inference: study.inference.clone(),
             procedure,
             estimator,
@@ -184,7 +182,7 @@ impl CheckedAttributionOperation {
     }
 
     pub(crate) fn identification(&self) -> &IdentificationResult {
-        &self.identification
+        &self.cache.identification
     }
 
     pub(crate) fn execute(
@@ -193,10 +191,10 @@ impl CheckedAttributionOperation {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if self.result_context.query != self.query()
-            || self.identification.query != self.query()
-            || !self.identification.estimands.iter().any(|candidate| {
-                candidate.method == self.estimand.method
-                    && candidate.functional == self.estimand.functional
+            || self.cache.identification.query != self.query()
+            || !self.cache.identification.estimands.iter().any(|candidate| {
+                candidate.method == self.cache.estimand.method
+                    && candidate.functional == self.cache.estimand.functional
             })
         {
             return Err(CausalError::Compile {
@@ -239,8 +237,8 @@ impl CheckedAttributionOperation {
                     Some(data),
                     IdentifiedExecuteFinish::new(
                         &self.physical,
-                        self.identification.clone(),
-                        self.estimand.clone(),
+                        self.cache.identification.clone(),
+                        self.cache.estimand.clone(),
                         estimate,
                         IdentifierId::GcmParametric,
                         self.estimator,
@@ -303,8 +301,8 @@ impl CheckedAttributionOperation {
                     Some(data),
                     IdentifiedExecuteFinish::new(
                         &self.physical,
-                        self.identification.clone(),
-                        self.estimand.clone(),
+                        self.cache.identification.clone(),
+                        self.cache.estimand.clone(),
                         estimate,
                         IdentifierId::GcmParametric,
                         self.estimator,
@@ -626,8 +624,10 @@ mod bayesian_checked_attribution_tests {
         };
         let (identification, estimand) =
             parametric_scm_identification(query.clone(), outcome, outcome);
-        let cache =
-            crate::analysis::prepared::CachedStaticIdentification { identification, estimand };
+        let cache = Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+            identification,
+            estimand,
+        });
         let operation =
             CheckedAttributionOperation::checked(&study, &Arc::new(physical.clone()), &cache)
                 .expect("Bayesian attribution plan");

@@ -25,12 +25,13 @@ use crate::strategy_table::{EstimatorId, IdentifierId};
 use antecedent_core::{CausalQuery, Intervention, OutcomeFunctional, TargetPopulation};
 use antecedent_estimate::OverlapPolicy;
 use antecedent_identify::IdentificationStatus;
+use std::sync::Arc;
 
 pub(super) fn checked_linear(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { source, analysis, plan, .. } = *cx;
     let sealed = match (
         cx.static_ate_dag(),
-        analysis.identification_cache.as_deref(),
+        analysis.identification_cache.as_ref(),
         source.graph_posterior.is_none(),
         source.tiered.is_none(),
     ) {
@@ -62,8 +63,7 @@ pub(super) fn checked_linear(cx: &SealContext<'_>) -> SealOutcome {
                 preparation,
                 default_id,
                 query: query.clone(),
-                identification: cache.identification.clone(),
-                estimand: cache.estimand.clone(),
+                cache: Arc::clone(cache),
                 stage_sink: analysis.stage_sink.clone(),
                 common: CheckedStaticCommon::from_analysis(analysis, plan, identifier, estimator),
             })
@@ -77,7 +77,7 @@ pub(super) fn checked_glm_adjustment(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed = match (
         cx.static_ate_dag(),
-        analysis.identification_cache.as_deref(),
+        analysis.identification_cache.as_ref(),
         &analysis.inference,
     ) {
         (Some((data, query)), Some(cache), InferenceMode::Frequentist)
@@ -119,8 +119,7 @@ pub(super) fn checked_glm_adjustment(cx: &SealContext<'_>) -> SealOutcome {
             Some(CheckedGlmAdjustmentOperation {
                 source_query: CausalQuery::AverageEffect(query.clone()),
                 query: query.clone(),
-                identification: cache.identification.clone(),
-                estimand: cache.estimand.clone(),
+                cache: Arc::clone(cache),
                 fitter,
                 preparation,
                 common: CheckedStaticCommon::from_analysis(analysis, plan, identifier, estimator),
@@ -201,8 +200,10 @@ pub(super) fn checked_rd(cx: &SealContext<'_>) -> SealOutcome {
                 CheckedRdOperation {
                     source_query: query.clone(),
                     query: identified_query,
-                    identification,
-                    estimand,
+                    cache: Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+                        identification,
+                        estimand,
+                    }),
                     fitter,
                     preparation,
                     common: CheckedStaticCommon::from_analysis(
@@ -268,10 +269,7 @@ pub(super) fn checked_conditional(cx: &SealContext<'_>) -> SealOutcome {
                 _ => None,
             };
             let target = match (&class_proof, graph_class) {
-                (None, GraphClass::Dag) => analysis
-                    .identification_cache
-                    .as_deref()
-                    .map(|cache| (cache.identification.clone(), cache.estimand.clone())),
+                (None, GraphClass::Dag) => analysis.identification_cache.clone(),
                 (
                     Some(crate::analysis::checked_conditional::ConditionalClassProof::Cpdag {
                         cache,
@@ -295,7 +293,12 @@ pub(super) fn checked_conditional(cx: &SealContext<'_>) -> SealOutcome {
                         && cache.identification.status
                             == antecedent_identify::IdentificationStatus::NonparametricallyIdentified)
                         .then(|| {
-                            estimand.map(|estimand| (cache.identification.clone(), estimand))
+                            estimand.map(|estimand| {
+                                Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+                                    identification: cache.identification.clone(),
+                                    estimand,
+                                })
+                            })
                         })
                         .flatten()
                 }
@@ -322,19 +325,23 @@ pub(super) fn checked_conditional(cx: &SealContext<'_>) -> SealOutcome {
                         && cache.identification.status
                             == antecedent_identify::IdentificationStatus::NonparametricallyIdentified)
                         .then(|| {
-                            estimand.map(|estimand| (cache.identification.clone(), estimand))
+                            estimand.map(|estimand| {
+                                Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+                                    identification: cache.identification.clone(),
+                                    estimand,
+                                })
+                            })
                         })
                         .flatten()
                 }
                 _ => None,
             };
             target
-                .map(|(identification, estimand)| {
+                .map(|cache| {
                     CheckedConditionalOperation::prepare(
                         data,
                         query.clone(),
-                        identification,
-                        estimand,
+                        cache,
                         CheckedStaticCommon::from_analysis(
                             analysis,
                             plan,
@@ -353,80 +360,79 @@ pub(super) fn checked_conditional(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (
-        cx.static_ate_dag(),
-        analysis.identification_cache.as_deref(),
-        &analysis.inference,
-    ) {
-        (Some((data, query)), Some(cache), InferenceMode::Frequentist)
-            if matches!(query.outcome_functional, OutcomeFunctional::Mean)
-                && analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && matches!(
-                    analysis.structure_source,
-                    crate::support::StructureSource::Explicit
-                        | crate::support::StructureSource::Accepted
-                )
-                && analysis.custom_validators.is_empty()
-                && matches!(
-                    analysis.refute,
-                    RefuteSuite::None
-                        | RefuteSuite::Cheap
-                        | RefuteSuite::PlaceboAndRcc
-                        | RefuteSuite::Full
-                )
-                && matches!(
-                    cx.binding.estimator.named(),
-                    Some(EstimatorId::PropensityWeighting | EstimatorId::PropensityMatching)
-                ) =>
-        {
-            let estimator = cx.binding.estimator.named().expect("checked propensity estimator");
-            let identifier = cx.binding.identifier_or(RouteDefaults::STATIC_ATE)?;
-            let estimand_index = cache
-                .identification
-                .estimands
-                .iter()
-                .position(|candidate| {
-                    candidate.functional == cache.estimand.functional
-                        && candidate.method == cache.estimand.method
-                        && candidate.adjustment_set == cache.estimand.adjustment_set
-                })
-                .ok_or_else(|| CausalError::Compile {
-                    message:
-                        "selected propensity estimand is absent from its identification product"
-                            .into(),
-                })?;
-            let fitter = match (analysis.estimator_spec.as_deref(), estimator) {
-                (
-                    Some(crate::estimator_spec::EstimatorSpec::PropensityWeighting(config)),
-                    crate::strategy_table::EstimatorId::PropensityWeighting,
-                ) => CheckedPropensityEstimator::Weighting((**config).clone()),
-                (
-                    Some(crate::estimator_spec::EstimatorSpec::PropensityMatching(config)),
-                    crate::strategy_table::EstimatorId::PropensityMatching,
-                ) => CheckedPropensityEstimator::Matching((**config).clone()),
-                (_, crate::strategy_table::EstimatorId::PropensityWeighting) => {
-                    let mut fitter = antecedent_estimate::PropensityWeighting::new();
-                    fitter.bootstrap_replicates = analysis.bootstrap_replicates;
-                    CheckedPropensityEstimator::Weighting(fitter)
-                }
-                (_, crate::strategy_table::EstimatorId::PropensityMatching) => {
-                    let mut fitter = antecedent_estimate::PropensityMatching::new();
-                    fitter.bootstrap_replicates = analysis.bootstrap_replicates;
-                    CheckedPropensityEstimator::Matching(fitter)
-                }
-                _ => unreachable!(),
-            };
-            let context = CheckedPropensityContext {
-                source_query: analysis.query.clone(),
-                identification: cache.identification.clone(),
-                estimand_index,
-                common: CheckedStaticCommon::from_analysis(analysis, plan, identifier, estimator),
-            };
-            Some(CheckedPropensityOperation::prepare(data, context, estimator, fitter)?)
-        }
-        _ => None,
-    };
+    let sealed =
+        match (cx.static_ate_dag(), analysis.identification_cache.as_ref(), &analysis.inference) {
+            (Some((data, query)), Some(cache), InferenceMode::Frequentist)
+                if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                    && analysis.graph_posterior.is_none()
+                    && analysis.tiered.is_none()
+                    && matches!(
+                        analysis.structure_source,
+                        crate::support::StructureSource::Explicit
+                            | crate::support::StructureSource::Accepted
+                    )
+                    && analysis.custom_validators.is_empty()
+                    && matches!(
+                        analysis.refute,
+                        RefuteSuite::None
+                            | RefuteSuite::Cheap
+                            | RefuteSuite::PlaceboAndRcc
+                            | RefuteSuite::Full
+                    )
+                    && matches!(
+                        cx.binding.estimator.named(),
+                        Some(EstimatorId::PropensityWeighting | EstimatorId::PropensityMatching)
+                    ) =>
+            {
+                let estimator = cx.binding.estimator.named().expect("checked propensity estimator");
+                let identifier = cx.binding.identifier_or(RouteDefaults::STATIC_ATE)?;
+                let estimand_index = cache
+                    .identification
+                    .estimands
+                    .iter()
+                    .position(|candidate| {
+                        candidate.functional == cache.estimand.functional
+                            && candidate.method == cache.estimand.method
+                            && candidate.adjustment_set == cache.estimand.adjustment_set
+                    })
+                    .ok_or_else(|| CausalError::Compile {
+                        message:
+                            "selected propensity estimand is absent from its identification product"
+                                .into(),
+                    })?;
+                let fitter = match (analysis.estimator_spec.as_deref(), estimator) {
+                    (
+                        Some(crate::estimator_spec::EstimatorSpec::PropensityWeighting(config)),
+                        crate::strategy_table::EstimatorId::PropensityWeighting,
+                    ) => CheckedPropensityEstimator::Weighting((**config).clone()),
+                    (
+                        Some(crate::estimator_spec::EstimatorSpec::PropensityMatching(config)),
+                        crate::strategy_table::EstimatorId::PropensityMatching,
+                    ) => CheckedPropensityEstimator::Matching((**config).clone()),
+                    (_, crate::strategy_table::EstimatorId::PropensityWeighting) => {
+                        let mut fitter = antecedent_estimate::PropensityWeighting::new();
+                        fitter.bootstrap_replicates = analysis.bootstrap_replicates;
+                        CheckedPropensityEstimator::Weighting(fitter)
+                    }
+                    (_, crate::strategy_table::EstimatorId::PropensityMatching) => {
+                        let mut fitter = antecedent_estimate::PropensityMatching::new();
+                        fitter.bootstrap_replicates = analysis.bootstrap_replicates;
+                        CheckedPropensityEstimator::Matching(fitter)
+                    }
+                    _ => unreachable!(),
+                };
+                let context = CheckedPropensityContext {
+                    source_query: analysis.query.clone(),
+                    cache: Arc::clone(cache),
+                    estimand_index,
+                    common: CheckedStaticCommon::from_analysis(
+                        analysis, plan, identifier, estimator,
+                    ),
+                };
+                Some(CheckedPropensityOperation::prepare(data, context, estimator, fitter)?)
+            }
+            _ => None,
+        };
     Ok(sealed.map(PreparedExecution::CheckedPropensity))
 }
 
@@ -434,7 +440,7 @@ pub(super) fn checked_aipw(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { source, analysis, plan, .. } = *cx;
     let sealed = match (
         cx.route,
-        analysis.identification_cache.as_deref(),
+        analysis.identification_cache.as_ref(),
         &analysis.inference,
         source.graph.class(),
         source.graph_posterior.is_none(),
@@ -471,8 +477,7 @@ pub(super) fn checked_aipw(cx: &SealContext<'_>) -> SealOutcome {
                     fitter,
                     preparation,
                     query: query.clone(),
-                    identification: cache.identification.clone(),
-                    estimand: cache.estimand.clone(),
+                    cache: Arc::clone(cache),
                     common: CheckedStaticCommon::from_analysis(
                         analysis, plan, identifier, estimator,
                     ),
@@ -489,27 +494,24 @@ pub(super) fn checked_aipw(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn frontdoor_linear(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, .. } = *cx;
-    let sealed = match (
-        cx.static_ate_dag(),
-        analysis.identification_cache.as_deref(),
-        &analysis.inference,
-    ) {
-        (Some((data, query)), Some(cache), InferenceMode::Frequentist)
-            if matches!(query.outcome_functional, OutcomeFunctional::Mean)
-                && matches!(query.target_population, TargetPopulation::AllObserved)
-                && cx.binding.estimator.is(EstimatorId::FrontDoorTwoStage) =>
-        {
-            let fitter = match analysis.estimator_spec.as_deref() {
-                Some(crate::estimator_spec::EstimatorSpec::FrontDoorTwoStage(config)) => {
-                    (**config).clone()
-                }
-                _ => antecedent_estimate::FrontDoorTwoStage::new(),
-            };
-            let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
-            Some(CheckedFrontDoorOperation { fitter, preparation })
-        }
-        _ => None,
-    };
+    let sealed =
+        match (cx.static_ate_dag(), analysis.identification_cache.as_ref(), &analysis.inference) {
+            (Some((data, query)), Some(cache), InferenceMode::Frequentist)
+                if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                    && matches!(query.target_population, TargetPopulation::AllObserved)
+                    && cx.binding.estimator.is(EstimatorId::FrontDoorTwoStage) =>
+            {
+                let fitter = match analysis.estimator_spec.as_deref() {
+                    Some(crate::estimator_spec::EstimatorSpec::FrontDoorTwoStage(config)) => {
+                        (**config).clone()
+                    }
+                    _ => antecedent_estimate::FrontDoorTwoStage::new(),
+                };
+                let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
+                Some(CheckedFrontDoorOperation { fitter, preparation })
+            }
+            _ => None,
+        };
     Ok(sealed.map(PreparedExecution::FrontDoorLinear))
 }
 
@@ -517,7 +519,7 @@ pub(super) fn iv(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, .. } = *cx;
     let sealed = match (
         cx.static_ate_dag(),
-        analysis.identification_cache.as_deref(),
+        analysis.identification_cache.as_ref(),
         &analysis.inference,
     ) {
         (Some((data, _)), Some(cache), InferenceMode::Frequentist) => {
@@ -581,7 +583,7 @@ pub(super) fn unknown_tiered_average(cx: &SealContext<'_>) -> SealOutcome {
     let sealed = match (
         cx.static_ate(),
         analysis.tiered.as_ref(),
-        analysis.identification_cache.as_deref(),
+        analysis.identification_cache.as_ref(),
         &analysis.inference,
     ) {
         (Some(query), Some(background), Some(cache), InferenceMode::Frequentist)
@@ -601,7 +603,7 @@ pub(super) fn unknown_tiered_average(cx: &SealContext<'_>) -> SealOutcome {
             Some(Box::new(CheckedUnknownTieredAverageOperation {
                 query: query.clone(),
                 background: background.clone(),
-                identification: cache.identification.clone(),
+                cache: Arc::clone(cache),
                 identifier: crate::strategy_table::IdentifierId::GeneralizedAdjustment,
                 estimator: crate::strategy_table::EstimatorId::LinearAdjustmentAte,
                 physical: plan.clone(),

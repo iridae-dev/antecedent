@@ -89,6 +89,32 @@ fn rebinding_a_click_overlay_leaves_the_shared_configuration_alone() {
 }
 
 #[test]
+fn static_ate_operation_shares_the_prepared_identification() {
+    let (data, _) = tabular();
+    let graph =
+        Dag::from_named_edges(data.schema(), &[("z", "t"), ("z", "y"), ("t", "y")]).unwrap();
+    let query = AverageEffectQuery::with_levels(
+        data.schema().id_of("t").unwrap(),
+        data.schema().id_of("y").unwrap(),
+        0.0,
+        1.0,
+    );
+    let study =
+        Study::tabular(data).graph(graph).query(query).refute(RefuteSuite::None).build().unwrap();
+    let prepared = study.prepare(&ExecutionContext::for_tests(5)).unwrap();
+    let cache = prepared.study().identification_cache.as_ref().expect("prepared static cache");
+    let sealed = prepared
+        .sealed_static_identification()
+        .expect("static ATE seals an operation that retains its identification");
+    assert!(Arc::ptr_eq(cache, sealed), "the operation reads the prepared allocation");
+
+    let click = prepared.study().clone();
+    assert!(Arc::ptr_eq(sealed, click.identification_cache.as_ref().unwrap()));
+    // study + operation + the click copy.
+    assert!(Arc::strong_count(cache) >= 3);
+}
+
+#[test]
 fn temporal_class_lookup_returns_the_retained_envelope_without_copying() {
     let n = 60;
     let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);

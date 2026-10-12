@@ -19,7 +19,7 @@ use antecedent_expr::{
     FactorRequirement, FunctionalProgram, IdentifiedEstimand, ProgramLimits, ProgramSchema,
     ProgramVariable,
 };
-use antecedent_identify::{IdentificationResult, IdentificationStatus};
+use antecedent_identify::IdentificationStatus;
 
 use crate::accepted::GraphClass;
 use crate::analysis::builder::RefuteSuite;
@@ -67,7 +67,7 @@ pub(crate) struct CheckedPropensityLowering {
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedPropensityContext {
     pub(crate) source_query: CausalQuery,
-    pub(crate) identification: IdentificationResult,
+    pub(crate) cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     pub(crate) estimand_index: usize,
     pub(crate) common: Arc<crate::analysis::execute::CheckedStaticCommon>,
 }
@@ -116,8 +116,9 @@ impl CheckedPropensityOperation {
             CausalQuery::AverageEffect(query) => query.clone(),
             _ => return Err(compile_error("checked propensity requires an AverageEffect query")),
         };
-        if context.identification.query != context.source_query
-            || context.identification.status != IdentificationStatus::NonparametricallyIdentified
+        if context.cache.identification.query != context.source_query
+            || context.cache.identification.status
+                != IdentificationStatus::NonparametricallyIdentified
             || context.graph_class != GraphClass::Dag
             || !matches!(
                 context.structure_source,
@@ -138,13 +139,17 @@ impl CheckedPropensityOperation {
                 "checked propensity route premises are outside the licensed DAG frequentist mean-effect contract",
             ));
         }
-        let target =
-            context.identification.estimands.get(context.estimand_index).cloned().ok_or_else(
-                || compile_error("checked propensity estimand index is out of range"),
-            )?;
-        let claim = context.identification.claim(context.estimand_index).ok_or_else(|| {
-            compile_error("checked propensity estimand has no scoped identification claim")
-        })?;
+        let target = context
+            .cache
+            .identification
+            .estimands
+            .get(context.estimand_index)
+            .cloned()
+            .ok_or_else(|| compile_error("checked propensity estimand index is out of range"))?;
+        let claim =
+            context.cache.identification.claim(context.estimand_index).ok_or_else(|| {
+                compile_error("checked propensity estimand has no scoped identification claim")
+            })?;
         if claim.status != IdentificationStatus::NonparametricallyIdentified
             || !target.is_adjustment_shaped()
             || !target.instruments.is_empty()
@@ -182,7 +187,7 @@ impl CheckedPropensityOperation {
         let identifier = context.physical.binding().identifier.or(context.identifier)?;
         Arc::make_mut(&mut context.common).identifier = identifier;
 
-        let mut arena = context.identification.arena.clone();
+        let mut arena = context.cache.identification.arena.clone();
         let expected = arena.backdoor_ate(
             query.treatment,
             query.outcome,
@@ -507,9 +512,13 @@ mod tests {
         let source_query = CausalQuery::AverageEffect(query);
         let identification =
             identify_static_query(IdentifierId::BackdoorAdjustment, &graph, &source_query).unwrap();
+        let estimand = identification.estimands[0].clone();
         let context = CheckedPropensityContext {
             source_query,
-            identification,
+            cache: Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+                identification,
+                estimand,
+            }),
             estimand_index: 0,
             common: Arc::new(crate::analysis::execute::CheckedStaticCommon {
                 identifier: IdentifierId::BackdoorAdjustment,
@@ -534,8 +543,8 @@ mod tests {
     fn weighting_and_matching_keep_distinct_uncertainty_and_known_truth() {
         for estimator in [EstimatorId::PropensityWeighting, EstimatorId::PropensityMatching] {
             let (data, context, config) = inputs(estimator);
-            let query = context.identification.average_effect().unwrap().clone();
-            let target = context.identification.estimands[0].clone();
+            let query = context.cache.identification.average_effect().unwrap().clone();
+            let target = context.cache.identification.estimands[0].clone();
             let operation =
                 CheckedPropensityOperation::prepare(&data, context, estimator, config).unwrap();
             assert_eq!(operation.lowering().functional, target.functional);

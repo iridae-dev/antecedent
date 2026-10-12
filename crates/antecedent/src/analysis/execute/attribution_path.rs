@@ -48,8 +48,7 @@ impl CounterfactualProcedure {
 #[derive(Clone)]
 pub(crate) struct CheckedCounterfactualPlan {
     operation: crate::gcm::CheckedCounterfactualOperation,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
+    cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     identify_cached: bool,
     inference: InferenceMode,
     procedure: CounterfactualProcedure,
@@ -62,8 +61,8 @@ impl std::fmt::Debug for CheckedCounterfactualPlan {
         formatter
             .debug_struct("CheckedCounterfactualPlan")
             .field("operation", &self.operation)
-            .field("identification", &self.identification)
-            .field("estimand", &self.estimand)
+            .field("identification", &self.cache.identification)
+            .field("estimand", &self.cache.estimand)
             .field("identify_cached", &self.identify_cached)
             .field("inference", &self.inference)
             .field("procedure", &self.procedure)
@@ -76,14 +75,14 @@ impl CheckedCounterfactualPlan {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         operation: crate::gcm::CheckedCounterfactualOperation,
-        identification: IdentificationResult,
-        estimand: IdentifiedEstimand,
+        cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
         identify_cached: bool,
         inference: InferenceMode,
         procedure: CounterfactualProcedure,
         physical: std::sync::Arc<PhysicalExecutionPlan>,
         result_context: IdentifiedResultContext,
     ) -> Result<Self, CausalError> {
+        let (identification, estimand) = (&cache.identification, &cache.estimand);
         if !matches!(&identification.query, CausalQuery::Counterfactual(query) if query == operation.query())
             || result_context.query != CausalQuery::Counterfactual(operation.query().clone())
             || result_context.inference != inference
@@ -106,8 +105,7 @@ impl CheckedCounterfactualPlan {
         }
         Ok(Self {
             operation,
-            identification,
-            estimand,
+            cache,
             identify_cached,
             inference,
             procedure,
@@ -158,8 +156,8 @@ fn execute_checked_counterfactual_plan(
     ctx: &ExecutionContext,
 ) -> Result<StudyResult, CausalError> {
     let started = Instant::now();
-    let identification = &plan.identification;
-    let estimand = plan.estimand.clone();
+    let identification = &plan.cache.identification;
+    let estimand = plan.cache.estimand.clone();
     let identify_cached = plan.identify_cached;
 
     let query = plan.operation.query();
@@ -401,8 +399,8 @@ impl super::Study {
         }
         let graph = operation.graph();
         let query = CausalQuery::Counterfactual(operation.query().clone());
-        let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+        let (cache, identify_cached) =
+            shared_identification_from_cache_or(ctx, self.identification_cache.as_ref(), || {
                 let identification =
                     identify_static_query(IdentifierId::GcmParametric, graph, &query)?;
                 let estimand = identification.estimands.first().cloned().ok_or_else(|| {
@@ -416,8 +414,7 @@ impl super::Study {
         let procedure = CounterfactualProcedure::for_inference(&inference)?;
         let plan = CheckedCounterfactualPlan::new(
             operation.clone(),
-            identification,
-            estimand,
+            cache,
             identify_cached,
             inference,
             procedure,

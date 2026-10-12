@@ -19,8 +19,7 @@ pub(crate) struct CheckedDerivativeResponseOperation {
     graph: Dag,
     graph_signature: (usize, Arc<[(u32, u32)]>),
     query: ResponseQuery,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
+    cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     identifier: IdentifierId,
     estimator: EstimatorId,
     fitter: ContinuousResponseEstimator,
@@ -35,13 +34,13 @@ impl CheckedDerivativeResponseOperation {
     pub(crate) fn checked(
         graph: &Dag,
         query: &ResponseQuery,
-        identification: &IdentificationResult,
-        estimand: &IdentifiedEstimand,
+        cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
         identifier: IdentifierId,
         estimator: EstimatorId,
         inference: InferenceMode,
         options: antecedent_estimate::ContinuousResponseOptions,
     ) -> Result<Self, CausalError> {
+        let (identification, estimand) = (&cache.identification, &cache.estimand);
         query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
         let expected_estimator = match &query.functional {
             ResponseFunctional::PointDerivative { .. } => EstimatorId::ResponseKennedyDr,
@@ -106,8 +105,7 @@ impl CheckedDerivativeResponseOperation {
             graph: graph.clone(),
             graph_signature: dag_signature(graph),
             query: query.clone(),
-            identification: identification.clone(),
-            estimand: estimand.clone(),
+            cache: Arc::clone(cache),
             identifier,
             estimator,
             fitter,
@@ -129,7 +127,7 @@ impl CheckedDerivativeResponseOperation {
 
     /// Checked identification result and expression target.
     pub(crate) fn target(&self) -> (&IdentificationResult, &IdentifiedEstimand) {
-        (&self.identification, &self.estimand)
+        (&self.cache.identification, &self.cache.estimand)
     }
 
     /// Selected estimator and identifier identities.
@@ -154,8 +152,8 @@ impl CheckedDerivativeResponseOperation {
                 stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
             });
         }
-        let identification_status = self.identification.status;
-        let assumptions = self.identification.required_assumptions.clone();
+        let identification_status = self.cache.identification.status;
+        let assumptions = self.cache.identification.required_assumptions.clone();
         let response = match &self.inference {
             InferenceMode::Frequentist => self
                 .fitter
@@ -200,8 +198,7 @@ pub(crate) struct CheckedStaticDagResponseOperation {
     graph_signature: (usize, Arc<[(u32, u32)]>),
     query: ResponseQuery,
     curve_grid: Arc<[f64]>,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
+    cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     identifier: IdentifierId,
     estimator: EstimatorId,
     fitter: ContinuousResponseEstimator,
@@ -214,14 +211,14 @@ impl CheckedStaticDagResponseOperation {
     pub(crate) fn checked(
         graph: &Dag,
         query: &ResponseQuery,
-        identification: &IdentificationResult,
-        estimand: &IdentifiedEstimand,
+        cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
         identifier: IdentifierId,
         estimator: EstimatorId,
         options: antecedent_estimate::ContinuousResponseOptions,
         inference: InferenceMode,
         refute: RefuteSuite,
     ) -> Result<Self, CausalError> {
+        let (identification, estimand) = (&cache.identification, &cache.estimand);
         query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
         let curve_grid = match &query.functional {
             ResponseFunctional::MeanCurve { treatment, .. } => treatment
@@ -321,8 +318,7 @@ impl CheckedStaticDagResponseOperation {
             graph_signature: dag_signature(graph),
             query: query.clone(),
             curve_grid,
-            identification: identification.clone(),
-            estimand: estimand.clone(),
+            cache: Arc::clone(cache),
             identifier,
             estimator,
             fitter,
@@ -354,7 +350,7 @@ impl CheckedStaticDagResponseOperation {
 
     /// Retained identification and selected target.
     pub(crate) fn target(&self) -> (&IdentificationResult, &IdentifiedEstimand) {
-        (&self.identification, &self.estimand)
+        (&self.cache.identification, &self.cache.estimand)
     }
 
     /// Procedure and validation identities fixed by preparation.
@@ -405,8 +401,8 @@ impl CheckedStaticDagResponseOperation {
                 .estimate_identified_scored(
                     data,
                     &self.query,
-                    self.identification.status,
-                    self.identification.required_assumptions.clone(),
+                    self.cache.identification.status,
+                    self.cache.identification.required_assumptions.clone(),
                 )
                 .map_err(CausalError::from)?,
             InferenceMode::Bayesian(config) => {
@@ -473,8 +469,8 @@ impl CheckedStaticDagResponseOperation {
             .estimate_bayesian(
                 data,
                 &self.query,
-                self.identification.status,
-                self.identification.required_assumptions.clone(),
+                self.cache.identification.status,
+                self.cache.identification.required_assumptions.clone(),
                 &bayes,
                 ctx,
             )
@@ -755,6 +751,15 @@ impl Inspect for CheckedStaticDagResponseOperation {
 
 #[cfg(test)]
 mod checked_derivative_operation_tests {
+    fn cached(
+        identification: &IdentificationResult,
+        estimand: &IdentifiedEstimand,
+    ) -> Arc<crate::analysis::prepared::CachedStaticIdentification> {
+        Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+            identification: identification.clone(),
+            estimand: estimand.clone(),
+        })
+    }
     use super::*;
     use antecedent_core::{DerivativeScale, ResponseFunctional};
     use antecedent_graph::{Dag, DenseNodeId};
@@ -789,8 +794,7 @@ mod checked_derivative_operation_tests {
         let operation = CheckedDerivativeResponseOperation::checked(
             &graph,
             &query,
-            &identification,
-            &estimand,
+            &cached(&identification, &estimand),
             identifier,
             estimator,
             InferenceMode::Frequentist,
@@ -827,8 +831,7 @@ mod checked_derivative_operation_tests {
             CheckedDerivativeResponseOperation::checked(
                 &graph,
                 &changed,
-                &identification,
-                &estimand,
+                &cached(&identification, &estimand),
                 identifier,
                 estimator,
                 InferenceMode::Frequentist,
@@ -841,8 +844,7 @@ mod checked_derivative_operation_tests {
             CheckedDerivativeResponseOperation::checked(
                 &graph,
                 &query,
-                &identification,
-                &estimand,
+                &cached(&identification, &estimand),
                 identifier,
                 EstimatorId::ResponseRieszAde,
                 InferenceMode::Frequentist,
@@ -863,8 +865,7 @@ mod checked_derivative_operation_tests {
             CheckedDerivativeResponseOperation::checked(
                 &graph,
                 &query,
-                &identification,
-                &altered_target,
+                &cached(&identification, &altered_target),
                 identifier,
                 estimator,
                 InferenceMode::Frequentist,
@@ -904,8 +905,7 @@ mod checked_derivative_operation_tests {
         let error = CheckedDerivativeResponseOperation::checked(
             &graph,
             &query,
-            &identification,
-            estimand,
+            &cached(&identification, estimand),
             identifier,
             EstimatorId::ResponseGamDerivative,
             InferenceMode::Frequentist,

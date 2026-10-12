@@ -95,6 +95,23 @@ typed_accessors! {
     iv -> CheckedIvOperation = Iv;
 }
 
+#[cfg(test)]
+impl super::PreparedStudy {
+    /// The static identification allocation the sealed static-ATE operation
+    /// retains, for sharing assertions.
+    pub(crate) fn sealed_static_identification(
+        &self,
+    ) -> Option<&Arc<super::CachedStaticIdentification>> {
+        match &self.execution {
+            PreparedExecution::CheckedLinear(operation) => Some(&operation.cache),
+            PreparedExecution::CheckedGlmAdjustment(operation) => Some(&operation.cache),
+            PreparedExecution::CheckedAipw(operation) => Some(&operation.cache),
+            PreparedExecution::CheckedConditional(operation) => Some(&operation.cache),
+            _ => None,
+        }
+    }
+}
+
 pub(crate) fn checked_aipw_fitter(study: &Study) -> AipwAte {
     if let Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) =
         study.estimator_spec.as_deref()

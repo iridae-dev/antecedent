@@ -392,6 +392,21 @@ pub(super) fn identification_from_cache_or(
     Ok((identification, estimand, false))
 }
 
+/// [`identification_from_cache_or`] for callers that retain the product: a
+/// cache hit shares the prepared allocation instead of copying it.
+pub(super) fn shared_identification_from_cache_or(
+    ctx: &ExecutionContext,
+    cache: Option<&Arc<crate::analysis::prepared::CachedStaticIdentification>>,
+    live: impl FnOnce() -> Result<(IdentificationResult, IdentifiedEstimand), CausalError>,
+) -> Result<(Arc<crate::analysis::prepared::CachedStaticIdentification>, bool), CausalError> {
+    if let Some(cache) = cache {
+        return Ok((Arc::clone(cache), true));
+    }
+    report_identify_compute(ctx);
+    let (identification, estimand) = live()?;
+    Ok((Arc::new(crate::analysis::prepared::CachedStaticIdentification { identification, estimand }), false))
+}
+
 /// Tell the progress sink that identification is being computed rather than
 /// served from a prepared cache.
 ///

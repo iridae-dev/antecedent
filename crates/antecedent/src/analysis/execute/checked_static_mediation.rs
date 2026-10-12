@@ -10,8 +10,7 @@ use antecedent_expr::{FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVa
 pub(crate) struct CheckedStaticMediationOperation {
     graph: Dag,
     query: antecedent_core::MediationQuery,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
+    cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     physical: std::sync::Arc<PhysicalExecutionPlan>,
     program: FunctionalProgram,
     schema: antecedent_core::CausalSchema,
@@ -41,7 +40,7 @@ impl CheckedStaticMediationOperation {
         study: &Study,
         data: &TabularData,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
-        cache: &crate::analysis::prepared::CachedStaticIdentification,
+        cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::Mediation(query) = &study.query else {
             return Err(CausalError::Compile {
@@ -109,8 +108,7 @@ impl CheckedStaticMediationOperation {
         Ok(Self {
             graph: graph.clone(),
             query: query.clone(),
-            identification: cache.identification.clone(),
-            estimand: cache.estimand.clone(),
+            cache: Arc::clone(cache),
             physical: physical.clone(),
             program,
             schema: data.schema().clone(),
@@ -124,7 +122,7 @@ impl CheckedStaticMediationOperation {
 
     pub(crate) fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
         if data.schema() != &self.schema
-            || self.program.mapping().source != self.estimand.functional
+            || self.program.mapping().source != self.cache.estimand.functional
         {
             return Err(CausalError::Compile {
                 message: "mediation refresh changed its semantic schema or target".into(),
@@ -147,7 +145,7 @@ impl CheckedStaticMediationOperation {
     ) {
         (
             &self.query,
-            &self.estimand,
+            &self.cache.estimand,
             &self.program,
             self.bootstrap_replicates,
             self.refute,
@@ -166,7 +164,7 @@ impl CheckedStaticMediationOperation {
             data,
             &bound.graph,
             &bound.query,
-            bound.identification.required_assumptions.clone(),
+            bound.cache.identification.required_assumptions.clone(),
             bound.bootstrap_replicates,
             &[],
             ctx,
@@ -194,8 +192,8 @@ impl CheckedStaticMediationOperation {
             Some(data),
             IdentifiedExecuteFinish::new(
                 &bound.physical,
-                bound.identification.clone(),
-                bound.estimand.clone(),
+                bound.cache.identification.clone(),
+                bound.cache.estimand.clone(),
                 estimate,
                 IdentifierId::PathSpecificNatural,
                 EstimatorId::StaticMediationLinear,

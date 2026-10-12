@@ -15,8 +15,7 @@ use antecedent_learn::{BasisTargetPopulation, BayesianBasisGComputation, Bayesia
 pub(crate) struct CheckedBayesianBasisCateExecution {
     graph: Dag,
     query: ConditionalEffectQuery,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
+    cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     config: BayesianConfig,
     context: IdentifiedResultContext,
     physical: std::sync::Arc<PhysicalExecutionPlan>,
@@ -27,8 +26,8 @@ impl std::fmt::Debug for CheckedBayesianBasisCateExecution {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CheckedBayesianBasisCateExecution")
             .field("query", &self.query)
-            .field("identification", &self.identification)
-            .field("estimand", &self.estimand)
+            .field("identification", &self.cache.identification)
+            .field("estimand", &self.cache.estimand)
             .field("estimator", &EstimatorId::BayesianBasisGcomp)
             .field("graph", &self.graph)
             .finish_non_exhaustive()
@@ -40,12 +39,12 @@ impl CheckedBayesianBasisCateExecution {
         data: &TabularData,
         graph: &Dag,
         query: ConditionalEffectQuery,
-        identification: IdentificationResult,
-        estimand: IdentifiedEstimand,
+        cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
         inference: InferenceMode,
         context: IdentifiedResultContext,
         physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
+        let (identification, estimand) = (&cache.identification, &cache.estimand);
         let CausalQuery::ConditionalEffect(target) = &context.query else {
             return Err(CausalError::Compile {
                 message: "Bayesian basis CATE context has a different query family".into(),
@@ -116,8 +115,7 @@ impl CheckedBayesianBasisCateExecution {
         Ok(Self {
             graph: graph.clone(),
             query,
-            identification,
-            estimand,
+            cache,
             config,
             context,
             physical,
@@ -154,6 +152,7 @@ impl CheckedBayesianBasisCateExecution {
         let treatment = data.float64_values(inner.treatment)?;
         let outcome = data.float64_values(inner.outcome)?;
         let covariates = self
+            .cache
             .estimand
             .adjustment_set
             .iter()
@@ -223,13 +222,13 @@ impl CheckedBayesianBasisCateExecution {
         )
         .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let summaries = draws.summarize();
-        let mut assumptions = self.identification.required_assumptions.clone();
+        let mut assumptions = self.cache.identification.required_assumptions.clone();
         assumptions.push(AssumptionRecord { assumption: Assumption::ParametricRestriction(ParametricAssumption { id: Arc::from("bayesian.basis_gcomp.quadratic_outcome"), description: Arc::from("Gaussian identity-link outcome regression with quadratic covariate terms and treatment-by-covariate interactions.") }), source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from(model.estimator_id()) }, scope: AssumptionScope::Estimation, status: AssumptionStatus::Declared });
         assumptions.push(AssumptionRecord { assumption: Assumption::PriorRestriction(PriorAssumption { id: Arc::from(format!("gaussian_coefficients_isotropic_sd_{}", self.config.prior_scale)), description: Arc::from("Every basis coefficient, including the intercept, has a zero-centered Gaussian prior scaled by residual standard deviation.") }), source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from(model.estimator_id()) }, scope: AssumptionScope::Estimation, status: AssumptionStatus::Declared });
         let posterior = CausalPosterior {
             draws,
             summaries: summaries.clone(),
-            identification: self.identification.status,
+            identification: self.cache.identification.status,
             prior_sensitivity: None,
             conflict_summary: None,
             diagnostics: antecedent_prob::InferenceDiagnostics::analytic("conjugate_gaussian"),
@@ -251,8 +250,8 @@ impl CheckedBayesianBasisCateExecution {
             Some(Arc::from((0..rows.len()).map(|r| summaries.mean[r + 1]).collect::<Vec<_>>()));
         let args = IdentifiedExecuteFinish::new(
             &self.physical,
-            self.identification.clone(),
-            self.estimand.clone(),
+            self.cache.identification.clone(),
+            self.cache.estimand.clone(),
             estimate,
             IdentifierId::BackdoorAdjustment,
             EstimatorId::BayesianBasisGcomp,

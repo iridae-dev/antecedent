@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 pub(super) fn distribution(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.distribution(), analysis.identification_cache.as_deref()) {
+    let sealed = match (cx.distribution(), analysis.identification_cache.as_ref()) {
         (Some((data, query)), Some(cache)) => {
             let (identifier, estimator) = cx.binding.resolve(RouteDefaults::DISTRIBUTION)?;
             let mut fitter = antecedent_estimate::FunctionalDistribution::new();
@@ -36,8 +36,7 @@ pub(super) fn distribution(cx: &SealContext<'_>) -> SealOutcome {
             )?;
             Some(CheckedDistributionOperation {
                 query: query.clone(),
-                identification: cache.identification.clone(),
-                estimand: cache.estimand.clone(),
+                cache: Arc::clone(cache),
                 fitter,
                 prepared,
                 common: CheckedStaticCommon::from_analysis(analysis, plan, identifier, estimator),
@@ -50,7 +49,7 @@ pub(super) fn distribution(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn functional_effect(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.route, analysis.identification_cache.as_deref()) {
+    let sealed = match (cx.route, analysis.identification_cache.as_ref()) {
         (Some(RouteInput::StaticAteMixed { data, query }), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
@@ -75,8 +74,7 @@ pub(super) fn functional_effect(cx: &SealContext<'_>) -> SealOutcome {
             )?;
             Some(CheckedFunctionalEffectOperation {
                 query: query.clone(),
-                identification: cache.identification.clone(),
-                estimand: cache.estimand.clone(),
+                cache: Arc::clone(cache),
                 fitter,
                 prepared,
                 common: CheckedStaticCommon::from_analysis(
@@ -94,7 +92,7 @@ pub(super) fn functional_effect(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn path_specific_effect(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.route, analysis.identification_cache.as_deref()) {
+    let sealed = match (cx.route, analysis.identification_cache.as_ref()) {
         (Some(RouteInput::PathSpecificDag { data, query, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
@@ -120,8 +118,7 @@ pub(super) fn path_specific_effect(cx: &SealContext<'_>) -> SealOutcome {
             )?;
             Some(CheckedPathSpecificEffectOperation {
                 query: query.clone(),
-                identification: cache.identification.clone(),
-                estimand: cache.estimand.clone(),
+                cache: Arc::clone(cache),
                 fitter,
                 prepared,
                 common: CheckedStaticCommon::from_analysis(

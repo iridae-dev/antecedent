@@ -100,7 +100,7 @@ impl SealedOperation for CheckedUnknownTieredAverageOperation {
             &self.physical,
             ctx,
             &self.background,
-            self.identification.clone(),
+            self.cache.identification.clone(),
             self.identifier,
             self.estimator,
         )?;

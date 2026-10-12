@@ -32,8 +32,7 @@ use std::time::Instant;
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedDistributionOperation {
     pub(super) query: InterventionalDistributionQuery,
-    pub(super) identification: IdentificationResult,
-    pub(super) estimand: IdentifiedEstimand,
+    pub(super) cache: Arc<super::CachedStaticIdentification>,
     pub(super) fitter: antecedent_estimate::FunctionalDistribution,
     pub(super) prepared: antecedent_estimate::PreparedFunctionalDistribution,
     pub(super) common: Arc<CheckedStaticCommon>,
@@ -45,8 +44,7 @@ pub(crate) struct CheckedDistributionOperation {
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedFunctionalEffectOperation {
     pub(super) query: AverageEffectQuery,
-    pub(super) identification: IdentificationResult,
-    pub(super) estimand: IdentifiedEstimand,
+    pub(super) cache: Arc<super::CachedStaticIdentification>,
     pub(super) fitter: antecedent_estimate::FunctionalEffect,
     pub(super) prepared: antecedent_estimate::PreparedFunctionalEffect,
     pub(super) common: Arc<CheckedStaticCommon>,
@@ -56,8 +54,7 @@ pub(crate) struct CheckedFunctionalEffectOperation {
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedPathSpecificEffectOperation {
     pub(super) query: antecedent_core::PathSpecificEffectQuery,
-    pub(super) identification: IdentificationResult,
-    pub(super) estimand: IdentifiedEstimand,
+    pub(super) cache: Arc<super::CachedStaticIdentification>,
     pub(super) fitter: antecedent_estimate::FunctionalEffect,
     pub(super) prepared: antecedent_estimate::PreparedFunctionalEffect,
     pub(super) common: Arc<CheckedStaticCommon>,
@@ -82,16 +79,15 @@ impl CheckedPathSpecificEffectOperation {
             .fitter
             .prepare(
                 data,
-                &self.estimand,
-                &self.identification.arena,
-                self.identification.required_assumptions.clone(),
+                &self.cache.estimand,
+                &self.cache.identification.arena,
+                self.cache.identification.required_assumptions.clone(),
                 &extra,
             )
             .map_err(CausalError::from)?;
         Ok(Self {
             query: self.query.clone(),
-            identification: self.identification.clone(),
-            estimand: self.estimand.clone(),
+            cache: Arc::clone(&self.cache),
             fitter: self.fitter.clone(),
             prepared,
             common: Arc::clone(&self.common),
@@ -104,10 +100,10 @@ impl CheckedPathSpecificEffectOperation {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if self.estimand.method_kind().ok()
+        if self.cache.estimand.method_kind().ok()
             != Some(antecedent_expr::EstimandMethod::PathSpecificNatural)
-            || self.prepared.estimand.functional != self.estimand.functional
-            || self.prepared.program().mapping().source != self.estimand.functional
+            || self.prepared.estimand.functional != self.cache.estimand.functional
+            || self.prepared.program().mapping().source != self.cache.estimand.functional
             || self.query.treatment == self.query.outcome
         {
             return Err(CausalError::Compile {
@@ -119,10 +115,10 @@ impl CheckedPathSpecificEffectOperation {
             &self.fitter,
             &self.prepared,
             &self.inference,
-            self.identification.status,
+            self.cache.identification.status,
             ctx,
         )?;
-        let mut diagnostics = self.identification.diagnostics.clone();
+        let mut diagnostics = self.cache.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.push(antecedent_core::Diagnostic::new(
             "exec.identify.cached",
@@ -130,9 +126,10 @@ impl CheckedPathSpecificEffectOperation {
             antecedent_core::DiagnosticSeverity::Info,
             "identification reused from the prepare-time cache",
         ));
-        if let Some(diagnostic) =
-            crate::analysis::execute::free_variables_averaged(&self.identification, &self.estimand)
-        {
+        if let Some(diagnostic) = crate::analysis::execute::free_variables_averaged(
+            &self.cache.identification,
+            &self.cache.estimand,
+        ) {
             diagnostics.push(diagnostic);
         }
         if let Some(posterior) = posterior.as_ref() {
@@ -144,8 +141,8 @@ impl CheckedPathSpecificEffectOperation {
             antecedent_validate::functional::refute_path(
                 data,
                 &self.query,
-                &self.identification,
-                &self.estimand,
+                &self.cache.identification,
+                &self.cache.estimand,
                 estimate.ate,
                 self.refute == RefuteSuite::Full,
                 ctx,
@@ -157,8 +154,8 @@ impl CheckedPathSpecificEffectOperation {
         let result = crate::analysis::execute::finish_checked_result(
             crate::analysis::execute::CheckedResultFinish {
                 common: &self.common,
-                identification: &self.identification,
-                estimand: &self.estimand,
+                identification: &self.cache.identification,
+                estimand: &self.cache.estimand,
                 estimate_assumptions: estimate.assumptions.clone(),
                 estimate,
                 diagnostics,
@@ -204,16 +201,15 @@ impl CheckedFunctionalEffectOperation {
             .fitter
             .prepare(
                 data,
-                &self.estimand,
-                &self.identification.arena,
-                self.identification.required_assumptions.clone(),
+                &self.cache.estimand,
+                &self.cache.identification.arena,
+                self.cache.identification.required_assumptions.clone(),
                 &[self.query.treatment, self.query.outcome],
             )
             .map_err(CausalError::from)?;
         Ok(Self {
             query: self.query.clone(),
-            identification: self.identification.clone(),
-            estimand: self.estimand.clone(),
+            cache: Arc::clone(&self.cache),
             fitter: self.fitter.clone(),
             prepared,
             common: Arc::clone(&self.common),
@@ -226,10 +222,11 @@ impl CheckedFunctionalEffectOperation {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if self.estimand.method_kind().ok() != Some(antecedent_expr::EstimandMethod::GeneralId)
-            || self.prepared.estimand.functional != self.estimand.functional
-            || self.prepared.estimand.adjustment_set != self.estimand.adjustment_set
-            || self.prepared.program().mapping().source != self.estimand.functional
+        if self.cache.estimand.method_kind().ok()
+            != Some(antecedent_expr::EstimandMethod::GeneralId)
+            || self.prepared.estimand.functional != self.cache.estimand.functional
+            || self.prepared.estimand.adjustment_set != self.cache.estimand.adjustment_set
+            || self.prepared.program().mapping().source != self.cache.estimand.functional
         {
             return Err(CausalError::Compile {
                 message: "prepared functional-effect operation disagrees with its checked target"
@@ -240,10 +237,10 @@ impl CheckedFunctionalEffectOperation {
             &self.fitter,
             &self.prepared,
             &self.inference,
-            self.identification.status,
+            self.cache.identification.status,
             ctx,
         )?;
-        let mut diagnostics = self.identification.diagnostics.clone();
+        let mut diagnostics = self.cache.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.push(antecedent_core::Diagnostic::new(
             "exec.identify.cached",
@@ -251,9 +248,10 @@ impl CheckedFunctionalEffectOperation {
             antecedent_core::DiagnosticSeverity::Info,
             "identification reused from the prepare-time cache",
         ));
-        if let Some(diagnostic) =
-            crate::analysis::execute::free_variables_averaged(&self.identification, &self.estimand)
-        {
+        if let Some(diagnostic) = crate::analysis::execute::free_variables_averaged(
+            &self.cache.identification,
+            &self.cache.estimand,
+        ) {
             diagnostics.push(diagnostic);
         }
         if let Some(posterior) = posterior.as_ref() {
@@ -265,7 +263,7 @@ impl CheckedFunctionalEffectOperation {
         } else {
             run_refuters(
                 data,
-                &self.estimand,
+                &self.cache.estimand,
                 &self.query,
                 &estimate,
                 &mut refute_ws,
@@ -283,8 +281,8 @@ impl CheckedFunctionalEffectOperation {
         let result = crate::analysis::execute::finish_checked_result(
             crate::analysis::execute::CheckedResultFinish {
                 common: &self.common,
-                identification: &self.identification,
-                estimand: &self.estimand,
+                identification: &self.cache.identification,
+                estimand: &self.cache.estimand,
                 estimate_assumptions: estimate.assumptions.clone(),
                 estimate,
                 diagnostics,
@@ -732,8 +730,7 @@ impl CheckedAdmgResponseCurveOperation {
 pub(crate) struct CheckedStaticResponseCurve {
     pub(super) query: ResponseQuery,
     pub(super) grid: Arc<[f64]>,
-    pub(super) identification: IdentificationResult,
-    pub(super) estimand: IdentifiedEstimand,
+    pub(super) cache: Arc<super::CachedStaticIdentification>,
     pub(super) identifier: crate::strategy_table::IdentifierId,
     pub(super) estimator: crate::strategy_table::EstimatorId,
 }
@@ -756,7 +753,7 @@ impl CheckedStaticResponseCurve {
                     .into(),
             });
         }
-        Ok((&self.identification, &self.estimand))
+        Ok((&self.cache.identification, &self.cache.estimand))
     }
 
     pub(crate) const fn procedure(
@@ -772,8 +769,7 @@ impl CheckedStaticResponseCurve {
 #[derive(Clone, Debug)]
 pub struct CheckedBayesianGcompOperation {
     pub(crate) query: AverageEffectQuery,
-    pub(crate) identification: IdentificationResult,
-    pub(crate) estimand: IdentifiedEstimand,
+    pub(crate) cache: Arc<super::CachedStaticIdentification>,
     pub(crate) inference: InferenceMode,
 }
 
@@ -787,13 +783,13 @@ impl CheckedBayesianGcompOperation {
     /// Selected identification claim retained for this query.
     #[must_use]
     pub fn identification(&self) -> &IdentificationResult {
-        &self.identification
+        &self.cache.identification
     }
 
     /// Selected causal target retained for this query.
     #[must_use]
     pub fn estimand(&self) -> &IdentifiedEstimand {
-        &self.estimand
+        &self.cache.estimand
     }
 
     /// Bayesian prior and inference configuration bound at prepare time.
@@ -827,8 +823,7 @@ pub(crate) struct CheckedAipwOperation {
     pub(crate) fitter: AipwAte,
     pub(crate) preparation: antecedent_estimate::CheckedAipwPreparation,
     pub(super) query: AverageEffectQuery,
-    pub(super) identification: IdentificationResult,
-    pub(super) estimand: IdentifiedEstimand,
+    pub(super) cache: Arc<super::CachedStaticIdentification>,
     pub(super) common: Arc<CheckedStaticCommon>,
     /// Tier closure used to justify adjustment when this is a CoDetermined route.
     pub(super) tiered_background: Option<antecedent_graph::TieredBackground>,
@@ -869,8 +864,7 @@ impl CheckedAipwOperation {
             fitter: self.fitter.clone(),
             preparation,
             query: self.query.clone(),
-            identification: self.identification.clone(),
-            estimand: self.estimand.clone(),
+            cache: Arc::clone(&self.cache),
             common: Arc::clone(&self.common),
             tiered_background: self.tiered_background.clone(),
         })
@@ -902,8 +896,8 @@ impl CheckedAipwOperation {
             }
             _ => None,
         };
-        if self.preparation.target().functional != self.estimand.functional
-            || self.preparation.target().adjustment_set != self.estimand.adjustment_set
+        if self.preparation.target().functional != self.cache.estimand.functional
+            || self.preparation.target().adjustment_set != self.cache.estimand.adjustment_set
             || lowering.treatment != self.query.treatment
             || lowering.outcome != self.query.outcome
             || active != Some(1.0)
@@ -916,12 +910,12 @@ impl CheckedAipwOperation {
         }
         if let Some(background) = &self.tiered_background {
             let checked = antecedent_identify::identify_tiered(background, &self.query)?;
-            if checked.status != self.identification.status
-                || checked.query != self.identification.query
+            if checked.status != self.cache.identification.status
+                || checked.query != self.cache.identification.query
                 || !checked.estimands.iter().any(|candidate| {
-                    candidate.functional == self.estimand.functional
-                        && candidate.method == self.estimand.method
-                        && candidate.adjustment_set == self.estimand.adjustment_set
+                    candidate.functional == self.cache.estimand.functional
+                        && candidate.method == self.cache.estimand.method
+                        && candidate.adjustment_set == self.cache.estimand.adjustment_set
                 })
             {
                 return Err(CausalError::Compile {
@@ -943,7 +937,7 @@ impl CheckedAipwOperation {
             let mut estimate_workspace = EstimationWorkspace::default();
             let (reports, diagnostics) = run_refuters(
                 data,
-                &self.estimand,
+                &self.cache.estimand,
                 &self.query,
                 &estimate,
                 &mut estimate_workspace,
@@ -956,7 +950,7 @@ impl CheckedAipwOperation {
             )?;
             (reports, diagnostics)
         };
-        let mut diagnostics = self.identification.diagnostics.clone();
+        let mut diagnostics = self.cache.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.push(antecedent_core::Diagnostic::new(
             "exec.identify.cached",
@@ -990,7 +984,12 @@ impl CheckedAipwOperation {
         let (estimate_artifact, estimate_operation) =
             crate::strategy_table::estimate_provenance_step(self.estimator);
         let provenance = provenance_pair(
-            (identify_artifact, identify_operation, &[], &self.identification.required_assumptions),
+            (
+                identify_artifact,
+                identify_operation,
+                &[],
+                &self.cache.identification.required_assumptions,
+            ),
             (estimate_artifact, estimate_operation, &[identify_artifact], &estimate.assumptions),
         );
         let bootstrap_ok = estimate.bootstrap_replicates_ok;
@@ -998,8 +997,8 @@ impl CheckedAipwOperation {
         let mut result = assemble_result(AssembleArgs {
             logical: &self.physical.logical.record,
             physical: &self.physical.record,
-            identification: self.identification.clone(),
-            estimand: self.estimand.clone(),
+            identification: self.cache.identification.clone(),
+            estimand: self.cache.estimand.clone(),
             estimate,
             distribution: None,
             posterior: None,
@@ -1027,7 +1026,7 @@ impl CheckedAipwOperation {
         });
         result.certificate = Some(crate::AnalysisIdentification {
             identification: crate::Identification::Point {
-                result: self.identification.clone(),
+                result: self.cache.identification.clone(),
                 temporal_indexer: None,
                 strategy: self.identifier,
                 structure_version: self.graph_version,
@@ -1060,8 +1059,7 @@ pub(crate) struct CheckedLinearOperation {
     pub(crate) preparation: antecedent_estimate::CheckedLinearAdjustmentAte,
     pub(crate) default_id: bool,
     pub(super) query: AverageEffectQuery,
-    pub(super) identification: IdentificationResult,
-    pub(super) estimand: IdentifiedEstimand,
+    pub(super) cache: Arc<super::CachedStaticIdentification>,
     pub(super) stage_sink: Option<Arc<dyn crate::analysis::stage::StageResultSink>>,
     pub(super) common: Arc<CheckedStaticCommon>,
 }
@@ -1133,8 +1131,7 @@ pub(super) fn static_result_metadata<'a>(
 pub(crate) struct CheckedGlmAdjustmentOperation {
     pub(super) source_query: CausalQuery,
     pub(super) query: AverageEffectQuery,
-    pub(super) identification: IdentificationResult,
-    pub(super) estimand: IdentifiedEstimand,
+    pub(super) cache: Arc<super::CachedStaticIdentification>,
     pub(super) fitter: antecedent_estimate::GlmAdjustmentAte,
     pub(super) preparation: antecedent_estimate::PreparedGlmProblem,
     pub(super) common: Arc<CheckedStaticCommon>,
@@ -1160,13 +1157,14 @@ impl CheckedGlmAdjustmentOperation {
     }
 
     pub(super) fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
-        let preparation =
-            self.fitter.prepare(data, &self.estimand, &self.query).map_err(CausalError::from)?;
+        let preparation = self
+            .fitter
+            .prepare(data, &self.cache.estimand, &self.query)
+            .map_err(CausalError::from)?;
         Ok(Self {
             source_query: self.source_query.clone(),
             query: self.query.clone(),
-            identification: self.identification.clone(),
-            estimand: self.estimand.clone(),
+            cache: Arc::clone(&self.cache),
             fitter: self.fitter.clone(),
             preparation,
             common: Arc::clone(&self.common),
@@ -1179,8 +1177,7 @@ impl CheckedGlmAdjustmentOperation {
 pub(crate) struct CheckedRdOperation {
     pub(super) source_query: AverageEffectQuery,
     pub(super) query: AverageEffectQuery,
-    pub(super) identification: IdentificationResult,
-    pub(super) estimand: IdentifiedEstimand,
+    pub(super) cache: Arc<super::CachedStaticIdentification>,
     pub(super) fitter: antecedent_estimate::SharpRegressionDiscontinuity,
     pub(super) preparation: antecedent_estimate::CheckedRdPreparation,
     pub(super) common: Arc<CheckedStaticCommon>,
@@ -1212,13 +1209,12 @@ impl CheckedRdOperation {
     pub(super) fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
         let preparation = self
             .fitter
-            .prepare_checked(data, &self.identification, 0)
+            .prepare_checked(data, &self.cache.identification, 0)
             .map_err(CausalError::from)?;
         Ok(Self {
             source_query: self.source_query.clone(),
             query: self.query.clone(),
-            identification: self.identification.clone(),
-            estimand: self.estimand.clone(),
+            cache: Arc::clone(&self.cache),
             fitter: self.fitter.clone(),
             preparation,
             common: Arc::clone(&self.common),
@@ -1247,8 +1243,7 @@ impl CheckedLinearOperation {
             preparation,
             default_id: self.default_id,
             query: self.query.clone(),
-            identification: self.identification.clone(),
-            estimand: self.estimand.clone(),
+            cache: Arc::clone(&self.cache),
             stage_sink: self.stage_sink.clone(),
             common: Arc::clone(&self.common),
         })
@@ -1261,8 +1256,8 @@ impl CheckedLinearOperation {
     ) -> Result<StudyResult, CausalError> {
         let mut clock = StageClock::new();
         clock.begin(ctx, STAGE_IDENTIFY, 0.05)?;
-        if self.preparation.source_functional() != self.estimand.functional
-            || self.preparation.target().adjustment_set != self.estimand.adjustment_set
+        if self.preparation.source_functional() != self.cache.estimand.functional
+            || self.preparation.target().adjustment_set != self.cache.estimand.adjustment_set
             || self.preparation.lowering().treatment != self.query.treatment
             || self.preparation.lowering().outcome != self.query.outcome
             || self.preparation.lowering().population != self.query.target_population
@@ -1276,8 +1271,8 @@ impl CheckedLinearOperation {
         crate::analysis::stage::emit_stage(
             self.stage_sink.as_ref(),
             &crate::analysis::stage::StageEvent::Identify {
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
+                identification: self.cache.identification.clone(),
+                estimand: self.cache.estimand.clone(),
             },
         );
 
@@ -1326,7 +1321,7 @@ impl CheckedLinearOperation {
         // identified target names, as every adjustment route does.
         let full_cols = data.schema().len();
         let (data_est, query_est, estimand_est) =
-            project_for_ate_estimate(data, &self.query, &self.estimand)?;
+            project_for_ate_estimate(data, &self.query, &self.cache.estimand)?;
         let projected_cols = data_est.schema().len();
         let (refutations, refute_diagnostics) = if cancelled || self.refute == RefuteSuite::None {
             (Vec::new(), Vec::new())
@@ -1371,7 +1366,7 @@ impl CheckedLinearOperation {
                 },
             );
         }
-        let mut diagnostics = self.identification.diagnostics.clone();
+        let mut diagnostics = self.cache.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.push(antecedent_core::Diagnostic::new(
             "exec.identify.cached",
@@ -1385,7 +1380,12 @@ impl CheckedLinearOperation {
         let (estimate_artifact, estimate_operation) =
             crate::strategy_table::estimate_provenance_step(self.estimator);
         let provenance = provenance_pair(
-            (identify_artifact, identify_operation, &[], &self.identification.required_assumptions),
+            (
+                identify_artifact,
+                identify_operation,
+                &[],
+                &self.cache.identification.required_assumptions,
+            ),
             (estimate_artifact, estimate_operation, &[identify_artifact], &estimate.assumptions),
         );
         let bootstrap_ok = estimate.bootstrap_replicates_ok;
@@ -1393,8 +1393,8 @@ impl CheckedLinearOperation {
         let mut result = assemble_result(AssembleArgs {
             logical: &self.physical.logical.record,
             physical: &self.physical.record,
-            identification: self.identification.clone(),
-            estimand: self.estimand.clone(),
+            identification: self.cache.identification.clone(),
+            estimand: self.cache.estimand.clone(),
             estimate,
             distribution: None,
             posterior: None,
@@ -1422,7 +1422,7 @@ impl CheckedLinearOperation {
         });
         result.certificate = Some(crate::AnalysisIdentification {
             identification: crate::Identification::Point {
-                result: self.identification.clone(),
+                result: self.cache.identification.clone(),
                 temporal_indexer: None,
                 strategy: self.identifier,
                 structure_version: self.graph_version,
@@ -1538,7 +1538,13 @@ impl CheckedDistributionOperation {
                     .expect("Bayesian inference selects a draw count");
                 let (distribution, posterior) = self
                     .fitter
-                    .estimate_bayesian(&prepared, &[], n_draws, self.identification.status, ctx)
+                    .estimate_bayesian(
+                        &prepared,
+                        &[],
+                        n_draws,
+                        self.cache.identification.status,
+                        ctx,
+                    )
                     .map_err(CausalError::from)?;
                 (distribution, Some(posterior))
             }
@@ -1570,12 +1576,13 @@ impl CheckedDistributionOperation {
         let outcome = *self.query.outcomes.first().ok_or_else(|| CausalError::Compile {
             message: "distribution query missing outcome".into(),
         })?;
-        let mut diagnostics = self.identification.diagnostics.clone();
+        let mut diagnostics = self.cache.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.extend(distribution_interval_diagnostics_for_prepared(&distribution));
-        if let Some(diagnostic) =
-            crate::analysis::execute::free_variables_averaged(&self.identification, &self.estimand)
-        {
+        if let Some(diagnostic) = crate::analysis::execute::free_variables_averaged(
+            &self.cache.identification,
+            &self.cache.estimand,
+        ) {
             diagnostics.push(diagnostic);
         }
         diagnostics.push(antecedent_core::Diagnostic::new(
@@ -1593,8 +1600,8 @@ impl CheckedDistributionOperation {
             antecedent_validate::functional::refute_distribution(
                 data,
                 &self.query,
-                &self.identification,
-                &self.estimand,
+                &self.cache.identification,
+                &self.cache.estimand,
                 &distribution,
                 self.refute == RefuteSuite::Full,
                 ctx,
@@ -1607,8 +1614,8 @@ impl CheckedDistributionOperation {
         let result = crate::analysis::execute::finish_checked_result(
             crate::analysis::execute::CheckedResultFinish {
                 common: &self.common,
-                identification: &self.identification,
-                estimand: &self.estimand,
+                identification: &self.cache.identification,
+                estimand: &self.cache.estimand,
                 estimate_assumptions: estimate.assumptions.clone(),
                 estimate,
                 diagnostics,
@@ -1677,7 +1684,7 @@ fn distribution_interval_diagnostics_for_prepared(
 pub(crate) struct CheckedUnknownTieredAverageOperation {
     pub(super) query: AverageEffectQuery,
     pub(super) background: antecedent_graph::TieredBackground,
-    pub(super) identification: antecedent_identify::IdentificationResult,
+    pub(super) cache: Arc<super::CachedStaticIdentification>,
     pub(super) identifier: crate::strategy_table::IdentifierId,
     pub(super) estimator: crate::strategy_table::EstimatorId,
     pub(super) physical: std::sync::Arc<PhysicalExecutionPlan>,
@@ -1707,7 +1714,7 @@ impl Inspect for CheckedUnknownTieredAverageOperation {
         CheckedUnknownTieredAverageInfo {
             query: self.query.clone(),
             tier_count: self.background.tiers.len(),
-            scenario_count: self.identification.estimands.len(),
+            scenario_count: self.cache.identification.estimands.len(),
             identifier: self.identifier,
             estimator: self.estimator,
             plan_id: Arc::clone(&self.physical.record.plan_id),

@@ -52,8 +52,7 @@ pub(crate) struct CheckedCellAipwResponseOperation {
     outcome: VariableId,
     treatments: Arc<[VariableId]>,
     requested_arm: u32,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
+    cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     identifier: IdentifierId,
     estimator: CellSaturatedAipw,
     validation: RefuteSuite,
@@ -70,14 +69,14 @@ impl CheckedCellAipwResponseOperation {
     pub(crate) fn checked(
         structure: &CellAipwStructure,
         query: &ResponseQuery,
-        identification: &IdentificationResult,
-        estimand: &IdentifiedEstimand,
+        cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
         identifier: IdentifierId,
         estimator: EstimatorId,
         fold_seed: u64,
         validation: RefuteSuite,
         origin: DagResponseOrigin,
     ) -> Result<Self, CausalError> {
+        let (identification, estimand) = (&cache.identification, &cache.estimand);
         query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
         let ResponseFunctional::InterventionResponse { outcome, interventions } = &query.functional
         else {
@@ -190,8 +189,7 @@ impl CheckedCellAipwResponseOperation {
             outcome: *outcome,
             treatments: treatments.into(),
             requested_arm,
-            identification: identification.clone(),
-            estimand: estimand.clone(),
+            cache: Arc::clone(cache),
             identifier,
             estimator: CellSaturatedAipw::new().with_fold_seed(fold_seed),
             validation,
@@ -216,7 +214,7 @@ impl CheckedCellAipwResponseOperation {
     }
 
     pub(crate) fn target(&self) -> (&IdentificationResult, &IdentifiedEstimand) {
-        (&self.identification, &self.estimand)
+        (&self.cache.identification, &self.cache.estimand)
     }
 
     pub(crate) fn requested_arm(&self) -> u32 {
@@ -276,7 +274,7 @@ impl CheckedCellAipwResponseOperation {
         }
         let mut variables = self.treatments.to_vec();
         variables.push(self.outcome);
-        variables.extend(self.estimand.adjustment_set.iter().copied());
+        variables.extend(self.cache.estimand.adjustment_set.iter().copied());
         let mask = data.complete_case_mask(&variables).map_err(CausalError::from)?;
         if !mask.iter().any(|keep| *keep) {
             return Err(CausalError::Compile {
@@ -303,7 +301,7 @@ impl CheckedCellAipwResponseOperation {
                 &antecedent_estimate::CellScoreSpec {
                     treatments: &self.treatments,
                     outcome: self.outcome,
-                    adjustment: &self.estimand.adjustment_set,
+                    adjustment: &self.cache.estimand.adjustment_set,
                     functional: &self.query.outcome_functional,
                     continuous: None,
                 },
@@ -432,6 +430,15 @@ impl Inspect for CheckedCellAipwResponseOperation {
 
 #[cfg(test)]
 mod tests {
+    fn cached(
+        identification: &IdentificationResult,
+        estimand: &IdentifiedEstimand,
+    ) -> Arc<crate::analysis::prepared::CachedStaticIdentification> {
+        Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+            identification: identification.clone(),
+            estimand: estimand.clone(),
+        })
+    }
     use super::*;
     use antecedent_core::{CausalQuery, Intervention, ResponseFunctional, Value};
     use antecedent_data::{TableView, TabularData};
@@ -494,8 +501,7 @@ mod tests {
         let operation = CheckedCellAipwResponseOperation::checked(
             &CellAipwStructure::Dag(graph.clone()),
             &query,
-            &identification,
-            &estimand,
+            &cached(&identification, &estimand),
             IdentifierId::ResponseBackdoor,
             EstimatorId::CellAipw,
             817,
@@ -538,8 +544,7 @@ mod tests {
         let operation = CheckedCellAipwResponseOperation::checked(
             &CellAipwStructure::Dag(graph.clone()),
             &query,
-            &identification,
-            &estimand,
+            &cached(&identification, &estimand),
             IdentifierId::ResponseBackdoor,
             EstimatorId::CellAipw,
             1,
@@ -580,8 +585,7 @@ mod tests {
         let err = CheckedCellAipwResponseOperation::checked(
             &CellAipwStructure::Dag(graph.clone()),
             &bad_query,
-            &bad_identification,
-            bad_identification.estimands.first().unwrap(),
+            &cached(&bad_identification, bad_identification.estimands.first().unwrap()),
             IdentifierId::ResponseBackdoor,
             EstimatorId::CellAipw,
             1,

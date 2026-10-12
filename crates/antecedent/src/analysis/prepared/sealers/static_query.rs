@@ -10,12 +10,13 @@ use crate::analysis::prepared::PreparedExecution;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use antecedent_core::CausalQuery;
+use std::sync::Arc;
 
 pub(super) fn bayesian_static_mediation(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed = match (
         cx.static_mediation_dag(),
-        analysis.identification_cache.as_deref(),
+        analysis.identification_cache.as_ref(),
         &analysis.inference,
     ) {
         (Some(data), Some(cache), InferenceMode::Bayesian(_)) => Some(Box::new(
@@ -30,7 +31,7 @@ pub(super) fn bayesian_static_mediation(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn static_mediation(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.static_mediation_dag(), analysis.identification_cache.as_deref()) {
+    let sealed = match (cx.static_mediation_dag(), analysis.identification_cache.as_ref()) {
         (Some(data), Some(cache))
             if matches!(analysis.inference, InferenceMode::Frequentist)
                 && matches!(
@@ -54,7 +55,7 @@ pub(super) fn attribution(cx: &SealContext<'_>) -> SealOutcome {
     let sealed = match (
         &source.data,
         &source.query,
-        analysis.identification_cache.as_deref(),
+        analysis.identification_cache.as_ref(),
         analysis.graph.class(),
         &analysis.inference,
     ) {
@@ -86,7 +87,7 @@ pub(super) fn counterfactual(cx: &SealContext<'_>) -> SealOutcome {
     let Some(operation) = counterfactual else {
         return Ok(None);
     };
-    let cache = analysis.identification_cache.as_deref().ok_or_else(|| CausalError::Compile {
+    let cache = analysis.identification_cache.as_ref().ok_or_else(|| CausalError::Compile {
         message: "counterfactual preparation lost its identification product".into(),
     })?;
     let inference = analysis.inference.clone();
@@ -94,8 +95,7 @@ pub(super) fn counterfactual(cx: &SealContext<'_>) -> SealOutcome {
     Ok(Some(PreparedExecution::Counterfactual(
         crate::analysis::execute::CheckedCounterfactualPlan::new(
             operation.clone(),
-            cache.identification.clone(),
-            cache.estimand.clone(),
+            Arc::clone(cache),
             true,
             inference,
             procedure,

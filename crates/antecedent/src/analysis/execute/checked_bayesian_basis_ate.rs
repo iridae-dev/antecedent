@@ -14,8 +14,7 @@ use antecedent_learn::{BasisTargetPopulation, BayesianBasisGComputation, Bayesia
 pub(crate) struct CheckedBayesianBasisAteExecution {
     graph: Dag,
     query: AverageEffectQuery,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
+    cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     config: BayesianConfig,
     context: IdentifiedResultContext,
     physical: std::sync::Arc<PhysicalExecutionPlan>,
@@ -27,8 +26,8 @@ impl std::fmt::Debug for CheckedBayesianBasisAteExecution {
         formatter
             .debug_struct("CheckedBayesianBasisAteExecution")
             .field("query", &self.query)
-            .field("identification", &self.identification)
-            .field("estimand", &self.estimand)
+            .field("identification", &self.cache.identification)
+            .field("estimand", &self.cache.estimand)
             .field("estimator", &EstimatorId::BayesianBasisGcomp)
             .field("graph", &self.graph)
             .finish_non_exhaustive()
@@ -63,12 +62,12 @@ impl CheckedBayesianBasisAteExecution {
         data: &TabularData,
         graph: &Dag,
         query: AverageEffectQuery,
-        identification: IdentificationResult,
-        estimand: IdentifiedEstimand,
+        cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
         inference: InferenceMode,
         context: IdentifiedResultContext,
         physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
+        let (identification, estimand) = (&cache.identification, &cache.estimand);
         let CausalQuery::AverageEffect(target) = &context.query else {
             return Err(CausalError::Compile {
                 message: "Bayesian basis result context has a different query family".into(),
@@ -145,8 +144,7 @@ impl CheckedBayesianBasisAteExecution {
         Ok(Self {
             graph: graph.clone(),
             query,
-            identification,
-            estimand,
+            cache,
             config,
             context,
             physical,
@@ -183,8 +181,8 @@ impl CheckedBayesianBasisAteExecution {
         }
         let started = Instant::now();
         let query = &self.query;
-        let identification = self.identification.clone();
-        let estimand = self.estimand.clone();
+        let identification = self.cache.identification.clone();
+        let estimand = self.cache.estimand.clone();
         let (data_est, query_est, estimand_est) = project_for_ate_estimate(data, query, &estimand)?;
         let data_est = super::super::helpers::apply_scalar_outcome_functional(
             &data_est,
@@ -370,7 +368,7 @@ impl Inspect for CheckedBayesianBasisAteExecution {
     fn info(&self) -> CheckedBayesianBasisAteInfo {
         CheckedBayesianBasisAteInfo {
             query: self.query.clone(),
-            adjustment_set: Arc::clone(&self.estimand.adjustment_set),
+            adjustment_set: Arc::clone(&self.cache.estimand.adjustment_set),
             posterior_draws: self.config.n_draws,
             prior_scale: self.config.prior_scale,
         }

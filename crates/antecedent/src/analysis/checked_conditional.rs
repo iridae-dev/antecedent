@@ -116,8 +116,7 @@ pub(crate) enum ConditionalProcedure {
 pub(crate) struct CheckedConditionalOperation {
     pub(crate) query: ConditionalEffectQuery,
     pub(crate) source_query: CausalQuery,
-    pub(crate) identification: IdentificationResult,
-    pub(crate) estimand: IdentifiedEstimand,
+    pub(crate) cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     pub(crate) program: FunctionalProgram,
     pub(crate) design_roles: Arc<[VariableId]>,
     pub(crate) source_rows: Arc<[u32]>,
@@ -137,11 +136,11 @@ impl CheckedConditionalOperation {
     pub(crate) fn prepare(
         data: &TabularData,
         query: ConditionalEffectQuery,
-        identification: IdentificationResult,
-        estimand: IdentifiedEstimand,
+        cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
         common: Arc<crate::analysis::execute::CheckedStaticCommon>,
         class_proof: Option<ConditionalClassProof>,
     ) -> Result<Self, CausalError> {
+        let (identification, estimand) = (&cache.identification, &cache.estimand);
         let source_query = CausalQuery::ConditionalEffect(query.clone());
         if identification.status != IdentificationStatus::NonparametricallyIdentified
             || (identification.query != source_query
@@ -222,8 +221,7 @@ impl CheckedConditionalOperation {
         Ok(Self {
             query,
             source_query,
-            identification,
-            estimand,
+            cache,
             program,
             design_roles: design_roles.into(),
             source_rows,
@@ -236,8 +234,8 @@ impl CheckedConditionalOperation {
     /// Rebind columns and rows under the same variable IDs and named semantic schema.
     pub(crate) fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
         if self.program.schema() != &program_schema(data)
-            || self.program.mapping().source != self.estimand.functional
-            || self.program.mapping().executable != self.estimand.functional
+            || self.program.mapping().source != self.cache.estimand.functional
+            || self.program.mapping().executable != self.cache.estimand.functional
             || self.procedure
                 != if super::helpers::conditional_uses_crossfit_aipw(&self.query) {
                     ConditionalProcedure::CrossfitAipwDistribution
@@ -252,8 +250,7 @@ impl CheckedConditionalOperation {
         Ok(Self {
             query: self.query.clone(),
             source_query: self.source_query.clone(),
-            identification: self.identification.clone(),
-            estimand: self.estimand.clone(),
+            cache: Arc::clone(&self.cache),
             program: self.program.clone(),
             design_roles: Arc::clone(&self.design_roles),
             source_rows: rows(data, &self.design_roles)?,
@@ -288,12 +285,12 @@ impl CheckedConditionalOperation {
         let fitter = ConditionalLinearAdjustment::new().with_fold_seed(ctx.rng.master_seed());
         let mut mean_query = self.query.clone();
         mean_query.inner.outcome_functional = OutcomeFunctional::Mean;
-        let estimate = fitter.estimate(&data_est, &self.estimand, &mean_query, ctx)?;
+        let estimate = fitter.estimate(&data_est, &self.cache.estimand, &mean_query, ctx)?;
         super::helpers::attach_conditional_functional_grid(
             estimate,
             data,
             &self.query,
-            &self.estimand,
+            &self.cache.estimand,
             ctx,
         )
     }
@@ -405,7 +402,7 @@ impl Inspect for CheckedConditionalOperation {
                     "crossfit_aipw_distribution_scores"
                 }
             }),
-            adjustment_set: Arc::clone(&self.estimand.adjustment_set),
+            adjustment_set: Arc::clone(&self.cache.estimand.adjustment_set),
             completion_count,
             identified_mass,
             unresolved_mass,

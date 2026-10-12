@@ -10,46 +10,42 @@ use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::strategy_table::EstimatorId;
 use antecedent_core::{OutcomeFunctional, TargetPopulation};
+use std::sync::Arc;
 
 pub(super) fn bayesian_basis_ate(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (
-        cx.static_ate_dag(),
-        analysis.identification_cache.as_deref(),
-        &analysis.inference,
-    ) {
-        (Some((data, query)), Some(cache), InferenceMode::Bayesian(_))
-            if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && analysis.structure_source == crate::support::StructureSource::Explicit
-                && analysis.refute == RefuteSuite::None
-                && analysis.custom_validators.is_empty()
-                && cx.binding.estimator.is(EstimatorId::BayesianBasisGcomp) =>
-        {
-            let graph = analysis.graph.as_dag().ok_or(CausalError::Compile {
-                message: "checked Bayesian basis ATE requires its retained DAG".into(),
-            })?;
-            Some(crate::analysis::execute::CheckedBayesianBasisAteExecution::checked(
-                data,
-                graph,
-                query.clone(),
-                cache.identification.clone(),
-                cache.estimand.clone(),
-                analysis.inference.clone(),
-                crate::analysis::execute::IdentifiedResultContext::from_study(analysis),
-                plan.clone(),
-            )?)
-        }
-        _ => None,
-    };
+    let sealed =
+        match (cx.static_ate_dag(), analysis.identification_cache.as_ref(), &analysis.inference) {
+            (Some((data, query)), Some(cache), InferenceMode::Bayesian(_))
+                if analysis.graph_posterior.is_none()
+                    && analysis.tiered.is_none()
+                    && analysis.structure_source == crate::support::StructureSource::Explicit
+                    && analysis.refute == RefuteSuite::None
+                    && analysis.custom_validators.is_empty()
+                    && cx.binding.estimator.is(EstimatorId::BayesianBasisGcomp) =>
+            {
+                let graph = analysis.graph.as_dag().ok_or(CausalError::Compile {
+                    message: "checked Bayesian basis ATE requires its retained DAG".into(),
+                })?;
+                Some(crate::analysis::execute::CheckedBayesianBasisAteExecution::checked(
+                    data,
+                    graph,
+                    query.clone(),
+                    Arc::clone(cache),
+                    analysis.inference.clone(),
+                    crate::analysis::execute::IdentifiedResultContext::from_study(analysis),
+                    plan.clone(),
+                )?)
+            }
+            _ => None,
+        };
     Ok(sealed.map(PreparedExecution::BayesianBasisAte))
 }
 
 pub(super) fn bayesian_basis_cate(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed =
-        match (cx.conditional_dag(), analysis.identification_cache.as_deref(), &analysis.inference)
-        {
+        match (cx.conditional_dag(), analysis.identification_cache.as_ref(), &analysis.inference) {
             (Some((data, query)), Some(cache), InferenceMode::Bayesian(_))
                 if analysis.graph_posterior.is_none()
                     && analysis.tiered.is_none()
@@ -65,8 +61,7 @@ pub(super) fn bayesian_basis_cate(cx: &SealContext<'_>) -> SealOutcome {
                     data,
                     graph,
                     query.clone(),
-                    cache.identification.clone(),
-                    cache.estimand.clone(),
+                    Arc::clone(cache),
                     analysis.inference.clone(),
                     crate::analysis::execute::IdentifiedResultContext::from_study(analysis),
                     plan.clone(),
@@ -79,43 +74,38 @@ pub(super) fn bayesian_basis_cate(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn bayesian_robust_ate(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (
-        cx.static_ate_dag(),
-        analysis.identification_cache.as_deref(),
-        &analysis.inference,
-    ) {
-        (Some((data, query)), Some(cache), InferenceMode::Bayesian(_))
-            if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && analysis.structure_source == crate::support::StructureSource::Explicit
-                && analysis.refute == RefuteSuite::None
-                && analysis.custom_validators.is_empty()
-                && cx.binding.estimator.is(EstimatorId::BayesianRobustAte) =>
-        {
-            let graph = analysis.graph.as_dag().ok_or(CausalError::Compile {
-                message: "checked Bayesian robust ATE requires its retained DAG".into(),
-            })?;
-            Some(crate::analysis::execute::CheckedBayesianRobustAteExecution::checked(
-                data,
-                graph,
-                query.clone(),
-                cache.identification.clone(),
-                cache.estimand.clone(),
-                analysis.inference.clone(),
-                crate::analysis::execute::IdentifiedResultContext::from_study(analysis),
-                plan.clone(),
-            )?)
-        }
-        _ => None,
-    };
+    let sealed =
+        match (cx.static_ate_dag(), analysis.identification_cache.as_ref(), &analysis.inference) {
+            (Some((data, query)), Some(cache), InferenceMode::Bayesian(_))
+                if analysis.graph_posterior.is_none()
+                    && analysis.tiered.is_none()
+                    && analysis.structure_source == crate::support::StructureSource::Explicit
+                    && analysis.refute == RefuteSuite::None
+                    && analysis.custom_validators.is_empty()
+                    && cx.binding.estimator.is(EstimatorId::BayesianRobustAte) =>
+            {
+                let graph = analysis.graph.as_dag().ok_or(CausalError::Compile {
+                    message: "checked Bayesian robust ATE requires its retained DAG".into(),
+                })?;
+                Some(crate::analysis::execute::CheckedBayesianRobustAteExecution::checked(
+                    data,
+                    graph,
+                    query.clone(),
+                    Arc::clone(cache),
+                    analysis.inference.clone(),
+                    crate::analysis::execute::IdentifiedResultContext::from_study(analysis),
+                    plan.clone(),
+                )?)
+            }
+            _ => None,
+        };
     Ok(sealed.map(PreparedExecution::BayesianRobustAte))
 }
 
 pub(super) fn bayesian_conditional(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed =
-        match (cx.conditional_dag(), analysis.identification_cache.as_deref(), &analysis.inference)
-        {
+        match (cx.conditional_dag(), analysis.identification_cache.as_ref(), &analysis.inference) {
             (Some((_, query)), Some(cache), InferenceMode::Bayesian(_))
                 if analysis.graph_posterior.is_none()
                     && analysis.tiered.is_none()
@@ -137,8 +127,7 @@ pub(super) fn bayesian_conditional(cx: &SealContext<'_>) -> SealOutcome {
                 Some(crate::analysis::execute::CheckedBayesianConditionalOperation::checked(
                     graph,
                     query.clone(),
-                    cache.identification.clone(),
-                    cache.estimand.clone(),
+                    Arc::clone(cache),
                     analysis.inference.clone(),
                     analysis.refute,
                     crate::analysis::execute::IdentifiedResultContext::from_study(analysis),
@@ -155,25 +144,21 @@ pub(super) fn bayesian_conditional(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn bayesian_gcomp(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let operation = match (
-        cx.static_ate_dag(),
-        analysis.identification_cache.as_deref(),
-        &analysis.inference,
-    ) {
-        (Some((_, query)), Some(cache), InferenceMode::Bayesian(_))
-            if matches!(query.outcome_functional, OutcomeFunctional::Mean)
-                && matches!(query.target_population, TargetPopulation::AllObserved)
-                && cx.binding.estimator.is(EstimatorId::BayesianGcomp) =>
-        {
-            CheckedBayesianGcompOperation {
-                query: query.clone(),
-                identification: cache.identification.clone(),
-                estimand: cache.estimand.clone(),
-                inference: analysis.inference.clone(),
+    let operation =
+        match (cx.static_ate_dag(), analysis.identification_cache.as_ref(), &analysis.inference) {
+            (Some((_, query)), Some(cache), InferenceMode::Bayesian(_))
+                if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                    && matches!(query.target_population, TargetPopulation::AllObserved)
+                    && cx.binding.estimator.is(EstimatorId::BayesianGcomp) =>
+            {
+                CheckedBayesianGcompOperation {
+                    query: query.clone(),
+                    cache: Arc::clone(cache),
+                    inference: analysis.inference.clone(),
+                }
             }
-        }
-        _ => return Ok(None),
-    };
+            _ => return Ok(None),
+        };
     let graph = analysis.graph.as_dag().ok_or(CausalError::Compile {
         message: "checked Bayesian g-computation requires its retained DAG".into(),
     })?;

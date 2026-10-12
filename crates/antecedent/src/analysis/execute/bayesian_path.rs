@@ -35,7 +35,7 @@ impl super::Study {
         }
         let (identification, estimand, identify_cached) = if let Some(operation) = checked_operation
         {
-            (operation.identification.clone(), operation.estimand.clone(), true)
+            (operation.identification().clone(), operation.estimand().clone(), true)
         } else {
             identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let identification = identify_static(identifier_id, graph, query)?;
