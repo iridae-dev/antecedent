@@ -439,16 +439,25 @@ pub(super) struct PluginGradientRun {
     pub(super) gradients: Vec<Vec<f64>>,
     /// One entry per outcome when influence was requested, else empty. Read only
     /// by the calibration-internal band.
-    #[cfg_attr(not(feature = "calibration-internal"), allow(dead_code))]
+    #[cfg_attr(
+        not(feature = "calibration-internal"),
+        allow(dead_code, reason = "read only by the calibration-internal band")
+    )]
     influence: Vec<PluginGradientInfluence>,
     pub(super) all_treatments: Vec<f64>,
     /// Shared complete-case row count.
-    #[cfg_attr(not(feature = "calibration-internal"), allow(dead_code))]
+    #[cfg_attr(
+        not(feature = "calibration-internal"),
+        allow(dead_code, reason = "read only by the calibration-internal band")
+    )]
     n: usize,
 }
 
 /// Coefficient-sandwich influence of one outcome's gradient coordinates.
-#[cfg_attr(not(feature = "calibration-internal"), allow(dead_code))]
+#[cfg_attr(
+    not(feature = "calibration-internal"),
+    allow(dead_code, reason = "read only by the calibration-internal band")
+)]
 struct PluginGradientInfluence {
     /// One centred column per treatment coordinate.
     columns: Vec<Vec<f64>>,

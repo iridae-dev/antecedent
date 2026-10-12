@@ -427,11 +427,7 @@ fn classify_quadratic_le_zero(a: f64, b: f64, c: f64) -> QuadraticAcceptance {
             QuadraticAcceptance::WholeLine
         };
     }
-    if a > 0.0 {
-        QuadraticAcceptance::Interval { lo, hi }
-    } else {
-        QuadraticAcceptance::Union { lo, hi }
-    }
+    if a > 0.0 { QuadraticAcceptance::Interval { lo, hi } } else { QuadraticAcceptance::Union }
 }
 
 #[derive(Clone, Debug)]
@@ -447,12 +443,7 @@ enum QuadraticAcceptance {
         hi: f64,
     },
     /// Accepts (−∞, lo] ∪ [hi, ∞).
-    Union {
-        #[allow(dead_code, reason = "kept for symmetry")]
-        lo: f64,
-        #[allow(dead_code, reason = "kept for symmetry")]
-        hi: f64,
-    },
+    Union,
 }
 
 /// Confidence-set triple, if one exists, plus the reason code when it does not.
@@ -548,7 +539,7 @@ pub fn anderson_rubin_confidence_set(
         QuadraticAcceptance::Interval { lo, hi } | QuadraticAcceptance::Ray { lo, hi } => {
             Ok((Some((lo, hi, level)), None))
         }
-        QuadraticAcceptance::Union { .. } => Ok((None, Some("anderson_rubin_set_is_union"))),
+        QuadraticAcceptance::Union => Ok((None, Some("anderson_rubin_set_is_union"))),
     }
 }
 
