@@ -286,6 +286,7 @@ pub(super) fn fit_class_linear(
 }
 
 /// The completion sites a sequential class fit visits.
+#[derive(Clone, Copy)]
 struct SequentialClassSite<'a> {
     index: usize,
     case: &'a antecedent_identify::GraphIdentificationCase<
@@ -503,6 +504,18 @@ fn fit_sequential_completion(
     Ok(())
 }
 
+/// A completion's sequential DAG, unfold indexer, estimand and status.
+type CompletionDesign<'a> = (
+    &'a TemporalDag,
+    &'a antecedent_core::TemporalIndexer,
+    &'a IdentifiedEstimand,
+    IdentificationStatus,
+);
+
+/// A completion's estimate, posterior, fitted mechanisms and the seed it drew on.
+type CompletionMechanismFit =
+    (EffectEstimate, Option<CausalPosterior>, Vec<SequentialBayesianMechanism>, u64);
+
 /// One completion's sustained-window fit and posterior. Each completion's
 /// posterior draws from its own seed stream; a completion whose fitted
 /// mechanisms coincide with an earlier one's is refit on that completion's
@@ -511,18 +524,10 @@ fn fit_completion_mechanisms(
     inputs: &TemporalClassEffectInputs<'_>,
     bayes: Option<&BayesianGComputationAte>,
     (seq_atoms, seq_atom_seeds): (&[SequentialValidationAtom], &[u64]),
-    (dag, indexer, estimand, status): (
-        &TemporalDag,
-        &antecedent_core::TemporalIndexer,
-        &IdentifiedEstimand,
-        IdentificationStatus,
-    ),
+    (dag, indexer, estimand, status): CompletionDesign<'_>,
     (assumptions, key): (antecedent_core::AssumptionSet, u64),
     ctx: &ExecutionContext,
-) -> Result<
-    (EffectEstimate, Option<CausalPosterior>, Vec<SequentialBayesianMechanism>, u64),
-    CausalError,
-> {
+) -> Result<CompletionMechanismFit, CausalError> {
     let TemporalClassEffectInputs { data, query, bootstrap_replicates, .. } = *inputs;
     let mut seed = completion_fit_seed(ctx, key);
     loop {

@@ -183,7 +183,7 @@ impl CheckedTemporalClassMediationOperation {
         })
     }
 
-    /// The proof of an explicit TemporalCpdag mediation: the prepared class
+    /// The proof of an explicit `TemporalCpdag` mediation: the prepared class
     /// envelope must cover every requested horizon with completions.
     fn class_envelope_proof(
         study: &Study,
@@ -222,7 +222,7 @@ impl CheckedTemporalClassMediationOperation {
         })
     }
 
-    /// The proof of a TemporalCpdag graph posterior mediation: the prepared
+    /// The proof of a `TemporalCpdag` graph posterior mediation: the prepared
     /// class posterior cache must bind the frozen posterior weights.
     fn class_posterior_proof(
         study: &Study,
@@ -253,7 +253,7 @@ impl CheckedTemporalClassMediationOperation {
         })
     }
 
-    /// The proof of a TemporalDag graph posterior mediation: the prepared DBN
+    /// The proof of a `TemporalDag` graph posterior mediation: the prepared DBN
     /// posterior cache must hold atoms and bind the frozen posterior weights.
     fn dbn_posterior_proof(
         study: &Study,

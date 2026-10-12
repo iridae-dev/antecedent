@@ -306,7 +306,7 @@ impl super::Study {
 
     /// Every completion identified and fitting the one shared design: the
     /// identified set is a single contrast, so the design's own circular-block
-    /// SE (the TemporalDag route's construction, same stream) is the class
+    /// SE (the `TemporalDag` route's construction, same stream) is the class
     /// interval. Otherwise the set stays unbanded.
     fn cpdag_class_slice_estimate(
         &self,
@@ -339,7 +339,7 @@ impl super::Study {
                         horizon,
                         local_diagnostics,
                     ),
-                    InferenceMode::Bayesian(cfg) => self.cpdag_shared_design_bayesian(
+                    InferenceMode::Bayesian(cfg) => Self::cpdag_shared_design_bayesian(
                         inputs,
                         run,
                         horizon_state,
@@ -399,7 +399,7 @@ impl super::Study {
         );
         run.block_cancelled |= mediation.effect.uncertainty.bootstrap.cancelled;
         run.shared_horizons += 1;
-        if run.single_horizon {
+        if inputs.query.horizons.len() == 1 {
             run.shared_contrast = Some(mediation.clone());
         }
         local_diagnostics.extend(temporal_dependence_se_diagnostics(
@@ -436,7 +436,6 @@ impl super::Study {
     /// the frequentist branch) rather than reusing whichever completion's
     /// composed posterior happened to run last.
     fn cpdag_shared_design_bayesian(
-        &self,
         inputs: &CpdagMediationInputs<'_>,
         run: &mut CpdagMediationRun,
         horizon_state: &mut CpdagHorizonState,
@@ -478,7 +477,7 @@ impl super::Study {
             mediated: None,
         };
         run.shared_horizons += 1;
-        if run.single_horizon {
+        if inputs.query.horizons.len() == 1 {
             run.shared_contrast = Some(mediation.clone());
             run.shared_posterior = Some(composed.clone());
         }
@@ -2557,7 +2556,7 @@ impl super::Study {
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "temporal class Bayesian envelope missing estimand".into(),
         })?;
-        let (estimate, posterior, mut structural_response) = self.mix_class_bayesian_atoms(
+        let (estimate, posterior, mut structural_response) = Self::mix_class_bayesian_atoms(
             &inputs,
             (&bundle.envelope, class_masses.as_deref()),
             (weights, flags, keys),
@@ -2718,7 +2717,6 @@ impl super::Study {
     /// Mixes the atom posteriors into the class effect and builds the
     /// structural mixture with its posterior identified-set interval.
     fn mix_class_bayesian_atoms(
-        &self,
         inputs: &ClassBayesianInputs<'_>,
         (bundle_envelope, class_masses): (
             &antecedent_identify::TemporalClassEnvelope,
@@ -4204,13 +4202,17 @@ fn withhold_class_observation_band(
     });
 }
 
+/// The tuple replicates, per-atom draws and the (attempted, cancelled) counts
+/// the atom bands are summarized from.
+type AtomBandSource<'a> = (&'a TupleReplicates, &'a [Vec<Vec<f64>>], (u32, bool));
+
 /// Writes each completion atom's observation circular-block band onto its
 /// structural atom, building a point-only response for atoms without one.
 fn apply_atom_observation_bands(
     atoms: &[ClassObservationAtom],
     structural_atoms: &mut [crate::result::StructuralResponseAtom],
     response: &CausalResponse,
-    (tuple, atom_draws, (attempted, cancelled)): (&TupleReplicates, &[Vec<Vec<f64>>], (u32, bool)),
+    (tuple, atom_draws, (attempted, cancelled)): AtomBandSource<'_>,
     replicates: u32,
 ) {
     let points = &tuple.points;
@@ -4221,7 +4223,7 @@ fn apply_atom_observation_bands(
             attempted,
             cancelled,
         )
-        .with_block(&tuple, atom_i);
+        .with_block(tuple, atom_i);
         if let Some(atom_response) =
             structural_atoms.get_mut(atom.atom_index).and_then(|item| item.response.as_mut())
         {
@@ -5492,7 +5494,7 @@ fn directional_derivative_value(
     direction: &[f64],
 ) -> Result<ResponseValue, CausalError> {
     let mut values = Vec::with_capacity(outcomes.len());
-    for &outcome in outcomes.iter() {
+    for &outcome in outcomes {
         let (_, slopes) = fit(outcome, treatments)?;
         values.push(slopes.iter().zip(direction.iter()).map(|(slope, step)| slope * step).sum());
     }
@@ -5509,7 +5511,7 @@ fn jacobian_derivative_value(
 ) -> Result<ResponseValue, CausalError> {
     use antecedent_core::DerivativeScale;
     let mut values = Vec::with_capacity(outcomes.len() * treatments.len());
-    for &outcome in outcomes.iter() {
+    for &outcome in outcomes {
         let (intercept, slopes) = fit(outcome, treatments)?;
         let mean = intercept
             + slopes.iter().zip(at.iter()).map(|(slope, point)| slope * point).sum::<f64>();
@@ -5754,6 +5756,7 @@ struct CpdagMediationInputs<'a> {
 
 /// The completion a CPDAG mediation fit is run for: its horizon, position,
 /// class weight, identification and unfold indexer.
+#[derive(Clone, Copy)]
 struct CpdagCompletionSite<'a> {
     horizon: u32,
     horizon_index: usize,
@@ -5776,7 +5779,6 @@ struct CpdagMediationRun {
     full_mass_scope: bool,
     truncated_atoms: usize,
     block_replicates_ok: Option<u32>,
-    single_horizon: bool,
     /// The contrast the completions share, when the shared-design branch
     /// fires: at one horizon it is the result's scalar estimate. The Bayesian
     /// arm also keeps the composed posterior that contrast was taken from, so
@@ -5800,7 +5802,6 @@ impl CpdagMediationRun {
             full_mass_scope: true,
             truncated_atoms: 0,
             block_replicates_ok: None,
-            single_horizon: horizon_count == 1,
             shared_contrast: None,
             shared_posterior: None,
             shared_horizons: 0,

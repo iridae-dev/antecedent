@@ -225,11 +225,7 @@ impl super::Study {
     fn mix_temporal_class_posterior_atoms(
         &self,
         inputs: &ClassPosteriorInputs<'_>,
-        (weighted, atoms, contributing): (
-            &[(u64, f64, CausalResponse)],
-            &[StructuralResponseAtom],
-            &[IdentifiedEstimand],
-        ),
+        (weighted, atoms, contributing): ClassPosteriorAtoms<'_>,
         mut identification: IdentificationResult,
         (any_partial, unidentified_mass, failed_mass): (bool, f64, f64),
     ) -> Result<ClassPosteriorMix, CausalError> {
@@ -496,6 +492,11 @@ fn class_posterior_diagnostics(
     }
     diagnostics
 }
+
+/// The evaluated responses, structural atoms and contributing estimands the
+/// class posterior mix reads.
+type ClassPosteriorAtoms<'a> =
+    (&'a [(u64, f64, CausalResponse)], &'a [StructuralResponseAtom], &'a [IdentifiedEstimand]);
 
 /// The series, posterior, query and context of a class graph-posterior response.
 #[derive(Clone, Copy)]

@@ -266,6 +266,10 @@ fn class_derivative_diagnostics(
     diagnostics
 }
 
+/// The weighted completion slopes, their finite scalar summaries by completion
+/// and the first completion's estimand.
+type ClassDerivativeResponses = (Vec<(f64, CausalResponse)>, Vec<Option<f64>>, IdentifiedEstimand);
+
 /// The linear slope of each identified completion with its weight, the
 /// finite scalar summaries by completion, and the first completion's estimand.
 fn class_derivative_responses(
@@ -273,7 +277,7 @@ fn class_derivative_responses(
     query: &ResponseQuery,
     bundle: &antecedent_identify::TemporalClassEnvelope,
     spec: DerivativeSpec<'_>,
-) -> Result<(Vec<(f64, CausalResponse)>, Vec<Option<f64>>, IdentifiedEstimand), CausalError> {
+) -> Result<ClassDerivativeResponses, CausalError> {
     let envelope = &bundle.envelope;
     let mut responses = Vec::new();
     let mut values = vec![None; envelope.cases.len()];

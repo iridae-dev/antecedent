@@ -186,7 +186,7 @@ impl super::Study {
                         "frozen posterior graph weights",
                         mixture.identified_mass,
                         mixture.unidentified_mass,
-                        &block,
+                        block,
                     ),
                 )
                 .with_fields(mass_fields(Some(mixture.identified_mass), mixture.unidentified_mass)),
@@ -411,6 +411,15 @@ struct MixedTemporalClassPosterior {
     mixture: StructuralResponseMixture,
 }
 
+/// A completion's estimand, estimate, design and (for a multi-step sustained
+/// query) sequential validation atom.
+type FittedClassCase = (
+    IdentifiedEstimand,
+    EffectEstimate,
+    TemporalAtomDesign,
+    Option<super::sequential_validation::SequentialValidationAtom>,
+);
+
 /// One completion's fitted design and estimate: the sequential g-computation
 /// for a multi-step sustained query (absent when the completion has no
 /// sequential DAG), otherwise the linear adjustment.
@@ -422,15 +431,7 @@ fn fit_temporal_class_case(
         &TemporalIndexer,
     ),
     ctx: &ExecutionContext,
-) -> Result<
-    Option<(
-        IdentifiedEstimand,
-        EffectEstimate,
-        TemporalAtomDesign,
-        Option<super::sequential_validation::SequentialValidationAtom>,
-    )>,
-    CausalError,
-> {
+) -> Result<Option<FittedClassCase>, CausalError> {
     if is_multi_step_sustained(query) {
         let Some(dag) = case.graph.sequential_dag() else {
             return Ok(None);

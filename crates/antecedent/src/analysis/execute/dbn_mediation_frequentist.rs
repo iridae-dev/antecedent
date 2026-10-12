@@ -175,7 +175,7 @@ impl super::Study {
             )?;
         }
         let atom_points: Vec<f64> = designs.iter().map(|d| d.estimate().effect.ate).collect();
-        self.finish_dbn_mediation(
+        Ok(self.finish_dbn_mediation(
             physical,
             query,
             DbnMediationParts {
@@ -194,7 +194,7 @@ impl super::Study {
             },
             started,
             ctx,
-        )
+        ))
     }
 
     /// The fixed-weight mean of the atoms' point, Total, Direct and Mediated
@@ -323,7 +323,7 @@ impl super::Study {
         parts: DbnMediationParts,
         started: Instant,
         ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
+    ) -> StudyResult {
         let DbnMediationParts {
             identification,
             estimand,
@@ -372,7 +372,7 @@ impl super::Study {
             joint_posterior: false,
         };
         let bootstrap_ok = replicates_requested.then_some(replicates_ok);
-        Ok(self.finish_identified_execute(
+        self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
                 identification.clone(),
@@ -408,7 +408,7 @@ impl super::Study {
                 }),
                 ..Default::default()
             }),
-        ))
+        )
     }
 }
 
