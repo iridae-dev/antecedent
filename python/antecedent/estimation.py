@@ -30,7 +30,7 @@ from ._native import (
 from ._native import (
     identify_ate_admg as _identify_ate_admg,
 )
-from .batch import (
+from ._batch import (
     BatchRetarget,
     CandidateScreen,
     PreparedBatch,
