@@ -221,7 +221,7 @@ impl AdjustedFit {
                 }
                 let eta = self.coefficients[0]
                     + row.iter().zip(&self.coefficients[1..]).map(|(x, b)| x * b).sum::<f64>();
-                let mean = mean(self.family, eta);
+                let mean = self.family.mean_from_eta(eta);
                 if !mean.is_finite() {
                     return Err(EstimationError::stats_msg("nonfinite adjusted prediction"));
                 }
@@ -294,7 +294,8 @@ impl AdjustedFit {
                                 .zip(&self.coefficients[self.first_treatment..])
                                 .map(|(x, b)| x * b)
                                 .sum::<f64>();
-                        effect += weight * (mean(self.family, eta_a) - mean(self.family, eta_c));
+                        effect += weight
+                            * (self.family.mean_from_eta(eta_a) - self.family.mean_from_eta(eta_c));
                         let da = crate::glm_adjustment::mean_derivative(self.family, eta_a);
                         let dc = crate::glm_adjustment::mean_derivative(self.family, eta_c);
                         for (c, g) in gradient.iter_mut().enumerate() {
@@ -345,24 +346,6 @@ impl AdjustedFit {
         Ok((encode(to), encode(from)))
     }
 }
-fn mean(family: GlmFamily, eta: f64) -> f64 {
-    match family {
-        GlmFamily::GaussianIdentity => eta,
-        GlmFamily::BinomialLogit => {
-            if eta >= 0. {
-                antecedent_kernels::sigmoid(eta)
-            } else {
-                let e = eta.exp();
-                e / (1. + e)
-            }
-        }
-        GlmFamily::BinomialProbit => {
-            0.5 * antecedent_kernels::erfc(-eta / std::f64::consts::SQRT_2)
-        }
-        GlmFamily::PoissonLog | GlmFamily::NegativeBinomial => eta.exp(),
-    }
-}
-
 #[allow(clippy::float_cmp, reason = "binary and dummy variables require exact coded levels")]
 fn support(values: &[f64]) -> Vec<f64> {
     if values.iter().all(|v| *v == 0. || *v == 1.) {

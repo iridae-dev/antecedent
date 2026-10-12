@@ -210,35 +210,47 @@ fn sandwich_coef_se(
     fisher_weights: Option<&[f64]>,
     t_col: usize,
 ) -> Result<Option<f64>, EstimationError> {
-    let SeSpec { kind, cluster_ids, multiway_ids, panel_times } = spec;
-    if matches!(kind, AnalyticSeKind::Homoskedastic) {
-        return Ok(None);
-    }
     let input = SandwichInput { x, nrows, ncols, residuals, fisher_weights, t_col };
-    let se = match kind {
-        // Already returned above; repeated so the match stays exhaustive without panicking.
-        AnalyticSeKind::Homoskedastic => return Ok(None),
-        AnalyticSeKind::Hc0 => input.diag(SandwichKind::Hc0)?,
-        AnalyticSeKind::Hc1 => input.diag(SandwichKind::Hc1)?,
-        AnalyticSeKind::Hc2 => input.diag(SandwichKind::Hc2)?,
-        AnalyticSeKind::Hc3 => input.diag(SandwichKind::Hc3)?,
+    with_resolved_sandwich(spec, nrows, |kind| {
+        let Some(kind) = kind else {
+            return Ok(None);
+        };
+        Ok(Some(input.diag(kind)?))
+    })
+}
+
+/// Resolve `spec` to the stats-crate sandwich kind, or `None` for the homoskedastic formula.
+///
+/// Cluster, multiway, and panel labels are checked here. The borrowed kind is only valid
+/// inside `use_kind`, which is where the coefficient covariance is formed.
+pub(crate) fn with_resolved_sandwich<T>(
+    spec: SeSpec<'_>,
+    nrows: usize,
+    use_kind: impl FnOnce(Option<SandwichKind<'_>>) -> Result<T, EstimationError>,
+) -> Result<T, EstimationError> {
+    let SeSpec { kind, cluster_ids, multiway_ids, panel_times } = spec;
+    match kind {
+        AnalyticSeKind::Homoskedastic => use_kind(None),
+        AnalyticSeKind::Hc0 => use_kind(Some(SandwichKind::Hc0)),
+        AnalyticSeKind::Hc1 => use_kind(Some(SandwichKind::Hc1)),
+        AnalyticSeKind::Hc2 => use_kind(Some(SandwichKind::Hc2)),
+        AnalyticSeKind::Hc3 => use_kind(Some(SandwichKind::Hc3)),
         AnalyticSeKind::Cluster => {
             let groups = require_clusters(cluster_ids, nrows)?;
-            input.diag(SandwichKind::Cluster { groups })?
+            use_kind(Some(SandwichKind::Cluster { groups }))
         }
         AnalyticSeKind::Multiway => {
             let dims = require_multiway(multiway_ids, nrows)?;
             let refs: Vec<&[u32]> = dims.iter().map(Vec::as_slice).collect();
-            input.diag(SandwichKind::Multiway { dimensions: &refs })?
+            use_kind(Some(SandwichKind::Multiway { dimensions: &refs }))
         }
-        AnalyticSeKind::NeweyWest { lag } => input.diag(SandwichKind::NeweyWest { lag })?,
+        AnalyticSeKind::NeweyWest { lag } => use_kind(Some(SandwichKind::NeweyWest { lag })),
         AnalyticSeKind::PanelClusterHac { lag } => {
             let groups = require_clusters(cluster_ids, nrows)?;
             let time = require_panel_times(panel_times, nrows)?;
-            input.diag(SandwichKind::PanelClusterHac { groups, time, lag })?
+            use_kind(Some(SandwichKind::PanelClusterHac { groups, time, lag }))
         }
-    };
-    Ok(Some(se))
+    }
 }
 
 /// Design, scores, and the coefficient whose sandwich SE is requested.

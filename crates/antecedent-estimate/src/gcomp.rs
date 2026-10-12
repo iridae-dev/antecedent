@@ -97,10 +97,13 @@ impl GcompContrast<'_> {
             .collect()
     }
 
-    /// Single-row mean-scale contrast; the row-first oracle of the column-outer kernels.
-    #[cfg(test)]
+    /// Linear predictors of one row under the active and control interventions.
+    ///
+    /// Column order is the row-wise dot product: treatment terms use `active` and `control`,
+    /// and every other column adds `x * β` to both arms. The row-first contrast and the
+    /// GLM delta-method gradient both start from this pair.
     #[must_use]
-    pub(crate) fn row_contrast(&self, coefficients: &[f64], row: usize) -> f64 {
+    pub(crate) fn contrast_row_etas(&self, coefficients: &[f64], row: usize) -> (f64, f64) {
         assert!(coefficients.len() >= self.ncols, "one coefficient per design column");
         let mut eta_active = 0.0;
         let mut eta_control = 0.0;
@@ -114,6 +117,14 @@ impl GcompContrast<'_> {
                 eta_control += val * coef;
             }
         }
+        (eta_active, eta_control)
+    }
+
+    /// Single-row mean-scale contrast; the row-first oracle of the column-outer kernels.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn row_contrast(&self, coefficients: &[f64], row: usize) -> f64 {
+        let (eta_active, eta_control) = self.contrast_row_etas(coefficients, row);
         self.family.mean_from_eta(eta_active) - self.family.mean_from_eta(eta_control)
     }
 
