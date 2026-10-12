@@ -102,43 +102,41 @@ fn rebuild_children(
     free_memo: &mut FreeMemo,
 ) -> Result<ExprId, SimplifyError> {
     let node = arena.node(id).clone();
+    let children = crate::walk::child_ids(arena, id);
+    let mut simplified_children = Vec::with_capacity(children.len());
+    for child in children {
+        simplified_children.push(simplify_rec(arena, child, memo, free_memo)?);
+    }
     let rebuilt = match node {
         ExprNode::Distribution { .. } => id,
-        ExprNode::Kernel { body, bound, population, regime } => {
-            let body = simplify_rec(arena, body, memo, free_memo)?;
-            arena.intern(ExprNode::Kernel { body, bound, population, regime })
-        }
-        ExprNode::Product(list) => {
-            let children_ids: Vec<ExprId> = arena.list(list).to_vec();
-            let mut children: Vec<ExprId> = Vec::with_capacity(children_ids.len());
-            for c in children_ids {
-                children.push(simplify_rec(arena, c, memo, free_memo)?);
-            }
-            let list_id = arena.intern_list(children);
+        ExprNode::Kernel { bound, population, regime, .. } => arena.intern(ExprNode::Kernel {
+            body: simplified_children[0],
+            bound,
+            population,
+            regime,
+        }),
+        ExprNode::Product(_) => {
+            let list_id = arena.intern_list(simplified_children);
             arena.intern(ExprNode::Product(list_id))
         }
-        ExprNode::SumOut { variables, expr } => {
-            let body = simplify_rec(arena, expr, memo, free_memo)?;
-            arena.intern(ExprNode::SumOut { variables, expr: body })
+        ExprNode::SumOut { variables, .. } => {
+            arena.intern(ExprNode::SumOut { variables, expr: simplified_children[0] })
         }
-        ExprNode::IntegralOut { variables, expr } => {
-            let body = simplify_rec(arena, expr, memo, free_memo)?;
-            arena.intern(ExprNode::IntegralOut { variables, expr: body })
+        ExprNode::IntegralOut { variables, .. } => {
+            arena.intern(ExprNode::IntegralOut { variables, expr: simplified_children[0] })
         }
-        ExprNode::Ratio { numerator, denominator } => {
-            let num = simplify_rec(arena, numerator, memo, free_memo)?;
-            let den = simplify_rec(arena, denominator, memo, free_memo)?;
-            arena.intern(ExprNode::Ratio { numerator: num, denominator: den })
+        ExprNode::Ratio { .. } => arena.intern(ExprNode::Ratio {
+            numerator: simplified_children[0],
+            denominator: simplified_children[1],
+        }),
+        ExprNode::Expectation { function, .. } => {
+            arena.intern(ExprNode::Expectation { function, distribution: simplified_children[0] })
         }
-        ExprNode::Expectation { function, distribution } => {
-            let dist = simplify_rec(arena, distribution, memo, free_memo)?;
-            arena.intern(ExprNode::Expectation { function, distribution: dist })
-        }
-        ExprNode::Contrast { left, right, op } => {
-            let l = simplify_rec(arena, left, memo, free_memo)?;
-            let r = simplify_rec(arena, right, memo, free_memo)?;
-            arena.intern(ExprNode::Contrast { left: l, right: r, op })
-        }
+        ExprNode::Contrast { op, .. } => arena.intern(ExprNode::Contrast {
+            left: simplified_children[0],
+            right: simplified_children[1],
+            op,
+        }),
     };
     Ok(rebuilt)
 }
@@ -366,9 +364,16 @@ pub(crate) fn free_vars(
     id: ExprId,
     memo: &mut FreeMemo,
 ) -> Arc<[VariableId]> {
-    if let Some(cached) = memo.get(&id) {
-        return Arc::clone(cached);
-    }
+    crate::walk::fold_expr(arena, id, memo, &mut |arena, id, children| {
+        free_var_step(arena, id, children)
+    })
+}
+
+fn free_var_step(
+    arena: &CausalExprArena,
+    id: ExprId,
+    children: &[Arc<[VariableId]>],
+) -> Arc<[VariableId]> {
     let mut vars: Vec<VariableId> = match arena.node(id) {
         ExprNode::Distribution { variables, conditioned_on, intervention, .. } => {
             let mut vars: Vec<VariableId> = arena.var_set(*variables).to_vec();
@@ -387,35 +392,86 @@ pub(crate) fn free_vars(
             vars.extend(assignments.iter().filter(|a| a.is_symbolic()).map(|a| a.variable));
             vars
         }
-        ExprNode::Kernel { body, .. } => free_vars(arena, *body, memo).to_vec(),
+        ExprNode::Kernel { .. } => children[0].to_vec(),
+        ExprNode::Product(_) => {
+            let mut vars = Vec::new();
+            for child in children {
+                vars.extend_from_slice(child);
+            }
+            vars
+        }
+        ExprNode::SumOut { variables, .. } | ExprNode::IntegralOut { variables, .. } => {
+            let bound = arena.var_set(*variables);
+            children[0].iter().copied().filter(|v| bound.binary_search(v).is_err()).collect()
+        }
+        ExprNode::Ratio { .. } | ExprNode::Contrast { .. } => {
+            let mut vars = children[0].to_vec();
+            vars.extend_from_slice(&children[1]);
+            vars
+        }
+        ExprNode::Expectation { function, .. } => {
+            children[0].iter().copied().filter(|v| *v != function.variable()).collect()
+        }
+    };
+    vars.sort_unstable();
+    vars.dedup();
+    Arc::from(vars)
+}
+
+/// The free-variable recursion from before the shared fold, kept so a test can
+/// require the fold to return the same lists.
+#[cfg(test)]
+pub(crate) fn free_vars_recursive(
+    arena: &CausalExprArena,
+    id: ExprId,
+    memo: &mut FreeMemo,
+) -> Arc<[VariableId]> {
+    if let Some(cached) = memo.get(&id) {
+        return Arc::clone(cached);
+    }
+    let mut vars: Vec<VariableId> = match arena.node(id) {
+        ExprNode::Distribution { variables, conditioned_on, intervention, .. } => {
+            let mut vars: Vec<VariableId> = arena.var_set(*variables).to_vec();
+            let assignments = arena.intervention_assignments(*intervention);
+            for &v in arena.var_set(*conditioned_on) {
+                if !assignments.iter().any(|a| a.variable == v && !a.is_symbolic()) {
+                    vars.push(v);
+                }
+            }
+            vars.extend(assignments.iter().filter(|a| a.is_symbolic()).map(|a| a.variable));
+            vars
+        }
+        ExprNode::Kernel { body, .. } => free_vars_recursive(arena, *body, memo).to_vec(),
         ExprNode::Product(list) => {
             let mut vars = Vec::new();
             for &c in arena.list(*list) {
-                vars.extend_from_slice(&free_vars(arena, c, memo));
+                vars.extend_from_slice(&free_vars_recursive(arena, c, memo));
             }
             vars
         }
         ExprNode::SumOut { variables, expr } | ExprNode::IntegralOut { variables, expr } => {
             let bound = arena.var_set(*variables);
-            free_vars(arena, *expr, memo)
+            free_vars_recursive(arena, *expr, memo)
                 .iter()
                 .copied()
                 .filter(|v| bound.binary_search(v).is_err())
                 .collect()
         }
         ExprNode::Ratio { numerator, denominator } => {
-            let mut vars = free_vars(arena, *numerator, memo).to_vec();
-            vars.extend_from_slice(&free_vars(arena, *denominator, memo));
+            let mut vars = free_vars_recursive(arena, *numerator, memo).to_vec();
+            vars.extend_from_slice(&free_vars_recursive(arena, *denominator, memo));
             vars
         }
-        ExprNode::Expectation { function, distribution } => free_vars(arena, *distribution, memo)
-            .iter()
-            .copied()
-            .filter(|v| *v != function.variable())
-            .collect(),
+        ExprNode::Expectation { function, distribution } => {
+            free_vars_recursive(arena, *distribution, memo)
+                .iter()
+                .copied()
+                .filter(|v| *v != function.variable())
+                .collect()
+        }
         ExprNode::Contrast { left, right, .. } => {
-            let mut vars = free_vars(arena, *left, memo).to_vec();
-            vars.extend_from_slice(&free_vars(arena, *right, memo));
+            let mut vars = free_vars_recursive(arena, *left, memo).to_vec();
+            vars.extend_from_slice(&free_vars_recursive(arena, *right, memo));
             vars
         }
     };
@@ -770,5 +826,91 @@ mod tests {
             }
             other => panic!("expected contrast, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn shared_walk_matches_direct_recursion() {
+        let mut arena = CausalExprArena::new();
+        let v = VariableId::from_raw;
+        let empty = arena.empty_var_set();
+        let none = arena.empty_intervention_set();
+        let symbolic = arena.intern_intervention_set([v(0)]);
+        let y = arena.intern_var_set([v(1)]);
+        let z = arena.intern_var_set([v(2)]);
+        let yz = arena.intern_var_set([v(1), v(2)]);
+        let dist = arena.intern_distribution(y, z, symbolic, DomainRef::Observational);
+        let kernel = arena.intern_kernel(dist, z, "study", None);
+        let integral = arena.intern(ExprNode::IntegralOut { variables: z, expr: kernel });
+        let other = arena.intern_distribution(yz, empty, none, DomainRef::Interventional);
+        let factors = arena.intern_list([integral, other]);
+        let product = arena.intern(ExprNode::Product(factors));
+        let ratio = arena.intern(ExprNode::Ratio { numerator: product, denominator: other });
+        let expectation = arena.intern(ExprNode::Expectation {
+            function: OutcomeExprId::identity(v(1)),
+            distribution: ratio,
+        });
+        let summed = arena.intern(ExprNode::SumOut { variables: y, expr: other });
+        let root = arena.intern(ExprNode::Contrast {
+            left: expectation,
+            right: summed,
+            op: ContrastOp::Difference,
+        });
+        assert_same_values(&arena, root);
+        let simplified = simplify(&mut arena, root).unwrap();
+        assert_same_values(&arena, simplified);
+        let renamed = arena.substitute(simplified, &[(v(0), v(3))]).unwrap();
+        assert_same_values(&arena, renamed);
+        assert_eq!(arena.distribution_leaves(root), leaves_recursive(&arena, root));
+    }
+
+    fn assert_same_values(arena: &CausalExprArena, id: ExprId) {
+        let folded = free_vars(arena, id, &mut FreeMemo::new());
+        let recursive = free_vars_recursive(arena, id, &mut FreeMemo::new());
+        assert_eq!(folded.as_ref(), recursive.as_ref());
+        assert_eq!(
+            arena.pretty(id),
+            crate::render::render_expr_recursive(arena, id, &crate::render::PRETTY)
+        );
+        assert_eq!(
+            arena.latex(id),
+            crate::render::render_expr_recursive(arena, id, &crate::render::LATEX)
+        );
+    }
+
+    fn leaves_recursive(arena: &CausalExprArena, id: ExprId) -> Vec<ExprId> {
+        fn walk(
+            arena: &CausalExprArena,
+            id: ExprId,
+            out: &mut Vec<ExprId>,
+            seen: &mut std::collections::HashSet<ExprId>,
+        ) {
+            if !seen.insert(id) {
+                return;
+            }
+            match arena.node(id) {
+                ExprNode::Distribution { .. } => out.push(id),
+                ExprNode::Kernel { body, .. } => walk(arena, *body, out, seen),
+                ExprNode::Product(list) => {
+                    for &child in arena.list(*list) {
+                        walk(arena, child, out, seen);
+                    }
+                }
+                ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => {
+                    walk(arena, *expr, out, seen);
+                }
+                ExprNode::Ratio { numerator, denominator } => {
+                    walk(arena, *numerator, out, seen);
+                    walk(arena, *denominator, out, seen);
+                }
+                ExprNode::Expectation { distribution, .. } => walk(arena, *distribution, out, seen),
+                ExprNode::Contrast { left, right, .. } => {
+                    walk(arena, *left, out, seen);
+                    walk(arena, *right, out, seen);
+                }
+            }
+        }
+        let mut out = Vec::new();
+        walk(arena, id, &mut out, &mut std::collections::HashSet::new());
+        out
     }
 }

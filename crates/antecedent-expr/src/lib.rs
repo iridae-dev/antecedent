@@ -35,6 +35,7 @@ pub mod program;
 pub mod provider;
 mod render;
 pub mod simplify;
+mod walk;
 
 pub use estimand::{EstimandMethod, IdentifiedEstimand, RdDesignParams};
 pub use eval::CompiledEvaluator;

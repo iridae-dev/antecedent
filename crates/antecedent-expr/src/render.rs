@@ -86,6 +86,13 @@ pub(crate) const PRETTY: Style = Style {
 };
 
 pub(crate) fn render_expr(arena: &CausalExprArena, id: ExprId, s: &Style) -> String {
+    let mut memo = std::collections::HashMap::new();
+    crate::walk::fold_expr(arena, id, &mut memo, &mut |arena, id, children| {
+        render_step(arena, id, s, children)
+    })
+}
+
+fn render_step(arena: &CausalExprArena, id: ExprId, s: &Style, children: &[String]) -> String {
     match arena.node(id) {
         ExprNode::Distribution {
             variables,
@@ -120,7 +127,7 @@ pub(crate) fn render_expr(arena: &CausalExprArena, id: ExprId, s: &Style) -> Str
                 }
             }
         }
-        ExprNode::Kernel { body, bound, population, regime } => {
+        ExprNode::Kernel { bound, population, regime, .. } => {
             let pop = arena.population(*population);
             let pop = if pop.is_empty() {
                 String::new()
@@ -131,57 +138,74 @@ pub(crate) fn render_expr(arena: &CausalExprArena, id: ExprId, s: &Style) -> Str
                 "K{pop}_{{{}}}{}{}{}{}",
                 fmt_vars(arena.var_set(*bound)),
                 s.bracket_open,
-                render_expr(arena, *body, s),
+                children[0],
                 fmt_regime(*regime, s),
                 s.bracket_close,
             )
         }
-        ExprNode::Product(list) => {
-            let parts: Vec<String> =
-                arena.lists[list.0 as usize].iter().map(|e| render_expr(arena, *e, s)).collect();
-            parts.join(s.product_join)
+        ExprNode::Product(_) => children.join(s.product_join),
+        ExprNode::SumOut { variables, .. } => {
+            render_marginal(arena, s.sum_sym, *variables, &children[0], s)
         }
-        ExprNode::SumOut { variables, expr } => {
-            render_marginal(arena, s.sum_sym, *variables, *expr, s)
+        ExprNode::IntegralOut { variables, .. } => {
+            render_marginal(arena, s.int_sym, *variables, &children[0], s)
         }
-        ExprNode::IntegralOut { variables, expr } => {
-            render_marginal(arena, s.int_sym, *variables, *expr, s)
-        }
-        ExprNode::Ratio { numerator, denominator } => {
+        ExprNode::Ratio { .. } => {
             format!(
                 "{}{}{}{}{}",
-                s.ratio_open,
-                render_expr(arena, *numerator, s),
-                s.ratio_mid,
-                render_expr(arena, *denominator, s),
-                s.ratio_close,
+                s.ratio_open, children[0], s.ratio_mid, children[1], s.ratio_close,
             )
         }
-        ExprNode::Expectation { function, distribution } => {
+        ExprNode::Expectation { function, .. } => {
             format!(
                 "{}{}{}{}{}",
                 s.exp_open,
                 function.variable().raw(),
                 s.exp_mid,
-                render_expr(arena, *distribution, s),
+                children[0],
                 s.bracket_close,
             )
         }
-        ExprNode::Contrast { left, right, op } => {
+        ExprNode::Contrast { op, .. } => {
             let op_s = match op {
                 ContrastOp::Difference => s.diff_op,
             };
             format!(
                 "{}{}{} {op_s} {}{}{}",
-                s.paren_open,
-                render_expr(arena, *left, s),
-                s.paren_close,
-                s.paren_open,
-                render_expr(arena, *right, s),
-                s.paren_close,
+                s.paren_open, children[0], s.paren_close, s.paren_open, children[1], s.paren_close,
             )
         }
     }
+}
+
+/// Direct recursion, kept so a test can require the shared fold to print the same text.
+///
+/// Child ids are named in this match. It does not call [`crate::walk::child_ids`].
+#[cfg(test)]
+pub(crate) fn render_expr_recursive(arena: &CausalExprArena, id: ExprId, s: &Style) -> String {
+    let rendered: Vec<String> = match arena.node(id) {
+        ExprNode::Distribution { .. } => Vec::new(),
+        ExprNode::Kernel { body, .. } => vec![render_expr_recursive(arena, *body, s)],
+        ExprNode::Product(list) => {
+            arena.list(*list).iter().map(|child| render_expr_recursive(arena, *child, s)).collect()
+        }
+        ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => {
+            vec![render_expr_recursive(arena, *expr, s)]
+        }
+        ExprNode::Ratio { numerator, denominator } => {
+            vec![
+                render_expr_recursive(arena, *numerator, s),
+                render_expr_recursive(arena, *denominator, s),
+            ]
+        }
+        ExprNode::Expectation { distribution, .. } => {
+            vec![render_expr_recursive(arena, *distribution, s)]
+        }
+        ExprNode::Contrast { left, right, .. } => {
+            vec![render_expr_recursive(arena, *left, s), render_expr_recursive(arena, *right, s)]
+        }
+    };
+    render_step(arena, id, s, &rendered)
 }
 
 /// A sum or integral over `variables`: the operator symbol, its bound subscript, and the body.
@@ -189,14 +213,14 @@ fn render_marginal(
     arena: &CausalExprArena,
     symbol: &str,
     variables: crate::VarSetId,
-    expr: ExprId,
+    body: &str,
     s: &Style,
 ) -> String {
     format!(
         "{symbol}_{{{}}}{}{}{}",
         fmt_vars(arena.var_set(variables)),
         s.bracket_open,
-        render_expr(arena, expr, s),
+        body,
         s.bracket_close,
     )
 }
