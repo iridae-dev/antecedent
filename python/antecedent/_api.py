@@ -106,13 +106,10 @@ def _caller_names(args: tuple[Any, ...], kwargs: dict[str, Any]) -> tuple[str, .
     if graph is not None and hasattr(graph, "nodes"):
         try:
             names = [str(node) for node in graph.nodes()]
-        except Exception:  # noqa: BLE001 — names are best-effort
+        except (AttributeError, TypeError, ValueError, CausalError):
             names = []
     if not names and data is not None:
-        try:
-            from ._data import ingest_columns
+        from ._names import table_names
 
-            names, _ = ingest_columns(data)
-        except Exception:  # noqa: BLE001 — names are best-effort
-            names = []
+        names = list(table_names(data))
     return tuple(names)
