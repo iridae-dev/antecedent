@@ -208,14 +208,12 @@ impl DSeparationWorkspace {
 /// visit a directed parent, and it arrives traveling down.
 pub(crate) fn bayes_ball_reaches(
     ws: &mut DSeparationWorkspace,
-    parents: &[Vec<DenseNodeId>],
-    children: &[Vec<DenseNodeId>],
-    bidirected: &[Vec<DenseNodeId>],
-    overlay: Option<&crate::overlay::GraphOverlay>,
+    graph: BayesBallGraph<'_>,
     sources: &[DenseNodeId],
     targets: &[DenseNodeId],
     conditioning: &[DenseNodeId],
 ) -> bool {
+    let BayesBallGraph { parents, children, bidirected, overlay } = graph;
     let n = parents.len();
     ws.prepare(n);
     ws.conditioning.clear();
@@ -294,6 +292,14 @@ pub(crate) fn bayes_ball_reaches(
     false
 }
 
+/// Adjacency rows and visibility rules used by a Bayes-ball traversal.
+pub(crate) struct BayesBallGraph<'a> {
+    pub(crate) parents: &'a [Vec<DenseNodeId>],
+    pub(crate) children: &'a [Vec<DenseNodeId>],
+    pub(crate) bidirected: &'a [Vec<DenseNodeId>],
+    pub(crate) overlay: Option<&'a GraphOverlay>,
+}
+
 fn schedule(ws: &mut DSeparationWorkspace, node: DenseNodeId, from_child: bool) {
     let seen = if from_child { ws.bayes_up.contains(node) } else { ws.bayes_down.contains(node) };
     if seen {
@@ -348,10 +354,12 @@ impl Dag {
         }
         Ok(!bayes_ball_reaches(
             ws,
-            self.parent_rows(),
-            self.child_rows(),
-            &[],
-            overlay,
+            BayesBallGraph {
+                parents: self.parent_rows(),
+                children: self.child_rows(),
+                bidirected: &[],
+                overlay,
+            },
             &[x],
             &[y],
             z,

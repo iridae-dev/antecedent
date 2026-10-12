@@ -5,6 +5,7 @@
 use antecedent_estimate::EstimationError;
 
 /// `|actual - expected| <= 1e-9`.
+#[allow(dead_code, reason = "some integration targets use only the coded-refusal helper")]
 pub fn close_abs_1e9(actual: f64, expected: f64, what: &str) {
     assert!((actual - expected).abs() <= 1e-9, "{what}: {actual} vs {expected}");
 }

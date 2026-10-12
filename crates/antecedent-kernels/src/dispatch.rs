@@ -86,7 +86,6 @@ pub fn accumulate_contingency(
 /// # Errors
 ///
 /// Same contract as [`crate::scalar::weighted_mean`].
-#[must_use]
 pub fn weighted_mean(
     policy: &KernelPolicy,
     x: &[f64],

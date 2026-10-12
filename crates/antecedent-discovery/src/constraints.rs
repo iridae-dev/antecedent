@@ -352,6 +352,7 @@ pub(crate) fn contemp_link(source: VariableId, target: VariableId) -> LaggedLink
 
 /// Whether the contemporaneous edge `variables[par] → variables[child]` is
 /// forbidden by the constraints. Out-of-range indices are treated as forbidden.
+#[cfg(test)]
 pub(crate) fn forbidden_edge(
     constraints: &DiscoveryConstraints,
     variables: &[VariableId],

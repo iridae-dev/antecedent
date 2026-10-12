@@ -38,7 +38,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::conditional::{
-    dense_variables, invalid_derivation, validate, ConditionalTransportQuery,
+    ConditionalTransportQuery, dense_variables, invalid_derivation, validate,
 };
 use crate::IdentificationError;
 use antecedent_core::ExecutionContext;
@@ -538,11 +538,7 @@ fn query_value(shape: &Shape, model: &Integral, at: &Level) -> Option<Q> {
             num = num.add(p)?;
         }
     }
-    if den.n == 0 {
-        None
-    } else {
-        num.div(den)
-    }
+    if den.n == 0 { None } else { num.div(den) }
 }
 
 /// The two query values a shape-checked witness gives, after checking that the
@@ -628,26 +624,14 @@ const fn fp_mul(a: u64, b: u64) -> u64 {
     let x = a as u128 * b as u128;
     let folded = (x as u64 & P) + (x >> 61) as u64;
     let once = if folded >= P { folded - P } else { folded };
-    if once >= P {
-        once - P
-    } else {
-        once
-    }
+    if once >= P { once - P } else { once }
 }
 const fn fp_add(a: u64, b: u64) -> u64 {
     let s = a + b;
-    if s >= P {
-        s - P
-    } else {
-        s
-    }
+    if s >= P { s - P } else { s }
 }
 const fn fp_sub(a: u64, b: u64) -> u64 {
-    if a >= b {
-        a - b
-    } else {
-        a + P - b
-    }
+    if a >= b { a - b } else { a + P - b }
 }
 fn fp_pow(mut a: u64, mut e: u64) -> u64 {
     let mut r = 1;

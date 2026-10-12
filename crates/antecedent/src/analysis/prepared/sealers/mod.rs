@@ -163,15 +163,25 @@ pub(super) type SealOutcome = Result<Option<PreparedExecution>, CausalError>;
 pub(super) struct Sealer {
     /// The route this sealer retains. Every sealed [`ExecutionKind`] has
     /// exactly one entry.
+    #[cfg(any(test, debug_assertions))]
     pub(super) kind: ExecutionKind,
     pub(super) seal: fn(&SealContext<'_>) -> SealOutcome,
     /// Earlier routes this one is allowed to overlap. A study both admit goes
     /// to the earlier route; the overlap is intended, not an accident.
+    #[cfg(any(test, debug_assertions))]
     pub(super) yields_to: &'static [ExecutionKind],
 }
 
 const fn sealer(kind: ExecutionKind, seal: fn(&SealContext<'_>) -> SealOutcome) -> Sealer {
-    Sealer { kind, seal, yields_to: &[] }
+    #[cfg(not(any(test, debug_assertions)))]
+    let _ = kind;
+    Sealer {
+        #[cfg(any(test, debug_assertions))]
+        kind,
+        seal,
+        #[cfg(any(test, debug_assertions))]
+        yields_to: &[],
+    }
 }
 
 /// Every sealer, highest priority first. One entry per sealed
@@ -190,8 +200,10 @@ pub(super) const SEALERS: [Sealer; ExecutionKind::SEALED_COUNT] = [
     // An unknown within-tier order is also a class study, so the class-effect
     // sealer admits it too; the unknown-tiered average has always won it.
     Sealer {
+        #[cfg(any(test, debug_assertions))]
         kind: ExecutionKind::StaticClassEffect,
         seal: posterior::static_class_effect,
+        #[cfg(any(test, debug_assertions))]
         yields_to: &[ExecutionKind::UnknownTieredAverage],
     },
     sealer(ExecutionKind::CheckedAipw, adjustment::checked_aipw),
@@ -230,8 +242,10 @@ pub(super) const SEALERS: [Sealer; ExecutionKind::SEALED_COUNT] = [
     sealer(ExecutionKind::BayesianGcomp, bayesian::bayesian_gcomp),
     sealer(ExecutionKind::BayesianConditional, bayesian::bayesian_conditional),
     Sealer {
+        #[cfg(any(test, debug_assertions))]
         kind: ExecutionKind::StaticResponseCurve,
         seal: response::static_response_curve,
+        #[cfg(any(test, debug_assertions))]
         yields_to: &[ExecutionKind::StaticDagResponse],
     },
     sealer(ExecutionKind::BayesianClassConditional, posterior::bayesian_class_conditional),

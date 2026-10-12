@@ -6,6 +6,8 @@ use antecedent_core::CausalRng;
 
 use crate::view::ViewError;
 
+const _: () = assert!(usize::BITS <= u64::BITS);
+
 /// One standard-normal draw via Box–Muller (cosine component only).
 #[must_use]
 pub fn standard_normal(rng: &mut CausalRng) -> f64 {
@@ -88,15 +90,14 @@ pub fn fill_standard_normal(rng: &mut CausalRng, out: &mut [f64]) {
 #[must_use]
 pub fn unbiased_index(rng: &mut CausalRng, n: usize) -> usize {
     assert!(n > 0, "unbiased_index requires n > 0");
-    // Every supported target has `usize` no wider than `u64`, so both casts are exact.
-    const _: () = assert!(usize::BITS <= u64::BITS);
-    let n64 = n as u64;
+    // The module-level width assertion proves this conversion cannot fail.
+    let n64 = u64::try_from(n).expect("usize fits into u64");
     // Largest multiple of n that fits in u64.
     let limit = u64::MAX - (u64::MAX % n64);
     loop {
         let v = rng.next_u64();
         if v < limit {
-            return (v % n64) as usize;
+            return usize::try_from(v % n64).expect("remainder is less than usize n");
         }
     }
 }
@@ -124,7 +125,6 @@ pub fn shuffle<T>(rng: &mut CausalRng, items: &mut [T]) {
 ///
 /// [`ViewError::InvalidShape`] when `folds == 0` or `strata` has a length other
 /// than `n`. Those checks run before the shuffle, so a refused call draws nothing.
-#[must_use]
 pub fn shuffled_fold_assignment(
     rng: &mut CausalRng,
     n: usize,

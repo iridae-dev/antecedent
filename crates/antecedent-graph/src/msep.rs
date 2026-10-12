@@ -4,7 +4,8 @@
 
 use crate::admg::Admg;
 use crate::dsep::{
-    DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult, add_undirected,
+    BayesBallGraph, DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult,
+    add_undirected,
 };
 use crate::error::GraphError;
 use crate::pag::{ClassMembers, Pag};
@@ -125,10 +126,12 @@ impl Admg {
     ) -> bool {
         crate::dsep::bayes_ball_reaches(
             ws,
-            self.parent_rows(),
-            self.child_rows(),
-            self.bidirected_rows(),
-            None,
+            BayesBallGraph {
+                parents: self.parent_rows(),
+                children: self.child_rows(),
+                bidirected: self.bidirected_rows(),
+                overlay: None,
+            },
             sources,
             targets,
             z,

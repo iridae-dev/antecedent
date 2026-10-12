@@ -5528,7 +5528,7 @@ fn partially_identified_answers_are_not_calibrated_against_point_records() {
     );
     let point_slot = antecedent_io::calibration::calibration_slot(&basis);
     assert_measured_record_status(
-        &point_slot.status,
+        point_slot.status.as_str(),
         point_slot.reason.as_deref(),
         record_for(&basis).unwrap(),
     );
@@ -5553,7 +5553,7 @@ fn calibration_slot_only_matches_the_level_it_measured() {
     );
     let point_slot = antecedent_io::calibration::calibration_slot(&basis);
     assert_measured_record_status(
-        &point_slot.status,
+        point_slot.status.as_str(),
         point_slot.reason.as_deref(),
         record_for(&basis).unwrap(),
     );

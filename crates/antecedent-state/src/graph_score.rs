@@ -279,6 +279,7 @@ fn sorted_parents(parents: &[u32], node: u32) -> Result<Arc<[u32]>, StateError> 
 /// Gaussian BIC local score (higher is better):
 /// `-n/2 · (1 + ln(2π) + ln(σ²)) − (k/2) · ln(n)` with `k = |Pa| + 1` (intercept)
 /// and `σ² = SSE / n` from OLS of the node on intercept + parents.
+#[cfg(test)]
 fn gaussian_bic_local(
     data: &GraphScoreData,
     node: u32,

@@ -95,13 +95,12 @@ impl BitSet {
     /// equal when used as memo keys. In-range ids are unchanged. Arbitrary ids belong
     /// in [`Self::try_insert`].
     pub fn insert(&mut self, id: DenseNodeId) {
-        if self.try_insert(id).is_err() {
-            panic!(
-                "BitSet::insert: dense id {} is outside 0..{} (programming bug: the id is not in this set's domain)",
-                id.as_usize(),
-                self.len
-            );
-        }
+        assert!(
+            self.try_insert(id).is_ok(),
+            "BitSet::insert: dense id {} is outside 0..{} (programming bug: the id is not in this set's domain)",
+            id.as_usize(),
+            self.len
+        );
     }
 
     /// Clear one bit.

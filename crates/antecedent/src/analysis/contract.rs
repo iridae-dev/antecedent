@@ -2811,7 +2811,7 @@ fn calibration_wire(view: &CalibrationView) -> CalibrationSlotWire {
         CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire,
     };
     CalibrationSlotWire {
-        status: view.status.to_string(),
+        status: view.status.as_ref().into(),
         record_id: view.record_id.as_ref().map(ToString::to_string),
         reason: view.reason.as_ref().map(ToString::to_string),
         scope_n: view.scope_n,

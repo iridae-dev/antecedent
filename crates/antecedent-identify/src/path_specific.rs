@@ -578,11 +578,7 @@ fn edge_g_formula(
         }))
     };
     let path_level = |vi: DenseNodeId| {
-        if keep_out.contains(&vi) {
-            active.clone()
-        } else {
-            control.clone()
-        }
+        if keep_out.contains(&vi) { active.clone() } else { control.clone() }
     };
     let left = side(&path_level, &mut arena)?;
     let right = side(&|_| control.clone(), &mut arena)?;

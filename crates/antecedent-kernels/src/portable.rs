@@ -13,7 +13,6 @@ use crate::view::{BitMaskView, F64VectorView, ViewError};
 /// # Errors
 ///
 /// Same contract as [`crate::scalar::masked_sum`].
-#[must_use]
 pub fn masked_sum(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> Result<f64, ViewError> {
     if mask.is_none() {
         if let Some(slice) = x.as_slice() {
@@ -28,7 +27,6 @@ pub fn masked_sum(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> Result
 /// # Errors
 ///
 /// Same contract as [`crate::scalar::masked_mean`].
-#[must_use]
 pub fn masked_mean(
     x: F64VectorView<'_>,
     mask: Option<BitMaskView<'_>>,
@@ -50,7 +48,6 @@ pub fn masked_mean(
 /// # Errors
 ///
 /// Same contract as [`crate::scalar::masked_variance`].
-#[must_use]
 pub fn masked_variance(
     x: F64VectorView<'_>,
     mask: Option<BitMaskView<'_>>,
@@ -106,7 +103,6 @@ pub fn gather(
 /// # Errors
 ///
 /// Same contract as [`crate::scalar::masked_covariance`].
-#[must_use]
 pub fn masked_covariance(
     x: F64VectorView<'_>,
     y: F64VectorView<'_>,
@@ -179,7 +175,6 @@ pub fn accumulate_contingency(
 /// # Errors
 ///
 /// Same contract as [`crate::scalar::weighted_sum`].
-#[must_use]
 pub fn weighted_sum(x: &[f64], weights: &[f64]) -> Result<f64, ViewError> {
     if x.len() != weights.len() {
         return Err(ViewError::InvalidShape { message: "weighted_sum length mismatch" });
@@ -192,7 +187,6 @@ pub fn weighted_sum(x: &[f64], weights: &[f64]) -> Result<f64, ViewError> {
 /// # Errors
 ///
 /// Same contract as [`crate::scalar::weighted_mean`].
-#[must_use]
 pub fn weighted_mean(x: &[f64], weights: &[f64]) -> Result<Option<f64>, ViewError> {
     crate::scalar::weighted_mean(x, weights)
 }

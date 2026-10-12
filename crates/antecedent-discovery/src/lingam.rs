@@ -17,9 +17,9 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DagReview, DenseNodeId, NodeRef};
-use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, dcor::DistanceY, distance_correlation,
-};
+#[cfg(test)]
+use antecedent_stats::distance_correlation;
+use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, dcor::DistanceY};
 
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;

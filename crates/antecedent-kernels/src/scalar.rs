@@ -26,7 +26,6 @@ fn check_mask_len(len: usize, mask: Option<BitMaskView<'_>>) -> Result<(), ViewE
 /// # Errors
 ///
 /// [`ViewError::InvalidShape`] when `mask` is present and its length differs from `x`.
-#[must_use]
 pub fn masked_sum(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> Result<f64, ViewError> {
     check_mask_len(x.len(), mask)?;
     let mut acc = 0.0;
@@ -45,7 +44,6 @@ pub fn masked_sum(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> Result
 /// # Errors
 ///
 /// [`ViewError::InvalidShape`] when `mask` is present and its length differs from `x`.
-#[must_use]
 pub fn masked_mean(
     x: F64VectorView<'_>,
     mask: Option<BitMaskView<'_>>,
@@ -69,7 +67,6 @@ pub fn masked_mean(
 /// # Errors
 ///
 /// [`ViewError::InvalidShape`] when `mask` is present and its length differs from `x`.
-#[must_use]
 pub fn masked_variance(
     x: F64VectorView<'_>,
     mask: Option<BitMaskView<'_>>,
@@ -121,7 +118,6 @@ pub fn gather(
 ///
 /// [`ViewError::InvalidShape`] when `x` and `y` differ in length, or when `mask`
 /// is present and its length differs from `x`.
-#[must_use]
 pub fn masked_covariance(
     x: F64VectorView<'_>,
     y: F64VectorView<'_>,
@@ -312,7 +308,6 @@ pub fn kish_ess(weights: &[f64]) -> f64 {
 /// # Errors
 ///
 /// [`ViewError::InvalidShape`] when the lengths differ.
-#[must_use]
 pub fn weighted_sum(x: &[f64], weights: &[f64]) -> Result<f64, ViewError> {
     if x.len() != weights.len() {
         return Err(shape("weighted_sum length mismatch"));
@@ -329,7 +324,6 @@ pub fn weighted_sum(x: &[f64], weights: &[f64]) -> Result<f64, ViewError> {
 /// # Errors
 ///
 /// [`ViewError::InvalidShape`] when the lengths differ.
-#[must_use]
 pub fn weighted_mean(x: &[f64], weights: &[f64]) -> Result<Option<f64>, ViewError> {
     if x.len() != weights.len() {
         return Err(shape("weighted_mean length mismatch"));
