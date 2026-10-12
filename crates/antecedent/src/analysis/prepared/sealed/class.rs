@@ -113,7 +113,7 @@ impl SealedOperation for CheckedStaticClassEffect {
         click_analysis.query = CausalQuery::AverageEffect(self.query().clone());
         click_analysis.inference = self.inference().clone();
         click_analysis.estimator = Some(self.procedure().id());
-        click_analysis.estimator_spec = Some(self.procedure().clone());
+        click_analysis.estimator_spec = Some(Arc::new(self.procedure().clone()));
         click_analysis.refute = self.validation();
         click_analysis.bootstrap_replicates = self.bootstrap_replicates();
         click_analysis.overlap_policy = Some(self.overlap());

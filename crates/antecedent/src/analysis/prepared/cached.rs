@@ -26,7 +26,7 @@ pub struct CachedStaticIdentification {
 #[derive(Clone, Debug)]
 pub(crate) struct CachedPagIdentification {
     /// Per-completion identification results and their probability mass.
-    pub envelope: IdentificationEnvelope<Pag>,
+    pub envelope: Arc<IdentificationEnvelope<Pag>>,
     /// Public aggregate identification result derived from [`Self::envelope`].
     pub identification: IdentificationResult,
 }
@@ -35,7 +35,7 @@ pub(crate) struct CachedPagIdentification {
 #[derive(Clone, Debug)]
 pub(crate) struct CachedCpdagIdentification {
     /// Per-completion identification results and their probability mass.
-    pub envelope: IdentificationEnvelope<antecedent_graph::Dag>,
+    pub envelope: Arc<IdentificationEnvelope<antecedent_graph::Dag>>,
     /// Public aggregate identification result derived from [`Self::envelope`].
     pub identification: IdentificationResult,
 }

@@ -128,8 +128,8 @@ fn frontdoor_prepared_click_uses_retained_fit_after_study_config_changes() {
     };
     assert_eq!(operation.preparation.lowering().treatment, VariableId::from_raw(0));
     assert_eq!(operation.fitter.bootstrap_replicates, 0);
-    prepared.analysis.estimator_spec = Some(EstimatorSpec::LinearAdjustmentAte(Box::new(
-        antecedent_estimate::LinearAdjustmentAte::new(),
+    prepared.analysis.estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
+        Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
     )));
     let estimate = prepared.estimate(&base_data, &context).unwrap();
     assert!((estimate.effect() - 1.4).abs() < 0.1, "estimate={}", estimate.effect());

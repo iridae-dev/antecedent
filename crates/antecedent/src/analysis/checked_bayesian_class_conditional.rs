@@ -209,7 +209,7 @@ impl CheckedBayesianClassConditional {
         click.identifier = Some(self.identifier);
         click.estimator = Some(EstimatorId::BayesianConditional);
         click.estimator_spec =
-            Some(crate::EstimatorSpec::Default(EstimatorId::BayesianConditional));
+            Some(Arc::new(crate::EstimatorSpec::Default(EstimatorId::BayesianConditional)));
         click.refute = self.validation;
         click.latency_mode = self.latency_mode;
         click.cpdag_identification_cache = None;

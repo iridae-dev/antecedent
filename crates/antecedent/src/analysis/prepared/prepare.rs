@@ -376,9 +376,10 @@ impl Study {
                 let diagram = self.selection_diagram.as_ref().ok_or(CausalError::Unsupported {
                     message: "TransportQuery prepare requires a selection diagram",
                 })?;
-                analysis.transport_identification_cache = Some(Arc::new(
-                    crate::analysis::execute::live_transport_identification(diagram, query)?,
-                ));
+                let identification =
+                    crate::analysis::execute::live_transport_identification(diagram, query)?;
+                Arc::make_mut(&mut analysis.config).transport_identification_cache =
+                    Some(Arc::new(identification));
             }
             (DataInput::Tabular(_), query, None) if is_graphless_design(query) => {
                 // A design has no graph class to inspect, so the graph-only PAG/CPDAG

@@ -427,16 +427,16 @@ impl super::Study {
         let started = Instant::now();
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PAG)?;
         let (envelope, identification, identify_cached) =
-            if let Some(cache) = self.pag_identification_cache.as_deref() {
-                (cache.envelope.clone(), cache.identification.clone(), true)
+            if let Some(cache) = self.pag_identification_cache.as_ref() {
+                (Arc::clone(&cache.envelope), cache.identification.clone(), true)
             } else {
                 report_identify_compute(ctx);
                 let envelope = identify_pag(identifier_id, pag, query)?;
                 let identification = envelope_to_identification_result(&envelope, query);
-                (envelope, identification, false)
+                (Arc::new(envelope), identification, false)
             };
         let certificate = crate::Identification::Envelope {
-            envelope: envelope.clone(),
+            envelope: (*envelope).clone(),
             strategy: identifier_id,
             structure_version: self.graph.version(),
         };
@@ -507,7 +507,8 @@ impl super::Study {
             // falling back to id-only selection when none was supplied.
             let case_spec = self
                 .estimator_spec
-                .clone()
+                .as_deref()
+                .cloned()
                 .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id));
             let estimate = estimate_static_effect(
                 &case_spec,
@@ -631,16 +632,16 @@ impl super::Study {
         let started = Instant::now();
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PAG)?;
         let (envelope, identification, identify_cached) =
-            if let Some(cache) = self.cpdag_identification_cache.as_deref() {
-                (cache.envelope.clone(), cache.identification.clone(), true)
+            if let Some(cache) = self.cpdag_identification_cache.as_ref() {
+                (Arc::clone(&cache.envelope), cache.identification.clone(), true)
             } else {
                 report_identify_compute(ctx);
                 let envelope = identify_cpdag(identifier_id, cpdag, query)?;
                 let identification = envelope_to_identification_result(&envelope, query);
-                (envelope, identification, false)
+                (Arc::new(envelope), identification, false)
             };
         let certificate = crate::Identification::CpdagEnvelope {
-            envelope: envelope.clone(),
+            envelope: (*envelope).clone(),
             strategy: identifier_id,
             structure_version: self.graph.version(),
         };
@@ -709,7 +710,8 @@ impl super::Study {
             let mut case_ws = StaticEstimateWorkspaces::default();
             let case_spec = self
                 .estimator_spec
-                .clone()
+                .as_deref()
+                .cloned()
                 .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id));
             let estimate = estimate_static_effect(
                 &case_spec,

@@ -180,7 +180,7 @@ pub(super) fn temporal_class_effect(cx: &SealContext<'_>) -> SealOutcome {
             let estimator = EstimatorId::temporal_effect_procedure(query, false);
             if cx.binding.names(identifier, estimator) {
                 let operation = crate::analysis::CheckedTemporalClassEffectOperation::checked(
-                    analysis.graph.clone(),
+                    (*analysis.graph).clone(),
                     query,
                     cache,
                     analysis.max_completions,

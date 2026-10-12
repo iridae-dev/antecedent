@@ -191,7 +191,7 @@ impl CheckedTemporalClassMediationOperation {
                     }
                 }
                 CheckedTemporalMediationProof::ClassEnvelope {
-                    graph: study.graph.clone(),
+                    graph: (*study.graph).clone(),
                     cache: Arc::clone(cache),
                     max_completions: study.max_completions,
                     class_prior: study.class_prior.clone(),
@@ -433,7 +433,7 @@ impl CheckedTemporalClassMediationOperation {
                 max_completions,
                 class_prior,
             } => {
-                click.graph = graph.clone();
+                click.graph = Arc::new(graph.clone());
                 click.graph_posterior = None;
                 click.identifier = Some(IdentifierId::GeneralizedAdjustment);
                 click.max_completions = *max_completions;

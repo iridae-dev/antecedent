@@ -134,8 +134,8 @@ fn checked_iv_survives_builder_drop_and_refresh_with_selected_fitter() {
             }
             other => panic!("expected retained checked IV operation, got {other:?}"),
         }
-        prepared.analysis.estimator_spec = Some(EstimatorSpec::LinearAdjustmentAte(Box::new(
-            antecedent_estimate::LinearAdjustmentAte::new(),
+        prepared.analysis.estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
+            Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
         )));
         let result = prepared.estimate(&data(0.0), &context).unwrap();
         assert!(
@@ -144,8 +144,8 @@ fn checked_iv_survives_builder_drop_and_refresh_with_selected_fitter() {
             result.estimate.as_effect().unwrap().ate
         );
         assert_eq!(result.estimate.as_effect().unwrap().se_kind, Some(AnalyticSeKind::Hc1));
-        prepared.study_mut().estimator_spec = Some(EstimatorSpec::LinearAdjustmentAte(Box::new(
-            antecedent_estimate::LinearAdjustmentAte::new(),
+        prepared.study_mut().estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
+            Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
         )));
         let refreshed = prepared.refresh(data(0.4), &context).unwrap();
         assert!(

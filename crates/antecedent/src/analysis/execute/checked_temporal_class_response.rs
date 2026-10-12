@@ -16,7 +16,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let (identifier, estimator, bootstrap_replicates, validation) = operation.procedure();
         let mut bound = self.clone();
-        bound.graph = operation.source_graph().clone();
+        bound.graph = Arc::new(operation.source_graph().clone());
         bound.graph_posterior = None;
         bound.tiered = None;
         bound.query = CausalQuery::Response(operation.query().clone());

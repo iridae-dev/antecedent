@@ -284,7 +284,7 @@ fn refuse_unlicensed_panel_effect(
     Ok(())
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) enum DataInput {
     Tabular(TabularData),
     Temporal(TimeSeriesData),
@@ -294,6 +294,20 @@ pub(crate) enum DataInput {
     MultiEnv(MultiEnvironmentData),
     /// Multi-unit panel (stacked cluster-HAC estimate).
     Panel(PanelData),
+}
+
+impl std::fmt::Debug for DataInput {
+    /// Shape only: a derived impl would print every column value.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (kind, unit, count) = match self {
+            Self::Tabular(data) => ("Tabular", "rows", data.row_count()),
+            Self::Temporal(data) => ("Temporal", "rows", data.row_count()),
+            Self::Event(data) => ("Event", "rows", data.row_count()),
+            Self::MultiEnv(data) => ("MultiEnv", "environments", data.env_count()),
+            Self::Panel(data) => ("Panel", "rows", data.total_rows()),
+        };
+        f.debug_struct(kind).field(unit, &count).finish_non_exhaustive()
+    }
 }
 
 /// Running-variable configuration for the `rd.sharp` estimator; required when `rd.sharp` is
@@ -535,7 +549,7 @@ pub(super) fn validate_schema_binding(
 }
 
 /// Builder for static or temporal analysis.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StudyBuilder {
     data: DataInput,
     graph: Option<AcceptedGraph>,
@@ -595,46 +609,6 @@ pub struct StudyBuilder {
     transport_trial: Option<TransportTrialSpec>,
     /// Network + assignment for an interference query.
     interference: Option<InterferenceSpec>,
-}
-
-impl std::fmt::Debug for StudyBuilder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StudyBuilder")
-            .field("continuous_cell", &self.continuous_cell)
-            .field("data", &"<data>")
-            .field("graph", &self.graph)
-            .field("tiered", &self.tiered)
-            .field("caller_graph", &self.caller_graph)
-            .field("graph_posterior", &self.graph_posterior)
-            .field("class_prior", &self.class_prior)
-            .field("max_completions", &self.max_completions)
-            .field("structure_source", &self.structure_source)
-            .field("query", &self.query.as_ref().map(|_| "<query>"))
-            .field("refute", &self.refute)
-            .field("refute_explicit", &self.refute_explicit)
-            .field("bootstrap_replicates", &self.bootstrap_replicates)
-            .field("bootstrap_explicit", &self.bootstrap_explicit)
-            .field("split", &self.split)
-            .field("identifier", &self.identifier)
-            .field("estimator", &self.estimator)
-            .field("estimator_spec", &self.estimator_spec)
-            .field("response_options", &self.response_options)
-            .field("observation_options", &self.observation_options)
-            .field("observation_delayed_entry", &self.observation_delayed_entry)
-            .field("rd", &self.rd)
-            .field("inference", &self.inference)
-            .field("n_draws_explicit", &self.n_draws_explicit)
-            .field("overlap_policy", &self.overlap_policy)
-            .field("population_registry", &self.population_registry.as_ref().map(|_| "<registry>"))
-            .field("custom_validators", &self.custom_validators.len())
-            .field("latency_mode", &self.latency_mode)
-            .field("compute_budget", &self.compute_budget)
-            .field("stage_sink_is_some", &self.stage_sink.is_some())
-            .field("selection_targets", &self.selection_targets)
-            .field("transport_trial", &self.transport_trial)
-            .field("interference", &self.interference)
-            .finish()
-    }
 }
 
 /// Whether an omitted replicate count is a real resampling budget for this route.

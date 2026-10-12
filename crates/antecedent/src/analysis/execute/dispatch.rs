@@ -372,7 +372,7 @@ impl super::Study {
                 Arc::from(self.identifier.unwrap_or(DEFAULT_RESPONSE_IDENTIFIER_ID).as_str()),
                 Arc::from(
                     self.estimator_spec
-                        .as_ref()
+                        .as_deref()
                         .map_or(EstimatorId::ResponseBayesian, crate::EstimatorSpec::id)
                         .as_str(),
                 ),
@@ -398,7 +398,7 @@ impl super::Study {
                 Arc::from(self.identifier.unwrap_or(DEFAULT_PAG_IDENTIFIER_ID).as_str()),
                 Arc::from(
                     self.estimator_spec
-                        .as_ref()
+                        .as_deref()
                         .map_or(EstimatorId::ResponseBayesian, crate::EstimatorSpec::id)
                         .as_str(),
                 ),
@@ -420,7 +420,7 @@ impl super::Study {
         (
             Arc::from(self.identifier.unwrap_or(DEFAULT_PAG_IDENTIFIER_ID).as_str()),
             Arc::from(
-                self.estimator_spec.as_ref().map_or(estimator, crate::EstimatorSpec::id).as_str(),
+                self.estimator_spec.as_deref().map_or(estimator, crate::EstimatorSpec::id).as_str(),
             ),
         )
     }
@@ -1530,7 +1530,7 @@ impl super::Study {
             && (self.estimator == Some(EstimatorId::Aipw)
                 || (self.estimator.is_none()
                     && matches!(
-                        &self.estimator_spec,
+                        self.estimator_spec.as_deref(),
                         Some(
                             crate::estimator_spec::EstimatorSpec::Default(EstimatorId::Aipw)
                                 | crate::estimator_spec::EstimatorSpec::Aipw(_),
@@ -1556,7 +1556,7 @@ impl super::Study {
         // Checked GLM adjustment and sharp-RD operations retain the selected
         // target and fitted design through the prepared facade.
         let selected_estimator =
-            self.estimator.or_else(|| self.estimator_spec.as_ref().map(crate::EstimatorSpec::id));
+            self.estimator.or_else(|| self.estimator_spec.as_deref().map(crate::EstimatorSpec::id));
         let checked_glm = selected_estimator == Some(EstimatorId::GlmAdjustment)
             && self.graph_posterior.is_none()
             && self.tiered.is_none()
@@ -1719,7 +1719,7 @@ impl super::Study {
             && self.identifier.is_none_or(|id| id == IdentifierId::GeneralizedAdjustment)
             && self.estimator.is_none_or(|id| id == EstimatorId::BayesianGcomp)
             && matches!(
-                &self.estimator_spec,
+                self.estimator_spec.as_deref(),
                 None | Some(crate::estimator_spec::EstimatorSpec::Default(
                     EstimatorId::BayesianGcomp
                 ))
@@ -1914,7 +1914,7 @@ impl super::Study {
             && matches!(self.inference, InferenceMode::Frequentist)
             && matches!(self.estimator, None | Some(EstimatorId::LinearAdjustmentAte))
             && matches!(
-                &self.estimator_spec,
+                self.estimator_spec.as_deref(),
                 None | Some(
                     crate::estimator_spec::EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte,)
                         | crate::estimator_spec::EstimatorSpec::LinearAdjustmentAte(_),

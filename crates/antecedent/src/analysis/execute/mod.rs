@@ -101,11 +101,64 @@ pub(super) use super::helpers::{
     validator_not_applicable_diagnostics,
 };
 
+/// Build-time declarations no click rebinds.
+///
+/// A [`Study`] is cloned once per click and once per posterior atom; these
+/// fields are identical in every such copy, so they are shared behind one
+/// `Arc` and a clone costs a reference-count bump instead of a field-by-field
+/// copy. Only build and prepare (never a click) write them, through
+/// `Arc::make_mut` on the owning study.
+#[doc(hidden)]
+#[derive(Clone, Debug)]
+pub struct StudyConfig {
+    /// Set at [`crate::StudyBuilder::build`] when the caller did not call
+    /// `.refute(..)` explicitly and the default refute suite
+    /// (`RefuteSuite::PlaceboAndRcc`) was silently downgraded to
+    /// `RefuteSuite::None` because the requested cell was
+    /// `NotApplicable`/`Refused` while the `RefuteSuite::None` cell for the
+    /// same query was `Licensed`/`Allowlisted`. Holds the suite that was
+    /// requested before the downgrade (always some suite other than
+    /// `None`); `None` here means no downgrade happened. Surfaced to the
+    /// caller as diagnostic `exec.refute.default_suite_unsupported`.
+    pub(crate) refute_default_downgrade: Option<RefuteSuite>,
+    /// `(tier_replicates, configured_replicates)` when a latency tier mapped a
+    /// bootstrap budget but the configured estimator's own replicate count won.
+    /// Surfaced as diagnostic `latency.bootstrap_not_applied`.
+    pub(crate) latency_bootstrap_not_applied: Option<(u32, u32)>,
+    /// Structured identity of [`Study::estimator_spec`], digested once at build
+    /// so data-sized cluster / panel vectors are never rehashed per contract.
+    pub(crate) estimator_spec_identity: Option<antecedent_io::EstimatorSpecWire>,
+    pub(crate) response_options: Option<antecedent_estimate::ContinuousResponseOptions>,
+    pub(crate) observation_options: antecedent_estimate::ObservationEstimatorOptions,
+    pub(crate) observation_delayed_entry: Option<antecedent_core::VariableId>,
+    pub(crate) rd: Option<RdConfig>,
+    pub(crate) stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
+    /// Refused: coarsened continuous coordinate is not a point CDE.
+    ///
+    /// `StudyBuilder::build` refuses a study that declares one, so a built
+    /// study always carries `None` and no identity layer binds it.
+    pub(crate) continuous_cell: Option<(antecedent_core::VariableId, Arc<[f64]>)>,
+    /// Selection diagram frozen for a transport query.
+    pub(crate) selection_diagram: Option<antecedent_graph::SelectionDiagram>,
+    /// Trial columns frozen for a transport query.
+    pub(crate) transport_trial: Option<super::builder::TransportTrialSpec>,
+    /// Prepare-time transport formula + certificate.
+    pub(crate) transport_identification_cache:
+        Option<Arc<antecedent_identify::TransportIdentification>>,
+}
+
 /// Prepared analysis (static or temporal).
-#[derive(Clone)]
+///
+/// Build-time declarations live in a shared [`StudyConfig`] reachable through
+/// `Deref`. The fields below are the per-click overlay: everything a rebinding
+/// (`click`, graph-posterior atom, refresh) may replace. Heavy members are
+/// held behind an `Arc`, so cloning a `Study` never copies a graph, an
+/// estimator specification, or a prepare-time identification cache.
+#[derive(Clone, Debug)]
 pub struct Study {
+    pub(crate) config: Arc<StudyConfig>,
     pub(crate) data: DataInput,
-    pub(crate) graph: AcceptedGraph,
+    pub(crate) graph: Arc<AcceptedGraph>,
     /// Set instead of a single `graph` atom when [`crate::StudyBuilder::graph_posterior`]
     /// was used; `graph` then holds only a placeholder shape (variable count / modality
     /// only — never consulted for identification). Mutually exclusive with a "real" `graph`.
@@ -121,38 +174,16 @@ pub struct Study {
     pub(crate) support_status: Option<crate::support::CellStatus>,
     pub(crate) query: CausalQuery,
     pub(crate) refute: RefuteSuite,
-    /// Set at [`crate::StudyBuilder::build`] when the caller did not call
-    /// `.refute(..)` explicitly and the default refute suite
-    /// (`RefuteSuite::PlaceboAndRcc`) was silently downgraded to
-    /// `RefuteSuite::None` because the requested cell was
-    /// `NotApplicable`/`Refused` while the `RefuteSuite::None` cell for the
-    /// same query was `Licensed`/`Allowlisted`. Holds the suite that was
-    /// requested before the downgrade (always some suite other than
-    /// `None`); `None` here means no downgrade happened. Surfaced to the
-    /// caller as diagnostic `exec.refute.default_suite_unsupported`.
-    pub(crate) refute_default_downgrade: Option<RefuteSuite>,
-    /// `(tier_replicates, configured_replicates)` when a latency tier mapped a
-    /// bootstrap budget but the configured estimator's own replicate count won.
-    /// Surfaced as diagnostic `latency.bootstrap_not_applied`.
-    pub(crate) latency_bootstrap_not_applied: Option<(u32, u32)>,
     pub(crate) bootstrap_replicates: u32,
     pub(crate) split: Option<DiscoveryEstimationSplit>,
     pub(crate) identifier: Option<IdentifierId>,
     pub(crate) estimator: Option<EstimatorId>,
-    pub(crate) estimator_spec: Option<crate::estimator_spec::EstimatorSpec>,
-    /// Structured identity of [`Self::estimator_spec`], digested once at build
-    /// so data-sized cluster / panel vectors are never rehashed per contract.
-    pub(crate) estimator_spec_identity: Option<antecedent_io::EstimatorSpecWire>,
-    pub(crate) response_options: Option<antecedent_estimate::ContinuousResponseOptions>,
-    pub(crate) observation_options: antecedent_estimate::ObservationEstimatorOptions,
-    pub(crate) observation_delayed_entry: Option<antecedent_core::VariableId>,
-    pub(crate) rd: Option<RdConfig>,
+    pub(crate) estimator_spec: Option<Arc<crate::estimator_spec::EstimatorSpec>>,
     pub(crate) inference: InferenceMode,
     pub(crate) overlap_policy: Option<OverlapPolicy>,
     pub(crate) population_registry: Option<PopulationRegistry>,
     pub(crate) custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     pub(crate) latency_mode: Option<super::latency::LatencyMode>,
-    pub(crate) stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
     /// Prepare-time identification for the static ATE path (including the
     /// general-ID result and functional estimand of a bidirected ADMG), set
     /// only by [`Study::prepare`]. Identification depends solely on
@@ -160,8 +191,6 @@ pub struct Study {
     /// per estimate click is exact; `None` (every builder-constructed study)
     /// identifies on each run.
     pub(crate) identification_cache: Option<Arc<super::prepared::CachedStaticIdentification>>,
-    /// Frozen graph-derived mediation adjustment, including temporal lags.
-    pub(crate) mediation_adjustment_cache: Option<Arc<[antecedent_data::LaggedColumn]>>,
     /// Prepare-time generalized-adjustment envelope for a supplied PAG.
     pub(crate) pag_identification_cache: Option<Arc<super::prepared::CachedPagIdentification>>,
     /// Prepare-time MEC envelope for a supplied CPDAG.
@@ -183,89 +212,17 @@ pub struct Study {
         Option<Arc<super::prepared::CachedTemporalClassPosteriorIdentification>>,
     /// Optional tier-rule background for O(p) closure certification.
     pub(crate) tiered: Option<antecedent_graph::TieredBackground>,
-    /// Refused: coarsened continuous coordinate is not a point CDE.
-    ///
-    /// `StudyBuilder::build` refuses a study that declares one, so a built
-    /// study always carries `None` and no identity layer binds it.
-    pub(crate) continuous_cell: Option<(antecedent_core::VariableId, std::sync::Arc<[f64]>)>,
-    /// Shared fold assignment / covariate design when this study is part of a batch.
-    pub(crate) shared_batch_design: Option<std::sync::Arc<super::batch::SharedBatchDesign>>,
-    /// Selection diagram frozen for a transport query.
-    pub(crate) selection_diagram: Option<antecedent_graph::SelectionDiagram>,
-    /// Trial columns frozen for a transport query.
-    pub(crate) transport_trial: Option<super::builder::TransportTrialSpec>,
-    /// Network + assignment frozen for an interference query.
+    /// Network + assignment of an interference query, rebound to each click's rows.
     pub(crate) interference: Option<super::builder::InterferenceSpec>,
-    /// Prepare-time transport formula + certificate.
-    pub(crate) transport_identification_cache:
-        Option<std::sync::Arc<antecedent_identify::TransportIdentification>>,
+    /// Shared fold assignment / covariate design when this study is part of a batch.
+    pub(crate) shared_batch_design: Option<Arc<super::batch::SharedBatchDesign>>,
 }
 
-impl std::fmt::Debug for Study {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Study")
-            .field("continuous_cell", &self.continuous_cell)
-            .field("data", &"<data>")
-            .field("graph", &self.graph)
-            .field("tiered", &self.tiered)
-            .field("graph_posterior", &self.graph_posterior)
-            .field("class_prior", &self.class_prior)
-            .field("max_completions", &self.max_completions)
-            .field("structure_source", &self.structure_source)
-            .field("support_status", &self.support_status)
-            .field("query", &"<query>")
-            .field("refute", &self.refute)
-            .field("refute_default_downgrade", &self.refute_default_downgrade)
-            .field("latency_bootstrap_not_applied", &self.latency_bootstrap_not_applied)
-            .field("bootstrap_replicates", &self.bootstrap_replicates)
-            .field("split", &self.split)
-            .field("identifier", &self.identifier)
-            .field("estimator", &self.estimator)
-            .field("estimator_spec", &self.estimator_spec)
-            .field("estimator_spec_identity", &self.estimator_spec_identity)
-            .field("response_options", &self.response_options)
-            .field("observation_options", &self.observation_options)
-            .field("observation_delayed_entry", &self.observation_delayed_entry)
-            .field("rd", &self.rd)
-            .field("inference", &self.inference)
-            .field("overlap_policy", &self.overlap_policy)
-            .field("population_registry", &self.population_registry.as_ref().map(|_| "<registry>"))
-            .field("custom_validators", &self.custom_validators.len())
-            .field("latency_mode", &self.latency_mode)
-            .field("stage_sink_is_some", &self.stage_sink.is_some())
-            .field("identification_cache_is_some", &self.identification_cache.is_some())
-            .field("mediation_adjustment_cache", &self.mediation_adjustment_cache)
-            .field("pag_identification_cache_is_some", &self.pag_identification_cache.is_some())
-            .field("cpdag_identification_cache_is_some", &self.cpdag_identification_cache.is_some())
-            .field(
-                "temporal_identification_cache_is_some",
-                &self.temporal_identification_cache.is_some(),
-            )
-            .field(
-                "temporal_class_identification_cache_is_some",
-                &self.temporal_class_identification_cache.is_some(),
-            )
-            .field(
-                "graph_posterior_identification_cache_is_some",
-                &self.graph_posterior_identification_cache.is_some(),
-            )
-            .field(
-                "dbn_posterior_identification_cache_is_some",
-                &self.dbn_posterior_identification_cache.is_some(),
-            )
-            .field(
-                "temporal_class_posterior_identification_cache_is_some",
-                &self.temporal_class_posterior_identification_cache.is_some(),
-            )
-            .field("shared_batch_design_is_some", &self.shared_batch_design.is_some())
-            .field("selection_diagram_is_some", &self.selection_diagram.is_some())
-            .field("transport_trial_is_some", &self.transport_trial.is_some())
-            .field("interference_is_some", &self.interference.is_some())
-            .field(
-                "transport_identification_cache_is_some",
-                &self.transport_identification_cache.is_some(),
-            )
-            .finish()
+impl std::ops::Deref for Study {
+    type Target = StudyConfig;
+
+    fn deref(&self) -> &StudyConfig {
+        &self.config
     }
 }
 
@@ -370,6 +327,8 @@ mod checked_temporal_graph_posterior_response;
 mod checked_transport_trial;
 mod sequential_validation;
 mod static_path;
+#[cfg(test)]
+mod study_clone_tests;
 mod temporal_class_effect_core;
 mod temporal_class_mediation_posterior;
 mod temporal_class_point;

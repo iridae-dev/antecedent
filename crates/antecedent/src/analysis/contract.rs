@@ -1952,7 +1952,7 @@ fn compile_with_payloads(
     // the label binds it only to records measured under that nuisance.
     if let Some(propensity) = study
         .estimator_spec
-        .as_ref()
+        .as_deref()
         .and_then(crate::estimator_spec::EstimatorSpec::propensity_calibration_label)
     {
         functional = format!("{functional}+{propensity}");
@@ -2684,7 +2684,7 @@ fn overlap_label(study: &Study, resolved_estimator: Option<&str>) -> Option<Stri
     use antecedent_estimate::OverlapPolicy;
     let configured = study
         .estimator_spec
-        .as_ref()
+        .as_deref()
         .and_then(crate::estimator_spec::EstimatorSpec::propensity_overlap);
     let policy = if let Some(policy) = configured {
         policy

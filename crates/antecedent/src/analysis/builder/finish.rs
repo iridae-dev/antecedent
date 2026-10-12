@@ -20,7 +20,7 @@ use crate::inference::InferenceMode;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 use crate::support::{CellStatus, StructureSource};
 
-use super::super::execute::Study;
+use super::super::execute::{Study, StudyConfig};
 use super::super::latency::{
     ComputeBudget, LatencyMode, ResolvedLatencyBudget, refuse_non_report_hmc,
 };
@@ -1191,8 +1191,25 @@ fn into_study(exposure: BoundExposure) -> Study {
         classified;
     let Spine { carry, graph, graph_posterior, query } = spine;
     Study {
+        config: Arc::new(StudyConfig {
+            refute_default_downgrade: carry.refute_default_downgrade,
+            latency_bootstrap_not_applied: carry.latency_bootstrap_not_applied,
+            estimator_spec_identity: carry
+                .estimator_spec
+                .as_ref()
+                .map(super::super::contract_identity::estimator_spec_identity),
+            response_options: carry.response_options,
+            observation_options: carry.observation_options,
+            observation_delayed_entry: carry.observation_delayed_entry,
+            rd: carry.rd,
+            stage_sink: carry.stage_sink,
+            continuous_cell: carry.continuous_cell,
+            selection_diagram,
+            transport_trial,
+            transport_identification_cache: None,
+        }),
         data: carry.data,
-        graph,
+        graph: Arc::new(graph),
         graph_posterior,
         class_prior: carry.class_prior,
         max_completions: carry.max_completions,
@@ -1200,29 +1217,17 @@ fn into_study(exposure: BoundExposure) -> Study {
         support_status,
         query,
         refute: carry.refute,
-        refute_default_downgrade: carry.refute_default_downgrade,
-        latency_bootstrap_not_applied: carry.latency_bootstrap_not_applied,
         bootstrap_replicates: carry.bootstrap_replicates,
         split: carry.split,
         identifier: carry.identifier,
         estimator: carry.estimator,
-        estimator_spec_identity: carry
-            .estimator_spec
-            .as_ref()
-            .map(super::super::contract_identity::estimator_spec_identity),
-        estimator_spec: carry.estimator_spec,
-        response_options: carry.response_options,
-        observation_options: carry.observation_options,
-        observation_delayed_entry: carry.observation_delayed_entry,
-        rd: carry.rd,
+        estimator_spec: carry.estimator_spec.map(Arc::new),
         inference: carry.inference,
         overlap_policy: carry.overlap_policy,
         population_registry: carry.population_registry,
         custom_validators: carry.custom_validators,
         latency_mode: carry.latency_mode,
-        stage_sink: carry.stage_sink,
         identification_cache,
-        mediation_adjustment_cache: None,
         pag_identification_cache: None,
         cpdag_identification_cache: None,
         temporal_identification_cache: None,
@@ -1231,11 +1236,7 @@ fn into_study(exposure: BoundExposure) -> Study {
         dbn_posterior_identification_cache: None,
         temporal_class_posterior_identification_cache: None,
         tiered: carry.tiered,
-        continuous_cell: carry.continuous_cell,
         shared_batch_design: None,
-        selection_diagram,
-        transport_trial,
         interference,
-        transport_identification_cache: None,
     }
 }

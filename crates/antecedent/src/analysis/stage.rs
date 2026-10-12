@@ -73,6 +73,12 @@ pub trait StageResultSink: Send + Sync {
     fn on_stage(&self, event: &StageEvent);
 }
 
+impl std::fmt::Debug for dyn StageResultSink {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("StageResultSink")
+    }
+}
+
 /// Records per-stage timings and reports progress / cancellation.
 #[derive(Debug)]
 pub(crate) struct StageClock {

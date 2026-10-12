@@ -571,7 +571,7 @@ pub(crate) fn attach_average_functional_grid(
         }
         return Ok(estimate);
     }
-    let mut config = match study.estimator_spec.as_ref() {
+    let mut config = match study.estimator_spec.as_deref() {
         Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => *config.clone(),
         _ => AipwAte::new(),
     };

@@ -183,10 +183,10 @@ impl PreparedStudy {
                 message: "DML/DR configuration refresh requires the same checked estimator family",
             });
         }
-        self.analysis.estimator_spec_identity =
+        Arc::make_mut(&mut self.analysis.config).estimator_spec_identity =
             Some(crate::analysis::contract_identity::estimator_spec_identity(&spec));
         self.analysis.overlap_policy = spec.propensity_overlap();
-        self.analysis.estimator_spec = Some(spec);
+        self.analysis.estimator_spec = Some(Arc::new(spec));
         self.program_cache = std::sync::OnceLock::new();
         self.refresh(data, ctx)
     }

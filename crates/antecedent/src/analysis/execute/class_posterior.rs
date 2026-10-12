@@ -254,7 +254,8 @@ fn evaluate_class_atom_frequentist(
             let mut case_ws = StaticEstimateWorkspaces::default();
             let case_spec = study
                 .estimator_spec
-                .clone()
+                .as_deref()
+                .cloned()
                 .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id));
             estimate_static_effect(
                 &case_spec,

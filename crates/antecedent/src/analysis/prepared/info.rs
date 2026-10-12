@@ -591,7 +591,7 @@ impl PreparedStudy {
         sink: Option<Arc<dyn crate::analysis::stage::StageResultSink>>,
     ) {
         self.execution.set_stage_sink(sink.clone());
-        self.analysis.stage_sink = sink;
+        Arc::make_mut(&mut self.analysis.config).stage_sink = sink;
     }
 
     /// Whether estimates of this handle stream identify → estimate_point →

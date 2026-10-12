@@ -113,8 +113,8 @@ fn prepared_frontdoor_keeps_checked_procedure_through_estimate_and_refresh() {
     assert!(first_consumed.acceptance.accepts_as_verified_program());
     assert_eq!(first_consumed.body.estimate, Some(first.effect()));
 
-    prepared.study_mut().estimator_spec = Some(EstimatorSpec::LinearAdjustmentAte(Box::new(
-        antecedent_estimate::LinearAdjustmentAte::new(),
+    prepared.study_mut().estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
+        Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
     )));
 
     let refreshed = prepared.refresh(data(0.35), &context).unwrap();

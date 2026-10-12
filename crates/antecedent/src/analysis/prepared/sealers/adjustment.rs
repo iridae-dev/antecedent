@@ -43,10 +43,10 @@ pub(super) fn checked_linear(cx: &SealContext<'_>) -> SealOutcome {
                 ) =>
         {
             let default_id = !matches!(
-                &source.estimator_spec,
+                source.estimator_spec.as_deref(),
                 Some(crate::estimator_spec::EstimatorSpec::LinearAdjustmentAte(_))
             );
-            let mut fitter = match &source.estimator_spec {
+            let mut fitter = match source.estimator_spec.as_deref() {
                 Some(crate::estimator_spec::EstimatorSpec::LinearAdjustmentAte(cfg)) => {
                     (**cfg).clone()
                 }
@@ -103,7 +103,7 @@ pub(super) fn checked_glm_adjustment(cx: &SealContext<'_>) -> SealOutcome {
         {
             let mut fitter =
                 if let Some(crate::estimator_spec::EstimatorSpec::GlmAdjustment(config)) =
-                    &analysis.estimator_spec
+                    analysis.estimator_spec.as_deref()
                 {
                     (**config).clone()
                 } else {
@@ -396,7 +396,7 @@ pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
                         "selected propensity estimand is absent from its identification product"
                             .into(),
                 })?;
-            let fitter = match (&analysis.estimator_spec, estimator) {
+            let fitter = match (analysis.estimator_spec.as_deref(), estimator) {
                 (
                     Some(crate::estimator_spec::EstimatorSpec::PropensityWeighting(config)),
                     crate::strategy_table::EstimatorId::PropensityWeighting,
@@ -499,7 +499,7 @@ pub(super) fn frontdoor_linear(cx: &SealContext<'_>) -> SealOutcome {
                 && matches!(query.target_population, TargetPopulation::AllObserved)
                 && cx.binding.estimator.is(EstimatorId::FrontDoorTwoStage) =>
         {
-            let fitter = match &analysis.estimator_spec {
+            let fitter = match analysis.estimator_spec.as_deref() {
                 Some(crate::estimator_spec::EstimatorSpec::FrontDoorTwoStage(config)) => {
                     (**config).clone()
                 }
@@ -521,7 +521,7 @@ pub(super) fn iv(cx: &SealContext<'_>) -> SealOutcome {
         &analysis.inference,
     ) {
         (Some((data, _)), Some(cache), InferenceMode::Frequentist) => {
-            match (&analysis.estimator_spec, cx.binding.estimator.named()) {
+            match (analysis.estimator_spec.as_deref(), cx.binding.estimator.named()) {
                 (
                     Some(crate::estimator_spec::EstimatorSpec::IvWald(cfg)),
                     Some(EstimatorId::IvWald),

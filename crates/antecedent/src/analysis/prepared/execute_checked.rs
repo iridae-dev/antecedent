@@ -433,7 +433,7 @@ impl PreparedStudy {
                 ..
             }) => Some(crate::result::AnalysisIdentification {
                 identification: crate::Identification::Envelope {
-                    envelope: cache.envelope.clone(),
+                    envelope: (*cache.envelope).clone(),
                     strategy: operation.identifier,
                     structure_version: operation.graph_version,
                 },
@@ -445,7 +445,7 @@ impl PreparedStudy {
                 ..
             }) => Some(crate::result::AnalysisIdentification {
                 identification: crate::Identification::CpdagEnvelope {
-                    envelope: cache.envelope.clone(),
+                    envelope: (*cache.envelope).clone(),
                     strategy: operation.identifier,
                     structure_version: operation.graph_version,
                 },

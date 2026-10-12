@@ -1999,17 +1999,20 @@ impl super::Study {
                 let pag = physical.static_pag().ok_or_else(|| CausalError::Compile {
                     message: "PAG response execute missing resolved static PAG".into(),
                 })?;
-                let (envelope, identify_cached) = if let Some(cache) =
-                    self.pag_identification_cache.as_deref()
-                {
-                    (cache.envelope.clone(), true)
-                } else {
-                    report_identify_compute(ctx);
-                    (
-                        crate::strategy_table::identify_pag_response(identifier_id, pag, query)?,
-                        false,
-                    )
-                };
+                let (envelope, identify_cached) =
+                    if let Some(cache) = self.pag_identification_cache.as_ref() {
+                        (Arc::clone(&cache.envelope), true)
+                    } else {
+                        report_identify_compute(ctx);
+                        (
+                            Arc::new(crate::strategy_table::identify_pag_response(
+                                identifier_id,
+                                pag,
+                                query,
+                            )?),
+                            false,
+                        )
+                    };
                 let envelope_diag = super::pag_path::pag_envelope_diagnostic(&envelope);
                 self.finish_class_response(
                     data,
@@ -2027,7 +2030,7 @@ impl super::Study {
                     self.attach_certificate(
                         result,
                         crate::Identification::Envelope {
-                            envelope,
+                            envelope: Arc::unwrap_or_clone(envelope),
                             strategy: identifier_id,
                             structure_version: self.graph.version(),
                         },
@@ -2039,16 +2042,16 @@ impl super::Study {
                     message: "CPDAG response execute missing supplied graph".into(),
                 })?;
                 let (envelope, identify_cached) =
-                    if let Some(cache) = self.cpdag_identification_cache.as_deref() {
-                        (cache.envelope.clone(), true)
+                    if let Some(cache) = self.cpdag_identification_cache.as_ref() {
+                        (Arc::clone(&cache.envelope), true)
                     } else {
                         report_identify_compute(ctx);
                         (
-                            crate::strategy_table::identify_cpdag_response(
+                            Arc::new(crate::strategy_table::identify_cpdag_response(
                                 identifier_id,
                                 cpdag,
                                 query,
-                            )?,
+                            )?),
                             false,
                         )
                     };
@@ -2069,7 +2072,7 @@ impl super::Study {
                     self.attach_certificate(
                         result,
                         crate::Identification::CpdagEnvelope {
-                            envelope,
+                            envelope: Arc::unwrap_or_clone(envelope),
                             strategy: identifier_id,
                             structure_version: self.graph.version(),
                         },

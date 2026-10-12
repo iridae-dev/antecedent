@@ -96,7 +96,9 @@ typed_accessors! {
 }
 
 pub(crate) fn checked_aipw_fitter(study: &Study) -> AipwAte {
-    if let Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) = &study.estimator_spec {
+    if let Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) =
+        study.estimator_spec.as_deref()
+    {
         return (**config).clone();
     }
     let mut fitter = AipwAte::new();

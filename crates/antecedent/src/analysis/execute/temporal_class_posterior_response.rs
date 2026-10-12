@@ -96,7 +96,7 @@ impl super::Study {
             };
             let mut atom_study = self.clone();
             atom_study.graph_posterior = None;
-            atom_study.graph = graph;
+            atom_study.graph = Arc::new(graph);
             atom_study.refute = RefuteSuite::None;
             atom_study.custom_validators.clear();
             atom_study.temporal_class_identification_cache = retained_atom;
@@ -549,7 +549,7 @@ fn temporal_class_response_pooled_block_se(
         };
         let mut atom_study = study.clone();
         atom_study.graph_posterior = None;
-        atom_study.graph = graph;
+        atom_study.graph = Arc::new(graph);
         atom_study.query = CausalQuery::TemporalEffect(pulse.clone());
         atom_study.temporal_class_identification_cache = None;
         atom_study.temporal_class_posterior_identification_cache = None;
@@ -710,7 +710,7 @@ fn refute_temporal_class_graph_posterior_intervention(
         };
         let mut atom_study = study.clone();
         atom_study.graph_posterior = None;
-        atom_study.graph = graph;
+        atom_study.graph = Arc::new(graph);
         atom_study.query = CausalQuery::TemporalEffect(pulse.clone());
         atom_study.temporal_class_identification_cache = None;
         atom_study.temporal_class_posterior_identification_cache = None;

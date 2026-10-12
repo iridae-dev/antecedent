@@ -136,7 +136,7 @@ impl PreparedStudy {
     /// Declared independence units of a cluster-DML plan (labels aligned with the rows of its
     /// score table), or `None` for any other plan.
     pub(crate) fn cluster_units(&self) -> Option<ClusterUnits> {
-        match self.analysis.estimator_spec.as_ref() {
+        match self.analysis.estimator_spec.as_deref() {
             Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => Some(ClusterUnits {
                 spec: config.cluster_dml?,
                 first: config.cluster_ids.clone()?,

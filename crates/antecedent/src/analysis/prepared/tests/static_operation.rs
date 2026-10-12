@@ -101,13 +101,14 @@ fn checked_aipw_click_uses_retained_fitter_after_study_config_changes() {
     // would conflict with the checked receipt and reject the click.
     let mut changed_fitter = AipwAte::new();
     changed_fitter.bootstrap_replicates = 7;
-    prepared.analysis.estimator_spec = Some(EstimatorSpec::Aipw(Box::new(changed_fitter)));
+    prepared.analysis.estimator_spec =
+        Some(Arc::new(EstimatorSpec::Aipw(Box::new(changed_fitter))));
     let second = prepared.estimate(&data, &context).unwrap();
     assert!((second.effect() - first.effect()).abs() < 1e-10);
     assert!(second.estimate.as_effect().unwrap().se_bootstrap.is_none());
 
-    prepared.analysis.estimator_spec = Some(EstimatorSpec::LinearAdjustmentAte(Box::new(
-        antecedent_estimate::LinearAdjustmentAte::new(),
+    prepared.analysis.estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
+        Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
     )));
     let third = prepared.estimate(&data, &context).unwrap();
     assert!((third.effect() - first.effect()).abs() < 1e-10);
@@ -145,7 +146,8 @@ fn checked_linear_click_uses_retained_default_uncertainty_after_study_changes() 
     assert!(first.estimate.as_effect().unwrap().se_bootstrap.is_none());
 
     prepared.analysis.bootstrap_replicates = 9;
-    prepared.analysis.estimator_spec = Some(EstimatorSpec::Aipw(Box::new(AipwAte::new())));
+    prepared.analysis.estimator_spec =
+        Some(Arc::new(EstimatorSpec::Aipw(Box::new(AipwAte::new()))));
     let second = prepared.estimate(&data, &context).unwrap();
     assert!((second.effect() - first.effect()).abs() < 1e-10);
     assert!(second.estimate.as_effect().unwrap().se_bootstrap.is_none());

@@ -1290,7 +1290,8 @@ impl super::Study {
             let case_spec = checked.map_or_else(
                 || {
                     self.estimator_spec
-                        .clone()
+                        .as_deref()
+                        .cloned()
                         .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id))
                 },
                 |operation| operation.procedure().clone(),

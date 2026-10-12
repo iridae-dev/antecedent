@@ -121,7 +121,7 @@ impl super::Study {
         {
             EstimatorSpec::Default(estimator_id)
         } else {
-            self.estimator_spec.clone().unwrap_or(EstimatorSpec::Default(estimator_id))
+            self.estimator_spec.as_deref().cloned().unwrap_or(EstimatorSpec::Default(estimator_id))
         };
         // Prepare against the original semantic variable IDs. Projection remaps tabular
         // columns, while the identified expression still belongs to the original arena.
@@ -402,7 +402,7 @@ impl super::Study {
             || (prepared_linear.is_none()
                 && self
                     .estimator_spec
-                    .as_ref()
+                    .as_deref()
                     .is_some_and(|spec| !matches!(spec, EstimatorSpec::Default(_))))
             || matches!(
                 estimator_id,
@@ -1108,8 +1108,8 @@ impl super::Study {
                     message: "PAG ConditionalEffect execute missing resolved static PAG".into(),
                 })?;
                 let (envelope, identification, identify_cached) =
-                    if let Some(cache) = self.pag_identification_cache.as_deref() {
-                        (cache.envelope.clone(), cache.identification.clone(), true)
+                    if let Some(cache) = self.pag_identification_cache.as_ref() {
+                        (Arc::clone(&cache.envelope), cache.identification.clone(), true)
                     } else {
                         report_identify_compute(ctx);
                         let envelope = identify_pag(identifier_id, pag, &query.inner)?;
@@ -1117,7 +1117,7 @@ impl super::Study {
                             &envelope,
                             CausalQuery::ConditionalEffect(query.clone()),
                         );
-                        (envelope, identification, false)
+                        (Arc::new(envelope), identification, false)
                     };
                 self.finish_class_conditional(
                     data,
@@ -1137,7 +1137,7 @@ impl super::Study {
                     self.attach_certificate(
                         result,
                         crate::Identification::Envelope {
-                            envelope,
+                            envelope: Arc::unwrap_or_clone(envelope),
                             strategy: identifier_id,
                             structure_version: self.graph.version(),
                         },
@@ -1149,8 +1149,8 @@ impl super::Study {
                     message: "CPDAG ConditionalEffect execute missing supplied graph".into(),
                 })?;
                 let (envelope, identification, identify_cached) =
-                    if let Some(cache) = self.cpdag_identification_cache.as_deref() {
-                        (cache.envelope.clone(), cache.identification.clone(), true)
+                    if let Some(cache) = self.cpdag_identification_cache.as_ref() {
+                        (Arc::clone(&cache.envelope), cache.identification.clone(), true)
                     } else {
                         report_identify_compute(ctx);
                         let envelope = identify_cpdag(identifier_id, cpdag, &query.inner)?;
@@ -1158,7 +1158,7 @@ impl super::Study {
                             &envelope,
                             CausalQuery::ConditionalEffect(query.clone()),
                         );
-                        (envelope, identification, false)
+                        (Arc::new(envelope), identification, false)
                     };
                 self.finish_class_conditional(
                     data,
@@ -1178,7 +1178,7 @@ impl super::Study {
                     self.attach_certificate(
                         result,
                         crate::Identification::CpdagEnvelope {
-                            envelope,
+                            envelope: Arc::unwrap_or_clone(envelope),
                             strategy: identifier_id,
                             structure_version: self.graph.version(),
                         },
@@ -1558,7 +1558,8 @@ impl super::Study {
             &query.outcome_functional,
         )?;
         let mut ws = StaticEstimateWorkspaces::default();
-        let spec = self.estimator_spec.clone().unwrap_or(EstimatorSpec::Default(estimator_id));
+        let spec =
+            self.estimator_spec.as_deref().cloned().unwrap_or(EstimatorSpec::Default(estimator_id));
         let estimate = estimate_static_effect(
             &spec,
             &data_est,
@@ -1669,7 +1670,8 @@ impl super::Study {
             query.outcome,
             &query.outcome_functional,
         )?;
-        let spec = self.estimator_spec.clone().unwrap_or(EstimatorSpec::Default(estimator_id));
+        let spec =
+            self.estimator_spec.as_deref().cloned().unwrap_or(EstimatorSpec::Default(estimator_id));
         let mut atom_ifs = Vec::new();
         let mut atom_ws = Vec::new();
         let mut scenarios = Vec::new();

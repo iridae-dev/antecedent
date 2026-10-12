@@ -64,7 +64,8 @@ impl Study {
         };
         let procedure = analysis
             .estimator_spec
-            .clone()
+            .as_deref()
+            .cloned()
             .unwrap_or(crate::EstimatorSpec::Default(expected_estimator));
         Ok(Some(CheckedStaticClassEffect::prepare(
             graph,
@@ -94,7 +95,7 @@ impl Study {
 
     /// Whether the builder's estimator choices resolve to exactly `estimator`.
     pub(crate) fn graph_posterior_procedure_is(analysis: &Study, estimator: EstimatorId) -> bool {
-        analysis.estimator_spec.as_ref().is_none_or(|spec| spec.id() == estimator)
+        analysis.estimator_spec.as_deref().is_none_or(|spec| spec.id() == estimator)
             && analysis.estimator.is_none_or(|id| id == estimator)
     }
 
@@ -131,7 +132,8 @@ impl Study {
                     identification.clone(),
                     analysis
                         .estimator_spec
-                        .clone()
+                        .as_deref()
+                        .cloned()
                         .unwrap_or(crate::EstimatorSpec::Default(estimator)),
                     analysis.bootstrap_replicates,
                     analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
@@ -155,9 +157,11 @@ impl Study {
                     posterior.clone(),
                     target,
                     identification.clone(),
-                    analysis.estimator_spec.clone().unwrap_or(crate::EstimatorSpec::Default(
-                        crate::strategy_table::EstimatorId::FunctionalEffect,
-                    )),
+                    analysis.estimator_spec.as_deref().cloned().unwrap_or(
+                        crate::EstimatorSpec::Default(
+                            crate::strategy_table::EstimatorId::FunctionalEffect,
+                        ),
+                    ),
                     analysis.bootstrap_replicates,
                     analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
                     analysis.population_registry.clone(),
@@ -205,7 +209,11 @@ impl Study {
             target,
             identification.clone(),
             analysis.inference.clone(),
-            analysis.estimator_spec.clone().unwrap_or(crate::EstimatorSpec::Default(estimator)),
+            analysis
+                .estimator_spec
+                .as_deref()
+                .cloned()
+                .unwrap_or(crate::EstimatorSpec::Default(estimator)),
             analysis.bootstrap_replicates,
             analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
             analysis.population_registry.clone(),
@@ -239,8 +247,11 @@ impl Study {
         {
             return Ok(None);
         }
-        let procedure =
-            analysis.estimator_spec.clone().unwrap_or(crate::EstimatorSpec::Default(estimator));
+        let procedure = analysis
+            .estimator_spec
+            .as_deref()
+            .cloned()
+            .unwrap_or(crate::EstimatorSpec::Default(estimator));
         Ok(Some(Box::new(CheckedBayesianGraphPosteriorAte::prepare(
             posterior.clone(),
             target,
@@ -271,7 +282,7 @@ impl Study {
                 | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
         ) || !analysis.custom_validators.is_empty()
             || !matches!(
-                analysis.estimator_spec.as_ref().map(crate::EstimatorSpec::id),
+                analysis.estimator_spec.as_deref().map(crate::EstimatorSpec::id),
                 None | Some(crate::strategy_table::EstimatorId::FunctionalEffect)
             )
             || !matches!(
@@ -337,7 +348,7 @@ impl Study {
             return Ok(None);
         }
         Ok(Some(Box::new(crate::analysis::CheckedTemporalClassResponseOperation::checked(
-            analysis.graph.clone(),
+            (*analysis.graph).clone(),
             query,
             cache,
             analysis.max_completions,
@@ -428,12 +439,12 @@ impl Study {
         let estimator = EstimatorId::temporal_effect_procedure(query, true);
         let procedure = EstimatorId::temporal_effect_procedure(query, false);
         if !plan.binding().names(identifier, estimator)
-            || !analysis.estimator_spec.as_ref().is_none_or(|spec| spec.id() == estimator)
+            || !analysis.estimator_spec.as_deref().is_none_or(|spec| spec.id() == estimator)
         {
             return Ok(None);
         }
         let target = crate::analysis::CheckedTemporalClassEffectOperation::checked(
-            analysis.graph.clone(),
+            (*analysis.graph).clone(),
             query,
             cache,
             analysis.max_completions,
@@ -488,7 +499,7 @@ impl Study {
         let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
         let estimator = EstimatorId::temporal_effect_for(query, &analysis.inference);
         if !plan.binding().names(identifier, estimator)
-            || !analysis.estimator_spec.as_ref().is_none_or(|spec| spec.id() == estimator)
+            || !analysis.estimator_spec.as_deref().is_none_or(|spec| spec.id() == estimator)
         {
             return Ok(None);
         }
@@ -497,7 +508,7 @@ impl Study {
             query.clone(),
             proof,
             analysis.inference.clone(),
-            analysis.estimator_spec.as_ref(),
+            analysis.estimator_spec.as_deref(),
             analysis.bootstrap_replicates,
             analysis.split,
             analysis.max_completions,
@@ -550,7 +561,7 @@ impl Study {
         if identifier != IdentifierId::GeneralizedAdjustment
             || estimator != expected_estimator
             || analysis.estimator.is_some_and(|selected| selected != estimator)
-            || analysis.estimator_spec.as_ref().is_some_and(|spec| spec.id() != estimator)
+            || analysis.estimator_spec.as_deref().is_some_and(|spec| spec.id() != estimator)
         {
             return Ok(None);
         }
@@ -618,7 +629,7 @@ impl Study {
         if identifier != expected_identifier
             || estimator != expected_estimator
             || analysis.estimator.is_some_and(|selected| selected != estimator)
-            || analysis.estimator_spec.as_ref().is_some_and(|spec| spec.id() != estimator)
+            || analysis.estimator_spec.as_deref().is_some_and(|spec| spec.id() != estimator)
         {
             return Ok(None);
         }

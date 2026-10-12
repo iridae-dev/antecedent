@@ -478,7 +478,7 @@ impl Study {
             &envelope,
             self.query.clone(),
         );
-        Ok(Some(CachedPagIdentification { envelope, identification }))
+        Ok(Some(CachedPagIdentification { envelope: Arc::new(envelope), identification }))
     }
 
     /// Compute the MEC envelope once for a supplied CPDAG.
@@ -507,7 +507,7 @@ impl Study {
             &envelope,
             self.query.clone(),
         );
-        Ok(Some(CachedCpdagIdentification { envelope, identification }))
+        Ok(Some(CachedCpdagIdentification { envelope: Arc::new(envelope), identification }))
     }
 
     fn envelope_witness_ate(&self) -> Result<Option<AverageEffectQuery>, CausalError> {
@@ -691,7 +691,7 @@ impl Study {
             return Ok(None);
         }
         let estimand = &cache.estimand;
-        let spec = self.estimator_spec.as_ref();
+        let spec = self.estimator_spec.as_deref();
         let table = match self.estimator {
             Some(EstimatorId::Dml) => {
                 let mut est = match spec {
@@ -781,7 +781,7 @@ impl Study {
                 {
                     return Ok(None);
                 }
-                let mut est = match self.estimator_spec.as_ref() {
+                let mut est = match self.estimator_spec.as_deref() {
                     Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => *config.clone(),
                     _ => AipwAte::new(),
                 };
