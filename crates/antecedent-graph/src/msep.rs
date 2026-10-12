@@ -4,7 +4,7 @@
 
 use crate::admg::Admg;
 use crate::dsep::{
-    add_undirected, DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult,
+    DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult, add_undirected,
 };
 use crate::error::GraphError;
 use crate::pag::{ClassMembers, Pag};
@@ -266,9 +266,10 @@ mod tests {
         let mut g = Admg::with_variables(2);
         g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let mut ws = DSeparationWorkspace::default();
-        assert!(!g
-            .is_m_separated(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), &[], &mut ws)
-            .unwrap());
+        assert!(
+            !g.is_m_separated(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), &[], &mut ws)
+                .unwrap()
+        );
     }
 
     #[test]
