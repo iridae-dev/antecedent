@@ -40,13 +40,13 @@ pub enum InferenceMode {
 impl InferenceMode {
     /// Whether this is the Bayesian mode.
     #[must_use]
-    pub const fn is_bayesian(&self) -> bool {
+    pub(crate) const fn is_bayesian(&self) -> bool {
         matches!(self, Self::Bayesian(_))
     }
 
     /// Whether this is the frequentist mode.
     #[must_use]
-    pub const fn is_frequentist(&self) -> bool {
+    pub(crate) const fn is_frequentist(&self) -> bool {
         matches!(self, Self::Frequentist)
     }
 }
@@ -103,14 +103,14 @@ impl BayesianConfig {
     /// scale: an explicit prior, a mapped posterior artifact, or an external
     /// compose.
     #[must_use]
-    pub const fn has_transfer(&self) -> bool {
+    pub(crate) const fn has_transfer(&self) -> bool {
         self.prior.is_some() || self.has_transferred_source()
     }
 
     /// Whether the config carries a transferred prior source (posterior
     /// artifact or external compose) rather than an explicit prior.
     #[must_use]
-    pub const fn has_transferred_source(&self) -> bool {
+    pub(crate) const fn has_transferred_source(&self) -> bool {
         self.prior_artifact.is_some() || self.external_compose.is_some()
     }
 
