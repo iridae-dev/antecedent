@@ -400,12 +400,62 @@ fn graph_posterior_bayesian_diagnostics(
     diagnostics
 }
 
+/// The run-level settings a Frequentist graph-posterior effect reads: the study's own when the
+/// study runs it, the sealed operation's when a checked operation does. Resolved once, so the
+/// estimate and refute phases never re-decide which side to read.
+struct EffectRunConfig<'a> {
+    latency_mode: Option<super::LatencyMode>,
+    refute: RefuteSuite,
+    bootstrap_replicates: u32,
+    overlap_policy: Option<OverlapPolicy>,
+    population_registry: Option<&'a super::PopulationRegistry>,
+    /// A sealed operation carries no custom validators.
+    custom_validators: &'a [std::sync::Arc<dyn antecedent_validate::CustomEffectValidator>],
+    /// The estimator procedure every atom is fitted with.
+    spec: crate::estimator_spec::EstimatorSpec,
+}
+
+impl<'a> EffectRunConfig<'a> {
+    fn resolve(
+        study: &'a super::Study,
+        checked: Option<&'a super::super::CheckedGraphPosteriorEffect>,
+        estimator_id: EstimatorId,
+    ) -> Self {
+        match checked {
+            Some(operation) => Self {
+                latency_mode: operation.latency_mode(),
+                refute: operation.validation(),
+                bootstrap_replicates: operation.bootstrap_replicates(),
+                overlap_policy: Some(operation.overlap()),
+                population_registry: operation
+                    .population_registry()
+                    .or(study.population_registry.as_ref()),
+                custom_validators: &[],
+                spec: operation.procedure().clone(),
+            },
+            None => Self {
+                latency_mode: study.latency_mode,
+                refute: study.refute,
+                bootstrap_replicates: study.bootstrap_replicates,
+                overlap_policy: study.overlap_policy,
+                population_registry: study.population_registry.as_ref(),
+                custom_validators: &study.custom_validators,
+                spec: study
+                    .estimator_spec
+                    .as_deref()
+                    .cloned()
+                    .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id)),
+            },
+        }
+    }
+}
+
 /// Resolved inputs shared by the Frequentist graph-posterior estimate and refute phases.
 #[derive(Clone, Copy)]
 struct GraphPosteriorFrequentistRoute<'a> {
     data: &'a TabularData,
     query: &'a AverageEffectQuery,
-    checked: Option<&'a super::super::CheckedGraphPosteriorEffect>,
+    run: &'a EffectRunConfig<'a>,
     estimator_id: EstimatorId,
     conditional: bool,
 }
@@ -1932,6 +1982,7 @@ impl super::Study {
         } else {
             EstimatorId::LinearAdjustmentAte
         };
+        let run = EffectRunConfig::resolve(self, checked, estimator_id);
         let (identified, identify_cached) = if let Some(operation) = checked {
             (operation.identification().clone(), true)
         } else if let Some(cache) = self.graph_posterior_identification_cache.as_ref() {
@@ -1946,14 +1997,13 @@ impl super::Study {
         };
         let mut subsample_notes = Vec::new();
         let (graphs, subsample_drop) = interactive_subsample_graphs_accounted(
-            checked
-                .map_or(self.latency_mode, super::super::CheckedGraphPosteriorEffect::latency_mode),
+            run.latency_mode,
             identified.graphs.clone(),
             ctx,
             &mut subsample_notes,
         )?;
         let route =
-            GraphPosteriorFrequentistRoute { data, query, checked, estimator_id, conditional };
+            GraphPosteriorFrequentistRoute { data, query, run: &run, estimator_id, conditional };
         let atoms =
             self.estimate_graph_posterior_frequentist_atoms(&route, &identified, &graphs, ctx)?;
         let mix =
@@ -2005,9 +2055,7 @@ impl super::Study {
         graphs: &WeightedGraphSamples,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosteriorFrequentistAtoms, CausalError> {
-        let GraphPosteriorFrequentistRoute {
-            data, query, checked, estimator_id, conditional, ..
-        } = *route;
+        let GraphPosteriorFrequentistRoute { data, query, run, conditional, .. } = *route;
         let keep = identified_envelope_keys(graphs);
 
         let mut se_items = Vec::new();
@@ -2022,15 +2070,6 @@ impl super::Study {
         let estimates = ctx.map_indexed(kept.len(), |i, inner| {
             let atom = kept[i];
             let mut case_ws = StaticEstimateWorkspaces::default();
-            let case_spec = checked.map_or_else(
-                || {
-                    self.estimator_spec
-                        .as_deref()
-                        .cloned()
-                        .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id))
-                },
-                |operation| operation.procedure().clone(),
-            );
             let estimate = if conditional {
                 let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())?;
                 ConditionalLinearAdjustment::new()
@@ -2038,20 +2077,14 @@ impl super::Study {
                     .map_err(CausalError::from)
             } else {
                 estimate_static_effect(
-                    &case_spec,
+                    &run.spec,
                     StaticEstimateInput {
                         data,
                         estimand: &atom.estimand,
                         query,
-                        bootstrap_replicates: checked
-                            .map_or(self.bootstrap_replicates, |operation| {
-                                operation.bootstrap_replicates()
-                            }),
-                        overlap_policy: checked
-                            .map_or(self.overlap_policy, |operation| Some(operation.overlap())),
-                        population_registry: checked
-                            .and_then(|operation| operation.population_registry())
-                            .or(self.population_registry.as_ref()),
+                        bootstrap_replicates: run.bootstrap_replicates,
+                        overlap_policy: run.overlap_policy,
+                        population_registry: run.population_registry,
                     },
                     atom.identification.required_assumptions.clone(),
                     inner,
@@ -2108,7 +2141,7 @@ impl super::Study {
         refute_atoms: &[EnvelopeRefuteAtom],
         ctx: &ExecutionContext,
     ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
-        let GraphPosteriorFrequentistRoute { data, query, checked, estimator_id, .. } = *route;
+        let GraphPosteriorFrequentistRoute { data, query, run, estimator_id, .. } = *route;
         let estimator = estimator_id.as_str();
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, na_diagnostics) = if graph_dependent {
@@ -2121,10 +2154,9 @@ impl super::Study {
                 let (mut per_atom, mut per_notes) = EnvelopeRefutation {
                     data,
                     query,
-                    suite: checked
-                        .map_or(self.refute, super::super::CheckedGraphPosteriorEffect::validation),
+                    suite: run.refute,
                     estimator,
-                    custom: if checked.is_some() { &[] } else { &self.custom_validators },
+                    custom: run.custom_validators,
                     temporal: None,
                 }
                 .run(std::slice::from_ref(atom), &mut refute_ws, ctx)?;
@@ -2145,10 +2177,9 @@ impl super::Study {
             EnvelopeRefutation {
                 data,
                 query,
-                suite: checked
-                    .map_or(self.refute, super::super::CheckedGraphPosteriorEffect::validation),
+                suite: run.refute,
                 estimator,
-                custom: if checked.is_some() { &[] } else { &self.custom_validators },
+                custom: run.custom_validators,
                 temporal: None,
             }
             .run(refute_atoms, &mut refute_ws, ctx)?
