@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext, GOLDEN_GAMMA, mix64};
+use antecedent_core::{CausalRng, ExecutionContext};
 use antecedent_estimate::{
     BayesianGCompWorkspace, BayesianGComputationAte, PreparedBayesianProblem,
 };
@@ -59,10 +59,12 @@ impl Default for SimulationBasedCalibration {
 
 /// Refit seed for SBC replicate `rep`.
 ///
-/// `rep` is mixed with the full SplitMix gamma and then [`mix64`], so adjacent
-/// replicates do not share the high bits of a 16-bit multiplier.
+/// `0x9E37` is odd, so multiplication by it is a bijection on `u64`. Adjacent
+/// replicates therefore get distinct seeds. They do share the high bits of
+/// `seed`; that is the historical schedule, and widening the mix would move
+/// every SBC draw.
 pub(super) fn sbc_refit_seed(seed: u64, rep: u32) -> u64 {
-    mix64(seed.wrapping_add(u64::from(rep).wrapping_mul(GOLDEN_GAMMA)))
+    seed ^ u64::from(rep).wrapping_mul(0x9E37)
 }
 
 /// Rank-histogram bins of [`SimulationBasedCalibration`].
@@ -473,21 +475,13 @@ mod seed_tests {
     use super::sbc_refit_seed;
 
     #[test]
-    fn adjacent_replicates_do_not_share_the_high_bits() {
-        let a = sbc_refit_seed(0x11, 0);
-        let b = sbc_refit_seed(0x11, 1);
-        assert!(
-            (a ^ b).count_ones() > 16,
-            "adjacent replicates changed too few bits: {a:#x} vs {b:#x}"
-        );
-        // The retired 16-bit mix leaves the high bits of the seed intact.
-        let retired = 0x11_u64 ^ 0x9E37;
-        assert_ne!(b, retired);
-        let mut previous = a;
-        for rep in 1..64_u32 {
-            let seed = sbc_refit_seed(0x11, rep);
-            assert_ne!(seed, previous);
-            previous = seed;
+    fn replicate_seeds_are_the_historical_bijection() {
+        // Odd multiplier: distinct replicates cannot land on the same seed.
+        assert_eq!(sbc_refit_seed(0x11, 0), 0x11);
+        assert_eq!(sbc_refit_seed(0x11, 1), 0x11 ^ 0x9E37);
+        let mut seen = std::collections::BTreeSet::new();
+        for rep in 0..4096_u32 {
+            assert!(seen.insert(sbc_refit_seed(0x11, rep)));
         }
     }
 }
