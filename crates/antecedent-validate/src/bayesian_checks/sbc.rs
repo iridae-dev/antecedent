@@ -192,10 +192,6 @@ impl SimulationBasedCalibration {
     /// Fit failures; [`ValidationError::NotApplicable`] when the configuration or estimator
     /// cannot satisfy the rank theorem (see the type docs).
     #[allow(
-        clippy::needless_range_loop,
-        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
-    )]
-    #[allow(
         clippy::too_many_lines,
         reason = "one arm per posterior check kind over the same draws"
     )]
