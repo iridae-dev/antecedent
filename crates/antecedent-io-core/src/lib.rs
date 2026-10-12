@@ -15,7 +15,6 @@
 
 pub mod analysis_result_artifact;
 pub mod analysis_wire;
-pub mod arrow_section;
 pub mod artifact_codec;
 pub mod bayesian_prior_recalc_artifact;
 pub mod calibration;
@@ -100,7 +99,6 @@ pub use analysis_wire::{
     RdDesignWire, RefutationReportWire, diagnostic_from_wire, diagnostic_to_wire,
     identification_from_wire, identification_to_wire, identification_to_wire_with_registry,
 };
-pub use arrow_section::{ARROW_IPC_CONTENT_TYPE, arrow_ipc_section, arrow_ipc_section_shared};
 pub use artifact_codec::{
     ArtifactCheckError, ArtifactContainer, CONTENT_BYTES, CONTENT_CBOR, CodecError, ConsumeLimits,
     OutSection, container_kind, decode_container, decode_with_version, digest_hex,
@@ -137,8 +135,7 @@ pub use convert::{
 };
 pub use discovery_wire::{
     DiscoveryHeaderWire, EdgeEvidenceWire, LaggedLinkWire, TemporalGraphWire, TemporalNodeKeyWire,
-    discovery_dag_from_sections, discovery_dag_sections, temporal_dag_from_wire,
-    temporal_dag_to_wire,
+    temporal_dag_from_wire, temporal_dag_to_wire,
 };
 pub use error::IoError;
 pub use expr_wire::{
@@ -195,7 +192,7 @@ pub use mechanism_wire::{
 };
 pub use migrate::{
     STABLE_FORMAT, SUPPORTED_SOURCE_FORMATS, is_supported_source, migrate_artifact,
-    migrate_from_seek, read_and_migrate,
+    read_and_migrate,
 };
 pub use plan_wire::{
     ExecutionPerformanceWire, LogicalAnalysisPlanWire, PhysicalExecutionPlanWire,

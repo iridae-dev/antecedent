@@ -1,6 +1,6 @@
 # antecedent-io
 
-Stable CBOR metadata serialization, Arrow IPC sections, and versioned
+Stable CBOR metadata serialization and versioned
 artifact containers with BLAKE3 checksums (ADR 0002).
 
 The container, wire types, canonical digests and estimator-free artifacts live

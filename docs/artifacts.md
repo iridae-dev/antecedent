@@ -75,9 +75,6 @@ BLAKE3 checksum cover **on-wire** (possibly compressed) bytes.
 `uncompressed_size` is the logical payload length. Auto compression applies when
 the logical size is ≥ 4 KiB and compression improves size (≈95% ratio).
 
-Arrow IPC sections (`application/vnd.apache.arrow.file`) use
-`CompressPolicy::Never` so they remain mmap-eligible.
-
 ### Selective read / mmap / shared writes
 
 | API | Behavior |
@@ -250,7 +247,7 @@ uncertainty and support. These exports use the stable format 0.5.
 
 ## Migration
 
-`antecedent_io::migrate_artifact` / `read_and_migrate` / `migrate_from_seek` accept
+`antecedent_io::migrate_artifact` / `read_and_migrate` accept
 source formats `0.1` through `0.5`. Formats `0.1`–`0.4` migrate to 0.5;
 format `0.1` skinny `SchemaWireV01 { variable_names }` is rewritten to full
 `SchemaWire` with Continuous defaults. Format `0.2` sections pass through unchanged.

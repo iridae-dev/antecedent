@@ -105,50 +105,6 @@ pub fn read_and_migrate<R: std::io::Read>(r: R) -> Result<EncodedArtifact, IoErr
     migrate_artifact(artifact)
 }
 
-/// Seekable migrate: load only sections that need rewrite; copy other on-wire blobs
-/// byte-faithfully (preserves checksums without decompress).
-///
-/// For format `0.5` already stable, this materializes all sections (same as a full read)
-/// so the returned [`EncodedArtifact`] is complete. For `0.1→0.5`, `schema` is
-/// decoded/rewritten. Format `0.2`–`0.4` payloads pass through unchanged while their
-/// manifest advances to `0.5`.
-///
-/// # Errors
-///
-/// IO, framing, unsupported format, or migration failures.
-pub fn migrate_from_seek<R: std::io::Read + std::io::Seek>(
-    r: R,
-) -> Result<EncodedArtifact, IoError> {
-    let reader = crate::reader::ArtifactReader::open_seek(r)?;
-    let from = reader.manifest().format_version;
-    if !is_supported_source(from) {
-        return Err(IoError::UnsupportedFormat { major: from.major, minor: from.minor });
-    }
-    if reader.manifest().minimum_reader_version.major > STABLE_FORMAT.major
-        || (reader.manifest().minimum_reader_version.major == STABLE_FORMAT.major
-            && reader.manifest().minimum_reader_version.minor > STABLE_FORMAT.minor)
-    {
-        return Err(IoError::UnsupportedFormat {
-            major: reader.manifest().minimum_reader_version.major,
-            minor: reader.manifest().minimum_reader_version.minor,
-        });
-    }
-    // Stable: materialize everything.
-    if from == STABLE_FORMAT {
-        return reader.into_encoded_artifact();
-    }
-    // Older formats are materialized. Only 0.1 needs a section rewrite; 0.2–0.4 introduced
-    // no wire representation that needs transformation when advancing to 0.5 (0.5 only
-    // adds optional fields that older payloads decode as absent).
-    let mut artifact = reader.into_encoded_artifact()?;
-    if from == (FormatVersion { major: 0, minor: 1 }) {
-        artifact = migrate_0_1_to_0_2(artifact)?;
-    }
-    artifact.manifest.format_version = STABLE_FORMAT;
-    artifact.manifest.minimum_reader_version = STABLE_FORMAT;
-    Ok(artifact)
-}
-
 #[cfg(test)]
 mod tests {
     use antecedent_core::VERSION;
