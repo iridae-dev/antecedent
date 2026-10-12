@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::needless_pass_by_value, clippy::doc_markdown)]
 #![cfg_attr(
     test,
     allow(
@@ -173,7 +172,7 @@ pub struct CausalPosterior {
     pub early_stopped: bool,
     /// Source treatment contrast `active − control` used to form the effect.
     ///
-    /// Recorded so EffectFunctional hydrate can map ATE → β_T as ATE/Δ.
+    /// Recorded so `EffectFunctional` hydrate can map `ATE → β_T` as `ATE/Δ`.
     /// `None` when the posterior is not an identity-link contrast (or the
     /// contrast was not available at fit time).
     pub treatment_contrast: Option<f64>,

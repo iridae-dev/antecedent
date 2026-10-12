@@ -66,7 +66,10 @@ pub fn pointwise_intervals_95(fit: &MsmSummary, subjects: usize) -> Option<MsmIn
 /// Fit one terminal-outcome row per subject; all histories are subject-major.
 ///
 /// `numerator` is the stabilizing treatment probability at each period.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "validate the histories, build the weighted design, solve, then form the sandwich covariance; the stages share the design and weights"
+)]
 pub fn fit_binary_msm(
     y: &[f64],
     histories: &SubjectHistories<'_>,

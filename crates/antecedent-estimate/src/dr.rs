@@ -305,7 +305,7 @@ impl DrLearner {
             assumptions,
             treat.validation.logloss,
             outcome_diag.r2,
-            raw_e.clone(),
+            raw_e,
         )?
         .with_cate(Some(Arc::from(cate.clone())))
         .with_cate_se(linear_cate_pointwise_se(

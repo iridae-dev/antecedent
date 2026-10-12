@@ -223,7 +223,7 @@ struct Tally {
     exposed_cases: usize,
 }
 
-#[allow(clippy::float_cmp)] // exact 0/1 coding is the contract; anything else is refused
+#[allow(clippy::float_cmp, reason = "exact 0/1 coding is the contract; anything else is refused")]
 fn binary(value: f64) -> Option<bool> {
     if value == 0.0 {
         Some(false)

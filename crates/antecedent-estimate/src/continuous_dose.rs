@@ -1,7 +1,7 @@
 //! Conditional continuous-dose response using supplied dose densities.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Value of a fixed baseline-group dose rule under a kernel-smoothed intervention.
 /// The target is the average response over the prespecified kernel window,
@@ -81,7 +81,10 @@ pub struct DoseWindow {
 /// group fractions are fixed at their observed values. Independent subjects,
 /// conditional exchangeability within the supplied groups, a correct known
 /// dose density, and local positivity are required for the pointwise intervals.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "per-group local fit of both rules in one loop that accumulates the shared support and weight diagnostics, then the interval assembly"
+)]
 pub fn fixed_dose_policy_value(
     rows: &DoseRows<'_>,
     rules: &DoseRules<'_>,
@@ -90,7 +93,6 @@ pub fn fixed_dose_policy_value(
     let DoseRows { outcome, dose, groups, density } = *rows;
     let DoseRules { policy, reference } = *rules;
     let DoseWindow { bandwidth, min_local_support, density_known } = *window;
-    use std::collections::BTreeMap;
     let n = outcome.len();
     if n < 2
         || dose.len() != n

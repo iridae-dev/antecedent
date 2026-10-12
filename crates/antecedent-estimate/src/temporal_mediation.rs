@@ -5,7 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(

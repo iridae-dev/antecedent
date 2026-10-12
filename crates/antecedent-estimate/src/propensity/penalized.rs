@@ -1046,13 +1046,13 @@ mod tests {
         let mut state = 17u64;
         let mut cols = [vec![1.0; n + nv], vec![0.0; n + nv], vec![0.0; n + nv]];
         let mut t = vec![0.0; n + nv];
-        for i in 0..n + nv {
+        for (i, slot) in t.iter_mut().enumerate() {
             let a = splitmix64_unit(&mut state) - 0.5;
             let b = splitmix64_unit(&mut state) - 0.5;
             cols[1][i] = a;
             cols[2][i] = b;
             let p = antecedent_kernels::sigmoid(2.0 * a - b);
-            t[i] = f64::from(u8::from(splitmix64_unit(&mut state) < p));
+            *slot = f64::from(u8::from(splitmix64_unit(&mut state) < p));
         }
         let design = |rows: std::ops::Range<usize>| -> Vec<f64> {
             [&cols[0], &cols[1], &cols[2], &cols[1]]

@@ -1,5 +1,3 @@
-#![allow(clippy::too_many_lines)]
-
 use super::gcomp::{add_modifier_mean_uncertainty, random_intercept_gls_whiten};
 use super::*;
 use crate::gcomp::GcompContrast;
@@ -554,6 +552,10 @@ fn temporal_prepared_design_conjugate_recovers_pulse() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "fixture, two posterior fits and the comparing assertions of one scenario"
+)]
 fn hierarchical_unit_effects_widen_posterior_vs_stacked() {
     use crate::adjustment::LinearAdjustmentAte;
     use antecedent_core::AverageEffectQuery;
@@ -744,9 +746,13 @@ fn unit_ids_length_mismatch_is_an_error() {
 }
 
 /// GLS whitening must not feed a
-/// Poisson likelihood. With unit_ids present, the fit must consume the raw
+/// Poisson likelihood. With `unit_ids` present, the fit must consume the raw
 /// count column (same posterior as stacked iid) and disclose the skip.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "fixture, fit and the assertions of one scenario, kept in a single test"
+)]
 fn poisson_random_intercept_does_not_consume_whitened_outcome() {
     use crate::adjustment::LinearAdjustmentAte;
     use antecedent_core::AverageEffectQuery;
@@ -1201,7 +1207,7 @@ fn bayesian_sustained_multi_step_conjugate_nominal_90_coverage() {
                 data: &data,
                 graph: &g,
                 indexer: &id_res.indexer,
-                estimand: estimand,
+                estimand,
             },
             &q,
             crate::temporal_sequential::SequentialInference {

@@ -539,7 +539,10 @@ impl JointTransportFit {
     /// Bind an internal measurement to the actual producing posterior construction.
     /// The private source scope was captured by the successful fit. This supplies
     /// no public interval, independently authenticated sampling design or activation.
-    #[allow(clippy::result_large_err)]
+    #[allow(
+        clippy::result_large_err,
+        reason = "the public refusal type is deliberately rich and part of the stable signature"
+    )]
     pub fn target_calibration_basis(
         &self,
         level: f64,
@@ -1085,8 +1088,10 @@ fn check_unit_ownership(sources: &[SourceData], target: &TargetData) -> Result<(
 ///
 /// # Errors
 /// `invalid_argument` / [`DETAIL_PRIOR_DATA_OVERLAP`] naming the shared snapshot or ids.
-// The public refusal type is deliberately rich; no caller or test depends on boxing it.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "the public refusal type is deliberately rich; no caller or test depends on boxing it"
+)]
 pub fn check_prior_data_overlap(
     priors: &JointPriors,
     sources: &[SourceData],
@@ -1340,9 +1345,10 @@ fn draw_joint(
 /// uncertified derivation, mismatched covariates, missing law or source, undeclared source
 /// dependence, prior/likelihood double use, prior or draw bounds, weak target overlap,
 /// singular data information, or cancellation.
-// The public refusal type is deliberately rich and part of the stable signature; the private
-// pipeline boxes it and this boundary unboxes it.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "the public refusal type is deliberately rich and part of the stable signature; the private pipeline boxes it and this boundary unboxes it"
+)]
 pub fn fit_joint_bayesian_transport(
     id: &TransportIdentification,
     model: &JointTransportModel,

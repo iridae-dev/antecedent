@@ -217,7 +217,10 @@ impl ConditionalLinearAdjustment {
     /// # Errors
     ///
     /// Empty modifiers or OLS failures.
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "validate the query, build the interaction design, fit, then derive the point, delta-method SE and influence from the same coefficients and inverse"
+    )]
     pub fn estimate_ate(
         &self,
         data: &TabularData,

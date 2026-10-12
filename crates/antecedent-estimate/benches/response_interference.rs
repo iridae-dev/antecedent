@@ -7,7 +7,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs)]
+#![allow(
+    missing_docs,
+    reason = "benchmark crate root: the criterion macros generate undocumented public items"
+)]
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};

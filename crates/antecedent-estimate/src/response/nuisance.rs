@@ -86,7 +86,10 @@ impl ContinuousResponseEstimator {
     /// first-fit pseudo-outcome. `None` is the unweighted estimator (weights of
     /// one, bit-identical). `folds` is [`Self::cross_fit_folds`] of `sample`,
     /// built once by a draw loop and shared by every draw.
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one cross-fitting pass: per fold, fit the outcome and treatment nuisances, then write the row pseudo-outcomes; the loop shares the reused buffers"
+    )]
     pub(super) fn cross_fitted_pseudo_outcome_weighted(
         &self,
         sample: &CompleteSample,

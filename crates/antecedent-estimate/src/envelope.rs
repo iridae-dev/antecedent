@@ -13,12 +13,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::neg_cmp_op_on_partial_ord,
-    clippy::needless_range_loop,
-    clippy::doc_markdown,
-    clippy::too_many_lines
-)]
 #![cfg_attr(
     test,
     allow(
@@ -58,7 +52,7 @@ pub struct EnvelopeOptions {
 pub struct GraphEffectDraws {
     /// Opaque key matching [`WeightedGraphSamples::graph_keys`].
     pub graph_key: u64,
-    /// Effect draws (length = n_draws).
+    /// Effect draws (length = `n_draws`).
     pub effect_draws: Arc<[f64]>,
 }
 
@@ -79,6 +73,10 @@ pub struct GraphEffectDraws {
 #[allow(
     clippy::cast_sign_loss,
     reason = "the product is a non-negative uniform draw in [0, 1) scaled by the draw count"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one aggregation: canonicalize atoms by graph key, build the mixture draws and exact moments, then assemble the envelope; the stages share the combined atoms"
 )]
 pub fn aggregate_effect_envelope(
     graphs: &WeightedGraphSamples,
@@ -401,7 +399,6 @@ const PSD_TOLERANCE: f64 = crate::util::CORRELATION_PSD_TOLERANCE;
 ///
 /// Empty or ragged draws, or a correlation that is the wrong size, asymmetric,
 /// off the unit diagonal, or not positive semidefinite.
-#[allow(clippy::many_single_char_names)]
 pub fn couple_mixture_functional_draws(
     atoms: &[(f64, &[f64])],
     correlation: &[f64],

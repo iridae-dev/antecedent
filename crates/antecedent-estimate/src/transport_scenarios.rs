@@ -430,7 +430,7 @@ fn compile_all(
 /// Provider identity of supplied exact laws.
 pub const SCENARIO_EXACT_PROVIDER: &str = "transport.exact_supplied_laws";
 
-#[allow(clippy::needless_pass_by_value)] // A `map_err` adapter.
+#[allow(clippy::needless_pass_by_value, reason = "A `map_err` adapter")]
 fn refuse_scenario(
     refusal: antecedent_identify::sid::scenarios::ScenarioSetRefusal,
 ) -> EstimationError {

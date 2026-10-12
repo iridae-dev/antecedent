@@ -153,6 +153,10 @@ pub struct SharedMediationBlockSe {
 ///
 /// Returns `None` when the atoms share no series time or `weights` do not align.
 #[must_use]
+#[allow(
+    clippy::too_many_lines,
+    reason = "window every atom's series, scan the block length, then bootstrap the mixture and probes; the stages share the windows and the family"
+)]
 pub fn shared_mediation_block_bootstrap(
     atoms: &[&PreparedTemporalMediation],
     weights: &[f64],
@@ -277,7 +281,6 @@ pub fn shared_mediation_block_bootstrap(
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use std::sync::Arc;
 

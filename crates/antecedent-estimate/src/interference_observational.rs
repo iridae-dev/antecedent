@@ -84,7 +84,10 @@ pub struct ObservationalExposureInterval {
 ///
 /// Refuses invalid dimensions, exposure levels, propensities, topology, empirical
 /// support, or fewer than two partial-interference clusters.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "validate the specification, compute exposures, then one pass accumulates the weighted sums, supports and cluster influence that the estimates read"
+)]
 pub fn estimate_observational_exposure(
     data: &NetworkData,
     outcome: antecedent_core::VariableId,

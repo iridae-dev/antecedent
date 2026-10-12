@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use std::sync::Arc;
 
 use antecedent_core::{AverageEffectQuery, PopulationRegistry, TargetPopulation, VariableId};
@@ -277,6 +275,10 @@ pub const fn default_propensity_overlap() -> OverlapPolicy {
 // ---------------------------------------------------------------------------------------------
 
 /// Prepare propensity inputs with optional named-predicate / distribution bindings.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one preparation: validate the query, mask rows, read the columns, resolve target weights and build the design; each step reads the same row mask"
+)]
 pub(crate) fn prepare_propensity_problem_with_registry(
     data: &TabularData,
     estimand: &IdentifiedEstimand,
@@ -377,16 +379,12 @@ pub(crate) fn prepare_propensity_problem_with_registry(
 
     let ncols = 1 + estimand.adjustment_set.len();
     let mut design = vec![0.0; nrows * ncols];
-    for r in 0..nrows {
-        design[r] = 1.0;
-    }
+    design[..nrows].fill(1.0);
     let mut covariate_cols: Vec<Arc<[f64]>> = Vec::with_capacity(estimand.adjustment_set.len());
     for (i, &z) in estimand.adjustment_set.iter().enumerate() {
         let col = data.float64_masked(z, &row_mask).map_err(EstimationError::from)?;
         let base = (1 + i) * nrows;
-        for r in 0..nrows {
-            design[base + r] = col[r];
-        }
+        design[base..base + nrows].copy_from_slice(&col[..nrows]);
         covariate_cols.push(Arc::from(col));
     }
 

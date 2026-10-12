@@ -224,7 +224,10 @@ impl LearnedJointFit {
     /// Actual source rows were captured during fitting; the full executed model
     /// identity includes basis, priors, source variances and sharing declaration.
     /// This supplies no public uncertainty activation or sampling-design authority.
-    #[allow(clippy::result_large_err)]
+    #[allow(
+        clippy::result_large_err,
+        reason = "the public refusal type is deliberately rich and part of the stable signature"
+    )]
     pub fn target_calibration_basis(
         &self,
         level: f64,
@@ -1023,9 +1026,10 @@ fn draw_joint(
 /// covariates, invalid basis, missing law or source, undeclared source dependence,
 /// prior/likelihood double use, prior or draw bounds, weak target overlap, a
 /// rank-deficient basis design, a failed learn fit, or cancellation.
-// The public refusal type is deliberately rich and part of the stable signature; the private
-// pipeline boxes it and this boundary unboxes it.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "the public refusal type is deliberately rich and part of the stable signature; the private pipeline boxes it and this boundary unboxes it"
+)]
 pub fn fit_learned_joint_transport(
     id: &TransportIdentification,
     model: &LearnedJointModel,

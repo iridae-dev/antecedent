@@ -1,7 +1,6 @@
 //! Retained adjusted regression: the fitted coefficients and covariance remain live;
 //! compatible contrasts and predictions perform no fitting.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::cast_precision_loss)]
 
 use crate::EstimationError;
 use crate::categorical_treatment::{

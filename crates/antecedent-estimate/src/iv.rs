@@ -31,7 +31,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::manual_memcpy, clippy::needless_range_loop)]
 #![cfg_attr(
     test,
     allow(
@@ -449,28 +448,20 @@ fn prepare_iv_problem(
 
     let z_ncols = 1 + estimand.instruments.len();
     let mut instruments_matrix = vec![0.0; nrows * z_ncols];
-    for r in 0..nrows {
-        instruments_matrix[r] = 1.0;
-    }
+    instruments_matrix[..nrows].fill(1.0);
     for (i, &z_id) in estimand.instruments.iter().enumerate() {
         let col = data.float64_masked(z_id, &row_mask).map_err(EstimationError::from)?;
         let base = (1 + i) * nrows;
-        for r in 0..nrows {
-            instruments_matrix[base + r] = col[r];
-        }
+        instruments_matrix[base..base + nrows].copy_from_slice(&col[..nrows]);
     }
 
     let x_ncols = 1 + estimand.adjustment_set.len();
     let mut exogenous_matrix = vec![0.0; nrows * x_ncols];
-    for r in 0..nrows {
-        exogenous_matrix[r] = 1.0;
-    }
+    exogenous_matrix[..nrows].fill(1.0);
     for (i, &x_id) in estimand.adjustment_set.iter().enumerate() {
         let col = data.float64_masked(x_id, &row_mask).map_err(EstimationError::from)?;
         let base = (1 + i) * nrows;
-        for r in 0..nrows {
-            exogenous_matrix[base + r] = col[r];
-        }
+        exogenous_matrix[base..base + nrows].copy_from_slice(&col[..nrows]);
     }
 
     Ok(PreparedIvProblem {

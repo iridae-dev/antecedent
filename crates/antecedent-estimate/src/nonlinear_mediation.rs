@@ -60,8 +60,10 @@ pub enum NonlinearMediationEstimand {
 
 /// Declared graph premises. Every field is a declaration by the caller; the estimator checks
 /// them and refuses when one is incompatible with natural-effect identification.
-// Independent declaration flags, not a state machine.
-#[allow(clippy::struct_excessive_bools)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "independent declaration flags, not a state machine"
+)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NonlinearMediationPremises {
     /// An unmeasured common cause of treatment and outcome is declared.

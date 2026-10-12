@@ -847,7 +847,7 @@ pub(crate) fn compile_exact_z_transport(
         ExactEvaluationSpec {
             arena: functional.arena(),
             root: functional.root(),
-            outcomes: functional.outcomes().clone().into(),
+            outcomes: functional.outcomes().clone(),
             request,
             limits,
             tolerance: LawTolerance::default(),
@@ -1036,7 +1036,7 @@ pub fn prepare_exact_transport(
         antecedent_expr::ExactEvaluationSpec {
             arena: functional.arena(),
             root: functional.root(),
-            outcomes: query.outcomes.clone().into(),
+            outcomes: query.outcomes.clone(),
             request,
             limits,
             tolerance: antecedent_expr::LawTolerance::default(),
@@ -1096,7 +1096,10 @@ mod tests {
 
     use super::*;
 
-    #[allow(clippy::too_many_lines)] // Central fixture wires the complete source catalog and law.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "central fixture wires the complete source catalog and law"
+    )]
     fn checked_z_fixture(
         empirical: bool,
     ) -> (antecedent_identify::BoundZTransportFunctional, ExactTransportData) {

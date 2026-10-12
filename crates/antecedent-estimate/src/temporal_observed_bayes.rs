@@ -9,12 +9,6 @@
 //! corrected pseudo-outcomes are treated as complete Gaussian data.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(
-    clippy::too_many_lines,
-    clippy::cast_possible_wrap,
-    clippy::doc_markdown,
-    clippy::needless_range_loop
-)]
 #![cfg_attr(
     test,
     allow(
@@ -526,6 +520,10 @@ impl Evaluation {
 #[allow(
     clippy::cast_possible_truncation,
     reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits; chain, warmup and per-chain iteration counts are sampler settings far below u32::MAX"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "validate the identification, build the observed mechanisms, then fit and summarize every horizon and dose from the same draws"
 )]
 pub fn estimate_observed_temporal_response(
     data: &TimeSeriesData,

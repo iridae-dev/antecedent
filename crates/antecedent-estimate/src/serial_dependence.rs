@@ -366,7 +366,10 @@ pub fn tempering_inestimable_from_notes(notes: &[Arc<str>]) -> bool {
 ///
 /// Rank-deficient design (the OLS residuals are undefined), a missing treatment
 /// column for [`DependenceScope::Treatment`], or a direction of the wrong length.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "build the candidate directions, factor each under the fitted residual model, then pick the driving combination; the stages share the fit and design"
+)]
 pub fn long_run_tempering_factor(
     design: &CompiledDesign,
     scope: &DependenceScope,

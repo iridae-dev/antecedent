@@ -47,8 +47,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -1105,6 +1103,10 @@ struct JointCellRows<'a> {
     adjustment: &'a [VariableId],
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "fit each cell's outcome nuisance under every ordering, then assemble the score table; the orderings share the fold plan and fitted nuisances"
+)]
 fn fit_with_nuisance(
     rows: &JointCellRows<'_>,
     orderings: &[Vec<usize>],

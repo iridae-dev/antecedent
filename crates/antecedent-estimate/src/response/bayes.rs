@@ -28,7 +28,10 @@ impl ContinuousResponseEstimator {
     /// Bayesian generalized-linear response levels, with posterior
     /// coefficient uncertainty propagated through every intervention coordinate.
     /// This estimator is parametric; it makes no doubly robust claim.
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one estimator over every response functional: validate, read the sample, fit, then summarize each grid point from the same draws"
+    )]
     pub fn estimate_bayesian(
         &self,
         data: &TabularData,
@@ -340,7 +343,10 @@ impl ContinuousResponseEstimator {
         })
     }
 
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one arm per derivative functional over the same fitted draws, each assembling its own estimand and provenance"
+    )]
     fn estimate_bayesian_derivative(
         &self,
         data: &TabularData,

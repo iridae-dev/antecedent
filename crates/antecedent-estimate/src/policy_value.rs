@@ -1,6 +1,8 @@
 //! Frozen-score doubly robust policy value utility.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::borrow::Cow;
+
 /// Result from evaluating one fixed policy and its reference.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PolicyValueScores {
@@ -687,39 +689,19 @@ pub fn evaluate_binary_ipw_policy(
     if propensity.len() != 1 && propensity.len() != n {
         return Err("propensity must have one value or one value per evaluation row");
     }
-    let reference_owned = if reference.is_none() { Some(vec![false; n]) } else { None };
-    let reference_rows = if let Some(reference) = reference {
-        reference
-    } else if let Some(reference) = reference_owned.as_deref() {
-        reference
-    } else {
-        &[]
-    };
+    let reference_rows = reference.map_or_else(|| Cow::Owned(vec![false; n]), Cow::Borrowed);
     if reference_rows.len() != n {
         return Err("reference policy length must match evaluation rows");
     }
-    let available_owned = if available.is_none() { Some(vec![true; n]) } else { None };
-    let available_rows = if let Some(available) = available {
-        available
-    } else if let Some(available) = available_owned.as_deref() {
-        available
-    } else {
-        &[]
-    };
+    let available_rows = available.map_or_else(|| Cow::Owned(vec![true; n]), Cow::Borrowed);
     if available_rows.len() != n {
         return Err("availability length must match evaluation rows");
     }
     if costs.len() != 1 && costs.len() != n {
         return Err("costs must be scalar or one value per row");
     }
-    let reference_costs_owned = if reference_costs.is_none() { Some(costs.to_vec()) } else { None };
-    let reference_cost_rows = if let Some(reference_costs) = reference_costs {
-        reference_costs
-    } else if let Some(reference_costs) = reference_costs_owned.as_deref() {
-        reference_costs
-    } else {
-        &[]
-    };
+    let reference_cost_rows =
+        reference_costs.map_or_else(|| Cow::Owned(costs.to_vec()), Cow::Borrowed);
     if reference_cost_rows.len() != 1 && reference_cost_rows.len() != n {
         return Err("reference_costs must be scalar or one value per row");
     }
@@ -761,12 +743,12 @@ pub fn evaluate_binary_ipw_policy(
     if budget.is_some_and(|limit| total_cost > limit) {
         return Err("policy exceeds the declared treatment budget");
     }
-    let reference_total_cost = assigned_cost(reference_rows, reference_cost_rows);
+    let reference_total_cost = assigned_cost(&reference_rows, &reference_cost_rows);
     if reference_budget.is_some_and(|limit| reference_total_cost > limit) {
         return Err("reference policy exceeds the declared treatment budget");
     }
     let policy_value = binary_ipw_value(outcome, assignment, actions, propensity)?;
-    let reference_value = binary_ipw_value(outcome, assignment, reference_rows, propensity)?;
+    let reference_value = binary_ipw_value(outcome, assignment, &reference_rows, propensity)?;
     let policy_net = policy_value - total_cost / n as f64;
     let reference_net = reference_value - reference_total_cost / n as f64;
     Ok(BinaryIpwPolicy {
@@ -868,37 +850,16 @@ pub fn evaluate_multi_action_ipw_policy(
             return Err("each action propensity must be positive and rows must sum to one");
         }
     }
-    let reference_owned = if reference.is_none() { Some(vec![0; n]) } else { None };
-    let reference_rows = if let Some(reference) = reference {
-        reference
-    } else if let Some(reference) = reference_owned.as_deref() {
-        reference
-    } else {
-        &[]
-    };
+    let reference_rows = reference.map_or_else(|| Cow::Owned(vec![0; n]), Cow::Borrowed);
     if reference_rows.len() != n || reference_rows.iter().any(|&a| a >= action_count) {
         return Err("reference action indexes are invalid");
     }
-    let costs_owned = if costs.is_none() { Some(vec![0.0; action_count]) } else { None };
-    let cost_rows = if let Some(costs) = costs {
-        costs
-    } else if let Some(costs) = costs_owned.as_deref() {
-        costs
-    } else {
-        &[]
-    };
+    let cost_rows = costs.map_or_else(|| Cow::Owned(vec![0.0; action_count]), Cow::Borrowed);
     if cost_rows.len() != action_count || cost_rows.iter().any(|c| !c.is_finite() || *c < 0.0) {
         return Err("costs must contain one finite non-negative value per action");
     }
-    let reference_costs_owned =
-        if reference_costs.is_none() { Some(cost_rows.to_vec()) } else { None };
-    let reference_cost_rows = if let Some(reference_costs) = reference_costs {
-        reference_costs
-    } else if let Some(reference_costs) = reference_costs_owned.as_deref() {
-        reference_costs
-    } else {
-        &[]
-    };
+    let reference_cost_rows =
+        reference_costs.map_or_else(|| Cow::Owned(cost_rows.to_vec()), Cow::Borrowed);
     if reference_cost_rows.len() != action_count
         || reference_cost_rows.iter().any(|c| !c.is_finite() || *c < 0.0)
     {
@@ -911,38 +872,17 @@ pub fn evaluate_multi_action_ipw_policy(
     {
         return Err("budgets must be finite and non-negative");
     }
-    let available_owned =
-        if available.is_none() { Some(vec![vec![true; action_count]; n]) } else { None };
-    let available_rows = if let Some(available) = available {
-        available
-    } else if let Some(available) = available_owned.as_deref() {
-        available
-    } else {
-        &[]
-    };
+    let available_rows =
+        available.map_or_else(|| Cow::Owned(vec![vec![true; action_count]; n]), Cow::Borrowed);
     if available_rows.len() != n || available_rows.iter().any(|row| row.len() != action_count) {
         return Err("availability must have one bool per row and action");
     }
-    let capacities_owned = if capacities.is_none() { Some(vec![n; action_count]) } else { None };
-    let capacity_rows = if let Some(capacities) = capacities {
-        capacities
-    } else if let Some(capacities) = capacities_owned.as_deref() {
-        capacities
-    } else {
-        &[]
-    };
+    let capacity_rows = capacities.map_or_else(|| Cow::Owned(vec![n; action_count]), Cow::Borrowed);
     if capacity_rows.len() != action_count {
         return Err("capacities must contain one limit per action");
     }
-    let reference_capacities_owned =
-        if reference_capacities.is_none() { Some(vec![n; action_count]) } else { None };
-    let reference_capacity_rows = if let Some(reference_capacities) = reference_capacities {
-        reference_capacities
-    } else if let Some(reference_capacities) = reference_capacities_owned.as_deref() {
-        reference_capacities
-    } else {
-        &[]
-    };
+    let reference_capacity_rows =
+        reference_capacities.map_or_else(|| Cow::Owned(vec![n; action_count]), Cow::Borrowed);
     if reference_capacity_rows.len() != action_count {
         return Err("reference_capacities must contain one limit per action");
     }
@@ -968,11 +908,11 @@ pub fn evaluate_multi_action_ipw_policy(
         }
         Ok((total_cost, counts.iter().skip(1).sum()))
     };
-    let (policy_cost, non_control) = validate_policy(actions, capacity_rows, cost_rows, budget)?;
+    let (policy_cost, non_control) = validate_policy(actions, &capacity_rows, &cost_rows, budget)?;
     let (reference_cost, _) = validate_policy(
-        reference_rows,
-        reference_capacity_rows,
-        reference_cost_rows,
+        &reference_rows,
+        &reference_capacity_rows,
+        &reference_cost_rows,
         reference_budget,
     )?;
     let value = |policy: &[usize]| -> Result<f64, &'static str> {
@@ -985,7 +925,7 @@ pub fn evaluate_multi_action_ipw_policy(
         Ok(sum / n as f64)
     };
     let policy_value = value(actions)? - policy_cost / n as f64;
-    let reference_value = value(reference_rows)? - reference_cost / n as f64;
+    let reference_value = value(&reference_rows)? - reference_cost / n as f64;
     Ok(MultiActionIpwPolicy {
         policy_value,
         reference_value,
@@ -1056,7 +996,10 @@ mod tests {
     use super::*;
 
     #[test]
-    #[allow(clippy::too_many_lines)] // one end-to-end estimator fixture; splitting would fragment the flow
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one end-to-end estimator fixture; splitting would fragment the flow"
+    )]
     fn fixed_multi_action_cate_intervals_cover_group_truth_and_refuse_weak_support() {
         use std::sync::Arc;
         const PER_GROUP: usize = 300;

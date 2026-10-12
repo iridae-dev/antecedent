@@ -1,6 +1,5 @@
 //! Static additive-linear natural mediation on an identified DAG.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::needless_pass_by_value, clippy::too_many_lines, clippy::type_complexity)]
 #![cfg_attr(
     test,
     allow(
@@ -39,7 +38,6 @@ use std::sync::Arc;
 ///
 /// # Errors
 /// Invalid query/data, unsupported population, singular regression, cancellation.
-#[allow(clippy::too_many_lines)]
 #[allow(
     clippy::cast_possible_truncation,
     reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
@@ -286,6 +284,10 @@ pub fn estimate_static_mediation_bayesian_outcome_prior(
     )
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "hydrate every mechanism prior, then draw and assemble the effect, total, direct and mediated posteriors from the same mechanism fits"
+)]
 fn estimate_static_mediation_bayesian_impl(
     problem: &StaticMediationProblem<'_>,
     assumptions: AssumptionSet,
@@ -309,7 +311,7 @@ fn estimate_static_mediation_bayesian_impl(
             "mapped Bayesian mediation priors require outcome-mechanism scope; use the outcome-prior entry point so shared coefficient names cannot hydrate multiple mechanisms",
         ));
     }
-    let point = estimate_static_mediation(data, graph, query, assumptions.clone(), 0, extra, ctx)?;
+    let point = estimate_static_mediation(data, graph, query, assumptions, 0, extra, ctx)?;
     query.validate()?;
     let MediationRows { delta, order, columns, extras, rows } =
         MediationRows::new(data, graph, query, extra)?;
@@ -912,7 +914,6 @@ mod tests {
 
     /// `w`, `t` independent; `m = 0.6 t + 0.5 w + e`, `y = 0.4 t + 0.5 m + 0.7 w + e`.
     /// `w` confounds the mediator-outcome relation but not `t -> y`.
-    #[allow(clippy::many_single_char_names)]
     fn confounded_mediator(n: usize) -> TabularData {
         let mut rng =
             ExecutionContext::for_tests(5).rng.stream_for(StreamDomain::Estimate, 0x0057_A71C);

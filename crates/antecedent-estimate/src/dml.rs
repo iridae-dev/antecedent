@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_pass_by_value, clippy::needless_range_loop, clippy::too_many_lines)]
-
 use std::sync::Arc;
 
 use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation};
@@ -231,7 +229,7 @@ impl DmlAte {
             assumptions,
             treat.validation.logloss,
             outcome_diag.r2,
-            raw_e.clone(),
+            raw_e,
         )?;
         if scores_retargetable(problem) {
             effect = effect.with_score_table(Some(aipw_score_table(
@@ -426,13 +424,13 @@ pub(crate) fn finish_dml(
     assumptions: AssumptionSet,
     treat_logloss: Option<f64>,
     outcome_r2: Option<f64>,
-    raw_e: Vec<f64>,
+    raw_e: &[f64],
 ) -> Result<EffectEstimate, EstimationError> {
     let n = phi.len();
     if n < 2 || raw_e.len() != n || phi.iter().any(|p| !p.is_finite()) {
         return Err(EstimationError::data_msg("DML requires at least two finite, aligned scores"));
     }
-    let retained = trim_retained_rows(&raw_e, trim_of(problem.overlap))?;
+    let retained = trim_retained_rows(raw_e, trim_of(problem.overlap))?;
     let rows: Vec<usize> = retained.unwrap_or_else(|| (0..n).collect());
     let kept = rows.len();
     if kept < 2 {
@@ -446,7 +444,7 @@ pub(crate) fn finish_dml(
     }
     let se = iid_se(&influence);
     let report = OverlapReport::from_propensities(
-        &raw_e,
+        raw_e,
         None,
         problem.overlap,
         Some(problem.treatment.as_ref()),
@@ -639,6 +637,10 @@ mod tests {
         clippy::cast_possible_truncation,
         reason = "the value is (i / 2) % 5, at most 4; fold ids are at most 4"
     )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "fixture, two fits and the comparing assertions of one scenario"
+    )]
     fn cached_oof_reuses_predictions_and_invalidates_changed_input() {
         let (t, y, z) = confounded_columns(120, 12);
         let (data, estimand) = build_dataset(t, y, z);
@@ -768,7 +770,7 @@ mod tests {
             AssumptionSet::new(),
             None,
             None,
-            vec![0.01, 0.3, 0.7, 0.99],
+            &[0.01, 0.3, 0.7, 0.99],
         )
         .unwrap();
         assert!((effect.ate - 2.0).abs() < 1e-12);

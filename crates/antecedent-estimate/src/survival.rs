@@ -439,7 +439,10 @@ pub fn randomized_survival_summary(
 /// Returns an error for misaligned rows or times, invalid event codes, absent
 /// arm support through `tau`, or censoring probabilities that violate the
 /// declared positivity and monotonicity contract.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "validate the rows, then per arm build the censoring-weighted curve and risk-set diagnostics that the contrast reads"
+)]
 pub fn randomized_survival_ipcw_summary(
     rows: &SurvivalRows<'_>,
     censoring: &KnownCensoring<'_>,
@@ -706,6 +709,10 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fixture exercised end to end: build the arms, bootstrap twice for determinism, then refuse thin arms"
+    )]
     fn subject_bootstrap_known_truth_deterministic_and_refuses_thin_arms() {
         let mut durations = vec![3.0; 80];
         let mut events = vec![0; 80];

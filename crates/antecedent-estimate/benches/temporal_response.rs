@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs)]
+#![allow(
+    missing_docs,
+    reason = "benchmark crate root: the criterion macros generate undocumented public items"
+)]
 #![allow(
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -182,7 +185,10 @@ fn wide_bayesian_series(
     (data, query, estimand, indexer)
 }
 
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one benchmark group declaring every case and its budget in sequence"
+)]
 fn bench_temporal_response(c: &mut Criterion) {
     // Soft budgets (temporal_response.md); 2× headroom for gate `--test` noise on the
     // optimized `cargo bench` profile. This crate is not one of the `[profile.dev.package.*]`

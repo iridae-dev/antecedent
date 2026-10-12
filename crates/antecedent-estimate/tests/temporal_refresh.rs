@@ -43,8 +43,10 @@ fn replacement() -> TemporalWindowIdentity {
 }
 
 /// Deterministic evaluator: the mean outcome of the snapshot named by the identity.
-// `refresh_held` requires an evaluator returning `Result`; this one cannot fail.
-#[allow(clippy::unnecessary_wraps)]
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "`refresh_held` requires an evaluator returning `Result`; this one cannot fail"
+)]
 fn evaluate(id: &TemporalWindowIdentity) -> Result<f64, EstimationError> {
     let outcomes: &[f64] = match id.snapshot_id.as_str() {
         "snap_old" => &[1.0, 2.0, 4.0],

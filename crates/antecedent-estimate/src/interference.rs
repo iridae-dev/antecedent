@@ -241,7 +241,10 @@ pub fn estimate_cluster_interference_total(
 /// least eight independent clusters occur in each assignment arm. Thin-arm
 /// designs retain their point estimate but withhold interval inference.
 // length reflects the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "validate the design, form cluster totals, then the contrast, variance and interval from the same totals"
+)]
 pub fn estimate_cluster_interference_total_with_inference(
     query: &InterferenceQuery,
     data: &NetworkData,

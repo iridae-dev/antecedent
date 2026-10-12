@@ -7,7 +7,7 @@
 //! rendering of the same formula.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(dead_code)]
+#![allow(dead_code, reason = "shared by several test binaries, each of which uses a subset")]
 
 use std::sync::Arc;
 

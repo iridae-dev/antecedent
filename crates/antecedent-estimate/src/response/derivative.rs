@@ -24,7 +24,10 @@ use super::{
 };
 
 impl ContinuousResponseEstimator {
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "local fit, bias-corrected coordinate, then the delta-method and Fieller interval choice; the stages share the local influence"
+    )]
     pub(super) fn point_derivative(
         &self,
         data: &TabularData,

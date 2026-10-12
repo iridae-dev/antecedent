@@ -5,7 +5,11 @@
 //!
 //! Numbering: `X_i = i` (`0..k`), `O_j = k + j`, `R_i = k + m + i`,
 //! `X*_i = 2k + m + i`.
-#![allow(dead_code, clippy::unused_self)]
+#![allow(
+    dead_code,
+    clippy::unused_self,
+    reason = "shared by several test binaries, each of which uses a subset; the model methods keep one receiver shape"
+)]
 #![allow(clippy::cast_possible_truncation, reason = "node counts are at most 11")]
 
 use std::collections::BTreeMap;

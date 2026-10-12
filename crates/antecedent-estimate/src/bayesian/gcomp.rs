@@ -1,7 +1,5 @@
 //! Bayesian g-computation estimator, prepared problem, and fit phases.
 
-#![allow(clippy::needless_range_loop, clippy::needless_pass_by_value, clippy::doc_markdown)]
-
 use std::sync::Arc;
 
 use antecedent_core::IdentificationStatus;
@@ -79,13 +77,13 @@ pub enum BayesianBackendKind {
 pub struct BayesianGComputationAte {
     /// Backend kind.
     pub backend: BayesianBackendKind,
-    /// Likelihood (Laplace); conjugate forces GaussianIdentity.
+    /// Likelihood (Laplace); conjugate forces `GaussianIdentity`.
     pub likelihood: BayesLikelihood,
     /// Draw count.
     pub n_draws: usize,
     /// RNG seed.
     pub seed: u64,
-    /// Overlap policy (must be ExplicitOverride).
+    /// Overlap policy (must be `ExplicitOverride`).
     pub overlap: OverlapPolicy,
     /// Prior scale for isotropic Gaussian coefficients (weakly informative default 10).
     pub prior_scale: f64,

@@ -18,7 +18,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::manual_memcpy, clippy::needless_pass_by_value)]
 #![cfg_attr(
     test,
     allow(

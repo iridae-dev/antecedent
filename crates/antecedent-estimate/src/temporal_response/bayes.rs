@@ -29,7 +29,10 @@ use super::{
 impl TemporalResponseEstimator {
     /// Bayesian Gaussian linear-additive response on the identified unfolded
     /// design at each horizon. Intervals are pointwise posterior quantiles.
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "validate the identifications, fit each horizon, then pair the draws across horizons to summarize every dose cell"
+    )]
     pub fn estimate_bayesian(
         &self,
         data: &TimeSeriesData,

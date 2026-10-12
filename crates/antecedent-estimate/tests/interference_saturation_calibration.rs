@@ -43,8 +43,10 @@ struct Contrast {
 }
 
 #[test]
-// length reflects the calibration protocol; refactor would change the simulation
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the length is the calibration protocol; splitting it would change the simulation"
+)]
 fn saturation_pointwise_intervals_cover_effects_across_neighbor_mappings() {
     let contrasts = [
         Contrast { mapping: ExposureMapping::NeighborFraction, from: (0.0, 0.5), to: (1.0, 0.5) },

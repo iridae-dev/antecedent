@@ -442,7 +442,7 @@ pub fn execute(r: &ArrivalRequest, ctx: &ExecutionContext) -> Result<ArrivalPoin
             ExactEvaluationSpec {
                 arena: &arena,
                 root,
-                outcomes: outcomes.clone().into(),
+                outcomes: outcomes.clone(),
                 request,
                 limits: ExactEvaluationLimits { operations: r.operations, depth: r.depth },
                 tolerance: LawTolerance::default(),

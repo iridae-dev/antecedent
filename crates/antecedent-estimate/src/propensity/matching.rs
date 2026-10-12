@@ -12,8 +12,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, clippy::type_complexity)]
-
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
 };
@@ -332,6 +330,16 @@ pub(crate) struct MatchingSample<'a> {
     pub(crate) distance: MatchingDistance,
 }
 
+/// The differences and the donor and query rows of one matching pass.
+pub(crate) struct MatchedDiffs {
+    /// Bias-corrected `query_y[q] − donor_y[matched]`, one per matched query.
+    pub(crate) diffs: Vec<f64>,
+    /// Local donor index used by each matched query (for `Kᵢ`).
+    pub(crate) donors: Vec<usize>,
+    /// Local index of each matched query.
+    pub(crate) queries: Vec<usize>,
+}
+
 /// Match each `query` row to its nearest `donor` row; returns bias-corrected
 /// `query_y[q] − donor_y[matched]` and the local donor indices used (for `Kᵢ`).
 ///
@@ -344,7 +352,7 @@ pub(crate) fn match_diffs(
     distance: MatchingDistance,
     caliper: Option<f64>,
     workspace: &mut PropensityEstimationWorkspace,
-) -> Result<(Vec<f64>, Vec<usize>, Vec<usize>), EstimationError> {
+) -> Result<MatchedDiffs, EstimationError> {
     let MatchSide { features: donor_features, outcome: donor_outcome } = donors;
     let MatchSide { features: query_features, outcome: query_outcome } = queries;
     let n_donors = donor_outcome.len();
@@ -388,7 +396,7 @@ pub(crate) fn match_diffs(
     }
     workspace.matching_donor_rows = donor_rows;
     workspace.matching_distances = distances;
-    Ok((diffs, used_donors, used_queries))
+    Ok(MatchedDiffs { diffs, donors: used_donors, queries: used_queries })
 }
 
 #[derive(Debug)]
@@ -403,6 +411,10 @@ pub(crate) struct MatchedEstimate {
 ///
 /// ATT matches treated→nearest control; ATC matches control→nearest treated (sign-flipped);
 /// ATE pools both directions' per-unit imputed effects (Abadie–Imbens style).
+#[allow(
+    clippy::too_many_lines,
+    reason = "split by arm, match, then form the point, Abadie-Imbens variance and standard error from the same donor usage"
+)]
 pub(crate) fn matching_contrast(
     sample: MatchingSample<'_>,
     target: &TargetPopulation,
@@ -449,7 +461,7 @@ pub(crate) fn matching_contrast(
         Vec<usize>,
     ) = match target {
         TargetPopulation::Treated => {
-            let (diffs, donors, q_local) = match_diffs(
+            let MatchedDiffs { diffs, donors, queries: q_local } = match_diffs(
                 MatchSide { features: &control_feat, outcome: &control_y },
                 MatchSide { features: &treated_feat, outcome: &treated_y },
                 dim,
@@ -461,7 +473,7 @@ pub(crate) fn matching_contrast(
             (diffs, donors, control_y.len(), rows)
         }
         TargetPopulation::Untreated => {
-            let (diffs, donors, q_local) = match_diffs(
+            let MatchedDiffs { diffs, donors, queries: q_local } = match_diffs(
                 MatchSide { features: &treated_feat, outcome: &treated_y },
                 MatchSide { features: &control_feat, outcome: &control_y },
                 dim,
@@ -476,15 +488,16 @@ pub(crate) fn matching_contrast(
         TargetPopulation::AllObserved
         | TargetPopulation::Predicate(_)
         | TargetPopulation::CustomDistribution(_) => {
-            let (att_diffs, att_donors, att_q) = match_diffs(
-                MatchSide { features: &control_feat, outcome: &control_y },
-                MatchSide { features: &treated_feat, outcome: &treated_y },
-                dim,
-                distance,
-                caliper,
-                workspace,
-            )?;
-            let (atc_raw, atc_donors, atc_q) = match_diffs(
+            let MatchedDiffs { diffs: att_diffs, donors: att_donors, queries: att_q } =
+                match_diffs(
+                    MatchSide { features: &control_feat, outcome: &control_y },
+                    MatchSide { features: &treated_feat, outcome: &treated_y },
+                    dim,
+                    distance,
+                    caliper,
+                    workspace,
+                )?;
+            let MatchedDiffs { diffs: atc_raw, donors: atc_donors, queries: atc_q } = match_diffs(
                 MatchSide { features: &treated_feat, outcome: &treated_y },
                 MatchSide { features: &control_feat, outcome: &control_y },
                 dim,
@@ -1047,7 +1060,7 @@ mod tests {
         let raw_donors = donor_probs.clone();
         let raw_queries = query_probs.clone();
         let mut ws_raw = PropensityEstimationWorkspace::default();
-        let (raw_diffs, _, _) = match_diffs(
+        let MatchedDiffs { diffs: raw_diffs, .. } = match_diffs(
             MatchSide { features: &raw_donors, outcome: &donor_y },
             MatchSide { features: &raw_queries, outcome: &query_y },
             1,
@@ -1060,7 +1073,7 @@ mod tests {
         let logit_donors = logit(&donor_probs);
         let logit_queries = logit(&query_probs);
         let mut ws_logit = PropensityEstimationWorkspace::default();
-        let (logit_diffs, _, _) = match_diffs(
+        let MatchedDiffs { diffs: logit_diffs, .. } = match_diffs(
             MatchSide { features: &logit_donors, outcome: &donor_y },
             MatchSide { features: &logit_queries, outcome: &query_y },
             1,

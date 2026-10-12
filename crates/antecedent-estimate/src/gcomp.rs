@@ -40,8 +40,7 @@ impl GcompContrast<'_> {
     pub fn row_contrast(&self, coefficients: &[f64], row: usize) -> f64 {
         let mut eta_active = 0.0;
         let mut eta_control = 0.0;
-        for c in 0..self.ncols {
-            let coef = coefficients[c];
+        for (c, &coef) in coefficients.iter().enumerate().take(self.ncols) {
             if c == self.t_col {
                 eta_active += self.active * coef;
                 eta_control += self.control * coef;
@@ -68,11 +67,11 @@ impl GcompContrast<'_> {
         let mut sum = 0.0;
         for r in 0..self.nrows {
             let mut eta = 0.0;
-            for c in 0..self.ncols {
+            for (c, &b) in beta.iter().enumerate().take(self.ncols) {
                 if c == self.t_col {
                     continue;
                 }
-                eta += self.x_colmajor[c * self.nrows + r] * beta[c];
+                eta += self.x_colmajor[c * self.nrows + r] * b;
             }
             sum += self.family.mean_from_eta(eta + beta_t * self.active)
                 - self.family.mean_from_eta(eta + beta_t * self.control);

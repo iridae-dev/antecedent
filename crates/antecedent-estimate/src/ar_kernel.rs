@@ -31,8 +31,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-
 /// Largest absolute autoregressive coefficient a fit reports (Andrews & Monahan 1992 cap
 /// the AR(1) coefficient the same way, so a near-unit-root score cannot make the model
 /// long-run variance unbounded).

@@ -123,12 +123,9 @@ impl CompleteSample {
 
     pub(super) fn write_raw_row(&self, row: usize, out: &mut [f64]) {
         debug_assert_eq!(out.len(), self.raw_cols);
-        // Column-major treatment/adjustment layouts: index by col deliberately.
-        #[allow(clippy::needless_range_loop)]
-        for col in 0..self.treatment_cols {
-            out[col] = self.treatment_matrix[col * self.len() + row];
+        for (col, slot) in out.iter_mut().enumerate().take(self.treatment_cols) {
+            *slot = self.treatment_matrix[col * self.len() + row];
         }
-        #[allow(clippy::needless_range_loop)]
         for col in 0..self.adjustment_cols {
             out[self.treatment_cols + col] = self.adjustment[col * self.len() + row];
         }
@@ -136,9 +133,8 @@ impl CompleteSample {
 
     pub(super) fn write_adjustment_row(&self, row: usize, out: &mut [f64]) {
         debug_assert_eq!(out.len(), self.adjustment_cols);
-        #[allow(clippy::needless_range_loop)]
-        for col in 0..self.adjustment_cols {
-            out[col] = self.adjustment[col * self.len() + row];
+        for (col, slot) in out.iter_mut().enumerate().take(self.adjustment_cols) {
+            *slot = self.adjustment[col * self.len() + row];
         }
     }
 

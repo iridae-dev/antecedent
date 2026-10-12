@@ -23,7 +23,10 @@ use super::{
 };
 
 impl ContinuousResponseEstimator {
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "pseudo-outcome, local fit and influence per grid point, then the interval; the grid loop writes the shared influence buffer in place"
+    )]
     pub(super) fn mean_curve(
         &self,
         data: &TabularData,

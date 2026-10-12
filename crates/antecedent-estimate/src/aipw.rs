@@ -46,7 +46,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
 #![cfg_attr(
     test,
     allow(
@@ -74,7 +73,7 @@ use antecedent_stats::{
 use crate::adjustment::EffectEstimate;
 use crate::cluster_dml_aipw::ClusterDml;
 use crate::error::EstimationError;
-use crate::overlap::{IpwTarget, OverlapPolicy};
+use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
 use crate::propensity::{
     PenalizedReport, PenalizedVarianceReport, PreparedPropensityProblem, PropensityModel,
     PropensityNuisance, REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePenalties, clamp_scores,
@@ -745,7 +744,10 @@ impl AipwAte {
         Ok(point.with_bootstrap(Some(boot)))
     }
 
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one point fit in order: check the route, fit the propensity, trim, fit both outcome arms, then score and assemble; every stage reads the retained rows"
+    )]
     fn fit_point(
         &self,
         problem: &PreparedPropensityProblem,
@@ -1006,18 +1008,7 @@ impl AipwAte {
                 None,
             )?
         };
-        let e_hat =
-            table.columns.iter().position(|c| c.arm == 1 && c.threshold.is_none()).and_then(
-                |col| table.propensities.get(col * table.n_rows..(col + 1) * table.n_rows),
-            );
-        let overlap_report = e_hat.map(|scores| {
-            crate::propensity::propensity_overlap_report(
-                problem,
-                scores,
-                None,
-                IpwTarget::from_population(&problem.target_population).ok(),
-            )
-        });
+        let overlap_report = treated_arm_overlap_report(&table, problem);
         // Whole-cluster folds: the sandwich standard error of the same scores, under the declared
         // independence unit (`docs/guides/clustered-dml.md`).
         let cluster_se = match (self.cluster_dml, self.cluster_ids.as_deref()) {
@@ -1158,7 +1149,6 @@ impl AipwAte {
     /// record replays from the seed under any thread count. A replicate that fails softly
     /// (a fold missing an arm, a failed fit, a boundary propensity) is counted, never
     /// replaced; a cancelled one stops the loop and is reported as a stop.
-    #[allow(clippy::too_many_lines)]
     fn attach_penalized_bootstrap(
         &self,
         problem: &PreparedPropensityProblem,
@@ -1661,6 +1651,24 @@ struct AipwNuisanceFit<'a> {
     mu1: &'a [f64],
     design: &'a [f64],
     ncols: usize,
+}
+
+/// Overlap report of the treated arm's cross-fitted propensities, when the table carries one.
+fn treated_arm_overlap_report(
+    table: &crate::scores::ScoreTable,
+    problem: &PreparedPropensityProblem,
+) -> Option<OverlapReport> {
+    let e_hat = table
+        .columns
+        .iter()
+        .position(|c| c.arm == 1 && c.threshold.is_none())
+        .and_then(|col| table.propensities.get(col * table.n_rows..(col + 1) * table.n_rows))?;
+    Some(crate::propensity::propensity_overlap_report(
+        problem,
+        e_hat,
+        None,
+        IpwTarget::from_population(&problem.target_population).ok(),
+    ))
 }
 
 #[cfg(test)]

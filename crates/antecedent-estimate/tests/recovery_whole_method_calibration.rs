@@ -20,7 +20,7 @@ use antecedent_identify::{RECOVERY_RULE_VERSION, RecoveredEffectQuery, RecoveryL
 use calibration::{CoverageTally, RecordKey, grid_n, grid_seed, map_replicates, n_sim};
 use std::sync::Arc;
 use support::recovery_scm::{MModel, SNAPSHOT, v};
-/// The rule-version token the original BCa measurement was recorded under. The
+/// The rule-version token the original `BCa` measurement was recorded under. The
 /// registry row is immutable measurement evidence, so the token is a literal of
 /// that record, not a spelling any current producer or consumer accepts.
 const ORIGINAL_MEASUREMENT_RULE_TOKEN: &str = "x10.recovery.v1";
@@ -59,6 +59,10 @@ fn input(n: usize, seed: u64) -> SampledObservationInput {
 /// Ordinary identity proof using the exact original calibration construction;
 /// no coverage tally, simulation grid or statistical measurement is performed.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one receipt: build the original construction, run it, then compare every recorded field"
+)]
 fn recovery_bca_original_measurement_identity_receipt() {
     let seed = 0x46ab_0000;
     let ctx = ExecutionContext::for_tests(seed);

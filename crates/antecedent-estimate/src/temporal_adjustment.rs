@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_wrap)]
 #![cfg_attr(
     test,
     allow(
@@ -198,7 +197,10 @@ impl TemporalLinearAdjustment {
         )
     }
 
-    #[allow(clippy::too_many_lines, clippy::trivially_copy_pass_by_ref)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "resolve lag-aligned columns, prepare the sample, then split and gather the design inputs; every step reads the same aligned row range"
+    )]
     fn prepare_aligned_with_extras(
         &self,
         inputs: &TemporalDesignInputs<'_>,
@@ -699,6 +701,43 @@ fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {
     Ok(Lag::from_raw(lag))
 }
 
+/// Posterior-mean coefficients under an isotropic Gaussian prior of standard
+/// deviation `scale` on every non-intercept column, using the least-squares
+/// residual variance of `ols_coef` as a plug-in. Solved as the ridge-augmented
+/// least-squares problem; the intercept column (the first) is unpenalized.
+fn slope_ridge_coefficients(
+    design: &[f64],
+    n: usize,
+    ncols: usize,
+    y: &[f64],
+    ols_coef: &[f64],
+    scale: f64,
+    invalid_scale: &'static str,
+) -> Result<Vec<f64>, EstimationError> {
+    if !(scale.is_finite() && scale > 0.0) {
+        return Err(EstimationError::unsupported(invalid_scale));
+    }
+    let sigma2 = crate::util::ols_sigma2(design, n, ncols, y, ols_coef).max(1e-12);
+    let penalty = sigma2 / (scale * scale);
+    let aug_n = n + (ncols - 1);
+    let mut aug_x = vec![0.0; aug_n * ncols];
+    let mut aug_y = vec![0.0; aug_n];
+    for col in 0..ncols {
+        aug_x[col * aug_n..col * aug_n + n].copy_from_slice(&design[col * n..(col + 1) * n]);
+    }
+    aug_y[..n].copy_from_slice(y);
+    let root = penalty.sqrt();
+    for col in 1..ncols {
+        let row = n + col - 1;
+        aug_x[col * aug_n + row] = root;
+    }
+    let mut aug_ws = antecedent_stats::LeastSquaresWorkspace::default();
+    Ok(antecedent_stats::FaerBackend
+        .least_squares(&aug_x, aug_n, ncols, &aug_y, &mut aug_ws)
+        .map_err(crate::util::stats_err)?
+        .coefficients)
+}
+
 /// Marginal temporal conditional effect for one modifier.
 ///
 /// The unfolded regression is `Y ~ 1 + T + W + T×W + Z`. The published point is
@@ -802,30 +841,15 @@ pub fn temporal_conditional_marginal_effect(
         .map_err(crate::util::stats_err)?;
     let mut coef = fit.coefficients;
     if let Some(scale) = prior_scale {
-        if !(scale.is_finite() && scale > 0.0) {
-            return Err(EstimationError::unsupported(
-                "temporal conditional prior scale must be finite and positive",
-            ));
-        }
-        let sigma2 = crate::util::ols_sigma2(&design, n, ncols, y, &coef).max(1e-12);
-        let penalty = sigma2 / (scale * scale);
-        let aug_n = n + (ncols - 1);
-        let mut aug_x = vec![0.0; aug_n * ncols];
-        let mut aug_y = vec![0.0; aug_n];
-        for col in 0..ncols {
-            aug_x[col * aug_n..col * aug_n + n].copy_from_slice(&design[col * n..(col + 1) * n]);
-        }
-        aug_y[..n].copy_from_slice(y);
-        let root = penalty.sqrt();
-        for col in 1..ncols {
-            let row = n + col - 1;
-            aug_x[col * aug_n + row] = root;
-        }
-        let mut aug_ws = antecedent_stats::LeastSquaresWorkspace::default();
-        coef = antecedent_stats::FaerBackend
-            .least_squares(&aug_x, aug_n, ncols, &aug_y, &mut aug_ws)
-            .map_err(crate::util::stats_err)?
-            .coefficients;
+        coef = slope_ridge_coefficients(
+            &design,
+            n,
+            ncols,
+            y,
+            &coef,
+            scale,
+            "temporal conditional prior scale must be finite and positive",
+        )?;
     }
     let w_bar = w.iter().sum::<f64>() / n as f64;
     Ok((coef[1] + coef[3] * w_bar) * delta)
@@ -919,9 +943,7 @@ pub fn temporal_linear_slopes(
     let n_z = adjustment.len();
     let ncols = 1 + treatment_count + n_z;
     let mut design = vec![0.0; n * ncols];
-    for i in 0..n {
-        design[i] = 1.0;
-    }
+    design[..n].fill(1.0);
     for k in 0..treatment_count {
         let column = prep.column(k);
         design[(1 + k) * n..(2 + k) * n].copy_from_slice(column);
@@ -937,32 +959,17 @@ pub fn temporal_linear_slopes(
         .map_err(crate::util::stats_err)?;
     let mut coef = fit.coefficients;
     if let Some(scale) = prior_scale {
-        if !(scale.is_finite() && scale > 0.0) {
-            return Err(EstimationError::unsupported(
-                "temporal slope prior scale must be finite and positive",
-            ));
-        }
-        let sigma2 = crate::util::ols_sigma2(&design, n, ncols, y, &coef).max(1e-12);
-        let penalty = sigma2 / (scale * scale);
-        let aug_n = n + (ncols - 1);
-        let mut aug_x = vec![0.0; aug_n * ncols];
-        let mut aug_y = vec![0.0; aug_n];
-        for col in 0..ncols {
-            aug_x[col * aug_n..col * aug_n + n].copy_from_slice(&design[col * n..(col + 1) * n]);
-        }
-        aug_y[..n].copy_from_slice(y);
-        let root = penalty.sqrt();
-        for col in 1..ncols {
-            let row = n + col - 1;
-            aug_x[col * aug_n + row] = root;
-        }
-        let mut aug_ws = antecedent_stats::LeastSquaresWorkspace::default();
-        coef = antecedent_stats::FaerBackend
-            .least_squares(&aug_x, aug_n, ncols, &aug_y, &mut aug_ws)
-            .map_err(crate::util::stats_err)?
-            .coefficients;
+        coef = slope_ridge_coefficients(
+            &design,
+            n,
+            ncols,
+            y,
+            &coef,
+            scale,
+            "temporal slope prior scale must be finite and positive",
+        )?;
     }
-    Ok((coef[0], coef[1..1 + treatment_count].to_vec()))
+    Ok((coef[0], coef[1..=treatment_count].to_vec()))
 }
 
 /// Moments of the nested natural-direct-effect regression on a time series.
@@ -1064,7 +1071,6 @@ pub fn nested_direct_fit_moments(
 }
 
 #[cfg(test)]
-#[allow(clippy::many_single_char_names)]
 mod tests {
     use antecedent_core::{
         CausalSchemaBuilder, DistributionRef, ExecutionContext, Lag, MeasurementSpec,
@@ -1250,6 +1256,10 @@ mod tests {
         }
     }
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the fixture builds the schema, series and storage inline before the moment assertions"
+    )]
     fn nested_direct_moments_solve_to_the_fitted_slope() {
         let n = 80usize;
         let mut b = CausalSchemaBuilder::new();

@@ -1,4 +1,4 @@
-//! SE coverage calibration (measured locally by scripts/measure_calibration.sh).
+//! SE coverage calibration (measured locally by `scripts/measure_calibration.sh`).
 //!
 //! These tests are `#[ignore]` so every-PR `cargo test` stays fast. Run via
 //! `scripts/gate_calibration.sh`.

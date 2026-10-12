@@ -164,7 +164,7 @@ fn categorical_posterior_consumer_replays_the_dummy_summary() {
 }
 
 fn line() -> (Vec<f64>, Vec<f64>) {
-    let dose: Vec<f64> = (0..24).map(|i| i as f64).collect();
+    let dose: Vec<f64> = (0..24_i32).map(f64::from).collect();
     let outcome = dose.iter().map(|d| 1.0 + 2.0 * d).collect();
     (dose, outcome)
 }

@@ -270,7 +270,10 @@ fn cubic_bias_projection(
 
 /// Fit local quadratic jumps with a cubic pilot, or kinks with a quartic pilot.
 // length reflects the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "fit both sides at order p and q, then bias-correct the reduced form, first stage and their covariance from the same side fits"
+)]
 pub fn fit_local_polynomial_ratio(
     running: &[f64],
     outcome: &[f64],

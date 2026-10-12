@@ -8,7 +8,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
 #![cfg_attr(
     test,
     allow(
@@ -199,8 +198,8 @@ pub(crate) fn joint_influence_covariance_with_means(
             for j in 0..dim {
                 for i in 0..=j {
                     let mut acc = 0.0;
-                    for r in 0..n {
-                        let normalized = (w[r] / scale) / w_sum;
+                    for (r, &wr) in w.iter().enumerate().take(n) {
+                        let normalized = (wr / scale) / w_sum;
                         acc += (normalized * (scores[i][r] - means[i]))
                             * (normalized * (scores[j][r] - means[j]));
                     }
@@ -352,9 +351,9 @@ pub fn max_t_critical_with_df_polled(
     }
     let mut corr = vec![0.0; k * k];
     let mut se = vec![0.0; k];
-    for i in 0..k {
-        se[i] = cov.se(i);
-        if !(se[i] > 0.0 && se[i].is_finite()) {
+    for (i, slot) in se.iter_mut().enumerate() {
+        *slot = cov.se(i);
+        if !(*slot > 0.0 && slot.is_finite()) {
             return Err(EstimationError::data_msg("max-t requires positive finite SEs"));
         }
     }

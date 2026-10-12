@@ -110,7 +110,6 @@ pub mod util;
 pub mod vector_treatment;
 
 #[cfg(test)]
-#[allow(clippy::doc_markdown)]
 mod calibration_coverage;
 
 pub use adjustment::{

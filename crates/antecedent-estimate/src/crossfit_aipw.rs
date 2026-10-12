@@ -9,8 +9,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-#![allow(clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
@@ -175,6 +173,10 @@ struct FoldNuisance {
 }
 
 /// One pass of the score-table builder; `failed` records the GLM propensity fit that failed.
+#[allow(
+    clippy::too_many_lines,
+    reason = "fold-by-fold nuisance fitting under the shared-slot leases, then the score table; the lease scope spans the whole fit and every stage reads the fold ids"
+)]
 fn build_scores_pass(
     problem: &PreparedPropensityProblem,
     build: &ScoreBuild<'_>,
@@ -517,13 +519,13 @@ pub fn weighted_support(
     let mut w_all = Vec::new();
     let mut p_min = f64::INFINITY;
     let mut p_max = f64::NEG_INFINITY;
-    for i in 0..treatment.len() {
+    for (i, &t) in treatment.iter().enumerate() {
         let w = weights.get(i).copied().unwrap_or(0.0);
         if w <= 0.0 {
             continue;
         }
         w_all.push(w);
-        if treatment[i] > 0.5 {
+        if t > 0.5 {
             w1.push(w);
         } else {
             w0.push(w);

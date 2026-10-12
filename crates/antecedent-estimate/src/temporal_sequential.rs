@@ -11,7 +11,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 // Dense ids originate as u32; nonnegative row indices and bounded replicate counts are intentional.
-#![allow(clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
@@ -552,6 +551,10 @@ impl SequentialSetup {
     #[allow(
         clippy::cast_possible_truncation,
         reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+    )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "resolve the unfolded graph, order the needed nodes, plan the lagged columns and gather the per-mechanism designs; every step reads the same node order"
     )]
     fn build(
         problem: &SequentialProblem<'_>,
@@ -1095,6 +1098,10 @@ fn append_design_columns(
 #[allow(
     clippy::cast_possible_truncation,
     reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "point, replicate and Bayesian evaluation share the setup, block length and per-mechanism fits of one sequential estimate"
 )]
 fn estimate_sequential(
     problem: &SequentialProblem<'_>,

@@ -236,7 +236,10 @@ fn placebo_ratio(gap: f64, pre_rmse: f64) -> f64 {
 /// Fit a balanced-panel synthetic control and leave-one-donor-out placebos.
 /// No p-value or interval calibration is attached to the returned placebo rank.
 // length reflects the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "build the panel, fit the donor weights, then the effect and placebo permutation from the same donor set"
+)]
 pub fn fit_synthetic_control(
     outcome: &[f64],
     units: &[String],
@@ -732,7 +735,10 @@ pub struct SyntheticDidFit {
 
 /// Fit unit and time simplex weights without claiming interval calibration.
 // length reflects the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "build the panel, fit unit and time weights, then the effect and placebo permutation from the same donor set"
+)]
 pub fn fit_synthetic_did(
     outcome: &[f64],
     units: &[String],

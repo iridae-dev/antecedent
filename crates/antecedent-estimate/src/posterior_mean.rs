@@ -172,6 +172,10 @@ impl LocalQuadraticNamespace {
 /// unpenalized weighted residual sum of squares, and `weight_sum` is the sum of
 /// the kernel weights. The consumer does not see the rows.
 #[must_use]
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 pub fn consume_local_quadratic_posterior(
     gram: [[f64; 3]; 3],
     rhs: [f64; 3],
@@ -192,6 +196,10 @@ pub fn consume_local_quadratic_posterior(
     (beta[0].is_finite() && beta[1].is_finite()).then_some((beta[0], beta[1]))
 }
 
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 fn local_quadratic_mean(
     dose: &[f64],
     outcome: &[f64],
@@ -346,6 +354,10 @@ pub fn score_contrast_posterior(
 /// `concentration` is the prior mass on each atom. A non-positive concentration,
 /// a mapped prior, an external power prior, and an unmeasured band refuse under
 /// `namespace`.
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 pub fn dirichlet_posterior_mean(
     weights: &[f64],
     request: PosteriorRequest,

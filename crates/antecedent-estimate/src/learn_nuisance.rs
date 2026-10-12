@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_pass_by_value, clippy::needless_lifetimes, clippy::type_complexity)]
 #![cfg_attr(
     test,
     allow(
@@ -22,6 +21,10 @@ use crate::crossfit_plan::{
 };
 use crate::error::EstimationError;
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "a `map_err` adapter: the error arrives by value at every call site"
+)]
 pub(crate) fn learn_err(err: antecedent_learn::LearnError) -> EstimationError {
     EstimationError::stats_msg(err.to_string())
 }
@@ -44,12 +47,12 @@ pub(crate) fn intercept_is_constant(design: &[f64], nrows: usize) -> bool {
 }
 
 /// Drop a constant intercept column for tree learners; keep it for parametric ones.
-pub(crate) fn design_for_spec<'a>(
+pub(crate) fn design_for_spec(
     spec: LearnerSpec,
-    design: &'a [f64],
+    design: &[f64],
     nrows: usize,
     ncols: usize,
-) -> Result<DesignView<'a>, EstimationError> {
+) -> Result<DesignView<'_>, EstimationError> {
     let drop_intercept = matches!(
         spec,
         LearnerSpec::GradientBoostedTrees(_)
@@ -361,6 +364,11 @@ fn retained_fold_ids(
     folds: usize,
     ctx: &ExecutionContext,
 ) -> Result<Vec<u16>, EstimationError> {
+    const RETAINED_PLAN_ERRORS: FoldIdErrors = FoldIdErrors {
+        length: "invalid retained nuisance fold plan",
+        units: "invalid retained nuisance fold plan",
+        range: "invalid retained nuisance fold plan",
+    };
     // Preserve physical unit folds, including duplicated bootstrap rows.
     if folds < 2
         || folds > usize::from(u16::MAX) + 1
@@ -377,11 +385,6 @@ fn retained_fold_ids(
             units: &problem.row_index,
             seed: ctx.rng.master_seed(),
         },
-    };
-    const RETAINED_PLAN_ERRORS: FoldIdErrors = FoldIdErrors {
-        length: "invalid retained nuisance fold plan",
-        units: "invalid retained nuisance fold plan",
-        range: "invalid retained nuisance fold plan",
     };
     Ok(derive_fold_ids(problem.nrows, folds, source, &RETAINED_PLAN_ERRORS)?
         .into_iter()

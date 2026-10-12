@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::manual_map)]
 #![cfg_attr(
     test,
     allow(

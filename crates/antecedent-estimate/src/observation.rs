@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
@@ -413,6 +412,10 @@ impl ObservationMechanismEstimator {
     /// Non-curve response functionals, unsupported observation mechanisms or assumptions,
     /// selected-outcome conditioning that omits treatment/adjustment variables, and any
     /// observation or response-estimation failure are refused.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "validate the observation model, run the response estimate on the adjusted outcome, then attach the selection assumptions and weight diagnostics"
+    )]
     pub fn estimate_mean_curve(
         &self,
         response_estimator: &ContinuousResponseEstimator,

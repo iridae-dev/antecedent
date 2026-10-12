@@ -20,12 +20,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::manual_flatten,
-    clippy::needless_pass_by_value,
-    clippy::type_complexity,
-    clippy::zero_sized_map_values
-)]
 #![cfg_attr(
     test,
     allow(
@@ -60,6 +54,17 @@ use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::prepare::require_method;
 use crate::util::bootstrap_se;
+
+/// One retained empirical factor fit: its stage identity, its entries and their byte cost.
+type RetainedFactorFit =
+    (antecedent_core::recalc::StageIdentity, Arc<Vec<(Assignment, f64)>>, usize);
+
+/// Variables of one factor and its conditioning set.
+type FactorKey = (Arc<[VariableId]>, Arc<[VariableId]>);
+
+/// A factor key with the intervention assignments and domain it is registered under.
+type FactorSignature =
+    (Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef);
 
 /// Hard cap on discrete levels per variable (fail-closed beyond this).
 const MAX_DISCRETE_LEVELS: usize = 64;
@@ -371,10 +376,9 @@ pub struct PreparedFunctionalDistribution {
     /// Row-aligned discrete columns for bootstrap CPT refits.
     bootstrap_columns: EncodedColumns,
     /// Factor specs used to rebuild the empirical provider.
-    bootstrap_factors: Vec<(Arc<[VariableId]>, Arc<[VariableId]>)>,
+    bootstrap_factors: Vec<FactorKey>,
     /// Interventional signatures used to rebuild the empirical provider.
-    bootstrap_signatures:
-        Vec<(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)>,
+    bootstrap_signatures: Vec<FactorSignature>,
     /// Input row count for the currently bound provider snapshot.
     source_rows: usize,
 }
@@ -1002,9 +1006,8 @@ pub struct PreparedFunctionalEffect {
     /// Free variables of the scalar functional (see the module docs).
     pub free_variables: Arc<[VariableId]>,
     bootstrap_columns: EncodedColumns,
-    bootstrap_factors: Vec<(Arc<[VariableId]>, Arc<[VariableId]>)>,
-    bootstrap_signatures:
-        Vec<(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)>,
+    bootstrap_factors: Vec<FactorKey>,
+    bootstrap_signatures: Vec<FactorSignature>,
     /// Input row count for the currently bound empirical law.
     source_rows: usize,
 }
@@ -1100,10 +1103,7 @@ impl PreparedFunctionalEffect {
 
 /// Add the marginal law of the free variables to the factors built from the data, so its
 /// empirical (or reweighted) masses are available as averaging weights.
-fn push_free_variable_law(
-    factors: &mut Vec<(Arc<[VariableId]>, Arc<[VariableId]>)>,
-    free: &[VariableId],
-) {
+fn push_free_variable_law(factors: &mut Vec<FactorKey>, free: &[VariableId]) {
     if free.is_empty() {
         return;
     }
@@ -1364,10 +1364,7 @@ fn set_assignments(
     Ok(out)
 }
 
-fn collect_observational_factors(
-    arena: &CausalExprArena,
-    root: ExprId,
-) -> Vec<(Arc<[VariableId]>, Arc<[VariableId]>)> {
+fn collect_observational_factors(arena: &CausalExprArena, root: ExprId) -> Vec<FactorKey> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
     let mut stack = vec![root];
@@ -1405,10 +1402,7 @@ fn collect_observational_factors(
 }
 
 /// Collect (variables, `conditioned_on`, intervention set, domain) for CPT duplication.
-fn collect_factor_signatures(
-    arena: &CausalExprArena,
-    root: ExprId,
-) -> Vec<(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)> {
+fn collect_factor_signatures(arena: &CausalExprArena, root: ExprId) -> Vec<FactorSignature> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
     let mut stack = vec![root];
@@ -1455,13 +1449,8 @@ fn collect_factor_signatures(
 fn build_empirical_provider(
     data: &TabularData,
     vars_needed: &HashSet<VariableId>,
-    factors: &[(Arc<[VariableId]>, Arc<[VariableId]>)],
-    signatures: &[(
-        Arc<[VariableId]>,
-        Arc<[VariableId]>,
-        Arc<[InterventionAssignment]>,
-        DomainRef,
-    )],
+    factors: &[FactorKey],
+    signatures: &[FactorSignature],
 ) -> Result<(EmpiricalTableProvider, EncodedColumns), EstimationError> {
     let columns = EncodedColumns::read(data, vars_needed)?;
 
@@ -1730,13 +1719,8 @@ impl EncodedColumn {
 fn provider_from_columns(
     columns: &EncodedColumns,
     n: usize,
-    factors: &[(Arc<[VariableId]>, Arc<[VariableId]>)],
-    signatures: &[(
-        Arc<[VariableId]>,
-        Arc<[VariableId]>,
-        Arc<[InterventionAssignment]>,
-        DomainRef,
-    )],
+    factors: &[FactorKey],
+    signatures: &[FactorSignature],
     weights: Option<&[f64]>,
 ) -> Result<EmpiricalTableProvider, EstimationError> {
     let mut provider = EmpiricalTableProvider::new();
@@ -1791,13 +1775,8 @@ fn provider_from_columns(
 fn provider_from_bayesian_bootstrap(
     columns: &EncodedColumns,
     n: usize,
-    factors: &[(Arc<[VariableId]>, Arc<[VariableId]>)],
-    signatures: &[(
-        Arc<[VariableId]>,
-        Arc<[VariableId]>,
-        Arc<[InterventionAssignment]>,
-        DomainRef,
-    )],
+    factors: &[FactorKey],
+    signatures: &[FactorSignature],
     rng: &mut CausalRng,
 ) -> Result<EmpiricalTableProvider, EstimationError> {
     let weights = antecedent_kernels::bayesian_bootstrap_weights(rng, n, false);
@@ -1859,13 +1838,7 @@ fn ordered_domains(cols: &[&EncodedColumn]) -> Result<Vec<Vec<u32>>, EstimationE
 /// Bounded retained empirical factor fits, shared only under an explicit execution scope.
 #[derive(Default, Debug)]
 pub struct EmpiricalFactorCache {
-    entries: std::sync::Mutex<
-        Vec<(
-            antecedent_core::recalc::StageIdentity,
-            std::sync::Arc<Vec<(Assignment, f64)>>,
-            usize,
-        )>,
-    >,
+    entries: std::sync::Mutex<Vec<RetainedFactorFit>>,
 }
 thread_local! {static ACTIVE_FACTOR_CACHE:std::cell::RefCell<Option<std::sync::Arc<EmpiricalFactorCache>>>=const{std::cell::RefCell::new(None)};}
 impl EmpiricalFactorCache {
@@ -2093,6 +2066,10 @@ fn insert_cpt(
     Ok(())
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "a `map_err` adapter: the error arrives by value at every call site"
+)]
 fn eval_err(e: EvalError) -> EstimationError {
     EstimationError::data_msg(e.to_string())
 }
@@ -2564,7 +2541,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)] // Exact aliases and structural zeros are the contract.
+    #[allow(clippy::float_cmp, reason = "exact aliases and structural zeros are the contract")]
     fn joint_dirichlet_preserves_probability_identities_and_beta_moments() {
         use antecedent_expr::DistributionProvider;
         let x = VariableId::from_raw(0);
@@ -2573,7 +2550,7 @@ mod tests {
             (x, vec![Some(f(0.0)), Some(f(0.0)), Some(f(1.0)), Some(f(1.0))]),
             (y, vec![Some(f(0.0)), Some(f(0.0)), Some(f(0.0)), Some(f(1.0))]),
         ]));
-        let factors: Vec<(Arc<[VariableId]>, Arc<[VariableId]>)> = vec![
+        let factors: Vec<FactorKey> = vec![
             (Arc::from([x]), Arc::from([])),
             (Arc::from([y]), Arc::from([x])),
             (Arc::from([x, y]), Arc::from([])),
@@ -2795,7 +2772,7 @@ mod tests {
     /// Each Bayesian draw evaluates the edge g-formula on one reweighted row law:
     /// recompute it by hand from the same weights.
     #[test]
-    #[allow(clippy::float_cmp, clippy::many_single_char_names)] // exact binary levels
+    #[allow(clippy::float_cmp, reason = "exact binary levels")]
     fn path_specific_edge_g_formula_uses_one_row_law_per_draw() {
         let (data, _) = edge_gformula_table();
         let res = edge_gformula_identification();

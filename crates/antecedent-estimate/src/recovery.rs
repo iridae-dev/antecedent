@@ -113,7 +113,10 @@ impl Axes {
 
 /// Check the table against the derivation's observed distribution and the
 /// deterministic proxy model, and return its decoded axes.
-#[allow(clippy::too_many_lines)] // One pass: identity, bounds, axes, levels and the proxy model.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one pass: identity, bounds, axes, levels and the proxy model"
+)]
 fn check_observed(
     derivation: &RecoveryDerivation,
     observed: &ExactDiscreteLaw,

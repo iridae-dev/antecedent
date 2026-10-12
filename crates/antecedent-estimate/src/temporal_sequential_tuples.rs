@@ -92,7 +92,10 @@ pub struct PreparedSequenceLevel {
 ///
 /// Empty, non-finite or duplicate overlays, an unidentified or non-unfolded estimand,
 /// fewer than three aligned rows, or a singular full-sample fit.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "resolve the unfolded graph, order the needed nodes and plan the lagged columns for one level; the steps share the node order"
+)]
 pub fn prepare_sequence_level(
     problem: &SequentialProblem<'_>,
     target: &SequenceTarget<'_>,

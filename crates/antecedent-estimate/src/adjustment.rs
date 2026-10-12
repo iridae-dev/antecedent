@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
 #![cfg_attr(
     test,
     allow(
@@ -1057,15 +1056,15 @@ fn gcomp_or_coef_ate(
                 }
                 let mut pred_a = 0.0;
                 let mut pred_c = 0.0;
-                for c in 0..ncols {
+                for (c, &coef) in coefficients.iter().enumerate().take(ncols) {
                     let x = if c == t_col {
                         (problem.active, problem.control)
                     } else {
                         let v = problem.design.matrix[c * n + r];
                         (v, v)
                     };
-                    pred_a += coefficients[c] * x.0;
-                    pred_c += coefficients[c] * x.1;
+                    pred_a += coef * x.0;
+                    pred_c += coef * x.1;
                 }
                 sum += pred_a - pred_c;
                 count += 1;
@@ -1237,7 +1236,6 @@ fn observational_adjustment_arm(
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 mod tests {
     use std::sync::Arc;
 

@@ -6,8 +6,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-#![allow(clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
@@ -227,6 +225,10 @@ struct PreparedCells {
     shared_design: bool,
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "complete-case mask, treatment cell coding, design and row index built in one pass over the same mask"
+)]
 fn prepare_cells(
     data: &TabularData,
     treatments: &[VariableId],
@@ -304,9 +306,7 @@ fn prepare_cells(
     }
     let ncols = 1 + adjustment.len();
     let mut design = vec![0.0; n * ncols];
-    for r in 0..n {
-        design[r] = 1.0;
-    }
+    design[..n].fill(1.0);
     for (j, &z) in adjustment.iter().enumerate() {
         let col = data.float64_masked(z, &mask).map_err(EstimationError::from)?;
         let base = (1 + j) * n;
@@ -360,6 +360,10 @@ struct CellFoldNuisance {
     floor: f64,
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "cross-fitting loop over thresholds and folds that fills the shared score and propensity buffers"
+)]
 fn crossfit_cell_scores(
     prepared: &PreparedCells,
     thresholds: &[Option<f64>],
@@ -536,6 +540,10 @@ struct DesignRows<'a> {
     rows: usize,
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one multinomial fit-and-predict over the shared train and validation design rows"
+)]
 fn multinomial_propensity(
     train: DesignRows<'_>,
     cells: &[usize],

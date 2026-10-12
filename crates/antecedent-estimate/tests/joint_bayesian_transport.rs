@@ -152,8 +152,10 @@ fn options() -> JointTransportOptions {
     JointTransportOptions { draws: DRAWS, seed: 20_230_903 }
 }
 
-// The public refusal type is deliberately rich; tests exercise it unboxed.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "the public refusal type is deliberately rich; tests exercise it unboxed"
+)]
 fn fit(
     model: &JointTransportModel,
     sources: &[SourceData],

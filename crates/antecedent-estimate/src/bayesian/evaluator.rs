@@ -1,7 +1,5 @@
 //! Batched posterior functional evaluation and posterior-draw helpers.
 
-#![allow(clippy::needless_range_loop, clippy::needless_pass_by_value, clippy::doc_markdown)]
-
 use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
@@ -117,8 +115,8 @@ impl PosteriorFunctionalEvaluator for GCompAteEvaluator {
             return Ok(());
         }
         for d in 0..n_draws {
-            for c in 0..self.ncols {
-                workspace.row[c] = coef_cols[c][d];
+            for (slot, col) in workspace.row.iter_mut().zip(&coef_cols) {
+                *slot = col[d];
             }
             output.values[d] = contrast(&workspace.row[..self.ncols]);
         }

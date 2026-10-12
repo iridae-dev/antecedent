@@ -1,7 +1,5 @@
 //! Prior hydration from posterior artifacts and summaries.
 
-#![allow(clippy::needless_range_loop, clippy::needless_pass_by_value, clippy::doc_markdown)]
-
 use std::sync::Arc;
 
 use antecedent_core::PriorAssumption;
@@ -15,7 +13,7 @@ use super::CausalPosterior;
 
 /// Minimum coefficient prior variance when hydrating from a posterior (numerical floor).
 const HYDRATE_VAR_FLOOR: f64 = 1e-12;
-/// Smallest |Δ| accepted for the identity-link ATE → β_T mapping.
+/// Smallest `|Δ|` accepted for the identity-link `ATE → β_T` mapping.
 const HYDRATE_CONTRAST_FLOOR: f64 = 1e-12;
 
 fn identity_ate_to_slope(mean: f64, sd: f64, delta: f64) -> Result<(f64, f64), EstimationError> {
@@ -436,7 +434,10 @@ pub struct HydrateTarget<'a> {
 ///
 /// Dimension mismatch, missing effect column, unknown names, missing/zero Δ,
 /// a covariance of the wrong size, or invalid baseline.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one arm per hydration mapping (identical subspace, effect functional, named coefficients), each assembling its prior and restriction record from the validated source and target"
+)]
 pub fn hydrate_prior(
     mapping: &HydrateMapping,
     source: &HydrateSource<'_>,

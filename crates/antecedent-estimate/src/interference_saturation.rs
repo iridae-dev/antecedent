@@ -61,7 +61,10 @@ pub struct SaturationClusterInterval {
 /// Refuses invalid randomization, cross-cluster edges, absent realized exposures,
 /// nonpositive exposure probabilities, or neighborhoods above enumeration caps.
 // length reflects the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "validate the two-stage design, compute exposures and level probabilities, then both weighted means and the cluster interval from the same state"
+)]
 pub fn estimate_saturation_interference(
     query: &InterferenceQuery,
     data: &NetworkData,

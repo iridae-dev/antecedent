@@ -2,7 +2,10 @@
 //!
 //! Times `PropensityWeighting::fit` with bootstrap replicates enabled, refitting the
 //! propensity model each replicate while reusing `PropensityEstimationWorkspace` scratch.
-#![allow(missing_docs)]
+#![allow(
+    missing_docs,
+    reason = "benchmark crate root: the criterion macros generate undocumented public items"
+)]
 
 use std::sync::Arc;
 
