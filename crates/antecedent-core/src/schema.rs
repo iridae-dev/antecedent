@@ -9,6 +9,7 @@
 
 use core::fmt;
 use core::num::NonZeroU32;
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::error::SchemaError;
@@ -254,6 +255,8 @@ impl CausalSchema {
 #[derive(Debug, Default)]
 pub struct CausalSchemaBuilder {
     pending: Vec<PendingVariable>,
+    /// Names already accepted into `pending`. Duplicate checks are membership, not a scan.
+    names: HashSet<Arc<str>>,
     /// Deferred error from fluent commits (surfaced at [`Self::build`]).
     deferred: Option<SchemaError>,
 }
@@ -329,10 +332,11 @@ impl CausalSchemaBuilder {
         measurement: MeasurementSpec,
     ) -> Result<(), SchemaError> {
         let name = name.into();
-        if self.pending.iter().any(|p| p.name == name) {
+        if self.names.contains(&name) {
             return Err(SchemaError::DuplicateVariableName { name: name.to_string() });
         }
         validate_domain_consistency(&name, &value_type, category_domain)?;
+        self.names.insert(Arc::clone(&name));
         self.pending.push(PendingVariable {
             name,
             value_type,
@@ -348,7 +352,7 @@ impl CausalSchemaBuilder {
         if self.deferred.is_some() {
             return;
         }
-        if self.pending.iter().any(|p| p.name == pending.name) {
+        if self.names.contains(&pending.name) {
             self.deferred =
                 Some(SchemaError::DuplicateVariableName { name: pending.name.to_string() });
             return;
@@ -359,6 +363,7 @@ impl CausalSchemaBuilder {
             self.deferred = Some(e);
             return;
         }
+        self.names.insert(Arc::clone(&pending.name));
         self.pending.push(pending);
     }
 
