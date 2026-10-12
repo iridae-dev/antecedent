@@ -47,6 +47,12 @@ use crate::prep::{
 use crate::result::ChangeAttributionResult;
 use crate::shapley::CoalitionPayoff;
 
+/// Compiled and hybrid models retained per structure-change payoff.
+///
+/// Exact Shapley revisits masks; past this many distinct masks the payoff
+/// recompiles instead of growing without a bound. Recompilation is the same graph.
+const STRUCTURE_CACHE_CAP: usize = 64;
+
 /// Options for structure-change attribution.
 #[derive(Clone, Debug)]
 pub struct StructureChangeOptions {
@@ -344,6 +350,9 @@ struct StructureSwapPayoff<'a> {
     /// Memoized mechanism fits (two `assign_and_fit` calls total; see [`StructureFits`]).
     fits: Option<StructureFits>,
     /// Memoized compiled hybrid graphs keyed by coalition mask.
+    ///
+    /// Capped so a wide exact allocation cannot retain every hybrid. A miss
+    /// recompiles the same graph.
     compiled_cache: HashMap<u64, CompiledCausalModel>,
     /// Memoized full hybrid models (graph + composed mechanisms) keyed by coalition mask,
     /// so a repeated mask samples straight from the cached model without cloning it.
@@ -413,7 +422,9 @@ impl StructureSwapPayoff<'_> {
             mask,
         )?;
         let compiled = CompiledCausalModel::compile(hybrid)?;
-        self.compiled_cache.insert(mask, compiled.clone());
+        if self.compiled_cache.len() < STRUCTURE_CACHE_CAP {
+            self.compiled_cache.insert(mask, compiled.clone());
+        }
         Ok(compiled)
     }
 
@@ -476,6 +487,17 @@ impl StructureSwapPayoff<'_> {
             cached
         } else {
             let built = self.build_hybrid(mask)?;
+            if self.hybrid_cache.len() >= STRUCTURE_CACHE_CAP {
+                return sample_outcome_law(
+                    &built,
+                    self.outcome,
+                    self.n_samples,
+                    stream_tag(STRUCTURE_STREAM, self.seed),
+                    self.ctx,
+                    &mut self.ws,
+                    &mut self.values_buf,
+                );
+            }
             self.hybrid_cache.entry(mask).or_insert(built)
         };
         sample_outcome_law(

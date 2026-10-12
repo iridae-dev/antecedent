@@ -173,12 +173,14 @@ pub(crate) fn detect_mechanism_changes_with_correction(
         SelectionPolicy::BestScore,
     )?;
     let base_model = graph_model.clone().with_mechanisms(base_mechs);
-    let fold_count = baseline_cross_fit_folds(baseline.row_count());
-    let baseline_folds = kfold_row_indices(baseline.row_count(), fold_count);
+    let n_base = baseline.row_count();
+    let fold_count = baseline_cross_fit_folds(n_base);
+    let baseline_folds = kfold_row_indices(n_base, fold_count);
     let mut fold_models = Vec::with_capacity(baseline_folds.len());
-    for held_out in &baseline_folds {
-        let train_rows: Vec<usize> =
-            (0..baseline.row_count()).filter(|r| !held_out.contains(r)).collect();
+    // Folds are round-robin (`row % k`), so the complement is the same test without
+    // scanning each held-out vector per row.
+    for fold in 0..baseline_folds.len() {
+        let train_rows: Vec<usize> = (0..n_base).filter(|r| r % fold_count != fold).collect();
         let train = subset_table(&baseline, &train_rows)?;
         let (mechs, _) = MechanismRegistry::standard().assign_and_fit(
             graph_model,
@@ -187,17 +189,22 @@ pub(crate) fn detect_mechanism_changes_with_correction(
         )?;
         fold_models.push(graph_model.clone().with_mechanisms(mechs));
     }
+    let fold_tables = baseline_folds
+        .iter()
+        .map(|assigned| subset_table(&baseline, assigned))
+        .collect::<Result<Vec<_>, _>>()?;
 
-    let mut raw = Vec::with_capacity(query.targets.len());
-    for &target in query.targets.iter() {
+    let raw = ctx.map_indexed(query.targets.len(), |ti, worker| {
+        let target = query.targets[ti];
         let mut baseline_rng =
-            ctx.rng.stream_for(StreamDomain::Attribution, residual_stream_id(target, 0));
+            worker.rng.stream_for(StreamDomain::Attribution, residual_stream_id(target, 0));
         let mut comparison_rng =
-            ctx.rng.stream_for(StreamDomain::Attribution, residual_stream_id(target, 1));
+            worker.rng.stream_for(StreamDomain::Attribution, residual_stream_id(target, 1));
         let rb = cross_fitted_residuals(
             &fold_models,
+            &fold_tables,
             &baseline_folds,
-            &baseline,
+            baseline.row_count(),
             target,
             &mut baseline_rng,
         )?;
@@ -217,7 +224,7 @@ pub(crate) fn detect_mechanism_changes_with_correction(
             }
             MechanismChangeMethod::KernelTwoSample => {
                 let seed =
-                    attribution_stream(ctx, KERNEL_STREAM, target.as_usize() as u64).next_u64();
+                    attribution_stream(worker, KERNEL_STREAM, target.as_usize() as u64).next_u64();
                 let r = kernel_two_sample_with_permutations(
                     &rb,
                     &rc,
@@ -231,8 +238,8 @@ pub(crate) fn detect_mechanism_changes_with_correction(
                 (s, p, "change_point", likelihood_ratio_permutations(rb.len(), rc.len()))
             }
         };
-        raw.push((target, stat, p_value, method_name, n_permutations));
-    }
+        Ok::<_, AttributionError>((target, stat, p_value, method_name, n_permutations))
+    })?;
 
     // Report the raw p-value and the adjusted one separately rather than overwriting the
     // former. `changed` is decided from whichever is authoritative, but a caller reading
@@ -328,15 +335,15 @@ fn baseline_cross_fit_folds(n: usize) -> usize {
 /// full-baseline fit's own (shrunk-variance) in-sample residual.
 fn cross_fitted_residuals(
     fold_models: &[CompiledCausalModel],
+    fold_tables: &[TabularData],
     folds: &[Vec<usize>],
-    population: &TabularData,
+    n_rows: usize,
     target: VariableId,
     rng: &mut CausalRng,
 ) -> Result<Vec<f64>, AttributionError> {
-    let mut out = vec![0.0; population.row_count()];
-    for (model, assigned) in fold_models.iter().zip(folds.iter()) {
-        let assigned_table = subset_table(population, assigned)?;
-        let fold_residuals = residuals(model, &assigned_table, target, rng)?;
+    let mut out = vec![0.0; n_rows];
+    for ((model, table), assigned) in fold_models.iter().zip(fold_tables.iter()).zip(folds.iter()) {
+        let fold_residuals = residuals(model, table, target, rng)?;
         for (&row, &value) in assigned.iter().zip(fold_residuals.iter()) {
             out[row] = value;
         }

@@ -46,8 +46,8 @@ use antecedent_counterfactual::{AbductionMissingPolicy, CounterfactualEngine};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{BitSet, DenseNodeId, GraphWorkspace};
 use antecedent_model::{
-    CompiledCausalModel, MechanismWorkspace, NoiseBatchMut, ValueBatchMut, evaluate_batch_topo,
-    reference_noise,
+    CompiledCausalModel, MechanismWorkspace, NoiseBatchMut, ParentGatherPlan, ValueBatchMut,
+    evaluate_batch_topo, reference_noise,
 };
 
 use crate::error::AttributionError;
@@ -278,19 +278,47 @@ pub fn score_anomalies_with(
             }
         };
 
+        let (eval_order, eval_gathers): (Vec<DenseNodeId>, Vec<ParentGatherPlan>) = model
+            .node_order
+            .iter()
+            .zip(model.parent_gathers.iter())
+            .filter(|(node, _)| is_player[node.as_usize()])
+            .map(|(&node, gather)| {
+                (
+                    node,
+                    ParentGatherPlan { child: gather.child, parents: Arc::clone(&gather.parents) },
+                )
+            })
+            .unzip();
+
         let per_row = ctx.map_indexed(rows.len(), |ui, worker| {
             let row = rows[ui];
+            let n_nodes = model.n_nodes();
+            let mut player_reference = Vec::with_capacity(players_dense.len());
+            let mut player_factual = Vec::with_capacity(players_dense.len());
+            let mut noise_buf = vec![0.0; n_nodes];
+            for node in 0..n_nodes {
+                if !is_player[node] {
+                    noise_buf[node] = exo.noise[node * exo.n_units + row];
+                }
+            }
+            for &node in &players_dense {
+                let reference = reference_noise(model.mechanisms.get(node));
+                player_factual.push(exo.noise[node.as_usize() * exo.n_units + row]);
+                noise_buf[node.as_usize()] = reference;
+                player_reference.push(reference);
+            }
             let mut payoff = NoiseShapleyPayoff {
                 model,
                 target: dense,
                 players: &players_dense,
-                is_player: &is_player,
-                exo_noise: &exo.noise,
-                n_units: exo.n_units,
-                row,
+                eval_order: &eval_order,
+                eval_gathers: &eval_gathers,
+                player_reference,
+                player_factual,
                 tail: &tail,
-                noise_buf: vec![0.0; model.n_nodes()],
-                value_buf: vec![0.0; model.n_nodes()],
+                noise_buf,
+                value_buf: vec![0.0; n_nodes],
                 ws: MechanismWorkspace::default(),
             };
             // Factual IT score: how far into the target's marginal tail this value falls.
@@ -345,11 +373,13 @@ struct NoiseShapleyPayoff<'a> {
     model: &'a CompiledCausalModel,
     target: DenseNodeId,
     players: &'a [DenseNodeId],
-    /// `is_player[node]` for every dense node.
-    is_player: &'a [bool],
-    exo_noise: &'a [f64],
-    n_units: usize,
-    row: usize,
+    /// Ancestor nodes in topological order, with gathers aligned to that order.
+    eval_order: &'a [DenseNodeId],
+    eval_gathers: &'a [ParentGatherPlan],
+    /// Median reference noise of each player, fixed for the row.
+    player_reference: Vec<f64>,
+    /// Factual exogenous noise of each player, fixed for the row.
+    player_factual: Vec<f64>,
     tail: &'a OutlierTail,
     noise_buf: Vec<f64>,
     value_buf: Vec<f64>,
@@ -359,32 +389,22 @@ struct NoiseShapleyPayoff<'a> {
 impl CoalitionPayoff for NoiseShapleyPayoff<'_> {
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
         let n_nodes = self.model.n_nodes();
-        // Point-mass reference per node: `0` is the median only for the additive-noise
-        // families; a categorical (`Discrete` / `DiscreteBasis`) mechanism's noise is a
-        // `U(0,1)` CDF-bin draw whose median is `0.5` — feeding it `0` is not a valid
-        // draw at all (`antecedent_model::mechanism::categorical_noise` refuses it).
-        for node in 0..n_nodes {
-            let id = DenseNodeId::from_raw(u32::try_from(node).unwrap_or(u32::MAX));
-            self.noise_buf[node] = reference_noise(self.model.mechanisms.get(id));
-        }
+        // Reference and factual noise are fixed for the row. A coalition only
+        // swaps player slots; non-ancestors keep factual noise and are not evaluated.
         for (i, &node) in self.players.iter().enumerate() {
-            let factual = self.exo_noise[node.as_usize() * self.n_units + self.row];
-            if mask & (1u64 << i) != 0 {
-                self.noise_buf[node.as_usize()] = factual;
-            }
-        }
-        for node in 0..n_nodes {
-            if !self.is_player[node] {
-                self.noise_buf[node] = self.exo_noise[node * self.n_units + self.row];
-            }
+            self.noise_buf[node.as_usize()] = if mask & (1u64 << i) != 0 {
+                self.player_factual[i]
+            } else {
+                self.player_reference[i]
+            };
         }
 
         self.value_buf.fill(0.0);
         let noise = NoiseBatchMut::new(1, n_nodes, &mut self.noise_buf)?;
         let mut values = ValueBatchMut::new(1, n_nodes, &mut self.value_buf)?;
         evaluate_batch_topo(
-            &self.model.node_order,
-            &self.model.parent_gathers,
+            self.eval_order,
+            self.eval_gathers,
             &self.model.mechanisms.slots,
             &noise,
             &mut values,
