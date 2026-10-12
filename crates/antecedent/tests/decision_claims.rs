@@ -176,8 +176,7 @@ fn report_under(scenarios: Vec<TransportScenario>, budget: SearchLimits) -> Scen
     let prepared: PreparedTransportScenarios = StudyBuilder::transport_scenarios(
         &set,
         query(),
-        catalog(),
-        budget,
+        antecedent::EvidenceSearch { catalog: catalog(), budget: budget },
         laws(),
         Assignment::from_pairs([(v(X), Value::f64(1.0))]),
         ExactEvaluationLimits::default(),

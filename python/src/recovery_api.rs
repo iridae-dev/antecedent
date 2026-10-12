@@ -600,9 +600,11 @@ impl ObservationRecoveryStage {
                 catalog,
                 effect,
                 derivation,
-                observed,
-                requests,
-                ExactEvaluationLimits { operations: max_operations, depth: max_depth },
+                antecedent::RecoveryEvaluation {
+                    observed: observed,
+                    requests: requests,
+                    limits: ExactEvaluationLimits { operations: max_operations, depth: max_depth },
+                },
                 &ctx,
             )
             .map_err(|e| io_err(&e))

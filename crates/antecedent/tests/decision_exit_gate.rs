@@ -1113,9 +1113,14 @@ fn recovery_prepare(
         model.catalog(),
         Some(recovery_effect(model)),
         RecoveryLimits::default(),
-        law,
-        [0.0, 1.0].iter().map(|x| Assignment::from_pairs([(v(0), Value::f64(*x))])).collect(),
-        ExactEvaluationLimits::default(),
+        antecedent::RecoveryEvaluation {
+            observed: law,
+            requests: [0.0, 1.0]
+                .iter()
+                .map(|x| Assignment::from_pairs([(v(0), Value::f64(*x))]))
+                .collect(),
+            limits: ExactEvaluationLimits::default(),
+        },
         &ExecutionContext::for_tests(1),
     )
 }

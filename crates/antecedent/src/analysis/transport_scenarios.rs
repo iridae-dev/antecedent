@@ -11,7 +11,7 @@
 //! `P*(y | do(x), w)` of the bounded ADMG conditional row, decided per
 //! scenario on the same shared budget and reported in the same envelope.
 use super::StudyBuilder;
-use super::transport_common::estimate_err;
+use super::transport_common::{EvidenceSearch, estimate_err};
 use antecedent_core::{EvidenceCatalog, ExecutionContext, SearchLimits};
 use antecedent_estimate::StatisticalTransportInput;
 use antecedent_estimate::transport_scenarios::{
@@ -59,6 +59,15 @@ fn decide(
     })
 }
 
+/// The finite samples and joint-cell cap an empirical scenario preparation fits its plug-in
+/// frequency tables from.
+pub struct EmpiricalScenarioInput {
+    /// Samples (plus any supplied exact laws) the tables are fitted from.
+    pub input: StatisticalTransportInput,
+    /// Cap on the joint cells of one fitted table.
+    pub max_joint_cells: usize,
+}
+
 impl StudyBuilder {
     /// Decide every scenario once against the shared question and catalog, and
     /// compile each identified scenario against supplied exact laws.
@@ -73,20 +82,16 @@ impl StudyBuilder {
     /// `schema_mismatch` for a catalog, law or request outside the shared
     /// coordinate schema; invalid query, catalog or laws; or a request that
     /// fails for every scenario.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "public preparation entry point: the scenario set, question, catalog, search budget, laws, request and evaluation limits are each a premise of the preparation"
-    )]
     pub fn transport_scenarios(
         set: &TransportScenarioSet,
         query: ClassicalTransportQuery,
-        catalog: EvidenceCatalog,
-        budget: SearchLimits,
+        search: EvidenceSearch,
         data: ExactTransportData,
         request: Assignment,
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<PreparedTransportScenarios, IoError> {
+        let EvidenceSearch { catalog, budget } = search;
         let decision = decide(set, &query.into(), &catalog, budget, ctx)?;
         let inner = prepare_transport_scenarios(decision, data, request, limits, ctx)
             .map_err(estimate_err)?;
@@ -110,20 +115,16 @@ impl StudyBuilder {
     /// `admg_transport.bounds_exceeded` (more than 6 observed variables, 3
     /// treatments or 3 conditioned variables) and `invalid_argument` /
     /// `admg_transport.invalid_query` or `admg_transport.invalid_request`.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "public preparation entry point: the scenario set, question, catalog, search budget, laws, request and evaluation limits are each a premise of the preparation"
-    )]
     pub fn conditional_transport_scenarios(
         set: &TransportScenarioSet,
         query: ConditionalTransportQuery,
-        catalog: EvidenceCatalog,
-        budget: SearchLimits,
+        search: EvidenceSearch,
         data: ExactTransportData,
         request: Assignment,
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<PreparedTransportScenarios, IoError> {
+        let EvidenceSearch { catalog, budget } = search;
         let decision = decide(set, &query.into(), &catalog, budget, ctx)?;
         let inner = prepare_transport_scenarios(decision, data, request, limits, ctx)
             .map_err(estimate_err)?;
@@ -136,21 +137,17 @@ impl StudyBuilder {
     ///
     /// # Errors
     /// As [`Self::transport_scenarios`], plus samples the plug-in cannot fit.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "public preparation entry point: the scenario set, question, catalog, search budget, laws, request and evaluation limits are each a premise of the preparation"
-    )]
     pub fn transport_scenarios_empirical(
         set: &TransportScenarioSet,
         query: ClassicalTransportQuery,
-        catalog: EvidenceCatalog,
-        budget: SearchLimits,
-        input: StatisticalTransportInput,
-        max_joint_cells: usize,
+        search: EvidenceSearch,
+        empirical: EmpiricalScenarioInput,
         request: Assignment,
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<PreparedTransportScenarios, IoError> {
+        let EvidenceSearch { catalog, budget } = search;
+        let EmpiricalScenarioInput { input, max_joint_cells } = empirical;
         let mut input = input;
         super::statistical::canonicalize_input(&mut input)?;
         let decision = decide(set, &query.into(), &catalog, budget, ctx)?;

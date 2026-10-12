@@ -124,7 +124,7 @@ pub use cost::{
     estimate_joint_cell_cost,
 };
 pub use cpdag_scenarios::{
-    PreparedCpdagCompletionScenarios, consume_cpdag_scenarios_artifact,
+    CpdagEvaluation, PreparedCpdagCompletionScenarios, consume_cpdag_scenarios_artifact,
     consume_scenario_covariance_artifact, export_scenario_covariance,
 };
 pub use derived_treatment::{
@@ -163,7 +163,8 @@ pub use preflight::{
 };
 pub use rank_drop_estimate::{RankDropEstimate, estimate_with_rank_drop};
 pub use recovery::{
-    ObservationRecoveryResult, PreparedObservationRecovery, consume_observation_recovery_artifact,
+    ObservationRecoveryResult, PreparedObservationRecovery, RecoveryEvaluation,
+    consume_observation_recovery_artifact,
 };
 pub use smoothed_dose::{PreparedSmoothedDose, SmoothedDoseResult, consume_smoothed_dose_artifact};
 pub use statistical::{
@@ -175,16 +176,21 @@ pub use temporal_extensions::{
     consume_temporal_initial_state_artifact, consume_temporal_refresh_artifact,
     temporal_dependent_interval,
 };
-pub use temporal_transport::{PreparedTemporalTransport, consume_temporal_transport_artifact};
+pub use temporal_transport::{
+    PreparedTemporalTransport, SequenceEndpoints, consume_temporal_transport_artifact,
+};
 pub use tier_diagnostics::{
     TierDesign, TierDiagnostics, TierDiagnosticsError, TierEvalue, TierPointEvalue, TierScenario,
     tier_diagnostics,
 };
+pub use transport_common::EvidenceSearch;
 pub use transport_grid::{
     TransportGridData, TransportGridFailure, TransportGridPoint, TransportGridQuery,
     TransportGridResult, TransportGridState,
 };
-pub use transport_scenarios::{PreparedTransportScenarios, consume_transport_scenarios_artifact};
+pub use transport_scenarios::{
+    EmpiricalScenarioInput, PreparedTransportScenarios, consume_transport_scenarios_artifact,
+};
 pub use z_transport::{PreparedZTransport, ZTransportResult, consume_z_transport_artifact};
 pub use z_transport_sensitivity_artifact::ZTransportSensitivityArtifactWire;
 mod graph_posterior_target;

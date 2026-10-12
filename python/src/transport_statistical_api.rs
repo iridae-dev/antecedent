@@ -253,7 +253,9 @@ impl PreparedStatisticalStage {
         } else {
             let licensed = view.reasoning.uncertainty.is_available();
             let reason = match &view.reasoning.uncertainty {
-                antecedent_contract::SlotAvailability::Unavailable { reason } => Some(reason.as_ref()),
+                antecedent_contract::SlotAvailability::Unavailable { reason } => {
+                    Some(reason.as_ref())
+                }
                 _ => None,
             };
             serde_json::json!({

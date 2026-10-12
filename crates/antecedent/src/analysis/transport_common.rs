@@ -11,6 +11,15 @@ use antecedent_io::{IoError, transport_proof::TransportProofWire};
 use serde::Serialize;
 use std::sync::Arc;
 
+/// The evidence catalog a scenario or sequence decision binds and the one shared search
+/// budget it charges.
+pub struct EvidenceSearch {
+    /// Evidence catalog the decision binds.
+    pub catalog: EvidenceCatalog,
+    /// Shared search budget of the decision, its verification replays and its compilation.
+    pub budget: antecedent_core::SearchLimits,
+}
+
 /// Wrap any conversion failure as the one transport IO error.
 pub(super) fn err(error: impl std::fmt::Display) -> IoError {
     IoError::Convert(error.to_string())

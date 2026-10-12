@@ -56,9 +56,11 @@ fn prepare(model: &MModel) -> PreparedObservationRecovery {
         model.catalog(),
         Some(effect(model)),
         RecoveryLimits::default(),
-        model.observed_law(),
-        requests(),
-        ExactEvaluationLimits::default(),
+        antecedent::RecoveryEvaluation {
+            observed: model.observed_law(),
+            requests: requests(),
+            limits: ExactEvaluationLimits::default(),
+        },
         &ctx(),
     )
     .unwrap()
@@ -127,9 +129,11 @@ fn preparing_from_a_decided_derivation_never_decides_again_and_checks_its_inputs
             catalog,
             effect,
             (*derivation).clone(),
-            model.observed_law(),
-            requests,
-            ExactEvaluationLimits::default(),
+            antecedent::RecoveryEvaluation {
+                observed: model.observed_law(),
+                requests: requests,
+                limits: ExactEvaluationLimits::default(),
+            },
             &ctx(),
         )
     };
@@ -223,9 +227,11 @@ fn a_nonrecoverable_decision_refuses_preparation_with_its_witness_code() {
         censored.catalog(),
         None,
         RecoveryLimits::default(),
-        censored.observed_law(),
-        Vec::new(),
-        ExactEvaluationLimits::default(),
+        antecedent::RecoveryEvaluation {
+            observed: censored.observed_law(),
+            requests: Vec::new(),
+            limits: ExactEvaluationLimits::default(),
+        },
         &ctx(),
     )
     .unwrap_err();
@@ -271,9 +277,11 @@ fn the_io_consumer_replays_under_the_stored_limits() {
         model.catalog(),
         Some(effect(&model)),
         RecoveryLimits::default(),
-        model.observed_law(),
-        (0..65).map(|_| requests()[0].clone()).collect(),
-        ExactEvaluationLimits::default(),
+        antecedent::RecoveryEvaluation {
+            observed: model.observed_law(),
+            requests: (0..65).map(|_| requests()[0].clone()).collect(),
+            limits: ExactEvaluationLimits::default(),
+        },
         &ctx(),
     )
     .unwrap();

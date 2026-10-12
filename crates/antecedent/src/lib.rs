@@ -145,6 +145,7 @@ pub use analysis::{
     ExclusionRule, InterventionMeaning, SourceColumn, TemporalPosition, Transformation,
     check_derived_treatment, estimate_derived_joint_cells,
 };
+pub use analysis::{CpdagEvaluation, EmpiricalScenarioInput, EvidenceSearch, SequenceEndpoints};
 pub use analysis::{
     IntervalEstimand, TemporalInitialState, TemporalWindow,
     consume_temporal_initial_state_artifact, consume_temporal_refresh_artifact,
@@ -161,7 +162,8 @@ pub use analysis::{
 pub use analysis::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_artifact};
 pub use analysis::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
 pub use analysis::{
-    ObservationRecoveryResult, PreparedObservationRecovery, consume_observation_recovery_artifact,
+    ObservationRecoveryResult, PreparedObservationRecovery, RecoveryEvaluation,
+    consume_observation_recovery_artifact,
 };
 pub use analysis::{
     PreparedCpdagCompletionScenarios, consume_cpdag_scenarios_artifact,

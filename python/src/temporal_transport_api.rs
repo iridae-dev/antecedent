@@ -297,11 +297,11 @@ fn prepare_temporal_transport_stage(
         let ctx = execution_context(0, memory_bytes, cancel);
         antecedent::StudyBuilder::temporal_transport_sequence(
             &spec,
-            &sequence,
-            &source,
-            &target,
-            catalog,
-            SearchLimits { operations: max_steps, depth: max_depth },
+            antecedent::SequenceEndpoints { sequence: &sequence, source: &source, target: &target },
+            antecedent::EvidenceSearch {
+                catalog: catalog,
+                budget: SearchLimits { operations: max_steps, depth: max_depth },
+            },
             data,
             ExactEvaluationLimits { operations: max_operations, depth: max_evaluation_depth },
             &ctx,

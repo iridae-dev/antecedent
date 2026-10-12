@@ -640,8 +640,10 @@ fn story_2_finite_scenario_set_retains_identified_unidentified_and_unevaluated_m
         let prepared = StudyBuilder::transport_scenarios(
             &set,
             query(),
-            catalog(),
-            SearchLimits { operations: budget, depth: 256 },
+            antecedent::EvidenceSearch {
+                catalog: catalog(),
+                budget: SearchLimits { operations: budget, depth: 256 },
+            },
             laws(SOURCE),
             request(),
             ExactEvaluationLimits::default(),
@@ -754,8 +756,10 @@ fn story_2_finite_scenario_set_retains_identified_unidentified_and_unevaluated_m
     let full = StudyBuilder::transport_scenarios(
         &TransportScenarioSet::try_new(three()).unwrap(),
         query(),
-        catalog(),
-        SearchLimits { operations: 100_000, depth: 256 },
+        antecedent::EvidenceSearch {
+            catalog: catalog(),
+            budget: SearchLimits { operations: 100_000, depth: 256 },
+        },
         laws(SOURCE),
         request(),
         ExactEvaluationLimits::default(),
@@ -1134,11 +1138,11 @@ mod s4 {
     ) -> Result<antecedent::PreparedTemporalTransport, IoError> {
         StudyBuilder::temporal_transport_sequence(
             &spec(),
-            seq,
-            "source",
-            "target",
-            catalog(),
-            SearchLimits { operations: 100_000, depth: 256 },
+            antecedent::SequenceEndpoints { sequence: seq, source: "source", target: "target" },
+            antecedent::EvidenceSearch {
+                catalog: catalog(),
+                budget: SearchLimits { operations: 100_000, depth: 256 },
+            },
             data,
             ExactEvaluationLimits::default(),
             ctx,

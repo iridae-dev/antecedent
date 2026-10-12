@@ -12,8 +12,8 @@ use antecedent::analysis::msm_sensitivity::{
     ActionUtility, MsmOutcomeLaw, MsmSensitivityError, MsmSensitivityResult, MsmSensitivitySpec,
     MsmStratum, msm_sensitivity, msm_sensitivity_artifact_bytes,
 };
-use antecedent_core::reason_code;
 use antecedent_contract::ScientificQuantity;
+use antecedent_core::reason_code;
 use antecedent_io::IoError;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use pyo3::prelude::*;

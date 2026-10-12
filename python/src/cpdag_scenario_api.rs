@@ -388,9 +388,7 @@ fn cpdag_completion_scenarios_stage(
             query,
             bound,
             budget,
-            data,
-            request,
-            evaluation,
+            antecedent::CpdagEvaluation { data: data, request: request, limits: evaluation },
             &ctx,
         )
         .and_then(|prepared| prepared.estimate(&ctx).map(|report| (prepared, report)));

@@ -3522,9 +3522,7 @@ impl PyPreparedAnalysis {
                     cluster_arc,
                 )
             };
-            query
-                .validate()
-                .map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
+            query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
             req.finish_applied(builder, false)
@@ -3569,9 +3567,7 @@ impl PyPreparedAnalysis {
                 clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect::<Vec<_>>(),
                 predictions_cross_fitted,
             );
-            query
-                .validate()
-                .map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
+            query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
             req.finish_applied(builder, false)
@@ -3617,9 +3613,7 @@ impl PyPreparedAnalysis {
                 target_cohort,
                 target_period,
             );
-            query
-                .validate()
-                .map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
+            query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
             req.finish_applied(builder, false)
@@ -3661,9 +3655,7 @@ impl PyPreparedAnalysis {
                 periods,
                 cohorts,
             );
-            query.validate().map_err(|error| {
-                py_err(antecedent::CausalError::rejected(error))
-            })?;
+            query.validate().map_err(|error| py_err(antecedent::CausalError::rejected(error)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
             req.finish_applied(builder, false)
@@ -3725,9 +3717,7 @@ impl PyPreparedAnalysis {
             } else {
                 query
             };
-            query.validate().map_err(|error| {
-                py_err(antecedent::CausalError::rejected(error))
-            })?;
+            query.validate().map_err(|error| py_err(antecedent::CausalError::rejected(error)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::SyntheticControl(query));
             req.finish_applied(builder, false)
@@ -3800,9 +3790,7 @@ impl PyPreparedAnalysis {
                 density_provenance: Arc::from(density_provenance),
                 fixed_policy,
             };
-            query.validate().map_err(|error| {
-                py_err(antecedent::CausalError::rejected(error))
-            })?;
+            query.validate().map_err(|error| py_err(antecedent::CausalError::rejected(error)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::ContinuousDoseResponse(query));
             req.finish_applied(builder, false)
@@ -3841,9 +3829,7 @@ impl PyPreparedAnalysis {
                 bandwidth,
                 kink,
             };
-            query.validate().map_err(|error| {
-                py_err(antecedent::CausalError::rejected(error))
-            })?;
+            query.validate().map_err(|error| py_err(antecedent::CausalError::rejected(error)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::LocalPolynomialRatio(query));
             req.finish_applied(builder, false)
@@ -3958,9 +3944,7 @@ impl PyPreparedAnalysis {
                 rule_version: rule_version.as_deref().map(Arc::<str>::from),
                 rule_provenance: rule_provenance.as_deref().map(Arc::<str>::from),
             };
-            query
-                .validate()
-                .map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
+            query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::LongitudinalRegime(query));
             req.finish_applied(builder, false)
@@ -4022,9 +4006,7 @@ impl PyPreparedAnalysis {
                     },
                 ),
             };
-            query
-                .validate()
-                .map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
+            query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::Survival(query));
             req.finish_applied(builder, false)
@@ -4215,9 +4197,7 @@ impl PyPreparedAnalysis {
                 uplift_training_subject_ids: Arc::from([]),
                 regret: None,
             };
-            query
-                .validate()
-                .map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
+            query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PolicyValue(query));
             req.finish_applied(builder, false)
@@ -4885,7 +4865,9 @@ fn extract_temporal_class(
     }
 }
 
-pub(crate) fn parse_transform_intent(intent: &str) -> PyResult<antecedent_contract::TransformIntent> {
+pub(crate) fn parse_transform_intent(
+    intent: &str,
+) -> PyResult<antecedent_contract::TransformIntent> {
     let intent = match intent {
         "display_precision" => antecedent_contract::TransformIntent::DisplayPrecision,
         "compatible_data_replace" => antecedent_contract::TransformIntent::CompatibleDataReplace,

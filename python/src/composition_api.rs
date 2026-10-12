@@ -68,13 +68,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::cpdag_scenario_api::CpdagScenarioRun;
+use crate::detach_catch;
 use crate::distribution_api::PyJointDistributionArtifact;
 use crate::repair_api::{REPAIR_PREFIX, RepairContractStage, parse_candidates};
 use crate::transport_common::{execution_context, resolve, unframe_named_artifact};
 use crate::transport_scenario_api::PreparedTransportScenariosStage;
 use crate::transport_z_api::intervention_assignments;
 use crate::value_err;
-use crate::detach_catch;
 
 /// A result JSON paired with a refusal JSON; exactly one is present.
 type Pair = (Option<String>, Option<String>);

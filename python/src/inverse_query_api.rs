@@ -14,8 +14,8 @@ use antecedent::analysis::inverse_query::{
     InverseQueryWire, MAX_INVERSE_QUERY_ARTIFACT_BYTES, MeanSource, StructuralAtom,
     finite_enumeration_baseline,
 };
-use antecedent_core::reason_code;
 use antecedent_contract::{ExternalRefusal, ScientificQuantity};
+use antecedent_core::reason_code;
 use antecedent_design::decision_artifact::{contract_from_json_refusal, contract_to_json};
 use antecedent_io::IoError;
 use antecedent_io::quantity_wire::ScientificQuantityWire;

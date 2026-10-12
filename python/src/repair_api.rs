@@ -18,9 +18,9 @@ use antecedent::analysis::repair::{
     RepairLimits, RepairObjective, RepairReport, RepairReportArtifact, StudyCostDeclaration,
     StudyKind, TransportRepairFamily, UnitRules, ZTransportRepairFamily, repair_contract,
 };
+use antecedent_contract::{ObligationKind, ObligationRecord, ObligationScope};
 use antecedent_core::assumption::{AssumptionSource, AssumptionStatus};
 use antecedent_core::{DistributionAvailability, SearchLimits, VariableId};
-use antecedent_contract::{ObligationKind, ObligationRecord, ObligationScope};
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{ClassicalTransportQuery, SidLimits};
 use pyo3::prelude::*;
@@ -326,8 +326,8 @@ impl RepairContractStage {
                 self.names.iter().position(|candidate| candidate == &name).ok_or_else(|| {
                     crate::value_err(format!("unknown scientific coordinate variable {name}"))
                 })?;
-            let quantity =
-                antecedent_contract::ScientificQuantity::try_from(wire).map_err(crate::value_err)?;
+            let quantity = antecedent_contract::ScientificQuantity::try_from(wire)
+                .map_err(crate::value_err)?;
             let variable = u32::try_from(variable).map_err(|_| {
                 crate::value_err("scientific coordinate variable index exceeds u32")
             })?;
