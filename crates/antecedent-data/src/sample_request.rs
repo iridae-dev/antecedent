@@ -5,14 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::{KernelPolicy, Lag, NodeRef, VariableId};
@@ -593,7 +585,6 @@ fn row_missing_status(
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use antecedent_core::{Lag, NodeRef, VariableId};
 

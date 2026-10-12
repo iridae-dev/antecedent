@@ -76,7 +76,6 @@ impl MultiEnvironmentData {
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use std::sync::Arc;
 

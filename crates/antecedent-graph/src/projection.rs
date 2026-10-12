@@ -168,8 +168,6 @@ pub fn projection_preserves_msep_sample(
 #[cfg(test)]
 #[allow(
     clippy::cast_possible_truncation,
-    clippy::similar_names,
-    clippy::many_single_char_names,
     clippy::needless_range_loop,
     reason = "test graphs have a handful of nodes, so node indices fit u32"
 )]

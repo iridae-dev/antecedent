@@ -578,7 +578,10 @@ impl CausalExprArena {
     /// # Errors
     ///
     /// [`ExprError::RegimeDomainMismatch`] when `regime_kind` disagrees with `domain`.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "mirrors the fields of ExprNode::Distribution plus its regime check, one call per distribution leaf"
+    )]
     pub fn intern_distribution_tagged(
         &mut self,
         variables: VarSetId,

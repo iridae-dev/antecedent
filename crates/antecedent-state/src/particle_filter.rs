@@ -232,6 +232,10 @@ fn normalized_weights_into(log_w: &[f64], out: &mut Vec<f64>) -> Result<(), Stat
 /// Resample using the normalized weights already in `state.scratch.weights`
 /// (refreshed by the caller this step); swaps the particle buffers and zeroes
 /// `log_weights` in place instead of reallocating either.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn systematic_resample(state: &mut ParticleFilterState, rng: &mut CausalRng) {
     let n = state.n_particles;
     let u0 = rng.next_f64() / n as f64;

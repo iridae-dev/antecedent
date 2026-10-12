@@ -82,7 +82,6 @@ fn sample_sd(population_variance: f64, n: usize) -> Option<f64> {
 /// empty column, or a `p` outside `[0, 1]` yields NaN rather than a finite
 /// value read off an arbitrarily ordered array.
 #[must_use]
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // h ∈ [0, n − 1]
 pub fn quantile_type7_sorted(sorted: &[f64], p: f64) -> f64 {
     let n = sorted.len();
     if n == 0 || !(0.0..=1.0).contains(&p) || sorted[0].is_nan() || sorted[n - 1].is_nan() {
@@ -161,7 +160,6 @@ mod tests {
         assert!((portable - 2.0_f64.sqrt()).abs() < 1e-12);
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,

@@ -8,7 +8,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names)] // x, y, z are standard d-separation names
+#![allow(clippy::many_single_char_names, reason = "x, y, z are standard d-separation names")]
 
 use crate::dag::Dag;
 use crate::error::GraphError;

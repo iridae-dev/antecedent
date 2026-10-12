@@ -8,7 +8,6 @@
 #![deny(missing_docs)]
 // Unsafe is confined to validated unchecked view indexing in hot loops.
 #![allow(unsafe_code)]
-#![cfg_attr(test, allow(clippy::cast_precision_loss))]
 
 pub mod cholesky;
 pub mod dispatch;

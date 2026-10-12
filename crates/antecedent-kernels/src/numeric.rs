@@ -194,7 +194,10 @@ pub fn median_sorted(sorted: &[f64]) -> f64 {
 /// # Panics
 ///
 /// Panics if `out.len() != values.len()`.
-#[allow(clippy::float_cmp)] // Rank ties are exact equality, independent of measurement units.
+#[allow(
+    clippy::float_cmp,
+    reason = "Rank ties are exact equality, independent of measurement units"
+)]
 pub fn midranks_into(values: &[f64], out: &mut [f64]) {
     assert_eq!(values.len(), out.len(), "midranks_into length mismatch");
     let n = values.len();
@@ -220,6 +223,10 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact comparison against exactly representable or bit-identical reference values"
+    )]
     fn sigmoid_is_stable_and_symmetric() {
         assert_eq!(sigmoid(0.0), 0.5);
         assert_eq!(sigmoid(f64::INFINITY), 1.0);
@@ -237,6 +244,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact comparison against exactly representable or bit-identical reference values"
+    )]
     fn mean_dot_and_sample_std_contracts() {
         assert!(mean(&[]).is_nan());
         assert_eq!(mean(&[1.0, 2.0, 6.0]), 3.0);
@@ -252,6 +263,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact comparison against exactly representable or bit-identical reference values"
+    )]
     fn softplus_is_stable() {
         assert!((softplus(0.0) - std::f64::consts::LN_2).abs() < 1e-16);
         assert_eq!(softplus(1000.0), 1000.0);
@@ -263,6 +278,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact comparison against exactly representable or bit-identical reference values"
+    )]
     fn softmax_in_place_boundaries() {
         let mut v = [1.0, 2.0, 3.0];
         softmax_in_place(&mut v);
@@ -305,6 +324,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact comparison against exactly representable or bit-identical reference values"
+    )]
     fn median_and_midranks() {
         assert!(median_sorted(&[]).is_nan());
         assert_eq!(median_sorted(&[3.0]), 3.0);

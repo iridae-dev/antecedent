@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::neg_cmp_op_on_partial_ord)]
 #![cfg_attr(
     test,
     allow(
@@ -420,6 +419,10 @@ fn fill_within_cluster_permutation(
 /// # Errors
 ///
 /// Zero length, or a non-weight plan.
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 pub fn fill_resample_weights(
     plan: ResamplingPlan,
     n: usize,
@@ -873,7 +876,6 @@ fn apply_row_map(data: &TimeSeriesData, row_map: &[u32]) -> Result<TimeSeriesDat
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use antecedent_core::{
         CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId,

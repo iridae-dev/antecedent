@@ -44,7 +44,7 @@ impl ToleranceClass {
 
     /// Whether `actual` matches `expected` under this class.
     #[must_use]
-    #[allow(clippy::float_cmp)] // Exact class intentionally uses bitwise equality.
+    #[allow(clippy::float_cmp, reason = "Exact class intentionally uses bitwise equality")]
     pub fn close(self, actual: f64, expected: f64) -> bool {
         if self == Self::Exact {
             return actual == expected;

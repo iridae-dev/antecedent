@@ -17,7 +17,10 @@ use crate::ExternalRefusal;
 /// A wrong label count, a summary that is not the worst label, or a relabeled
 /// missing-evidence coordinate, each with a distinct registered code and detail.
 // A refusal is the cold path of a once-per-artifact check; boxing it would not pay.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn check_static_point_labels(
     labels: &[SupportStatus],
     status: SupportStatus,

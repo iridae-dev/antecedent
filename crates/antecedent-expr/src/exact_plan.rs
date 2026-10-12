@@ -127,7 +127,10 @@ impl ExactEvaluationPlan {
     ///
     /// # Errors
     /// Missing providers/assignments, unsupported scope, or resource exhaustion.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "binds the plan fields one to one; callers in other crates pass them positionally"
+    )]
     pub fn compile(
         arena: &CausalExprArena,
         root: ExprId,

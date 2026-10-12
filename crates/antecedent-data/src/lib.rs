@@ -119,7 +119,6 @@ pub use transforms::{equal_width_bin, moving_average, ordinal_patterns};
 pub use vector_vars::{VectorVariableGroups, column_blocks_for_frame, expand_fixed_vector_columns};
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use std::sync::Arc;
 

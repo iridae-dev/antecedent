@@ -262,7 +262,6 @@ pub fn expand_fixed_vector_columns(
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use super::*;
     use crate::column::{FixedVectorColumn, ValidityBitmap};

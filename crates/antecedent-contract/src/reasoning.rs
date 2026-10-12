@@ -81,7 +81,10 @@ pub struct IdentificationSlot {
 impl IdentificationSlot {
     /// Fully specified identification slot.
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "every argument is a distinct input of this operation"
+    )]
     pub const fn new(
         status: IdentificationStatus,
         identified_mass: f64,
@@ -109,7 +112,10 @@ impl IdentificationSlot {
     /// # Errors
     ///
     /// Returns the reason the mass partition is not a probability partition.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "all-fields constructor of a public record; the arguments are the record own fields, so a parameter struct would only restate it"
+    )]
     pub fn try_new(
         status: IdentificationStatus,
         identified_mass: f64,

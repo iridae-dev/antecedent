@@ -49,7 +49,6 @@ pub struct CalibrationBasis {
 impl CalibrationBasis {
     /// Construct from every field, in declaration order.
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         key: [Arc<str>; 11],
         level: f64,

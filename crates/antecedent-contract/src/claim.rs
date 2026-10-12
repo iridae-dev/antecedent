@@ -244,7 +244,10 @@ pub struct AttestedEvidence {
 impl ClaimEnvelope {
     /// Construct a claim envelope.
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "all-fields constructor of a public record; the arguments are the record own fields, so a parameter struct would only restate it"
+    )]
     pub fn new(
         claim_id: SemanticDigest,
         identities: ContractIdentities,
@@ -375,7 +378,10 @@ pub struct HandoffReceipt {
 impl HandoffReceipt {
     /// Construct a handoff / loss receipt.
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "all-fields constructor of a public record; the arguments are the record own fields, so a parameter struct would only restate it"
+    )]
     pub fn new(
         input: SemanticDigest,
         output: Option<SemanticDigest>,

@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-
 /// Scratch for residualization and Pearson correlation.
 #[derive(Clone, Debug, Default)]
 pub struct ParCorrWorkspace {
@@ -579,7 +577,6 @@ pub fn partial_correlation_batch(
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 mod tests {
     use antecedent_core::{KernelPolicy, ToleranceClass};
 
@@ -910,10 +907,10 @@ mod tests {
     #[test]
     fn collinear_conditioning_columns_are_refused() {
         let n = 40;
-        let z1: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let z1: Vec<f64> = (0..n).map(f64::from).collect();
         let z2: Vec<f64> = z1.iter().map(|v| 2.0 * v + 3.0).collect();
-        let x: Vec<f64> = (0..n).map(|i| (i as f64).sin()).collect();
-        let y: Vec<f64> = (0..n).map(|i| (i as f64).cos()).collect();
+        let x: Vec<f64> = (0..n).map(|i| f64::from(i).sin()).collect();
+        let y: Vec<f64> = (0..n).map(|i| f64::from(i).cos()).collect();
         let mut ws = ParCorrWorkspace::default();
         assert!(partial_correlation_scalar(&x, &y, &[&z1, &z2], &mut ws).is_none());
         assert!(partial_correlation_portable(&x, &y, &[&z1, &z2], &mut ws).is_none());

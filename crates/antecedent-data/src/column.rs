@@ -729,7 +729,7 @@ impl OwnedColumn {
 }
 
 #[cfg(test)]
-#[allow(clippy::float_cmp, clippy::cast_precision_loss)] // values are copied bit-for-bit
+#[allow(clippy::float_cmp, clippy::cast_precision_loss, reason = "values are copied bit-for-bit")]
 mod tests {
     use super::*;
 

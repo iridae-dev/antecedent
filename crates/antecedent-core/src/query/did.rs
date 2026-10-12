@@ -149,8 +149,11 @@ impl PanelDidQuery {
     /// Construct an augmented panel ATT with supplied, row-aligned nuisance predictions.
     // The augmented panel binds four frozen columns plus assignment, subject,
     // cluster, and cross-fit metadata; each is a distinct caller input.
-    #[allow(clippy::too_many_arguments)]
     #[must_use]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "binds four frozen columns plus assignment, subject, cluster and cross-fit metadata; each is a distinct caller input"
+    )]
     pub fn augmented_panel(
         outcome_post: VariableId,
         outcome_pre: VariableId,

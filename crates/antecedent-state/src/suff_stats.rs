@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::similar_names)] // xtx / xty
+#![allow(clippy::similar_names, reason = "xtx / xty")]
 
 use antecedent_stats::{accumulate_xtx_xty_row, invert_square};
 
@@ -210,6 +210,10 @@ impl StreamingCovariance {
     /// # Errors
     ///
     /// Dimension mismatch.
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     pub fn append(&mut self, x: &[f64]) -> Result<(), StateError> {
         if x.len() != self.dim {
             return Err(StateError::Shape(format!("cov dim {} != {}", x.len(), self.dim)));

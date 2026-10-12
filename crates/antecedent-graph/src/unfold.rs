@@ -5,7 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_wrap)]
 #![cfg_attr(
     test,
     allow(
@@ -159,6 +158,7 @@ pub(crate) fn stationary_shifts(
     (lower - a_offset.min(b_offset))..=(upper - a_offset.max(b_offset))
 }
 
+#[allow(clippy::cast_possible_wrap, reason = "node and lag counts are bounded far below i64::MAX")]
 fn insert_replicated_edges(
     dag: &mut Dag,
     indexer: &TemporalIndexer,
@@ -362,7 +362,6 @@ pub fn ensure_lagged(
 }
 
 #[cfg(test)]
-#[allow(clippy::many_single_char_names)]
 mod tests {
     use antecedent_core::TemporalIndexer;
     use antecedent_core::{Lag, VariableId};
@@ -557,6 +556,7 @@ mod tests {
     }
 
     /// Reconstruct a DAG by querying every lazy `has_edge` pair in-window.
+    #[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
     fn dag_from_lazy_scan(lazy: &LazyUnfoldedTemporalGraph) -> Dag {
         let mut dag = Dag::from_unfolding(&lazy.indexer).unwrap();
         let min_off = -(lazy.indexer.history() as i32);
@@ -586,6 +586,7 @@ mod tests {
 
     /// Lazy `has_edge` agrees with materialize over random small stationary templates.
     #[test]
+    #[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
     fn property_lazy_unfold_matches_materialize_on_small_templates() {
         use antecedent_core::CausalRng;
 

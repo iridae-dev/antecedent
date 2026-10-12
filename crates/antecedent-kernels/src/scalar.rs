@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)] // n as f64 for means/variances is intentional
+#![allow(clippy::cast_precision_loss, reason = "n as f64 for means/variances is intentional")]
 
 use crate::view::{BitMaskView, F64VectorView};
 
@@ -351,6 +351,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact comparison against exactly representable or bit-identical reference values"
+    )]
     fn kish_ess_boundary_contract() {
         // Impossible weights never look uniform.
         assert!(kish_ess(&[f64::NAN, f64::NAN]).is_nan());
@@ -383,7 +387,6 @@ mod tests {
         let _ = masked_sum(F64VectorView::contiguous(&x), Some(mask));
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(clippy::float_cmp, reason = "the masked sum of small integers is exact in f64")]
     fn full_length_mask_selects_exactly_its_bits() {

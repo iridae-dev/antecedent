@@ -2,14 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use crate::error::DataError;
 
 fn require_finite(col: &[f64], what: &str) -> Result<(), DataError> {

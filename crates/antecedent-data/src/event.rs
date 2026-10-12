@@ -6,7 +6,6 @@
     test,
     allow(
         clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
         reason = "test fixtures compare exact constants and index with small literals"
     )
 )]
@@ -114,7 +113,13 @@ impl EventData {
     /// # Errors
     ///
     /// Zero interval, empty events, or column construction failures.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "n_bins is at most MAX_ALIGN_BINS, checked before the cast, so it fits usize on every target"
+    )]
     pub fn align_to_grid(&self, interval_ns: u64) -> Result<TimeSeriesData, DataError> {
+        /// Most bins one alignment may allocate.
+        const MAX_ALIGN_BINS: u64 = 10_000_000;
         if interval_ns == 0 {
             return Err(DataError::InvalidArgument {
                 message: "align_to_grid requires interval_ns > 0".into(),
@@ -138,13 +143,11 @@ impl EventData {
             span.checked_div(interval_ns).and_then(|q| q.checked_add(1)).ok_or_else(|| {
                 DataError::InvalidArgument { message: "align_to_grid bin count overflowed".into() }
             })?;
-        const MAX_ALIGN_BINS: u64 = 10_000_000;
         if n_bins > MAX_ALIGN_BINS {
             return Err(DataError::InvalidArgument {
                 message: format!(
                     "align_to_grid would allocate {n_bins} bins, over the limit of {MAX_ALIGN_BINS}"
-                )
-                .into(),
+                ),
             });
         }
         let n_bins = n_bins as usize;

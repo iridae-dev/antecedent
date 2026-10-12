@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::implicit_hasher)]
-
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -312,6 +310,10 @@ fn bic_from_rss(rss: f64, n: usize, k: usize) -> Result<f64, StateError> {
 /// # Errors
 ///
 /// Score failures.
+#[allow(
+    clippy::implicit_hasher,
+    reason = "concrete map keyed by the default hasher; these caches are never built with a custom one"
+)]
 pub fn full_graph_score(
     data: &GraphScoreData,
     family: GraphScoreFamily,
@@ -362,7 +364,6 @@ mod tests {
     /// A cache filled from one dataset must refuse another (the `(node, parents)` key says
     /// nothing about which rows the score was computed on), accept equal data, and accept
     /// new data after `clear()`.
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,
@@ -569,6 +570,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn gaussian_bic_score_difference_is_invariant_to_predictor_units() {
         let base = chain_data();
         let n = base.n_rows;

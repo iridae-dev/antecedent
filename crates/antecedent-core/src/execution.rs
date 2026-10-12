@@ -609,10 +609,7 @@ impl CausalRng {
     pub fn next_f64(&mut self) -> f64 {
         // 53-bit mantissa extraction; precision loss vs full u64 is intentional.
         let bits = self.next_u64() >> 11;
-        #[allow(clippy::cast_precision_loss)]
-        {
-            bits as f64 * (1.0 / ((1u64 << 53) as f64))
-        }
+        bits as f64 * (1.0 / ((1u64 << 53) as f64))
     }
 }
 

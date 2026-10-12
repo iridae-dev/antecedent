@@ -16,7 +16,10 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Coefficients for erf on |x| <= 0.46875 (Cody, SPECFUN `CALERF`).
-#[allow(clippy::excessive_precision)]
+#[allow(
+    clippy::excessive_precision,
+    reason = "reference coefficients are kept digit for digit as published"
+)]
 const CODY_A: [f64; 5] = [
     3.161_123_743_870_565_60e00,
     1.138_641_541_510_501_56e02,
@@ -24,7 +27,10 @@ const CODY_A: [f64; 5] = [
     3.209_377_589_138_469_47e03,
     1.857_777_061_846_031_53e-1,
 ];
-#[allow(clippy::excessive_precision)]
+#[allow(
+    clippy::excessive_precision,
+    reason = "reference coefficients are kept digit for digit as published"
+)]
 const CODY_B: [f64; 4] = [
     2.360_129_095_234_412_09e01,
     2.440_246_379_344_441_73e02,
@@ -33,7 +39,10 @@ const CODY_B: [f64; 4] = [
 ];
 
 /// Coefficients for erfc on 0.46875 < |x| <= 4.
-#[allow(clippy::excessive_precision)]
+#[allow(
+    clippy::excessive_precision,
+    reason = "reference coefficients are kept digit for digit as published"
+)]
 const CODY_C: [f64; 9] = [
     5.641_884_969_886_700_89e-1,
     8.883_149_794_388_375_94e0,
@@ -45,7 +54,10 @@ const CODY_C: [f64; 9] = [
     1.230_339_354_797_997_25e03,
     2.153_115_354_744_038_46e-8,
 ];
-#[allow(clippy::excessive_precision)]
+#[allow(
+    clippy::excessive_precision,
+    reason = "reference coefficients are kept digit for digit as published"
+)]
 const CODY_D: [f64; 8] = [
     1.574_492_611_070_983_47e01,
     1.176_939_508_913_124_99e02,
@@ -58,7 +70,10 @@ const CODY_D: [f64; 8] = [
 ];
 
 /// Coefficients for erfc on |x| > 4.
-#[allow(clippy::excessive_precision)]
+#[allow(
+    clippy::excessive_precision,
+    reason = "reference coefficients are kept digit for digit as published"
+)]
 const CODY_P: [f64; 6] = [
     3.053_266_349_612_323_44e-1,
     3.603_448_999_498_044_39e-1,
@@ -67,7 +82,10 @@ const CODY_P: [f64; 6] = [
     6.587_491_615_298_378_03e-4,
     1.631_538_713_730_209_78e-2,
 ];
-#[allow(clippy::excessive_precision)]
+#[allow(
+    clippy::excessive_precision,
+    reason = "reference coefficients are kept digit for digit as published"
+)]
 const CODY_Q: [f64; 5] = [
     2.568_520_192_289_822_42e00,
     1.872_952_849_923_460_47e00,
@@ -77,7 +95,10 @@ const CODY_Q: [f64; 5] = [
 ];
 
 /// 1/sqrt(pi).
-#[allow(clippy::excessive_precision)]
+#[allow(
+    clippy::excessive_precision,
+    reason = "reference coefficients are kept digit for digit as published"
+)]
 const SQRT_PI_INV: f64 = 5.641_895_835_477_562_869_5e-1;
 /// Below this |x|, erfc is evaluated as `1 - erf`.
 const CODY_THRESH: f64 = 0.46875;
@@ -281,10 +302,8 @@ pub fn norm_inv(p: f64) -> f64 {
 /// Acklam's rational approximation of Φ⁻¹(p), relative error ~1.2e-9; the Halley seed of
 /// [`norm_inv`].
 #[allow(
-    clippy::excessive_precision,
     clippy::float_cmp,
     clippy::items_after_statements,
-    clippy::manual_range_contains,
     reason = "the exact comparisons test the endpoints p == 0.0 and p == 1.0, which are special-cased"
 )]
 fn norm_inv_acklam(p: f64) -> f64 {
@@ -381,6 +400,14 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact comparison against exactly representable or bit-identical reference values"
+    )]
+    #[allow(
+        clippy::excessive_precision,
+        reason = "reference coefficients are kept digit for digit as published"
+    )]
     fn norm_inv_matches_mpmath_across_the_tails() {
         // Φ⁻¹ of the exact f64 argument, solved by `mpmath.findroot` on `ncdf` at 60 digits.
         // The Acklam seed alone is off by up to ~1e-9 relative; the Halley step must reach a
@@ -405,9 +432,9 @@ mod tests {
             (0.99, 2.326_347_874_040_840_8),
             (0.999, 3.090_232_306_167_813_3),
             (0.99999, 4.264_890_793_923_840_8),
-            (0.99999999, 5.612_001_243_305_505),
-            (0.9999999999, 6.361_340_889_697_422),
-            (0.999999999999, 7.034_486_910_047_835),
+            (0.999_999_99, 5.612_001_243_305_505),
+            (0.999_999_999_9, 6.361_340_889_697_422),
+            (0.999_999_999_999, 7.034_486_910_047_835),
         ];
         for (p, expected) in cases {
             let got = norm_inv(p);
@@ -424,6 +451,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::approx_constant, reason = "tabulated reference value, kept digit for digit")]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact comparison against exactly representable or bit-identical reference values"
+    )]
     fn log_norm_cdf_matches_mpmath_across_branches() {
         // `mpmath.log(mpmath.ncdf(x))` at 60 digits; covers the 8-40 sigma band that the
         // previous prob (cf below -8) and stats (series from 30) owners treated differently,
@@ -487,7 +519,10 @@ mod tests {
     /// from x = 1 outward here, by 6.6e-7 at x = 1 rising to 2.7e-2 at x = 8.
     #[test]
     fn erfc_matches_reference_into_the_tail() {
-        #[allow(clippy::excessive_precision)]
+        #[allow(
+            clippy::excessive_precision,
+            reason = "reference coefficients are kept digit for digit as published"
+        )]
         const CASES: &[(f64, f64)] = &[
             (0.0, 1.0),
             (0.25, 7.236_736_098_317_630_7e-1),
@@ -510,7 +545,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)] // exact underflow to zero is the property under test
+    #[allow(clippy::float_cmp, reason = "exact underflow to zero is the property under test")]
     fn erfc_reflection_and_saturation() {
         // erfc(-x) = 2 - erfc(x).
         for &x in &[0.3, 1.0, 2.5, 5.0] {
@@ -529,7 +564,10 @@ mod tests {
 
     #[test]
     fn erf_keeps_relative_accuracy_near_zero() {
-        #[allow(clippy::excessive_precision)]
+        #[allow(
+            clippy::excessive_precision,
+            reason = "reference coefficients are kept digit for digit as published"
+        )]
         const CASES: &[(f64, f64)] = &[
             (0.5, 5.204_998_778_130_465_3e-1),
             (1.0, 8.427_007_929_497_148_7e-1),
@@ -549,9 +587,12 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)] // Phi(0) = 1/2 is exact in binary floating point
+    #[allow(clippy::float_cmp, reason = "Phi(0) = 1/2 is exact in binary floating point")]
     fn norm_cdf_and_sf_agree_with_reference() {
-        #[allow(clippy::excessive_precision)]
+        #[allow(
+            clippy::excessive_precision,
+            reason = "reference coefficients are kept digit for digit as published"
+        )]
         const CASES: &[(f64, f64)] = &[
             (0.0, 0.5),
             (-1.0, 1.586_552_539_314_570_5e-1),
@@ -571,7 +612,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)] // the saturation of 1 - Phi(x) to exactly 0 is the point
+    #[allow(clippy::float_cmp, reason = "the saturation of 1 - Phi(x) to exactly 0 is the point")]
     fn norm_sf_survives_where_one_minus_cdf_saturates() {
         // 1 - norm_cdf(x) hits exactly 0 around x = 9; norm_sf keeps going.
         assert_eq!(1.0 - norm_cdf(9.0), 0.0);

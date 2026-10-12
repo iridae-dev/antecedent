@@ -66,7 +66,10 @@ impl ExternalRefusal {
     /// # Errors
     /// An unregistered code, a malformed detail, or a missing stage.
     // The refusal is the cold path of a once-per-refusal check; boxing would not pay.
-    #[allow(clippy::result_large_err)]
+    #[allow(
+        clippy::result_large_err,
+        reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+    )]
     pub fn validate(&self) -> Result<(), ExternalRefusal> {
         let invalid = antecedent_core::reason_code!("invalid_argument");
         if !antecedent_core::reason_code::is_runtime_refusal(self.code) {
@@ -305,7 +308,10 @@ impl ExternalBindingError {
     /// Structured refusal for a binding failure, with expected and supplied
     /// semantics read from the contract and result that were presented.
     #[must_use]
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    )]
     pub fn to_refusal(
         &self,
         contract: &CheckedCausalContract,

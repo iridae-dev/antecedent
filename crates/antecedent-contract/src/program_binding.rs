@@ -95,7 +95,10 @@ impl ProgramBinding {
     /// A blank identity, an empty or non-finite grid, or a grid that is not
     /// strictly increasing refuses with `program_binding.invalid_binding`.
     // The refusal is the cold path of a once-per-binding check; boxing would not pay.
-    #[allow(clippy::result_large_err)]
+    #[allow(
+        clippy::result_large_err,
+        reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+    )]
     pub fn validate(&self) -> Result<(), ExternalRefusal> {
         let blank_field = [
             ("graph_id", &self.graph_id),
@@ -327,7 +330,10 @@ fn graph_only(binding: &ProgramBinding, claim: &ExternalProgramClaim) -> bool {
 }
 
 // The refusal is the cold path of a once-per-refusal check; boxing would not pay.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn check_identity(
     binding: &ProgramBinding,
     claim: &ExternalProgramClaim,
@@ -352,7 +358,10 @@ fn check_identity(
 }
 
 // The refusal is the cold path of a once-per-refusal check; boxing would not pay.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn check_variables(
     binding: &ProgramBinding,
     claim: &ExternalProgramClaim,
@@ -395,7 +404,10 @@ fn regime_refusal(
 }
 
 // The refusal is the cold path of a once-per-refusal check; boxing would not pay.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn check_quantity(
     binding: &ProgramBinding,
     index: usize,
@@ -425,7 +437,10 @@ fn check_quantity(
 }
 
 // The refusal is the cold path of a once-per-refusal check; boxing would not pay.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn check_quantity_list(
     binding: &ProgramBinding,
     quantities: &[ScientificQuantity],
@@ -456,7 +471,10 @@ fn check_quantity_list(
 /// `contract_identity_mismatch`, `treatment_outcome_substitution`,
 /// `population_mismatch`, `dose_grid_changed` or `quantities_override_mismatch`.
 // The refusal is the cold path of a once-per-claim check; boxing would not pay.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn check_external_against_program(
     binding: &ProgramBinding,
     claim: &ExternalProgramClaim,
@@ -504,7 +522,10 @@ impl ProgramBoundClaim {
 /// Any program refusal, a contract whose graph or coordinates differ from the
 /// program, or the structured refusal of the underlying binding.
 // The refusal is the cold path of a once-per-claim check; boxing would not pay.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn bind_external_result_to_program(
     binding: &ProgramBinding,
     claim: &ExternalProgramClaim,

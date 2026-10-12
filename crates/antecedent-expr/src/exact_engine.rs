@@ -62,7 +62,10 @@ impl<'a> ExactSession<'a> {
     pub fn evaluate(&mut self, assignment: &mut Assignment) -> Result<f64, EvalError> {
         self.slot(self.plan.root, assignment)?.required()
     }
-    #[allow(clippy::too_many_lines)] // Keep exact operation and null-event semantics in one dispatch.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Keep exact operation and null-event semantics in one dispatch"
+    )]
     fn slot(&mut self, slot: usize, env: &mut Assignment) -> Result<Term, EvalError> {
         if self.ctx.cancellation.is_cancelled() {
             return Err(EvalError::ProviderKind("exact evaluation cancelled"));

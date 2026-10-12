@@ -7,8 +7,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::needless_range_loop)]
-
 /// Why a Cholesky factorization was refused.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CholeskyError {
@@ -233,7 +231,6 @@ pub fn chol_inverse(chol: &[f64], n: usize) -> Vec<f64> {
 mod tests {
     use super::*;
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,
@@ -297,6 +294,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact comparison against exactly representable or bit-identical reference values"
+    )]
     fn psd_variant_zeroes_rank_deficient_directions_and_refuses_indefinite_matrices() {
         let mut l = [9.0; 4];
         // Perfectly correlated pair: [[1, 1], [1, 1]] = L L' with L = [[1, 0], [1, 0]].
@@ -331,7 +332,6 @@ mod tests {
         );
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(clippy::float_cmp, reason = "the hand-computed bound (4/1)^2 = 16 is exact in f64")]
     fn condition_bound_matches_hand_and_rejects_nan() {

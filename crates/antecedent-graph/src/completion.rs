@@ -73,7 +73,7 @@ impl CompletionSampler {
     /// exhaustively, so refusal is explicit instead of silently validating a prefix.
     /// A graph too large for the *global* equivalence audit is not refused — the audit is
     /// skipped and recorded in [`CompletionValidationReport::equivalence_audit_skipped`].
-    #[allow(clippy::needless_pass_by_value)] // preserve the established constructor API
+    #[allow(clippy::needless_pass_by_value, reason = "preserve the established constructor API")]
     pub fn new(pag: Pag, max_completions: usize) -> Result<Self, GraphError> {
         Self::with_projection(&pag, max_completions, |g| Some(g.clone()))
     }
@@ -440,7 +440,6 @@ pub fn audit_finite_mag_equivalence(graphs: &[Pag]) -> Option<bool> {
 #[allow(
     clippy::cast_possible_truncation,
     clippy::similar_names,
-    clippy::many_single_char_names,
     clippy::needless_range_loop,
     reason = "test graphs have a handful of nodes, so node indices fit u32"
 )]

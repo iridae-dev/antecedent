@@ -186,7 +186,6 @@ impl ExactDiscreteLaw {
     ///
     /// # Errors
     /// Invalid identities, domains, shape, interventions, or probability mass.
-    #[allow(clippy::too_many_arguments)]
     pub fn try_new(
         population: impl Into<Arc<str>>,
         regime: RegimeId,
@@ -267,7 +266,6 @@ impl ExactDiscreteLaw {
     ///
     /// # Errors
     /// Same validation as [`Self::try_new`].
-    #[allow(clippy::too_many_arguments)]
     pub fn try_empirical(
         population: impl Into<Arc<str>>,
         regime: RegimeId,
@@ -292,7 +290,6 @@ impl ExactDiscreteLaw {
     /// Validated draw from an explicitly specified posterior law.
     /// # Errors
     /// Same validation as [`Self::try_new`].
-    #[allow(clippy::too_many_arguments)]
     pub fn try_bayesian_posterior(
         population: impl Into<Arc<str>>,
         regime: RegimeId,
@@ -568,7 +565,10 @@ type WorldIndex = HashMap<Arc<str>, HashMap<RegimeId, HashMap<Vec<InterventionAs
 
 // Normalize exactly represented integral numeric levels locally, without changing
 // core Value equality or the original table/serialized coordinate representation.
-#[allow(clippy::cast_possible_truncation)] // Finite integral f64, explicitly within the exact i64 range.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "Finite integral f64, explicitly within the exact i64 range"
+)]
 pub(crate) fn value_key(value: &Value) -> Value {
     match value {
         Value::Float64(x)
@@ -1188,7 +1188,6 @@ mod tests {
         assert!(data.support(&[v(1)], &EvalContext::default()).is_err());
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn marginal_tables_agree_with_brute_force_enumeration() {
         // Three binary axes, an asymmetric joint. Every subset of axes and every level

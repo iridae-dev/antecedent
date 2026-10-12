@@ -280,7 +280,10 @@ pub struct OperationReport {
 impl OperationReport {
     /// Fully specified report.
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "all-fields constructor of a public record; the arguments are the record own fields, so a parameter struct would only restate it"
+    )]
     pub fn new(
         operation: OperationKind,
         applicability: SemanticApplicability,

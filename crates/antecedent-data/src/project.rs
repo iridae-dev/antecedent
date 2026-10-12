@@ -122,7 +122,6 @@ pub fn dedupe_variable_ids(ids: impl IntoIterator<Item = VariableId>) -> Vec<Var
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::cast_precision_loss)]
 
     use super::*;
     use crate::column::{Float64Column, OwnedColumn, ValidityBitmap};

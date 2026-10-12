@@ -402,7 +402,10 @@ pub enum RequestSupport {
 /// An ordinary loaded result supplies none of these (all `false`).
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 // Independent availability flags; a state enum would not model their combinations.
-#[allow(clippy::struct_excessive_bools)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is an independent switch of the record; they do not form a state machine"
+)]
 pub struct ResumeContext {
     /// A portable fitted predictor is available.
     pub portable_fit: bool,

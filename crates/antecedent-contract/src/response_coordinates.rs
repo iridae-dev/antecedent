@@ -15,7 +15,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 // A refusal is the cold path of a once-per-response derivation; boxing would not pay.
-#![allow(clippy::result_large_err)]
 
 use crate::{ExternalRefusal, QuantityRole, ScientificQuantity, dose_label};
 use antecedent_core::{CausalResponse, Intervention, ResponseFunctional, Value, VariableId};
@@ -93,6 +92,10 @@ fn functional_name(functional: &ResponseFunctional) -> &'static str {
     }
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn named(
     id: VariableId,
     name_of: &dyn Fn(VariableId) -> Option<String>,
@@ -108,6 +111,10 @@ fn named(
     })
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn mean_curve_skeleton(
     response: &CausalResponse,
     name_of: &dyn Fn(VariableId) -> Option<String>,
@@ -157,6 +164,10 @@ fn not_describable(kind: &str) -> ExternalRefusal {
     )
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn numeric_level(value: &Value, kind: &str) -> Result<String, ExternalRefusal> {
     let level = match value {
         Value::Float64(_) | Value::Int64(_) | Value::Bool(_) => {
@@ -167,6 +178,10 @@ fn numeric_level(value: &Value, kind: &str) -> Result<String, ExternalRefusal> {
     level.map(dose_label).ok_or_else(|| not_describable(kind))
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn regime_part(
     intervention: &Intervention,
     name_of: &dyn Fn(VariableId) -> Option<String>,
@@ -186,6 +201,10 @@ fn regime_part(
     }
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn intervention_skeleton(
     response: &CausalResponse,
     name_of: &dyn Fn(VariableId) -> Option<String>,
@@ -232,7 +251,10 @@ fn intervention_skeleton(
 /// intervention path; `unknown_variable` / `invalid_argument` for a variable the
 /// caller cannot name or an invalid grid.
 // A refusal is the cold path of a once-per-response derivation; boxing would not pay.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn response_coordinate_skeleton(
     response: &CausalResponse,
     name_of: &dyn Fn(VariableId) -> Option<String>,
@@ -255,6 +277,10 @@ pub fn response_coordinate_skeleton(
 /// # Errors
 /// `invalid_argument` with `coordinate_support.units_required` when the declared
 /// units, population or scale are blank (units are never inferred or converted).
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn label_coordinates(
     cells: &[ResponseCoordinateSkeleton],
     labels: &ResponseCoordinateLabels<'_>,
@@ -279,6 +305,10 @@ pub fn label_coordinates(
 ///
 /// # Errors
 /// Everything [`label_coordinates`] and [`response_coordinate_skeleton`] refuse.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn response_coordinates(
     response: &CausalResponse,
     name_of: &dyn Fn(VariableId) -> Option<String>,

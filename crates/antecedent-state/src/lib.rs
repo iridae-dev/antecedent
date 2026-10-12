@@ -4,19 +4,6 @@
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![allow(
-    clippy::module_name_repetitions,
-    clippy::missing_errors_doc,
-    clippy::missing_panics_doc,
-    clippy::needless_range_loop
-)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
 
 pub mod error;
 pub mod event;

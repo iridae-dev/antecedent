@@ -263,7 +263,7 @@ pub fn tabular_from_arrow_c_columns(
 }
 
 #[cfg(test)]
-#[allow(clippy::float_cmp)] // values are copied bit-for-bit
+#[allow(clippy::float_cmp, reason = "values are copied bit-for-bit")]
 mod tests {
     use antecedent_core::VariableId;
     use arrow_array::Float64Array;

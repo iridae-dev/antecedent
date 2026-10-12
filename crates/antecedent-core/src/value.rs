@@ -48,7 +48,6 @@ impl Value {
 
     /// Interpret as an `f64` level when possible.
     #[must_use]
-    #[allow(clippy::cast_precision_loss)]
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             Self::Float64(v) => Some(*v),
