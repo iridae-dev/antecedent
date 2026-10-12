@@ -115,7 +115,7 @@ PY_INTERVAL = re.compile(r"^\s*(?:def\s+)?(\w*interval\w*)\s*[:(=]", re.I)
 
 def load(rel: str) -> dict:
     path = ROOT / rel
-    return tomllib.loads(path.read_text()) if path.is_file() else {}
+    return tomllib.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
 
 
 def coverage_ids() -> set[str]:
@@ -158,7 +158,7 @@ def interval_findings(rel: str) -> list[tuple[int, str]]:
         return []
     pattern = PY_INTERVAL if rel.endswith(".py") else RUST_INTERVAL
     found = []
-    for number, line in enumerate(path.read_text().splitlines(), 1):
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         hit = pattern.match(line)
         if hit:
             found.append((number, hit.group(1)))
@@ -353,7 +353,7 @@ def self_test() -> int:
     baseline = Path(tempfile.mkdtemp(prefix="a_intervals_"))
     try:
         needed = set(REGISTRY_FILES) - {"parity/coverage_records.toml"}
-        promotion = tomllib.loads((real_root / "parity/promotion.toml").read_text())
+        promotion = tomllib.loads((real_root / "parity/promotion.toml").read_text(encoding="utf-8"))
         for record in (r for r in promotion["record"] if r.get("id") in INTERVAL_SURFACES):
             needed |= set(INTERVAL_SURFACES[record["id"]])
             for route in record.get("routes") or []:
@@ -376,7 +376,7 @@ def self_test() -> int:
         }
         (baseline / "parity/coverage_records.toml").write_text(
             "".join(f'[[record]]\nid = "{coverage_id}"\n' for coverage_id in sorted(baseline_coverage))
-        )
+        , encoding="utf-8", newline="\n")
         os.environ["INTERVAL_SURFACES_SKIP_ATTEST"] = "1"
 
         def run(edit=None, coverage: list[str] | None = None) -> dict:
@@ -387,7 +387,7 @@ def self_test() -> int:
                 if coverage is not None:
                     (case / "parity/coverage_records.toml").write_text(
                         "".join(f'[[record]]\nid = "{c}"\n' for c in sorted(baseline_coverage | set(coverage)))
-                    )
+                    , encoding="utf-8", newline="\n")
                 if edit is not None:
                     edit(case)
                 ROOT = case
@@ -399,10 +399,10 @@ def self_test() -> int:
         def edit_file(rel: str, old: str, new: str):
             def apply(case: Path) -> None:
                 path = case / rel
-                text = path.read_text()
+                text = path.read_text(encoding="utf-8")
                 if old not in text:
                     raise LookupError(f"{old[:60]!r} not found in {rel}")
-                path.write_text(text.replace(old, new, 1))
+                path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
 
             return apply
 
@@ -429,10 +429,10 @@ def self_test() -> int:
 
         def open_multi_source(case: Path) -> None:
             path = case / promo
-            text = path.read_text()
+            text = path.read_text(encoding="utf-8")
             start = text.index(closed_route_head)
             end = text.index("},", start) + 1
-            path.write_text(text[:start] + licensed_route + text[end:])
+            path.write_text(text[:start] + licensed_route + text[end:], encoding="utf-8", newline="\n")
 
         expect("baseline copy", run(), fail_with=None)
         result = run()
@@ -491,12 +491,12 @@ def self_test() -> int:
             # The two-step temporal cell declares one closed uncertainty route per surface (Rust facade, Python stage);
             # the violation is having none, so every one of them goes.
             path = case / promo
-            text = path.read_text()
+            text = path.read_text(encoding="utf-8")
             for head in two_step_heads:
                 start = text.index(head)
                 end = text.index("},", start) + 2
                 text = text[:start] + text[end:]
-            path.write_text(text)
+            path.write_text(text, encoding="utf-8", newline="\n")
 
         expect("interval-bearing surface with no closed route", run(drop_two_step_interval_route),
                fail_with="has no closed uncertainty route")
@@ -504,15 +504,15 @@ def self_test() -> int:
 
         def add_public_interval(case: Path) -> None:
             path = case / fresh_surface
-            path.write_text(path.read_text() + "\npub struct SelfTestLeak {\n    pub interval: Option<(f64, f64)>,\n}\n")
+            path.write_text(path.read_text(encoding="utf-8") + "\npub struct SelfTestLeak {\n    pub interval: Option<(f64, f64)>,\n}\n", encoding="utf-8", newline="\n")
 
         def drop_cross_world_route(case: Path) -> None:
             path = case / promo
-            text = path.read_text()
+            text = path.read_text(encoding="utf-8")
             head = '{ name = "antecedent.cross_world.uncertainty"'
             start = text.index(head)
             end = text.index("},", start) + 2
-            path.write_text(text[:start] + text[end:])
+            path.write_text(text[:start] + text[end:], encoding="utf-8", newline="\n")
 
         def leak_without_route(case: Path) -> None:
             add_public_interval(case)

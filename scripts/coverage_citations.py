@@ -106,7 +106,7 @@ def wide_figures(text: str, lo: int, hi: int) -> list[tuple[re.Match, float, flo
 
 
 def load_records() -> dict[str, dict]:
-    return {r["id"]: r for r in tomllib.loads(RECORDS.read_text()).get("record", [])}
+    return {r["id"]: r for r in tomllib.loads(RECORDS.read_text(encoding="utf-8")).get("record", [])}
 
 
 def attribution_after(text: str, pos: int, hi: int):
@@ -161,7 +161,7 @@ def open_items() -> tuple[set[str], list[str]]:
     records = load_records()
     items: set[str] = set()
     problems: list[str] = []
-    for cell in tomllib.loads(LICENSED.read_text()).get("cell", []):
+    for cell in tomllib.loads(LICENSED.read_text(encoding="utf-8")).get("cell", []):
         text = str(cell.get("limitations", ""))
         label = row_label(cell)
         for lo, hi in sentences(text):
@@ -207,7 +207,7 @@ def read_backlog() -> set[str]:
         return set()
     return {
         line
-        for line in BACKLOG.read_text().splitlines()
+        for line in BACKLOG.read_text(encoding="utf-8").splitlines()
         if line.strip() and not line.startswith("#")
     }
 
@@ -241,7 +241,7 @@ def write_backlog() -> int:
         "# stale line). Regenerate with `python3 scripts/coverage_citations.py backlog`\n"
         "# after attributing figures; it must never be used to admit a new one.\n"
         + "".join(f"{item}\n" for item in sorted(items))
-    )
+    , encoding="utf-8", newline="\n")
     return len(items)
 
 
@@ -406,7 +406,7 @@ def _structured_problems(cell: dict, records: dict[str, dict]) -> list[str]:
 def check() -> list[str]:
     records = load_records()
     problems: list[str] = []
-    for cell in tomllib.loads(LICENSED.read_text()).get("cell", []):
+    for cell in tomllib.loads(LICENSED.read_text(encoding="utf-8")).get("cell", []):
         text = str(cell.get("limitations", ""))
         label = row_label(cell)
         for rid in RECORD_RE.findall(text):
@@ -552,7 +552,7 @@ def cite_text(text: str, records: dict[str, dict]) -> str:
 
 def cite() -> int:
     records = load_records()
-    raw = LICENSED.read_text()
+    raw = LICENSED.read_text(encoding="utf-8")
     changed = 0
 
     def repl(m: re.Match) -> str:
@@ -566,7 +566,7 @@ def cite() -> int:
         return f'limitations = "{escaped}"'
 
     out = re.sub(r'(?m)^limitations = ".*"$', repl, raw)
-    LICENSED.write_text(out)
+    LICENSED.write_text(out, encoding="utf-8", newline="\n")
     return changed
 
 

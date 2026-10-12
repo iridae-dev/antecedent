@@ -18,7 +18,7 @@ for rel in DOCS:
     if not path.is_file():
         fail.append(f"{rel}: missing")
         continue
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     if MATRIX_LINK not in text:
         fail.append(f"{rel}: does not link to {MATRIX_LINK}")
 
@@ -32,7 +32,7 @@ version = cargo["workspace"]["package"]["version"]
 # with an invalid target_version is an error.
 preparation = root / "docs" / "release-notes" / "preparation.toml"
 if preparation.is_file():
-    target = tomllib.loads(preparation.read_text()).get("target_version")
+    target = tomllib.loads(preparation.read_text(encoding="utf-8")).get("target_version")
     if not isinstance(target, str) or not re.fullmatch(r"\d+\.\d+\.\d+", target):
         fail.append("docs/release-notes/preparation.toml has no valid target_version")
         target = version
@@ -42,7 +42,7 @@ notes_path = root / "docs" / "release-notes" / f"v{target}.md"
 if not notes_path.is_file():
     fail.append(f"{notes_path}: current release notes missing")
 else:
-    notes = notes_path.read_text()
+    notes = notes_path.read_text(encoding="utf-8")
     if "../support-matrix.md" not in notes:
         fail.append(f"{notes_path}: does not link the authoritative support matrix")
     refusal_heading = "## Explicit refusals"

@@ -150,7 +150,7 @@ def filters(value) -> list[str]:
     return [p.strip() for p in parts if isinstance(p, str) and p.strip()]
 
 
-rows = tomllib.loads((root / ledger).read_text()).get(table, [])
+rows = tomllib.loads((root / ledger).read_text(encoding="utf-8")).get(table, [])
 if not rows:
     print(f"FAIL: {ledger} has no [[{table}]] rows")
     sys.exit(1)

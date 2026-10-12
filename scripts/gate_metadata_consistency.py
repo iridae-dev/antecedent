@@ -19,7 +19,7 @@ if pyproject["project"]["version"] != version:
         f"python/pyproject.toml version {pyproject['project']['version']!r} != Cargo.toml {version!r}"
     )
 
-citation = Path("CITATION.cff").read_text()
+citation = Path("CITATION.cff").read_text(encoding="utf-8")
 m = re.search(r"^version:\s*['\"]?([^'\"\s]+)", citation, re.M)
 if not m:
     fail.append("CITATION.cff has no version field")
@@ -50,7 +50,7 @@ if not zenodo_path.is_file():
     fail.append(".zenodo.json missing: Zenodo would fall back to parsing CITATION.cff, whose license list it rejects")
 else:
     try:
-        zenodo = json.loads(zenodo_path.read_text())
+        zenodo = json.loads(zenodo_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
         fail.append(f".zenodo.json is not valid JSON: {e}")
     else:
@@ -77,7 +77,7 @@ rn_end = "<!-- generated:support-matrix:licensed:end -->"
 # with an invalid target_version is an error.
 preparation = Path("docs/release-notes/preparation.toml")
 if preparation.is_file():
-    target = tomllib.loads(preparation.read_text()).get("target_version")
+    target = tomllib.loads(preparation.read_text(encoding="utf-8")).get("target_version")
     if not isinstance(target, str) or not re.fullmatch(r"\d+\.\d+\.\d+", target):
         fail.append("docs/release-notes/preparation.toml has no valid target_version")
         target = version
@@ -89,7 +89,7 @@ if not current_notes.is_file():
 for path in sorted(Path("docs/release-notes").glob("v*.md")):
     if path.resolve() == current_notes.resolve():
         continue
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     if rn_begin in text or rn_end in text:
         fail.append(
             f"{path} still has live generated licensed-block markers; "
@@ -98,7 +98,7 @@ for path in sorted(Path("docs/release-notes").glob("v*.md")):
 
 # ------------------------------------------------------- 2. artifact format
 # Canonical: STABLE_FORMAT in crates/antecedent-io-core/src/migrate.rs.
-migrate = Path("crates/antecedent-io-core/src/migrate.rs").read_text()
+migrate = Path("crates/antecedent-io-core/src/migrate.rs").read_text(encoding="utf-8")
 m = re.search(
     r"pub const STABLE_FORMAT: FormatVersion = FormatVersion \{ major: (\d+), minor: (\d+) \}",
     migrate,
@@ -114,7 +114,7 @@ else:
     for path in list(root.glob("parity/*.toml")) + list(root.glob("docs/*.md")) + list(
         root.glob("adr/*.md")
     ):
-        for found in pattern.findall(path.read_text()):
+        for found in pattern.findall(path.read_text(encoding="utf-8")):
             if found != fmt:
                 fail.append(
                     f"{path} claims artifact format {found} frozen/stable; "
@@ -133,7 +133,7 @@ else:
     ]:
         if not path.is_file():
             continue
-        for found in current_fmt.findall(path.read_text()):
+        for found in current_fmt.findall(path.read_text(encoding="utf-8")):
             if found != fmt:
                 fail.append(
                     f"{path} claims response artifact format {found}; STABLE_FORMAT is {fmt}"
@@ -145,7 +145,7 @@ else:
 for path in list(root.glob("crates/**/*.rs")) + list(root.glob("python/**/*.py")):
     if "target/" in str(path) or ".venv" in str(path):
         continue
-    if "causal-library" in path.read_text():
+    if "causal-library" in path.read_text(encoding="utf-8"):
         fail.append(f"{path} still names the workspace 'causal-library' (it is 'antecedent')")
 
 for path in sorted(root.glob("parity/*.toml")):
@@ -220,7 +220,7 @@ for method in ledger.get("method", []):
     if not fixture.exists():
         fail.append(f"oracle_closure {mid}: fixture missing {fixture}")
         continue
-    text = fixture.read_text().lower()
+    text = fixture.read_text(encoding="utf-8").lower()
     for pkg in UPSTREAM:
         if pkg in method["oracle_project"].lower() and pkg not in text:
             fail.append(
@@ -237,7 +237,7 @@ for method in ledger.get("method", []):
         )
     # A closed row must not be json-invalid.
     try:
-        json.loads(fixture.read_text())
+        json.loads(fixture.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         fail.append(f"oracle_closure {mid}: {fixture} is not valid JSON ({exc})")
     if not oracle_fixture_has_test(method["fixture_dir"]):
@@ -259,7 +259,7 @@ for method in ledger.get("method", []):
 # with the other release snippets above, not scraped from the README sentence.
 RETIRED_README_NAMES = ["CausalAnalysis", "causal-library"]
 for path in sorted(root.glob("crates/*/README.md")) + [Path("python/README.md")]:
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     for name in RETIRED_README_NAMES:
         if name in text:
             fail.append(f"{path} mentions retired name {name!r}")

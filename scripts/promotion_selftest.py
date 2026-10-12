@@ -798,7 +798,7 @@ def synthetic(index: int, edits, *, baseline: bool = False, disable: str | None 
         texts[name] = texts[name].replace(old, new, 1)
     for name, body in texts.items():
         target = REGISTRY_FILE if name == "record.toml" else name
-        (case / target).write_text(body.replace("{D}", str(case)))
+        (case / target).write_text(body.replace("{D}", str(case)), encoding="utf-8", newline="\n")
     env = {key: str(case / name) for key, name in ENV_FILES.items()}
     env["PROMOTION_EXTRA_SOURCES"] = os.pathsep.join(str(case / n) for n in ("code.rs", "code.py"))
     env["PROMOTION_SYNTHETIC_EVIDENCE"] = "1"
@@ -858,8 +858,8 @@ def committed() -> tuple[bool, str]:
         return False, f"SELF-TEST FAIL: {path} does not pass\n{out[-2500:]}"
     with tempfile.TemporaryDirectory() as tmp:
         leaked = Path(tmp) / "promotion.toml"
-        source = (ROOT / "parity/promotion.toml").read_text()
-        leaked.write_text(source.replace("version = 1\n", 'version = 1\nrelease = "1"\n', 1))
+        source = (ROOT / "parity/promotion.toml").read_text(encoding="utf-8")
+        leaked.write_text(source.replace("version = 1\n", 'version = 1\nrelease = "1"\n', 1), encoding="utf-8", newline="\n")
         code, out = run(leaked, {"PROMOTION_STATIC_ONLY": "1"})
         if code == 0 or "promotion registry requires version 1 and no release field [registry_header]" not in out:
             return False, f"SELF-TEST FAIL: a release field was accepted\n{out[-2500:]}"
@@ -868,9 +868,9 @@ def committed() -> tuple[bool, str]:
 
 def rule_ids() -> tuple[list[str], set[str]]:
     listed = subprocess.run([sys.executable, str(CHECKER), "--list-rules"], capture_output=True, text=True, check=True).stdout.split()
-    used = set(re.findall(r'\bfail\(\s*"([a-z_]+)"', CHECKER.read_text()))
+    used = set(re.findall(r'\bfail\(\s*"([a-z_]+)"', CHECKER.read_text(encoding="utf-8")))
     # rules the source analysers hand back as (rule, message) pairs
-    used |= {r for r in listed if f'("{r}",' in (ROOT / "scripts/promotion_source.py").read_text()}
+    used |= {r for r in listed if f'("{r}",' in (ROOT / "scripts/promotion_source.py").read_text(encoding="utf-8")}
     return listed, used
 
 

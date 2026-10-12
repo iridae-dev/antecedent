@@ -72,7 +72,7 @@ def envelope(pin: dict, atoms: list[dict]) -> tuple[float, float, list[float]]:
 
 
 def main() -> int:
-    pin = json.loads((HERE / "expected.json").read_text())
+    pin = json.loads((HERE / "expected.json").read_text(encoding="utf-8"))
     freq = pin["frequentist"]
     ate, se, effects = envelope(pin, freq["reference_atoms"])
     print(json.dumps({"ate": ate, "se": se, "completion_effects": effects}, indent=2))

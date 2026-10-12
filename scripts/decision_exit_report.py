@@ -144,7 +144,7 @@ FAILED_PY = re.compile(r"\b\d+ (failed|error)")
 def story_records(root: Path, registry: str = "parity/promotion.toml") -> dict[str, list[dict]]:
     """Every record of each registered story (a story may own several, e.g. a carried one)."""
     p = root / registry
-    records = tomllib.loads(p.read_text()).get("record", []) if p.is_file() else []
+    records = tomllib.loads(p.read_text(encoding="utf-8")).get("record", []) if p.is_file() else []
     by_id = {r["id"]: r for r in records}
     out: dict[str, list[dict]] = {}
     for story, entry in DECISION_STORIES.items():
@@ -168,7 +168,7 @@ def parse_runs(text: str) -> dict[tuple[str, str, str], tuple[int, str]]:
         parts = line.split("\t")
         if len(parts) == 5:
             kind, pkg, target, rc, log = parts
-            body = Path(log).read_text() if Path(log).is_file() else ""
+            body = Path(log).read_text(encoding="utf-8") if Path(log).is_file() else ""
             runs[(kind, pkg, target)] = (int(rc), body)
     return runs
 
@@ -231,7 +231,7 @@ def evidence_problems(
         homes = [
             (kind, key, body)
             for kind, key, f, body in story_files
-            if _defines(f.read_text(), name, kind == "python")
+            if _defines(f.read_text(encoding="utf-8"), name, kind == "python")
         ]
         if homes:
             in_story += 1
@@ -249,7 +249,7 @@ def evidence_problems(
         fixture_ok = any(
             n == name
             and (root / rel).is_file()
-            and _defines((root / rel).read_text(), name, rel.endswith(".py"))
+            and _defines((root / rel).read_text(encoding="utf-8"), name, rel.endswith(".py"))
             for rel, n in cited
         )
         if not fixture_ok:
@@ -447,11 +447,11 @@ def self_test() -> int:
 
         def put(rel: str, text: str) -> None:
             (root / rel).parent.mkdir(parents=True, exist_ok=True)
-            (root / rel).write_text(text)
+            (root / rel).write_text(text, encoding="utf-8", newline="\n")
 
         def log(name: str, body: str) -> Path:
             p = Path(t) / name
-            p.write_text(body)
+            p.write_text(body, encoding="utf-8", newline="\n")
             return p
 
         P1, P2, P3 = (
@@ -918,9 +918,9 @@ def main(argv: list[str]) -> int:
     )
     for k in it:
         args[k] = next(it, "")
-    runs = parse_runs(Path(args["--runs"]).read_text()) if "--runs" in args else {}
+    runs = parse_runs(Path(args["--runs"]).read_text(encoding="utf-8")) if "--runs" in args else {}
     intervals = (
-        json.loads(Path(args["--intervals"]).read_text())
+        json.loads(Path(args["--intervals"]).read_text(encoding="utf-8"))
         if "--intervals" in args
         else {}
     )

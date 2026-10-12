@@ -48,7 +48,7 @@ def lagged_effect(d: dict[str, np.ndarray], adjust: list[str]) -> float:
 
 
 def main() -> int:
-    pin = json.loads((HERE / "identified_pag.json").read_text())
+    pin = json.loads((HERE / "identified_pag.json").read_text(encoding="utf-8"))
     d = series(int(pin["n"]))
     atoms = pin["identified_completions"]
     weights = np.asarray([a["weight"] for a in atoms], dtype=float)

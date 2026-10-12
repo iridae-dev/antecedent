@@ -118,7 +118,7 @@ def main() -> int:
     if "--table" in sys.argv:
         print(json.dumps(table()))
         return 0
-    pin = json.loads((HERE / "expected.json").read_text())
+    pin = json.loads((HERE / "expected.json").read_text(encoding="utf-8"))
     assert pin["contingency_table"] == table(), "contingency table drifted from LAW"
     d = expand(pin)
     atoms = pin["identified_completions"]

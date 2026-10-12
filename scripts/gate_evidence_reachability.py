@@ -71,7 +71,7 @@ cite_sources = list(root.glob("provenance/*.toml")) + list(root.glob("parity/**/
 for src in cite_sources:
     if src.name == "oracle_closure.toml":
         continue  # handled structurally above
-    text = src.read_text()
+    text = src.read_text(encoding="utf-8")
     for d in declared:
         name = Path(d).name
         for line in text.splitlines():
@@ -88,7 +88,7 @@ for src in cite_sources:
 # parity notes had no such check.
 PATH_RE = re.compile(r"conformance/[A-Za-z0-9_./-]+")
 for src in root.glob("parity/**/*.toml"):
-    for m in PATH_RE.findall(src.read_text()):
+    for m in PATH_RE.findall(src.read_text(encoding="utf-8")):
         p = m.rstrip(".")
         # Citations may name a dir or a file inside it.
         if not ((root / p).exists() or (root / p).with_suffix("").exists()):
@@ -98,7 +98,7 @@ for src in root.glob("parity/**/*.toml"):
 backlog_path = root / "provenance/_deviations_backlog.txt"
 backlog = set()
 if backlog_path.exists():
-    for line in backlog_path.read_text().splitlines():
+    for line in backlog_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#"):
             backlog.add(line)
@@ -152,7 +152,7 @@ if licensed_obs:
     for p in sorted(root.glob("crates/**/*.rs")):
         if "target" in p.parts:
             continue
-        text = p.read_text(errors="ignore")
+        text = p.read_text(errors="ignore", encoding="utf-8")
         for block in re.split(r"\n\s*fn\s+", text):
             if "observation_primitives" in block and obs_spec.search(block):
                 joint = True
@@ -194,7 +194,7 @@ ORACLE_KINDS = {
 }
 for expected in sorted((root / "conformance").glob("**/expected.json")):
     try:
-        document = json.loads(expected.read_text())
+        document = json.loads(expected.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         continue
     for block in command_blocks(document):
@@ -236,7 +236,7 @@ _kt_cited: dict[str, str] = {}
 for _toml in sorted((root / "parity").glob("*.toml")) + sorted(
     (root / "provenance").glob("*.toml")
 ):
-    for _m in re.finditer(r'known_truth_fixture\s*=\s*"([^"]+)"', _toml.read_text()):
+    for _m in re.finditer(r'known_truth_fixture\s*=\s*"([^"]+)"', _toml.read_text(encoding="utf-8")):
         _kt_cited.setdefault(_m.group(1), str(_toml))
 for _fixture, _cited_by in sorted(_kt_cited.items()):
     if _fixture.endswith(".json"):
@@ -248,7 +248,7 @@ for _fixture, _cited_by in sorted(_kt_cited.items()):
     if not _path.is_file():
         continue
     try:
-        _oracle = json.loads(_path.read_text()).get("oracle")
+        _oracle = json.loads(_path.read_text(encoding="utf-8")).get("oracle")
     except (json.JSONDecodeError, AttributeError):
         fail.append(f"{_path}: known_truth_fixture (cited by {_cited_by}) is not a JSON object")
         continue
@@ -286,7 +286,7 @@ n_claimed = 0
 for p in sorted(root.glob("crates/**/*.rs")):
     if "target" in p.parts:
         continue
-    lines = p.read_text(errors="ignore").splitlines()
+    lines = p.read_text(errors="ignore", encoding="utf-8").splitlines()
     for i, line in enumerate(lines):
         if not CLAIM.search(line):
             continue

@@ -38,7 +38,7 @@ def regression_pin_problem(fixture: str, inference: str) -> str | None:
     if not path.is_file():
         return None
     try:
-        oracle = json.loads(path.read_text()).get("oracle")
+        oracle = json.loads(path.read_text(encoding="utf-8")).get("oracle")
     except (OSError, ValueError):
         return None
     if isinstance(oracle, dict) and oracle.get("kind") == "regression_pin":
@@ -57,7 +57,7 @@ def load(rel: str) -> dict:
         fail.append(f"{rel}: missing")
         return {}
     try:
-        return tomllib.loads(path.read_text())
+        return tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as exc:
         fail.append(f"{rel}: not valid TOML: {exc}")
         return {}
@@ -80,7 +80,7 @@ validations = list(axes.get("validations") or [])
 all_queries = queries + stage_queries
 
 # --- live Python root query names -------------------------------------------
-init_text = (root / "python/antecedent/__init__.py").read_text()
+init_text = (root / "python/antecedent/__init__.py").read_text(encoding="utf-8")
 mod = ast.parse(init_text)
 public: list[str] | None = None
 for node in mod.body:
@@ -136,7 +136,7 @@ stage_files = [
 ]
 found_public_types: set[str] = set()
 for path in stage_files:
-    for name in re.findall(r"^class ([A-Za-z][A-Za-z0-9]*)\b", path.read_text(), re.M):
+    for name in re.findall(r"^class ([A-Za-z][A-Za-z0-9]*)\b", path.read_text(encoding="utf-8"), re.M):
         found_public_types.add(class_to_axis.get(name, name))
 needed_public_types = set(off_axis_public_queries) | set(public_query_companions)
 missing_public_types = sorted(needed_public_types - found_public_types)
@@ -159,12 +159,12 @@ for name in stage_queries:
         src_path = root / "python/antecedent/transport/_impl.py"
     else:
         src_path = root / "python/antecedent/interference.py"
-    src = src_path.read_text() if src_path.is_file() else ""
+    src = src_path.read_text(encoding="utf-8") if src_path.is_file() else ""
     if f"class {name}" not in src:
         fail.append(f"{name}: no class {name} in {src_path.relative_to(root)}")
 
 # --- live GraphClass variants ------------------------------------------------
-accepted = (root / "crates/antecedent/src/accepted.rs").read_text()
+accepted = (root / "crates/antecedent/src/accepted.rs").read_text(encoding="utf-8")
 m = re.search(r"pub enum GraphClass \{([^}]+)\}", accepted, re.S)
 if not m:
     fail.append("crates/antecedent/src/accepted.rs: could not parse GraphClass")
@@ -561,7 +561,7 @@ backlog_rel = "parity/_evidence_test_backlog.txt"
 backlog_path = root / backlog_rel
 evidence_backlog: set[str] = set()
 if backlog_path.is_file():
-    for line in backlog_path.read_text().splitlines():
+    for line in backlog_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#"):
             evidence_backlog.add(line)

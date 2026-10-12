@@ -33,8 +33,8 @@ def ledger_scope() -> tuple[list[dict], list[dict]]:
     names are the ones whose routes, uncertainty methods and output allocations
     this inventory renders. A ledger cell naming no promotion record is an error.
     """
-    registry = tomllib.loads(PROMOTION.read_text())["record"]
-    cells = tomllib.loads(LEDGER.read_text())["cell"]
+    registry = tomllib.loads(PROMOTION.read_text(encoding="utf-8"))["record"]
+    cells = tomllib.loads(LEDGER.read_text(encoding="utf-8"))["cell"]
     owned = {cell["id"] for cell in cells}
     missing = owned - {record["id"] for record in registry}
     if missing:
@@ -346,7 +346,7 @@ def per_output_inference(records: list[dict]) -> list[str]:
 def render() -> str:
     cells = [
         row
-        for row in tomllib.loads(SOURCE.read_text())["cell"]
+        for row in tomllib.loads(SOURCE.read_text(encoding="utf-8"))["cell"]
         if row.get("calibration_reason") == "estimator_grid_not_measured"
     ]
     counts = Counter(tuple(row[a] for a in AXES) for row in cells)
@@ -448,10 +448,10 @@ def main() -> None:
         return
     content = render()
     if args.check:
-        if not OUTPUT.exists() or OUTPUT.read_text() != content:
+        if not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != content:
             parser.error("parity/calibration_plan.md is stale")
     else:
-        OUTPUT.write_text(content)
+        OUTPUT.write_text(content, encoding="utf-8", newline="\n")
     print(
         "calibration plan: inherited 40 cells / 18 coordinates retained; "
         "current promotion routes and inference boundaries inventoried"

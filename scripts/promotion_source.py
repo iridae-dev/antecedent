@@ -672,7 +672,7 @@ def ignored_test_literals(path: Path) -> dict[str, list[str]]:
 def python_fn_literals(path: Path) -> dict[str, list[str]]:
     """Function name -> string constants in its body, for every def of a Python file."""
     try:
-        tree = ast.parse(path.read_text(errors="ignore"))
+        tree = ast.parse(path.read_text(errors="ignore", encoding="utf-8"))
     except SyntaxError:
         return {}
     out: dict[str, list[str]] = {}
@@ -712,7 +712,7 @@ def python_literals(path: Path) -> list[Lit]:
     """Every string a Python file builds: constants (adjacent literals are already
     one constant), f-strings and `+` concatenations."""
     try:
-        tree = ast.parse(path.read_text(errors="ignore"))
+        tree = ast.parse(path.read_text(errors="ignore", encoding="utf-8"))
     except SyntaxError:
         return []
     # Documentation is not an emitted runtime string. In particular, a sentence
@@ -939,7 +939,7 @@ def python_symbols(path: Path) -> dict[str, Symbol]:
     """Public top-level names of a Python file: `__all__` if it defines it (kinds
     resolved through `from .mod import Name`), else defs and classes without a
     leading underscore."""
-    tree = ast.parse(path.read_text(errors="ignore"))
+    tree = ast.parse(path.read_text(errors="ignore", encoding="utf-8"))
     kinds = {
         node.name: "type" if isinstance(node, ast.ClassDef) else "function"
         for node in tree.body
@@ -950,7 +950,7 @@ def python_symbols(path: Path) -> dict[str, Symbol]:
             target = path.parent / (node.module.replace(".", "/") + ".py")
             if target.is_file():
                 try:
-                    inner = ast.parse(target.read_text(errors="ignore"))
+                    inner = ast.parse(target.read_text(errors="ignore", encoding="utf-8"))
                 except SyntaxError:
                     continue
                 for sub in inner.body:
@@ -1049,7 +1049,7 @@ def rust_assertion_args(path: Path, name: str) -> list[str]:
 
 
 def _py_closure(path: Path, name: str) -> list[ast.AST]:
-    tree = ast.parse(path.read_text(errors="ignore"))
+    tree = ast.parse(path.read_text(errors="ignore", encoding="utf-8"))
     return closure_nodes(tree, name)
 
 
@@ -1165,7 +1165,7 @@ def _referenced_elsewhere(name: str, path: Path) -> bool:
     for other in sorted(src.glob("**/*.rs")):
         if other.resolve() == path.resolve():
             continue
-        if name not in other.read_text(errors="ignore"):
+        if name not in other.read_text(errors="ignore", encoding="utf-8"):
             continue
         if pattern.search(nontest_pair(other, in_crate=True)[1]):
             return True

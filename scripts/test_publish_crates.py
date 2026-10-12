@@ -58,7 +58,7 @@ class PublishVersionTests(unittest.TestCase):
                 '    print("TEST_PACKAGE_VERIFIED")\n'
                 "else:\n"
                 '    sys.exit("unexpected cargo invocation")\n'
-            )
+            , encoding="utf-8", newline="\n")
             cargo.chmod(0o755)
             env = os.environ.copy()
             env["PATH"] = directory + os.pathsep + env["PATH"]

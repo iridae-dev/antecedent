@@ -60,7 +60,7 @@ def load_allowlist(path: Path) -> dict:
     if not path.is_file():
         fail(f"upstream-name allowlist: missing {path}")
     try:
-        data = tomllib.loads(path.read_text())
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as exc:
         fail(f"upstream-name allowlist: {path} is not valid TOML: {exc}")
     names = string_list(data, "names", required=True)
@@ -149,7 +149,7 @@ for raw_path in tracked:
     if allowed(path, spec):
         continue
     try:
-        text = path.read_text(errors="ignore")
+        text = path.read_text(errors="ignore", encoding="utf-8")
     except Exception:
         continue
     if pat.search(text):

@@ -95,16 +95,16 @@ deny_escape_crates = {
 }
 for crate in forbid_crates:
     lib = root / crate / "src" / "lib.rs"
-    text = lib.read_text()
+    text = lib.read_text(encoding="utf-8")
     if "#![forbid(unsafe_code)]" not in text:
         missing.append(f"{crate} missing #![forbid(unsafe_code)]")
 for crate, allow_mods in deny_escape_crates.items():
     lib = root / crate / "src" / "lib.rs"
-    text = lib.read_text()
+    text = lib.read_text(encoding="utf-8")
     if "#![deny(unsafe_code)]" not in text:
         missing.append(f"{crate} missing #![deny(unsafe_code)] (scoped unsafe escape)")
     if "allow(unsafe_code)" not in text and not any(
-        "allow(unsafe_code)" in (root / crate / "src" / m).read_text()
+        "allow(unsafe_code)" in (root / crate / "src" / m).read_text(encoding="utf-8")
         for m in allow_mods
         if (root / crate / "src" / m).exists()
     ):

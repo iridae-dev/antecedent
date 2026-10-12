@@ -29,7 +29,7 @@ COMMIT_LINE = re.compile(r"(?i)^commit:\s*[0-9a-f]{7,}")
 
 def load_registry(path: Path | None = None) -> dict:
     path = path or (ROOT / REGISTRY)
-    return tomllib.loads(path.read_text())
+    return tomllib.loads(path.read_text(encoding="utf-8"))
 
 
 def render_markdown(rec: dict) -> str:
@@ -181,7 +181,7 @@ def markdown_problems(data: dict) -> list[str]:
         if not path.is_file():
             problems.append(f"generated baseline missing: {BASELINE_DIR / bid}.md (run with --write)")
             continue
-        actual = path.read_text()
+        actual = path.read_text(encoding="utf-8")
         if actual != expected:
             problems.append(
                 f"{BASELINE_DIR / bid}.md drifted from {REGISTRY.as_posix()} (run with --write)"
@@ -213,7 +213,7 @@ def _gates(data: dict) -> list[tuple[str, str, float, str, str]]:
 
 def mean_ns(estimates: Path) -> float | None:
     try:
-        data = json.loads(estimates.read_text())
+        data = json.loads(estimates.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
     mean = data.get("mean") or {}
@@ -255,7 +255,7 @@ def write_markdown(data: dict) -> None:
         if not isinstance(rec, dict) or not isinstance(rec.get("id"), str):
             continue
         path = ROOT / BASELINE_DIR / f"{rec['id']}.md"
-        path.write_text(render_markdown(rec))
+        path.write_text(render_markdown(rec), encoding="utf-8", newline="\n")
 
 
 def main(argv: list[str]) -> int:

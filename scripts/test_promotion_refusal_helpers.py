@@ -174,7 +174,7 @@ class SharedNamespaceTests(unittest.TestCase):
                 )
             path = fake / "python/src/measured_inference_api.rs"
             path.write_text(
-                path.read_text().replace('"joint_bayesian" =>', '"seventh_route" =>'),
+                path.read_text(encoding="utf-8").replace('"joint_bayesian" =>', '"seventh_route" =>'),
                 encoding="utf-8",
             )
             self.assertTrue(defensive_carrier_route_problems(fake))

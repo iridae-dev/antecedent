@@ -914,7 +914,7 @@ class Reader:
     def text(self, rel: str) -> str | None:
         if rel not in self._cache:
             p = self.root / rel
-            self._cache[rel] = p.read_text() if p.is_file() else None
+            self._cache[rel] = p.read_text(encoding="utf-8") if p.is_file() else None
         return self._cache[rel]
 
     def find_const(
@@ -1389,7 +1389,7 @@ def _syn_tree(dest: Path) -> None:
         (SYN_PY_PATH, SYN_PY),
     ):
         (dest / rel).parent.mkdir(parents=True, exist_ok=True)
-        (dest / rel).write_text(text)
+        (dest / rel).write_text(text, encoding="utf-8", newline="\n")
 
 
 def self_test() -> int:
@@ -1436,11 +1436,11 @@ def self_test() -> int:
             d = Path(t) / name
             shutil.copytree(base, d)
             p = d / rel
-            text = p.read_text()
+            text = p.read_text(encoding="utf-8")
             if old not in text:
                 failures.append(f"{name}: mutation anchor {old!r} not found in {rel}")
                 return
-            p.write_text(text.replace(old, new, 1))
+            p.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
             errs, _, _ = run(d, **kw)
             if not any(expect in e for e in errs):
                 failures.append(
@@ -1584,8 +1584,8 @@ def self_test() -> int:
         d = Path(t) / "const_elsewhere"
         shutil.copytree(base, d)
         rs = d / SYN_RS_PATH
-        rs.write_text(rs.read_text().replace("pub const SYN_MAX_C: usize = 3;\n", "", 1))
-        (d / "crates/synth/src/other.rs").write_text("pub const SYN_MAX_C: usize = 3;\n")
+        rs.write_text(rs.read_text(encoding="utf-8").replace("pub const SYN_MAX_C: usize = 3;\n", "", 1), encoding="utf-8", newline="\n")
+        (d / "crates/synth/src/other.rs").write_text("pub const SYN_MAX_C: usize = 3;\n", encoding="utf-8", newline="\n")
         errs, _, _ = run(d)
         if not any("SYN_MAX_C not found" in e for e in errs):
             failures.append(
@@ -1629,11 +1629,11 @@ def self_test() -> int:
         shutil.copytree(base, reword)
         prose = reword / SYN_DOC_PATH
         prose.write_text(
-            prose.read_text().replace(
+            prose.read_text(encoding="utf-8").replace(
                 "Bounds: at most",
                 "Limits: no more than 4097 beside",
             )
-        )
+        , encoding="utf-8", newline="\n")
         reword_errs, _, _ = run(reword)
         if reword_errs:
             failures.append(

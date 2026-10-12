@@ -5,7 +5,7 @@ import tomllib
 from collections import defaultdict
 from pathlib import Path
 
-cells = tomllib.loads(Path("parity/support_licensed.toml").read_text()).get("cell", [])
+cells = tomllib.loads(Path("parity/support_licensed.toml").read_text(encoding="utf-8")).get("cell", [])
 rows = []
 for cell in cells:
     coordinate = ":".join(str(cell.get(key)) for key in
@@ -36,7 +36,7 @@ if shard != "all":
     if not rows:
         raise SystemExit(f"FAIL: checked shard {shard} has no citations")
     print(f"checked shard {shard}: {len(rows)}/{total} estimator citations", flush=True)
-with Path(sys.argv[1]).open("w") as out:
+with Path(sys.argv[1]).open("w", encoding="utf-8", newline="\n") as out:
     for label, path, assertion in rows:
         out.write("[[fixture_evidence]]\n")
         out.write(f"id = {json.dumps(label)}\n")

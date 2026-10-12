@@ -75,10 +75,10 @@ def heading_anchors(text: str) -> set[str]:
 def documented_ref(root: Path = ROOT) -> str:
     prep = root / "docs/release-notes/preparation.toml"
     if prep.is_file():
-        target = tomllib.loads(prep.read_text()).get("target_version")
+        target = tomllib.loads(prep.read_text(encoding="utf-8")).get("target_version")
         if isinstance(target, str):
             return f"v{target}"
-    cargo = tomllib.loads((root / "Cargo.toml").read_text())
+    cargo = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
     return "v" + cargo["workspace"]["package"]["version"]
 
 
@@ -89,7 +89,7 @@ def check_pages(root: Path, pages: list[str], *, anchors: bool) -> list[str]:
 
     def anchors_of(path: Path) -> set[str]:
         if path not in cache:
-            cache[path] = heading_anchors(path.read_text()) if path.is_file() else set()
+            cache[path] = heading_anchors(path.read_text(encoding="utf-8")) if path.is_file() else set()
         return cache[path]
 
     for rel in pages:
@@ -99,7 +99,7 @@ def check_pages(root: Path, pages: list[str], *, anchors: bool) -> list[str]:
         if not page.is_file():
             continue
         in_fence = False
-        for number, line in enumerate(page.read_text().splitlines(), start=1):
+        for number, line in enumerate(page.read_text(encoding="utf-8").splitlines(), start=1):
             if line.lstrip().startswith("```"):
                 in_fence = not in_fence
             if in_fence:
@@ -134,25 +134,25 @@ def self_test() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         (root / "docs").mkdir()
-        (root / "Cargo.toml").write_text('[workspace.package]\nversion = "9.9.9"\n')
+        (root / "Cargo.toml").write_text('[workspace.package]\nversion = "9.9.9"\n', encoding="utf-8", newline="\n")
         (root / "docs/page.md").write_text(
             "# Title\n\n## How to read the claims\n\nSee [claims](#how-to-read-the-claims) and [missing](#nope).\n"
-        )
-        (root / "docs/other.md").write_text("## Explicit refusals\n")
+        , encoding="utf-8", newline="\n")
+        (root / "docs/other.md").write_text("## Explicit refusals\n", encoding="utf-8", newline="\n")
         pages = ["docs/page.md", "docs/other.md"]
         plain = check_pages(root, pages, anchors=False)
         if plain:
             failures.append(f"fragments are ignored unless --anchors: {plain}")
         (root / "docs/page.md").write_text(
-            (root / "docs/page.md").read_text() + "\nSee [other](other.md#explicit-refusals).\n"
-        )
+            (root / "docs/page.md").read_text(encoding="utf-8") + "\nSee [other](other.md#explicit-refusals).\n"
+        , encoding="utf-8", newline="\n")
         anchored = check_pages(root, pages, anchors=True)
         if not any("#nope" in item for item in anchored):
             failures.append(f"missing anchor was accepted: {anchored}")
         if any("explicit-refusals" in item or "how-to-read-the-claims" in item for item in anchored):
             failures.append(f"live headings were rejected: {anchored}")
         # Rewording a heading breaks only the optional anchor check, and only the link that named it.
-        (root / "docs/other.md").write_text("## Refusals, restated\n")
+        (root / "docs/other.md").write_text("## Refusals, restated\n", encoding="utf-8", newline="\n")
         moved = check_pages(root, pages, anchors=True)
         if not any("explicit-refusals" in item for item in moved):
             failures.append(f"reworded heading did not break its anchor: {moved}")

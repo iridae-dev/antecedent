@@ -55,7 +55,7 @@ def closure_nodes(
 
 def closure_source(path: Path, name: str) -> str:
     """Source of ``closure_nodes`` for ``name``, including constant assignments."""
-    text = path.read_text(errors="ignore")
+    text = path.read_text(errors="ignore", encoding="utf-8")
     tree = ast.parse(text)
     parts = []
     for node in closure_nodes(tree, name, constants=True):

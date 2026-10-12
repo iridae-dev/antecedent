@@ -93,12 +93,12 @@ def case(
         ov = build_overlay(Path(tmp))
         for rel, mutate in mutations.items():
             path = materialize(ov, rel)
-            before = path.read_text()
+            before = path.read_text(encoding="utf-8")
             after = mutate(before)
             if after == before:
                 print(f"SELF-TEST FAIL: {name}: mutation of {rel} changed nothing")
                 return False
-            path.write_text(after)
+            path.write_text(after, encoding="utf-8", newline="\n")
         code, out = run_gate(ov, script)
     if not must_fail:
         if code != 0:
@@ -606,9 +606,9 @@ def _live_citation(boundary: bool) -> tuple[str, str, float]:
     next collection, before any of its cases runs."""
     records = {
         rec["id"]: rec
-        for rec in tomllib.loads((ROOT / "parity/coverage_records.toml").read_text())["record"]
+        for rec in tomllib.loads((ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8"))["record"]
     }
-    prose = (ROOT / "parity/support_licensed.toml").read_text()
+    prose = (ROOT / "parity/support_licensed.toml").read_text(encoding="utf-8")
     for m in re.finditer(r"(0\.\d{3}) \((boundary )?record `(cov\.[^`]+\.l90\.[^`]+)`\)", prose):
         rec = records.get(m.group(3))
         if rec is None or bool(m.group(2)) != boundary or bool(rec["boundary"]) != boundary:

@@ -219,7 +219,7 @@ if "--emit-evidence" in args:
     emit_path = Path(args[at + 1])
     del args[at : at + 2]
 registry_path = Path(args[0]) if args else root / "parity/promotion.toml"
-registry = tomllib.loads(registry_path.read_text())
+registry = tomllib.loads(registry_path.read_text(encoding="utf-8"))
 
 DISABLED = {r for r in os.environ.get("PROMOTION_DISABLE_RULES", "").split(",") if r}
 STATIC_ONLY = os.environ.get("PROMOTION_STATIC_ONLY") == "1" or suggest
@@ -264,7 +264,7 @@ SOURCE_GLOBS = ("crates/*/src/**/*.rs", "python/src/**/*.rs", "python/antecedent
 
 codes = {
     row["id"]: row
-    for row in tomllib.loads((root / "parity/reason_codes.toml").read_text())["code"]
+    for row in tomllib.loads((root / "parity/reason_codes.toml").read_text(encoding="utf-8"))["code"]
 }
 runtime_codes = {cid for cid, row in codes.items() if "runtime_refusal" in row.get("applies_to", [])}
 stages_path = Path(os.environ.get("PROMOTION_TRANSPORT_STAGES", root / "parity/transport_stages.toml"))
@@ -272,16 +272,16 @@ support_path = Path(os.environ.get("PROMOTION_SUPPORT_LICENSED", root / "parity/
 support_closed_path = Path(os.environ.get("PROMOTION_SUPPORT_CLOSED", root / "parity/support_closed.toml"))
 extra_sources = [Path(p) for p in os.environ.get("PROMOTION_EXTRA_SOURCES", "").split(os.pathsep) if p]
 stage_routes = {
-    row.get("route"): row for row in tomllib.loads(stages_path.read_text()).get("routes", [])
+    row.get("route"): row for row in tomllib.loads(stages_path.read_text(encoding="utf-8")).get("routes", [])
 }
-support_cells = tomllib.loads(support_path.read_text()).get("cell", [])
+support_cells = tomllib.loads(support_path.read_text(encoding="utf-8")).get("cell", [])
 # The support axes cannot name a contrast, so a closed sub-cell contrast owned by
 # a record is a [[closed_contrast]] row (the support-matrix gates read only
 # [[closed]]).
-support_closed_contrasts = tomllib.loads(support_closed_path.read_text()).get("closed_contrast", [])
+support_closed_contrasts = tomllib.loads(support_closed_path.read_text(encoding="utf-8")).get("closed_contrast", [])
 coverage_ids = {
     row.get("id")
-    for row in tomllib.loads((root / "parity/coverage_records.toml").read_text()).get("record", [])
+    for row in tomllib.loads((root / "parity/coverage_records.toml").read_text(encoding="utf-8")).get("record", [])
 }
 
 errors: list[str] = []
@@ -374,7 +374,7 @@ def resolve(path: str, assertion: str) -> list[str]:
     if CACHE_DIR:
         cached = Path(CACHE_DIR) / hashlib.sha1(f"{path}::{assertion}".encode()).hexdigest()
         if cached.is_file():
-            return json.loads(cached.read_text())
+            return json.loads(cached.read_text(encoding="utf-8"))
     if path.endswith(".rs"):
         problems = resolve_rust_test(root / path, assertion)[1]
     elif path.endswith(".py"):
@@ -383,7 +383,7 @@ def resolve(path: str, assertion: str) -> list[str]:
         problems = [f"{path}: evidence must be a collected Rust or Python test"]
     if cached is not None:
         tmp = cached.with_suffix(f".{os.getpid()}")
-        tmp.write_text(json.dumps(problems))
+        tmp.write_text(json.dumps(problems), encoding="utf-8", newline="\n")
         tmp.replace(cached)
     return problems
 
@@ -419,7 +419,7 @@ def source_files() -> list[tuple[Path, bool]]:
 
 def raw(path: Path) -> str:
     if path not in _raw:
-        _raw[path] = path.read_text(errors="ignore") if path.is_file() else ""
+        _raw[path] = path.read_text(errors="ignore", encoding="utf-8") if path.is_file() else ""
     return _raw[path]
 
 
@@ -1304,7 +1304,7 @@ if emit_path is not None:
             f'[[fixture_evidence]]\nid = "{fid}"\nevidence_test = "{path}"\nevidence_assertion = "{assertion}"\n\n'
             for fid, path, assertion in evidence_rows
         )
-    )
+    , encoding="utf-8", newline="\n")
 if errors:
     print("Promotion record gate FAILED:\n" + "\n".join(f" - {e}" for e in errors))
     sys.exit(1)

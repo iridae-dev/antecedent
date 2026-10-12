@@ -31,7 +31,7 @@ for path in records:
     checked += 1
     rel = path.relative_to(root)
     try:
-        record = tomllib.loads(path.read_text())
+        record = tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as error:
         problems.append(f"{rel}: cannot parse: {error}")
         continue
@@ -133,7 +133,7 @@ FAMILY = {
         "estimate.propensity_stratification",
     ),
 }
-ids_rs = (root / "crates/antecedent/src/strategy_table/ids.rs").read_text()
+ids_rs = (root / "crates/antecedent/src/strategy_table/ids.rs").read_text(encoding="utf-8")
 pointers = re.findall(r'provenance:\s*(?:\n\s*)?\(\s*"([^"]+)"', ids_rs)
 for feat in pointers:
     resolved = ALIAS.get(feat, feat)
@@ -176,7 +176,7 @@ CI_CLAIM = {
 }
 # Oracle CI is a synthetic fixture, not a published algorithm.
 CI_SKIP = {"oracle"}
-factory = (root / "crates/antecedent-stats/src/ci/factory.rs").read_text()
+factory = (root / "crates/antecedent-stats/src/ci/factory.rs").read_text(encoding="utf-8")
 fn = re.search(r"pub fn ci_from_name\b.*?(?=\n#\[cfg|\nimpl |\Z)", factory, re.S)
 factory_names = set(re.findall(r'"([a-z][a-z0-9_]*)"', fn.group(0) if fn else ""))
 for name in sorted(factory_names):

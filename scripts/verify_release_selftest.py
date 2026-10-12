@@ -16,7 +16,7 @@ with tempfile.TemporaryDirectory() as temp:
     bin_dir = work / "bin"
     bin_dir.mkdir()
     gh = bin_dir / "gh"
-    gh.write_text("#!/bin/sh\nprintf '%s\\n' \"$MOCK_RUN_SHA\"\n")
+    gh.write_text("#!/bin/sh\nprintf '%s\\n' \"$MOCK_RUN_SHA\"\n", encoding="utf-8", newline="\n")
     gh.chmod(0o755)
     tags = ("manylinux_2_17_x86_64", "manylinux_2_17_aarch64", "macosx_11_0_arm64", "win_amd64")
     for minor in (11, 12, 13, 14):

@@ -137,12 +137,12 @@ def main() -> int:
         return 0
     if len(sys.argv) != 1:
         raise SystemExit("usage: check_evidence_ledger.py [--self-test]")
-    ledger = tomllib.loads(LEDGER.read_text())
+    ledger = tomllib.loads(LEDGER.read_text(encoding="utf-8"))
     if ledger.get("version") != 1 or "release" in ledger:
         print("evidence ledger: unsupported header", file=sys.stderr)
         return 1
-    records = tomllib.loads(RECORDS.read_text())["record"]
-    stages = tomllib.loads(STAGES.read_text())["routes"]
+    records = tomllib.loads(RECORDS.read_text(encoding="utf-8"))["record"]
+    stages = tomllib.loads(STAGES.read_text(encoding="utf-8"))["routes"]
     errors = problems(ledger["cell"], records, stages)
     if errors:
         print("\n".join(f"FAIL: {error}" for error in errors), file=sys.stderr)

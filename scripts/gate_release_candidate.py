@@ -2,9 +2,9 @@
 import json, sys
 from pathlib import Path
 tmp = Path(sys.argv[1])
-green = json.loads((tmp / "green.json").read_text())
+green = json.loads((tmp / "green.json").read_text(encoding="utf-8"))
 def write(name, payload):
-    (tmp / name).write_text(json.dumps(payload))
+    (tmp / name).write_text(json.dumps(payload), encoding="utf-8", newline="\n")
 # One matrix leg missing (the last wheel expansion).
 wheels = [j for j in green["jobs"] if j["name"].startswith("Wheel ")]
 write("missing_leg.json", {**green, "jobs": [j for j in green["jobs"] if j is not wheels[-1]]})

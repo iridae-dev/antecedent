@@ -41,7 +41,7 @@ CLAIM_FIELDS = ("id", "text", "licensed_by")
 
 
 def load_toml(rel: str) -> dict:
-    return tomllib.loads((ROOT / rel).read_text())
+    return tomllib.loads((ROOT / rel).read_text(encoding="utf-8"))
 
 
 def load_claims() -> list[dict]:
@@ -306,7 +306,7 @@ def main() -> int:
 
     for rel in CLAIM_FILES:
         path = ROOT / rel
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         try:
             updated = sync_claims(text, claims, write=write)
             if rel == CATALOG_FILE:
@@ -331,7 +331,7 @@ def main() -> int:
         if rel == CATALOG_FILE and CATALOG_BEGIN in updated:
             rendered.update(row["id"] for row in claims)
         if write and updated != text:
-            path.write_text(updated)
+            path.write_text(updated, encoding="utf-8", newline="\n")
 
     missing = [row["id"] for row in claims if row["id"] not in rendered]
     if missing:

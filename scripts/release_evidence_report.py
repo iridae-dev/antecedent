@@ -20,7 +20,7 @@ REPO = Path(__file__).resolve().parents[1]
 
 def build_report(root: Path) -> dict:
     dispositions = tomllib.loads(
-        (root / "parity/promotion_carryovers.toml").read_text()
+        (root / "parity/promotion_carryovers.toml").read_text(encoding="utf-8")
     )
     if dispositions.get("version") != 1:
         raise ValueError("unsupported carryover disposition version")
@@ -29,7 +29,7 @@ def build_report(root: Path) -> dict:
     if len(by_id) != len(cells):
         raise ValueError("duplicate carryover disposition")
     registry = "parity/promotion.toml"
-    data = tomllib.loads((root / registry).read_text())
+    data = tomllib.loads((root / registry).read_text(encoding="utf-8"))
     if "release" in data:
         raise ValueError(f"{registry}: release field is not a claim")
     records = data.get("record", [])
@@ -158,11 +158,11 @@ def self_test() -> int:
         root = Path(temp)
         (root / "parity").mkdir()
         (root / "parity/promotion.toml").write_text(
-            (REPO / "parity/promotion.toml").read_text()
-        )
+            (REPO / "parity/promotion.toml").read_text(encoding="utf-8")
+        , encoding="utf-8", newline="\n")
         (root / "parity/promotion_carryovers.toml").write_text(
-            (REPO / "parity/promotion_carryovers.toml").read_text()
-        )
+            (REPO / "parity/promotion_carryovers.toml").read_text(encoding="utf-8")
+        , encoding="utf-8", newline="\n")
         report = build_report(root)
         assert report["records"]
         assert not any(
@@ -170,7 +170,7 @@ def self_test() -> int:
             for k in ("execution_verified", "calibration_verified", "release_certified")
         )
         assert "parity/promotion.toml;" in render(report)
-        baseline = (root / "parity/promotion_carryovers.toml").read_text()
+        baseline = (root / "parity/promotion_carryovers.toml").read_text(encoding="utf-8")
         correction = tomllib.loads(baseline)["cell"][1]["corrective_action"]
         for before, after, expected in [
             ('id = "sensitivity.joint_uncertainty"', 'id = "unknown"', "mismatch"),
@@ -188,42 +188,42 @@ def self_test() -> int:
             assert before in baseline
             (root / "parity/promotion_carryovers.toml").write_text(
                 baseline.replace(before, after, 1)
-            )
+            , encoding="utf-8", newline="\n")
             try:
                 build_report(root)
             except ValueError as error:
                 assert expected in str(error), str(error)
             else:
                 raise AssertionError(f"mutation accepted: {expected}")
-        (root / "parity/promotion_carryovers.toml").write_text(baseline)
+        (root / "parity/promotion_carryovers.toml").write_text(baseline, encoding="utf-8", newline="\n")
         duplicate = baseline[
             baseline.index("[[cell]]") : baseline.index(
                 "[[cell]]", baseline.index("[[cell]]") + 1
             )
         ]
-        (root / "parity/promotion_carryovers.toml").write_text(baseline + duplicate)
+        (root / "parity/promotion_carryovers.toml").write_text(baseline + duplicate, encoding="utf-8", newline="\n")
         try:
             build_report(root)
         except ValueError as error:
             assert "duplicate carryover disposition" in str(error)
         else:
             raise AssertionError("duplicate disposition accepted")
-        (root / "parity/promotion_carryovers.toml").write_text(baseline)
+        (root / "parity/promotion_carryovers.toml").write_text(baseline, encoding="utf-8", newline="\n")
         registry = root / "parity/promotion.toml"
-        original = registry.read_text()
+        original = registry.read_text(encoding="utf-8")
         # All carried routes must be closed regardless of the report filter.
         carried_at = original.index('id = "sensitivity.joint_uncertainty"')
         closed_at = original.index('status = "closed"', carried_at)
         registry.write_text(
             original[:closed_at] + 'status = "licensed"' + original[closed_at + len('status = "closed"') :]
-        )
+        , encoding="utf-8", newline="\n")
         try:
             build_report(root)
         except ValueError as error:
             assert "every carried route must remain closed" in str(error)
         else:
             raise AssertionError("licensed carried route accepted")
-        registry.write_text(original)
+        registry.write_text(original, encoding="utf-8", newline="\n")
         # Losing an executable refusal citation must fail even when the route
         # still has a reason code and remains closed.
         first = next(
@@ -235,14 +235,14 @@ def self_test() -> int:
         carried_at = original.index(f'id = "{first["id"]}"')
         token = f'refusal_assertion = "{assertion}"'
         at = original.index(token, carried_at)
-        registry.write_text(original[:at] + 'refusal_assertion = ""' + original[at + len(token) :])
+        registry.write_text(original[:at] + 'refusal_assertion = ""' + original[at + len(token) :], encoding="utf-8", newline="\n")
         try:
             build_report(root)
         except ValueError as error:
             assert "unchanged refusal refusal_assertion required" in str(error)
         else:
             raise AssertionError("absent refusal assertion accepted")
-        registry.write_text(original)
+        registry.write_text(original, encoding="utf-8", newline="\n")
     print("release_evidence_report self-test: ok")
     return 0
 

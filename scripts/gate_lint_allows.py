@@ -15,7 +15,7 @@ problems = []
 for name in files:
     if not name.startswith(("crates/", "python/src/", "benches/", "examples/", "fuzz/")):
         continue
-    text = Path(name).read_text(errors="ignore")
+    text = Path(name).read_text(errors="ignore", encoding="utf-8")
     target = any(part in f"/{name}" for part in TARGETS)
     for m in ATTR.finditer(text):
         body = m.group("body")

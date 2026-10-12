@@ -177,7 +177,7 @@ def main(argv: list[str]) -> int:
     coefficients = {estimator: fit_coefficients(rows) for estimator, rows in samples.items()}
     text = format_toml(coefficients, args.rows, args.columns, args.bootstrap, args.repeats, samples)
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(text)
+    args.out.write_text(text, encoding="utf-8", newline="\n")
     print(f"wrote {args.out}")
     return 0
 

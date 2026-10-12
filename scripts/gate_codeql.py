@@ -15,7 +15,7 @@ config = Path(os.environ["CODEQL_CONFIG"])
 excluded: set[str] = set()
 if config.is_file():
     in_filters = False
-    for raw in config.read_text().splitlines():
+    for raw in config.read_text(encoding="utf-8").splitlines():
         line = raw.split("#", 1)[0].rstrip()
         if not line:
             continue
@@ -35,7 +35,7 @@ if excluded:
 total = 0
 for lang in ("rust", "python", "actions"):
     path = out / f"{lang}.sarif"
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     for run in data.get("runs", []):
         run["results"] = [
             r for r in run.get("results", []) if r.get("ruleId") not in excluded

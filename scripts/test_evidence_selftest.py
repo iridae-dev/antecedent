@@ -175,21 +175,21 @@ BASE_ROW = {
 def build(tmp: Path) -> None:
     (tmp / "scripts").mkdir()
     shutil.copy(HERE / "test_evidence.py", tmp / "scripts" / "test_evidence.py")
-    (tmp / "Cargo.toml").write_text('[workspace]\nresolver = "2"\nmembers = ["crates/selftest"]\n')
+    (tmp / "Cargo.toml").write_text('[workspace]\nresolver = "2"\nmembers = ["crates/selftest"]\n', encoding="utf-8", newline="\n")
     crate = tmp / "crates" / "selftest"
     (crate / "src").mkdir(parents=True)
     (crate / "tests" / "sub").mkdir(parents=True)
     (crate / "Cargo.toml").write_text(
         '[package]\nname = "selftest"\nversion = "0.0.0"\nedition = "2021"\npublish = false\n'
-    )
-    (crate / "src" / "lib.rs").write_text("pub fn noop() {}\n")
-    (crate / "tests" / "it.rs").write_text(IT_RS)
-    (crate / "tests" / "sub" / "orphan.rs").write_text(ORPHAN_RS)
+    , encoding="utf-8", newline="\n")
+    (crate / "src" / "lib.rs").write_text("pub fn noop() {}\n", encoding="utf-8", newline="\n")
+    (crate / "tests" / "it.rs").write_text(IT_RS, encoding="utf-8", newline="\n")
+    (crate / "tests" / "sub" / "orphan.rs").write_text(ORPHAN_RS, encoding="utf-8", newline="\n")
     fixture = tmp / "conformance" / "demo" / "truth"
     fixture.mkdir(parents=True)
-    (fixture / "expected.json").write_text('{"true_effect": 2.0}\n')
+    (fixture / "expected.json").write_text('{"true_effect": 2.0}\n', encoding="utf-8", newline="\n")
     (tmp / "python" / "tests").mkdir(parents=True)
-    (tmp / "python" / "tests" / "test_demo.py").write_text(PY)
+    (tmp / "python" / "tests" / "test_demo.py").write_text(PY, encoding="utf-8", newline="\n")
 
 
 def toml_value(value) -> str:
@@ -206,7 +206,7 @@ def toml_row(row: dict) -> str:
 
 def check(tmp: Path, name: str, row: dict, expected: str | None) -> bool:
     rows = tmp / "rows.toml"
-    rows.write_text(toml_row(row))
+    rows.write_text(toml_row(row), encoding="utf-8", newline="\n")
     env = {**os.environ, "CARGO_TARGET_DIR": str(tmp / "target")}
     proc = subprocess.run(
         [sys.executable, str(tmp / "scripts" / "test_evidence.py"), "rows", str(rows)],

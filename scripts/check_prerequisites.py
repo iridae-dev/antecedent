@@ -127,8 +127,8 @@ def self_test() -> None:
         [{**features[0], "depends_on": ["distribution.child"]}, features[1]],
         [base, child],
     ))
-    committed_records = tomllib.loads(RECORDS.read_text())["record"]
-    committed_features = tomllib.loads(FEATURES.read_text())["feature"]
+    committed_records = tomllib.loads(RECORDS.read_text(encoding="utf-8"))["record"]
+    committed_features = tomllib.loads(FEATURES.read_text(encoding="utf-8"))["feature"]
     assert not problems(committed_records)
     assert not feature_problems(committed_features, committed_records)
     print("prerequisite self-test: ok")
@@ -140,8 +140,8 @@ def main() -> int:
         return 0
     if len(sys.argv) != 1:
         raise SystemExit("usage: check_prerequisites.py [--self-test]")
-    records = tomllib.loads(RECORDS.read_text())["record"]
-    features = tomllib.loads(FEATURES.read_text())["feature"]
+    records = tomllib.loads(RECORDS.read_text(encoding="utf-8"))["record"]
+    features = tomllib.loads(FEATURES.read_text(encoding="utf-8"))["feature"]
     issues = problems(records) + feature_problems(features, records)
     if issues:
         print("\n".join(f"FAIL: {issue}" for issue in issues), file=sys.stderr)

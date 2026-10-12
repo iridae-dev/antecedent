@@ -97,7 +97,7 @@ def rewrite_assignment(text: str, key: str, literal: str) -> str:
 
 def load_release(root: Path) -> tuple[str, list[str], str | None]:
     path = root / "parity" / "release.toml"
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     data = tomllib.loads(text)
     lines = data.get("supported_lines")
     if not isinstance(lines, list) or not lines or not all(isinstance(item, str) for item in lines):
@@ -135,7 +135,7 @@ def apply_release_snippets(root: Path, version: str, edits: dict[Path, str]) -> 
 
     security = root / "SECURITY.md"
     edits[security] = replace_generated(
-        security.read_text(),
+        security.read_text(encoding="utf-8"),
         SUPPORTED_BEGIN,
         SUPPORTED_END,
         supported_table(new_lines),
@@ -144,7 +144,7 @@ def apply_release_snippets(root: Path, version: str, edits: dict[Path, str]) -> 
 
     review = root / "docs" / "security_review.md"
     edits[review] = replace_generated(
-        review.read_text(),
+        review.read_text(encoding="utf-8"),
         REVIEWED_BEGIN,
         REVIEWED_END,
         reviewed_scope(version),
@@ -153,7 +153,7 @@ def apply_release_snippets(root: Path, version: str, edits: dict[Path, str]) -> 
 
     crate = root / "crates" / "antecedent" / "README.md"
     edits[crate] = replace_generated(
-        crate.read_text(),
+        crate.read_text(encoding="utf-8"),
         CRATE_BEGIN,
         CRATE_END,
         crate_dep(version),
@@ -162,7 +162,7 @@ def apply_release_snippets(root: Path, version: str, edits: dict[Path, str]) -> 
 
     examples = root / "examples" / "README.md"
     edits[examples] = replace_generated(
-        examples.read_text(),
+        examples.read_text(encoding="utf-8"),
         PIN_BEGIN,
         PIN_END,
         examples_install(version),
@@ -176,7 +176,7 @@ def apply_release_snippets(root: Path, version: str, edits: dict[Path, str]) -> 
     major, minor = major_minor(version).split(".")
     minor_check = f"!= ({int(major)}, {int(minor)})"
     for path in notebooks:
-        notebook = path.read_text()
+        notebook = path.read_text(encoding="utf-8")
         rewritten, pins = _PIN.subn(pin, notebook)
         if pins < 1:
             raise SnippetError(f"{path}: no antecedent pin")
@@ -193,7 +193,7 @@ def release_snippet_problems(root: Path, version: str) -> list[str]:
         apply_release_snippets(root, version, edits)
     except SnippetError as exc:
         return [str(exc)]
-    stale = [str(path) for path, new in edits.items() if path.read_text() != new]
+    stale = [str(path) for path, new in edits.items() if path.read_text(encoding="utf-8") != new]
     if not stale:
         return []
     return [f"release snippets are not at version {version}: " + ", ".join(stale)]
@@ -211,7 +211,7 @@ def main(argv: list[str]) -> None:
     edits: dict[Path, str] = {}
 
     cargo = root / "Cargo.toml"
-    text = cargo.read_text()
+    text = cargo.read_text(encoding="utf-8")
     matched = re.search(r"(?ms)^\[workspace\.package\]\n(.*?)(?=\n\[|\Z)", text)
     if not matched:
         sys.exit("Cargo.toml: [workspace.package] not found")
@@ -234,7 +234,7 @@ def main(argv: list[str]) -> None:
     py_new, n = re.subn(
         r'(?m)^(version\s*=\s*")[^"]*(")',
         rf"\g<1>{version}\2",
-        pyproject.read_text(),
+        pyproject.read_text(encoding="utf-8"),
         count=1,
     )
     if n != 1:
@@ -248,13 +248,13 @@ def main(argv: list[str]) -> None:
     for path in sorted(root.glob("crates/*/Cargo.toml")) + [root / "python" / "Cargo.toml"]:
         if not path.is_file():
             continue
-        current = path.read_text()
+        current = path.read_text(encoding="utf-8")
         updated, n = path_pat.subn(rf"\g<1>{version}\2", current)
         if n:
             edits[path] = updated
 
     init = root / "python" / "antecedent" / "__init__.py"
-    init_text = init.read_text()
+    init_text = init.read_text(encoding="utf-8")
     # A semver literal is kept in lockstep. Otherwise __version__ comes from the
     # extension or installed metadata; "unknown" is the sentinel when neither is
     # available, not a version pin.
@@ -279,7 +279,7 @@ def main(argv: list[str]) -> None:
         uv_new, n = re.subn(
             r'(name = "antecedent"\nversion = ")[^"]+(")',
             rf"\g<1>{version}\2",
-            uv.read_text(),
+            uv.read_text(encoding="utf-8"),
             count=1,
         )
         if n == 1:
@@ -290,7 +290,7 @@ def main(argv: list[str]) -> None:
         cff_new, n = re.subn(
             r"(?m)^(version:\s*)\S+",
             rf"\g<1>{version}",
-            cff.read_text(),
+            cff.read_text(encoding="utf-8"),
             count=1,
         )
         if n != 1:
@@ -302,12 +302,12 @@ def main(argv: list[str]) -> None:
     except SnippetError as exc:
         sys.exit(str(exc))
 
-    changed = [path for path, new in edits.items() if path.read_text() != new]
+    changed = [path for path, new in edits.items() if path.read_text(encoding="utf-8") != new]
 
     if check:
         lock = root / "Cargo.lock"
         lock_ok = lock.is_file() and re.search(
-            rf'name = "antecedent"\nversion = "{re.escape(version)}"', lock.read_text()
+            rf'name = "antecedent"\nversion = "{re.escape(version)}"', lock.read_text(encoding="utf-8")
         )
         stale = [str(path) for path in changed] + ([] if lock_ok else ["Cargo.lock"])
         if stale:
@@ -319,7 +319,7 @@ def main(argv: list[str]) -> None:
         sys.exit(0)
 
     for path in changed:
-        path.write_text(edits[path])
+        path.write_text(edits[path], encoding="utf-8", newline="\n")
 
     if old_version != version:
         subprocess.check_call([sys.executable, str(script), "--freeze", old_version])

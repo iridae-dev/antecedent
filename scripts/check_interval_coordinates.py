@@ -79,12 +79,12 @@ REGISTRY_FILES = [*cai.REGISTRY_FILES, "scripts/gate_calibration.sh"]
 
 def load(rel: str) -> dict:
     p = ROOT / rel
-    return tomllib.loads(p.read_text()) if p.is_file() else {}
+    return tomllib.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
 
 
 def surface_interval_findings(rel: str) -> list[tuple[int, str]]:
     if not rel.endswith(".py"):
-        lines = (ROOT / rel).read_text().splitlines()
+        lines = (ROOT / rel).read_text(encoding="utf-8").splitlines()
         # Crate/module-private builders are not public producers. Rust forbids
         # widening their visibility through a public reexport; actual public
         # interval declarations still require their own route or feature gate.
@@ -103,7 +103,7 @@ def surface_interval_findings(rel: str) -> list[tuple[int, str]]:
                 name = node.target.id
                 if not name.startswith("_") and "interval" in name.lower():
                     found.append((node.lineno, name))
-    declarations(ast.parse((ROOT / rel).read_text()).body)
+    declarations(ast.parse((ROOT / rel).read_text(encoding="utf-8")).body)
     return found
 
 
@@ -133,12 +133,12 @@ def emitted_by_a_test(coverage_id: str) -> bool:
     # Some crates keep their ignored calibration tests in a #[cfg(test)]
     # module under src (antecedent-estimate does); both layouts emit records.
     for p in [*ROOT.glob("crates/*/tests/**/*.rs"), *ROOT.glob("crates/*/src/**/*.rs")]:
-        if comp not in p.read_text():
+        if comp not in p.read_text(encoding="utf-8"):
             continue
         if any(hit(lit) for lits in ignored_test_literals(p).values() for lit in lits):
             return True
     for p in ROOT.glob("python/tests/**/*.py"):
-        if comp not in p.read_text():
+        if comp not in p.read_text(encoding="utf-8"):
             continue
         if any(hit(lit) for lits in python_fn_literals(p).values() for lit in lits):
             return True
@@ -534,7 +534,7 @@ def check() -> dict:
         r.get("id") for r in load("parity/coverage_records.toml").get("record", [])
     }
     gate_text = (
-        (ROOT / "scripts/gate_calibration.sh").read_text()
+        (ROOT / "scripts/gate_calibration.sh").read_text(encoding="utf-8")
         if (ROOT / "scripts/gate_calibration.sh").is_file()
         else ""
     )
@@ -563,7 +563,7 @@ def check() -> dict:
             if (
                 source not in suites or not path.is_file()
                 or test not in ignored_test_literals(path)
-                or "CoverageTally" in path.read_text()
+                or "CoverageTally" in path.read_text(encoding="utf-8")
                 or any(COV_ID.search(literal) for literal in ignored_test_literals(path).get(test, []))
             ):
                 errors.append(f"{rid}: diagnostic measurement {declaration!r} lacks its actual noncoverage ignored suite allocation")
@@ -742,14 +742,14 @@ def check() -> dict:
                 and (
                     re.match(
                         rf"\s*{re.escape(name)}\s*:\s*str\s*(?:#.*)?$",
-                        (ROOT / row[0]).read_text().splitlines()[row[1] - 1],
+                        (ROOT / row[0]).read_text(encoding="utf-8").splitlines()[row[1] - 1],
                     )
                     or (
                         re.match(
                             rf"\s*def {re.escape(name)}\(self\) -> str:",
-                            (ROOT / row[0]).read_text().splitlines()[row[1] - 1],
+                            (ROOT / row[0]).read_text(encoding="utf-8").splitlines()[row[1] - 1],
                         )
-                        and (ROOT / row[0]).read_text().splitlines()[row[1] - 2].strip() == "@property"
+                        and (ROOT / row[0]).read_text(encoding="utf-8").splitlines()[row[1] - 2].strip() == "@property"
                     )
                 )
             ]
@@ -757,7 +757,7 @@ def check() -> dict:
                 row for row in findings if row[2] == name and row[0].endswith(".rs")
                 and re.match(
                     rf"\s*pub {re.escape(name)}\s*:\s*&'static str\s*,",
-                    (ROOT / row[0]).read_text().splitlines()[row[1] - 1],
+                    (ROOT / row[0]).read_text(encoding="utf-8").splitlines()[row[1] - 1],
                 )
             ]
             if not matches:
@@ -768,7 +768,7 @@ def check() -> dict:
                 row for row in findings if row[2] == name and row[0].endswith(".rs")
                 and re.search(
                     rf'#\[cfg\(feature = "calibration-internal"\)\]\s*#\[doc\(hidden\)\]\s*pub fn {re.escape(name)}\b',
-                    (ROOT / row[0]).read_text(),
+                    (ROOT / row[0]).read_text(encoding="utf-8"),
                 )
             ]
             if not matches:
@@ -887,7 +887,7 @@ def self_test() -> int:
     try:
         synth = base / SYNTH_SURFACE
         synth.parent.mkdir(parents=True, exist_ok=True)
-        synth.write_text("pub struct R {\n    pub interval: f64,\n}\n")
+        synth.write_text("pub struct R {\n    pub interval: f64,\n}\n", encoding="utf-8", newline="\n")
         t = base / SYNTH_TEST
         t.parent.mkdir(parents=True, exist_ok=True)
         t.write_text(
@@ -896,12 +896,12 @@ def self_test() -> int:
             '#[test]\n#[ignore = "coverage"]\nfn synth_alpha() {\n    record("synth_alpha");\n}\n\n'
             '#[test]\n#[ignore = "coverage"]\nfn synth_beta() {\n'
             '    let _key = "cov.synth.b.l95.synth_beta"; // a composed id also counts\n}\n'
-        )
+        , encoding="utf-8", newline="\n")
         inherited_surface = base / "python/antecedent/synth_inherited.py"
         inherited_surface.parent.mkdir(parents=True, exist_ok=True)
         inherited_surface.write_text(
             "class Result:\n    interval: tuple[float | None, float | None] | None\n"
-        )
+        , encoding="utf-8", newline="\n")
         synth_records = """
 [[record]]
 id = "synth.uncertainty_cell"
@@ -924,12 +924,12 @@ inherited_interval_fields = ["interval"]
         b_record = synth_records
         promo = base / "parity/promotion.toml"
         promo.parent.mkdir(parents=True, exist_ok=True)
-        promo.write_text("version = 1\n" + synth_records)
+        promo.write_text("version = 1\n" + synth_records, encoding="utf-8", newline="\n")
         (base / "parity/transport_stages.toml").write_text(
             '[[routes]]\nroute = "synth.prepare"\nstatus = "licensed"\n'
-        )
+        , encoding="utf-8", newline="\n")
         baseline_coverage: set[str] = set()
-        (base / "parity/coverage_records.toml").write_text("")
+        (base / "parity/coverage_records.toml").write_text("", encoding="utf-8", newline="\n")
         gate = base / "scripts/gate_calibration.sh"
         gate.parent.mkdir(parents=True, exist_ok=True)
         gate.write_text(
@@ -940,7 +940,7 @@ inherited_interval_fields = ["interval"]
             "}\n"
             "run_synth synth_alpha\n"
             "run_synth synth_beta\n"
-        )
+        , encoding="utf-8", newline="\n")
         os.environ["INTERVAL_COORDINATES_SKIP_ATTEST"] = "1"
         os.environ["INTERVAL_SURFACES_SKIP_ATTEST"] = "1"
 
@@ -952,7 +952,7 @@ inherited_interval_fields = ["interval"]
                 if coverage is not None:
                     (case / "parity/coverage_records.toml").write_text(
                         "".join(f'[[record]]\nid = "{c}"\n' for c in sorted(baseline_coverage | set(coverage)))
-                    )
+                    , encoding="utf-8", newline="\n")
                 if edit is not None:
                     edit(case)
                 if edit_extra is not None:
@@ -969,10 +969,10 @@ inherited_interval_fields = ["interval"]
         def edit(rel: str, old: str, new: str):
             def apply(case: Path) -> None:
                 p = case / rel
-                text = p.read_text()
+                text = p.read_text(encoding="utf-8")
                 if old not in text:
                     raise LookupError(f"{old[:60]!r} not found in {rel}")
-                p.write_text(text.replace(old, new, 1))
+                p.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
 
             return apply
 
@@ -1095,9 +1095,9 @@ inherited_interval_fields = ["interval"]
         )
 
         def register_orphan(case: Path) -> None:
-            with (case / "scripts/gate_calibration.sh").open("a") as fh:
+            with (case / "scripts/gate_calibration.sh").open("a", encoding="utf-8", newline="\n") as fh:
                 fh.write("run_synth synth_gamma\n")
-            with (case / SYNTH_TEST).open("a") as fh:
+            with (case / SYNTH_TEST).open("a", encoding="utf-8", newline="\n") as fh:
                 fh.write(
                     '\n#[test]\n#[ignore = "coverage"]\nfn synth_gamma() {\n    record("synth_gamma");\n}\n'
                 )
@@ -1194,7 +1194,7 @@ inherited_interval_fields = ["interval"]
         )
 
         def freeze_and_drop_test(case: Path) -> None:
-            text = (case / promo_rel).read_text()
+            text = (case / promo_rel).read_text(encoding="utf-8")
             text = text.replace(
                 ', refusal_test = "crates/synth/tests/refusal.rs", refusal_assertion = "refuses"',
                 "",
@@ -1203,7 +1203,7 @@ inherited_interval_fields = ["interval"]
                 'status = "in_progress"\ninference_claim = "calibrated"',
                 'status = "frozen"\ninference_claim = "calibrated"',
             )
-            (case / promo_rel).write_text(text)
+            (case / promo_rel).write_text(text, encoding="utf-8", newline="\n")
 
         expect(
             "frozen record may omit its refusal test", run(freeze_and_drop_test), None
@@ -1253,7 +1253,7 @@ def self_test_exact_ownership() -> int:
         def write(path: str, contents: str) -> None:
             target = ROOT / path
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(contents)
+            target.write_text(contents, encoding="utf-8", newline="\n")
         coverage_id = "cov.synth.dag.frequentist.l95.mean0"
         surface = "python/antecedent/synth.py"
         write(surface, "class Result:\n    interval_status: str\n    def summarize(self):\n        return result(interval=(0, 1))\n")

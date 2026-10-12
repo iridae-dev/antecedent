@@ -185,7 +185,7 @@ def load_snapshot(root: Path, version: str) -> dict | None:
     path = root / snapshot_rel(version)
     if not path.is_file():
         return None
-    return tomllib.loads(path.read_text())
+    return tomllib.loads(path.read_text(encoding="utf-8"))
 
 
 def snapshot_ids(root: Path, skip: str | None = None) -> set[str]:
@@ -197,7 +197,7 @@ def snapshot_ids(root: Path, skip: str | None = None) -> set[str]:
         version = path.name[1:-5]
         if skip is not None and version == skip:
             continue
-        data = tomllib.loads(path.read_text())
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
         ids.update(rec["id"] for rec in data.get("record", []) if rec.get("id"))
     return ids
 
@@ -332,7 +332,7 @@ NOMINAL = re.compile(r"(?<!no )(?<!not )(?<!never )(?<!any )\bnominal\b", re.I)
 
 def load(root: Path, rel: str) -> dict:
     p = root / rel
-    return tomllib.loads(p.read_text()) if p.is_file() else {}
+    return tomllib.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
 
 
 def effective_claim(rec: dict, present: set[str]) -> tuple[str, bool]:
@@ -506,7 +506,7 @@ def check_notes(root: Path, notes_rel: str, final: bool = False) -> list[str]:
     path = root / notes_rel
     if not path.is_file():
         return [f"{notes_rel} is missing (generate with --write-draft)"]
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     version = notes_version(notes_rel)
     if version is None:
         return [f"{notes_rel}: file name is not vX.Y.Z.md"]
@@ -552,12 +552,12 @@ def write_blocks(path: Path, records: list[dict], present: set[str], queries: li
     """Insert or replace the Cells and Refusals blocks, leaving the surrounding prose."""
     if not path.is_file():
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(draft(records, present, version, queries))
+        path.write_text(draft(records, present, version, queries), encoding="utf-8", newline="\n")
         return
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     text = insert_block(text, CELLS_BEGIN, CELLS_END, cells_body(records, present), "## Explicit refusals", after=False)
     text = insert_block(text, REFUSALS_BEGIN, REFUSALS_END, refusals_body(queries), "## Explicit refusals", after=True)
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8", newline="\n")
 
 
 def main(argv: list[str]) -> int:
@@ -570,7 +570,7 @@ def main(argv: list[str]) -> int:
         records, present, queries = source_for(ROOT, version, version) or ([], set(), [])
         path = ROOT / snapshot_rel(version)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(dump_snapshot(version, records, present, queries))
+        path.write_text(dump_snapshot(version, records, present, queries), encoding="utf-8", newline="\n")
         print(f"wrote {snapshot_rel(version)} ({len(records)} records)")
         return 0
     if "--write-draft" in argv:
@@ -580,7 +580,7 @@ def main(argv: list[str]) -> int:
             return 1
         records, present, queries = source
         path = ROOT / notes
-        if path.is_file() and not DRAFT_MARK_RE.search(path.read_text()) and "--force" not in argv:
+        if path.is_file() and not DRAFT_MARK_RE.search(path.read_text(encoding="utf-8")) and "--force" not in argv:
             print(f"{notes} is no longer marked DRAFT; refusing to overwrite (use --force)")
             return 1
         write_blocks(path, records, present, queries, notes_version(notes) or version)
@@ -687,12 +687,12 @@ def self_test() -> int:
         root = Path(tmp)
         (root / "parity").mkdir()
         (root / "docs/release-notes").mkdir(parents=True)
-        (root / RECORDS).write_text(_toml(recs))
-        (root / COVERAGE).write_text("")
-        (root / "Cargo.toml").write_text('[workspace.package]\nversion = "9.9.9"\n')
+        (root / RECORDS).write_text(_toml(recs), encoding="utf-8", newline="\n")
+        (root / COVERAGE).write_text("", encoding="utf-8", newline="\n")
+        (root / "Cargo.toml").write_text('[workspace.package]\nversion = "9.9.9"\n', encoding="utf-8", newline="\n")
         notes = root / notes_for(root)
         projected, present = live_projection(root)
-        notes.write_text(draft(projected, present, "9.9.9"))
+        notes.write_text(draft(projected, present, "9.9.9"), encoding="utf-8", newline="\n")
 
         def expect(name: str, needle: str | None, errs: list[str]) -> None:
             if needle is None:
@@ -703,52 +703,52 @@ def self_test() -> int:
 
         expect("clean draft", None, check(root))
         expect("final rejects draft", "DRAFT", check(root, final=True))
-        text = notes.read_text()
-        notes.write_text(text.replace("Claim: `structural_envelope`", "Claim: `point_only`", 1))
+        text = notes.read_text(encoding="utf-8")
+        notes.write_text(text.replace("Claim: `structural_envelope`", "Claim: `point_only`", 1), encoding="utf-8", newline="\n")
         expect("edited cells block", "generated cells block", check(root))
-        notes.write_text(text.replace("## How to read the claims", "## Reading the words"))
-        outside = notes.read_text().replace(
+        notes.write_text(text.replace("## How to read the claims", "## Reading the words"), encoding="utf-8", newline="\n")
+        outside = notes.read_text(encoding="utf-8").replace(
             "See the [support matrix](../support-matrix.md).",
             "A bootstrap interval is reported. Claim: `calibrated`. The nominal interval covers.\n\n"
             "See the [support matrix](../support-matrix.md).",
         )
-        notes.write_text(outside)
+        notes.write_text(outside, encoding="utf-8", newline="\n")
         expect("prose outside the markers is not claim data", None, check(root))
         expect("reworded glossary heading is ignored", None, check(root))
-        notes.write_text(text)
+        notes.write_text(text, encoding="utf-8", newline="\n")
         # Shipped notes keep a contradictory Claim line. No generated blocks, so the live
         # registry is not applied to them.
         shipped = root / "docs/release-notes/v1.0.0.md"
         shipped.write_text(
             "# Old\n\n## Claims glossary\n\n<!-- cell: synth.cell_a2 -->\nClaim: `point_only`\n"
-        )
-        (root / RECORDS).write_text(_toml([_rec("a2", "calibrated", ["cov.a2"]), *recs[2:]]))
+        , encoding="utf-8", newline="\n")
+        (root / RECORDS).write_text(_toml([_rec("a2", "calibrated", ["cov.a2"]), *recs[2:]]), encoding="utf-8", newline="\n")
         (root / "parity/release_snapshots").mkdir()
         (root / snapshot_rel("1.0.0")).write_text(
             dump_snapshot("1.0.0", [project_record(_rec("a2", "structural_envelope"))], set(), [])
-        )
+        , encoding="utf-8", newline="\n")
         # Current notes must follow the live delta (a2 is not in the 1.0.0 snapshot id... 
         # project id is synth.cell_a2, which IS in the live registry). Freeze that id in the
         # snapshot and regenerate the current blocks from the remaining live records.
         snap_recs = [project_record(_rec("a2", "structural_envelope"))]
-        (root / snapshot_rel("1.0.0")).write_text(dump_snapshot("1.0.0", snap_recs, set(), []))
+        (root / snapshot_rel("1.0.0")).write_text(dump_snapshot("1.0.0", snap_recs, set(), []), encoding="utf-8", newline="\n")
         current_records, current_present, queries = source_for(root, "9.9.9", "9.9.9")
-        notes.write_text(draft(current_records, current_present, "9.9.9", queries))
+        notes.write_text(draft(current_records, current_present, "9.9.9", queries), encoding="utf-8", newline="\n")
         expect("shipped hand prose is not checked against live data", None, check(root))
         # A generated block on a shipped file matches the snapshot, even when live data differs.
         shipped.write_text(
             "# Old\n\n## Whatever the heading says\n\n"
             + wrap_block(CELLS_BEGIN, cells_body(snap_recs, set()), CELLS_END)
             + wrap_block(REFUSALS_BEGIN, refusals_body([]), REFUSALS_END)
-        )
+        , encoding="utf-8", newline="\n")
         expect("shipped blocks match the snapshot, not the live registry", None, check(root))
         shipped.write_text(
-            shipped.read_text().replace("Claim: `structural_envelope`", "Claim: `calibrated`", 1)
-        )
+            shipped.read_text(encoding="utf-8").replace("Claim: `structural_envelope`", "Claim: `calibrated`", 1)
+        , encoding="utf-8", newline="\n")
         expect("shipped block edited away from the snapshot", "frozen snapshot", check(root))
-        shipped.write_text("# Old\n\nClaim: `calibrated`\n")
+        shipped.write_text("# Old\n\nClaim: `calibrated`\n", encoding="utf-8", newline="\n")
         expect("shipped notes without blocks stay unchecked", None, check(root))
-        notes.write_text("# x\n")
+        notes.write_text("# x\n", encoding="utf-8", newline="\n")
         expect("current notes without blocks", "missing generated Cells block", check(root))
 
     if failures:

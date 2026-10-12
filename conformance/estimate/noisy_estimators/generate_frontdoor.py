@@ -24,7 +24,7 @@ def main() -> None:
         m = 0.4 * t + 0.5 * rng.gauss(0.0, 1.0)
         y = 5.0 * m + u + 0.5 * rng.gauss(0.0, 1.0)
         rows.append(f"{t!r},{y!r},{m!r}")
-    Path(__file__).with_name("frontdoor.csv").write_text("\n".join(rows) + "\n")
+    Path(__file__).with_name("frontdoor.csv").write_text("\n".join(rows) + "\n", encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

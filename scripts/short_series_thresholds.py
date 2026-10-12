@@ -81,7 +81,7 @@ CONST_END = "// short-series-const: {name} end"
 def derive(csv_path: Path) -> dict[str, int]:
     """Per registry family: the smallest multiple of 5 meeting the rule on this sweep."""
     cells: dict[tuple, list[dict]] = defaultdict(list)
-    with csv_path.open(newline="") as handle:
+    with csv_path.open(newline="", encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
             cells[(row["family"], row["design"], row["rho"], row["n"])].append(row)
     out: dict[str, int] = {}
@@ -112,7 +112,7 @@ def derive(csv_path: Path) -> dict[str, int]:
 
 
 def load(path: Path = REGISTRY) -> tuple[list[dict], int]:
-    data = tomllib.loads(path.read_text())
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
     try:
         response_rows = data["response"]["rows"]
     except KeyError:
@@ -217,7 +217,7 @@ def rust_thresholds() -> dict[str, int]:
     return {
         name: int(m.group(2))
         for m in re.finditer(
-            r"((?:Self::\w+\s*\|\s*)*Self::\w+)\s*=>\s*(\d+)\.0", TEMPORAL_BLOCK.read_text()
+            r"((?:Self::\w+\s*\|\s*)*Self::\w+)\s*=>\s*(\d+)\.0", TEMPORAL_BLOCK.read_text(encoding="utf-8")
         )
         for name in re.findall(r"Self::(\w+)", m.group(1))
     }
@@ -226,7 +226,7 @@ def rust_thresholds() -> dict[str, int]:
 def check() -> list[str]:
     rows, response_rows = load()
     problems = problems_in(rows)
-    text = DOC.read_text()
+    text = DOC.read_text(encoding="utf-8")
     if substitute(text, rows, response_rows) != text:
         problems.append(
             f"{DOC.relative_to(ROOT)}: a table or the response prose differs from "
@@ -234,7 +234,7 @@ def check() -> list[str]:
             "`python3 scripts/short_series_thresholds.py write` (docs only) "
             "or from a measurement (`write --sweep ... --replication ...`)"
         )
-    const_text = RESPONSE_CONST.read_text()
+    const_text = RESPONSE_CONST.read_text(encoding="utf-8")
     if substitute_const(const_text, response_rows) != const_text:
         problems.append(
             f"{RESPONSE_CONST.relative_to(ROOT)}: RESPONSE_SHORT_SERIES_ROWS differs from "
@@ -286,7 +286,7 @@ def write_registry(rows: list[dict], response_rows: int) -> None:
         f"rows = {int(response_rows)}",
         "",
     ]
-    REGISTRY.write_text("\n".join(lines))
+    REGISTRY.write_text("\n".join(lines), encoding="utf-8", newline="\n")
 
 
 def main() -> int:
@@ -330,8 +330,8 @@ def main() -> int:
         if found:
             raise SystemExit("\n".join(found))
         write_registry(rows, response_rows)
-    DOC.write_text(substitute(DOC.read_text(), rows, response_rows))
-    RESPONSE_CONST.write_text(substitute_const(RESPONSE_CONST.read_text(), response_rows))
+    DOC.write_text(substitute(DOC.read_text(encoding="utf-8"), rows, response_rows), encoding="utf-8", newline="\n")
+    RESPONSE_CONST.write_text(substitute_const(RESPONSE_CONST.read_text(encoding="utf-8"), response_rows), encoding="utf-8", newline="\n")
     print(
         "wrote",
         DOC.relative_to(ROOT),

@@ -394,4 +394,4 @@ ORACLE = {
     'project': 'NumPy Normal-inverse-gamma posterior equations',
     'generator': 'conformance/bayesian/posterior_moments/generate.py (retained; imports NumPy only, no Antecedent code)',
 }
-Path(__file__).with_name('expected.json').write_text(json.dumps({'data': {k: v.tolist() for k,v in dict(t=t,w=w,y=y,r=r,m=m,o=o,s=s,u=u,z=z,tc=tc,mc=mc,oc=oc,td=td,yd=yd).items()}, 'posterior': expected, 'tempering': kappas, 'oracle': ORACLE}, indent=2)+'\n')
+Path(__file__).with_name('expected.json').write_text(json.dumps({'data': {k: v.tolist() for k,v in dict(t=t,w=w,y=y,r=r,m=m,o=o,s=s,u=u,z=z,tc=tc,mc=mc,oc=oc,td=td,yd=yd).items()}, 'posterior': expected, 'tempering': kappas, 'oracle': ORACLE}, indent=2)+'\n', encoding="utf-8", newline="\n")

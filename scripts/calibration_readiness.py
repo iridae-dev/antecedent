@@ -23,7 +23,7 @@ OUTPUT = ROOT / "parity/calibration_readiness.md"
 
 
 def cells_by_coordinate() -> dict[tuple[str, str, str, str], list[dict]]:
-    cells = tomllib.loads(SUPPORT.read_text())["cell"]
+    cells = tomllib.loads(SUPPORT.read_text(encoding="utf-8"))["cell"]
     grouped: dict[tuple[str, str, str, str], list[dict]] = collections.defaultdict(list)
     for cell in cells:
         if cell.get("calibration_reason") == "estimator_grid_not_measured":
@@ -91,7 +91,7 @@ def has_record_emitter(key: tuple[str, str, str, str], groups: list[tuple[str, s
         test_file = ROOT / "crates" / "antecedent" / "tests" / f"{head}.rs"
         if not test_file.is_file() or not test_filter:
             continue
-        source = test_file.read_text(errors="ignore")
+        source = test_file.read_text(errors="ignore", encoding="utf-8")
         marker = f"fn {test_filter}("
         start = source.find(marker)
         if start < 0:
@@ -223,10 +223,10 @@ def main() -> int:
     args = parser.parse_args()
     report = render()
     if args.check:
-        if not OUTPUT.exists() or OUTPUT.read_text() != report:
+        if not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != report:
             parser.error("parity/calibration_readiness.md is stale")
     else:
-        OUTPUT.write_text(report)
+        OUTPUT.write_text(report, encoding="utf-8", newline="\n")
     print("Calibration readiness audit: 92 coordinates; no calibration tests executed")
     return 0
 

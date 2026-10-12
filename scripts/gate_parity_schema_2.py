@@ -16,7 +16,7 @@ if not vocab_path.is_file():
     problems.append("parity/reason_codes.toml missing")
     vocab = {"code": []}
 else:
-    vocab = tomllib.loads(vocab_path.read_text())
+    vocab = tomllib.loads(vocab_path.read_text(encoding="utf-8"))
 codes = {row["id"]: row for row in vocab.get("code", [])}
 uses = {cid: 0 for cid in codes}
 applies_fields = ("reason", "calibration_reason", "reason_code")
@@ -31,7 +31,7 @@ _REASON_PROSE = {
 for path in sorted(root.glob("parity/*.toml")):
     if path.name in _REASON_PROSE:
         continue
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     try:
         data = tomllib.loads(text)
     except tomllib.TOMLDecodeError as exc:
@@ -83,7 +83,7 @@ for cid, n in uses.items():
 # Refusal codes a Rust `fn code(&self)` returns are stable machine-readable strings
 # callers switch on; each must be in the closed vocabulary.
 for src in sorted(root.glob("crates/*/src/**/*.rs")):
-    text = src.read_text(errors="ignore")
+    text = src.read_text(errors="ignore", encoding="utf-8")
     for fn_body in re.findall(r"fn code\(&self\) -> &'static str \{(.*?)\n    \}", text, re.S):
         for literal in re.findall(r'=>\s*"([a-z][a-z0-9_]+)"', fn_body):
             if literal not in codes:
@@ -94,7 +94,7 @@ pp = root / "parity/python_products.toml"
 if not pp.is_file():
     problems.append("parity/python_products.toml missing")
 else:
-    products = tomllib.loads(pp.read_text())
+    products = tomllib.loads(pp.read_text(encoding="utf-8"))
     route_tests = []
     for i, row in enumerate(products.get("route", []), 1):
         for key in ("kind", "data", "structure", "test"):
@@ -161,7 +161,7 @@ def _resolves(spec: str) -> bool:
     path = root / rel
     if not path.is_file():
         return False
-    text = path.read_text(errors="ignore")
+    text = path.read_text(errors="ignore", encoding="utf-8")
     if re.search(rf"fn\s+{re.escape(fn)}\s*[(<]", text):
         return True
     # The collector stamps `dgp` from the suite's `RecordKey`, which is a label
@@ -205,7 +205,7 @@ cr = root / "parity/coverage_records.toml"
 record_ids = set()
 records = []
 if cr.is_file():
-    records = tomllib.loads(cr.read_text()).get("record", [])
+    records = tomllib.loads(cr.read_text(encoding="utf-8")).get("record", [])
     # A record's facets decide which surface changes invalidate it, so they
     # must be exactly what scripts/calibration_facets.py derives from the
     # record, never a hand-narrowed list.
@@ -220,7 +220,7 @@ if cr.is_file():
         test = str(rec.get("test", ""))
         # `surface_list_blob` arrives with the next collection: a registry written by a
         # collector that stores it names it in its header, and only then is it required.
-        stores_blob = "surface_list_blob" in cr.read_text().split("[[record]]", 1)[0]
+        stores_blob = "surface_list_blob" in cr.read_text(encoding="utf-8").split("[[record]]", 1)[0]
         missing = [
             key
             for key in collector.FIELDS
@@ -439,12 +439,12 @@ if len(record_ids) != len(records):
 gates_path = root / "parity/calibration_gates.toml"
 # The collector's registry header names the ledger; a registry written by it must
 # come with the ledger, so deleting the ledger cannot pass.
-ledger_owed = cr.is_file() and "calibration_gates.toml" in cr.read_text()
+ledger_owed = cr.is_file() and "calibration_gates.toml" in cr.read_text(encoding="utf-8")
 if not gates_path.is_file():
     if ledger_owed:
         problems.append("parity/calibration_gates.toml missing")
 else:
-    gate_rows = tomllib.loads(gates_path.read_text()).get("gate", [])
+    gate_rows = tomllib.loads(gates_path.read_text(encoding="utf-8")).get("gate", [])
     if not gate_rows:
         problems.append("parity/calibration_gates.toml: no record-less group is attested")
     if len({g.get("group") for g in gate_rows}) != len(gate_rows):
@@ -462,7 +462,7 @@ else:
 by_id = {rec.get("id"): rec for rec in records}
 
 # --- licensed cell calibration obligation ---
-lic = tomllib.loads((root / "parity/support_licensed.toml").read_text()).get("cell", [])
+lic = tomllib.loads((root / "parity/support_licensed.toml").read_text(encoding="utf-8")).get("cell", [])
 for cell in lic:
     label = f"{cell.get('query')}/{cell.get('graph_class')}/{cell.get('inference')}"
     has_cal = "calibration" in cell
@@ -507,7 +507,7 @@ for cell in lic:
         )
 
 # ---- [gates] registry scopes name real queries ----
-axes_queries = set(tomllib.loads((root / "parity/support_axes.toml").read_text()).get("queries", []))
+axes_queries = set(tomllib.loads((root / "parity/support_axes.toml").read_text(encoding="utf-8")).get("queries", []))
 for cid, code in codes.items():
     for query in code.get("queries") or []:
         if query not in axes_queries:
@@ -516,7 +516,7 @@ for cid, code in codes.items():
 # ---- [gates] estimator calibration obligation, keyed on group ----
 # Every `group = "estimation"` row states its calibration; calibration fields on
 # any other row would be an obligation no gate enforces.
-est = tomllib.loads((root / "parity/estimate.toml").read_text()).get("capabilities", [])
+est = tomllib.loads((root / "parity/estimate.toml").read_text(encoding="utf-8")).get("capabilities", [])
 for row in est:
     has_cal = "calibration" in row
     has_reason = "calibration_reason" in row
@@ -568,7 +568,7 @@ REQUIRED_COMPOSITION_ROWS = {
 }
 compiler_rows = {
     row.get("id"): row
-    for row in tomllib.loads((root / "parity/compiler.toml").read_text()).get("capabilities", [])
+    for row in tomllib.loads((root / "parity/compiler.toml").read_text(encoding="utf-8")).get("capabilities", [])
 }
 for rid in sorted(REQUIRED_COMPOSITION_ROWS - compiler_rows.keys()):
     problems.append(f"compiler.toml: required composition row {rid} missing")
@@ -584,7 +584,7 @@ data_rs = root / "crates/antecedent-core/src/reason_codes_data.rs"
 if not data_rs.is_file():
     problems.append(f"{data_rs}: missing; run scripts/generate_support_matrix_docs.py")
 else:
-    generated = data_rs.read_text()
+    generated = data_rs.read_text(encoding="utf-8")
     def _const(name: str) -> list[str]:
         m = re.search(rf"pub const {name}: &\[&str\] = &\[(.*?)\];", generated, re.S)
         return re.findall(r'"([^"]+)"', m.group(1)) if m else []
@@ -599,7 +599,7 @@ else:
 # macro, never typed as a raw `"reason=` literal (comments / doc examples and
 # `#[cfg(test)]` code below the first test marker are not emission sites).
 for path in sorted(root.glob("crates/*/src/**/*.rs")) + sorted(root.glob("python/src/**/*.rs")):
-    source = path.read_text(errors="ignore").split("#[cfg(test)]", 1)[0]
+    source = path.read_text(errors="ignore", encoding="utf-8").split("#[cfg(test)]", 1)[0]
     for lineno, line in enumerate(source.splitlines(), 1):
         if line.lstrip().startswith("//"):
             continue
@@ -659,8 +659,8 @@ for rel_path in ("parity/identity.toml", "parity/claims.toml"):
         problems.append(f"{rel_path} missing")
 
 # --- every identity row names its layer, its bindings, and what it covers ---
-identity_rows = tomllib.loads((root / "parity/identity.toml").read_text()).get("identity", [])
-adr = (root / "adr/0022-causal-compiler-contract.md").read_text()
+identity_rows = tomllib.loads((root / "parity/identity.toml").read_text(encoding="utf-8")).get("identity", [])
+adr = (root / "adr/0022-causal-compiler-contract.md").read_text(encoding="utf-8")
 for row in identity_rows:
     for field in (
         "domain",

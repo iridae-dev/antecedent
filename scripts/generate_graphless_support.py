@@ -29,7 +29,7 @@ BOOLEAN_REQUIREMENTS = (
 
 
 def load_rows() -> list[dict]:
-    rows = tomllib.loads(SOURCE.read_text())["license"]
+    rows = tomllib.loads(SOURCE.read_text(encoding="utf-8"))["license"]
     seen: set[tuple[str, ...]] = set()
     for row in rows:
         key = tuple(row[field] for field in KEYS)
@@ -67,7 +67,7 @@ def load_rows() -> list[dict]:
             if not sep or not re.fullmatch(r"[a-zA-Z_][a-zA-Z_0-9]*", function):
                 raise ValueError(f"{key}: invalid {evidence} citation")
             source = ROOT / path
-            if not source.is_file() or not re.search(rf"\bfn\s+{function}\s*\(", source.read_text()):
+            if not source.is_file() or not re.search(rf"\bfn\s+{function}\s*\(", source.read_text(encoding="utf-8")):
                 raise ValueError(f"{key}: missing {evidence} function")
             if evidence == "known_truth_test" and (
                 "95_normal_interval" in row["inference_claim"]
@@ -76,7 +76,7 @@ def load_rows() -> list[dict]:
             ):
                 body = re.search(
                     rf"\bfn\s+{function}\s*\(\)\s*\{{(.*?)(?=\n\s*#\[test\]|\Z)",
-                    source.read_text(), re.DOTALL,
+                    source.read_text(encoding="utf-8"), re.DOTALL,
                 )
                 legacy_evidence = body is not None and all(token in body.group(1)
                     for token in ("REPLICATES: usize = 2_000", "0.93..=0.985", "covered", "interval_95"))
@@ -84,11 +84,11 @@ def load_rows() -> list[dict]:
                     token in body.group(1) for token in ("2_000", "coverage")) and any(
                     token in body.group(1) for token in ("interval_95", "intervals_95"))
                 did_evidence = row["family"] == "difference_in_differences" and body is not None \
-                    and "const REPLICATIONS: usize = 2_000" in source.read_text() \
+                    and "const REPLICATIONS: usize = 2_000" in source.read_text(encoding="utf-8") \
                     and all(token in body.group(1) for token in ("covered", "interval_95", "0.925..=0.975"))
                 switchback_evidence = row["design"] == "switchback" and body is not None \
                     and all(token in body.group(1) for token in ("2_000", "covered", "assert_eq!(rejected, 0")) \
-                    and all(token in source.read_text() for token in ("const TRUTH", "fit.interval_95", "fn unconditional_coverage"))
+                    and all(token in source.read_text(encoding="utf-8") for token in ("const TRUTH", "fit.interval_95", "fn unconditional_coverage"))
                 survival_evidence = row["family"] == "survival" and body is not None \
                     and all(token in body.group(1) for token in (
                         "const REPLICATIONS: usize = 2_000", "covered_rmst", "covered_tau",
@@ -180,10 +180,10 @@ def main() -> None:
     rows = load_rows()
     for target, expected in ((RUST, rust(rows)), (DOC, docs(rows))):
         if args.check:
-            if not target.exists() or target.read_text() != expected:
+            if not target.exists() or target.read_text(encoding="utf-8") != expected:
                 raise SystemExit(f"{target.relative_to(ROOT)} is stale; regenerate graphless support")
         else:
-            target.write_text(expected)
+            target.write_text(expected, encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

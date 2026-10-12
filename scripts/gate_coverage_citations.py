@@ -21,7 +21,7 @@ def test_fns(module: str):
     path = tests_dir / f"{module}.rs"
     if not path.exists():
         return None
-    text = path.read_text(errors="ignore")
+    text = path.read_text(errors="ignore", encoding="utf-8")
     return set(FN_RE.findall(text)) | set(MACRO_RE.findall(text))
 
 

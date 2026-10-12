@@ -148,9 +148,9 @@ def main(argv: list[str]) -> int:
         return self_test()
     flags = [a for a in argv if a != "--require-calibrated"]
     args = dict(zip(flags[::2], flags[1::2], strict=False))
-    rust_log = Path(args["--rust"]).read_text() if "--rust" in args else ""
-    python_log = Path(args["--python"]).read_text() if "--python" in args else ""
-    intervals = json.loads(Path(args["--intervals"]).read_text()) if "--intervals" in args else {}
+    rust_log = Path(args["--rust"]).read_text(encoding="utf-8") if "--rust" in args else ""
+    python_log = Path(args["--python"]).read_text(encoding="utf-8") if "--python" in args else ""
+    intervals = json.loads(Path(args["--intervals"]).read_text(encoding="utf-8")) if "--intervals" in args else {}
     lines, code = evaluate(rust_log, python_log, intervals, "--require-calibrated" in argv)
     print("\n".join(lines))
     return code

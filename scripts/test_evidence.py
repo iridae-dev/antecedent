@@ -152,7 +152,7 @@ def _attrs_before(skel: str, code: str, pos: int) -> list[str]:
 
 @functools.cache
 def rust_items(path: Path) -> tuple[Masked, tuple[RustItem, ...]]:
-    text = path.read_text(errors="ignore")
+    text = path.read_text(errors="ignore", encoding="utf-8")
     masked = mask_rust(text)
     skel, code = masked.skeleton, masked.code
     items: list[RustItem] = []
@@ -283,7 +283,7 @@ def target_root(path: Path) -> tuple[Path, str, list[str]] | None:
         return None
     crate_dir = ROOT / "crates" / rel[1]
     crate = rel[1]
-    manifest = (crate_dir / "Cargo.toml").read_text(errors="ignore")
+    manifest = (crate_dir / "Cargo.toml").read_text(errors="ignore", encoding="utf-8")
     m = re.search(r'^name\s*=\s*"([^"]+)"', manifest, re.M)
     crate = m.group(1) if m else crate
     if rel[2] == "tests":
@@ -487,7 +487,7 @@ def static_python_test(path: Path, name: str) -> list[str]:
     if not name.startswith("test"):
         problems.append(f"{name} is not a collected pytest name (test*)")
     try:
-        tree = ast.parse(path.read_text(errors="ignore"))
+        tree = ast.parse(path.read_text(errors="ignore", encoding="utf-8"))
     except SyntaxError as error:
         return problems + [f"{path} does not parse: {error.msg}"]
     funcs = [
@@ -717,7 +717,7 @@ def consumption_problems(path: Path, name: str, fixture: str) -> list[str]:
 
 @functools.cache
 def _read(path: Path) -> str:
-    return path.read_text(errors="ignore")
+    return path.read_text(errors="ignore", encoding="utf-8")
 
 
 @functools.cache
@@ -1031,7 +1031,7 @@ def main(argv: list[str]) -> int:
         import tomllib
 
         failed = 0
-        for i, row in enumerate(tomllib.loads(Path(argv[1]).read_text()).get("cell", []), 1):
+        for i, row in enumerate(tomllib.loads(Path(argv[1]).read_text(encoding="utf-8")).get("cell", []), 1):
             problems = row_evidence_problems(row)
             if "checked_execution" in row:
                 problems += checked_execution_problems(row)

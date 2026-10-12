@@ -112,7 +112,7 @@ for path in sorted(root.glob("parity/*.toml")):
     rel = path.as_posix()
     if rel in MANIFESTS:
         continue
-    if re.search(r"^\[\[capabilities\]\]", path.read_text(), re.M):
+    if re.search(r"^\[\[capabilities\]\]", path.read_text(encoding="utf-8"), re.M):
         problems.append(f"{rel}: has capability rows but is not enrolled in gate_parity_schema.sh")
 
 for rel, (extra_required, requires_evidence) in MANIFESTS.items():
@@ -120,7 +120,7 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
     if not path.exists():
         problems.append(f"{rel}: manifest missing")
         continue
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
 
     try:
         rows = tomllib.loads(text).get("capabilities", [])
@@ -253,7 +253,7 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
                     )
                 else:
                     try:
-                        json.loads(expected.read_text())
+                        json.loads(expected.read_text(encoding="utf-8"))
                     except json.JSONDecodeError as exc:
                         problems.append(
                             f"{rel}: {label} external fixture {expected} is not valid JSON: {exc}"
@@ -271,7 +271,7 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
                 fdir = root / fixture
                 files = [fdir] if fdir.is_file() else sorted(fdir.glob("*"))
                 blob = "\n".join(
-                    f.read_text(errors="ignore").lower() for f in files if f.is_file()
+                    f.read_text(errors="ignore", encoding="utf-8").lower() for f in files if f.is_file()
                 )
                 token = oracle.split()[0].lower()
                 if token not in blob:
@@ -354,6 +354,6 @@ if problems:
     sys.exit(1)
 
 total = sum(
-    len(tomllib.loads((root / rel).read_text())["capabilities"]) for rel in MANIFESTS
+    len(tomllib.loads((root / rel).read_text(encoding="utf-8"))["capabilities"]) for rel in MANIFESTS
 )
 print(f"parity manifest schema: ok ({total} rows across {len(MANIFESTS)} manifests)")
