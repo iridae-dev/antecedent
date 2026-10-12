@@ -2481,10 +2481,17 @@ pub(crate) fn columns_to_batch(
         .iter()
         .map(|c| {
             let view = c.as_array();
-            let array = if view.iter().any(|v| v.is_nan()) {
+            let contiguous = view.as_slice();
+            let has_nan = contiguous.map_or_else(
+                || view.iter().any(|v| v.is_nan()),
+                |values| values.iter().any(|v| v.is_nan()),
+            );
+            let array = if has_nan {
                 Float64Array::from(
                     view.iter().map(|&v| (!v.is_nan()).then_some(v)).collect::<Vec<Option<f64>>>(),
                 )
+            } else if let Some(values) = contiguous {
+                Float64Array::from(values.to_vec())
             } else {
                 Float64Array::from_iter_values(view.iter().copied())
             };
