@@ -9,7 +9,7 @@
 use antecedent_contract::ScientificQuantity;
 use serde::{Deserialize, Serialize};
 
-use crate::container::{EncodedArtifact, SectionBytes, section_descriptor};
+use crate::container::EncodedArtifact;
 use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
 use crate::posterior::{
@@ -51,12 +51,17 @@ pub enum DistributionCalibration {
 }
 
 /// Source trust label preserved without upgrading it during load.
+///
+/// The artifact codec stores `external_attested`; a declaration built from the
+/// shared provider-trust vocabulary says `externally_attested`, which reads as
+/// the same level. Only the stored spelling is written.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DistributionTrust {
     /// Native route separately licensed at its exact coordinate.
     NativeLicensed,
     /// External provider attestation only.
+    #[serde(alias = "externally_attested")]
     ExternalAttested,
     /// One external object verified for an exact request fingerprint.
     VerifiedExtension,
@@ -792,6 +797,7 @@ mod tests {
     use antecedent_contract::{QuantityRole, ScientificQuantity};
 
     use super::*;
+    use crate::container::{SectionBytes, section_descriptor};
 
     fn quantity(id: &str) -> ScientificQuantity {
         ScientificQuantity {
@@ -1157,5 +1163,13 @@ mod tests {
                 .unwrap_err(),
             IoError::TooLarge
         );
+    }
+
+    #[test]
+    fn the_shared_trust_spelling_reads_as_the_stored_level_and_only_the_stored_one_is_written() {
+        let read: DistributionTrust = serde_json::from_str("\"externally_attested\"").unwrap();
+        assert_eq!(read, DistributionTrust::ExternalAttested);
+        assert_eq!(serde_json::to_string(&read).unwrap(), "\"external_attested\"");
+        assert!(serde_json::from_str::<DistributionTrust>("\"native\"").is_err());
     }
 }
