@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::{ClusterUnits, PreparedStudy, score_table_treatment_col};
+use super::{CachedStaticIdentification, ClusterUnits, PreparedStudy, score_table_treatment_col};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::result::StudyResult;
@@ -202,24 +202,13 @@ impl PreparedStudy {
         Ok(())
     }
 
-    #[allow(clippy::float_cmp)] // Exact membership in binary intervention levels.
-    fn retarget_to_result(
+    /// Weighted quantile value and row influence of a quantile-functional query, if it is one.
+    fn retarget_quantile(
         &self,
-        out: RetargetResult,
-        inference: antecedent_estimate::scores::ScoreInference,
+        table: &ScoreTable,
         weights: &[f64],
-        depends_on: &[antecedent_core::VariableId],
-    ) -> Result<StudyResult, CausalError> {
-        let cache =
-            self.analysis.identification_cache.as_ref().ok_or(CausalError::Unsupported {
-                message: "retarget requires prepare-time identification",
-            })?;
-        let table = self
-            .score_table
-            .as_ref()
-            .ok_or(CausalError::Unsupported { message: "missing frozen scores" })?;
-        let n_thresholds = table.distinct_threshold_count();
-        let quantile = match &self.analysis.query {
+    ) -> Result<Option<(f64, Vec<f64>)>, CausalError> {
+        Ok(match &self.analysis.query {
             CausalQuery::AverageEffect(q) => q
                 .outcome_functional
                 .quantile_level()
@@ -243,8 +232,17 @@ impl PreparedStudy {
                 })
                 .transpose()?,
             _ => None,
-        };
-        let (ate, se) = match &self.analysis.query {
+        })
+    }
+
+    /// Point value and standard error of the retargeted scalar the query reports.
+    fn retarget_point_and_se(
+        &self,
+        table: &ScoreTable,
+        out: &RetargetResult,
+        n_thresholds: usize,
+    ) -> Result<(f64, f64), CausalError> {
+        Ok(match &self.analysis.query {
             CausalQuery::AverageEffect(_) | CausalQuery::Response(_) if n_thresholds > 1 => {
                 (f64::NAN, f64::NAN)
             }
@@ -265,7 +263,126 @@ impl PreparedStudy {
                 (out.summary.means[col], out.covariance.se(col))
             }
             _ => return Err(CausalError::Unsupported { message: "unsupported retarget query" }),
-        };
+        })
+    }
+
+    /// The identification certificate a retargeted result carries from the prepare-time cache.
+    fn retarget_certificate(
+        &self,
+        cache: &CachedStaticIdentification,
+    ) -> crate::result::AnalysisIdentification {
+        crate::result::AnalysisIdentification {
+            identification: crate::Identification::Point {
+                result: cache.identification.clone(),
+                temporal_indexer: None,
+                strategy: self
+                    .plan
+                    .binding()
+                    .identifier
+                    .named()
+                    .unwrap_or(crate::strategy_table::DEFAULT_IDENTIFIER_ID),
+                structure_version: self.analysis.graph.version(),
+            },
+            query: self.analysis.query.clone(),
+            graph_class: self.analysis.graph.class(),
+        }
+    }
+
+    /// The scalar response payload of a retargeted `InterventionResponse` result.
+    fn retarget_response_payload(
+        q: &antecedent_core::ResponseQuery,
+        cache: &CachedStaticIdentification,
+        result: &StudyResult,
+    ) -> antecedent_core::CausalResponse {
+        antecedent_core::CausalResponse {
+            estimand: q.functional.clone(),
+            identification_status: cache.identification.status,
+            estimate: antecedent_core::ResponseIdentification::PointIdentified(
+                antecedent_core::ResponseValue::Scalar(
+                    result.estimate.as_effect().map_or(f64::NAN, |effect| effect.ate),
+                ),
+            ),
+            uncertainty: antecedent_core::ResponseUncertainty::Scalar {
+                standard_error: result
+                    .estimate
+                    .as_effect()
+                    .map_or(f64::NAN, antecedent_estimate::EffectEstimate::se_analytic),
+                lower: result.estimate.as_effect().map_or(f64::NAN, |effect| {
+                    effect.ate - crate::result::reported_se_interval_z() * effect.se_analytic()
+                }),
+                upper: result.estimate.as_effect().map_or(f64::NAN, |effect| {
+                    effect.ate + crate::result::reported_se_interval_z() * effect.se_analytic()
+                }),
+                level: 0.95,
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
+            },
+            support: antecedent_core::SupportReport {
+                status: antecedent_core::SupportStatus::Supported,
+                query_region: antecedent_core::SupportRegion {
+                    minima: Arc::from([]),
+                    maxima: Arc::from([]),
+                },
+                diagnostics: Vec::new(),
+                warnings: Vec::new(),
+                // Same single-coordinate label as the solo cell route.
+                point_status: Some(Arc::from([antecedent_core::SupportStatus::Supported])),
+            },
+            assumptions: cache.identification.required_assumptions.clone(),
+            provenance_id: Arc::from("estimate.cell.aipw.retarget"),
+            horizon_identification: None,
+            interaction_structurally_zero: false,
+        }
+    }
+
+    /// Publish the cluster-summed standard error with its few-cluster t reference.
+    fn publish_cluster_reference(&self, estimate: &mut EffectEstimate, se: f64, df: usize) {
+        estimate.uncertainty.analytic.se = se;
+        estimate.uncertainty.analytic.reference_df =
+            Some(f64::from(u32::try_from(df).unwrap_or(u32::MAX)));
+        estimate.uncertainty.analytic.kind =
+            Some(if self.cluster_units().is_some_and(|units| units.second.is_some()) {
+                antecedent_estimate::AnalyticSeKind::Multiway
+            } else {
+                antecedent_estimate::AnalyticSeKind::Cluster
+            });
+    }
+
+    /// Treatment and outcome the retargeted query reports on.
+    fn retarget_treatment_outcome(
+        &self,
+    ) -> Result<(antecedent_core::VariableId, antecedent_core::VariableId), CausalError> {
+        match &self.analysis.query {
+            CausalQuery::AverageEffect(q) => Ok((q.treatment, q.outcome)),
+            CausalQuery::Response(q) => q
+                .functional
+                .primary_pair()
+                .ok_or(CausalError::Unsupported { message: "retarget response missing pair" }),
+            _ => Err(CausalError::Unsupported {
+                message: "retarget is licensed for AverageEffect and InterventionResponse",
+            }),
+        }
+    }
+
+    #[allow(clippy::float_cmp)] // Exact membership in binary intervention levels.
+    fn retarget_to_result(
+        &self,
+        out: RetargetResult,
+        inference: antecedent_estimate::scores::ScoreInference,
+        weights: &[f64],
+        depends_on: &[antecedent_core::VariableId],
+    ) -> Result<StudyResult, CausalError> {
+        let cache =
+            self.analysis.identification_cache.as_ref().ok_or(CausalError::Unsupported {
+                message: "retarget requires prepare-time identification",
+            })?;
+        let table = self
+            .score_table
+            .as_ref()
+            .ok_or(CausalError::Unsupported { message: "missing frozen scores" })?;
+        let n_thresholds = table.distinct_threshold_count();
+        let quantile = self.retarget_quantile(table, weights)?;
+        let (ate, se) = self.retarget_point_and_se(table, &out, n_thresholds)?;
         let cdf = self.score_table.as_ref().and_then(|t| exceedance_cdf_values(&out.summary, t));
         // Scores of whole-cluster folds or learner-supplied joint cells retarget to a point; their
         // iid covariance is not a licensed sampling distribution, so no standard error, joint
@@ -289,16 +406,7 @@ impl PreparedStudy {
         estimate.scores.inference =
             (!interval_withheld && cluster_df.is_none()).then_some(inference);
         if let Some(df) = cluster_df {
-            // The cluster-summed standard error is published with its few-cluster t reference.
-            estimate.uncertainty.analytic.se = se;
-            estimate.uncertainty.analytic.reference_df =
-                Some(f64::from(u32::try_from(df).unwrap_or(u32::MAX)));
-            estimate.uncertainty.analytic.kind =
-                Some(if self.cluster_units().is_some_and(|units| units.second.is_some()) {
-                    antecedent_estimate::AnalyticSeKind::Multiway
-                } else {
-                    antecedent_estimate::AnalyticSeKind::Cluster
-                });
+            self.publish_cluster_reference(&mut estimate, se, df);
         }
         if let Some((value, influence)) = quantile.as_ref() {
             estimate.ate = *value;
@@ -306,59 +414,15 @@ impl PreparedStudy {
                 antecedent_estimate::joint_influence_covariance(&[influence], None)?.se(0);
             estimate.scores.influence = Some(influence.clone().into());
         }
-        let (treatment, outcome) = match &self.analysis.query {
-            CausalQuery::AverageEffect(q) => (q.treatment, q.outcome),
-            CausalQuery::Response(q) => q
-                .functional
-                .primary_pair()
-                .ok_or(CausalError::Unsupported { message: "retarget response missing pair" })?,
-            _ => {
-                return Err(CausalError::Unsupported {
-                    message: "retarget is licensed for AverageEffect and InterventionResponse",
-                });
-            }
-        };
-        let mut diagnostics = out.diagnostics;
-        if interval_withheld {
-            diagnostics.push(antecedent_core::Diagnostic::new(
-                "estimate.aipw.penalized_interval_withheld",
-                antecedent_core::DiagnosticKind::Scientific,
-                antecedent_core::DiagnosticSeverity::Info,
-                "the prepared scores come from whole-cluster folds or learner-supplied joint-cell nuisances; the retargeted point is reported without a standard error, covariance or band because no iid interval is licensed for that construction",
-            ));
-        }
-        if quantile.is_some() {
-            diagnostics.push(antecedent_core::Diagnostic::new(
-                "estimate.functional.quantile", antecedent_core::DiagnosticKind::Scientific,
-                antecedent_core::DiagnosticSeverity::Info,
-                "weighted piecewise-linear CDF inversion conditional on the frozen grid; grid-selection uncertainty and interpolation bias are excluded",
-            ));
-        }
-        if n_thresholds > 1 && quantile.is_none() {
-            diagnostics.push(antecedent_core::Diagnostic::new(
-                "estimate.functional.grid_scalar_cleared",
-                antecedent_core::DiagnosticKind::Scientific,
-                antecedent_core::DiagnosticSeverity::Info,
-                "exceedance grids do not publish a first-threshold scalar ATE; use exceedance_cdf and the score table",
-            ));
-        }
-        diagnostics.push(antecedent_core::Diagnostic::new(
-            "estimate.aipw.crossfit_scores",
-            antecedent_core::DiagnosticKind::Scientific,
-            antecedent_core::DiagnosticSeverity::Info,
-            "retarget averages the prepared cross-fitted φ table; it is not a residualized full-sample AIPW refit, so it can differ from the estimator's own point value under uniform weights",
-        ));
-        diagnostics.push(antecedent_core::Diagnostic::new(
-            "retarget.selection_assumption", antecedent_core::DiagnosticKind::Scientific,
-            antecedent_core::DiagnosticSeverity::Info,
-            "weights are caller-declared fixed functions of certified covariates; inference assumes iid sampling, positivity, and nuisance convergence; selection or weight-estimation uncertainty is excluded",
-        ));
-        diagnostics.push(antecedent_core::Diagnostic::new(
-            "exec.identify.cached",
-            antecedent_core::DiagnosticKind::Execution,
-            antecedent_core::DiagnosticSeverity::Info,
-            "identification reused from the prepare-time cache",
-        ));
+        let (treatment, outcome) = self.retarget_treatment_outcome()?;
+        let diagnostics = retarget_diagnostics(
+            out.diagnostics,
+            RetargetDiagnosticFlags {
+                interval_withheld,
+                quantile: quantile.is_some(),
+                grid_scalar_cleared: n_thresholds > 1 && quantile.is_none(),
+            },
+        );
         let mut result =
             crate::analysis::helpers::assemble_result(crate::analysis::helpers::AssembleArgs {
                 logical: &self.plan.logical.record,
@@ -383,21 +447,7 @@ impl PreparedStudy {
                 early_stopped: false,
                 bayesian: matches!(self.analysis.inference, InferenceMode::Bayesian(_)),
             });
-        result.certificate = Some(crate::result::AnalysisIdentification {
-            identification: crate::Identification::Point {
-                result: cache.identification.clone(),
-                temporal_indexer: None,
-                strategy: self
-                    .plan
-                    .binding()
-                    .identifier
-                    .named()
-                    .unwrap_or(crate::strategy_table::DEFAULT_IDENTIFIER_ID),
-                structure_version: self.analysis.graph.version(),
-            },
-            query: self.analysis.query.clone(),
-            graph_class: self.analysis.graph.class(),
-        });
+        result.certificate = Some(self.retarget_certificate(cache));
         if antecedent_estimate::changes_target(weights) {
             let binding = self.row_weights_binding(weights, depends_on)?;
             if let Some(certificate) = &mut result.certificate {
@@ -408,48 +458,9 @@ impl PreparedStudy {
             result.row_weights = Some(binding);
         }
         if let CausalQuery::Response(q) = &self.analysis.query {
-            result.payload =
-                crate::result::ResultPayload::Response(antecedent_core::CausalResponse {
-                    estimand: q.functional.clone(),
-                    identification_status: cache.identification.status,
-                    estimate: antecedent_core::ResponseIdentification::PointIdentified(
-                        antecedent_core::ResponseValue::Scalar(
-                            result.estimate.as_effect().map_or(f64::NAN, |effect| effect.ate),
-                        ),
-                    ),
-                    uncertainty: antecedent_core::ResponseUncertainty::Scalar {
-                        standard_error: result
-                            .estimate
-                            .as_effect()
-                            .map_or(f64::NAN, antecedent_estimate::EffectEstimate::se_analytic),
-                        lower: result.estimate.as_effect().map_or(f64::NAN, |effect| {
-                            effect.ate
-                                - crate::result::reported_se_interval_z() * effect.se_analytic()
-                        }),
-                        upper: result.estimate.as_effect().map_or(f64::NAN, |effect| {
-                            effect.ate
-                                + crate::result::reported_se_interval_z() * effect.se_analytic()
-                        }),
-                        level: 0.95,
-                        interpretation: antecedent_core::IntervalInterpretation::Confidence,
-                        draws: None,
-                    },
-                    support: antecedent_core::SupportReport {
-                        status: antecedent_core::SupportStatus::Supported,
-                        query_region: antecedent_core::SupportRegion {
-                            minima: Arc::from([]),
-                            maxima: Arc::from([]),
-                        },
-                        diagnostics: Vec::new(),
-                        warnings: Vec::new(),
-                        // Same single-coordinate label as the solo cell route.
-                        point_status: Some(Arc::from([antecedent_core::SupportStatus::Supported])),
-                    },
-                    assumptions: cache.identification.required_assumptions.clone(),
-                    provenance_id: Arc::from("estimate.cell.aipw.retarget"),
-                    horizon_identification: None,
-                    interaction_structurally_zero: false,
-                });
+            result.payload = crate::result::ResultPayload::Response(
+                Self::retarget_response_payload(q, cache, &result),
+            );
         }
         result.rebind_interval(matches!(self.analysis.inference, InferenceMode::Bayesian(_)));
         result.support_status = self.analysis.support_status;
@@ -462,4 +473,60 @@ impl PreparedStudy {
         )?);
         Ok(result)
     }
+}
+
+/// Which optional notes a retargeted result carries.
+#[derive(Clone, Copy)]
+struct RetargetDiagnosticFlags {
+    interval_withheld: bool,
+    quantile: bool,
+    grid_scalar_cleared: bool,
+}
+
+/// The retarget diagnostics appended after the weighting step's own, in contract order.
+fn retarget_diagnostics(
+    mut diagnostics: Vec<antecedent_core::Diagnostic>,
+    flags: RetargetDiagnosticFlags,
+) -> Vec<antecedent_core::Diagnostic> {
+    if flags.interval_withheld {
+        diagnostics.push(antecedent_core::Diagnostic::new(
+            "estimate.aipw.penalized_interval_withheld",
+            antecedent_core::DiagnosticKind::Scientific,
+            antecedent_core::DiagnosticSeverity::Info,
+            "the prepared scores come from whole-cluster folds or learner-supplied joint-cell nuisances; the retargeted point is reported without a standard error, covariance or band because no iid interval is licensed for that construction",
+        ));
+    }
+    if flags.quantile {
+        diagnostics.push(antecedent_core::Diagnostic::new(
+            "estimate.functional.quantile", antecedent_core::DiagnosticKind::Scientific,
+            antecedent_core::DiagnosticSeverity::Info,
+            "weighted piecewise-linear CDF inversion conditional on the frozen grid; grid-selection uncertainty and interpolation bias are excluded",
+        ));
+    }
+    if flags.grid_scalar_cleared {
+        diagnostics.push(antecedent_core::Diagnostic::new(
+            "estimate.functional.grid_scalar_cleared",
+            antecedent_core::DiagnosticKind::Scientific,
+            antecedent_core::DiagnosticSeverity::Info,
+            "exceedance grids do not publish a first-threshold scalar ATE; use exceedance_cdf and the score table",
+        ));
+    }
+    diagnostics.push(antecedent_core::Diagnostic::new(
+        "estimate.aipw.crossfit_scores",
+        antecedent_core::DiagnosticKind::Scientific,
+        antecedent_core::DiagnosticSeverity::Info,
+        "retarget averages the prepared cross-fitted φ table; it is not a residualized full-sample AIPW refit, so it can differ from the estimator's own point value under uniform weights",
+    ));
+    diagnostics.push(antecedent_core::Diagnostic::new(
+        "retarget.selection_assumption", antecedent_core::DiagnosticKind::Scientific,
+        antecedent_core::DiagnosticSeverity::Info,
+        "weights are caller-declared fixed functions of certified covariates; inference assumes iid sampling, positivity, and nuisance convergence; selection or weight-estimation uncertainty is excluded",
+    ));
+    diagnostics.push(antecedent_core::Diagnostic::new(
+        "exec.identify.cached",
+        antecedent_core::DiagnosticKind::Execution,
+        antecedent_core::DiagnosticSeverity::Info,
+        "identification reused from the prepare-time cache",
+    ));
+    diagnostics
 }

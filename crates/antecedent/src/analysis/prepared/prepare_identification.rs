@@ -55,18 +55,32 @@ pub(crate) fn single_step_dose(
     }
 }
 
+/// The response-query facts a per-horizon temporal identification reads.
+///
 /// `dose` is the single-step active level (control stays at 0); `None` keeps the unit contrast.
+pub(crate) struct TemporalResponseIdentificationRequest<'a> {
+    pub(crate) treatment: antecedent_core::VariableId,
+    pub(crate) outcome: antecedent_core::VariableId,
+    pub(crate) temporal: &'a TemporalResponseSpec,
+    pub(crate) target_population: &'a TargetPopulation,
+    pub(crate) schedule: Option<&'a [(antecedent_core::VariableId, i32, Option<f64>)]>,
+    pub(crate) dose: Option<f64>,
+}
+
 pub(crate) fn identify_temporal_response_horizons(
     graph: &TemporalDag,
-    treatment: antecedent_core::VariableId,
-    outcome: antecedent_core::VariableId,
-    temporal: &TemporalResponseSpec,
-    target_population: &TargetPopulation,
     estimator_id: crate::strategy_table::EstimatorId,
-    schedule: Option<&[(antecedent_core::VariableId, i32, Option<f64>)]>,
-    dose: Option<f64>,
+    request: &TemporalResponseIdentificationRequest<'_>,
 ) -> Result<CachedTemporalIdentification, CausalError> {
     use crate::strategy_table::select_estimand;
+    let TemporalResponseIdentificationRequest {
+        treatment,
+        outcome,
+        temporal,
+        target_population,
+        schedule,
+        dose,
+    } = *request;
     if temporal.horizons.is_empty() {
         return Err(CausalError::Compile {
             message: "temporal response requires at least one horizon".into(),
@@ -158,212 +172,29 @@ impl Study {
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CachedStaticIdentification>, CausalError> {
         use crate::strategy_table::{
-            EstimatorId, IdentifierId, identify_static, identify_static_query,
-            identify_static_query_with_rd, select_claim, select_estimand,
+            EstimatorId, IdentifierId, identify_static, identify_static_query, select_claim,
+            select_estimand,
         };
-        if let CausalQuery::RandomizedEffect(query) = &self.query {
-            let (identification, estimand) =
-                crate::analysis::execute::randomized_identification(query);
-            return Ok(Some(CachedStaticIdentification { identification, estimand }));
-        }
-        if let CausalQuery::PanelDid(query) = &self.query {
-            let (identification, estimand) =
-                crate::analysis::execute::panel_did_identification(query);
-            return Ok(Some(CachedStaticIdentification { identification, estimand }));
-        }
-        if let CausalQuery::SyntheticControl(query) = &self.query {
-            let (identification, estimand) =
-                crate::analysis::execute::synthetic_control_identification(query);
-            return Ok(Some(CachedStaticIdentification { identification, estimand }));
-        }
-        if let CausalQuery::LocalPolynomialRatio(query) = &self.query {
-            let (identification, estimand) =
-                crate::analysis::execute::local_polynomial_ratio_identification(query);
-            return Ok(Some(CachedStaticIdentification { identification, estimand }));
-        }
-        if let CausalQuery::Survival(query) = &self.query {
-            let (identification, estimand) =
-                crate::analysis::execute::survival_identification(query);
-            return Ok(Some(CachedStaticIdentification { identification, estimand }));
-        }
-        if matches!(self.query, CausalQuery::Counterfactual(_)) {
-            let graph = self
-                .graph
-                .as_dag()
-                .ok_or(CausalError::Unsupported { message: "counterfactual requires Dag" })?;
-            let identification =
-                identify_static_query(IdentifierId::GcmParametric, graph, &self.query)?;
-            let estimand = identification.estimands[0].clone();
-            return Ok(Some(CachedStaticIdentification { identification, estimand }));
-        }
-        if matches!(
-            self.query,
-            CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_)
-        ) {
-            let (treatment, outcome) = crate::analysis::execute::gcm_query_vars(&self.query)?;
-            let (identification, estimand) =
-                crate::analysis::execute::parametric_scm_identification(
-                    self.query.clone(),
-                    treatment,
-                    outcome,
-                );
-            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        if let Some(cached) = self.prepare_static_query_only_identification()? {
+            return Ok(Some(cached));
         }
         let (identifier_id, estimator_id) = plan.binding().resolve(RouteDefaults::STATIC_ATE)?;
         if matches!(estimator_id, EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear) {
             return Ok(None);
         }
         match &self.query {
-            CausalQuery::AverageEffect(query) => {
-                if let Some(background) = &self.tiered {
-                    let identification = antecedent_identify::identify_tiered(background, query)?;
-                    let estimand = identification.estimands.first().cloned().ok_or_else(|| {
-                        CausalError::Compile {
-                            message: "tiered identification returned no estimand".into(),
-                        }
-                    })?;
-                    return Ok(Some(CachedStaticIdentification { identification, estimand }));
-                }
-                if matches!(self.graph.class(), GraphClass::Admg | GraphClass::TemporalAdmg) {
-                    use crate::strategy_table::identify_admg;
-
-                    let admg = self.graph.graph_ref().projected_admg()?;
-                    let Some(admg) = admg else {
-                        return Err(CausalError::Compile {
-                            message: "ADMG prepare missing supplied graph".into(),
-                        });
-                    };
-                    if crate::analysis::execute::admg_has_bidirected(&admg) {
-                        let identification = identify_admg(identifier_id, &admg, query)?;
-                        let estimand = select_estimand(&identification, estimator_id)?;
-                        return Ok(Some(CachedStaticIdentification { identification, estimand }));
-                    }
-                }
-                let graph = match self.graph.graph_ref() {
-                    GraphRef::Dag(dag) => Some(dag.clone()),
-                    GraphRef::Admg(_) | GraphRef::TemporalAdmg(_) => plan.static_graph().cloned(),
-                    GraphRef::Cpdag(_) => return Ok(None),
-                    _ => None,
-                };
-                let Some(graph) = graph else {
-                    return Ok(None);
-                };
-                // `execute_bayesian` never consults `self.rd` (it calls
-                // `identify_static`, which is `identify_static_query_with_rd`
-                // with `rd: None`); mirror that exactly so the cached
-                // identification matches what an uncached Bayesian run would
-                // compute, even if a caller set `.rd_config(..)` alongside
-                // `bayesian.gcomp`.
-                let rd = if matches!(estimator_id, EstimatorId::BayesianGcomp) {
-                    None
-                } else {
-                    self.rd.map(|c| {
-                        antecedent_identify::SharpRdConfig::new(
-                            c.running_variable,
-                            c.cutoff,
-                            c.bandwidth,
-                        )
-                    })
-                };
-                let identification = identify_static_query_with_rd(
-                    identifier_id,
-                    &graph,
-                    &CausalQuery::AverageEffect(query.clone()),
-                    rd,
-                )?;
-                let (identification, estimand) = select_claim(identification, estimator_id)?;
-                Ok(Some(CachedStaticIdentification { identification, estimand }))
-            }
-            CausalQuery::Response(query) => {
-                if let Some(background) = &self.tiered {
-                    let schema = match &self.data {
-                        DataInput::Tabular(data) => data.schema(),
-                        _ => {
-                            return Err(CausalError::Unsupported {
-                                message: "CoDetermined joint prepare requires tabular data",
-                            });
-                        }
-                    };
-                    let identification = match self.graph.as_admg() {
-                        Some(admg) => {
-                            antecedent_identify::identify_tiered_joint_on(background, admg, query)?
-                        }
-                        None => {
-                            antecedent_identify::identify_tiered_joint(background, schema, query)?
-                        }
-                    };
-                    let estimand = identification.estimands.first().cloned().ok_or(
-                        CausalError::Unsupported {
-                            message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE,
-                        },
-                    )?;
-                    return Ok(Some(CachedStaticIdentification { identification, estimand }));
-                }
-                let response_admg = self.graph.graph_ref().projected_admg()?;
-                if let Some(admg) = response_admg
-                    .as_ref()
-                    .filter(|admg| crate::analysis::execute::admg_has_bidirected(admg))
-                {
-                    use crate::strategy_table::identify_admg_query;
-                    // `execute_admg_response` reuses this cache verbatim as the *first grid
-                    // level's* claim for a MeanCurve (it only re-identifies per level from the
-                    // second level on, mirroring the graph-posterior ADMG response cache). A
-                    // MeanCurve identified whole produces one general.id estimand per grid
-                    // level, and `select_estimand` then has no unique estimator match to pick
-                    // among them (they all report the same method). Cache the first level's
-                    // InterventionResponse claim instead, which is what downstream code
-                    // actually consumes and — being a single intervention level — is exactly
-                    // what `select_estimand` can disambiguate.
-                    let causal_query = match &query.functional {
-                        antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } => {
-                            let first_level =
-                                treatment.grid.values()?.into_iter().next().ok_or_else(|| {
-                                    CausalError::Compile {
-                                        message:
-                                            "MeanCurve response requires a non-empty evaluation \
-                                              grid"
-                                                .into(),
-                                    }
-                                })?;
-                            let mut level_query = query.clone();
-                            level_query.functional =
-                                antecedent_core::ResponseFunctional::InterventionResponse {
-                                    outcome: *outcome,
-                                    interventions: Arc::from([Intervention::set(
-                                        treatment.variable,
-                                        Value::f64(first_level),
-                                    )]),
-                                };
-                            CausalQuery::Response(level_query)
-                        }
-                        _ => CausalQuery::Response(query.clone()),
-                    };
-                    let identification = identify_admg_query(identifier_id, admg, &causal_query)?;
-                    let estimand = select_estimand(&identification, estimator_id)?;
-                    return Ok(Some(CachedStaticIdentification { identification, estimand }));
-                }
-                let graph = match (self.graph.graph_ref(), plan.static_graph()) {
-                    (GraphRef::Dag(dag), _)
-                    | (GraphRef::Admg(_) | GraphRef::TemporalAdmg(_), Some(dag)) => {
-                        Some(dag.clone())
-                    }
-                    _ => None,
-                };
-                let Some(graph) = graph else {
-                    return Ok(None);
-                };
-                let identification = identify_static_query(
-                    identifier_id,
-                    &graph,
-                    &CausalQuery::Response(query.clone()),
-                )?;
-                let estimand = identification.estimands.first().cloned().ok_or_else(|| {
-                    CausalError::Compile {
-                        message: "response identifier returned no estimand".into(),
-                    }
-                })?;
-                Ok(Some(CachedStaticIdentification { identification, estimand }))
-            }
+            CausalQuery::AverageEffect(query) => self.prepare_static_average_effect_identification(
+                plan,
+                query,
+                identifier_id,
+                estimator_id,
+            ),
+            CausalQuery::Response(query) => self.prepare_static_response_identification(
+                plan,
+                query,
+                identifier_id,
+                estimator_id,
+            ),
             CausalQuery::Mediation(query) => {
                 let GraphRef::Dag(graph) = self.graph.graph_ref() else {
                     return Ok(None);
@@ -427,6 +258,214 @@ impl Study {
             }
             _ => Ok(None),
         }
+    }
+
+    /// Static claims identified from the query alone, before any route is resolved.
+    fn prepare_static_query_only_identification(
+        &self,
+    ) -> Result<Option<CachedStaticIdentification>, CausalError> {
+        use crate::strategy_table::{IdentifierId, identify_static_query};
+        if let CausalQuery::RandomizedEffect(query) = &self.query {
+            let (identification, estimand) =
+                crate::analysis::execute::randomized_identification(query);
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
+        if let CausalQuery::PanelDid(query) = &self.query {
+            let (identification, estimand) =
+                crate::analysis::execute::panel_did_identification(query);
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
+        if let CausalQuery::SyntheticControl(query) = &self.query {
+            let (identification, estimand) =
+                crate::analysis::execute::synthetic_control_identification(query);
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
+        if let CausalQuery::LocalPolynomialRatio(query) = &self.query {
+            let (identification, estimand) =
+                crate::analysis::execute::local_polynomial_ratio_identification(query);
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
+        if let CausalQuery::Survival(query) = &self.query {
+            let (identification, estimand) =
+                crate::analysis::execute::survival_identification(query);
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
+        if matches!(self.query, CausalQuery::Counterfactual(_)) {
+            let graph = self
+                .graph
+                .as_dag()
+                .ok_or(CausalError::Unsupported { message: "counterfactual requires Dag" })?;
+            let identification =
+                identify_static_query(IdentifierId::GcmParametric, graph, &self.query)?;
+            let estimand = identification.estimands[0].clone();
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
+        if matches!(
+            self.query,
+            CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_)
+        ) {
+            let (treatment, outcome) = crate::analysis::execute::gcm_query_vars(&self.query)?;
+            let (identification, estimand) =
+                crate::analysis::execute::parametric_scm_identification(
+                    self.query.clone(),
+                    treatment,
+                    outcome,
+                );
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
+        Ok(None)
+    }
+
+    /// Static identification of an average-effect query on its resolved route.
+    fn prepare_static_average_effect_identification(
+        &self,
+        plan: &PhysicalExecutionPlan,
+        query: &AverageEffectQuery,
+        identifier_id: crate::strategy_table::IdentifierId,
+        estimator_id: EstimatorId,
+    ) -> Result<Option<CachedStaticIdentification>, CausalError> {
+        use crate::strategy_table::{identify_static_query_with_rd, select_claim, select_estimand};
+        if let Some(background) = &self.tiered {
+            let identification = antecedent_identify::identify_tiered(background, query)?;
+            let estimand =
+                identification.estimands.first().cloned().ok_or_else(|| CausalError::Compile {
+                    message: "tiered identification returned no estimand".into(),
+                })?;
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
+        if matches!(self.graph.class(), GraphClass::Admg | GraphClass::TemporalAdmg) {
+            use crate::strategy_table::identify_admg;
+
+            let admg = self.graph.graph_ref().projected_admg()?;
+            let Some(admg) = admg else {
+                return Err(CausalError::Compile {
+                    message: "ADMG prepare missing supplied graph".into(),
+                });
+            };
+            if crate::analysis::execute::admg_has_bidirected(&admg) {
+                let identification = identify_admg(identifier_id, &admg, query)?;
+                let estimand = select_estimand(&identification, estimator_id)?;
+                return Ok(Some(CachedStaticIdentification { identification, estimand }));
+            }
+        }
+        let graph = match self.graph.graph_ref() {
+            GraphRef::Dag(dag) => Some(dag.clone()),
+            GraphRef::Admg(_) | GraphRef::TemporalAdmg(_) => plan.static_graph().cloned(),
+            GraphRef::Cpdag(_) => return Ok(None),
+            _ => None,
+        };
+        let Some(graph) = graph else {
+            return Ok(None);
+        };
+        // `execute_bayesian` never consults `self.rd` (it calls
+        // `identify_static`, which is `identify_static_query_with_rd`
+        // with `rd: None`); mirror that exactly so the cached
+        // identification matches what an uncached Bayesian run would
+        // compute, even if a caller set `.rd_config(..)` alongside
+        // `bayesian.gcomp`.
+        let rd = if matches!(estimator_id, EstimatorId::BayesianGcomp) {
+            None
+        } else {
+            self.rd.map(|c| {
+                antecedent_identify::SharpRdConfig::new(c.running_variable, c.cutoff, c.bandwidth)
+            })
+        };
+        let identification = identify_static_query_with_rd(
+            identifier_id,
+            &graph,
+            &CausalQuery::AverageEffect(query.clone()),
+            rd,
+        )?;
+        let (identification, estimand) = select_claim(identification, estimator_id)?;
+        Ok(Some(CachedStaticIdentification { identification, estimand }))
+    }
+
+    /// Static identification of a response query on its resolved route.
+    fn prepare_static_response_identification(
+        &self,
+        plan: &PhysicalExecutionPlan,
+        query: &antecedent_core::ResponseQuery,
+        identifier_id: crate::strategy_table::IdentifierId,
+        estimator_id: EstimatorId,
+    ) -> Result<Option<CachedStaticIdentification>, CausalError> {
+        use crate::strategy_table::{identify_static_query, select_estimand};
+        if let Some(background) = &self.tiered {
+            let schema = match &self.data {
+                DataInput::Tabular(data) => data.schema(),
+                _ => {
+                    return Err(CausalError::Unsupported {
+                        message: "CoDetermined joint prepare requires tabular data",
+                    });
+                }
+            };
+            let identification = match self.graph.as_admg() {
+                Some(admg) => {
+                    antecedent_identify::identify_tiered_joint_on(background, admg, query)?
+                }
+                None => antecedent_identify::identify_tiered_joint(background, schema, query)?,
+            };
+            let estimand =
+                identification.estimands.first().cloned().ok_or(CausalError::Unsupported {
+                    message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE,
+                })?;
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
+        let response_admg = self.graph.graph_ref().projected_admg()?;
+        if let Some(admg) = response_admg
+            .as_ref()
+            .filter(|admg| crate::analysis::execute::admg_has_bidirected(admg))
+        {
+            use crate::strategy_table::identify_admg_query;
+            // `execute_admg_response` reuses this cache verbatim as the *first grid
+            // level's* claim for a MeanCurve (it only re-identifies per level from the
+            // second level on, mirroring the graph-posterior ADMG response cache). A
+            // MeanCurve identified whole produces one general.id estimand per grid
+            // level, and `select_estimand` then has no unique estimator match to pick
+            // among them (they all report the same method). Cache the first level's
+            // InterventionResponse claim instead, which is what downstream code
+            // actually consumes and — being a single intervention level — is exactly
+            // what `select_estimand` can disambiguate.
+            let causal_query = match &query.functional {
+                antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } => {
+                    let first_level =
+                        treatment.grid.values()?.into_iter().next().ok_or_else(|| {
+                            CausalError::Compile {
+                                message: "MeanCurve response requires a non-empty evaluation \
+                                      grid"
+                                    .into(),
+                            }
+                        })?;
+                    let mut level_query = query.clone();
+                    level_query.functional =
+                        antecedent_core::ResponseFunctional::InterventionResponse {
+                            outcome: *outcome,
+                            interventions: Arc::from([Intervention::set(
+                                treatment.variable,
+                                Value::f64(first_level),
+                            )]),
+                        };
+                    CausalQuery::Response(level_query)
+                }
+                _ => CausalQuery::Response(query.clone()),
+            };
+            let identification = identify_admg_query(identifier_id, admg, &causal_query)?;
+            let estimand = select_estimand(&identification, estimator_id)?;
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
+        let graph = match (self.graph.graph_ref(), plan.static_graph()) {
+            (GraphRef::Dag(dag), _)
+            | (GraphRef::Admg(_) | GraphRef::TemporalAdmg(_), Some(dag)) => Some(dag.clone()),
+            _ => None,
+        };
+        let Some(graph) = graph else {
+            return Ok(None);
+        };
+        let identification =
+            identify_static_query(identifier_id, &graph, &CausalQuery::Response(query.clone()))?;
+        let estimand = identification.estimands.first().cloned().ok_or_else(|| {
+            CausalError::Compile { message: "response identifier returned no estimand".into() }
+        })?;
+        Ok(Some(CachedStaticIdentification { identification, estimand }))
     }
 
     /// Compute the generalized-adjustment envelope once for a supplied PAG.
@@ -517,13 +556,15 @@ impl Study {
                 let schedule = sequence_identification_schedule(query)?;
                 Ok(Some(identify_temporal_response_horizons(
                     graph,
-                    treatment,
-                    outcome,
-                    temporal,
-                    &query.target_population,
                     EstimatorId::temporal_response_for(&self.inference),
-                    schedule.as_deref(),
-                    single_step_dose(query)?,
+                    &TemporalResponseIdentificationRequest {
+                        treatment,
+                        outcome,
+                        temporal,
+                        target_population: &query.target_population,
+                        schedule: schedule.as_deref(),
+                        dose: single_step_dose(query)?,
+                    },
                 )?))
             }
             CausalQuery::TemporalEffect(query) => {
@@ -732,151 +773,169 @@ impl Study {
                 self.prepare_learner_score_table(data, query, ctx)
             }
             CausalQuery::AverageEffect(query) => {
-                // Score artifacts are an explicit AIPW execution contract; do not
-                // silently fit a second estimator for linear/IV/matching plans.
-                if self.estimator != Some(crate::strategy_table::EstimatorId::Aipw)
-                    || !matches!(query.target_population, TargetPopulation::AllObserved)
-                {
-                    return Ok(None);
-                }
-                let Some(cache) = self.identification_cache.as_ref() else {
-                    return Ok(None);
-                };
-                let method = cache.estimand.method.as_ref();
-                if !(method.contains("adjustment")
-                    || method.contains("backdoor")
-                    || method.starts_with("tiered."))
-                {
-                    return Ok(None);
-                }
-                let mut est = match self.estimator_spec.as_deref() {
-                    Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => *config.clone(),
-                    _ => AipwAte::new(),
-                };
-                if let Some(overlap) = self.overlap_policy {
-                    est.overlap = overlap;
-                }
-                if matches!(est.overlap, OverlapPolicy::RequireDiagnostics { trim: Some(_), .. })
-                    || est.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
-                {
-                    // Frozen cross-fitted scores are untrimmed iid influence
-                    // values. A mean estimate under trimming or a non-iid SE is
-                    // still estimated by the configured AIPW; it keeps no score
-                    // table, so a retarget refuses with `score_table_unavailable`
-                    // instead of reweighting scores of a different construction.
-                    // A quantile or exceedance functional is estimated from the
-                    // scores and has no such fallback.
-                    if query.outcome_functional.is_mean() {
-                        return Ok(None);
-                    }
-                    return Err(crate::unsupported_reason!(
-                        "option_not_applicable",
-                        "prepared AIPW functional scores require iid inference without \
-                         propensity trimming"
-                    ));
-                }
-                let estimand = cache.estimand.clone();
-                let mut problem = est.prepare(data, &estimand, query)?;
-                problem.fold_seed = fold_seed;
-                if let Some(shared) = self.shared_batch_design.as_ref() {
-                    shared.apply_to_propensity(&mut problem)?;
-                }
-                let table = if query.outcome_functional.quantile_level().is_some() {
-                    let grid = antecedent_estimate::empirical_threshold_grid(&problem.outcome, 19)?;
-                    antecedent_estimate::build_binary_scores(
-                        &problem,
-                        query.treatment,
-                        &grid.into_iter().map(Some).collect::<Vec<_>>(),
-                        antecedent_estimate::DEFAULT_AIPW_FOLDS,
-                        &est.glm_options,
-                        est.backend,
-                    )?
-                } else {
-                    crossfit_binary_scores(
-                        &problem,
-                        query,
-                        antecedent_estimate::DEFAULT_AIPW_FOLDS,
-                        &est.glm_options,
-                        est.backend,
-                    )?
-                };
-                Ok(Some(table))
+                self.prepare_aipw_score_table(data, query, fold_seed)
             }
             CausalQuery::Response(query) => {
-                if self.estimator != Some(crate::strategy_table::EstimatorId::CellAipw) {
-                    return Ok(None);
-                }
-                let Some(cache) = self.identification_cache.as_ref() else {
-                    return Ok(None);
-                };
-                let antecedent_core::ResponseFunctional::InterventionResponse {
-                    outcome,
-                    interventions,
-                } = &query.functional
-                else {
-                    return Ok(None);
-                };
-                let treatments = discrete_set_treatments(interventions);
-                if treatments.len() < 2 {
-                    return Ok(None);
-                }
-                let est = CellSaturatedAipw::new().with_fold_seed(fold_seed);
-                let continuous = self.continuous_cell.as_ref().map(|(variable, grid)| {
-                    antecedent_estimate::ContinuousCellSpec { variable: *variable, grid }
-                });
-                // Folds are deliberately not shared here: `fit_scores_with_assignment`
-                // leaves them unset so the cell path draws its own cell-stratified
-                // `crossfit_fold_plan` (keyed by `est.fold_seed`), reproducing the solo
-                // fold plan for this query's own cells bit-for-bit instead of a private,
-                // unstratified batch shuffle. See `SharedBatchDesign` docs.
-                let fold_ids: Option<Vec<u32>> = None;
-                let design = match self.shared_batch_design.as_ref() {
-                    Some(shared) => {
-                        let mut ids: Vec<_> = treatments
-                            .iter()
-                            .copied()
-                            .chain(std::iter::once(*outcome))
-                            .chain(cache.estimand.adjustment_set.iter().copied())
-                            .collect();
-                        if let Some((variable, _)) = self.continuous_cell.as_ref() {
-                            ids.push(*variable);
-                        }
-                        let ids = data.complete_case_mask(&ids);
-                        let row_index = match ids {
-                            Ok(mask) => mask
-                                .iter()
-                                .enumerate()
-                                .filter_map(|(i, &keep)| {
-                                    keep.then_some(u32::try_from(i).unwrap_or(u32::MAX))
-                                })
-                                .collect::<Vec<_>>(),
-                            Err(_) => Vec::new(),
-                        };
-                        if row_index.is_empty() {
-                            None
-                        } else {
-                            shared.design_for(&cache.estimand.adjustment_set, &row_index)?
-                        }
-                    }
-                    None => None,
-                };
-                let table = est.fit_scores_with_assignment(
-                    data,
-                    &antecedent_estimate::CellScoreSpec {
-                        treatments: &treatments,
-                        outcome: *outcome,
-                        adjustment: &cache.estimand.adjustment_set,
-                        functional: &query.outcome_functional,
-                        continuous,
-                    },
-                    antecedent_estimate::SharedCellInputs {
-                        fold_ids: fold_ids.as_deref(),
-                        design: design.as_deref(),
-                    },
-                )?;
-                Ok(Some(table))
+                self.prepare_cell_response_score_table(data, query, fold_seed)
             }
             _ => Ok(None),
         }
+    }
+
+    /// Cross-fitted AIPW scores of an `Aipw` average-effect plan, refusing what trimming or a non-iid SE would change.
+    fn prepare_aipw_score_table(
+        &self,
+        data: &TabularData,
+        query: &AverageEffectQuery,
+        fold_seed: u64,
+    ) -> Result<Option<ScoreTable>, CausalError> {
+        // Score artifacts are an explicit AIPW execution contract; do not
+        // silently fit a second estimator for linear/IV/matching plans.
+        if self.estimator != Some(crate::strategy_table::EstimatorId::Aipw)
+            || !matches!(query.target_population, TargetPopulation::AllObserved)
+        {
+            return Ok(None);
+        }
+        let Some(cache) = self.identification_cache.as_ref() else {
+            return Ok(None);
+        };
+        let method = cache.estimand.method.as_ref();
+        if !(method.contains("adjustment")
+            || method.contains("backdoor")
+            || method.starts_with("tiered."))
+        {
+            return Ok(None);
+        }
+        let mut est = match self.estimator_spec.as_deref() {
+            Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => *config.clone(),
+            _ => AipwAte::new(),
+        };
+        if let Some(overlap) = self.overlap_policy {
+            est.overlap = overlap;
+        }
+        if matches!(est.overlap, OverlapPolicy::RequireDiagnostics { trim: Some(_), .. })
+            || est.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
+        {
+            // Frozen cross-fitted scores are untrimmed iid influence
+            // values. A mean estimate under trimming or a non-iid SE is
+            // still estimated by the configured AIPW; it keeps no score
+            // table, so a retarget refuses with `score_table_unavailable`
+            // instead of reweighting scores of a different construction.
+            // A quantile or exceedance functional is estimated from the
+            // scores and has no such fallback.
+            if query.outcome_functional.is_mean() {
+                return Ok(None);
+            }
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "prepared AIPW functional scores require iid inference without \
+                 propensity trimming"
+            ));
+        }
+        let estimand = cache.estimand.clone();
+        let mut problem = est.prepare(data, &estimand, query)?;
+        problem.fold_seed = fold_seed;
+        if let Some(shared) = self.shared_batch_design.as_ref() {
+            shared.apply_to_propensity(&mut problem)?;
+        }
+        let table = if query.outcome_functional.quantile_level().is_some() {
+            let grid = antecedent_estimate::empirical_threshold_grid(&problem.outcome, 19)?;
+            antecedent_estimate::build_binary_scores(
+                &problem,
+                query.treatment,
+                &grid.into_iter().map(Some).collect::<Vec<_>>(),
+                antecedent_estimate::DEFAULT_AIPW_FOLDS,
+                &est.glm_options,
+                est.backend,
+            )?
+        } else {
+            crossfit_binary_scores(
+                &problem,
+                query,
+                antecedent_estimate::DEFAULT_AIPW_FOLDS,
+                &est.glm_options,
+                est.backend,
+            )?
+        };
+        Ok(Some(table))
+    }
+
+    /// Cell-saturated AIPW scores of a discrete-set intervention response.
+    fn prepare_cell_response_score_table(
+        &self,
+        data: &TabularData,
+        query: &antecedent_core::ResponseQuery,
+        fold_seed: u64,
+    ) -> Result<Option<ScoreTable>, CausalError> {
+        if self.estimator != Some(crate::strategy_table::EstimatorId::CellAipw) {
+            return Ok(None);
+        }
+        let Some(cache) = self.identification_cache.as_ref() else {
+            return Ok(None);
+        };
+        let antecedent_core::ResponseFunctional::InterventionResponse { outcome, interventions } =
+            &query.functional
+        else {
+            return Ok(None);
+        };
+        let treatments = discrete_set_treatments(interventions);
+        if treatments.len() < 2 {
+            return Ok(None);
+        }
+        let est = CellSaturatedAipw::new().with_fold_seed(fold_seed);
+        let continuous = self.continuous_cell.as_ref().map(|(variable, grid)| {
+            antecedent_estimate::ContinuousCellSpec { variable: *variable, grid }
+        });
+        // Folds are deliberately not shared here: `fit_scores_with_assignment`
+        // leaves them unset so the cell path draws its own cell-stratified
+        // `crossfit_fold_plan` (keyed by `est.fold_seed`), reproducing the solo
+        // fold plan for this query's own cells bit-for-bit instead of a private,
+        // unstratified batch shuffle. See `SharedBatchDesign` docs.
+        let fold_ids: Option<Vec<u32>> = None;
+        let design = match self.shared_batch_design.as_ref() {
+            Some(shared) => {
+                let mut ids: Vec<_> = treatments
+                    .iter()
+                    .copied()
+                    .chain(std::iter::once(*outcome))
+                    .chain(cache.estimand.adjustment_set.iter().copied())
+                    .collect();
+                if let Some((variable, _)) = self.continuous_cell.as_ref() {
+                    ids.push(*variable);
+                }
+                let ids = data.complete_case_mask(&ids);
+                let row_index = match ids {
+                    Ok(mask) => mask
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, &keep)| {
+                            keep.then_some(u32::try_from(i).unwrap_or(u32::MAX))
+                        })
+                        .collect::<Vec<_>>(),
+                    Err(_) => Vec::new(),
+                };
+                if row_index.is_empty() {
+                    None
+                } else {
+                    shared.design_for(&cache.estimand.adjustment_set, &row_index)?
+                }
+            }
+            None => None,
+        };
+        let table = est.fit_scores_with_assignment(
+            data,
+            &antecedent_estimate::CellScoreSpec {
+                treatments: &treatments,
+                outcome: *outcome,
+                adjustment: &cache.estimand.adjustment_set,
+                functional: &query.outcome_functional,
+                continuous,
+            },
+            antecedent_estimate::SharedCellInputs {
+                fold_ids: fold_ids.as_deref(),
+                design: design.as_deref(),
+            },
+        )?;
+        Ok(Some(table))
     }
 }

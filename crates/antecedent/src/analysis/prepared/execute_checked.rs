@@ -31,6 +31,14 @@ use antecedent_identify::IdentificationResult;
 use std::sync::Arc;
 use std::time::Instant;
 
+/// What a checked static operation fitted: the estimator that ran, its estimate and timing.
+struct CheckedStaticEffectRun {
+    estimator_id: crate::strategy_table::EstimatorId,
+    estimate: EffectEstimate,
+    bootstrap_requested: Option<u32>,
+    started: Instant,
+}
+
 impl PreparedStudy {
     /// Bind the contract `result` executed under `refute` on `data`, unless the
     /// caller `defer`s it (a refresh binds once, to the state it retains).
@@ -162,10 +170,12 @@ impl PreparedStudy {
             &query,
             identification,
             estimand,
-            crate::strategy_table::EstimatorId::FrontDoorTwoStage,
-            estimate,
-            Some(operation.fitter.bootstrap_replicates),
-            started,
+            CheckedStaticEffectRun {
+                estimator_id: crate::strategy_table::EstimatorId::FrontDoorTwoStage,
+                estimate,
+                bootstrap_requested: Some(operation.fitter.bootstrap_replicates),
+                started,
+            },
             ctx,
         )
     }
@@ -215,10 +225,12 @@ impl PreparedStudy {
             &query,
             identification,
             estimand,
-            estimator,
-            estimate,
-            None,
-            started,
+            CheckedStaticEffectRun {
+                estimator_id: estimator,
+                estimate,
+                bootstrap_requested: None,
+                started,
+            },
             ctx,
         )
     }
@@ -502,12 +514,10 @@ impl PreparedStudy {
         query: &AverageEffectQuery,
         identification: IdentificationResult,
         estimand: IdentifiedEstimand,
-        estimator_id: crate::strategy_table::EstimatorId,
-        estimate: EffectEstimate,
-        bootstrap_requested: Option<u32>,
-        started: Instant,
+        run: CheckedStaticEffectRun,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        let CheckedStaticEffectRun { estimator_id, estimate, bootstrap_requested, started } = run;
         let cancelled = estimate.uncertainty.bootstrap.cancelled || ctx.cancellation.is_cancelled();
         let (refutations, mut extra_diagnostics) =
             if cancelled || self.analysis.refute == RefuteSuite::None {

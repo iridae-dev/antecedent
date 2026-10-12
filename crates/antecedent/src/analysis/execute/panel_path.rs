@@ -795,13 +795,15 @@ impl super::Study {
                 (
                     Arc::new(crate::analysis::prepared::identify_temporal_response_horizons(
                         graph,
-                        treatment,
-                        outcome,
-                        temporal,
-                        &query.target_population,
                         EstimatorId::TemporalResponseGcomp,
-                        None,
-                        crate::analysis::prepared::single_step_dose(query)?,
+                        &crate::analysis::prepared::TemporalResponseIdentificationRequest {
+                            treatment,
+                            outcome,
+                            temporal,
+                            target_population: &query.target_population,
+                            schedule: None,
+                            dose: crate::analysis::prepared::single_step_dose(query)?,
+                        },
                     )?),
                     false,
                 )

@@ -27,8 +27,8 @@ use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 use crate::error::CausalError;
 
 use super::prepared::{
-    CachedTemporalIdentification, identify_temporal_mediation_horizons,
-    identify_temporal_response_horizons, single_step_dose,
+    CachedTemporalIdentification, TemporalResponseIdentificationRequest,
+    identify_temporal_mediation_horizons, identify_temporal_response_horizons, single_step_dose,
 };
 
 /// One identified atom in a prepared static graph posterior.
@@ -922,13 +922,15 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
         };
         let Ok(horizons) = identify_temporal_response_horizons(
             &graph,
-            treatment,
-            outcome,
-            temporal,
-            &query.target_population,
             estimator_id,
-            None,
-            single_step_dose(query).ok().flatten(),
+            &TemporalResponseIdentificationRequest {
+                treatment,
+                outcome,
+                temporal,
+                target_population: &query.target_population,
+                schedule: None,
+                dose: single_step_dose(query).ok().flatten(),
+            },
         ) else {
             return Ok(DbnAtomOutcome::IdentifyFailed);
         };

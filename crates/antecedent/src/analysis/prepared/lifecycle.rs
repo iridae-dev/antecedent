@@ -209,34 +209,7 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(data)?;
         if let CausalQuery::Mediation(query) = &self.analysis.query {
-            if prior.treatment != Some(query.treatment)
-                || prior.outcome != query.outcome
-                || prior.identification.query != self.analysis.query
-            {
-                return Err(CausalError::Compile {
-                    message: "refute prior does not match mediation query".into(),
-                });
-            }
-            let graph = self.analysis.graph.as_dag().ok_or(CausalError::Unsupported {
-                message: "static mediation refute requires Dag",
-            })?;
-            let mediation = prior.mediation().ok_or(CausalError::Unsupported {
-                message: "refute requires prior mediation result",
-            })?;
-            let mut result = prior.clone();
-            result.refutations = if suite == RefuteSuite::None {
-                Vec::new()
-            } else {
-                antecedent_validate::mediation::refute_static_mediation(
-                    data,
-                    graph,
-                    query,
-                    mediation,
-                    suite == RefuteSuite::Full,
-                    ctx,
-                )?
-            };
-            return self.stamp_refuted(prior, data, suite, result);
+            return self.refute_mediation(prior, data, suite, query, ctx);
         }
         let query = match &self.analysis.query {
             CausalQuery::AverageEffect(query) => query.clone(),
@@ -268,31 +241,7 @@ impl PreparedStudy {
             });
         }
         if matches!(self.analysis.inference, InferenceMode::Bayesian(_)) {
-            // Bayesian validation also includes prior/posterior predictive checks
-            // (and, for Full, prior sensitivity/MCMC diagnostics). Re-running the
-            // frozen physical plan is the only path that constructs those artifacts;
-            // retain the prior point/identification while replacing validation state.
-            let started = Instant::now();
-            let mut analysis = self.analysis.clone();
-            analysis.refute = suite;
-            let validated =
-                analysis.execute_on(&DataInput::Tabular(data.clone()), &self.plan, ctx)?;
-            let validate_ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
-            let mut out = prior.clone();
-            out.refutations = validated.refutations;
-            crate::analysis::helpers::mirror_refuted_evalue(&mut out.estimate, &out.refutations);
-            out.predictive_checks = validated.predictive_checks;
-            out.posterior = validated.posterior;
-            out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
-            out.performance.wall_time_ns =
-                Some(out.performance.wall_time_ns.unwrap_or(0).saturating_add(validate_ns));
-            out.diagnostics.push(antecedent_core::Diagnostic::new(
-                "exec.refute.second_click",
-                antecedent_core::DiagnosticKind::Execution,
-                antecedent_core::DiagnosticSeverity::Info,
-                format!("second-click refute suite={}", suite.diagnostic_label()),
-            ));
-            return self.stamp_refuted(prior, data, suite, out);
+            return self.refute_bayesian_rerun(prior, data, suite, ctx);
         }
         let estimator = self.plan.binding().estimator_or(RouteDefaults::STATIC_ATE)?;
 
@@ -338,6 +287,80 @@ impl PreparedStudy {
             format!("second-click refute suite={suite_label}"),
         ));
         let _ = clock.wall_time_ns();
+        self.stamp_refuted(prior, data, suite, out)
+    }
+
+    /// Second-click refute of a static mediation prior under `suite`.
+    fn refute_mediation(
+        &self,
+        prior: &StudyResult,
+        data: &TabularData,
+        suite: RefuteSuite,
+        query: &antecedent_core::MediationQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        if prior.treatment != Some(query.treatment)
+            || prior.outcome != query.outcome
+            || prior.identification.query != self.analysis.query
+        {
+            return Err(CausalError::Compile {
+                message: "refute prior does not match mediation query".into(),
+            });
+        }
+        let graph =
+            self.analysis.graph.as_dag().ok_or(CausalError::Unsupported {
+                message: "static mediation refute requires Dag",
+            })?;
+        let mediation = prior.mediation().ok_or(CausalError::Unsupported {
+            message: "refute requires prior mediation result",
+        })?;
+        let mut result = prior.clone();
+        result.refutations = if suite == RefuteSuite::None {
+            Vec::new()
+        } else {
+            antecedent_validate::mediation::refute_static_mediation(
+                data,
+                graph,
+                query,
+                mediation,
+                suite == RefuteSuite::Full,
+                ctx,
+            )?
+        };
+        self.stamp_refuted(prior, data, suite, result)
+    }
+
+    /// Second-click refute of a Bayesian prior by re-running the frozen plan with `suite`.
+    fn refute_bayesian_rerun(
+        &self,
+        prior: &StudyResult,
+        data: &TabularData,
+        suite: RefuteSuite,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        // Bayesian validation also includes prior/posterior predictive checks
+        // (and, for Full, prior sensitivity/MCMC diagnostics). Re-running the
+        // frozen physical plan is the only path that constructs those artifacts;
+        // retain the prior point/identification while replacing validation state.
+        let started = Instant::now();
+        let mut analysis = self.analysis.clone();
+        analysis.refute = suite;
+        let validated = analysis.execute_on(&DataInput::Tabular(data.clone()), &self.plan, ctx)?;
+        let validate_ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
+        let mut out = prior.clone();
+        out.refutations = validated.refutations;
+        crate::analysis::helpers::mirror_refuted_evalue(&mut out.estimate, &out.refutations);
+        out.predictive_checks = validated.predictive_checks;
+        out.posterior = validated.posterior;
+        out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
+        out.performance.wall_time_ns =
+            Some(out.performance.wall_time_ns.unwrap_or(0).saturating_add(validate_ns));
+        out.diagnostics.push(antecedent_core::Diagnostic::new(
+            "exec.refute.second_click",
+            antecedent_core::DiagnosticKind::Execution,
+            antecedent_core::DiagnosticSeverity::Info,
+            format!("second-click refute suite={}", suite.diagnostic_label()),
+        ));
         self.stamp_refuted(prior, data, suite, out)
     }
 

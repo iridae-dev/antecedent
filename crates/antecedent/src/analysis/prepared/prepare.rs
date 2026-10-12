@@ -208,171 +208,102 @@ impl Study {
         ctx: &ExecutionContext,
     ) -> Result<Study, CausalError> {
         let mut analysis = self.clone();
-        match (&self.data, &self.query, self.graph_posterior.as_ref()) {
-            (DataInput::Tabular(_), CausalQuery::AverageEffect(query), Some(posterior)) => {
+        match self.graph_posterior.as_ref() {
+            Some(posterior) => {
+                self.install_graph_posterior_caches(&mut analysis, posterior, ctx)?
+            }
+            None => self.install_identification_caches(&mut analysis, plan)?,
+        }
+        Ok(analysis)
+    }
+
+    /// Install the caches of a study that carries a graph posterior, refusing the coordinates
+    /// the prepared handle does not license.
+    fn install_graph_posterior_caches(
+        &self,
+        analysis: &mut Study,
+        posterior: &antecedent_discovery::GraphPosterior,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        match (&self.data, &self.query) {
+            (DataInput::Tabular(_), CausalQuery::AverageEffect(query)) => {
                 analysis.graph_posterior_identification_cache = Some(Arc::new(
                     build_graph_posterior_identification_cache(posterior, query, ctx)?,
                 ));
             }
-            (DataInput::Tabular(_), CausalQuery::ConditionalEffect(query), Some(posterior)) => {
+            (DataInput::Tabular(_), CausalQuery::ConditionalEffect(query)) => {
                 analysis.graph_posterior_identification_cache = Some(Arc::new(
                     build_graph_posterior_identification_cache(posterior, &query.inner, ctx)?,
                 ));
             }
-            (DataInput::Tabular(_), CausalQuery::Response(query), Some(posterior))
-                if !query.is_temporal() =>
-            {
-                analysis.graph_posterior_identification_cache = Some(Arc::new(
-                    if matches!(
-                        posterior.atom_kind,
-                        antecedent_discovery::GraphPosteriorAtomKind::Admg
-                            | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
-                    ) {
-                        build_admg_graph_posterior_response_identification_cache(
-                            posterior, query, ctx,
-                        )?
-                    } else {
-                        let (treatment, outcome) =
-                            query.functional.primary_pair().ok_or_else(|| {
-                                CausalError::Compile {
-                                    message: "response query has no treatment/outcome pair".into(),
-                                }
-                            })?;
-                        build_graph_posterior_identification_cache(
-                            posterior,
-                            &AverageEffectQuery::binary_ate(treatment, outcome),
-                            ctx,
-                        )?
-                    },
-                ));
+            (DataInput::Tabular(_), CausalQuery::Response(query)) if !query.is_temporal() => {
+                Self::install_tabular_response_posterior_cache(analysis, posterior, query, ctx)?;
             }
             (
                 DataInput::Temporal(data) | DataInput::Event(data),
                 CausalQuery::TemporalEffect(query),
-                Some(posterior),
             ) => {
                 let variables: Vec<_> =
                     data.schema().variables().iter().map(|variable| variable.id).collect();
-                if matches!(
-                    posterior.atom_kind,
-                    antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                        | antecedent_discovery::GraphPosteriorAtomKind::Pag
-                ) {
-                    analysis.temporal_class_posterior_identification_cache =
-                        Some(Arc::new(build_temporal_class_posterior_identification_cache(
-                            posterior,
-                            &variables,
-                            query,
-                            analysis.max_completions,
-                            ctx,
-                        )?));
-                } else {
-                    analysis.dbn_posterior_identification_cache =
-                        Some(Arc::new(build_dbn_posterior_identification_cache(
-                            posterior, &variables, query, ctx,
-                        )?));
-                }
+                Self::install_temporal_effect_posterior_cache(
+                    analysis, posterior, &variables, query, ctx,
+                )?;
             }
-            (
-                DataInput::Temporal(data) | DataInput::Event(data),
-                CausalQuery::Mediation(query),
-                Some(posterior),
-            ) => {
+            (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Mediation(query)) => {
                 let variables: Vec<_> =
                     data.schema().variables().iter().map(|variable| variable.id).collect();
-                if matches!(
-                    posterior.atom_kind,
-                    antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                        | antecedent_discovery::GraphPosteriorAtomKind::Pag
-                ) {
-                    let horizon =
-                        query.horizons.first().copied().ok_or_else(|| CausalError::Compile {
-                            message: "temporal class graph-posterior mediation requires a horizon"
-                                .into(),
-                        })?;
-                    let mut witness =
-                        TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0);
-                    witness.horizon_steps = horizon;
-                    analysis.temporal_class_posterior_identification_cache =
-                        Some(Arc::new(build_temporal_class_posterior_identification_cache(
-                            posterior,
-                            &variables,
-                            &witness,
-                            analysis.max_completions,
-                            ctx,
-                        )?));
-                } else {
-                    analysis.dbn_posterior_identification_cache =
-                        Some(Arc::new(build_dbn_posterior_mediation_identification_cache(
-                            posterior, &variables, query, ctx,
-                        )?));
-                }
+                Self::install_temporal_mediation_posterior_cache(
+                    analysis, posterior, &variables, query, ctx,
+                )?;
             }
-            (
-                DataInput::Temporal(data) | DataInput::Event(data),
-                CausalQuery::Response(query),
-                Some(posterior),
-            ) if query.is_temporal() => {
+            (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Response(query))
+                if query.is_temporal() =>
+            {
                 crate::analysis::execute::dbn_posterior_response_supported(query)?;
                 let variables: Vec<_> =
                     data.schema().variables().iter().map(|variable| variable.id).collect();
-                if matches!(
-                    posterior.atom_kind,
-                    antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                        | antecedent_discovery::GraphPosteriorAtomKind::Pag
-                ) {
-                    let (treatment, outcome) =
-                        query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-                            message: "temporal class graph-posterior response has no \
-                                      treatment/outcome pair"
-                                .into(),
-                        })?;
-                    let horizon = query
-                        .temporal
-                        .as_ref()
-                        .and_then(|spec| spec.horizons.first())
-                        .copied()
-                        .unwrap_or(1);
-                    let mut witness = TemporalEffectQuery::pulse(treatment, outcome, 1.0);
-                    witness.horizon_steps = horizon;
-                    if let Some(temporal) = query.temporal.as_ref() {
-                        witness.policy = temporal.policy.clone();
-                        witness.max_history_lag = temporal.max_history_lag;
-                    }
-                    let cache = build_temporal_class_posterior_identification_cache(
-                        posterior,
-                        &variables,
-                        &witness,
-                        analysis.max_completions,
-                        ctx,
-                    )?;
-                    if let Some(atom) = cache.class_atoms.first() {
-                        analysis.temporal_class_identification_cache =
-                            Some(Arc::new(CachedTemporalClassIdentification {
-                                envelope: atom.envelope.clone(),
-                                by_horizon: vec![(horizon, atom.envelope.clone())],
-                            }));
-                    }
-                    analysis.temporal_class_posterior_identification_cache = Some(Arc::new(cache));
-                } else {
-                    let estimator_id = EstimatorId::temporal_response_for(&self.inference);
-                    analysis.dbn_posterior_identification_cache =
-                        Some(Arc::new(build_dbn_posterior_response_identification_cache(
-                            posterior,
-                            &variables,
-                            query,
-                            estimator_id,
-                            ctx,
-                        )?));
-                }
+                self.install_temporal_response_posterior_cache(
+                    analysis, posterior, &variables, query, ctx,
+                )?;
             }
-            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_), None) => {
+            (
+                DataInput::Temporal(_) | DataInput::Event(_),
+                CausalQuery::NestedCounterfactual(_)
+                | CausalQuery::PathSpecific(_)
+                | CausalQuery::Counterfactual(_)
+                | CausalQuery::Distribution(_),
+            ) => {
+                // Identification runs at execute, on the cross-world probe, so the
+                // cache matches the producer rather than an average-effect witness.
+            }
+            _ => {
+                // `ensure_prepared_supported` already refuses this coordinate; a
+                // library must still answer with a typed refusal, never a panic.
+                return Err(CausalError::Support {
+                    id: crate::support::SupportRefusal::Refused,
+                    message: "graph_posterior on the prepared handle is licensed only for \
+                        tabular AverageEffect/Response/ConditionalEffect and series \
+                        TemporalEffect, TemporalMediationEffect, or TemporalDag Response",
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// Install the caches of a study with a single supplied or discovered graph.
+    fn install_identification_caches(
+        &self,
+        analysis: &mut Study,
+        plan: &PhysicalExecutionPlan,
+    ) -> Result<(), CausalError> {
+        match (&self.data, &self.query) {
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_)) => {
                 analysis.temporal_identification_cache =
                     self.prepare_temporal_mediation_identification()?.map(Arc::new);
                 analysis.temporal_class_identification_cache =
                     self.prepare_temporal_class_identification()?.map(Arc::new);
             }
-            (DataInput::Tabular(_), CausalQuery::Transport(query), None) => {
+            (DataInput::Tabular(_), CausalQuery::Transport(query)) => {
                 let diagram = self.selection_diagram.as_ref().ok_or(CausalError::Unsupported {
                     message: "TransportQuery prepare requires a selection diagram",
                 })?;
@@ -381,7 +312,7 @@ impl Study {
                 Arc::make_mut(&mut analysis.config).transport_identification_cache =
                     Some(Arc::new(identification));
             }
-            (DataInput::Tabular(_), query, None) if is_graphless_design(query) => {
+            (DataInput::Tabular(_), query) if is_graphless_design(query) => {
                 // A design has no graph class to inspect, so the graph-only PAG/CPDAG
                 // cache builders below do not apply. Its identification is typed by the
                 // design itself and is cached at prepare when the design identifies once.
@@ -390,7 +321,7 @@ impl Study {
                         self.prepare_static_identification(plan)?.map(Arc::new);
                 }
             }
-            (DataInput::Tabular(_), _, None) => {
+            (DataInput::Tabular(_), _) => {
                 analysis.identification_cache =
                     self.prepare_static_identification(plan)?.map(Arc::new);
                 analysis.pag_identification_cache =
@@ -398,11 +329,7 @@ impl Study {
                 analysis.cpdag_identification_cache =
                     self.prepare_cpdag_identification(plan)?.map(Arc::new);
             }
-            (
-                DataInput::Panel(_),
-                CausalQuery::TemporalEffect(_) | CausalQuery::Response(_),
-                None,
-            ) => {
+            (DataInput::Panel(_), CausalQuery::TemporalEffect(_) | CausalQuery::Response(_)) => {
                 if analysis.graph.class().is_incomplete_temporal() {
                     analysis.temporal_class_identification_cache =
                         self.prepare_temporal_class_identification()?.map(Arc::new);
@@ -414,39 +341,171 @@ impl Study {
             (
                 DataInput::Temporal(_) | DataInput::Event(_),
                 CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
-                None,
             ) => {
                 analysis.identification_cache =
                     self.prepare_static_identification(plan)?.map(Arc::new);
             }
-            (_, _, None) => {
+            (_, _) => {
                 analysis.temporal_identification_cache =
                     self.prepare_temporal_identification()?.map(Arc::new);
                 analysis.temporal_class_identification_cache =
                     self.prepare_temporal_class_identification()?.map(Arc::new);
             }
-            (
-                DataInput::Temporal(_) | DataInput::Event(_),
-                CausalQuery::NestedCounterfactual(_)
-                | CausalQuery::PathSpecific(_)
-                | CausalQuery::Counterfactual(_)
-                | CausalQuery::Distribution(_),
-                Some(_),
-            ) => {
-                // Identification runs at execute, on the cross-world probe, so the
-                // cache matches the producer rather than an average-effect witness.
-            }
-            (_, _, Some(_)) => {
-                // `ensure_prepared_supported` already refuses this coordinate; a
-                // library must still answer with a typed refusal, never a panic.
-                return Err(CausalError::Support {
-                    id: crate::support::SupportRefusal::Refused,
-                    message: "graph_posterior on the prepared handle is licensed only for \
-                        tabular AverageEffect/Response/ConditionalEffect and series \
-                        TemporalEffect, TemporalMediationEffect, or TemporalDag Response",
-                });
-            }
         }
-        Ok(analysis)
+        Ok(())
+    }
+
+    /// Install the graph-posterior cache of a non-temporal tabular response query.
+    fn install_tabular_response_posterior_cache(
+        analysis: &mut Study,
+        posterior: &antecedent_discovery::GraphPosterior,
+        query: &antecedent_core::ResponseQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        analysis.graph_posterior_identification_cache = Some(Arc::new(
+            if matches!(
+                posterior.atom_kind,
+                antecedent_discovery::GraphPosteriorAtomKind::Admg
+                    | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
+            ) {
+                build_admg_graph_posterior_response_identification_cache(posterior, query, ctx)?
+            } else {
+                let (treatment, outcome) =
+                    query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
+                        message: "response query has no treatment/outcome pair".into(),
+                    })?;
+                build_graph_posterior_identification_cache(
+                    posterior,
+                    &AverageEffectQuery::binary_ate(treatment, outcome),
+                    ctx,
+                )?
+            },
+        ));
+        Ok(())
+    }
+
+    /// Install the temporal-effect graph-posterior cache for the atom kind of `posterior`.
+    fn install_temporal_effect_posterior_cache(
+        analysis: &mut Study,
+        posterior: &antecedent_discovery::GraphPosterior,
+        variables: &[antecedent_core::VariableId],
+        query: &TemporalEffectQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        if matches!(
+            posterior.atom_kind,
+            antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                | antecedent_discovery::GraphPosteriorAtomKind::Pag
+        ) {
+            analysis.temporal_class_posterior_identification_cache =
+                Some(Arc::new(build_temporal_class_posterior_identification_cache(
+                    posterior,
+                    variables,
+                    query,
+                    analysis.max_completions,
+                    ctx,
+                )?));
+        } else {
+            analysis.dbn_posterior_identification_cache = Some(Arc::new(
+                build_dbn_posterior_identification_cache(posterior, variables, query, ctx)?,
+            ));
+        }
+        Ok(())
+    }
+
+    /// Install the temporal-mediation graph-posterior cache for the atom kind of `posterior`.
+    fn install_temporal_mediation_posterior_cache(
+        analysis: &mut Study,
+        posterior: &antecedent_discovery::GraphPosterior,
+        variables: &[antecedent_core::VariableId],
+        query: &antecedent_core::MediationQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        if matches!(
+            posterior.atom_kind,
+            antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                | antecedent_discovery::GraphPosteriorAtomKind::Pag
+        ) {
+            let horizon = query.horizons.first().copied().ok_or_else(|| CausalError::Compile {
+                message: "temporal class graph-posterior mediation requires a horizon".into(),
+            })?;
+            let mut witness = TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0);
+            witness.horizon_steps = horizon;
+            analysis.temporal_class_posterior_identification_cache =
+                Some(Arc::new(build_temporal_class_posterior_identification_cache(
+                    posterior,
+                    variables,
+                    &witness,
+                    analysis.max_completions,
+                    ctx,
+                )?));
+        } else {
+            analysis.dbn_posterior_identification_cache =
+                Some(Arc::new(build_dbn_posterior_mediation_identification_cache(
+                    posterior, variables, query, ctx,
+                )?));
+        }
+        Ok(())
+    }
+
+    /// Install the temporal-response graph-posterior cache for the atom kind of `posterior`.
+    fn install_temporal_response_posterior_cache(
+        &self,
+        analysis: &mut Study,
+        posterior: &antecedent_discovery::GraphPosterior,
+        variables: &[antecedent_core::VariableId],
+        query: &antecedent_core::ResponseQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        if matches!(
+            posterior.atom_kind,
+            antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                | antecedent_discovery::GraphPosteriorAtomKind::Pag
+        ) {
+            let (treatment, outcome) =
+                query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
+                    message: "temporal class graph-posterior response has no \
+                              treatment/outcome pair"
+                        .into(),
+                })?;
+            let horizon = query
+                .temporal
+                .as_ref()
+                .and_then(|spec| spec.horizons.first())
+                .copied()
+                .unwrap_or(1);
+            let mut witness = TemporalEffectQuery::pulse(treatment, outcome, 1.0);
+            witness.horizon_steps = horizon;
+            if let Some(temporal) = query.temporal.as_ref() {
+                witness.policy = temporal.policy.clone();
+                witness.max_history_lag = temporal.max_history_lag;
+            }
+            let cache = build_temporal_class_posterior_identification_cache(
+                posterior,
+                variables,
+                &witness,
+                analysis.max_completions,
+                ctx,
+            )?;
+            if let Some(atom) = cache.class_atoms.first() {
+                analysis.temporal_class_identification_cache =
+                    Some(Arc::new(CachedTemporalClassIdentification {
+                        envelope: atom.envelope.clone(),
+                        by_horizon: vec![(horizon, atom.envelope.clone())],
+                    }));
+            }
+            analysis.temporal_class_posterior_identification_cache = Some(Arc::new(cache));
+        } else {
+            let estimator_id = EstimatorId::temporal_response_for(&self.inference);
+            analysis.dbn_posterior_identification_cache =
+                Some(Arc::new(build_dbn_posterior_response_identification_cache(
+                    posterior,
+                    variables,
+                    query,
+                    estimator_id,
+                    ctx,
+                )?));
+        }
+        Ok(())
     }
 }

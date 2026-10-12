@@ -964,17 +964,19 @@ impl super::Study {
             (
                 Arc::new(crate::analysis::prepared::identify_temporal_response_horizons(
                     graph,
-                    treatment,
-                    outcome,
-                    temporal,
-                    &query.target_population,
                     if matches!(self.inference, InferenceMode::Bayesian(_)) {
                         EstimatorId::TemporalResponseBayesian
                     } else {
                         EstimatorId::TemporalResponseGcomp
                     },
-                    schedule.as_deref(),
-                    crate::analysis::prepared::single_step_dose(query)?,
+                    &crate::analysis::prepared::TemporalResponseIdentificationRequest {
+                        treatment,
+                        outcome,
+                        temporal,
+                        target_population: &query.target_population,
+                        schedule: schedule.as_deref(),
+                        dose: crate::analysis::prepared::single_step_dose(query)?,
+                    },
                 )?),
                 false,
             )

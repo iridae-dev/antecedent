@@ -133,6 +133,88 @@ pub(super) fn path_specific_effect(cx: &SealContext<'_>) -> SealOutcome {
     Ok(sealed.map(PreparedExecution::PathSpecificEffect))
 }
 
+/// Treatment, outcome and evaluation grid of an ADMG response the checked route accepts.
+fn admg_response_target(
+    query: &antecedent_core::ResponseQuery,
+) -> Result<(antecedent_core::VariableId, antecedent_core::VariableId, Vec<f64>), CausalError> {
+    Ok(match &query.functional {
+        antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } => {
+            (treatment.variable, *outcome, treatment.grid.values()?)
+        }
+        antecedent_core::ResponseFunctional::InterventionResponse { outcome, interventions }
+            if interventions.len() == 1 =>
+        {
+            let intervention = &interventions[0];
+            let (treatment, _) = query.functional.primary_pair().ok_or_else(|| {
+                CausalError::Compile { message: "scalar ADMG response lacks treatment role".into() }
+            })?;
+            let antecedent_core::Intervention::Set { variable, value } = intervention else {
+                return Err(CausalError::Compile {
+                    message: "checked ADMG scalar response requires a single hard-set intervention"
+                        .into(),
+                });
+            };
+            let value = value.as_f64().filter(|value| value.is_finite()).ok_or_else(|| CausalError::Compile {
+                message: "checked ADMG scalar response requires one finite numeric intervention value".into(),
+            })?;
+            if treatment != *variable {
+                return Err(CausalError::Compile {
+                    message: "checked ADMG scalar response intervention must assign its declared treatment".into(),
+                });
+            }
+            (treatment, *outcome, vec![value])
+        }
+        _ => unreachable!("guarded response operation shape"),
+    })
+}
+
+/// One identified and prepared member per grid level of an ADMG response curve.
+fn admg_response_members(
+    fitter: &antecedent_estimate::FunctionalEffect,
+    data: &antecedent_data::TabularData,
+    query: &antecedent_core::ResponseQuery,
+    admg: &antecedent_graph::Admg,
+    grid: &[f64],
+    treatment: antecedent_core::VariableId,
+    outcome: antecedent_core::VariableId,
+) -> Result<Vec<CheckedFunctionalEffectResponseMember>, CausalError> {
+    let mut members = Vec::with_capacity(grid.len());
+    for level in grid {
+        let mut member_query = query.clone();
+        if matches!(query.functional, antecedent_core::ResponseFunctional::MeanCurve { .. }) {
+            member_query.functional = antecedent_core::ResponseFunctional::InterventionResponse {
+                outcome,
+                interventions: Arc::from([Intervention::set(treatment, Value::f64(*level))]),
+            };
+        }
+        let member_causal_query = CausalQuery::Response(member_query.clone());
+        let identification = crate::strategy_table::identify_admg_query(
+            crate::strategy_table::IdentifierId::GeneralId,
+            admg,
+            &member_causal_query,
+        )?;
+        let estimand = crate::strategy_table::select_estimand(
+            &identification,
+            crate::strategy_table::EstimatorId::FunctionalEffect,
+        )?;
+        let prepared = fitter.prepare(
+            data,
+            &estimand,
+            &identification.arena,
+            identification.required_assumptions.clone(),
+            &[treatment, outcome],
+        )?;
+        members.push(CheckedFunctionalEffectResponseMember {
+            grid_value: *level,
+            query: member_query,
+            identification,
+            estimand,
+            prepared,
+        });
+    }
+    Ok(members)
+}
+
 pub(super) fn admg_response_curve(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed = match cx.route {
@@ -166,37 +248,7 @@ pub(super) fn admg_response_curve(cx: &SealContext<'_>) -> SealOutcome {
                     InferenceMode::Frequentist | InferenceMode::Bayesian(_)
                 ) =>
         {
-            let (treatment, outcome, grid) = match &query.functional {
-                antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } => {
-                    (treatment.variable, *outcome, treatment.grid.values()?)
-                }
-                antecedent_core::ResponseFunctional::InterventionResponse {
-                    outcome,
-                    interventions,
-                } if interventions.len() == 1 => {
-                    let intervention = &interventions[0];
-                    let (treatment, _) =
-                        query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-                            message: "scalar ADMG response lacks treatment role".into(),
-                        })?;
-                    let antecedent_core::Intervention::Set { variable, value } = intervention
-                    else {
-                        return Err(CausalError::Compile {
-                            message: "checked ADMG scalar response requires a single hard-set intervention".into(),
-                        });
-                    };
-                    let value = value.as_f64().filter(|value| value.is_finite()).ok_or_else(|| CausalError::Compile {
-                        message: "checked ADMG scalar response requires one finite numeric intervention value".into(),
-                    })?;
-                    if treatment != *variable {
-                        return Err(CausalError::Compile {
-                            message: "checked ADMG scalar response intervention must assign its declared treatment".into(),
-                        });
-                    }
-                    (treatment, *outcome, vec![value])
-                }
-                _ => unreachable!("guarded response operation shape"),
-            };
+            let (treatment, outcome, grid) = admg_response_target(query)?;
             if grid.is_empty() {
                 return Err(CausalError::Compile {
                     message: "ADMG response curve has no grid members".into(),
@@ -209,45 +261,8 @@ pub(super) fn admg_response_curve(cx: &SealContext<'_>) -> SealOutcome {
             })?;
             let mut fitter = antecedent_estimate::FunctionalEffect::new();
             fitter.bootstrap_replicates = analysis.bootstrap_replicates;
-            let mut members = Vec::with_capacity(grid.len());
-            for level in &grid {
-                let mut member_query = query.clone();
-                if matches!(query.functional, antecedent_core::ResponseFunctional::MeanCurve { .. })
-                {
-                    member_query.functional =
-                        antecedent_core::ResponseFunctional::InterventionResponse {
-                            outcome,
-                            interventions: Arc::from([Intervention::set(
-                                treatment,
-                                Value::f64(*level),
-                            )]),
-                        };
-                }
-                let member_causal_query = CausalQuery::Response(member_query.clone());
-                let identification = crate::strategy_table::identify_admg_query(
-                    crate::strategy_table::IdentifierId::GeneralId,
-                    &admg,
-                    &member_causal_query,
-                )?;
-                let estimand = crate::strategy_table::select_estimand(
-                    &identification,
-                    crate::strategy_table::EstimatorId::FunctionalEffect,
-                )?;
-                let prepared = fitter.prepare(
-                    data,
-                    &estimand,
-                    &identification.arena,
-                    identification.required_assumptions.clone(),
-                    &[treatment, outcome],
-                )?;
-                members.push(CheckedFunctionalEffectResponseMember {
-                    grid_value: *level,
-                    query: member_query,
-                    identification,
-                    estimand,
-                    prepared,
-                });
-            }
+            let members =
+                admg_response_members(&fitter, data, query, &admg, &grid, treatment, outcome)?;
             Some(CheckedAdmgResponseCurveOperation {
                 factor_snapshot_digest: data.storage().content_digest(),
                 query: query.clone(),

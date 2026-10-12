@@ -239,103 +239,8 @@ pub(super) fn checked_conditional(cx: &SealContext<'_>) -> SealOutcome {
                     EstimatorId::ConditionalLinearAdjustment,
                 ) =>
         {
-            let class_proof = match graph_class {
-                GraphClass::Cpdag => {
-                    let (Some(graph), Some(cache)) =
-                        (analysis.graph.as_cpdag(), analysis.cpdag_identification_cache.as_ref())
-                    else {
-                        return Err(CausalError::Compile {
-                            message: "conditional CPDAG preparation lost its graph proof".into(),
-                        });
-                    };
-                    Some(crate::analysis::checked_conditional::ConditionalClassProof::Cpdag {
-                        graph: graph.clone(),
-                        cache: cache.clone(),
-                    })
-                }
-                GraphClass::Pag => {
-                    let (Some(graph), Some(cache)) =
-                        (plan.static_pag(), analysis.pag_identification_cache.as_ref())
-                    else {
-                        return Err(CausalError::Compile {
-                            message: "conditional PAG preparation lost its graph proof".into(),
-                        });
-                    };
-                    Some(crate::analysis::checked_conditional::ConditionalClassProof::Pag {
-                        graph: graph.clone(),
-                        cache: cache.clone(),
-                    })
-                }
-                _ => None,
-            };
-            let target = match (&class_proof, graph_class) {
-                (None, GraphClass::Dag) => analysis.identification_cache.clone(),
-                (
-                    Some(crate::analysis::checked_conditional::ConditionalClassProof::Cpdag {
-                        cache,
-                        ..
-                    }),
-                    GraphClass::Cpdag,
-                ) => {
-                    let estimand = cache.envelope.invariant.as_ref().and_then(|invariant| {
-                        cache
-                            .identification
-                            .estimands
-                            .iter()
-                            .find(|candidate| {
-                                candidate.is_adjustment_shaped()
-                                    && candidate.method == invariant.method
-                                    && candidate.adjustment_set == invariant.adjustment_set
-                            })
-                            .cloned()
-                    });
-                    (conditional_class_proof_is_complete(&cache.envelope)
-                        && cache.identification.status
-                            == antecedent_identify::IdentificationStatus::NonparametricallyIdentified)
-                        .then(|| {
-                            estimand.map(|estimand| {
-                                Arc::new(crate::analysis::prepared::CachedStaticIdentification {
-                                    identification: cache.identification.clone(),
-                                    estimand,
-                                })
-                            })
-                        })
-                        .flatten()
-                }
-                (
-                    Some(crate::analysis::checked_conditional::ConditionalClassProof::Pag {
-                        cache,
-                        ..
-                    }),
-                    GraphClass::Pag,
-                ) => {
-                    let estimand = cache.envelope.invariant.as_ref().and_then(|invariant| {
-                        cache
-                            .identification
-                            .estimands
-                            .iter()
-                            .find(|candidate| {
-                                candidate.is_adjustment_shaped()
-                                    && candidate.method == invariant.method
-                                    && candidate.adjustment_set == invariant.adjustment_set
-                            })
-                            .cloned()
-                    });
-                    (conditional_class_proof_is_complete(&cache.envelope)
-                        && cache.identification.status
-                            == antecedent_identify::IdentificationStatus::NonparametricallyIdentified)
-                        .then(|| {
-                            estimand.map(|estimand| {
-                                Arc::new(crate::analysis::prepared::CachedStaticIdentification {
-                                    identification: cache.identification.clone(),
-                                    estimand,
-                                })
-                            })
-                        })
-                        .flatten()
-                }
-                _ => None,
-            };
+            let class_proof = conditional_class_proof(cx, graph_class)?;
+            let target = conditional_class_target(analysis, class_proof.as_ref(), graph_class);
             target
                 .map(|cache| {
                     CheckedConditionalOperation::prepare(
@@ -356,6 +261,118 @@ pub(super) fn checked_conditional(cx: &SealContext<'_>) -> SealOutcome {
         _ => None,
     };
     Ok(sealed.map(PreparedExecution::CheckedConditional))
+}
+
+/// The CPDAG or PAG graph proof the conditional route keeps beside its identification, if any.
+fn conditional_class_proof(
+    cx: &SealContext<'_>,
+    graph_class: GraphClass,
+) -> Result<Option<crate::analysis::checked_conditional::ConditionalClassProof>, CausalError> {
+    let SealContext { analysis, plan, .. } = *cx;
+    Ok(match graph_class {
+        GraphClass::Cpdag => {
+            let (Some(graph), Some(cache)) =
+                (analysis.graph.as_cpdag(), analysis.cpdag_identification_cache.as_ref())
+            else {
+                return Err(CausalError::Compile {
+                    message: "conditional CPDAG preparation lost its graph proof".into(),
+                });
+            };
+            Some(crate::analysis::checked_conditional::ConditionalClassProof::Cpdag {
+                graph: graph.clone(),
+                cache: cache.clone(),
+            })
+        }
+        GraphClass::Pag => {
+            let (Some(graph), Some(cache)) =
+                (plan.static_pag(), analysis.pag_identification_cache.as_ref())
+            else {
+                return Err(CausalError::Compile {
+                    message: "conditional PAG preparation lost its graph proof".into(),
+                });
+            };
+            Some(crate::analysis::checked_conditional::ConditionalClassProof::Pag {
+                graph: graph.clone(),
+                cache: cache.clone(),
+            })
+        }
+        _ => None,
+    })
+}
+
+/// The cached identification a conditional route executes against, `None` when its class proof
+/// is incomplete.
+fn conditional_class_target(
+    analysis: &crate::analysis::execute::Study,
+    class_proof: Option<&crate::analysis::checked_conditional::ConditionalClassProof>,
+    graph_class: GraphClass,
+) -> Option<Arc<crate::analysis::prepared::CachedStaticIdentification>> {
+    match (class_proof, graph_class) {
+        (None, GraphClass::Dag) => analysis.identification_cache.clone(),
+        (
+            Some(crate::analysis::checked_conditional::ConditionalClassProof::Cpdag {
+                cache, ..
+            }),
+            GraphClass::Cpdag,
+        ) => {
+            let estimand = cache.envelope.invariant.as_ref().and_then(|invariant| {
+                cache
+                    .identification
+                    .estimands
+                    .iter()
+                    .find(|candidate| {
+                        candidate.is_adjustment_shaped()
+                            && candidate.method == invariant.method
+                            && candidate.adjustment_set == invariant.adjustment_set
+                    })
+                    .cloned()
+            });
+            (conditional_class_proof_is_complete(&cache.envelope)
+                && cache.identification.status
+                    == antecedent_identify::IdentificationStatus::NonparametricallyIdentified)
+                .then(|| {
+                    estimand.map(|estimand| {
+                        Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+                            identification: cache.identification.clone(),
+                            estimand,
+                        })
+                    })
+                })
+                .flatten()
+        }
+        (
+            Some(crate::analysis::checked_conditional::ConditionalClassProof::Pag {
+                cache, ..
+            }),
+            GraphClass::Pag,
+        ) => {
+            let estimand = cache.envelope.invariant.as_ref().and_then(|invariant| {
+                cache
+                    .identification
+                    .estimands
+                    .iter()
+                    .find(|candidate| {
+                        candidate.is_adjustment_shaped()
+                            && candidate.method == invariant.method
+                            && candidate.adjustment_set == invariant.adjustment_set
+                    })
+                    .cloned()
+            });
+            (conditional_class_proof_is_complete(&cache.envelope)
+                && cache.identification.status
+                    == antecedent_identify::IdentificationStatus::NonparametricallyIdentified)
+                .then(|| {
+                    estimand.map(|estimand| {
+                        Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+                            identification: cache.identification.clone(),
+                            estimand,
+                        })
+                    })
+                })
+                .flatten()
+        }
+        _ => None,
+    }
 }
 
 pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
