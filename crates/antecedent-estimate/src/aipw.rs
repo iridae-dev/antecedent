@@ -1240,14 +1240,14 @@ impl AipwAte {
     fn bootstrap_se(
         &self,
         problem: &PreparedPropensityProblem,
-        workspace: &mut AipwWorkspace,
+        _workspace: &mut AipwWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let clip = clip_of(problem.overlap);
         let trim = trim_of(problem.overlap);
         let n = problem.nrows;
         let ncols = problem.design_ncols;
-        let _ = workspace;
+        // Replicates own a cold workspace; parallel workers cannot share the caller's.
         crate::util::bootstrap_se_with_scratch(
             self.bootstrap_replicates,
             ctx,

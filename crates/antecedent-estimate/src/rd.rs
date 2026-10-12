@@ -588,11 +588,11 @@ impl SharpRegressionDiscontinuity {
     fn bootstrap_se(
         &self,
         problem: &PreparedRdProblem,
-        workspace: &mut RdWorkspace,
+        _workspace: &mut RdWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let n = problem.nrows;
-        let _ = workspace;
+        // Replicates own a cold workspace; parallel workers cannot share the caller's.
         crate::util::bootstrap_se_with_scratch(
             self.bootstrap_replicates,
             ctx,

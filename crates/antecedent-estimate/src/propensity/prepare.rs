@@ -528,7 +528,7 @@ pub(crate) fn overlap_clip_trim(overlap: OverlapPolicy) -> (Option<f64>, Option<
 
 pub(crate) fn clamp_scores(scores: &mut [f64], clip: f64) {
     for s in scores.iter_mut() {
-        *s = s.clamp(clip, 1.0 - clip);
+        *s = crate::overlap::clip_propensity(*s, clip);
     }
 }
 

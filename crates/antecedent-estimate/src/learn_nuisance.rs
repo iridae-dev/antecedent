@@ -290,7 +290,9 @@ fn fit_aipw_fold(
 
 pub(crate) fn clip_propensity(scores: &mut [f64], clip: Option<f64>) {
     if let Some(c) = clip {
-        crate::propensity::clamp_scores(scores, c);
+        for score in scores.iter_mut() {
+            *score = crate::overlap::clip_propensity(*score, c);
+        }
     }
 }
 

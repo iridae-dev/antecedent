@@ -410,15 +410,20 @@ fn crossfit_cell_scores(
                     let design_train = rows_colmajor(&prepared.design, n, prepared.ncols, train);
                     let design_valid = rows_colmajor(&prepared.design, n, prepared.ncols, valid);
 
-                    let train_cells: Vec<_> =
-                        train.iter().map(|&i| prepared.cell[i] as usize).collect();
-                    for c in 0..n_cells {
-                        if !train_cells.contains(&c) {
-                            return Err(EstimationError::unsupported(
-                                "unsupported cell: cross-fit training fold is missing a joint treatment combination",
-                            ));
+                    let mut seen_cells = vec![false; n_cells];
+                    for &i in train {
+                        let cell = prepared.cell[i] as usize;
+                        if let Some(slot) = seen_cells.get_mut(cell) {
+                            *slot = true;
                         }
                     }
+                    if seen_cells.iter().any(|seen| !seen) {
+                        return Err(EstimationError::unsupported(
+                            "unsupported cell: cross-fit training fold is missing a joint treatment combination",
+                        ));
+                    }
+                    let train_cells: Vec<_> =
+                        train.iter().map(|&i| prepared.cell[i] as usize).collect();
                     let e_valid = multinomial_propensity(
                         DesignRows { values: &design_train, rows: train.len() },
                         &train_cells,

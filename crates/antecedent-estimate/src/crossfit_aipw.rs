@@ -294,9 +294,8 @@ fn build_scores_pass(
         |FoldRows { fold, train, valid }| {
             let design_train = rows_colmajor(&problem.design_matrix, n, ncols, train);
             let t_train = gather(&problem.treatment, train);
-            if split_by_treatment(&t_train).0.is_empty()
-                || split_by_treatment(&t_train).1.is_empty()
-            {
+            let (treated_rows, control_rows) = split_by_treatment(&t_train);
+            if treated_rows.is_empty() || control_rows.is_empty() {
                 return Err(EstimationError::data_msg(
                     "AIPW cross-fit fold is missing a treatment arm",
                 ));

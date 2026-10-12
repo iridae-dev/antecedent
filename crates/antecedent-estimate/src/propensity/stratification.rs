@@ -212,13 +212,13 @@ impl PropensityStratification {
         problem: &PreparedPropensityProblem,
         n_strata: usize,
         trim: Option<f64>,
-        workspace: &mut PropensityEstimationWorkspace,
+        _workspace: &mut PropensityEstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let clip = clip_of(problem.overlap);
         let n = problem.nrows;
         let ncols = problem.design_ncols;
-        let _ = workspace;
+        // Replicates own a cold workspace. A warm logistic start would change the replicate fit.
         crate::util::bootstrap_se_with_scratch(
             self.bootstrap_replicates,
             ctx,

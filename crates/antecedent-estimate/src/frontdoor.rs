@@ -714,12 +714,12 @@ impl FrontDoorTwoStage {
     fn bootstrap_se(
         &self,
         problem: &PreparedFrontDoorProblem,
-        workspace: &mut FrontDoorWorkspace,
+        _workspace: &mut FrontDoorWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let n = problem.nrows;
         let k = problem.mediators.len();
-        let _ = workspace;
+        // Replicates own a cold workspace; parallel workers cannot share the caller's.
         crate::util::bootstrap_se_with_scratch(
             self.bootstrap_replicates,
             ctx,

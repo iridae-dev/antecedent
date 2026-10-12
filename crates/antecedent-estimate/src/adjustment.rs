@@ -793,98 +793,29 @@ impl LinearAdjustmentAte {
         problem: &PreparedEstimationProblem,
         workspace: &mut EstimationWorkspace,
     ) -> Result<LinearFit, EstimationError> {
-        let x = &problem.design.matrix;
-        let n = problem.design.nrows;
-        let p = problem.design.ncols;
-        let y = &problem.design.outcome;
-        match self.fit_kind {
-            LinearFitKind::Ols => {
-                let fit = problem
-                    .design
-                    .fit_ols(&self.backend, &mut workspace.ols)
-                    .map_err(EstimationError::from)?;
-                Ok(LinearFit {
-                    coefficients: fit.coefficients,
-                    residuals: fit.residuals,
-                    rss: fit.rss,
-                    variance: FitVariance::Ols,
-                })
-            }
-            LinearFitKind::Ridge { lambda } => {
-                let fit = fit_ridge(x, n, p, y, lambda, &self.backend, &mut workspace.ols)
-                    .map_err(EstimationError::from)?;
-                Ok(LinearFit {
-                    coefficients: fit.coefficients,
-                    residuals: fit.residuals,
-                    rss: fit.rss,
-                    variance: FitVariance::Ridge { lambda },
-                })
-            }
-            LinearFitKind::Lasso { lambda } => {
-                let fit = fit_lasso_with_ones_column(
-                    x,
-                    n,
-                    p,
-                    y,
-                    &LassoOptions { lambda, fit_intercept: true, ..LassoOptions::default() },
-                )
+        let solved = if matches!(self.fit_kind, LinearFitKind::Ols) {
+            let fit = problem
+                .design
+                .fit_ols(&self.backend, &mut workspace.ols)
                 .map_err(EstimationError::from)?;
-                require_converged(fit.converged, LASSO_UNCONVERGED)?;
-                // Design keeps an all-ones column; stitch intercept back for g-computation.
-                let mut coefficients = Vec::with_capacity(p);
-                coefficients.push(fit.intercept);
-                coefficients.extend_from_slice(&fit.coefficients);
-                let pred = if fit.coefficients.is_empty() {
-                    vec![fit.intercept; n]
-                } else {
-                    predict_lasso(&fit, &x[n..], n, p - 1).map_err(EstimationError::from)?
-                };
-                let mut residuals = vec![0.0; n];
-                let mut rss = 0.0;
-                for r in 0..n {
-                    let e = y[r] - pred[r];
-                    residuals[r] = e;
-                    rss += e * e;
-                }
-                // Permanent policy: no analytic SE for Lasso (bootstrap only).
-                Ok(LinearFit { coefficients, residuals, rss, variance: FitVariance::Lasso })
+            SolvedLinear {
+                coefficients: fit.coefficients,
+                residuals: fit.residuals,
+                rss: fit.rss,
+                huber_scale: None,
             }
-            LinearFitKind::Huber { c } => {
-                let opts = MEstimateOptions { c, ..MEstimateOptions::default() };
-                let fit = fit_huber_m(x, n, p, y, &opts, &self.backend, &mut workspace.ols)
-                    .map_err(EstimationError::from)?;
-                // An unconverged IRLS run is a snapshot of an unfinished reweighting
-                // sequence, not the M-estimator's fixed point; publishing it — and an
-                // analytic SE derived from it — would attach robust-estimand semantics
-                // to a number that has none. Mirrors the GAM backfit gate in
-                // `response.rs::fit_additive`.
-                require_converged(fit.converged, HUBER_UNCONVERGED)?;
-                let mut residuals = vec![0.0; n];
-                let mut rss = 0.0;
-                for r in 0..n {
-                    let mut pred = 0.0;
-                    for col in 0..p {
-                        pred += x[col * n + r] * fit.coefficients[col];
-                    }
-                    let e = y[r] - pred;
-                    residuals[r] = e;
-                    rss += e * e;
-                }
-                // Estimating equation `Σ x_i · s·ψ_c(r_i/s) = 0`: the score is the residual
-                // clipped at `c·s`, and its derivative in the linear predictor is the
-                // indicator of the unclipped region.
-                let bound = c * fit.scale;
-                let scores: Vec<f64> = residuals.iter().map(|r| r.clamp(-bound, bound)).collect();
-                let curvature: Vec<f64> =
-                    residuals.iter().map(|r| f64::from(u8::from(r.abs() <= bound))).collect();
-                Ok(LinearFit {
-                    coefficients: fit.coefficients,
-                    residuals,
-                    rss,
-                    variance: FitVariance::Huber { scores, curvature },
-                })
-            }
-        }
+        } else {
+            solve_linear(
+                self.fit_kind,
+                &self.backend,
+                &problem.design.matrix,
+                problem.design.nrows,
+                problem.design.ncols,
+                &problem.design.outcome,
+                &mut workspace.ols,
+            )?
+        };
+        linear_fit_from_solved(self.fit_kind, solved)
     }
 
     /// ATE from the configured linear fit on a row-resample of a prepared design.
@@ -963,58 +894,21 @@ impl LinearAdjustmentAte {
                 x_boot[c * n + r] = problem.design.matrix[c * rows + src];
             }
         }
-        match self.fit_kind {
-            LinearFitKind::Ols => {
-                let fit = self
-                    .backend
-                    .least_squares(x_boot, n, p, y_boot, &mut workspace.ols)
-                    .map_err(EstimationError::from)?;
-                Ok(fit.coefficients)
-            }
-            LinearFitKind::Ridge { lambda } => {
-                let fit =
-                    fit_ridge(x_boot, n, p, y_boot, lambda, &self.backend, &mut workspace.ols)
-                        .map_err(EstimationError::from)?;
-                Ok(fit.coefficients)
-            }
-            LinearFitKind::Lasso { lambda } => {
-                let fit = fit_lasso_with_ones_column(
-                    x_boot,
-                    n,
-                    p,
-                    y_boot,
-                    &LassoOptions { lambda, fit_intercept: true, ..LassoOptions::default() },
-                )
-                .map_err(EstimationError::from)?;
-                // An unconverged replicate is a snapshot, not a draw from the estimator's
-                // sampling distribution; the caller counts it as a failed replicate.
-                require_converged(fit.converged, LASSO_UNCONVERGED)?;
-                let mut coefficients = Vec::with_capacity(p);
-                coefficients.push(fit.intercept);
-                coefficients.extend_from_slice(&fit.coefficients);
-                Ok(coefficients)
-            }
-            LinearFitKind::Huber { c } => {
-                let opts = MEstimateOptions { c, ..MEstimateOptions::default() };
-                let fit =
-                    fit_huber_m(x_boot, n, p, y_boot, &opts, &self.backend, &mut workspace.ols)
-                        .map_err(EstimationError::from)?;
-                require_converged(fit.converged, HUBER_UNCONVERGED)?;
-                Ok(fit.coefficients)
-            }
-        }
+        Ok(solve_linear(self.fit_kind, &self.backend, x_boot, n, p, y_boot, &mut workspace.ols)?
+            .coefficients)
     }
 
     fn bootstrap_se(
         &self,
         problem: &PreparedEstimationProblem,
-        workspace: &mut EstimationWorkspace,
+        _workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
         t_col: usize,
     ) -> Result<crate::util::BootstrapSeResult, EstimationError> {
         let n = problem.design.nrows;
         let p = problem.design.ncols;
-        let _ = workspace;
+        // Replicates own a cold workspace. The caller's scratch stays untouched: parallel
+        // workers cannot share it, and a warm IRLS start would change the replicate fit.
         crate::util::bootstrap_se_with_scratch(
             self.bootstrap_replicates,
             ctx,
@@ -1025,9 +919,164 @@ impl LinearAdjustmentAte {
                 .fit_resampled_coefficients(problem, ws, idx, x_boot, y_boot)
             {
                 Ok(coefs) => Ok(Some(gcomp_or_coef_ate(problem, &coefs, t_col)?)),
-                Err(_) => Ok(None),
+                Err(error) if bootstrap_fit_failed(&error) => Ok(None),
+                Err(error) => Err(error),
             },
         )
+    }
+}
+
+/// Coefficients and raw residuals of one linear solve, before the variance model is attached.
+struct SolvedLinear {
+    coefficients: Vec<f64>,
+    residuals: Vec<f64>,
+    rss: f64,
+    /// Huber IRLS scale. Absent for OLS, ridge, and lasso.
+    huber_scale: Option<f64>,
+}
+
+/// One solver body for the point fit and for bootstrap resamples.
+fn solve_linear(
+    kind: LinearFitKind,
+    backend: &FaerBackend,
+    x: &[f64],
+    n: usize,
+    p: usize,
+    y: &[f64],
+    workspace: &mut LeastSquaresWorkspace,
+) -> Result<SolvedLinear, EstimationError> {
+    match kind {
+        LinearFitKind::Ols => {
+            let fit =
+                backend.least_squares(x, n, p, y, workspace).map_err(EstimationError::from)?;
+            Ok(SolvedLinear {
+                coefficients: fit.coefficients,
+                residuals: fit.residuals,
+                rss: fit.rss,
+                huber_scale: None,
+            })
+        }
+        LinearFitKind::Ridge { lambda } => {
+            let fit =
+                fit_ridge(x, n, p, y, lambda, backend, workspace).map_err(EstimationError::from)?;
+            Ok(SolvedLinear {
+                coefficients: fit.coefficients,
+                residuals: fit.residuals,
+                rss: fit.rss,
+                huber_scale: None,
+            })
+        }
+        LinearFitKind::Lasso { lambda } => {
+            let fit = fit_lasso_with_ones_column(
+                x,
+                n,
+                p,
+                y,
+                &LassoOptions { lambda, fit_intercept: true, ..LassoOptions::default() },
+            )
+            .map_err(EstimationError::from)?;
+            // An unconverged replicate is a snapshot, not a draw from the estimator's
+            // sampling distribution; the caller counts it as a failed replicate.
+            require_converged(fit.converged, LASSO_UNCONVERGED)?;
+            // Design keeps an all-ones column; stitch intercept back for g-computation.
+            let mut coefficients = Vec::with_capacity(p);
+            coefficients.push(fit.intercept);
+            coefficients.extend_from_slice(&fit.coefficients);
+            let pred = if fit.coefficients.is_empty() {
+                vec![fit.intercept; n]
+            } else {
+                predict_lasso(&fit, &x[n..], n, p - 1).map_err(EstimationError::from)?
+            };
+            let mut residuals = vec![0.0; n];
+            let mut rss = 0.0;
+            for r in 0..n {
+                let e = y[r] - pred[r];
+                residuals[r] = e;
+                rss += e * e;
+            }
+            Ok(SolvedLinear { coefficients, residuals, rss, huber_scale: None })
+        }
+        LinearFitKind::Huber { c } => {
+            let opts = MEstimateOptions { c, ..MEstimateOptions::default() };
+            let fit = fit_huber_m(x, n, p, y, &opts, backend, workspace)
+                .map_err(EstimationError::from)?;
+            // An unconverged IRLS run is a snapshot of an unfinished reweighting
+            // sequence, not the M-estimator's fixed point; publishing it — and an
+            // analytic SE derived from it — would attach robust-estimand semantics
+            // to a number that has none. Mirrors the GAM backfit gate in
+            // `response.rs::fit_additive`.
+            require_converged(fit.converged, HUBER_UNCONVERGED)?;
+            let mut residuals = vec![0.0; n];
+            let mut rss = 0.0;
+            for r in 0..n {
+                let mut pred = 0.0;
+                for col in 0..p {
+                    pred += x[col * n + r] * fit.coefficients[col];
+                }
+                let e = y[r] - pred;
+                residuals[r] = e;
+                rss += e * e;
+            }
+            Ok(SolvedLinear {
+                coefficients: fit.coefficients,
+                residuals,
+                rss,
+                huber_scale: Some(fit.scale),
+            })
+        }
+    }
+}
+
+fn linear_fit_from_solved(
+    kind: LinearFitKind,
+    solved: SolvedLinear,
+) -> Result<LinearFit, EstimationError> {
+    let variance = match kind {
+        LinearFitKind::Ols => FitVariance::Ols,
+        LinearFitKind::Ridge { lambda } => FitVariance::Ridge { lambda },
+        // Permanent policy: no analytic SE for Lasso (bootstrap only).
+        LinearFitKind::Lasso { .. } => FitVariance::Lasso,
+        LinearFitKind::Huber { c } => {
+            // `solve_linear` records the IRLS scale on the Huber arm before returning.
+            let scale = solved
+                .huber_scale
+                .ok_or_else(|| EstimationError::stats_msg("Huber fit is missing its IRLS scale"))?;
+            let bound = c * scale;
+            // Estimating equation `Σ x_i · s·ψ_c(r_i/s) = 0`: the score is the residual
+            // clipped at `c·s`, and its derivative in the linear predictor is the
+            // indicator of the unclipped region.
+            let scores: Vec<f64> =
+                solved.residuals.iter().map(|r| r.clamp(-bound, bound)).collect();
+            let curvature: Vec<f64> =
+                solved.residuals.iter().map(|r| f64::from(u8::from(r.abs() <= bound))).collect();
+            FitVariance::Huber { scores, curvature }
+        }
+    };
+    Ok(LinearFit {
+        coefficients: solved.coefficients,
+        residuals: solved.residuals,
+        rss: solved.rss,
+        variance,
+    })
+}
+
+/// Fit failures and an empty target arm are failed replicates. A resample can be
+/// singular, unconverged, or contain none of the target arm; those continue.
+/// Shape errors in the caller's buffers propagate.
+fn bootstrap_fit_failed(error: &EstimationError) -> bool {
+    match error {
+        EstimationError::Stats(_) => true,
+        EstimationError::Unsupported { message }
+            if *message == LASSO_UNCONVERGED || *message == HUBER_UNCONVERGED =>
+        {
+            true
+        }
+        EstimationError::Data(antecedent_data::DataError::InvalidArgument { message })
+            if message == "target population left no rows for g-computation" =>
+        {
+            true
+        }
+        _ => false,
     }
 }
 
@@ -1595,6 +1644,17 @@ mod tests {
     }
 
     #[test]
+    fn bootstrap_replicate_failures_stay_inside_the_replicate() {
+        assert!(bootstrap_fit_failed(&EstimationError::stats_msg("singular design")));
+        assert!(bootstrap_fit_failed(&EstimationError::unsupported(LASSO_UNCONVERGED)));
+        assert!(bootstrap_fit_failed(&EstimationError::unsupported(HUBER_UNCONVERGED)));
+        assert!(bootstrap_fit_failed(&EstimationError::data_msg(
+            "target population left no rows for g-computation",
+        )));
+        assert!(!bootstrap_fit_failed(&EstimationError::TargetPopulation));
+    }
+
+    #[test]
     fn recovers_ate_two() {
         let (data, estimand) = toy();
         let est = LinearAdjustmentAte { bootstrap_replicates: 50, ..LinearAdjustmentAte::new() };
@@ -1897,6 +1957,18 @@ mod tests {
         for msg in [LASSO_UNCONVERGED, HUBER_UNCONVERGED] {
             let err = require_converged(false, msg).unwrap_err();
             assert!(err.to_string().contains("did not converge"), "{err}");
+            assert!(bootstrap_fit_failed(&err));
         }
+    }
+
+    #[test]
+    fn bootstrap_skips_singular_fits_and_empty_arms_only() {
+        assert!(bootstrap_fit_failed(&EstimationError::stats_msg("singular design")));
+        assert!(bootstrap_fit_failed(&EstimationError::data_msg(
+            "target population left no rows for g-computation",
+        )));
+        assert!(!bootstrap_fit_failed(&EstimationError::data_msg(
+            "row resample buffers must match the row map",
+        )));
     }
 }

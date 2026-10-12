@@ -99,7 +99,7 @@ impl GcompContrast<'_> {
 
     /// Single-row mean-scale contrast.
     #[must_use]
-    pub fn row_contrast(&self, coefficients: &[f64], row: usize) -> f64 {
+    pub(crate) fn row_contrast(&self, coefficients: &[f64], row: usize) -> f64 {
         assert!(coefficients.len() >= self.ncols, "one coefficient per design column");
         let mut eta_active = 0.0;
         let mut eta_control = 0.0;

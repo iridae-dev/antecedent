@@ -214,69 +214,55 @@ fn sandwich_coef_se(
     if matches!(kind, AnalyticSeKind::Homoskedastic) {
         return Ok(None);
     }
+    let input = SandwichInput { x, nrows, ncols, residuals, fisher_weights, t_col };
     let se = match kind {
-        AnalyticSeKind::Homoskedastic => unreachable!(),
-        AnalyticSeKind::Hc0 => {
-            sandwich_diag(x, nrows, ncols, residuals, fisher_weights, SandwichKind::Hc0, t_col)?
-        }
-        AnalyticSeKind::Hc1 => {
-            sandwich_diag(x, nrows, ncols, residuals, fisher_weights, SandwichKind::Hc1, t_col)?
-        }
-        AnalyticSeKind::Hc2 => {
-            sandwich_diag(x, nrows, ncols, residuals, fisher_weights, SandwichKind::Hc2, t_col)?
-        }
-        AnalyticSeKind::Hc3 => {
-            sandwich_diag(x, nrows, ncols, residuals, fisher_weights, SandwichKind::Hc3, t_col)?
-        }
+        // Already returned above; repeated so the match stays exhaustive without panicking.
+        AnalyticSeKind::Homoskedastic => return Ok(None),
+        AnalyticSeKind::Hc0 => input.diag(SandwichKind::Hc0)?,
+        AnalyticSeKind::Hc1 => input.diag(SandwichKind::Hc1)?,
+        AnalyticSeKind::Hc2 => input.diag(SandwichKind::Hc2)?,
+        AnalyticSeKind::Hc3 => input.diag(SandwichKind::Hc3)?,
         AnalyticSeKind::Cluster => {
             let groups = require_clusters(cluster_ids, nrows)?;
-            sandwich_diag(
-                x,
-                nrows,
-                ncols,
-                residuals,
-                fisher_weights,
-                SandwichKind::Cluster { groups },
-                t_col,
-            )?
+            input.diag(SandwichKind::Cluster { groups })?
         }
         AnalyticSeKind::Multiway => {
             let dims = require_multiway(multiway_ids, nrows)?;
             let refs: Vec<&[u32]> = dims.iter().map(Vec::as_slice).collect();
-            sandwich_diag(
-                x,
-                nrows,
-                ncols,
-                residuals,
-                fisher_weights,
-                SandwichKind::Multiway { dimensions: &refs },
-                t_col,
-            )?
+            input.diag(SandwichKind::Multiway { dimensions: &refs })?
         }
-        AnalyticSeKind::NeweyWest { lag } => sandwich_diag(
-            x,
-            nrows,
-            ncols,
-            residuals,
-            fisher_weights,
-            SandwichKind::NeweyWest { lag },
-            t_col,
-        )?,
+        AnalyticSeKind::NeweyWest { lag } => input.diag(SandwichKind::NeweyWest { lag })?,
         AnalyticSeKind::PanelClusterHac { lag } => {
             let groups = require_clusters(cluster_ids, nrows)?;
             let time = require_panel_times(panel_times, nrows)?;
-            sandwich_diag(
-                x,
-                nrows,
-                ncols,
-                residuals,
-                fisher_weights,
-                SandwichKind::PanelClusterHac { groups, time, lag },
-                t_col,
-            )?
+            input.diag(SandwichKind::PanelClusterHac { groups, time, lag })?
         }
     };
     Ok(Some(se))
+}
+
+/// Design, scores, and the coefficient whose sandwich SE is requested.
+struct SandwichInput<'a> {
+    x: &'a [f64],
+    nrows: usize,
+    ncols: usize,
+    residuals: &'a [f64],
+    fisher_weights: Option<&'a [f64]>,
+    t_col: usize,
+}
+
+impl SandwichInput<'_> {
+    fn diag(&self, kind: SandwichKind<'_>) -> Result<f64, EstimationError> {
+        sandwich_diag(
+            self.x,
+            self.nrows,
+            self.ncols,
+            self.residuals,
+            self.fisher_weights,
+            kind,
+            self.t_col,
+        )
+    }
 }
 
 fn sandwich_diag(
@@ -494,7 +480,11 @@ pub(crate) fn newey_west_influence_se_at_times(psi: &[f64], times: &[i64], lag: 
         *by_time.entry(time).or_default() += score - mean;
     }
     let grouped: Vec<(i64, f64)> = by_time.into_iter().collect();
-    let span = grouped.last().unwrap().0.abs_diff(grouped[0].0);
+    // `n >= 2` rows were inserted, so the time map is non-empty on the success path.
+    let Some(&(end, _)) = grouped.last() else {
+        return f64::NAN;
+    };
+    let span = end.abs_diff(grouped[0].0);
     let l_eff = effective_nw_lag(lag, usize::try_from(span).unwrap_or(usize::MAX));
     let mut meat = grouped.iter().map(|&(_, score)| score * score).sum::<f64>();
     for (i, &(time, score)) in grouped.iter().enumerate() {

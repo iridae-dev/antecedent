@@ -49,6 +49,10 @@ impl JointCovariance {
 
 /// Weighted mean of a score column: `θ = Σ w_i φ_i / Σ w_i`.
 ///
+/// Weights are scaled by their maximum before the sum. [`antecedent_kernels::weighted_mean`]
+/// accumulates `Σ w x / Σ w` without that scale, so the two disagree on large weight
+/// magnitudes. This estimator keeps the scaled formula.
+///
 /// # Errors
 ///
 /// Empty input, length mismatch, or non-positive total weight.
@@ -391,7 +395,7 @@ pub fn max_t_critical_with_df_polled(
         }
         maxima.push(max_abs);
     }
-    maxima.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    maxima.sort_by(|a, b| a.total_cmp(b));
     Ok(Some(crate::util::monte_carlo_critical(&maxima, level)))
 }
 
@@ -542,6 +546,18 @@ mod tests {
         for crit in [even, odd] {
             assert!((crit - 1.959_963_984_5).abs() < 0.15, "crit {crit}");
         }
+    }
+
+    #[test]
+    fn max_t_total_order_places_nonfinite_draws_after_finite_ones() {
+        // `max_t_critical_with_df_polled` sorts with `total_cmp`, so a non-finite
+        // draw cannot tie with a finite one the way `partial_cmp`'s Equal fallback did.
+        let mut maxima = vec![1.0, f64::NAN, 0.0, f64::INFINITY];
+        maxima.sort_by(|a, b| a.total_cmp(b));
+        assert_eq!(maxima[0], 0.0);
+        assert_eq!(maxima[1], 1.0);
+        assert!(maxima[2].is_infinite());
+        assert!(maxima[3].is_nan());
     }
 
     #[test]

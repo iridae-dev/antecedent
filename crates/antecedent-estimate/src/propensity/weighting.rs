@@ -198,14 +198,14 @@ impl PropensityWeighting {
         problem: &PreparedPropensityProblem,
         target: IpwTarget,
         trim: Option<f64>,
-        workspace: &mut PropensityEstimationWorkspace,
+        _workspace: &mut PropensityEstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let clip = clip_of(problem.overlap);
         let n = problem.nrows;
         let ncols = problem.design_ncols;
         let tw = problem.target_weights.as_deref();
-        let _ = workspace;
+        // Replicates own a cold workspace. A warm logistic start would change the replicate fit.
         crate::util::bootstrap_se_with_scratch(
             self.bootstrap_replicates,
             ctx,
@@ -484,7 +484,7 @@ mod tests {
             if trim.is_some_and(|c| e[i] < c || e[i] > 1.0 - c) {
                 continue;
             }
-            let score = clip.map_or(e[i], |c| e[i].clamp(c, 1.0 - c));
+            let score = clip.map_or(e[i], |c| crate::overlap::clip_propensity(e[i], c));
             let arm = usize::from(t[i] > 0.5);
             let w = mass[i] * target.weight(t[i], score);
             numerator[arm] += w * y[i];

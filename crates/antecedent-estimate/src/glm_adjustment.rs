@@ -409,13 +409,13 @@ impl GlmAdjustmentAte {
     fn bootstrap_se(
         &self,
         problem: &PreparedGlmProblem,
-        workspace: &mut GlmAdjustmentWorkspace,
+        _workspace: &mut GlmAdjustmentWorkspace,
         ctx: &ExecutionContext,
         t_col: usize,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let n = problem.design.nrows;
         let p = problem.design.ncols;
-        let _ = workspace;
+        // Replicates own a cold workspace. A warm IRLS start would change the replicate fit.
         crate::util::bootstrap_se_with_scratch(
             self.bootstrap_replicates,
             ctx,
@@ -713,7 +713,8 @@ fn sandwich_cov_matrix(
         return Ok(None);
     }
     let cov = match kind {
-        AnalyticSeKind::Homoskedastic => unreachable!(),
+        // Already returned above; repeated so the match stays exhaustive without panicking.
+        AnalyticSeKind::Homoskedastic => return Ok(None),
         AnalyticSeKind::Hc0 => {
             score_coefficient_covariance(x, nrows, ncols, score_u, fisher_w, SandwichKind::Hc0)
         }
@@ -777,6 +778,12 @@ fn sandwich_cov_matrix(
 ///
 /// Score contribution is `s_i = u_i x_i` with
 /// `u_i = (y−μ) V(μ)⁻¹ μ'(η)`; `w_i` is the IRLS Fisher weight for bread `XᵀWX`.
+///
+/// The probability clamp here (`1e-9` on Bernoulli μ) is not the Fisher-information clamp in
+/// [`fisher_weight`] (`1e-12` on probit Φ and on a log-mean). The sandwich score blows up as
+/// `1/V(μ)` when μ hits the boundary, so it is held further inside than the information weight,
+/// which only divides by `μ(1−μ)` after a tighter floor. Both bounds are load-bearing; do not
+/// collapse them.
 fn glm_score_components(
     family: GlmFamily,
     x_colmajor: &[f64],
