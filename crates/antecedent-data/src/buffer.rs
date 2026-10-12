@@ -6,7 +6,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(unsafe_code)]
+#![allow(
+    unsafe_code,
+    reason = "pointer-to-slice projection under the owner lifetime contract; each unsafe block states its safety argument"
+)]
 
 use std::ops::Deref;
 use std::sync::Arc;

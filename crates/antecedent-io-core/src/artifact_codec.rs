@@ -679,7 +679,7 @@ macro_rules! map_artifact_check {
                 $ty::UnsupportedSemantics(detail)
             }
             // `ArtifactCheckError` is non-exhaustive and this expands in other crates.
-            #[allow(unreachable_patterns)]
+            #[allow(unreachable_patterns, reason = "ArtifactCheckError is non-exhaustive and this macro expands in other crates")]
             other => $ty::Malformed(other.to_string()),
         }
     }};

@@ -4,7 +4,10 @@
 
 // Field meanings intentionally mirror the fully documented domain types. Keeping the
 // serde representation visually compact makes format review substantially easier.
-#![allow(missing_docs)]
+#![allow(
+    missing_docs,
+    reason = "field meanings mirror the fully documented domain types; the compact serde layout is easier to review"
+)]
 
 use std::sync::Arc;
 

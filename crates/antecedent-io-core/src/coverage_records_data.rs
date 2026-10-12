@@ -4,7 +4,12 @@
 //! Every row was emitted by a coverage test through `CoverageTally::for_record`
 //! and collected by `scripts/collect_coverage_records.py`.
 
-#![allow(missing_docs, dead_code, clippy::unreadable_literal)]
+#![allow(
+    missing_docs,
+    dead_code,
+    clippy::unreadable_literal,
+    reason = "checked-in generated table of measured coverage records; fields are documented on the record type"
+)]
 #![cfg_attr(rustfmt, rustfmt::skip)]
 
 /// One measured coverage record. Key fields first, then the measured scope,

@@ -1,5 +1,8 @@
 //! Adjustment-set enumeration benchmark .
-#![allow(missing_docs)]
+#![allow(
+    missing_docs,
+    reason = "benchmark crate root: the criterion macros generate undocumented public items"
+)]
 
 use antecedent_core::{AverageEffectQuery, CausalQuery, VariableId};
 use antecedent_graph::{Dag, DenseNodeId};

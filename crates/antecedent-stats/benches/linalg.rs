@@ -1,5 +1,8 @@
 //! Linear-algebra microbenchmarks for the faer 0.24 substrate.
-#![allow(missing_docs, clippy::needless_range_loop, clippy::too_many_lines)]
+#![allow(
+    missing_docs,
+    reason = "benchmark crate root: the criterion macros generate undocumented public items"
+)]
 
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, SandwichKind, cholesky_spd,
@@ -38,6 +41,14 @@ fn mat_from_colmajor(x: &[f64], nrows: usize, ncols: usize) -> Mat<f64> {
     Mat::<f64>::from_fn(nrows, ncols, |r, c| x[c * nrows + r])
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one criterion group registers every linear-algebra bench against shared designs"
+)]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "bench kernels index column-major buffers by explicit coordinates"
+)]
 fn bench_linalg(c: &mut Criterion) {
     let ols = design(400, 12);
     let wide = design(80, 40);

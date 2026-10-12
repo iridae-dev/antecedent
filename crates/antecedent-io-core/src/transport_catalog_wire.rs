@@ -479,7 +479,7 @@ mod tests {
     /// The earlier regime wire shape, as an earlier reader decodes it.
     #[derive(Deserialize)]
     #[serde(deny_unknown_fields)]
-    #[allow(dead_code)] // Decoded only to show which bytes an earlier reader accepts.
+    #[allow(dead_code, reason = "decoded only to show which bytes an earlier reader accepted")]
     struct LegacyRegimeWire {
         id: u32,
         #[serde(default)]

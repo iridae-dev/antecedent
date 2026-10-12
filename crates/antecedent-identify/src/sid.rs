@@ -201,7 +201,10 @@ impl ClassicalTransportResult {
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "wire record whose field names are the format and are documented on the domain types"
+)]
 #[serde(rename_all = "snake_case")]
 pub enum Rule {
     Marginal,
@@ -252,7 +255,10 @@ struct ProofStep {
 /// only under the recorded graph identity and are checked before construction.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "wire record whose field names are the format and are documented on the domain types"
+)]
 pub struct SidStepRecord {
     pub outcomes: Vec<u32>,
     pub interventions: Vec<u32>,
@@ -268,7 +274,10 @@ pub struct SidStepRecord {
 /// It has no causal authority until `from_record_checked` succeeds.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "wire record whose field names are the format and are documented on the domain types"
+)]
 pub struct SidDerivationRecord {
     pub evidence_setting: String,
     pub outcomes: Vec<u32>,
@@ -1773,7 +1782,10 @@ pub struct SHedgeCertificate {
 /// Untrusted portable forest edge subgraph, in original variable coordinates.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "wire record whose field names are the format and are documented on the domain types"
+)]
 pub struct SelectionForestRecord {
     pub nodes: Vec<u32>,
     pub directed: Vec<(u32, u32)>,
@@ -1808,7 +1820,10 @@ impl SelectionForestRecord {
 /// query, graph and full-source-experimental evidence scope must all check.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "wire record whose field names are the format and are documented on the domain types"
+)]
 pub struct SHedgeRecord {
     pub evidence_setting: String,
     pub source: String,

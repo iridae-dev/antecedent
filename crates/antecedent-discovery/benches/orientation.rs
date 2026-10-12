@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs)]
+#![allow(
+    missing_docs,
+    reason = "benchmark crate root: the criterion macros generate undocumented public items"
+)]
 #![allow(
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"

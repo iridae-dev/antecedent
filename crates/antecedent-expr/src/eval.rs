@@ -31,9 +31,15 @@ pub(crate) enum EvalOp {
     },
     Kernel {
         body: usize,
-        #[allow(dead_code)]
+        #[allow(
+            dead_code,
+            reason = "carried so the compiled op mirrors its source node; the evaluator does not read it"
+        )]
         population: PopulationKeyId,
-        #[allow(dead_code)]
+        #[allow(
+            dead_code,
+            reason = "carried so the compiled op mirrors its source node; the evaluator does not read it"
+        )]
         regime: Option<RegimeId>,
     },
     Product {

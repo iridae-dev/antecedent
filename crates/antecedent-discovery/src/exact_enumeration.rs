@@ -245,7 +245,7 @@ fn permute_and_collect(n: usize, order: &mut [usize], k: usize, seen: &mut HashS
 }
 
 /// Empty graph always included; also used by tests.
-#[allow(dead_code)]
+#[allow(dead_code, reason = "used by tests only")]
 pub(crate) fn empty_mask() -> u64 {
     0
 }

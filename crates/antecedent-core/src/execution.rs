@@ -415,7 +415,10 @@ pub trait ProgressSink: Send + Sync {
 pub struct StreamDomain(u64);
 
 // The built-in domains keep their former variant spellings so no call site changes.
-#[allow(non_upper_case_globals)]
+#[allow(
+    non_upper_case_globals,
+    reason = "the built-in domains keep their former variant spellings so no call site changes"
+)]
 impl StreamDomain {
     /// First tag available to [`Self::external`]; lower tags are reserved for
     /// the constants below.

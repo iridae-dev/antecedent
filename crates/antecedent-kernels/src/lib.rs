@@ -7,7 +7,7 @@
 
 #![deny(missing_docs)]
 // Unsafe is confined to validated unchecked view indexing in hot loops.
-#![allow(unsafe_code)]
+#![allow(unsafe_code, reason = "unsafe boundary documented at each block")]
 
 pub mod cholesky;
 pub mod dispatch;

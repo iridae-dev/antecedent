@@ -11,7 +11,10 @@ use serde::{Deserialize, Serialize};
 /// Dense complete law. Axis order determines row-major probability order.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "wire record whose field names are the format and are documented on the domain types"
+)]
 pub struct ExactLawWire {
     pub population: String,
     pub regime: u32,

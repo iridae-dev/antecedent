@@ -285,7 +285,10 @@ impl MappedArtifactReader {
     /// # Errors
     ///
     /// IO, bad magic, or manifest errors.
-    #[allow(unsafe_code)]
+    #[allow(
+        unsafe_code,
+        reason = "memory map of a caller-owned file; the caller guarantees it is not mutated while mapped"
+    )]
     pub unsafe fn open_path_mapped(path: impl AsRef<Path>) -> Result<Self, IoError> {
         let file = File::open(path.as_ref()).map_err(|e| IoError::Io(e.to_string()))?;
         // SAFETY: caller upholds file immutability for the map lifetime.
@@ -314,7 +317,10 @@ impl MappedArtifactReader {
     /// # Errors
     ///
     /// Bad magic, version, CBOR, or section framing.
-    #[allow(unsafe_code)]
+    #[allow(
+        unsafe_code,
+        reason = "memory map of a caller-owned file; the caller guarantees it is not mutated while mapped"
+    )]
     pub unsafe fn from_mmap(mmap: Arc<Mmap>) -> Result<Self, IoError> {
         Self::from_backing(ArtifactBacking::Mapped(mmap))
     }

@@ -460,9 +460,9 @@ enum QuadraticAcceptance {
     },
     /// Accepts (−∞, lo] ∪ [hi, ∞).
     Union {
-        #[allow(dead_code)]
+        #[allow(dead_code, reason = "kept for symmetry")]
         lo: f64,
-        #[allow(dead_code)]
+        #[allow(dead_code, reason = "kept for symmetry")]
         hi: f64,
     },
 }

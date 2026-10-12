@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs)]
+#![allow(
+    missing_docs,
+    reason = "benchmark crate root: the criterion macros generate undocumented public items"
+)]
 
 use antecedent_kernels::{ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlation_batch};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};

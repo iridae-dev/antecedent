@@ -164,7 +164,10 @@ pub struct JointCovarianceWire {
 
 /// Simultaneous inference over a declared score family.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "wire record whose field names are the format and are documented on the domain types"
+)]
 #[serde(deny_unknown_fields)]
 pub struct ScoreInferenceWire {
     pub raw_means: Vec<f64>,
@@ -230,7 +233,10 @@ pub struct ScoreColumnWire {
 
 /// Closed excluded propensity interval.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "wire record whose field names are the format and are documented on the domain types"
+)]
 #[serde(deny_unknown_fields)]
 pub struct PropensityIntervalWire {
     pub low: f64,
@@ -239,7 +245,10 @@ pub struct PropensityIntervalWire {
 
 /// Sensitivity of overlap evidence to clipping thresholds.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "wire record whose field names are the format and are documented on the domain types"
+)]
 #[serde(deny_unknown_fields)]
 pub struct ClipSensitivityWire {
     pub thresholds: Vec<f64>,
@@ -251,7 +260,10 @@ pub struct ClipSensitivityWire {
 
 /// Propensity overlap evidence retained on an effect estimate.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "wire record whose field names are the format and are documented on the domain types"
+)]
 #[serde(deny_unknown_fields)]
 pub struct OverlapReportWire {
     pub propensity_min: f64,
@@ -269,7 +281,10 @@ pub struct OverlapReportWire {
 
 /// Weak-instrument first-stage evidence.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "wire record whose field names are the format and are documented on the domain types"
+)]
 #[serde(deny_unknown_fields)]
 pub struct FirstStageDiagnosticsWire {
     pub f_statistic: f64,

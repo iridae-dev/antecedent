@@ -56,7 +56,10 @@ pub mod migrate;
 /// Thin mmap wrapper — sole `unsafe` boundary in the io crates.
 ///
 /// SPDX-License-Identifier: MIT OR Apache-2.0
-#[allow(unsafe_code)]
+#[allow(
+    unsafe_code,
+    reason = "memory-mapped reader; the caller guarantees the file is not mutated while mapped"
+)]
 pub mod mmap_file;
 pub mod plan_wire;
 pub mod posterior;

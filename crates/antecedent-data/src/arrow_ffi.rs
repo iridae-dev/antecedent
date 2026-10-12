@@ -5,7 +5,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(unsafe_code)]
+#![allow(
+    unsafe_code,
+    reason = "the isolated Arrow C Data Interface boundary; safe wrappers validate types and lengths first"
+)]
 
 use std::sync::Arc;
 
@@ -21,7 +24,13 @@ use crate::materialize::{MaterializationReason, materialization_diagnostic};
 
 /// Keeps an Arrow array alive for foreign buffer borrows.
 #[derive(Debug)]
-struct ArrayOwner(#[allow(dead_code)] ArrayRef);
+struct ArrayOwner(
+    #[allow(
+        dead_code,
+        reason = "the field exists to keep the imported Arrow array alive; it is never read"
+    )]
+    ArrayRef,
+);
 
 /// One column imported from the Arrow C Data Interface.
 ///

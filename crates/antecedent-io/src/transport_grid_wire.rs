@@ -1,5 +1,8 @@
 //! Durable transport grid and statistical-provider records.
-#![allow(missing_docs)]
+#![allow(
+    missing_docs,
+    reason = "field meanings mirror the fully documented domain types; the compact serde layout is easier to review"
+)]
 use crate::error::convert_err as err;
 use crate::identity::digest_wire_hex as digest;
 use crate::{
