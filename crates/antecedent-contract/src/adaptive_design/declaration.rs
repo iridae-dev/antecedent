@@ -620,7 +620,7 @@ impl AdaptiveDesignContract {
         clippy::result_large_err,
         reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
     )]
-    pub fn authorize(
+    pub fn admit_paradigm(
         &self,
         paradigm: InferenceParadigm,
     ) -> Result<RouteAuthorization, ExternalRefusal> {

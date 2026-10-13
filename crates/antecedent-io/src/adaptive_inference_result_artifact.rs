@@ -331,7 +331,7 @@ pub fn compute_adaptive_result(
     ctx: &ExecutionContext,
 ) -> Result<AdaptiveResult, AdaptiveResultError> {
     let paradigm = spec.paradigm();
-    contract.authorize(paradigm).map_err(|r| contract_refusal(&r))?;
+    contract.admit_paradigm(paradigm).map_err(|r| contract_refusal(&r))?;
     let look = spec.look() as usize;
     let data = look_data(contract, look)?;
     let declaration = contract.declaration();

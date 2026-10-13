@@ -426,7 +426,7 @@ fn identity_is_deterministic_and_sensitive_to_every_element() {
 #[test]
 fn fixed_sample_inference_of_adaptive_data_is_refused() {
     let contract = AdaptiveDesignContract::new(thompson()).unwrap();
-    let refusal = contract.authorize(InferenceParadigm::FrequentistFixedSample).unwrap_err();
+    let refusal = contract.admit_paradigm(InferenceParadigm::FrequentistFixedSample).unwrap_err();
     assert_eq!(refusal.code, "adaptive_design_ignored");
     assert_eq!(refusal.detail, "adaptive_inference.fixed_sample_on_adaptive_data");
     // Adaptive in any one axis suffices: a fixed assignment with interim looks.
@@ -437,7 +437,7 @@ fn fixed_sample_inference_of_adaptive_data_is_refused() {
         StoppingRuleKind::Efficacy,
     ));
     let contract = AdaptiveDesignContract::new(looked_at).unwrap();
-    let refusal = contract.authorize(InferenceParadigm::FrequentistFixedSample).unwrap_err();
+    let refusal = contract.admit_paradigm(InferenceParadigm::FrequentistFixedSample).unwrap_err();
     assert_eq!(refusal.detail, "adaptive_inference.fixed_sample_on_adaptive_data");
     // A design fixed in advance is the one case the paradigm is authorized.
     let fixed = declaration(cell(
@@ -448,19 +448,21 @@ fn fixed_sample_inference_of_adaptive_data_is_refused() {
     ));
     let contract = AdaptiveDesignContract::new(fixed).unwrap();
     assert!(!contract.is_adaptive());
-    let granted = contract.authorize(InferenceParadigm::FrequentistFixedSample).unwrap();
+    let granted = contract.admit_paradigm(InferenceParadigm::FrequentistFixedSample).unwrap();
     assert_eq!(granted.contract_identity, contract.identity());
 }
 
 #[test]
 fn a_paradigm_never_transfers_to_a_cell_it_is_not_licensed_for() {
     let contract = AdaptiveDesignContract::new(thompson()).unwrap();
-    assert!(contract.authorize(InferenceParadigm::BayesianPosterior).is_ok());
-    assert!(contract.authorize(InferenceParadigm::AnytimeValidFrequentist).is_ok());
-    let refusal = contract.authorize(InferenceParadigm::FrequentistAdaptiveWeighting).unwrap_err();
+    assert!(contract.admit_paradigm(InferenceParadigm::BayesianPosterior).is_ok());
+    assert!(contract.admit_paradigm(InferenceParadigm::AnytimeValidFrequentist).is_ok());
+    let refusal =
+        contract.admit_paradigm(InferenceParadigm::FrequentistAdaptiveWeighting).unwrap_err();
     assert_eq!(refusal.code, "cell_not_licensed");
     assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_licensed_for_cell");
-    let refusal = contract.authorize(InferenceParadigm::FrequentistGroupSequential).unwrap_err();
+    let refusal =
+        contract.admit_paradigm(InferenceParadigm::FrequentistGroupSequential).unwrap_err();
     assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_licensed_for_cell");
 }
 
@@ -472,7 +474,7 @@ fn closed_carried_and_paired_cells_are_refused_with_their_own_details() {
     use StoppingRuleKind as S;
     let refused = |cell: ProcedureCell| {
         let contract = AdaptiveDesignContract::new(declaration(cell)).expect("constructs");
-        contract.authorize(InferenceParadigm::BayesianPosterior).unwrap_err()
+        contract.admit_paradigm(InferenceParadigm::BayesianPosterior).unwrap_err()
     };
     let carried =
         refused(cell(A::UpperConfidenceBound, O::SingleOutcome, M::FixedInterimLooks, S::Efficacy));
@@ -498,20 +500,20 @@ fn noncompliance_and_outcome_dependent_delay_are_refused_before_any_number() {
     let mut declaration = thompson();
     declaration.exposure.as_mut().unwrap()[2] = 1;
     let contract = AdaptiveDesignContract::new(declaration).unwrap();
-    let refusal = contract.authorize(InferenceParadigm::BayesianPosterior).unwrap_err();
+    let refusal = contract.admit_paradigm(InferenceParadigm::BayesianPosterior).unwrap_err();
     assert_eq!(refusal.code, "adaptive_assumption_violated");
     assert_eq!(refusal.detail, "adaptive_inference.exposure_differs_from_assignment");
 
     let mut declaration = thompson();
     declaration.availability.as_mut().unwrap().delay = DelayMechanism::OutcomeDependent;
     let contract = AdaptiveDesignContract::new(declaration).unwrap();
-    let refusal = contract.authorize(InferenceParadigm::BayesianPosterior).unwrap_err();
+    let refusal = contract.admit_paradigm(InferenceParadigm::BayesianPosterior).unwrap_err();
     assert_eq!(refusal.detail, "adaptive_inference.delay_not_ignorable");
 
     let mut declaration = thompson();
     declaration.availability.as_mut().unwrap().delay = DelayMechanism::IgnorableAdministrative;
     let contract = AdaptiveDesignContract::new(declaration).unwrap();
-    assert!(contract.authorize(InferenceParadigm::BayesianPosterior).is_ok());
+    assert!(contract.admit_paradigm(InferenceParadigm::BayesianPosterior).is_ok());
 }
 
 // -- delayed outcomes and the evidence ledger ---------------------------------------------------------

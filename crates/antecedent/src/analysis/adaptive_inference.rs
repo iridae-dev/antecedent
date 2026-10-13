@@ -159,7 +159,7 @@ impl AdaptiveInferenceSession {
     /// route, not computed here.
     pub fn fixed_sample(&self) -> Result<(), AdaptiveInferenceRefusal> {
         self.contract
-            .authorize(InferenceParadigm::FrequentistFixedSample)
+            .admit_paradigm(InferenceParadigm::FrequentistFixedSample)
             .map(|_| ())
             .map_err(|r| from_external(&r))
     }

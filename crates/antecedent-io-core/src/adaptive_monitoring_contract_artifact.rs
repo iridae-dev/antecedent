@@ -21,7 +21,7 @@
 //! A consumer trusts none of the stored derived values. It rebuilds the
 //! contract through the same completeness and consistency checks (so a missing
 //! element or an inconsistency is refused, one detail per defect), recomputes
-//! the canonical identity, asks the contract to authorize the stored paradigm
+//! the canonical identity, asks the contract to admit the stored paradigm
 //! (so a fixed-sample analysis of an adaptive design, or a paradigm the
 //! procedure cell is not licensed for, is refused), recomputes the boundaries
 //! by numerical integration and replays the observation accounting through the
@@ -615,7 +615,7 @@ fn check(
     }
     let paradigm = InferenceParadigm::from_name(&meta.paradigm)
         .ok_or(Error::UnsupportedSemantics("inferential paradigm"))?;
-    contract.authorize(paradigm).map_err(|r| refused_with(&[r]))?;
+    contract.admit_paradigm(paradigm).map_err(|r| refused_with(&[r]))?;
     if meta.procedure != contract.cell().identifier() {
         return Err(Error::ReplayMismatch("procedure"));
     }
@@ -713,7 +713,7 @@ impl AdaptiveMonitoringContractArtifact {
         contract: &AdaptiveDesignContract,
         paradigm: InferenceParadigm,
     ) -> Result<(Self, MonitoringContractMeta), Error> {
-        contract.authorize(paradigm).map_err(|r| refused_with(&[r]))?;
+        contract.admit_paradigm(paradigm).map_err(|r| refused_with(&[r]))?;
         let boundaries = contract_boundaries(contract)?;
         let mut meta = MonitoringContractMeta {
             version: ADAPTIVE_MONITORING_CONTRACT_VERSION,
