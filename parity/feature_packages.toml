@@ -180,14 +180,14 @@ record_state = "frozen"
 [[feature]]
 id = "mechanism_composition.acyclic_joint_model"
 purpose = "coherence-checked composition of independently fitted mechanisms into an executable joint model"
-depends_on = ["distribution.joint_alignment", "composition.provenance"]
+depends_on = ["distribution.joint_alignment", "distribution.meanings", "distribution.aligned_joint_draws", "composition.provenance", "composition.structured_refusals"]
 record = "mechanism_composition.acyclic_joint_model"
 record_state = "frozen"
 
 [[feature]]
 id = "evidence_ledger.overlap_accounting"
 purpose = "overlap relation and once-counted observation mass of a set of sources"
-depends_on = []
+depends_on = ["composition.provenance"]
 record = "evidence_ledger.overlap_accounting"
 record_state = "frozen"
 
@@ -236,7 +236,7 @@ record_state = "frozen"
 [[feature]]
 id = "evidence_ledger.revision"
 purpose = "downstream classification of results after a source operation"
-depends_on = ["evidence_ledger.overlap_accounting"]
+depends_on = ["evidence_ledger.overlap_accounting", "composition.provenance"]
 record = "evidence_ledger.revision"
 record_state = "frozen"
 
@@ -257,7 +257,7 @@ record_state = "frozen"
 [[feature]]
 id = "measurement.model_contract"
 purpose = "Can a measured column be related to the latent scientific quantity it is offered for"
-depends_on = []
+depends_on = ["distribution.joint_alignment", "external.scientific_providers", "external.trust_receipt"]
 record = "measurement.model_contract"
 record_state = "frozen"
 
@@ -292,7 +292,7 @@ record_state = "frozen"
 [[feature]]
 id = "measurement.external_latent_posterior"
 purpose = "Given a latent-variable posterior supplied by an external provider"
-depends_on = ["measurement.model_contract"]
+depends_on = ["measurement.model_contract", "distribution.meanings", "external.scientific_providers", "external.trust_receipt"]
 record = "measurement.external_latent_posterior"
 record_state = "frozen"
 
@@ -306,7 +306,7 @@ record_state = "frozen"
 [[feature]]
 id = "counterfactual.transport_sampled"
 purpose = "sampled counterfactual transport: plug-in of a stored derivation on count tables with a declared unseen-cell rule and overlap declaration"
-depends_on = ["counterfactual.transport_general"]
+depends_on = ["counterfactual.transport_general", "evidence_ledger.overlap_accounting"]
 record = "counterfactual.transport_sampled"
 record_state = "frozen"
 

@@ -92,6 +92,234 @@ Common remedies:
 See also the [lifecycle](lifecycle.md) for the refusal-handling pattern in
 context.
 
+## Measurement, composition, evidence and counterfactual-transport refusals
+
+Each detail below is registered with its top-level code and a remedy in `parity/promotion.toml`. The remedy says what evidence, assumption or declaration would license the request; a refusal that has no licensing declaration yet says so. A refusal is never a verdict on the science when it is a cancellation, a budget stop or an invalid argument.
+
+### Measurement models
+
+`measurement_model.*`. A measured column is related to a latent construct only through a declared model; a refusal names the declaration or evidence that would license the request.
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `measurement_model.arm_mismatch` | `measurement_binding_mismatch` | Declare rates for this arm, or analyse an arm the differential model covers. |
+| `measurement_model.artifact_invalid` | `invalid_argument` | Supply an intact measurement model artifact of the supported layout and size. |
+| `measurement_model.artifact_refused` | `measurement_binding_mismatch` | Supply the artifact whose model identity equals the retained one and whose result recomputes from its stored inputs. |
+| `measurement_model.blank_field` | `measurement_model_invalid` | Name every identity, unit, population and regime of the model. |
+| `measurement_model.cancelled` | `cancelled_no_claim` | Rerun without cancellation; the cancellation is not a verdict on the data. |
+| `measurement_model.confusion_ill_conditioned` | `measurement_not_identified` | Supply a better conditioned confusion matrix (a more accurate indicator, or validation units for every latent category). |
+| `measurement_model.construct_mismatch` | `measurement_binding_mismatch` | Request the construct the model names, or declare a model for the construct asked about. |
+| `measurement_model.design_singular` | `design_rank_deficient` | Remove collinear columns or add observations so the design has full rank. |
+| `measurement_model.differential_axis_unsupported` | `differential_error_not_pooled` | Declare error that differs by arm; other axes (population, time) have no bounded route and stay refused. |
+| `measurement_model.differential_declared` | `differential_error_not_pooled` | Analyse the model with its per-arm parameters, not through the non-differential route. |
+| `measurement_model.differential_undeclared` | `differential_error_not_pooled` | Declare the differential structure with its own per-arm parameters. |
+| `measurement_model.indicator_as_construct` | `proxy_offered_as_construct` | Request the construct by its identity; the measured column is its proxy. |
+| `measurement_model.indicator_kind` | `measurement_model_invalid` | Offer an indicator of a kind the route accepts (see the route card). |
+| `measurement_model.indicator_observed` | `measurement_model_invalid` | Declare the column noisy or misclassified, or use it directly as observed. |
+| `measurement_model.input_invalid` | `invalid_argument` | Supply equal-length columns, distinct arms and weights of the declared width. |
+| `measurement_model.insufficient_draws` | `measurement_not_identified` | Supply at least the number of joint draws the model declares. |
+| `measurement_model.insufficient_replicates` | `measurement_not_identified` | Replicate the measurement on more units so the within-unit variance is identified. |
+| `measurement_model.interval_closed` | `cell_not_licensed` | None available yet: the point and an uncalibrated standard error are the result; an interval needs a measured whole-method coverage record. |
+| `measurement_model.intervention_meaning_not_carried` | `representation_mapping_required` | Declare evidence that interventions correspond across the mapping; a relabeling carries values only. |
+| `measurement_model.invalid_model` | `measurement_model_invalid` | Declare a well formed model: named identities and parameters of the declared route within range. |
+| `measurement_model.learned_coordinates_not_intervenable` | `representation_mapping_required` | Declare the intervention on the scientific construct; coordinates of a learned representation have no intervention meaning of their own. |
+| `measurement_model.mapping_endpoints` | `representation_mapping_required` | Supply a mapping that runs exactly from the model's representation version to the requested one. |
+| `measurement_model.operation_not_licensed` | `cell_not_licensed` | Request an operation in the route's allowed set (see its route card). |
+| `measurement_model.parameter` | `measurement_model_invalid` | Supply parameters within their ranges (probabilities in [0, 1], positive variances). |
+| `measurement_model.population_mismatch` | `measurement_binding_mismatch` | Analyse data of the population the model names, or declare a model for this population. |
+| `measurement_model.posterior_capability` | `measurement_posterior_not_trusted` | Declare the sampling operation; the route consumes joint posterior draws. |
+| `measurement_model.posterior_declaration` | `measurement_posterior_not_trusted` | Complete the provider declaration so it is consistent with the object. |
+| `measurement_model.posterior_identity` | `measurement_posterior_not_trusted` | Supply the exact provider object the model names. |
+| `measurement_model.posterior_kind` | `measurement_posterior_not_trusted` | Supply the latent variable as a parameter-posterior object. |
+| `measurement_model.posterior_native_trust` | `measurement_posterior_not_trusted` | Attest or verify the provider object; a provider object is never natively licensed. |
+| `measurement_model.posterior_quantity` | `measurement_posterior_not_trusted` | Have the posterior declare the construct in the model's population and regime. |
+| `measurement_model.posterior_receipt` | `measurement_posterior_not_trusted` | Supply a verification receipt that covers this exact provider object. |
+| `measurement_model.proxy_as_construct` | `proxy_offered_as_construct` | Name the latent scientific construct and relate the proxy to it by a measurement model. |
+| `measurement_model.regime_mismatch` | `measurement_binding_mismatch` | Analyse data of the regime the model names, or declare a model for this regime. |
+| `measurement_model.reliability_too_small` | `measurement_not_identified` | Use a more reliable measurement or averaged replicates; the error variance leaves too little latent variance. |
+| `measurement_model.representation_unmapped` | `representation_mapping_required` | Supply an explicit mapping between the two representation versions; a changed coordinate system or version is a different quantity. |
+| `measurement_model.route_mismatch` | `route_not_supported` | Call the entry point of the route the model declares, or declare a model for this route. |
+| `measurement_model.route_parameters` | `measurement_model_invalid` | Supply parameters of the route the model declares. |
+| `measurement_model.structure_parameters` | `differential_error_not_pooled` | Declare shared parameters as non-differential, or one parameter set per arm as differential by arm. |
+| `measurement_model.unknown_level` | `invalid_argument` | Name only categories that are declared levels of the confusion model. |
+| `measurement_model.unmodelled_proxy` | `proxy_offered_as_construct` | Declare a measurement model relating the measured quantity to the construct, or ask the question about the measured quantity itself. |
+| `measurement_model.unrecognized` | `measurement_model_invalid` | Report the construction failure; no registered declaration would license it. |
+| `measurement_model.variance_not_positive` | `measurement_not_identified` | Supply data and parameters under which the corrected variance is positive (more units or a less degenerate design). |
+| `measurement_model.youden_too_small` | `measurement_not_identified` | Use a more accurate indicator or a validation study that shows a Youden index above the declared minimum. |
+
+### Mechanism composition
+
+`mechanism_composition.*`. Individually valid mechanisms compose only when the declarations establish one coherent joint law; every defect names the declaration that would license the composition.
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `mechanism_composition.artifact_invalid` | `invalid_argument` | Supply an intact artifact of the supported layout with well formed declarations. |
+| `mechanism_composition.cancelled` | `cancelled_no_claim` | Rerun without cancellation; the cancellation is not a verdict on the mechanisms. |
+| `mechanism_composition.conditioning_extra_conditioner` | `mechanism_composition_incoherent` | Refit without the extra conditioners, or declare them as parents. |
+| `mechanism_composition.conditioning_parent_not_conditioned` | `mechanism_composition_incoherent` | Refit so the fit conditions on every declared parent. |
+| `mechanism_composition.cycle_directed_cycle` | `graph_invalid` | Declare an acyclic graph; a feedback system needs its own equilibrium model outside this route. |
+| `mechanism_composition.family_mixed` | `mechanism_composition_incoherent` | Compose one family at a time: all linear-Gaussian or all finite tables; refit within the family. |
+| `mechanism_composition.identity_declaration_unknown_variable` | `quantity_semantics_mismatch` | Name only variables that have a mechanism in the composition. |
+| `mechanism_composition.identity_duplicate_mechanism` | `quantity_semantics_mismatch` | Keep one fitted mechanism per variable, or compose the alternatives separately. |
+| `mechanism_composition.identity_edge_unknown_variable` | `quantity_semantics_mismatch` | Declare edges only between variables that have a mechanism. |
+| `mechanism_composition.identity_parent_without_mechanism` | `quantity_semantics_mismatch` | Supply a mechanism for the parent; a root needs its own marginal mechanism. |
+| `mechanism_composition.interval_route_closed` | `cell_not_licensed` | None available yet: the point and the labelled first-order variance are the result; an interval needs a measured whole-method coverage record. |
+| `mechanism_composition.latent_family_unsupported` | `mechanism_composition_incoherent` | Use linear-Gaussian mechanisms for a shared latent, or marginalize the latent explicitly in a model that supports it. |
+| `mechanism_composition.latent_loading_undeclared` | `mechanism_composition_incoherent` | Declare the loading of the mechanism on the shared latent. |
+| `mechanism_composition.latent_shared_with_absent_mechanism` | `mechanism_composition_incoherent` | Add the mechanism that shares the latent to the composition; a dropped latent is never treated as independent. |
+| `mechanism_composition.latent_sharing_not_declared` | `mechanism_composition_incoherent` | List every mechanism that depends on the latent on each of them. |
+| `mechanism_composition.latent_sharing_not_reciprocal` | `mechanism_composition_incoherent` | Have both mechanisms declare the shared latent. |
+| `mechanism_composition.latent_too_many` | `mechanism_composition_incoherent` | Reduce the number of declared latent causes to the bound. |
+| `mechanism_composition.numbers_unbound` | `invalid_argument` | Bind numbers to every planned mechanism, a fitted domain to every parent, and declare every latent a loading names. |
+| `mechanism_composition.numerical_failure` | `invalid_argument` | Inspect the named numerical condition and supply well-conditioned declared parameters; the declarations themselves were accepted. |
+| `mechanism_composition.parents_declared_graph_mismatch` | `graph_invalid` | Refit the mechanism on exactly the declared parents, or correct the declared graph. |
+| `mechanism_composition.population_invariance_unstated` | `quantity_semantics_mismatch` | State the invariance assumption in words the artifact can carry. |
+| `mechanism_composition.population_latent_blocks_selection_admissibility` | `quantity_semantics_mismatch` | Declare an explicit invariance assumption for the mechanism with its latent, or refit it in the target population; a selection diagram does not cover latent causes. |
+| `mechanism_composition.population_parent_context_differs_from_fit` | `quantity_semantics_mismatch` | Declare the parent in the population the consuming mechanism was fitted in, or refit the consumer. |
+| `mechanism_composition.population_selection_arrow_into_mechanism` | `quantity_semantics_mismatch` | Refit the mechanism in the target population; a selection arrow into it means it is not invariant. |
+| `mechanism_composition.population_undeclared_transport` | `quantity_semantics_mismatch` | Declare a selection diagram with no arrow into this variable, or an explicit invariance assumption, or refit the mechanism in the target population. |
+| `mechanism_composition.posterior_dependence_cross_block_duplicate` | `joint_law_required` | Give each pair of distinct mechanisms exactly one cross-covariance block. |
+| `mechanism_composition.posterior_dependence_cross_covariance_missing` | `joint_law_required` | Give every pair of mechanisms an explicit covariance block; a zero block is a declared independence for that pair. |
+| `mechanism_composition.posterior_dependence_independence_unjustified` | `joint_law_required` | State why the estimates are independent (disjoint, independently generated evidence). |
+| `mechanism_composition.posterior_dependence_shared_evidence_declared_independent` | `joint_law_required` | Give the mechanisms distinct evidence identities, or declare the dependence between them. |
+| `mechanism_composition.posterior_dependence_unknown` | `joint_law_required` | Declare an aligned joint parameter law, an explicit cross-mechanism covariance for every pair, or independence by design with a justification and distinct evidence identities. |
+| `mechanism_composition.premises_mismatch` | `mechanism_composition_incoherent` | Supply the artifact that matches the retained identity, or regenerate it from the intended premises. |
+| `mechanism_composition.provenance_declared_mechanism_unacknowledged` | `mechanism_composition_incoherent` | Acknowledge in the composition that the mechanism is declared rather than estimated, or supply a fitted mechanism. |
+| `mechanism_composition.provenance_missing_artifact` | `mechanism_composition_incoherent` | Bind the mechanism to the identity of the fit or external binding that produced it. |
+| `mechanism_composition.provenance_missing_evidence` | `mechanism_composition_incoherent` | Name the evidence identity the mechanism was estimated from so dependence can be judged. |
+| `mechanism_composition.quantity_conditioned_event` | `quantity_semantics_mismatch` | Compose unconditioned structural mechanisms and ask the conditional question downstream. |
+| `mechanism_composition.quantity_conditioning_mismatch` | `quantity_semantics_mismatch` | Make the parent and its producer conditioned on the same events. |
+| `mechanism_composition.quantity_functional_mismatch` | `quantity_semantics_mismatch` | Make the parent and its producer the same functional of the variable. |
+| `mechanism_composition.quantity_horizon_mismatch` | `quantity_semantics_mismatch` | Make the parent and its producer refer to the same time horizon. |
+| `mechanism_composition.quantity_invalid_coordinate` | `quantity_semantics_mismatch` | Give every semantic coordinate a non-blank identity and canonical conditioning. |
+| `mechanism_composition.quantity_not_a_realization` | `quantity_semantics_mismatch` | Declare the mechanism over realized values; a mean or other summary is not a parent value. |
+| `mechanism_composition.quantity_role_mismatch` | `quantity_semantics_mismatch` | Make the parent and its producer name the same variable in the same causal role. |
+| `mechanism_composition.regime_parent_context_differs_from_fit` | `quantity_semantics_mismatch` | Declare the parent in the regime the consuming mechanism was fitted in, or refit the consumer. |
+| `mechanism_composition.regime_selection_diagram_not_applicable` | `quantity_semantics_mismatch` | Declare an explicit invariance assumption between the fitted and the target regime, or refit the mechanism in the target regime. |
+| `mechanism_composition.regime_undeclared_invariance` | `quantity_semantics_mismatch` | Declare that the mechanism is invariant between the fitted and the target regime, or refit it in the target regime. |
+| `mechanism_composition.request_unsupported` | `route_not_supported` | Restate the request inside the bounded family: known, non-repeated intervention variables, a sample size within the bound, and a query of the composition's family. |
+| `mechanism_composition.result_mismatch` | `mechanism_composition_incoherent` | Regenerate the artifact from the premises and query; a stored result must be the replay of them. |
+| `mechanism_composition.shape_blank_coordinate` | `invalid_argument` | Name the target population, regime and every declared coordinate. |
+| `mechanism_composition.shape_blank_identity` | `invalid_argument` | Give every mechanism, parent and latent a stable non-blank identity. |
+| `mechanism_composition.shape_coefficient_parent_mismatch` | `invalid_argument` | Give exactly one coefficient per declared parent. |
+| `mechanism_composition.shape_duplicate_parent` | `invalid_argument` | List each parent of a mechanism once. |
+| `mechanism_composition.shape_empty_composition` | `invalid_argument` | Declare at least one mechanism. |
+| `mechanism_composition.shape_invalid_domain` | `invalid_argument` | Declare a well formed output support (a non-empty level set, or ordered finite bounds). |
+| `mechanism_composition.shape_invalid_latents` | `invalid_argument` | Name each latent once with a non-blank identity. |
+| `mechanism_composition.shape_invalid_table` | `invalid_argument` | Supply each finite mechanism as a normalized conditional table (every row a distribution) over declared levels. |
+| `mechanism_composition.shape_mechanism_count` | `invalid_argument` | Declare between one mechanism and the bound. |
+| `mechanism_composition.shape_negative_scale` | `invalid_argument` | Supply a non-negative residual standard deviation. |
+| `mechanism_composition.shape_non_finite_parameter` | `invalid_argument` | Refit or correct the mechanism so every coefficient, intercept and scale is finite. |
+| `mechanism_composition.shape_too_many_mechanisms` | `invalid_argument` | Split the composition below the declared bound. |
+| `mechanism_composition.shape_too_many_parents` | `invalid_argument` | Reduce the parent set below the declared bound. |
+| `mechanism_composition.slot_not_linear_gaussian` | `mechanism_composition_incoherent` | Offer a plain linear-Gaussian slot or a finite table; basis expansions and discrete, constant, vacant or pending slots are outside the bounded family. |
+| `mechanism_composition.support_disjoint` | `mechanism_composition_incoherent` | Refit the consumer on the producer's range or restrict the producer; with no overlap the composition has no support. |
+| `mechanism_composition.support_intervention_outside_domain` | `mechanism_composition_incoherent` | Intervene only within the domain every consumer of the variable was fitted on. |
+| `mechanism_composition.support_kind_mismatch` | `mechanism_composition_incoherent` | Refit so a numeric output feeds a numeric input and a level output feeds a level input. |
+| `mechanism_composition.support_missing_parent_configuration` | `mechanism_composition_incoherent` | Supply a table row for every combination of parent levels the producers can emit. |
+| `mechanism_composition.support_not_contained` | `mechanism_composition_incoherent` | Restrict the producer to the consumer's fitted domain, refit the consumer on the producer's range, or declare global validity of the consumer's domain. |
+| `mechanism_composition.transform_mismatch` | `quantity_semantics_mismatch` | Declare the transform the consumer was fitted on, or refit one side. |
+| `mechanism_composition.uncertainty_assembled_not_psd` | `mechanism_composition_incoherent` | Supply marginals and cross-covariances that form one positive semidefinite joint covariance. |
+| `mechanism_composition.uncertainty_cross_block_shape` | `mechanism_composition_incoherent` | Give each cross block the shape of exactly the two mechanisms' parameter sets, finite. |
+| `mechanism_composition.uncertainty_cross_block_unknown_mechanism` | `mechanism_composition_incoherent` | Name only mechanisms that are in the composition. |
+| `mechanism_composition.uncertainty_family_unsupported` | `mechanism_composition_incoherent` | Request the point result for finite tables; parameter uncertainty is propagated for linear-Gaussian mechanisms only. |
+| `mechanism_composition.uncertainty_joint_parameter_set_mismatch` | `mechanism_composition_incoherent` | Make the joint law cover exactly every parameter of every mechanism once. |
+| `mechanism_composition.uncertainty_marginal_inconsistent_with_joint` | `mechanism_composition_incoherent` | Use one posterior: make the joint law agree with each mechanism's own reported marginal. |
+| `mechanism_composition.uncertainty_marginal_missing` | `mechanism_composition_incoherent` | Have the owning fit report its parameter covariance. |
+| `mechanism_composition.uncertainty_meaning_mismatch` | `mechanism_composition_incoherent` | Supply parameter laws that all carry one meaning (all posterior or all sampling). |
+| `mechanism_composition.uncertainty_not_psd` | `mechanism_composition_incoherent` | Supply a positive semidefinite covariance. |
+| `mechanism_composition.uncertainty_not_symmetric` | `mechanism_composition_incoherent` | Supply a symmetric covariance. |
+| `mechanism_composition.uncertainty_parameter_set_mismatch` | `mechanism_composition_incoherent` | Report the covariance over exactly the intercept and one coefficient per declared parent. |
+| `mechanism_composition.uncertainty_shape` | `mechanism_composition_incoherent` | Supply a finite k by k covariance matching the parameter list. |
+| `mechanism_composition.units_mismatch` | `quantity_semantics_mismatch` | Convert the units explicitly and refit one side; no unit conversion is inferred. |
+
+### Evidence ledger
+
+`evidence_ledger.*`. Overlap that is not declared stays unknown and is never treated as independent; a refusal names the declaration, covariance or recomputation that would license the combination.
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `evidence_ledger.cancelled` | `cancelled_no_claim` | Rerun without cancellation; the ledger is unchanged and no verdict was formed. |
+| `evidence_ledger.diagonal_covariance_shared_rows` | `evidence_double_counted` | Supply the cross covariance for sources that share observations. |
+| `evidence_ledger.duplicate_result` | `invalid_argument` | Cite the existing result rather than registering the combination twice. |
+| `evidence_ledger.duplicate_row` | `evidence_double_counted` | Declare each observation once within a source. |
+| `evidence_ledger.duplicate_source` | `evidence_double_counted` | Cite the existing source rather than adding the same evidence twice. |
+| `evidence_ledger.identity_mismatch` | `route_not_supported` | Supply the artifact whose recomputed identity equals the retained identity, or regenerate it from the intended ledger history. |
+| `evidence_ledger.interval_not_licensed` | `cell_not_licensed` | None available yet: the ledger returns point values and labelled assumption ranges; an interval needs measured whole-method coverage. |
+| `evidence_ledger.invalid_declaration` | `invalid_argument` | Declare a non-empty bounded label and a well formed lineage, transport identity and assumption range. |
+| `evidence_ledger.kind_mismatch` | `invalid_argument` | Keep the source kind unchanged, or register a new source of the other kind. |
+| `evidence_ledger.limit_exceeded` | `invalid_argument` | Reduce the declaration below the stated ledger or combination bound. |
+| `evidence_ledger.lineage_rows_mismatch` | `invalid_argument` | Make the declared observations agree with the declared lineage (a subset or duplicate holds exactly its parent's rows). |
+| `evidence_ledger.native_and_transported` | `evidence_double_counted` | Count each source once: as native target data or as a transported claim, not both. |
+| `evidence_ledger.operation_arity` | `invalid_argument` | Name at least two sources for pooling, or a named stage for a repeated use. |
+| `evidence_ledger.overlap_unknown` | `evidence_overlap_unknown` | Declare the row-level observations behind each source, supply a covariance with cross terms, or request an assumption range. |
+| `evidence_ledger.reentry_derived_from_used_data` | `evidence_double_counted` | Use the underlying data once, or derive the claim from observations disjoint from those already used. |
+| `evidence_ledger.reentry_duplicate` | `evidence_double_counted` | Drop the copy, or combine only sources with distinct observations. |
+| `evidence_ledger.reentry_prior_plus_likelihood` | `evidence_double_counted` | Build the prior from data disjoint from the likelihood, or elicit it without data (empty observation set). |
+| `evidence_ledger.reentry_transform` | `evidence_double_counted` | Use one of the sources, or declare the transform's lineage and supply a covariance with cross terms. |
+| `evidence_ledger.repeated_source` | `evidence_double_counted` | List each source once among the inputs of a combination or derived source. |
+| `evidence_ledger.replay_mismatch` | `invalid_argument` | Regenerate the artifact from the ledger operations; a stored operation identity, effect, head or state digest must replay. |
+| `evidence_ledger.result_not_valid` | `evidence_source_withdrawn` | Recompute the result over the replacing sources before citing it again. |
+| `evidence_ledger.shared_observations` | `evidence_double_counted` | Declare the shared observations and supply a covariance with cross terms, or combine only sources known to be disjoint. |
+| `evidence_ledger.source_superseded` | `evidence_source_withdrawn` | Use the successor of the superseded source, or revalidate the request over it. |
+| `evidence_ledger.source_withdrawn` | `evidence_source_withdrawn` | Remove the withdrawn source or register evidence that does not rest on it. |
+| `evidence_ledger.supersede_kind_mismatch` | `invalid_argument` | Supersede only a fitted model or external claim, by one of the same kind; replace or update other evidence. |
+| `evidence_ledger.synthesis_mismatch` | `invalid_argument` | Regenerate the synthesis from its ledger result; the stored values must recompute from the stored inputs. |
+| `evidence_ledger.transport_identity_missing` | `invalid_argument` | Attach the transport identity (source populations, selection diagram, assumptions) to the transported claim. |
+| `evidence_ledger.transported_as_native` | `invalid_argument` | Register the claim as transported, or supply native target data instead. |
+| `evidence_ledger.unknown_result` | `invalid_argument` | Register the result in the ledger first, or cite the result that replaced it. |
+| `evidence_ledger.unknown_source` | `invalid_argument` | Add the source to the ledger before referring to it. |
+| `evidence_ledger.update_drops_rows` | `invalid_argument` | Use replace to correct or drop observations; an update only adds them. |
+
+### Counterfactual transport (exact finite laws)
+
+`counterfactual_transport.*`. A refusal to derive is not a proof of non-transportability; only `checked_obstruction` carries a verified two-model witness.
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `counterfactual_transport.bounds_exceeded` | `route_not_supported` | Reduce the problem below the stated variable, level, world, atom, source, regime or search limit, or request smaller limits. |
+| `counterfactual_transport.budget` | `transport_budget_cancel` | Raise the operation, depth or memory budget within the contract maxima, or reduce the problem. |
+| `counterfactual_transport.checked_obstruction` | `transport_proven_non_transportable` | None within the declared regimes: the query is not transportable from them; add a regime that changes the obstruction (a new experiment or a smaller selection set). |
+| `counterfactual_transport.coupling_unsupported` | `route_not_supported` | Request the shared latent exogenous coupling; other couplings have no route here. |
+| `counterfactual_transport.evidence_incompatible` | `transport_numerical_failure` | Repair the supplied laws or the declared graph; the laws contradict the graph. |
+| `counterfactual_transport.factor_not_derivable` | `transport_not_certified` | Declare more evidence regimes or fewer selection targets; the bounded search found neither a derivation nor a witness, which is not a proof of non-transportability. |
+| `counterfactual_transport.graph_outside_contract` | `route_not_supported` | Declare an acyclic graph. |
+| `counterfactual_transport.invalid_artifact` | `invalid_argument` | Supply an intact artifact whose premises and data digest match its contents and the expected identity; the refused slot is named. |
+| `counterfactual_transport.invalid_catalog` | `invalid_argument` | Supply a valid evidence catalog whose regimes belong to the target or a declared source and name variables of the problem. |
+| `counterfactual_transport.invalid_derivation` | `transport_not_certified` | Regenerate the derivation under its stored limits; a stored derivation must be reproduced by replay. |
+| `counterfactual_transport.invalid_evidence` | `invalid_argument` | Supply laws whose axes, levels, intervention set and world match the regime the derivation cites. |
+| `counterfactual_transport.invalid_query` | `invalid_argument` | Declare a well formed graph, worlds, routes, levels, event, selection diagram and controllable sets, and a conditioning event of positive probability. |
+| `counterfactual_transport.invalid_witness` | `transport_not_certified` | Discard the stored witness; it does not verify by exact enumeration. |
+| `counterfactual_transport.missing_law` | `transport_missing_provider` | Supply the law of the cited regime at the needed intervention level. |
+| `counterfactual_transport.missing_regime` | `transport_missing_evidence` | Supply the named regimes the catalog lacks; the query is derivable with them. |
+| `counterfactual_transport.sampled_inference_closed` | `cell_not_licensed` | Use the sampled counterfactual transport route for counted, empirical or posterior laws. |
+| `counterfactual_transport.selected_sample_law` | `route_not_supported` | Supply laws of the population itself; this route has no sampling-selection model. |
+| `counterfactual_transport.support_failure` | `transport_support_failure` | Supply laws with positive mass on every conditioning event the formula divides by. |
+| `counterfactual_transport.zero_conditioning_mass` | `transport_support_failure` | Condition on an event with positive mass in the target population. |
+
+### Counterfactual transport from counts
+
+`counterfactual_transport_sampled.*`. Sampled evidence is point-only with an uncalibrated standard error; independence of tables is never assumed.
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `counterfactual_transport_sampled.bounds_exceeded` | `route_not_supported` | Reduce the stored table counts, table sizes or search and evaluation limits to the consumer's bounds, or consume the artifact with higher limits within the contract maxima. |
+| `counterfactual_transport_sampled.cancelled` | `transport_budget_cancel` | Rerun without cancellation; no estimate was formed. |
+| `counterfactual_transport_sampled.envelope_budget` | `transport_budget_cancel` | Declare a smaller unseen-mass family or raise the envelope evaluation limit within the bound. |
+| `counterfactual_transport_sampled.envelope_undefined` | `transport_support_failure` | Declare an unseen-mass family in which some member has a defined value, or supply more observations. |
+| `counterfactual_transport_sampled.interval_not_licensed` | `cell_not_licensed` | None available yet: the point estimate and an uncalibrated standard error are the result; an interval needs measured whole-method coverage. |
+| `counterfactual_transport_sampled.invalid_artifact` | `invalid_argument` | Supply an intact sampled artifact whose stored estimate follows from its stored counts and which carries no interval. |
+| `counterfactual_transport_sampled.invalid_counts` | `invalid_argument` | Supply well formed count tables: named axes and levels, a shape that matches the counts, observations, no structural zero with observations, and parameters in range. |
+| `counterfactual_transport_sampled.invalid_overlap` | `invalid_argument` | Declare each pair of tables once with one relation, naming only supplied tables. |
+| `counterfactual_transport_sampled.missing_table` | `transport_missing_provider` | Supply a count table for each cited regime. |
+| `counterfactual_transport_sampled.overlap_declared_independent` | `evidence_double_counted` | Declare the tables as sharing the same observations, or supply independent samples. |
+| `counterfactual_transport_sampled.overlap_unknown` | `sampling_dependence_unknown` | Declare whether each pair of tables is independent samples or the same observations; independence is never assumed. |
+| `counterfactual_transport_sampled.sample_size_below_limit` | `transport_support_failure` | Collect more observations, or lower the declared minimum table total. |
+| `counterfactual_transport_sampled.shared_units_unlinked` | `route_not_supported` | Supply the shared observations as one dataset so a covariance is recoverable; counts alone do not carry it. |
+| `counterfactual_transport_sampled.sparsity_above_limit` | `transport_support_failure` | Collect more observations, or raise the declared sparsity limit knowingly. |
+| `counterfactual_transport_sampled.table_not_cited` | `invalid_argument` | Supply tables only for the populations and regimes the stored derivation cites. |
+| `counterfactual_transport_sampled.unseen_cell` | `transport_support_failure` | Choose a declared additive pseudo-count (smoothed, labelled) or an unseen-mass envelope rule; zero-filling is never done. |
+
 ## Remedies
 
 Some refusals also name what the caller can change to proceed. The remedy is

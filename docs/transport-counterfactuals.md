@@ -227,6 +227,56 @@ detect a producer that seals a wrong graph, query or law on purpose, and it does
 not detect an error in the identification theory shared by producer and
 consumer; the independent check is the finite-SCM enumeration in the tests.
 
+### Python surface of the general route
+
+`antecedent.transport.advanced.identify_counterfactual` decides the same query from
+typed objects: the graph (`Admg`), declared `levels`, worlds that carry hard
+interventions and edge routes (`reads` names the world a child reads a parent
+from, which is how `Y_{x, M_{x'}}` is written), `CounterfactualEvent` atoms, per
+source `selections` and `controllable`, and an `EvidenceCatalog`.
+
+```python
+from antecedent.transport import advanced as t
+
+query = t.CounterfactualTransportQuery(
+    target="target",
+    levels={"Z": (0, 1), "X": (0, 1), "M": (0, 1, 2), "Y": (0, 1)},
+    worlds=(
+        t.CounterfactualWorld("inner", {"X": 0}),
+        t.CounterfactualWorld("outer", {"X": 1}, reads={("M", "Y"): "inner"}),
+    ),
+    event=(t.CounterfactualEvent("Y", 1, "outer"),),
+    sources=(t.CounterfactualTransportSource("source", selections=["Z"]),),
+)
+decision = t.identify_counterfactual(graph=graph, query=query, catalog=catalog)
+decision.status            # identified | proven_non_transportable | missing_evidence | ...
+result = decision.derivation.evaluate(evidence=laws)   # exact laws; point only
+artifact = result.export()
+again = t.consume_counterfactual_transport_artifact(
+    artifact,
+    expected_premises_digest=result.premises_digest,
+    expected_data_digest=result.data_digest,
+)
+```
+
+A decision that is not identified carries its typed reason (`reason_code`,
+`detail`); `missing_regimes` names the experiments that would license a
+derivation, and `witness` and `witness_values` give the verified two-model
+witness of an obstruction. Preparing it raises the same refusal.
+
+Sampled evidence goes to `decision.derivation.estimate_sampled(tables,
+overlap=..., unseen_rule=...)` with `SampledCountTable` values (one per cited
+population, regime and intervention world; `cited_regimes` lists them). Overlap
+of the units behind the tables is declared with `SamplingOverlap`
+(`independent`, `shared_units` or `unknown`; unknown is refused). An unseen cell
+is refused, smoothed under `UnseenCellRule.additive_smoothing` (labelled
+smoothed) or enveloped, never zero-filled. The estimate keeps four claims in
+separate fields, reports the delta-method standard error as
+`uncalibrated_standard_error`, and publishes no interval: the interval route
+stays closed with `cell_not_licensed` until whole-method coverage is measured.
+`consume_sampled_counterfactual_transport_artifact` recomputes the estimate from
+the counts in a fresh process.
+
 ### What consumes a transported counterfactual probability
 
 The result is a point. The inverse-outcome query and the decision contract do

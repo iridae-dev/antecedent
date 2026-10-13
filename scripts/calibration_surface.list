@@ -122,6 +122,37 @@ key estimator.transport_smoothed_dose estimator transport.smoothed_dose_transpor
 estimator.transport_joint_sensitivity crates/antecedent-validate/src/joint_mechanism_sensitivity.rs
 key estimator.transport_joint_sensitivity estimator transport.z_joint_sensitivity_endpoint_bootstrap
 
+# Measurement-error correction: the stats moment/confusion algebra and delta-method
+# variances, the estimator entry points over them, and the facade and artifact replay
+# that recompute the corrected value. A record measuring one of these routes carries
+# this facet; no existing record reaches it.
+estimator.measurement_error crates/antecedent-stats/src/measurement_error.rs
+estimator.measurement_error crates/antecedent-estimate/src/measurement/
+estimator.measurement_error crates/antecedent-io-core/src/measurement_model_wire.rs
+estimator.measurement_error crates/antecedent/src/analysis/measurement_model.rs
+key estimator.measurement_error estimator measurement.*
+
+# Evidence synthesis: generalized least squares, random-effects and hierarchical pooling
+# and the assumption-range envelope, with the facade and artifact replay that recompute
+# stored syntheses from a ledger.
+estimator.evidence_synthesis crates/antecedent-stats/src/synthesis.rs
+estimator.evidence_synthesis crates/antecedent-io-core/src/evidence_ledger_artifact.rs
+estimator.evidence_synthesis crates/antecedent/src/analysis/evidence_ledger.rs
+key estimator.evidence_synthesis estimator evidence.synthesis.*
+
+# Counterfactual transport estimated from counts: plug-in evaluation of a stored
+# derivation on estimated laws, its delta-method standard error, the unseen-mass
+# envelope and the artifact replay. The exact finite evaluation shares this facet;
+# the derivation itself is the identity facet below.
+estimator.counterfactual_transport crates/antecedent-estimate/src/counterfactual_transport.rs
+estimator.counterfactual_transport crates/antecedent-estimate/src/counterfactual_transport_sampled.rs
+estimator.counterfactual_transport crates/antecedent-estimate/src/counterfactual_transport_sampled/
+estimator.counterfactual_transport crates/antecedent-io-core/src/counterfactual_transport_wire.rs
+estimator.counterfactual_transport crates/antecedent-io/src/counterfactual_transport_artifact.rs
+estimator.counterfactual_transport crates/antecedent-io/src/sampled_counterfactual_transport_artifact.rs
+estimator.counterfactual_transport crates/antecedent/src/analysis/counterfactual_transport.rs
+key estimator.counterfactual_transport estimator counterfactual.transport.*
+
 # ---- identification paths --------------------------------------------------
 identity.backdoor crates/antecedent-identify/src/backdoor.rs
 identity.backdoor crates/antecedent-identify/src/generalized.rs
@@ -167,6 +198,9 @@ key identity.envelope graph_class TemporalCpdag
 key identity.envelope graph_class TemporalPag
 identity.tiered crates/antecedent-identify/src/tiered.rs
 key identity.tiered graph_class CoDetermined
+identity.counterfactual_transport crates/antecedent-identify/src/sid/counterfactual_transport.rs
+identity.counterfactual_transport crates/antecedent-identify/src/sid/counterfactual_transport/
+key identity.counterfactual_transport query CounterfactualEventQuery
 
 # ---- core: toolchain, manifests, shared libraries, the harness -------------
 core Cargo.toml
@@ -332,6 +366,20 @@ suite.smoothed_dose_calibration crates/antecedent/tests/smoothed_dose_dgp/mod.rs
 # Learner adapters and their dependency choices can move nuisance predictions.
 core crates/antecedent-learn/
 core crates/antecedent-learn-burn/
+
+# Oracle suites of the new packages: closed-form, enumerated or hand-computed values
+# at predeclared tolerances, plus refusals and artifact replay. They measure no
+# coverage record; a coverage measurement of one of these routes is its own suite.
+suite.measurement_models_oracle crates/antecedent-estimate/tests/measurement_models.rs
+suite.measurement_model_facade_oracle crates/antecedent/tests/measurement_model_facade.rs
+suite.synthesis_oracle crates/antecedent-stats/tests/synthesis_oracle.rs
+suite.evidence_ledger_facade_oracle crates/antecedent/tests/evidence_ledger_facade.rs
+suite.mechanism_composition_oracle crates/antecedent-model/tests/mechanism_composition.rs
+suite.mechanism_composition_facade_oracle crates/antecedent/tests/mechanism_composition_facade.rs
+suite.counterfactual_transport_execution_oracle crates/antecedent-estimate/tests/counterfactual_transport_execution.rs
+suite.counterfactual_transport_sampled_oracle crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs
+suite.counterfactual_transport_decisions_oracle crates/antecedent-identify/tests/counterfactual_transport_decisions.rs
+suite.counterfactual_transport_lifecycle_oracle crates/antecedent/tests/counterfactual_transport_lifecycle.rs
 
 # ---- files whose inline unit tests are scaffolding, not measurement ---------
 testmod crates/antecedent-prob/src/hmc.rs
@@ -869,3 +917,33 @@ allow registry_mirror crates/antecedent/src/analysis/z_transport.rs interval_met
 allow registry_mirror crates/antecedent/src/design.rs registry
 allow registry_mirror crates/antecedent/src/gcm.rs registry
 allow registry_mirror crates/antecedent/src/support/matrix_data.rs CELL SNAPSHOT StaticTable leak_slice leak_str leak_strs table
+
+# New-package routes (measurement-error correction, evidence synthesis, mechanism
+# composition, counterfactual transport). Each reference is a generic name shared
+# with the facet (evaluate, invalid, table, ...) or a call from the new route's own
+# facade into the named facet's code; none is reachable from a measured record.
+allow design crates/antecedent/src/analysis/counterfactual_transport.rs antecedent_io evaluate export names refusal
+allow design crates/antecedent/src/analysis/evidence_ledger.rs antecedent_contract antecedent_io export invalid refusal seal
+allow design crates/antecedent/src/analysis/measurement_model.rs antecedent_contract antecedent_io export quantity refusal
+allow design crates/antecedent/src/analysis/mechanism_composition.rs antecedent_contract antecedent_io build consume export refusal seal
+allow mechanism crates/antecedent-estimate/src/counterfactual_transport.rs Failure evaluate invalid
+allow mechanism crates/antecedent-estimate/src/counterfactual_transport_sampled.rs law_of
+allow mechanism crates/antecedent-estimate/src/counterfactual_transport_sampled/counts.rs law_of
+allow mechanism crates/antecedent-io-core/src/counterfactual_transport_wire.rs canonical
+allow mechanism crates/antecedent-io-core/src/evidence_ledger_artifact.rs ARTIFACT_KIND META_SECTION
+allow mechanism crates/antecedent-io-core/src/measurement_model_wire.rs ARTIFACT_KIND EvidenceWire META_SECTION
+allow mechanism crates/antecedent-io-core/src/mechanism_composition_artifact.rs CoherenceFinding ComposedFinite ComposedLinearGaussian ComposedModelSpec CompositionError ContextCoordinate ContrastArm CrossCovarianceBlock Domain InvarianceDeclaration LatentDependence MAX_COMPOSED_MECHANISMS MeanContrast MechanismContext MechanismDescriptor MechanismFamily MechanismForm MechanismOrigin MechanismProvenance MechanismSlotWire MechanismUncertainty ParameterId ParameterTerm ParentBinding PosteriorDependence SelectionDiagramDeclaration SelectionNodeDeclaration TabularRow UncertaintyMeaning antecedent_model canonical compose
+allow mechanism crates/antecedent-io/src/sampled_counterfactual_transport_artifact.rs invalid
+allow mechanism crates/antecedent/src/analysis/counterfactual_transport.rs evaluate
+allow mechanism crates/antecedent/src/analysis/evidence_ledger.rs invalid
+allow mechanism crates/antecedent/src/analysis/mechanism_composition.rs ComposedFinite ComposedLinearGaussian ComposedModelSpec CompositionError CrossCovarianceBlock Domain FiniteLaw FunctionalUncertainty JointGaussian MeanContrast MechanismFamily MechanismForm MechanismSlot MechanismUncertainty ParameterId PosteriorDependence SampleTable TabularRow UncertaintyMeaning antecedent_model check_composition compile compose
+allow registry_mirror crates/antecedent-estimate/src/counterfactual_transport.rs table
+allow registry_mirror crates/antecedent-estimate/src/counterfactual_transport_sampled.rs table
+allow registry_mirror crates/antecedent-estimate/src/counterfactual_transport_sampled/counts.rs table
+allow registry_mirror crates/antecedent-estimate/src/counterfactual_transport_sampled/inference.rs table
+allow registry_mirror crates/antecedent-estimate/src/counterfactual_transport_sampled/overlap.rs table
+allow registry_mirror crates/antecedent-estimate/src/measurement/binary.rs table
+allow registry_mirror crates/antecedent-io-core/src/measurement_model_wire.rs table
+allow registry_mirror crates/antecedent-io/src/sampled_counterfactual_transport_artifact.rs table
+allow registry_mirror crates/antecedent/src/analysis/evidence_ledger.rs records
+allow registry_mirror crates/antecedent/src/analysis/measurement_model.rs table

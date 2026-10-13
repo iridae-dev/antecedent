@@ -45,7 +45,7 @@ from _refusal import REGISTERED
 from _repo_text import REPO_ROOT
 
 ROOT = REPO_ROOT
-NOT_INFERENTIAL = frozenset({"point_only", "structural_envelope", "none"})
+NOT_INFERENTIAL = frozenset({"point_only", "structural_envelope", "assumption_range", "none"})
 ORACLE_KINDS = frozenset({"closed_form", "enumerated_finite_law", "semantic_contract"})
 REQUIRED_ROLES = ("positive", "negative", "artifact")
 
@@ -85,7 +85,12 @@ def ids(records: list[Record]) -> list[str]:
 def test_ledger_covers_every_a_record_once() -> None:
     assert A_RECORDS, "no ledger-covered records"
     assert len({r["id"] for r in A_RECORDS}) == len(A_RECORDS)
-    assert {r["status"] for r in A_RECORDS} <= {"promoted", "carried_forward"}
+    assert {r["status"] for r in A_RECORDS} <= {
+        "promoted",
+        "carried_forward",
+        "frozen",
+        "in_progress",
+    }
     # Records with no ledger cell cannot be promoted.
     assert all(r["id"] in CELLS_BY_ID for r in PROMOTED)
 
@@ -156,7 +161,7 @@ def test_ledger_inferential_claim_is_calibrated_or_not_promoted(record: Record) 
         assert coverage, f"{record['id']}: promoted inferential claim without coverage records"
         assert set(coverage) <= COVERAGE_IDS, (record["id"], set(coverage) - COVERAGE_IDS)
         return
-    assert record["status"] == "carried_forward", record["id"]
+    assert record["status"] in {"carried_forward", "frozen", "in_progress"}, record["id"]
     for route in record["routes"]:
         assert route["status"] == "closed", (record["id"], route["name"])
         assert route["reason_code"] == "cell_not_licensed", route

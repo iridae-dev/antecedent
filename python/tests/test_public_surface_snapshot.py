@@ -365,6 +365,7 @@ SNAPSHOT: dict[str, set[str]] = {
         # Lazy stage modules (`_LAZY_MODULES`): listed by ``dir``, imported on first access
         # (`joint_distribution` and `preflight` above are also in this family)
         "effect_constancy_review",
+        "evidence_ledger",
         "execution_attempt",
         "functional_source",
         "proposal_arrival",
@@ -388,6 +389,8 @@ SNAPSHOT: dict[str, set[str]] = {
         "inverse",
         "inverse_query",
         "latent_class",
+        "measurement_models",
+        "mechanism_composition",
         "mechanism_discrepancy",
         "msm_sensitivity",
         "nonlinear_mediation",

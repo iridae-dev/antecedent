@@ -1636,3 +1636,75 @@ implementation = [{ path = "crates/antecedent-model/src/compose.rs", constant = 
 documentation = [{ path = "crates/antecedent-model/src/compose.rs", constant = "MAX_SAMPLE_CELLS" }]
 guard = { path = "crates/antecedent-model/src/compose/gaussian.rs", pattern = 'saturating_mul\(sources\.max\(1\)\) > MAX_SAMPLE_CELLS' }
 refusal = { path = "crates/antecedent-model/src/compose/gaussian.rs", pattern = 'saturating_mul\(sources\.max\(1\)\) > MAX_SAMPLE_CELLS[\s\S]{0,300}CompositionError::Unsupported' }
+
+[[bound]]
+record = "measurement.classical_continuous_error"
+key = "max_rows"
+implementation = [{ path = "crates/antecedent-stats/src/measurement_error.rs", constant = "MAX_MEASUREMENT_ROWS" }]
+documentation = [{ path = "crates/antecedent-stats/src/measurement_error.rs", constant = "MAX_MEASUREMENT_ROWS" }]
+guard = { path = "crates/antecedent-stats/src/measurement_error.rs", pattern = 'n > MAX_MEASUREMENT_ROWS' }
+refusal = { path = "crates/antecedent-stats/src/measurement_error.rs", pattern = 'n > MAX_MEASUREMENT_ROWS \{[\s\S]{0,200}return Err\(MeasurementErrorError::Shape' }
+
+[[bound]]
+record = "measurement.classical_continuous_error"
+key = "max_covariates"
+implementation = [{ path = "crates/antecedent-stats/src/measurement_error.rs", constant = "MAX_MEASUREMENT_COVARIATES" }]
+documentation = [{ path = "crates/antecedent-stats/src/measurement_error.rs", constant = "MAX_MEASUREMENT_COVARIATES" }]
+guard = { path = "crates/antecedent-stats/src/measurement_error.rs", pattern = 'p > MAX_MEASUREMENT_COVARIATES' }
+refusal = { path = "crates/antecedent-stats/src/measurement_error.rs", pattern = 'p > MAX_MEASUREMENT_COVARIATES \|\| n > MAX_MEASUREMENT_ROWS \{[\s\S]{0,200}return Err\(MeasurementErrorError::Shape' }
+
+[[bound]]
+record = "measurement.repeated_measurements"
+key = "max_rows"
+implementation = [{ path = "crates/antecedent-stats/src/measurement_error.rs", constant = "MAX_MEASUREMENT_ROWS" }]
+documentation = [{ path = "crates/antecedent-stats/src/measurement_error.rs", constant = "MAX_MEASUREMENT_ROWS" }]
+guard = { path = "crates/antecedent-stats/src/measurement_error.rs", pattern = 'n > MAX_MEASUREMENT_ROWS' }
+refusal = { path = "crates/antecedent-stats/src/measurement_error.rs", pattern = 'n > MAX_MEASUREMENT_ROWS \{[\s\S]{0,200}return Err\(MeasurementErrorError::Shape' }
+
+[[bound]]
+record = "measurement.repeated_measurements"
+key = "max_covariates"
+implementation = [{ path = "crates/antecedent-stats/src/measurement_error.rs", constant = "MAX_MEASUREMENT_COVARIATES" }]
+documentation = [{ path = "crates/antecedent-stats/src/measurement_error.rs", constant = "MAX_MEASUREMENT_COVARIATES" }]
+guard = { path = "crates/antecedent-stats/src/measurement_error.rs", pattern = 'p > MAX_MEASUREMENT_COVARIATES' }
+refusal = { path = "crates/antecedent-stats/src/measurement_error.rs", pattern = 'p > MAX_MEASUREMENT_COVARIATES \|\| n > MAX_MEASUREMENT_ROWS \{[\s\S]{0,200}return Err\(MeasurementErrorError::Shape' }
+
+[[bound]]
+record = "measurement.external_latent_posterior"
+key = "max_rows"
+implementation = [{ path = "crates/antecedent-stats/src/measurement_error.rs", constant = "MAX_MEASUREMENT_ROWS" }]
+documentation = [{ path = "crates/antecedent-stats/src/measurement_error.rs", constant = "MAX_MEASUREMENT_ROWS" }]
+guard = { path = "crates/antecedent-stats/src/measurement_error.rs", pattern = 'n > MAX_MEASUREMENT_ROWS' }
+refusal = { path = "crates/antecedent-stats/src/measurement_error.rs", pattern = 'n > MAX_MEASUREMENT_ROWS \{[\s\S]{0,200}return Err\(MeasurementErrorError::Shape' }
+
+[[bound]]
+record = "measurement.external_latent_posterior"
+key = "max_covariates"
+implementation = [{ path = "crates/antecedent-stats/src/measurement_error.rs", constant = "MAX_MEASUREMENT_COVARIATES" }]
+documentation = [{ path = "crates/antecedent-stats/src/measurement_error.rs", constant = "MAX_MEASUREMENT_COVARIATES" }]
+guard = { path = "crates/antecedent-stats/src/measurement_error.rs", pattern = 'p > MAX_MEASUREMENT_COVARIATES' }
+refusal = { path = "crates/antecedent-stats/src/measurement_error.rs", pattern = 'p > MAX_MEASUREMENT_COVARIATES \|\| n > MAX_MEASUREMENT_ROWS \{[\s\S]{0,200}return Err\(MeasurementErrorError::Shape' }
+
+[[bound]]
+record = "measurement.probabilistic_categorical"
+key = "max_categories"
+implementation = [{ path = "crates/antecedent-stats/src/measurement_error.rs", constant = "MAX_MEASUREMENT_CATEGORIES" }]
+documentation = [{ path = "crates/antecedent-stats/src/measurement_error.rs", constant = "MAX_MEASUREMENT_CATEGORIES" }]
+guard = { path = "crates/antecedent-stats/src/measurement_error.rs", pattern = '!\(2\.\.=MAX_MEASUREMENT_CATEGORIES\)\.contains\(&levels\)' }
+refusal = { path = "crates/antecedent-stats/src/measurement_error.rs", pattern = '!\(2\.\.=MAX_MEASUREMENT_CATEGORIES\)\.contains\(&levels\)[\s\S]{0,200}return Err\(MeasurementErrorError::Shape' }
+
+[[bound]]
+record = "measurement.external_latent_posterior"
+key = "max_imputations"
+implementation = [{ path = "crates/antecedent-io-core/src/measurement_model_wire.rs", constant = "MAX_MEASUREMENT_IMPUTATIONS" }]
+documentation = [{ path = "crates/antecedent-io-core/src/measurement_model_wire.rs", constant = "MAX_MEASUREMENT_IMPUTATIONS" }]
+guard = { path = "crates/antecedent-io-core/src/measurement_model_wire.rs", pattern = 'coefficients_bits\.len\(\) > MAX_MEASUREMENT_IMPUTATIONS' }
+refusal = { path = "crates/antecedent-io-core/src/measurement_model_wire.rs", pattern = 'coefficients_bits\.len\(\) > MAX_MEASUREMENT_IMPUTATIONS[\s\S]{0,400}return Err\(IoError::TooLarge\)' }
+
+[[bound]]
+record = "measurement.model_contract"
+key = "max_artifact_bytes"
+implementation = [{ path = "crates/antecedent-io-core/src/measurement_model_wire.rs", constant = "MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES" }]
+documentation = [{ path = "crates/antecedent-io-core/src/measurement_model_wire.rs", constant = "MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES" }]
+guard = { path = "crates/antecedent-io-core/src/measurement_model_wire.rs", pattern = 'bytes\.len\(\) > MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES' }
+refusal = { path = "crates/antecedent-io-core/src/measurement_model_wire.rs", pattern = 'bytes\.len\(\) > MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES \{[\s\S]{0,100}return Err\(IoError::TooLarge\)' }

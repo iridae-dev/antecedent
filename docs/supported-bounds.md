@@ -210,6 +210,15 @@ markers below and compares it. Prose outside those markers is not read.
 | mechanism_composition.acyclic_joint_model | max_latents | 32 | `crates/antecedent-model/src/compose/descriptor.rs` |
 | mechanism_composition.acyclic_joint_model | max_finite_states | 1048576 | `crates/antecedent-model/src/compose/descriptor.rs` |
 | mechanism_composition.acyclic_joint_model | max_sample_cells | 67108864 | `crates/antecedent-model/src/compose.rs` |
+| measurement.classical_continuous_error | max_rows | 67108864 | `crates/antecedent-stats/src/measurement_error.rs` |
+| measurement.classical_continuous_error | max_covariates | 64 | `crates/antecedent-stats/src/measurement_error.rs` |
+| measurement.repeated_measurements | max_rows | 67108864 | `crates/antecedent-stats/src/measurement_error.rs` |
+| measurement.repeated_measurements | max_covariates | 64 | `crates/antecedent-stats/src/measurement_error.rs` |
+| measurement.external_latent_posterior | max_rows | 67108864 | `crates/antecedent-stats/src/measurement_error.rs` |
+| measurement.external_latent_posterior | max_covariates | 64 | `crates/antecedent-stats/src/measurement_error.rs` |
+| measurement.probabilistic_categorical | max_categories | 16 | `crates/antecedent-stats/src/measurement_error.rs` |
+| measurement.external_latent_posterior | max_imputations | 10000 | `crates/antecedent-io-core/src/measurement_model_wire.rs` |
+| measurement.model_contract | max_artifact_bytes | 8388608 | `crates/antecedent-io-core/src/measurement_model_wire.rs` |
 <!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.

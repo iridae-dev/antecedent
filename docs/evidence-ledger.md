@@ -105,3 +105,17 @@ effect, the head, the state digest and optional syntheses bound to ledger
 results. A consumer replays the operations through the ledger, recomputes the
 syntheses and refuses a stored identity, effect, value, covariance or range
 that does not replay, including a consistently resealed edit.
+
+## Python surface
+
+`antecedent.evidence_ledger.EvidenceLedger` is the session: `add_source`
+(a `SourceDeclaration` with `rows(domain, keys)` observation identities and a
+`Lineage`), `account_observations`, `pool_summaries`, `random_effects`,
+`hierarchical_borrowing`, `dependence_range`, `transport_claim`,
+`reuse_result`, `repeat_observations`, `revise_source`, `synthesis`,
+`refresh` (returns a new session and leaves this one untouched) and `export`.
+A refused request raises `EvidenceLedgerRefusal` with its registered
+`reason_code` and `evidence_ledger.*` `detail`, and leaves the session as it
+was; `pooled_interval` always raises `cell_not_licensed`.
+`consume_evidence_ledger_artifact` replays the operations, recomputes the
+syntheses and refuses another retained identity.

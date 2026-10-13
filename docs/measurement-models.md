@@ -96,6 +96,25 @@ as recorded and the estimate reports the mapping identity. It never carries
 intervention meaning without declared evidence, and the route itself refuses an
 intervention on the recorded indicator.
 
+## Python surface
+
+`antecedent.measurement_models` states the model (`MeasurementModel`,
+`MeasurementVariable`, the five parameter classes, `ParameterEvidence`,
+`RepresentationVersion`, `RepresentationMapping`), the analysis
+(`AnalysisBinding`) and the data (`ClassicalLinearData`, `RepeatedLinearData`,
+`BinaryPrevalenceData`, `RiskDifferenceData`, `CategoricalData`,
+`LatentPosteriorData`), and `prepare_measurement_model` runs every prepare
+check. `PreparedMeasurementModel` offers `estimate`, `refresh`,
+`with_validation_parameters` and `check_operation`; each returns a new object
+and a refusal leaves the prepared object untouched. `MeasurementEstimate`
+carries the point, the naive point, the uncalibrated standard error and the
+variance parts, exports with `export`, and `interval()` raises
+`cell_not_licensed`. `consume_measurement_model_artifact` recomputes the stored
+numbers against the retained model identity. A posterior provider is stated
+with `ProviderObject` (an attestation, or a verification receipt the library
+issued); a claim of native trust is refused by name. Refusals are
+`MeasurementModelRefusal`.
+
 ## References
 
 Carroll, Ruppert, Stefanski and Crainiceanu (2006), *Measurement Error in

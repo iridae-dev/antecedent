@@ -98,5 +98,19 @@ structural samples, or an exact finite law, and exports one query as
 The call takes `&self` and returns a new value; a refusal leaves the prepared
 composition unchanged.
 
-Not wired: the Python surface, the producer/consumer matrix row and the design
-composition-bundle node kind.
+## Python surface
+
+`antecedent.mechanism_composition` exposes the same route with typed
+declarations: `Quantity`, `MechanismDeclaration`, `Mechanism.declared_linear`,
+`Mechanism.declared_table` and `Mechanism.fitted_linear` (which reads the plain
+linear-Gaussian slot of a fitted `FittedGcm`; written-down numbers are labelled
+declared and need `admit_declared_mechanisms=True`), `Dependence` and
+`Admission`, then `compose_mechanisms`. The prepared object answers
+`intervention_law`, `mean_contrast`, `mean_contrast_uncertainty`, `sample` and
+`finite_law`, refreshes with `refresh_mechanisms`, exports one query with
+`export` and is consumed by `consume_mechanism_composition_artifact`. A refusal
+is a `MechanismCompositionRefusal` listing every defect (`refusals`,
+`details`); `interval()` raises `cell_not_licensed`.
+
+Not wired: the producer/consumer matrix row and the design composition-bundle
+node kind.

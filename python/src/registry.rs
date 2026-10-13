@@ -22,11 +22,11 @@ use super::{
     counterfactual_id_api, cpdag_scenario_api, cross_world_api, decision_api, default_user_threads,
     derived_treatment_api, descriptive_api, design_api, design_ranking_api, discovery_api,
     distribution_api, dose_grid_api, effect_constancy_api, effect_constancy_review_api,
-    execution_attempt_api, experiment_api, external_api, factorial_api, gcm_api, graph_io, graphs,
+    evidence_ledger_api, execution_attempt_api, experiment_api, external_api, factorial_api, gcm_api, graph_io, graphs,
     interference_saturation_api, inverse_outcome_api, inverse_query_api, joint_transport_api,
     latent_class_api, learned_continuous_api, learned_joint_api, learned_trial_api,
     load_float64_arrow_c_columns, load_float64_columns, matched_case_control_api,
-    measured_inference_api, mechanism_discrepancy_api, msm_sensitivity_api, nested_bayesian_api,
+    measured_inference_api, measurement_model_api, mechanism_composition_api, mechanism_discrepancy_api, msm_sensitivity_api, nested_bayesian_api,
     nested_fisher_api, nonlinear_mediation_api, observation_api, observational_interference_api,
     policy_api, preflight_api, prepared_api, prior_bank, prior_signal_api, program_claims_api,
     proposal_arrival_api, provider_api, quasi_api, recalc_adjusted_api, recalc_api,
@@ -37,7 +37,8 @@ use super::{
     set_unsupported_error_class, set_value_error_class, smoothed_dose_api, source_evidence_api,
     source_projection_api, stability, state_api, study_planning_api, survival_api, temporal_api,
     temporal_counterfactual_api, temporal_extension_api, temporal_license, temporal_transport_api,
-    transport_admg_conditional_api, transport_exact_api, transport_grid_api,
+    transport_admg_conditional_api, transport_counterfactual_api,
+    transport_counterfactual_sampled_api, transport_exact_api, transport_grid_api,
     transport_interference_api, transport_joint_sensitivity_api, transport_mixed_api,
     transport_mz_api, transport_scenario_api, transport_statistical_api, transport_z_api,
     transported_counterfactual_api, value_err, vector_treatment_api,
@@ -80,6 +81,8 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     sensitivity_source_api::register(m)?;
     transport_admg_conditional_api::register(m)?;
     transport_mz_api::register(m)?;
+    transport_counterfactual_api::register(m)?;
+    transport_counterfactual_sampled_api::register(m)?;
     transport_scenario_api::register(m)?;
     cpdag_scenario_api::register(m)?;
     temporal_transport_api::register(m)?;
@@ -129,6 +132,9 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     provider_api::register(m)?;
     composition_api::register(m)?;
     composition_bundle_api::register(m)?;
+    measurement_model_api::register(m)?;
+    mechanism_composition_api::register(m)?;
+    evidence_ledger_api::register(m)?;
     program_claims_api::register(m)?;
     m.add("__version__", antecedent_core::VERSION)?;
     // Surfaced so the Python package can refuse to stay silent when an

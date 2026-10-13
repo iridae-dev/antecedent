@@ -82,6 +82,12 @@ Specialized effect families: ``categorical_treatment``, ``vector_treatment``,
 runtime export of a fitted effect model); ``preflight`` holds the pre-fit diagnostics, rank-drop
 plans and cost counts.
 
+Measurement, composition and evidence accounting: ``measurement_models`` corrects a functional of
+a latent construct measured with error under a declared model (point and uncalibrated standard
+error, never an interval); ``mechanism_composition`` composes independently fitted mechanisms into
+one executable joint model with declared dependence; ``evidence_ledger`` accounts the overlap of
+evidence sources before any pooling, borrowing or reuse and reclassifies stale results.
+
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the
 JSON / GML / NetworkX peers, likewise on ``Cpdag`` / ``Pag`` / ``Admg``.
 
@@ -345,12 +351,15 @@ _LAZY_MODULES: tuple[str, ...] = (
     "descriptive",
     "dose_grid",
     "effect_constancy_review",
+    "evidence_ledger",
     "execution_attempt",
     "functional_source",
     "inverse",
     "inverse_query",
     "joint_distribution",
     "latent_class",
+    "measurement_models",
+    "mechanism_composition",
     "mechanism_discrepancy",
     "msm_sensitivity",
     "nonlinear_mediation",
