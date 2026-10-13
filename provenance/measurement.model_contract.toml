@@ -1,0 +1,25 @@
+# Algorithm provenance for measurement.model_contract (see docs/measurement-models.md).
+
+feature_id = "measurement.model_contract"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# papers = [] because the contract is a semantic boundary (typed kinds, binding, representation mapping, refusal); it implements no published estimator.
+papers = [
+]
+
+implementation_deviations = [
+ "No estimator: the contract states which request may use a model and inherits no theorem.",
+ "Measurement-error structure (non-differential error) is taken from Carroll et al. (2006) ch. 1-2 as a declaration, not verified from data.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "closed-form attenuation and misclassification algebra",
+ "independently simulated seeded DGPs with known coefficients",
+ "hand-computed one-way ANOVA and confusion-matrix inversion",
+]

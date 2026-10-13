@@ -1,0 +1,28 @@
+# Algorithm provenance for measurement.binary_misclassification (see docs/measurement-models.md).
+
+feature_id = "measurement.binary_misclassification"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Estimating Prevalence from the Results of a Screening Test (Rogan and Gladen, Am J Epidemiol 107:71-76)", doi = "10.1093/oxfordjournals.aje.a112510", sections = ["Estimator and variance"] },
+ { title = "Measurement Error in Nonlinear Models: A Modern Perspective (2nd ed.)", doi = "10.1201/9781420010138", sections = ["Ch. 3 Linear regression and attenuation", "Ch. 4 Regression calibration"] },
+]
+
+implementation_deviations = [
+ "Rogan and Gladen give the variance for known rates; the extension adding Var(Se) and Var(Sp) is a first-order delta method derived in-repo, with shared rates keeping the arm covariance.",
+ "Corrected proportions are reported unclipped to [0,1] and flagged.",
+ "Only outcome misclassification; exposure misclassification is a closed adjacent route.",
+ "No interval; coverage is unmeasured.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "closed-form attenuation and misclassification algebra",
+ "independently simulated seeded DGPs with known coefficients",
+ "hand-computed one-way ANOVA and confusion-matrix inversion",
+]

@@ -1,0 +1,27 @@
+# Algorithm provenance for measurement.external_latent_posterior (see docs/measurement-models.md).
+
+feature_id = "measurement.external_latent_posterior"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Measurement Error in Nonlinear Models: A Modern Perspective (2nd ed.)", doi = "10.1201/9781420010138", sections = ["Ch. 3 Linear regression and attenuation", "Ch. 4 Regression calibration"] },
+ { title = "Multiple Imputation for Nonresponse in Surveys (Rubin 1987)", doi = "10.1002/9780470316696", sections = ["Ch. 3 Combining rules"] },
+]
+
+implementation_deviations = [
+ "Posterior-mean substitution is exact for a linear outcome model only; the provider's hyperparameter uncertainty is not representable and is labelled not_propagated.",
+ "Rubin's rules assume proper imputations conditional on the outcome; the model must declare that, and it is not verifiable here.",
+ "No interval; coverage is unmeasured.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "closed-form attenuation and misclassification algebra",
+ "independently simulated seeded DGPs with known coefficients",
+ "hand-computed one-way ANOVA and confusion-matrix inversion",
+]

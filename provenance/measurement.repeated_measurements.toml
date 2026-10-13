@@ -1,0 +1,27 @@
+# Algorithm provenance for measurement.repeated_measurements (see docs/measurement-models.md).
+
+feature_id = "measurement.repeated_measurements"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Measurement Error in Nonlinear Models: A Modern Perspective (2nd ed.)", doi = "10.1201/9781420010138", sections = ["Ch. 3 Linear regression and attenuation", "Ch. 4 Regression calibration"] },
+ { title = "Variance Components (Searle, Casella and McCulloch 1992)", doi = "10.1002/9780470316856", sections = ["Ch. 3 One-way classification, unbalanced data"] },
+]
+
+implementation_deviations = [
+ "Within-variance uncertainty is a distribution-free ratio-of-means linearization, not the normal-theory chi-square interval.",
+ "Between-variance may be negative and is reported raw; ICC is NaN when between+within is not positive.",
+ "No interval; coverage is unmeasured.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "closed-form attenuation and misclassification algebra",
+ "independently simulated seeded DGPs with known coefficients",
+ "hand-computed one-way ANOVA and confusion-matrix inversion",
+]
