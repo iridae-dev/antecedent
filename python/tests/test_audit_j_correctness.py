@@ -57,20 +57,22 @@ def test_successful_refresh_keeps_the_new_snapshot() -> None:
 def test_refusal_names_read_columns_not_values() -> None:
     names = _load("_names")
 
-    class UnexpectedValueRead(RuntimeError):
-        """Sentinel: column-name validation must not retrieve column contents."""
-
     class Frame:
         columns = ["y", "t"]
 
+        def __init__(self) -> None:
+            self.value_reads: list[str] = []
+
         def __getitem__(self, key: str):
-            raise UnexpectedValueRead(f"unexpected value read of {key}")
+            self.value_reads.append(key)
+            raise KeyError(key)
 
     frame = Frame()
     assert names.table_names(frame) == ("y", "t")
     assert names.table_names(frame) == ("y", "t")
     frame.columns = ["a"]
     assert names.table_names(frame) == ("a",)
+    assert frame.value_reads == []
     assert names.table_names({"z": [1], "y": [2]}) == ("z", "y")
 
     class Arrow:
