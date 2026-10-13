@@ -39,7 +39,7 @@ length is reported otherwise, and the diagnostic says so), the Politis–White
 scan takes autocorrelations lag by lag as the bandwidth search asks for them
 (a short-memory score needs `K_n` lags, not `√n + K_n`), and the
 `bootstrap.ci_coverage` refuter reuses the length carried on a bootstrapped
-estimate (`EffectEstimate.uncertainty.block.resampling`) instead of re-deriving it.
+estimate (`EffectEstimate::block_resampling`) instead of re-deriving it.
 
 Run `cargo bench -p antecedent --bench temporal_zero_replicates`
 (`ANTECEDENT_BENCH_CELLS` selects cells, `ANTECEDENT_BENCH_REPEATS` the min-of

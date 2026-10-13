@@ -84,11 +84,11 @@ cargo run -p antecedent --example ate_quickstart
 | Identify and estimate effects from a declared graph | [Supported analyses](docs/supported-analyses.md), [Python options](docs/python-options.md) |
 | Analyze randomized experiments, policies, quasi-experiments, survival or longitudinal regimes | [Examples](docs/examples.md), [design-family support](docs/graphless-support-matrix.md) |
 | Fit learner-backed effects with fold-local nuisance models and overlap diagnostics | [Capabilities](docs/capabilities.md), [cluster-owned cross-fitting](docs/guides/clustered-dml.md) |
-| Carry effects across populations or evaluate temporal and counterfactual questions | [Population, time and uncertainty](docs/2_3-population-time-uncertainty.md), [transport and counterfactuals](docs/2_3-transport-counterfactuals.md) |
-| Turn a causal result or declared external evidence into a decision | [Result lifecycle](docs/2_3-lifecycle.md), [decisions](docs/2_3-decisions.md), [external evidence](docs/2_3-external-science.md) |
-| Rank the next study by its declared objective, information value and cost | [Study ranking](docs/2_3-design-ranking.md) |
-| Recalculate supported parts of an analysis and inspect what was reused | [Selective recalculation](docs/2_3-recalculation-capabilities.md) |
-| Examine sensitivity, structural scenarios and composed results | [Sensitivity and robustness](docs/2_3-sensitivity-and-robustness.md), [composition](docs/2_3-composition.md) |
+| Carry effects across populations or evaluate temporal and counterfactual questions | [Population, time and uncertainty](docs/population-time-uncertainty.md), [transport and counterfactuals](docs/transport-counterfactuals.md) |
+| Turn a causal result or declared external evidence into a decision | [Result lifecycle](docs/lifecycle.md), [decisions](docs/decisions.md), [external evidence](docs/external-science.md) |
+| Rank the next study by its declared objective, information value and cost | [Study ranking](docs/design-ranking.md) |
+| Recalculate supported parts of an analysis and inspect what was reused | [Selective recalculation](docs/recalculation-capabilities.md) |
+| Examine sensitivity, structural scenarios and composed results | [Sensitivity and robustness](docs/sensitivity-and-robustness.md), [composition](docs/composition.md) |
 
 The [support matrix](docs/support-matrix.md) defines the supported combinations of question, graph, evidence and inference method. The [capability inventory](docs/capabilities.md) describes available components; each workflow has its own requirements and limits.
 

@@ -6,6 +6,12 @@ The package version on this branch is 2.4.0. The last tagged release remains 2.3
 
 ### Fixed
 
+- Gram inversion keeps representable results when two equilibration scales overflow their product, preserves mixed-scale subnormal entries, and refuses an inverse with non-finite entries.
+- Robust Monte Carlo change attribution restarts a noise stream per node and declared seed across coalitions. A mechanism's draw count no longer shifts the noise of unchanged nodes. Seeded Monte Carlo outputs change; the affine structural-mean path is unchanged.
+- Matching-index reuse verifies retained feature bits after a compact hash-key hit, so a hash collision cannot replay neighbors from different donor geometry.
+- Warm AIPW recalculation rebuilds numerical preparation from changed estimator settings while retaining identification. Unsupported score-table uncertainty configurations are refused before reuse; failed refreshes preserve the prior session.
+- External callback request identities include the planner branch. Output artifacts and side-effect retry keys cannot be reused across different branches.
+- Coverage snapshot generation invalidates cached attesting IDs when the live calibration-surface assessment is empty or unresolved. Historical measurements and their SHAs remain intact, but stale records cannot authorize a `calibrated` runtime result.
 - A section payload is read up to its declared length and then checked, so an untrusted length can no longer allocate 512 MiB before any byte arrives. A short read is still an incomplete fill. Counts that do not fit the wire word are refused (`TooLarge` or the artifact's limit error) instead of being stored as `u64::MAX` or `u32::MAX`: query approximation and path limits, analysis-result interval counts, latent-class indexes and restart counts, nonlinear-mediation quadrature nodes, temporal shared-abduction unit/world/horizon counts, and mz point-contrast request indexes. A count that fits is stored as the same word as before, and digests of artifacts that already round-trip are unchanged.
 
 ### Changed
@@ -29,7 +35,7 @@ The package version on this branch is 2.4.0. The last tagged release remains 2.3
 - Contemporaneous Meek rules treat a context node as contemporaneous, the same predicate PCMCI+ uses when it records a triple. A J-PCMCI+ graph that contains context nodes can orient differently.
 - GES scores a parent set whose Gaussian residual variance is zero as −∞ and keeps searching. The search used to abort on that candidate.
 - Packing a PAG into a graph-posterior mask returns an error on a tail–tail edge instead of dropping the edge.
-- Order-MCMC `rejected_invalid` counts proposals the constraints or a non-finite score refuse. It used to stay 0. The Metropolis step is unchanged, so a seed's sampled masks stay the same. The structure-MCMC kernel ratio for an add or a delete is not 1; the chain still multiplies by 1, and that ratio is what `structure_kernel_ratio` reports.
+- Order-MCMC `rejected_invalid` counts proposals the constraints or a non-finite score refuse. It used to stay 0. The Metropolis step is unchanged, so a seed's sampled masks stay the same. Structure-MCMC proposals use both orientations of every candidate pair: add/delete transition probabilities match, as do reversal probabilities. The kernel's Hastings ratio is 1; its previously reported add/delete factors of 0.5/2 were incorrect. The chain is unchanged.
 - PC, FCI, and RFCI refuse a sepset variable that is not in the fitted index instead of dropping it.
 - `antecedent-learn-burn::train` and `TrainedMlp::predict` return `LearnBurnError`. The Display text matches the previous `String` errors. The training lock is unchanged.
 - The nested-Markov gamma draw matches `antecedent_kernels::sample_gamma` at rate 1, including shapes below 1. A given seed can draw a different posterior.
