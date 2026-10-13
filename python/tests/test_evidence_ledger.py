@@ -871,6 +871,85 @@ def test_a_stored_value_that_differs_is_a_different_history():
     assert again.head == original.head
 
 
+def range_ledger(rho_hi: float = 0.9) -> tuple[el.EvidenceLedger, str, str]:
+    ledger = el.EvidenceLedger()
+    s3 = ledger.add_source(data("s3", 0, 30))
+    claim = ledger.add_source(vendor())
+    studies = [el.StudyEstimate(s3, 1.0, 1.0), el.StudyEstimate(claim, 3.0, 2.0)]
+    outcome = ledger.dependence_range("range", studies, rho_lo=0.0, rho_hi=rho_hi)
+    return ledger, outcome.result, claim
+
+
+def test_a_range_outside_the_definite_interval_or_non_finite_is_refused_and_registers_nothing():
+    ledger, _result, claim = range_ledger()
+    s3 = next(r.id for r in ledger.sources if r.label == "s3")
+    head, state, count = ledger.head, ledger.state_digest, len(ledger.results)
+    # Inverted, perfectly correlated, on the boundary -1/(k-1) of the definite interval, a
+    # non-finite bound and a non-positive standard error.
+    cases = [
+        (0.5, 0.2, 2.0),
+        (0.0, 1.0, 2.0),
+        (-1.0, 0.2, 2.0),
+        (0.0, 0.5, 0.0),
+    ]
+    for lo, hi, se in cases:
+        studies = [el.StudyEstimate(s3, 1.0, 1.0), el.StudyEstimate(claim, 3.0, se)]
+        error = refused(
+            lambda studies=studies, lo=lo, hi=hi: ledger.dependence_range(
+                "bad", studies, rho_lo=lo, rho_hi=hi
+            )
+        )
+        assert error.reason_code == "invalid_argument", (lo, hi, se)
+    # Non-finite bounds are refused by the Python boundary before any native call.
+    pair = [el.StudyEstimate(s3, 1.0, 1.0), el.StudyEstimate(claim, 3.0, 2.0)]
+    for lo, hi in [(float("nan"), 0.2), (0.0, float("inf"))]:
+        with pytest.raises(CausalValueError):
+            ledger.dependence_range("bad", pair, rho_lo=lo, rho_hi=hi)
+    assert (ledger.head, ledger.state_digest, len(ledger.results)) == (head, state, count)
+
+
+def test_an_exported_dependence_range_is_replayed_as_an_assumption_range():
+    ledger, result, claim = range_ledger()
+    export = ledger.export("range-ledger")
+    assert export.carried == (result,)
+    assert export.not_carried == {}
+    consumed = el.consume_evidence_ledger_artifact(export.artifact, export.identity)
+    # The consumer recomputed the envelope in the method's fixed order: estimate min, rho at
+    # min, estimate max, rho at max, variance min, rho at min, variance max, rho at max.
+    # Hand values: -1/7 at 0.9, 7/5 at 0, 19/35 at 0.9, and the interior maximum 1 at 1/2.
+    replay = consumed.synthesis_of(result)
+    assert replay is not None
+    assert replay.method == "dependence_envelope"
+    assert replay.values == pytest.approx(
+        (-1 / 7, 0.9, 7 / 5, 0.0, 19 / 35, 0.9, 1.0, 0.5), abs=1e-9
+    )
+    # It agrees with the brute-force grid the producer is checked against.
+    _rhos, est, var = envelope_oracle([1.0, 3.0], [1.0, 2.0], 0.0, 0.9)
+    assert replay.values[0] == pytest.approx(est.min(), abs=1e-7)
+    assert replay.values[2] == pytest.approx(est.max(), abs=1e-7)
+    assert replay.values[4] == pytest.approx(var.min(), abs=1e-7)
+    assert replay.values[6] == pytest.approx(var.max(), abs=1e-7)
+    # The label survives the replay, and the unknown source stays unknown.
+    record = next(r for r in consumed.results if r.id == result)
+    assert record.claim_class == "assumption_range"
+    assert claim in record.mass.unknown_sources
+    # The same history gives the same identity; another range is another artifact, so a
+    # consumer that retained the original refuses it.
+    assert range_ledger()[0].export("range-ledger").identity == export.identity
+    widened, _, _ = range_ledger(rho_hi=0.95)
+    forged = widened.export("range-ledger")
+    assert forged.identity != export.identity
+    expect(
+        refused(lambda: el.consume_evidence_ledger_artifact(forged.artifact, export.identity)),
+        "route_not_supported",
+        "evidence_ledger.identity_mismatch",
+    )
+    own = el.consume_evidence_ledger_artifact(forged.artifact, forged.identity)
+    widened_replay = own.syntheses[0]
+    assert widened_replay.method == "dependence_envelope"
+    assert widened_replay.values[0] == pytest.approx((7 - 8 * 0.95) / (5 - 4 * 0.95), abs=TOL)
+
+
 def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp_path):
     s = Scenario()
     export = s.ledger.export("fresh")

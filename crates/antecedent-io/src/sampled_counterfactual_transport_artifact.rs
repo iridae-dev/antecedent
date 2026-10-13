@@ -148,7 +148,7 @@ impl SampledCounterfactualTransportArtifactError {
         match self {
             Self::Decode(_) | Self::Encode(_) => "artifact",
             Self::UnsupportedVersion { .. } => "version",
-            Self::UnsupportedSemantics(slot) | Self::Malformed { slot, .. } => *slot,
+            Self::UnsupportedSemantics(slot) | Self::Malformed { slot, .. } => slot,
             Self::LimitsExceeded(_) => "limits",
             Self::PremisesMismatch => "premises_digest",
             Self::DataIdentityMismatch => "data_digest",
@@ -258,9 +258,7 @@ impl SampledCountTableWire {
             axes: table
                 .axes()
                 .iter()
-                .map(|a| {
-                    (a.variable.raw(), a.levels.iter().map(|l| (l + 0.0).to_bits()).collect())
-                })
+                .map(|a| (a.variable.raw(), a.levels.iter().map(|l| (l + 0.0).to_bits()).collect()))
                 .collect(),
             counts: table.counts().to_vec(),
             snapshot_identity: table.snapshot_identity().to_owned(),
@@ -887,7 +885,7 @@ fn estimation_refusal(error: &antecedent_estimate::EstimationError) -> Error {
     use antecedent_estimate::EstimationError as E;
     match error {
         E::Refused { code, message } | E::RefusedWithFields { code, message, .. } => {
-            Error::Replay { code: *code, message: message.clone() }
+            Error::Replay { code, message: message.clone() }
         }
         other => Error::Malformed { slot: "tables", message: other.to_string() },
     }
@@ -1035,8 +1033,7 @@ pub fn consume_sampled_counterfactual_transport_with_limits(
     wire.check_digests(expected)?;
     let problem = wire.problem.to_problem().map_err(|e| malformed("problem", e.to_string()))?;
     let query = wire.query.to_query().map_err(|e| malformed("query", e.to_string()))?;
-    let catalog =
-        wire.catalog.to_catalog().map_err(|e| malformed("catalog", e.to_string()))?;
+    let catalog = wire.catalog.to_catalog().map_err(|e| malformed("catalog", e.to_string()))?;
     let decision =
         replay_counterfactual_transport(&problem, &query, &catalog, &wire.derivation.search, ctx)
             .map_err(|error| replay_refusal(&error))?;
@@ -1066,11 +1063,8 @@ pub fn consume_sampled_counterfactual_transport_with_limits(
                 .into(),
         ));
     }
-    let tables = wire
-        .tables
-        .iter()
-        .map(SampledCountTableWire::to_table)
-        .collect::<Result<Vec<_>, _>>()?;
+    let tables =
+        wire.tables.iter().map(SampledCountTableWire::to_table).collect::<Result<Vec<_>, _>>()?;
     let request = SampledTransportRequest {
         tables,
         overlap: wire.overlap.to_declaration()?,

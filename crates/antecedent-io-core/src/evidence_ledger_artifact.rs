@@ -27,8 +27,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::evidence_ledger::{
-    AppliedOperation, ClaimClass, CombinationRequest, DetectedOverlap, EvidenceLedger, Lineage,
-    LedgerError, LedgerOperation, ObservationBasis, ObservationId, OperationEffect, OperationId,
+    AppliedOperation, ClaimClass, CombinationRequest, DetectedOverlap, EvidenceLedger, LedgerError,
+    LedgerOperation, Lineage, ObservationBasis, ObservationId, OperationEffect, OperationId,
     PoolingDependence, ResultId, ResultRevalidation, Revalidation, SourceDeclaration, SourceId,
     SourceKind, SynthesisKind, SynthesisOperation, TransportIdentity, parse_digest_hex,
 };
@@ -437,7 +437,10 @@ fn reals(values: &[u64]) -> Vec<f64> {
     values.iter().map(|v| f64::from_bits(*v)).collect()
 }
 
-fn digest_of(text: &str, what: &'static str) -> Result<SemanticDigest, EvidenceLedgerArtifactError> {
+fn digest_of(
+    text: &str,
+    what: &'static str,
+) -> Result<SemanticDigest, EvidenceLedgerArtifactError> {
     parse_digest_hex(text).ok_or_else(|| malformed(format!("{what} is not 64 hex digits")))
 }
 
@@ -477,10 +480,9 @@ fn lineage_to_wire(lineage: &Lineage) -> LineageWire {
             likelihood: Some(likelihood.to_hex()),
             ..empty()
         },
-        Lineage::DerivedFromUsedData { inputs } => LineageWire {
-            inputs: inputs.iter().map(SourceId::to_hex).collect(),
-            ..empty()
-        },
+        Lineage::DerivedFromUsedData { inputs } => {
+            LineageWire { inputs: inputs.iter().map(SourceId::to_hex).collect(), ..empty() }
+        }
     }
 }
 
@@ -621,24 +623,27 @@ fn operation_to_wire(applied: &AppliedOperation) -> OperationWire {
 // -- wire -> ledger ----------------------------------------------------------------------------
 
 fn need<'a>(
-    value: &'a Option<String>,
+    value: Option<&'a String>,
     what: &'static str,
 ) -> Result<&'a str, EvidenceLedgerArtifactError> {
-    value.as_deref().ok_or_else(|| malformed(format!("lineage {what} is missing")))
+    value.map(String::as_str).ok_or_else(|| malformed(format!("lineage {what} is missing")))
 }
 
 fn lineage_from_wire(wire: &LineageWire) -> Result<Lineage, EvidenceLedgerArtifactError> {
     Ok(match wire.kind.as_str() {
         "original" => Lineage::Original,
-        "duplicate" => Lineage::Duplicate { of: source_id(need(&wire.of, "parent")?)? },
-        "subset" => Lineage::Subset { of: source_id(need(&wire.of, "parent")?)? },
+        "duplicate" => Lineage::Duplicate { of: source_id(need(wire.of.as_ref(), "parent")?)? },
+        "subset" => Lineage::Subset { of: source_id(need(wire.of.as_ref(), "parent")?)? },
         "transform" => Lineage::Transform {
-            of: source_id(need(&wire.of, "parent")?)?,
-            transform: digest_of(need(&wire.transform, "transform identity")?, "transform identity")?,
+            of: source_id(need(wire.of.as_ref(), "parent")?)?,
+            transform: digest_of(
+                need(wire.transform.as_ref(), "transform identity")?,
+                "transform identity",
+            )?,
         },
         "prior_plus_likelihood" => Lineage::PriorPlusLikelihood {
-            prior: source_id(need(&wire.prior, "prior")?)?,
-            likelihood: source_id(need(&wire.likelihood, "likelihood")?)?,
+            prior: source_id(need(wire.prior.as_ref(), "prior")?)?,
+            likelihood: source_id(need(wire.likelihood.as_ref(), "likelihood")?)?,
         },
         "derived_from_used_data" => {
             Lineage::DerivedFromUsedData { inputs: source_ids(&wire.inputs)? }
@@ -653,9 +658,7 @@ fn source_from_wire(wire: &SourceWire) -> Result<SourceDeclaration, EvidenceLedg
     let observations = match &wire.observations {
         Some(rows) => ObservationBasis::Declared(
             rows.iter()
-                .map(|r| {
-                    digest_of(r, "observation identity").map(ObservationId::from_digest)
-                })
+                .map(|r| digest_of(r, "observation identity").map(ObservationId::from_digest))
                 .collect::<Result<Vec<_>, _>>()?,
         ),
         None => ObservationBasis::Undeclared,
@@ -678,7 +681,9 @@ fn source_from_wire(wire: &SourceWire) -> Result<SourceDeclaration, EvidenceLedg
     })
 }
 
-fn request_from_wire(wire: &CombinationWire) -> Result<CombinationRequest, EvidenceLedgerArtifactError> {
+fn request_from_wire(
+    wire: &CombinationWire,
+) -> Result<CombinationRequest, EvidenceLedgerArtifactError> {
     let kind = SynthesisKind::from_name(&wire.kind)
         .ok_or(EvidenceLedgerArtifactError::UnsupportedSemantics("combination kind"))?;
     let operation = match kind {
@@ -687,36 +692,34 @@ fn request_from_wire(wire: &CombinationWire) -> Result<CombinationRequest, Evide
                 .dependence
                 .as_ref()
                 .ok_or_else(|| malformed("a pooling declares its dependence"))?;
-            let dependence = match dependence.kind.as_str() {
-                "independent" => PoolingDependence::Independent,
-                "declared_covariance" => PoolingDependence::DeclaredCovariance {
-                    covariance: digest_of(
-                        dependence
-                            .covariance
-                            .as_deref()
-                            .ok_or_else(|| malformed("a declared covariance carries its identity"))?,
-                        "covariance identity",
-                    )?,
-                    has_cross_covariance: dependence.has_cross_covariance,
-                },
-                "assumption_range" => PoolingDependence::AssumptionRange {
-                    rho_lo: f64::from_bits(
-                        dependence
-                            .rho_lo_bits
-                            .ok_or_else(|| malformed("an assumption range carries its bounds"))?,
-                    ),
-                    rho_hi: f64::from_bits(
-                        dependence
-                            .rho_hi_bits
-                            .ok_or_else(|| malformed("an assumption range carries its bounds"))?,
-                    ),
-                },
-                _ => {
-                    return Err(EvidenceLedgerArtifactError::UnsupportedSemantics(
-                        "pooling dependence kind",
-                    ));
-                }
-            };
+            let dependence =
+                match dependence.kind.as_str() {
+                    "independent" => PoolingDependence::Independent,
+                    "declared_covariance" => PoolingDependence::DeclaredCovariance {
+                        covariance: digest_of(
+                            dependence.covariance.as_deref().ok_or_else(|| {
+                                malformed("a declared covariance carries its identity")
+                            })?,
+                            "covariance identity",
+                        )?,
+                        has_cross_covariance: dependence.has_cross_covariance,
+                    },
+                    "assumption_range" => {
+                        PoolingDependence::AssumptionRange {
+                            rho_lo: f64::from_bits(dependence.rho_lo_bits.ok_or_else(|| {
+                                malformed("an assumption range carries its bounds")
+                            })?),
+                            rho_hi: f64::from_bits(dependence.rho_hi_bits.ok_or_else(|| {
+                                malformed("an assumption range carries its bounds")
+                            })?),
+                        }
+                    }
+                    _ => {
+                        return Err(EvidenceLedgerArtifactError::UnsupportedSemantics(
+                            "pooling dependence kind",
+                        ));
+                    }
+                };
             SynthesisOperation::StatisticalPooling {
                 sources: source_ids(&wire.sources)?,
                 dependence,
@@ -737,10 +740,7 @@ fn request_from_wire(wire: &CombinationWire) -> Result<CombinationRequest, Evide
         },
         SynthesisKind::RepeatedObservationUse => SynthesisOperation::RepeatedObservationUse {
             sources: source_ids(&wire.sources)?,
-            stage: wire
-                .stage
-                .clone()
-                .ok_or_else(|| malformed("a repeated use names its stage"))?,
+            stage: wire.stage.clone().ok_or_else(|| malformed("a repeated use names its stage"))?,
         },
         _ => return Err(EvidenceLedgerArtifactError::UnsupportedSemantics("combination kind")),
     };
@@ -751,7 +751,9 @@ fn request_from_wire(wire: &CombinationWire) -> Result<CombinationRequest, Evide
     })
 }
 
-fn operation_from_wire(wire: &OperationWire) -> Result<LedgerOperation, EvidenceLedgerArtifactError> {
+fn operation_from_wire(
+    wire: &OperationWire,
+) -> Result<LedgerOperation, EvidenceLedgerArtifactError> {
     let target = || {
         wire.target
             .as_deref()
@@ -805,8 +807,9 @@ fn effect_from_wire(wire: &EffectWire) -> Result<OperationEffect, EvidenceLedger
             .map(|r| {
                 Ok(ResultRevalidation {
                     result: result_id(&r.result)?,
-                    class: Revalidation::from_name(&r.class)
-                        .ok_or(EvidenceLedgerArtifactError::UnsupportedSemantics("revalidation class"))?,
+                    class: Revalidation::from_name(&r.class).ok_or(
+                        EvidenceLedgerArtifactError::UnsupportedSemantics("revalidation class"),
+                    )?,
                 })
             })
             .collect::<Result<Vec<_>, EvidenceLedgerArtifactError>>()?,
@@ -888,7 +891,9 @@ fn compute_values(
     })
 }
 
-fn synthesis_to_wire(record: &SynthesisRecord) -> Result<SynthesisWire, EvidenceLedgerArtifactError> {
+fn synthesis_to_wire(
+    record: &SynthesisRecord,
+) -> Result<SynthesisWire, EvidenceLedgerArtifactError> {
     let (name, values) = compute_values(&record.method)?;
     let mut wire = SynthesisWire {
         result: record.result.to_hex(),
@@ -1019,7 +1024,14 @@ fn bind_to_result(
             SynthesisMethod::FixedEffectInverseVariance { .. }
             | SynthesisMethod::RandomEffectsDerSimonianLaird { .. }
             | SynthesisMethod::RandomEffectsReml { .. },
-            SynthesisOperation::StatisticalPooling { dependence: PoolingDependence::Independent, .. },
+            SynthesisOperation::StatisticalPooling {
+                dependence: PoolingDependence::Independent,
+                ..
+            },
+        )
+        | (
+            SynthesisMethod::HierarchicalBorrowing { .. },
+            SynthesisOperation::BayesianBorrowing { .. },
         ) => Ok(()),
         (
             SynthesisMethod::FixedEffectGls { covariance, .. },
@@ -1036,10 +1048,6 @@ fn bind_to_result(
             }
             Ok(())
         }
-        (
-            SynthesisMethod::HierarchicalBorrowing { .. },
-            SynthesisOperation::BayesianBorrowing { .. },
-        ) => Ok(()),
         (
             SynthesisMethod::DependenceEnvelope { rho_lo, rho_hi, .. },
             SynthesisOperation::StatisticalPooling {
@@ -1246,10 +1254,7 @@ impl EvidenceLedgerArtifact {
             version: EVIDENCE_LEDGER_ARTIFACT_VERSION,
             feature: EVIDENCE_LEDGER_ARTIFACT_FEATURE.to_owned(),
             operations: ledger.operations().iter().map(operation_to_wire).collect(),
-            syntheses: syntheses
-                .iter()
-                .map(synthesis_to_wire)
-                .collect::<Result<Vec<_>, _>>()?,
+            syntheses: syntheses.iter().map(synthesis_to_wire).collect::<Result<Vec<_>, _>>()?,
             head: ledger.head().to_hex(),
             state_digest: hex(ledger.state_digest()),
             identity: String::new(),

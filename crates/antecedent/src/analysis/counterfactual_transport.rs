@@ -44,13 +44,13 @@ use antecedent_identify::{
     counterfactual_transport_refusal, identify_counterfactual_transport,
 };
 use antecedent_io::IoError;
-use antecedent_io::counterfactual_transport_wire::{
-    CounterfactualTransportArtifactError, CounterfactualTransportExpectedIdentity,
-};
 use antecedent_io::counterfactual_transport_artifact::{
     ConsumedCounterfactualTransportOutcome, CounterfactualTransportConsumeLimits,
-    consume_counterfactual_transport,
-    identified_counterfactual_transport_artifact, obstructed_counterfactual_transport_artifact,
+    consume_counterfactual_transport, identified_counterfactual_transport_artifact,
+    obstructed_counterfactual_transport_artifact,
+};
+use antecedent_io::counterfactual_transport_wire::{
+    CounterfactualTransportArtifactError, CounterfactualTransportExpectedIdentity,
 };
 
 use super::transport_common::estimate_err;
@@ -152,7 +152,7 @@ impl CounterfactualTransportObstructionReport {
             &self.variable_names,
         )
         .and_then(|wire| wire.export())
-        .map_err(artifact_error)
+        .map_err(|error| artifact_error(&error))
     }
 }
 
@@ -244,7 +244,7 @@ impl CounterfactualTransportResult {
             &self.point,
         )
         .and_then(|wire| wire.export())
-        .map_err(artifact_error)
+        .map_err(|error| artifact_error(&error))
     }
 
     /// The identity a consumer should hold: the artifact's premises and data
@@ -261,7 +261,7 @@ impl CounterfactualTransportResult {
             &self.point,
         )
         .map(|wire| wire.identity())
-        .map_err(artifact_error)
+        .map_err(|error| artifact_error(&error))
     }
 }
 
@@ -282,7 +282,7 @@ fn identification_error(error: antecedent_identify::IdentificationError) -> IoEr
     }
 }
 
-fn artifact_error(error: CounterfactualTransportArtifactError) -> IoError {
+fn artifact_error(error: &CounterfactualTransportArtifactError) -> IoError {
     let (code, message) = error.refusal();
     IoError::Refused { code, message }
 }
@@ -290,9 +290,8 @@ fn artifact_error(error: CounterfactualTransportArtifactError) -> IoError {
 /// Describe a decision that is not an identification as the coded refusal that
 /// names what would change it.
 fn refusal_of(decision: &CounterfactualTransportDecision) -> IoError {
-    let code = decision
-        .reason_code()
-        .unwrap_or(antecedent_core::reason_code!("transport_not_certified"));
+    let code =
+        decision.reason_code().unwrap_or(antecedent_core::reason_code!("transport_not_certified"));
     let detail = decision.detail_code().unwrap_or_default();
     let text = match decision {
         CounterfactualTransportDecision::MissingEvidence(missing) => {
@@ -372,9 +371,8 @@ pub fn prepare_counterfactual_transport(
             ),
         });
     }
-    let decision =
-        identify_counterfactual_transport(problem, query, catalog, options.search, ctx)
-            .map_err(identification_error)?;
+    let decision = identify_counterfactual_transport(problem, query, catalog, options.search, ctx)
+        .map_err(identification_error)?;
     match decision {
         CounterfactualTransportDecision::Identified(derivation) => {
             let prepared = PreparedCounterfactualTransport {
@@ -390,10 +388,10 @@ pub fn prepare_counterfactual_transport(
             Ok(CounterfactualTransportPreparation::Identified(Box::new(prepared)))
         }
         CounterfactualTransportDecision::ProvenNonTransportable(obstruction) => {
-            let memory_limit_bytes = ctx.memory.hard_limit_bytes.map_or(
-                COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES,
-                |hard| hard.min(COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES),
-            );
+            let memory_limit_bytes =
+                ctx.memory.hard_limit_bytes.map_or(COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES, |hard| {
+                    hard.min(COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES)
+                });
             Ok(CounterfactualTransportPreparation::ProvenNonTransportable(Box::new(
                 CounterfactualTransportObstructionReport {
                     obstruction: *obstruction,
@@ -452,13 +450,9 @@ impl PreparedCounterfactualTransport {
     ) -> Result<CounterfactualTransportResult, IoError> {
         antecedent_estimate::refuse_cancelled(ctx, "counterfactual-transport evaluation")
             .map_err(estimate_err)?;
-        let point = evaluate_counterfactual_transport(
-            &self.derivation,
-            evidence,
-            self.evaluation,
-            ctx,
-        )
-        .map_err(estimate_err)?;
+        let point =
+            evaluate_counterfactual_transport(&self.derivation, evidence, self.evaluation, ctx)
+                .map_err(estimate_err)?;
         Ok(CounterfactualTransportResult {
             point,
             derivation: self.derivation.clone(),
@@ -496,6 +490,10 @@ impl PreparedCounterfactualTransport {
     ///
     /// # Errors
     /// As [`Self::evaluate`]; this value is untouched on error.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "refresh takes ownership of the replacement evidence: the caller hands over the new tables and keeps no alias"
+    )]
     pub fn refresh(
         &self,
         evidence: ExactTransportData,

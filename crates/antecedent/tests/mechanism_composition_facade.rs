@@ -4,10 +4,10 @@
 //! replays, and a refresh that keeps the plan and recomputes the numbers.
 //!
 //! Hand-computed oracle (linear-Gaussian chain), with
-//!   X = 1 + 2 e_X
-//!   M = 0.5 + 2 X + 1 e_M
-//!   Y = -1 + 0.5 X + 3 M + 0.5 e_Y
-//! so that Y = 0.5 + 6.5 X + 3 e_M + e_Y:
+//!   X = 1 + 2 `e_X`
+//!   M = 0.5 + 2 X + 1 `e_M`
+//!   Y = -1 + 0.5 X + 3 M + 0.5 `e_Y`
+//! so that Y = 0.5 + 6.5 X + 3 `e_M` + `e_Y`:
 //!   E[X]=1, E[M]=2.5, E[Y]=7; Var X=4, Var M=17, Var Y=178.25
 //!   Cov(X,M)=8, Cov(X,Y)=26, Cov(M,Y)=55
 //!   do(X=2): E[M]=4.5, E[Y]=13.5, Var M=1, Var Y=9.25, Cov(M,Y)=3
@@ -161,8 +161,8 @@ fn marginal(terms: Vec<ParameterTerm>, covariance: Vec<f64>) -> MechanismUncerta
     }
 }
 
-/// Marginal parameter laws of the chain: M (a_M, b_MX); X (a_X); Y listed out
-/// of canonical order (a_Y, b_YX, b_YM).
+/// Marginal parameter laws of the chain: M (`a_M`, `b_MX`); X (`a_X`); Y listed out
+/// of canonical order (`a_Y`, `b_YX`, `b_YM`).
 fn uncertain_chain() -> Vec<MechanismInput> {
     let mut mechanisms = chain();
     mechanisms[0].uncertainty = Some(marginal(vec![ParameterTerm::Intercept], vec![0.25]));
@@ -189,15 +189,16 @@ fn cross_blocks() -> Vec<CrossCovarianceBlock> {
         ParameterTerm::Coefficient("M".into()),
         ParameterTerm::Coefficient("X".into()),
     ];
-    let block = |first: &str, second: &str, fp: &[ParameterTerm], sp: &[ParameterTerm], v: Vec<f64>| {
-        CrossCovarianceBlock {
-            first: first.into(),
-            second: second.into(),
-            first_parameters: fp.to_vec(),
-            second_parameters: sp.to_vec(),
-            values: v,
-        }
-    };
+    let block =
+        |first: &str, second: &str, fp: &[ParameterTerm], sp: &[ParameterTerm], v: Vec<f64>| {
+            CrossCovarianceBlock {
+                first: first.into(),
+                second: second.into(),
+                first_parameters: fp.to_vec(),
+                second_parameters: sp.to_vec(),
+                values: v,
+            }
+        };
     vec![
         // cov(b_MX, b_YM) = 0.002 adds 2 * 6 * 4.5 * 0.002 = 0.108; every other
         // pair is an explicit zero block (a declared independence).
@@ -213,8 +214,7 @@ fn cross_blocks() -> Vec<CrossCovarianceBlock> {
 
 #[test]
 fn fitted_slots_compose_into_the_hand_computed_scm() {
-    let prepared =
-        StudyBuilder::mechanism_composition(request_of(chain()), &ctx()).unwrap();
+    let prepared = StudyBuilder::mechanism_composition(request_of(chain()), &ctx()).unwrap();
     assert_eq!(prepared.family(), MechanismFamily::LinearGaussian);
     assert_eq!(prepared.variables(), ["M", "X", "Y"]);
     assert!(prepared.declared_mechanisms().is_empty());
@@ -273,8 +273,7 @@ fn listing_order_does_not_change_the_plan_or_the_law_and_sampling_is_determinist
     // variance sqrt(2/n) = 0.0032: 6x.
     assert!((mean - 13.5).abs() < 0.05, "mean {mean}");
     assert!((var / 9.25 - 1.0).abs() < 0.02, "var {var}");
-    let again =
-        forward.sample(&[("X", 2.0)], n, &ExecutionContext::for_tests(20_260_101)).unwrap();
+    let again = forward.sample(&[("X", 2.0)], n, &ExecutionContext::for_tests(20_260_101)).unwrap();
     assert_eq!(table, again);
 }
 
@@ -282,8 +281,8 @@ fn listing_order_does_not_change_the_plan_or_the_law_and_sampling_is_determinist
 fn declared_mechanisms_are_labelled_and_need_acknowledgement() {
     let mut mechanisms = chain();
     mechanisms[1] = linear("M", 0.5, 1.0, &[("X", 2.0)], true);
-    let refusal = StudyBuilder::mechanism_composition(request_of(mechanisms.clone()), &ctx())
-        .unwrap_err();
+    let refusal =
+        StudyBuilder::mechanism_composition(request_of(mechanisms.clone()), &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "mechanism_composition_incoherent");
     assert_eq!(
         details(&refusal),
@@ -309,10 +308,7 @@ fn a_registry_slot_that_is_not_plain_linear_gaussian_does_not_compose() {
         sigma: 1.0,
     };
     let refusal = MechanismSource::from_fitted_slot(&slot, &["X"]).unwrap_err();
-    assert_eq!(
-        refusal.details(),
-        vec!["mechanism_composition.shape_coefficient_parent_mismatch"]
-    );
+    assert_eq!(refusal.details(), vec!["mechanism_composition.shape_coefficient_parent_mismatch"]);
 }
 
 // ---------------------------------------------------------------------------
@@ -325,8 +321,7 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused_with_structure(
     let mut mechanisms = chain();
     mechanisms[1].declaration.output.units = "mmHg".into();
     mechanisms[2].declaration.parents[1].units = "kPa".into();
-    let refusal =
-        StudyBuilder::mechanism_composition(request_of(mechanisms), &ctx()).unwrap_err();
+    let refusal = StudyBuilder::mechanism_composition(request_of(mechanisms), &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "quantity_semantics_mismatch");
     assert!(details(&refusal).contains(&"mechanism_composition.units_mismatch"), "{refusal:?}");
     let first = &refusal.refusals[0];
@@ -356,8 +351,7 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused_with_structure(
     // Support: Y was fitted on X in [0, 10]; X is declared on the whole line.
     let mut mechanisms = chain();
     mechanisms[2].parent_domains[0].1 = Domain::Interval { lo: 0.0, hi: 10.0 };
-    let refusal =
-        StudyBuilder::mechanism_composition(request_of(mechanisms), &ctx()).unwrap_err();
+    let refusal = StudyBuilder::mechanism_composition(request_of(mechanisms), &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "mechanism_composition_incoherent");
     assert_eq!(details(&refusal), vec!["mechanism_composition.support_not_contained"]);
 
@@ -372,8 +366,7 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused_with_structure(
     // Provenance: an unbound mechanism.
     let mut mechanisms = chain();
     mechanisms[1].declaration.artifact_id = " ".into();
-    let refusal =
-        StudyBuilder::mechanism_composition(request_of(mechanisms), &ctx()).unwrap_err();
+    let refusal = StudyBuilder::mechanism_composition(request_of(mechanisms), &ctx()).unwrap_err();
     assert_eq!(details(&refusal), vec!["mechanism_composition.provenance_missing_artifact"]);
 
     // Families are never mixed.
@@ -420,11 +413,13 @@ fn a_mechanism_from_another_population_needs_a_declared_admission() {
     };
     // A selection diagram with no arrow into M admits it.
     let mut request = request_of(from_source());
-    request.admissions = vec![admission(AdmissionBasis::SelectionDiagram { targets: vec!["X".into()] })];
+    request.admissions =
+        vec![admission(AdmissionBasis::SelectionDiagram { targets: vec!["X".into()] })];
     assert!(StudyBuilder::mechanism_composition(request, &ctx()).is_ok());
     // One that points into M does not.
     let mut request = request_of(from_source());
-    request.admissions = vec![admission(AdmissionBasis::SelectionDiagram { targets: vec!["M".into()] })];
+    request.admissions =
+        vec![admission(AdmissionBasis::SelectionDiagram { targets: vec!["M".into()] })];
     let refusal = StudyBuilder::mechanism_composition(request, &ctx()).unwrap_err();
     assert_eq!(
         details(&refusal),
@@ -612,20 +607,18 @@ fn a_missing_cross_covariance_pair_is_unknown_for_that_pair() {
     let refusal = prepared.mean_contrast_uncertainty(&ate_at(2.0)).unwrap_err();
     let found = details(&refusal);
     assert_eq!(found.len(), 2);
-    assert!(found
-        .iter()
-        .all(|d| *d == "mechanism_composition.posterior_dependence_cross_covariance_missing"));
+    assert!(
+        found
+            .iter()
+            .all(|d| *d == "mechanism_composition.posterior_dependence_cross_covariance_missing")
+    );
 }
 
 // ---------------------------------------------------------------------------
 // Finite tables
 // ---------------------------------------------------------------------------
 
-fn table_input(
-    variable: &str,
-    parents: &[&str],
-    rows: &[(&[&str], [f64; 2])],
-) -> MechanismInput {
+fn table_input(variable: &str, parents: &[&str], rows: &[(&[&str], [f64; 2])]) -> MechanismInput {
     let levels = vec!["0".to_owned(), "1".to_owned()];
     let mut input = MechanismInput {
         declaration: declaration(variable, parents, "category"),
@@ -704,8 +697,9 @@ fn finite_tables_match_the_enumerated_scm() {
         rows.pop();
     }
     let refusal = StudyBuilder::mechanism_composition(request, &ctx()).unwrap_err();
-    assert!(details(&refusal)
-        .contains(&"mechanism_composition.support_missing_parent_configuration"));
+    assert!(
+        details(&refusal).contains(&"mechanism_composition.support_missing_parent_configuration")
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -731,9 +725,12 @@ fn independent_chain() -> antecedent::PreparedMechanismComposition {
 fn artifact_replays_and_refuses_semantic_mutation() {
     let prepared = independent_chain();
     let export = prepared.export(contrast_query(), &ctx()).unwrap();
-    let consumed =
-        consume_mechanism_composition_artifact(&export.bytes, Some(&export.premises_digest), &ctx())
-            .unwrap();
+    let consumed = consume_mechanism_composition_artifact(
+        &export.bytes,
+        Some(&export.premises_digest),
+        &ctx(),
+    )
+    .unwrap();
     assert_eq!(consumed.family, MechanismFamily::LinearGaussian);
     let (point, variance, dependence, method) = consumed.gaussian_functional().unwrap();
     near(point, 13.5);
@@ -772,12 +769,8 @@ fn artifact_replays_and_refuses_semantic_mutation() {
 
     // ... and one that breaks coherence is refused with the structured defect.
     let mut wire = MechanismCompositionArtifactWire::decode(&export.bytes).unwrap();
-    let m = wire
-        .premises
-        .mechanisms
-        .iter_mut()
-        .find(|m| m.variable == "M")
-        .expect("M is a premise");
+    let m =
+        wire.premises.mechanisms.iter_mut().find(|m| m.variable == "M").expect("M is a premise");
     m.output_units = "mmHg".into();
     wire.premises_digest = mechanism_composition_identity(&wire.premises, &wire.query).unwrap();
     let bytes = wire.export().unwrap();
@@ -798,8 +791,7 @@ fn a_finite_artifact_matches_the_enumerated_truth_and_an_uncertainty_claim_needs
             &ctx(),
         )
         .unwrap();
-    let consumed =
-        consume_mechanism_composition_artifact(&export.bytes, None, &ctx()).unwrap();
+    let consumed = consume_mechanism_composition_artifact(&export.bytes, None, &ctx()).unwrap();
     let distribution = consumed.finite_distribution().unwrap();
     assert_eq!(distribution.len(), 2);
     near(distribution[1].1, 0.72);
@@ -855,10 +847,8 @@ fn refresh_keeps_the_plan_recomputes_the_numbers_and_refuses_other_mechanisms() 
 
     // Refused: another mechanism family, other parents, an unknown variable.
     let mut changed_family = refit.clone();
-    changed_family.source = MechanismSource::DeclaredTable {
-        levels: vec!["0".into(), "1".into()],
-        rows: vec![],
-    };
+    changed_family.source =
+        MechanismSource::DeclaredTable { levels: vec!["0".into(), "1".into()], rows: vec![] };
     let refusal = prepared.refresh_mechanisms(vec![changed_family], None, &ctx()).unwrap_err();
     assert_eq!(details(&refusal), vec!["mechanism_composition.family_mixed"]);
     let mut other_parents = refit.clone();

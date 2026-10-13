@@ -2,7 +2,7 @@
 //! mutations a consumer must refuse.
 //!
 //! Oracle (hand computed; see the model-crate suite for the derivation):
-//!   X = 1 + 2 e_X ; M = 0.5 + 2 X + e_M ; Y = -1 + 0.5 X + 3 M + 0.5 e_Y
+//!   X = 1 + 2 `e_X` ; M = 0.5 + 2 X + `e_M` ; Y = -1 + 0.5 X + 3 M + 0.5 `e_Y`
 //!   do(X=2): E[Y] = 13.5, Var[Y] = 9.25
 //!   finite chain, do(X=1): P(Y=1) = 0.72
 
@@ -16,8 +16,7 @@ use antecedent_contract::{
 use antecedent_core::ExecutionContext;
 use antecedent_io_core::{
     CompositionQueryWire, CompositionResultWire, MechanismCompositionArtifactError,
-    MechanismCompositionArtifactWire, MechanismNumbers, lower_plan,
-    mechanism_composition_identity,
+    MechanismCompositionArtifactWire, MechanismNumbers, lower_plan, mechanism_composition_identity,
 };
 use antecedent_model::compose::{
     ComposedModelSpec, Domain, MechanismContext, MechanismDescriptor, MechanismFamily,
@@ -119,8 +118,8 @@ fn a_sealed_artifact_replays_to_the_closed_form_and_round_trips() {
 
 #[test]
 fn listing_order_does_not_change_the_identity() {
-    let forward = MechanismCompositionArtifactWire::seal(&spec(chain()), law_query(), &ctx())
-        .unwrap();
+    let forward =
+        MechanismCompositionArtifactWire::seal(&spec(chain()), law_query(), &ctx()).unwrap();
     let mut shuffled = chain();
     shuffled.reverse();
     for m in &mut shuffled {
@@ -132,8 +131,8 @@ fn listing_order_does_not_change_the_identity() {
     }
     let mut shuffled_spec = spec(shuffled);
     shuffled_spec.edges.reverse();
-    let backward = MechanismCompositionArtifactWire::seal(&shuffled_spec, law_query(), &ctx())
-        .unwrap();
+    let backward =
+        MechanismCompositionArtifactWire::seal(&shuffled_spec, law_query(), &ctx()).unwrap();
     assert_eq!(forward.premises_digest, backward.premises_digest);
     assert_eq!(forward.export().unwrap(), backward.export().unwrap());
 }
@@ -145,12 +144,10 @@ fn semantic_mutations_are_refused() {
     // An edit that is not resealed.
     let mut edited = wire.clone();
     if let antecedent_io_core::mechanism_composition_artifact::MechanismFormWire::LinearGaussian {
-        slot,
+        slot: antecedent_io_core::MechanismSlotWire::LinearGaussian { intercept, .. },
     } = &mut edited.premises.mechanisms[0].form
     {
-        if let antecedent_io_core::MechanismSlotWire::LinearGaussian { intercept, .. } = slot {
-            *intercept += 1.0;
-        }
+        *intercept += 1.0;
     }
     assert_eq!(
         edited.consume(None, &ctx()).unwrap_err(),
@@ -211,7 +208,11 @@ fn semantic_mutations_are_refused() {
     reseal(&mut dropped);
     match dropped.consume(None, &ctx()).unwrap_err() {
         MechanismCompositionArtifactError::Incoherent { refusals } => {
-            assert!(refusals.iter().any(|r| r.detail == "mechanism_composition.identity_parent_without_mechanism"));
+            assert!(
+                refusals
+                    .iter()
+                    .any(|r| r.detail == "mechanism_composition.identity_parent_without_mechanism")
+            );
         }
         other => panic!("{other:?}"),
     }
@@ -310,11 +311,7 @@ fn uncertainty_artifact_needs_a_declared_dependence_and_unknown_is_a_joint_law_r
     assert!(MechanismCompositionArtifactWire::seal(&unknown, law_query(), &ctx()).is_ok());
 }
 
-fn table(
-    var: &str,
-    parents: &[(&str, &[&str])],
-    rows: &[(&[&str], f64)],
-) -> MechanismDescriptor {
+fn table(var: &str, parents: &[(&str, &[&str])], rows: &[(&[&str], f64)]) -> MechanismDescriptor {
     // Binary variable; `rows` gives (parent configuration, P(level "1")).
     let levels = vec!["0".to_owned(), "1".to_owned()];
     MechanismDescriptor {
@@ -452,7 +449,11 @@ fn numbers() -> BTreeMap<String, MechanismNumbers> {
             MechanismNumbers {
                 form: d.form.clone(),
                 output_support: Domain::Real,
-                parent_domains: d.parents.iter().map(|p| (p.variable.clone(), Domain::Real)).collect(),
+                parent_domains: d
+                    .parents
+                    .iter()
+                    .map(|p| (p.variable.clone(), Domain::Real))
+                    .collect(),
                 uncertainty: None,
                 latent_loadings: Vec::new(),
             },
@@ -467,9 +468,9 @@ fn a_semantic_plan_binds_to_numbers_and_a_foreign_population_needs_its_admission
     // hand-built specification.
     let plan = check_mechanism_composition(&declaration("pop")).unwrap();
     let lowered = lower_plan(&plan, &numbers(), PosteriorDependence::Unknown).unwrap();
-    let from_plan =
-        MechanismCompositionArtifactWire::seal(&lowered, law_query(), &ctx()).unwrap();
-    let direct = MechanismCompositionArtifactWire::seal(&spec(chain()), law_query(), &ctx()).unwrap();
+    let from_plan = MechanismCompositionArtifactWire::seal(&lowered, law_query(), &ctx()).unwrap();
+    let direct =
+        MechanismCompositionArtifactWire::seal(&spec(chain()), law_query(), &ctx()).unwrap();
     assert_eq!(from_plan.result, direct.result);
     assert_eq!(from_plan.premises_digest, direct.premises_digest);
 
@@ -511,7 +512,11 @@ fn a_semantic_plan_binds_to_numbers_and_a_foreign_population_needs_its_admission
     reseal(&mut stripped);
     match stripped.consume(None, &ctx()).unwrap_err() {
         MechanismCompositionArtifactError::Incoherent { refusals } => {
-            assert!(refusals.iter().any(|r| r.detail == "mechanism_composition.population_undeclared_transport"));
+            assert!(
+                refusals
+                    .iter()
+                    .any(|r| r.detail == "mechanism_composition.population_undeclared_transport")
+            );
         }
         other => panic!("{other:?}"),
     }

@@ -162,10 +162,6 @@ pub use smoothed_dose::{
 #[cfg(feature = "calibration-internal")]
 pub use smoothed_dose::{SmoothedDoseIntervalRun, smoothed_dose_interval_internal};
 
-pub use counterfactual_transport::{
-    CounterfactualTransportEvidence, CounterfactualTransportPoint, LoweredCounterfactualItem,
-    evaluate_counterfactual_transport, lower_counterfactual_transport_items,
-};
 pub use admg_conditional_transport::{
     AdmgConditionalExactPlan, prepare_exact_admg_conditional_transport,
 };
@@ -199,6 +195,10 @@ pub use cluster_dml_aipw::{
     endpoint_components, flexible_learner_dependence_refusal,
 };
 pub use conditional::{ConditionalArmScores, ConditionalLinearAdjustment};
+pub use counterfactual_transport::{
+    CounterfactualTransportEvidence, CounterfactualTransportPoint, LoweredCounterfactualItem,
+    evaluate_counterfactual_transport, lower_counterfactual_transport_items,
+};
 pub use crossfit_aipw::{
     DEFAULT_AIPW_FOLDS, WeightedSupport, build_binary_scores, crossfit_binary_scores,
 };

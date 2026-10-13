@@ -94,6 +94,10 @@ struct BinaryRatesWire {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[allow(
+    clippy::struct_field_names,
+    reason = "the wire field names are the serialized identity names of a posterior reference"
+)]
 struct PosteriorReferenceWire {
     provider_id: String,
     object_id: String,
@@ -464,19 +468,21 @@ pub fn model_to_wire(model: &MeasurementModel) -> MeasurementModelWire {
                 max_condition_bits: max_condition.to_bits(),
             }
         }
-        MeasurementParameters::ExternalPosterior { reference, conditioned_on_outcome, min_draws } => {
-            ParametersWire::ExternalPosterior {
-                reference: PosteriorReferenceWire {
-                    provider_id: reference.provider_id.clone(),
-                    object_id: reference.object_id.clone(),
-                    version_id: reference.version_id.clone(),
-                    snapshot_id: reference.snapshot_id.clone(),
-                    request_id: reference.request_id.clone(),
-                },
-                conditioned_on_outcome: *conditioned_on_outcome,
-                min_draws: *min_draws,
-            }
-        }
+        MeasurementParameters::ExternalPosterior {
+            reference,
+            conditioned_on_outcome,
+            min_draws,
+        } => ParametersWire::ExternalPosterior {
+            reference: PosteriorReferenceWire {
+                provider_id: reference.provider_id.clone(),
+                object_id: reference.object_id.clone(),
+                version_id: reference.version_id.clone(),
+                snapshot_id: reference.snapshot_id.clone(),
+                request_id: reference.request_id.clone(),
+            },
+            conditioned_on_outcome: *conditioned_on_outcome,
+            min_draws: *min_draws,
+        },
     };
     let evidence = match &model.evidence {
         ParameterEvidence::Declared { declarer } => {
@@ -525,6 +531,10 @@ pub fn model_to_wire(model: &MeasurementModel) -> MeasurementModelWire {
 ///
 /// # Errors
 /// An unknown name or a model that fails validation refuses.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one flat decode of each wire field of the model, in declaration order"
+)]
 pub fn model_from_wire(wire: &MeasurementModelWire) -> Result<MeasurementModel, IoError> {
     let structure = match (wire.structure.kind.as_str(), wire.structure.axis.as_deref()) {
         ("non_differential", None) => ErrorStructure::NonDifferential,
@@ -560,7 +570,12 @@ pub fn model_from_wire(wire: &MeasurementModelWire) -> Result<MeasurementModel, 
                 min_reliability: f64::from_bits(*min_reliability_bits),
             }
         }
-        ParametersWire::Categorical { levels, confusion_bits, column_counts, max_condition_bits } => {
+        ParametersWire::Categorical {
+            levels,
+            confusion_bits,
+            column_counts,
+            max_condition_bits,
+        } => {
             if levels.len() > 16 || confusion_bits.len() > 16 * 16 {
                 return Err(IoError::TooLarge);
             }
@@ -586,7 +601,9 @@ pub fn model_from_wire(wire: &MeasurementModelWire) -> Result<MeasurementModel, 
         }
     };
     let evidence = match &wire.evidence {
-        EvidenceWire::Declared { declarer } => ParameterEvidence::Declared { declarer: declarer.clone() },
+        EvidenceWire::Declared { declarer } => {
+            ParameterEvidence::Declared { declarer: declarer.clone() }
+        }
         EvidenceWire::ValidationSample { sample_id, units } => {
             ParameterEvidence::ValidationSample { sample_id: sample_id.clone(), units: *units }
         }
@@ -721,7 +738,7 @@ fn moments_to_wire(m: &LinearMoments) -> MomentsWire {
 
 fn moments_from_wire(w: &MomentsWire) -> Result<LinearMoments, IoError> {
     let dim = w.dim as usize;
-    if dim < 2 || dim > MAX_DIM {
+    if !(2..=MAX_DIM).contains(&dim) {
         return Err(IoError::TooLarge);
     }
     Ok(LinearMoments {
@@ -746,11 +763,7 @@ fn replay_to_wire(replay: &MeasurementReplay) -> ReplayWire {
             coefficient_index: u32::try_from(*coefficient_index).unwrap_or(u32::MAX),
         },
         MeasurementReplay::BinaryPrevalence { events, total, arm_id } => {
-            ReplayWire::BinaryPrevalence {
-                events: *events,
-                total: *total,
-                arm_id: arm_id.clone(),
-            }
+            ReplayWire::BinaryPrevalence { events: *events, total: *total, arm_id: arm_id.clone() }
         }
         MeasurementReplay::BinaryRiskDifference { exposed_arm_id, unexposed_arm_id, table } => {
             ReplayWire::BinaryRiskDifference {
@@ -835,10 +848,12 @@ fn replay_from_wire(wire: &ReplayWire) -> Result<MeasurementReplay, IoError> {
             let functional = match (functional.as_str(), second) {
                 ("proportion", None) => CategoricalReplayFunctional::Proportion(first.clone()),
                 ("outcome_mean", None) => CategoricalReplayFunctional::OutcomeMean(first.clone()),
-                ("outcome_contrast", Some(second)) => CategoricalReplayFunctional::OutcomeContrast {
-                    first: first.clone(),
-                    second: second.clone(),
-                },
+                ("outcome_contrast", Some(second)) => {
+                    CategoricalReplayFunctional::OutcomeContrast {
+                        first: first.clone(),
+                        second: second.clone(),
+                    }
+                }
                 _ => return Err(convert("unrecognized categorical functional")),
             };
             MeasurementReplay::Categorical {
@@ -853,7 +868,11 @@ fn replay_from_wire(wire: &ReplayWire) -> Result<MeasurementReplay, IoError> {
                 functional,
             }
         }
-        ReplayWire::MultipleImputation { coefficients_bits, covariances_bits, coefficient_index } => {
+        ReplayWire::MultipleImputation {
+            coefficients_bits,
+            covariances_bits,
+            coefficient_index,
+        } => {
             if coefficients_bits.len() > MAX_MEASUREMENT_IMPUTATIONS
                 || covariances_bits.len() > MAX_MEASUREMENT_IMPUTATIONS
                 || coefficients_bits.iter().any(|c| c.len() > MAX_DIM)
@@ -918,6 +937,10 @@ fn level_index(levels: &[String], level: &str) -> Result<usize, IoError> {
 /// # Errors
 /// A replay input that does not belong to the model's route or structure, or a
 /// correction the model's declared bounds refuse.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one match arm per measurement route, each recomputing its corrected functional from the same inputs"
+)]
 pub fn replay_values(
     model: &MeasurementModel,
     replay: &MeasurementReplay,
@@ -959,7 +982,9 @@ pub fn replay_values(
         (
             MeasurementReplay::MultipleImputation { coefficients, covariances, coefficient_index },
             MeasurementParameters::ExternalPosterior {
-                conditioned_on_outcome: true, min_draws, ..
+                conditioned_on_outcome: true,
+                min_draws,
+                ..
             },
         ) => {
             if coefficients.len() < *min_draws as usize {
@@ -990,7 +1015,9 @@ pub fn replay_values(
                 }
                 _ => None,
             }
-            .ok_or_else(|| refused("no rates apply to the replayed arm under the declared structure"))?;
+            .ok_or_else(|| {
+                refused("no rates apply to the replayed arm under the declared structure")
+            })?;
             let result = corrected_prevalence(*events, *total, &error_rates(entry)?, *min_youden)
                 .map_err(|e| convert(e.to_string()))?;
             Ok(ReplayedValues {
@@ -1010,7 +1037,11 @@ pub fn replay_values(
                     let shared = rates
                         .first()
                         .ok_or_else(|| convert("a non-differential model has shared rates"))?;
-                    corrected_risk_difference_nondifferential(table, &error_rates(shared)?, *min_youden)
+                    corrected_risk_difference_nondifferential(
+                        table,
+                        &error_rates(shared)?,
+                        *min_youden,
+                    )
                 }
                 ErrorStructure::Differential(DifferentialAxis::Arm) => {
                     let exposed = find_arm(rates, exposed_arm_id)
@@ -1039,8 +1070,9 @@ pub fn replay_values(
             MeasurementReplay::Categorical { classes, functional },
             MeasurementParameters::Categorical { levels, confusion, column_counts, max_condition },
         ) => {
-            let matrix = ConfusionMatrix::new(levels.len(), confusion.clone(), column_counts.clone())
-                .map_err(|e| convert(e.to_string()))?;
+            let matrix =
+                ConfusionMatrix::new(levels.len(), confusion.clone(), column_counts.clone())
+                    .map_err(|e| convert(e.to_string()))?;
             let result = corrected_categories(classes, &matrix, *max_condition)
                 .map_err(|e| convert(e.to_string()))?;
             let k = levels.len();
@@ -1157,7 +1189,9 @@ fn validate_metadata(meta: &MeasurementModelMetadata) -> Result<(), IoError> {
             ));
         }
         (_, None) => {}
-        (_, Some(_)) => return Err(convert("only an external-posterior result carries a trust label")),
+        (_, Some(_)) => {
+            return Err(convert("only an external-posterior result carries a trust label"));
+        }
     }
     let replay = replay_from_wire(&result.replay)?;
     let values = replay_values(&model, &replay)?;
@@ -1174,7 +1208,7 @@ fn validate_metadata(meta: &MeasurementModelMetadata) -> Result<(), IoError> {
         record.naive_point.is_none()
     } else {
         record.naive_point.is_some() == values.naive_point.is_some()
-            && !record.naive_point.zip(values.naive_point).is_some_and(|(a, b)| !near(a, b))
+            && record.naive_point.zip(values.naive_point).is_none_or(|(a, b)| near(a, b))
     };
     if record.functional_id != values.functional_id
         || !rows_ok
@@ -1259,10 +1293,7 @@ impl MeasurementModelArtifact {
     /// (see [`antecedent_core::measurement_model::measurement_data_digest`]).
     #[must_use]
     pub fn covers_data_identity(&self, identity: &SemanticDigest) -> bool {
-        self.metadata
-            .result
-            .as_ref()
-            .is_some_and(|r| r.record.data_identity == identity.to_hex())
+        self.metadata.result.as_ref().is_some_and(|r| r.record.data_identity == identity.to_hex())
     }
 
     /// Serialize through the checksummed sectioned container.
@@ -1332,9 +1363,7 @@ impl MeasurementModelArtifact {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent_core::measurement_model::{
-        MeasurementBinding, measurement_data_digest,
-    };
+    use antecedent_core::measurement_model::{MeasurementBinding, measurement_data_digest};
 
     fn binary_model() -> MeasurementModel {
         MeasurementModel {
@@ -1370,10 +1399,7 @@ mod tests {
                 coordinate_system_id: "scalar".into(),
                 version: 1,
             },
-            evidence: ParameterEvidence::ValidationSample {
-                sample_id: "val".into(),
-                units: 400,
-            },
+            evidence: ParameterEvidence::ValidationSample { sample_id: "val".into(), units: 400 },
         }
     }
 
@@ -1450,11 +1476,7 @@ mod tests {
 
     fn prevalence_result(model: &MeasurementModel) -> MeasurementResult {
         // Truth 0.3 under Se 0.9 / Sp 0.8: observed 410 of 1000.
-        let replay = MeasurementReplay::BinaryPrevalence {
-            events: 410,
-            total: 1000,
-            arm_id: None,
-        };
+        let replay = MeasurementReplay::BinaryPrevalence { events: 410, total: 1000, arm_id: None };
         let values = replay_values(model, &replay).unwrap();
         MeasurementResult {
             record: CorrectedFunctionalRecord {

@@ -92,19 +92,11 @@ fn target(
     class: ExpectedClass,
 ) -> Target {
     let expected_value = query.value(populations);
-    Target {
-        label,
-        query,
-        expected_value,
-        class,
-    }
+    Target { label, query, expected_value, class }
 }
 
 fn pops(source: FiniteScm, target: FiniteScm) -> Vec<Population> {
-    vec![
-        Population::new("source", source),
-        Population::new("target", target),
-    ]
+    vec![Population::new("source", source), Population::new("target", target)]
 }
 
 fn y_is_one(var: CfVar) -> Vec<Atom> {
@@ -114,10 +106,7 @@ fn y_is_one(var: CfVar) -> Vec<Atom> {
 fn nested(var: &str, x: usize, m: &str, xp: usize) -> CfVar {
     CfVar::nested(
         var,
-        vec![
-            ("X", Setting::Level(x)),
-            (m, Setting::cf(CfVar::under(m, &[("X", xp)]))),
-        ],
+        vec![("X", Setting::Level(x)), (m, Setting::cf(CfVar::under(m, &[("X", xp)])))],
     )
 }
 
@@ -135,11 +124,7 @@ fn mediation_population(uz: f64) -> FiniteScm {
         .endo("Z", 2, Mechanism::new(|_, u| u[0]))
         .endo("X", 2, Mechanism::new(|v, u| v[0] ^ u[1]))
         .endo("M", 3, Mechanism::new(|v, u| (v[1] + v[0] + u[2]) % 3))
-        .endo(
-            "Y",
-            2,
-            Mechanism::new(|v, u| usize::from(v[2] + v[1] * v[0] >= 2) ^ u[3]),
-        )
+        .endo("Y", 2, Mechanism::new(|v, u| usize::from(v[2] + v[1] * v[0] >= 2) ^ u[3]))
 }
 
 /// Natural direct/indirect effect transport. Only the covariate law `P(Z)`
@@ -164,14 +149,7 @@ pub fn nonlinear_mediation_covariate_shift() -> Case {
                      on Z only; Y_{x,M_{x'}} = sum_{z,m} P(y|x,m,z)P(m|x',z)P*(z)",
         graph: CaseGraph {
             observed: vec!["Z", "X", "M", "Y"],
-            directed: vec![
-                ("Z", "X"),
-                ("Z", "M"),
-                ("Z", "Y"),
-                ("X", "M"),
-                ("X", "Y"),
-                ("M", "Y"),
-            ],
+            directed: vec![("Z", "X"), ("Z", "M"), ("Z", "Y"), ("X", "M"), ("X", "Y"), ("M", "Y")],
             bidirected: vec![],
             selection: vec![("S_Z", "Z")],
         },
@@ -204,11 +182,7 @@ fn confounded_covariate_population(uz: f64) -> FiniteScm {
         .exo("Uy", bern(0.125))
         .endo("Z", 2, Mechanism::new(|_, u| u[0]))
         .endo("X", 2, Mechanism::new(|v, u| u[1] ^ (v[0] & u[2])))
-        .endo(
-            "Y",
-            2,
-            Mechanism::new(|v, u| v[1] ^ (v[0] & u[1]) ^ u[3]),
-        )
+        .endo("Y", 2, Mechanism::new(|v, u| v[1] ^ (v[0] & u[1]) ^ u[3]))
 }
 
 fn confounded_graph() -> CaseGraph {
@@ -221,10 +195,7 @@ fn confounded_graph() -> CaseGraph {
 }
 
 fn source_and_target_z() -> (FiniteScm, FiniteScm) {
-    (
-        confounded_covariate_population(0.25),
-        confounded_covariate_population(0.75),
-    )
+    (confounded_covariate_population(0.25), confounded_covariate_population(0.75))
 }
 
 /// Joint counterfactual `P*(Y_{x=1}=1, X=0)` needing the source observational
@@ -241,10 +212,7 @@ pub fn joint_counterfactual_two_source_regimes() -> Case {
     let populations = pops(s, t);
     let query = TargetQuery::new(
         "target",
-        vec![
-            Atom::new(CfVar::under("Y", &[("X", 1)]), 1),
-            Atom::factual("X", 0),
-        ],
+        vec![Atom::new(CfVar::under("Y", &[("X", 1)]), 1), Atom::factual("X", 0)],
         vec![],
     );
     Case {
@@ -259,12 +227,7 @@ pub fn joint_counterfactual_two_source_regimes() -> Case {
             EvidenceSpec::new("source", &[("X", 1)], &["Z", "X", "Y"]),
             EvidenceSpec::new("target", &[], &["Z"]),
         ],
-        targets: vec![target(
-            "Y_{x1}=1,X=0",
-            &populations,
-            query,
-            ExpectedClass::Identified,
-        )],
+        targets: vec![target("Y_{x1}=1,X=0", &populations, query, ExpectedClass::Identified)],
         populations,
         alternative: None,
     }
@@ -296,12 +259,7 @@ pub fn effect_of_treatment_on_treated_with_selection() -> Case {
             EvidenceSpec::new("source", &[("X", 1)], &["Z", "X", "Y"]),
             EvidenceSpec::new("target", &[], &["Z"]),
         ],
-        targets: vec![target(
-            "P(Y_{x1}=1 | X=0)",
-            &populations,
-            query,
-            ExpectedClass::Identified,
-        )],
+        targets: vec![target("P(Y_{x1}=1 | X=0)", &populations, query, ExpectedClass::Identified)],
         populations,
         alternative: None,
     }
@@ -332,11 +290,8 @@ fn front_door_population(um: f64) -> FiniteScm {
 /// need only observe `{X, M}`; `Y` is never measured there.
 pub fn transportable_latent_district() -> Case {
     let populations = pops(front_door_population(0.25), front_door_population(0.5));
-    let query = TargetQuery::new(
-        "target",
-        vec![Atom::new(CfVar::under("Y", &[("X", 1)]), 1)],
-        vec![],
-    );
+    let query =
+        TargetQuery::new("target", vec![Atom::new(CfVar::under("Y", &[("X", 1)]), 1)], vec![]);
     Case {
         name: "transportable_latent_district",
         derivation: "front-door with latent X<->Y district; selection on M outside the district; \
@@ -352,12 +307,7 @@ pub fn transportable_latent_district() -> Case {
             EvidenceSpec::new("source", &[], &["X", "M", "Y"]),
             EvidenceSpec::new("target", &[], &["X", "M"]),
         ],
-        targets: vec![target(
-            "Y_{x1}=1",
-            &populations,
-            query,
-            ExpectedClass::Identified,
-        )],
+        targets: vec![target("Y_{x1}=1", &populations, query, ExpectedClass::Identified)],
         populations,
         alternative: None,
     }
@@ -369,11 +319,7 @@ pub fn transportable_latent_district() -> Case {
 
 fn recanting_witness_population(blind_w: bool) -> FiniteScm {
     // X = Ux; W = X xor U (model A) or W = U (model B); Z = W; Y = W xor Z xor Uy.
-    let w = if blind_w {
-        Mechanism::new(|_, u| u[0])
-    } else {
-        Mechanism::new(|v, u| v[0] ^ u[0])
-    };
+    let w = if blind_w { Mechanism::new(|_, u| u[0]) } else { Mechanism::new(|v, u| v[0] ^ u[0]) };
     FiniteScm::new()
         .exo("U", bern(0.5))
         .exo("Ux", bern(0.5))
@@ -414,10 +360,7 @@ pub fn recanting_witness_without_selection() -> Case {
         vec![Atom::new(
             CfVar::nested(
                 "Y",
-                vec![
-                    ("X", Setting::Level(1)),
-                    ("Z", Setting::cf(CfVar::under("Z", &[("X", 0)]))),
-                ],
+                vec![("X", Setting::Level(1)), ("Z", Setting::cf(CfVar::under("Z", &[("X", 0)])))],
             ),
             1,
         )],
@@ -435,12 +378,7 @@ pub fn recanting_witness_without_selection() -> Case {
         },
         target_population: "pop",
         evidence,
-        targets: vec![target(
-            "Y_{x1,Z_{x0}}",
-            &populations,
-            query,
-            ExpectedClass::NotIdentifiable,
-        )],
+        targets: vec![target("Y_{x1,Z_{x0}}", &populations, query, ExpectedClass::NotIdentifiable)],
         populations,
         alternative: Some(alternative),
     }
@@ -478,11 +416,8 @@ pub fn selection_on_outcome_mechanism() -> Case {
     let tgt_b = tgt_a.blind_to_natural("Y", "X");
     let populations = pops(source.clone(), tgt_a);
     let alternative = pops(source, tgt_b);
-    let query = TargetQuery::new(
-        "target",
-        vec![Atom::new(CfVar::under("Y", &[("X", 1)]), 1)],
-        vec![],
-    );
+    let query =
+        TargetQuery::new("target", vec![Atom::new(CfVar::under("Y", &[("X", 1)]), 1)], vec![]);
     Case {
         name: "selection_on_outcome_mechanism",
         derivation: "X->Y, X<->Y, S->Y; target do-law not identified from target observations and \
@@ -500,12 +435,7 @@ pub fn selection_on_outcome_mechanism() -> Case {
             EvidenceSpec::new("source", &[("X", 1)], &["X", "Y"]),
             EvidenceSpec::new("target", &[], &["X", "Y"]),
         ],
-        targets: vec![target(
-            "Y_{x1}=1",
-            &populations,
-            query,
-            ExpectedClass::NotTransportable,
-        )],
+        targets: vec![target("Y_{x1}=1", &populations, query, ExpectedClass::NotTransportable)],
         populations,
         alternative: Some(alternative),
     }
@@ -592,16 +522,10 @@ pub fn zero_support_conditioning_event() -> Case {
 /// `joint_counterfactual_two_source_regimes`).
 pub fn missing_interventional_evidence() -> Case {
     let (s, t) = source_and_target_z();
-    let alternative = pops(
-        s.blind_to_natural("Y", "X"),
-        t.blind_to_natural("Y", "X"),
-    );
+    let alternative = pops(s.blind_to_natural("Y", "X"), t.blind_to_natural("Y", "X"));
     let populations = pops(s, t);
-    let query = TargetQuery::new(
-        "target",
-        vec![Atom::new(CfVar::under("Y", &[("X", 1)]), 1)],
-        vec![],
-    );
+    let query =
+        TargetQuery::new("target", vec![Atom::new(CfVar::under("Y", &[("X", 1)]), 1)], vec![]);
     Case {
         name: "missing_interventional_evidence",
         derivation: "X<->Y with only observational evidence in both populations; two models \
@@ -612,12 +536,7 @@ pub fn missing_interventional_evidence() -> Case {
             EvidenceSpec::new("source", &[], &["Z", "X", "Y"]),
             EvidenceSpec::new("target", &[], &["Z"]),
         ],
-        targets: vec![target(
-            "Y_{x1}=1",
-            &populations,
-            query,
-            ExpectedClass::EvidenceInsufficient,
-        )],
+        targets: vec![target("Y_{x1}=1", &populations, query, ExpectedClass::EvidenceInsufficient)],
         populations,
         alternative: Some(alternative),
     }

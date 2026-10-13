@@ -285,7 +285,11 @@ fn parse_overlap(
     let mut declaration = OverlapDeclaration::with_default(relation(&overlap.0)?);
     for (a, b, name) in &overlap.1 {
         declaration = declaration
-            .with_pair(table_key(a, catalog, graph)?, table_key(b, catalog, graph)?, relation(name)?)
+            .with_pair(
+                table_key(a, catalog, graph)?,
+                table_key(b, catalog, graph)?,
+                relation(name)?,
+            )
             .map_err(error)?;
     }
     Ok(declaration)

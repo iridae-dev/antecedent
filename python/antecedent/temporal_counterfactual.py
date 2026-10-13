@@ -531,6 +531,12 @@ def transported_path_specific(
     ``supplied_factors`` (factor -> evidence id) it is ``reason_code="transport_missing_evidence"``
     with ``transported_counterfactual.factor_missing``. ``missing_gates`` and
     ``missing_factors`` are retained either way.
+
+    The refusal's ``remedy`` names the successor route for the scope in which an answer
+    exists: a finite discrete, static, acyclic semi-Markovian counterfactual transport
+    question is answered by ``antecedent.transport.advanced.identify_counterfactual``. This
+    function never delegates to it and never answers; the temporal, continuous and
+    non-finite scope stays refused here.
     """
     declared = prerequisites if prerequisites is not None else TransportedPrerequisites()
     if not isinstance(declared, TransportedPrerequisites):

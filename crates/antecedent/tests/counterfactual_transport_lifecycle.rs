@@ -94,7 +94,9 @@ fn identified(case: &Case, target: &Target) -> PreparedCounterfactualTransport {
         .unwrap_or_else(|e| panic!("{} / {}: {e}", case.name, target.label))
     {
         CounterfactualTransportPreparation::Identified(prepared) => *prepared,
-        other => panic!("{} / {}: expected a derivation, got {other:?}", case.name, target.label),
+        other @ CounterfactualTransportPreparation::ProvenNonTransportable(_) => {
+            panic!("{} / {}: expected a derivation, got {other:?}", case.name, target.label)
+        }
     }
 }
 
@@ -184,8 +186,8 @@ fn identified_oracle_cases_export_and_replay_to_the_enumerated_truth() {
             let bytes = result.export_artifact().unwrap();
             let identity = result.identity().unwrap();
             // The typed independent consumer re-decides and re-evaluates.
-            let typed = consume_typed(&bytes, &identity, &ctx())
-                .unwrap_or_else(|e| panic!("{label}: {e}"));
+            let typed =
+                consume_typed(&bytes, &identity, &ctx()).unwrap_or_else(|e| panic!("{label}: {e}"));
             assert_eq!(consumed_probability(&typed).to_bits(), result.probability().to_bits());
             assert!((consumed_probability(&typed) - truth).abs() <= TOLERANCE, "{label}");
             assert_eq!(typed.wire.variable_names, names, "{label}");
@@ -258,7 +260,10 @@ fn two_source_regimes_conditional_evidence_and_latent_districts_cite_what_they_r
     let truth = case.targets[0].expected_value.unwrap();
     assert!(result.denominator() > 0.0 && result.denominator() < 1.0);
     assert!((result.numerator() / result.denominator() - truth).abs() <= TOLERANCE);
-    assert_eq!(result.probability().to_bits(), (result.numerator() / result.denominator()).to_bits());
+    assert_eq!(
+        result.probability().to_bits(),
+        (result.numerator() / result.denominator()).to_bits()
+    );
 
     // A transportable latent district: the target never measures Y.
     let case = case_named("transportable_latent_district");
@@ -304,7 +309,9 @@ fn prepare_once_then_refresh_rebuilds_the_numbers_and_a_refused_refresh_keeps_st
     // Prepared without evidence: decided once, nothing bound, no number.
     let unbound = match prepare(&case, &target, false, &options_of(&case), &ctx()).unwrap() {
         CounterfactualTransportPreparation::Identified(prepared) => *prepared,
-        other => panic!("expected a derivation, got {other:?}"),
+        other @ CounterfactualTransportPreparation::ProvenNonTransportable(_) => {
+            panic!("expected a derivation, got {other:?}")
+        }
     };
     assert!(unbound.data().is_none());
     let error = unbound.estimate(&ctx()).unwrap_err();
@@ -398,7 +405,9 @@ fn obstructions_export_and_replay_their_two_model_witness_from_bytes() {
         let target = &case.targets[0];
         let report = match prepare(&case, target, false, &options_of(&case), &ctx()).unwrap() {
             CounterfactualTransportPreparation::ProvenNonTransportable(report) => *report,
-            other => panic!("{name}: expected an obstruction, got {other:?}"),
+            other @ CounterfactualTransportPreparation::Identified(_) => {
+                panic!("{name}: expected an obstruction, got {other:?}")
+            }
         };
         // The fixture's own alternative model family witnesses the same query,
         // independently of the identifier's witness.
@@ -445,8 +454,12 @@ fn obstructions_export_and_replay_their_two_model_witness_from_bytes() {
         let mut tampered = wire.clone();
         let stored = tampered.obstruction.as_mut().unwrap();
         stored.witness.second = stored.witness.first.clone();
-        let error = consume_typed(&reseal(tampered), &CounterfactualTransportExpectedIdentity::default(), &ctx())
-            .unwrap_err();
+        let error = consume_typed(
+            &reseal(tampered),
+            &CounterfactualTransportExpectedIdentity::default(),
+            &ctx(),
+        )
+        .unwrap_err();
         assert!(matches!(error, E::ObstructionInvalid(_)), "{name}: {error:?}");
         assert_eq!(error.slot(), "obstruction");
         let (code, message) = error.refusal();
@@ -456,8 +469,12 @@ fn obstructions_export_and_replay_their_two_model_witness_from_bytes() {
         // Stored values that the witness does not establish are refused too.
         let mut tampered = wire;
         tampered.obstruction.as_mut().unwrap().first_value = "1/1".into();
-        let error = consume_typed(&reseal(tampered), &CounterfactualTransportExpectedIdentity::default(), &ctx())
-            .unwrap_err();
+        let error = consume_typed(
+            &reseal(tampered),
+            &CounterfactualTransportExpectedIdentity::default(),
+            &ctx(),
+        )
+        .unwrap_err();
         assert_eq!(error.slot(), "obstruction", "{name}: {error:?}");
     }
 }
@@ -471,8 +488,7 @@ fn refusals_name_what_would_license_the_request() {
     // Missing factors: the source experiment is declared available but not
     // supplied. Identification is possible if it were: it is named.
     let case = case_named("missing_interventional_evidence");
-    let error =
-        prepare(&case, &case.targets[0], false, &options_of(&case), &ctx()).unwrap_err();
+    let error = prepare(&case, &case.targets[0], false, &options_of(&case), &ctx()).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "transport_missing_evidence");
     assert!(message.starts_with("counterfactual_transport.missing_regime"), "{message}");
@@ -725,12 +741,14 @@ fn edits_that_are_not_resealed_identity_versions_and_limits_are_refused() {
     // without resealing is a premises mismatch.
     let mut edited = wire.clone();
     edited.laws[0].snapshot.push('x');
-    let error = consume_typed(&antecedent_io::to_cbor(&edited).unwrap(), &none, &ctx()).unwrap_err();
+    let error =
+        consume_typed(&antecedent_io::to_cbor(&edited).unwrap(), &none, &ctx()).unwrap_err();
     assert_eq!(error, E::DataIdentityMismatch);
     assert_eq!(error.slot(), "data_digest");
     let mut edited = wire.clone();
     edited.query.target = "elsewhere".into();
-    let error = consume_typed(&antecedent_io::to_cbor(&edited).unwrap(), &none, &ctx()).unwrap_err();
+    let error =
+        consume_typed(&antecedent_io::to_cbor(&edited).unwrap(), &none, &ctx()).unwrap_err();
     assert_eq!(error, E::PremisesMismatch);
 
     // A self-consistent artifact that is not the one the caller expects.
@@ -751,11 +769,13 @@ fn edits_that_are_not_resealed_identity_versions_and_limits_are_refused() {
     // Another version and another required feature are refused, not guessed.
     let mut future = wire.clone();
     future.version = 2;
-    let error = consume_typed(&antecedent_io::to_cbor(&future).unwrap(), &none, &ctx()).unwrap_err();
+    let error =
+        consume_typed(&antecedent_io::to_cbor(&future).unwrap(), &none, &ctx()).unwrap_err();
     assert_eq!(error, E::UnsupportedVersion { version: 2 });
     let mut foreign = wire.clone();
     foreign.required_features = vec!["counterfactual_transport_v2".into()];
-    let error = consume_typed(&antecedent_io::to_cbor(&foreign).unwrap(), &none, &ctx()).unwrap_err();
+    let error =
+        consume_typed(&antecedent_io::to_cbor(&foreign).unwrap(), &none, &ctx()).unwrap_err();
     assert_eq!(error, E::UnsupportedSemantics("required_features"));
     let mut extra = wire.clone();
     extra.required_features.push("another".into());
@@ -773,10 +793,8 @@ fn edits_that_are_not_resealed_identity_versions_and_limits_are_refused() {
     assert_eq!(error.slot(), "artifact");
 
     // Consumer limits are checked before any work and are retryable bounds.
-    let small_search = Limits {
-        search: SearchLimits { operations: 1, depth: 1 },
-        ..Limits::default()
-    };
+    let small_search =
+        Limits { search: SearchLimits { operations: 1, depth: 1 }, ..Limits::default() };
     let error =
         consume_counterfactual_transport_with_limits(&export.bytes, &none, small_search, &ctx())
             .unwrap_err();
@@ -786,13 +804,18 @@ fn edits_that_are_not_resealed_identity_versions_and_limits_are_refused() {
         evaluation: ExactEvaluationLimits { operations: 1, depth: 1 },
         ..Limits::default()
     };
-    let error =
-        consume_counterfactual_transport_with_limits(&export.bytes, &none, small_evaluation, &ctx())
-            .unwrap_err();
+    let error = consume_counterfactual_transport_with_limits(
+        &export.bytes,
+        &none,
+        small_evaluation,
+        &ctx(),
+    )
+    .unwrap_err();
     assert_eq!(error, E::LimitsExceeded("operation limit"));
     let few_laws = Limits { max_laws: 1, ..Limits::default() };
-    let error = consume_counterfactual_transport_with_limits(&export.bytes, &none, few_laws, &ctx())
-        .unwrap_err();
+    let error =
+        consume_counterfactual_transport_with_limits(&export.bytes, &none, few_laws, &ctx())
+            .unwrap_err();
     assert_eq!(error, E::LimitsExceeded("law count"));
     let small_memory = Limits { search_memory_bytes: 1, ..Limits::default() };
     let error =
@@ -800,8 +823,9 @@ fn edits_that_are_not_resealed_identity_versions_and_limits_are_refused() {
             .unwrap_err();
     assert_eq!(error, E::LimitsExceeded("search memory limit"));
     // The facade surfaces the same refusal as a coded error.
-    let error = consume_counterfactual_transport_artifact(&export.bytes, &none, small_search, &ctx())
-        .unwrap_err();
+    let error =
+        consume_counterfactual_transport_artifact(&export.bytes, &none, small_search, &ctx())
+            .unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "route_not_supported");
     assert!(message.starts_with("counterfactual_transport.bounds_exceeded: limits:"), "{message}");

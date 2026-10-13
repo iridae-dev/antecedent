@@ -25,7 +25,9 @@ use antecedent_identify::CounterfactualTransportDerivation;
 
 use super::counts::{LawFlavor, SampledRegimeCounts};
 use super::overlap::DatasetGroups;
-use super::{SAMPLED_TRANSPORT_GRADIENT_RELATIVE_STEP, SampledTransportLimits, evaluate_probability};
+use super::{
+    SAMPLED_TRANSPORT_GRADIENT_RELATIVE_STEP, SampledTransportLimits, evaluate_probability,
+};
 use crate::error::EstimationError;
 
 /// Why the standard error is not reported.

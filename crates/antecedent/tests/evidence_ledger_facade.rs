@@ -6,7 +6,7 @@
 //! Hand oracles:
 //! * y = (1, 3), variances (1, 4): estimate 7/5, variance 4/5, Q 4/5, weights (4/5, 1/5).
 //! * y = (1, 3), covariance [[1, 1], [1, 4]]: weights (1, 0), estimate 1, variance 1.
-//! * y = (0, 2, 6), v = (1, 2, 4): Q = 52/7, tau^2 = 38/7, DerSimonian-Laird
+//! * y = (0, 2, 6), v = (1, 2, 4): Q = 52/7, tau^2 = 38/7, `DerSimonian`-Laird
 //!   estimate 3330/1457, variance 25740/10199, I^2 = 19/26.
 //! * tau = 1 with a flat mean prior on the same studies: mean 56/31, variance
 //!   30/31; with a N(0, 1) prior on the mean: 56/61 and 30/61.
@@ -26,8 +26,7 @@ use antecedent::analysis::evidence_ledger::{
 use antecedent::{
     BetweenStudy, BorrowingRequest, DependenceRangeRequest, EvidenceLedgerRefusal,
     EvidenceLedgerSession, PoolingDeclaration, PoolingRequest, SourceChange, SourceRevision,
-    StudyBuilder, StudyEstimate, StudySummary, SynthesisValue,
-    consume_evidence_ledger_artifact,
+    StudyBuilder, StudyEstimate, StudySummary, SynthesisValue, consume_evidence_ledger_artifact,
 };
 use antecedent_core::{ExecutionContext, SemanticDigest};
 use antecedent_io::evidence_ledger_artifact::{
@@ -181,9 +180,8 @@ fn overlap_refusals_precede_the_numbers_and_leave_the_session_unchanged() {
     let mut session = StudyBuilder::evidence_ledger();
     let s3 = session.add_source(data("s3", 90..120)).unwrap();
     let s4 = session.add_source(data("s4", 110..150)).unwrap();
-    let vendor = session
-        .add_source(SourceDeclaration::new("vendor", SourceKind::ExternalClaim))
-        .unwrap();
+    let vendor =
+        session.add_source(SourceDeclaration::new("vendor", SourceKind::ExternalClaim)).unwrap();
     let head = session.head_hex();
     let state = session.state_digest_hex();
 
@@ -276,7 +274,9 @@ fn a_declared_covariance_with_cross_terms_licenses_the_shared_pair() {
             &ctx(),
         )
         .unwrap();
-    let SynthesisValue::FixedEffect(fit) = &outcome.value else { panic!("GLS is a fixed-effect pool") };
+    let SynthesisValue::FixedEffect(fit) = &outcome.value else {
+        panic!("GLS is a fixed-effect pool")
+    };
     close(fit.estimate, 1.0, "estimate");
     close(fit.variance, 1.0, "variance");
     close(fit.weights[0], 1.0, "weight 0");
@@ -323,7 +323,8 @@ fn pooling_is_invariant_to_the_order_of_the_studies() {
         let v = [1.0, 2.0, 4.0];
         let summaries: Vec<StudySummary> =
             order.iter().map(|&i| summary(ids[i], y[i], v[i])).collect();
-        session.pool_summaries(pooling("p", summaries), PoolingDeclaration::Independent, &ctx())
+        session
+            .pool_summaries(pooling("p", summaries), PoolingDeclaration::Independent, &ctx())
             .unwrap()
     };
     let a = build(&[0, 1, 2]);
@@ -350,8 +351,7 @@ fn random_effects_match_the_dersimonian_laird_derivation() {
         .collect();
     let y = [0.0, 2.0, 6.0];
     let v = [1.0, 2.0, 4.0];
-    let summaries: Vec<StudySummary> =
-        (0..3).map(|i| summary(ids[i], y[i], v[i])).collect();
+    let summaries: Vec<StudySummary> = (0..3).map(|i| summary(ids[i], y[i], v[i])).collect();
     let outcome = session
         .random_effects(pooling("re", summaries.clone()), BetweenStudy::DerSimonianLaird, &ctx())
         .unwrap();
@@ -479,9 +479,8 @@ fn a_prior_built_from_the_likelihoods_data_is_double_counting() {
 fn the_dependence_range_is_an_exact_labelled_envelope() {
     let mut session = StudyBuilder::evidence_ledger();
     let s3 = session.add_source(data("s3", 0..30)).unwrap();
-    let vendor = session
-        .add_source(SourceDeclaration::new("vendor", SourceKind::ExternalClaim))
-        .unwrap();
+    let vendor =
+        session.add_source(SourceDeclaration::new("vendor", SourceKind::ExternalClaim)).unwrap();
     let request = |lo: f64, hi: f64| DependenceRangeRequest {
         label: "range".into(),
         studies: vec![
@@ -538,17 +537,15 @@ fn a_transported_claim_is_never_native_target_data() {
                 .with_transport(transport_identity("target")),
         )
         .unwrap();
-    let result = session
-        .transport_claim("transport", vec![transported], vec![native], None)
-        .unwrap();
+    let result =
+        session.transport_claim("transport", vec![transported], vec![native], None).unwrap();
     assert_eq!(session.result(result).unwrap().transport_identities.len(), 1);
     // Accounting-only results carry no numbers.
     assert_eq!(session.synthesis(result).unwrap(), None);
 
     // The same source native and transported is a category error.
-    let refusal = session
-        .transport_claim("bad", vec![transported], vec![transported], None)
-        .unwrap_err();
+    let refusal =
+        session.transport_claim("bad", vec![transported], vec![transported], None).unwrap_err();
     expect(&refusal, "evidence_double_counted", "evidence_ledger.native_and_transported");
     // A claim without its transport identity cannot be transported.
     let bare = session.add_source(data("bare", 300..310)).unwrap();
@@ -562,9 +559,7 @@ fn a_transported_claim_is_never_native_target_data() {
                 .with_transport(transport_identity("target")),
         )
         .unwrap();
-    let refusal = session
-        .transport_claim("bad", vec![transported], vec![other], None)
-        .unwrap_err();
+    let refusal = session.transport_claim("bad", vec![transported], vec![other], None).unwrap_err();
     expect(&refusal, "invalid_argument", "evidence_ledger.transported_as_native");
 }
 
@@ -594,10 +589,7 @@ fn citing_a_result_counts_its_observations_once_and_refuses_a_stale_one() {
     }
     // A stale result is recomputed before it is cited.
     session
-        .revise_source(SourceRevision::Update {
-            target: c,
-            replacement: data("c_more", 50..70),
-        })
+        .revise_source(SourceRevision::Update { target: c, replacement: data("c_more", 50..70) })
         .unwrap();
     assert_eq!(session.standing(pooled.result), Some(Revalidation::Recompute));
     let refusal = session.reuse_result("cite", pooled.result).unwrap_err();
@@ -618,9 +610,8 @@ fn repeated_observation_use_is_flagged_and_stays_flagged_when_cited() {
     let refusal = session.repeat_observations("nameless", vec![a], "").unwrap_err();
     expect(&refusal, "invalid_argument", "evidence_ledger.operation_arity");
     // Undeclared observations cannot be accounted: their reuse is unknown.
-    let vendor = session
-        .add_source(SourceDeclaration::new("vendor", SourceKind::ExternalClaim))
-        .unwrap();
+    let vendor =
+        session.add_source(SourceDeclaration::new("vendor", SourceKind::ExternalClaim)).unwrap();
     let refusal = session.repeat_observations("vendor_again", vec![vendor], "final").unwrap_err();
     assert_eq!(refusal.code, "evidence_overlap_unknown");
 }
@@ -644,7 +635,10 @@ fn withdrawing_a_source_classifies_dependents_and_refuses_their_use() {
     let mut s = scenario();
     let report = s
         .session
-        .revise_source(SourceRevision::Withdraw { target: s.s1, reason: "consent withdrawn".into() })
+        .revise_source(SourceRevision::Withdraw {
+            target: s.s1,
+            reason: "consent withdrawn".into(),
+        })
         .unwrap();
     let class = |id: ResultId| {
         report.revalidation.iter().find(|r| r.result == id).expect("classified").class
@@ -815,8 +809,7 @@ fn the_artifact_replays_and_a_consumer_refuses_another_history() {
     let export = s.session.export("ledger-1").unwrap();
     assert_eq!(export.carried.len(), 4);
     assert!(export.not_carried.is_empty());
-    let consumed =
-        consume_evidence_ledger_artifact(&export.bytes, Some(&export.identity)).unwrap();
+    let consumed = consume_evidence_ledger_artifact(&export.bytes, Some(&export.identity)).unwrap();
     assert_eq!(consumed.identity(), export.identity);
     assert_eq!(consumed.ledger().head(), s.session.ledger().head());
     assert_eq!(consumed.ledger().state_digest(), s.session.ledger().state_digest());
@@ -866,6 +859,119 @@ fn a_resealed_edit_of_a_stored_value_is_refused_on_replay() {
     assert_eq!(detail, "evidence_ledger.synthesis_mismatch");
 }
 
+/// A session holding only the dependence range of the hand-oracle fixture
+/// y = (1, 3), se = (1, 2), rho in [0, 0.9].
+fn range_session() -> (EvidenceLedgerSession, ResultId, SourceId, SourceId) {
+    let mut session = StudyBuilder::evidence_ledger();
+    let s3 = session.add_source(data("s3", 0..30)).unwrap();
+    let vendor =
+        session.add_source(SourceDeclaration::new("vendor", SourceKind::ExternalClaim)).unwrap();
+    let outcome = session
+        .dependence_range(
+            DependenceRangeRequest {
+                label: "range".into(),
+                studies: vec![
+                    StudyEstimate { source: s3, estimate: 1.0, standard_error: 1.0 },
+                    StudyEstimate { source: vendor, estimate: 3.0, standard_error: 2.0 },
+                ],
+                rho_lo: 0.0,
+                rho_hi: 0.9,
+                replaces: None,
+            },
+            &ctx(),
+        )
+        .unwrap();
+    (session, outcome.result, s3, vendor)
+}
+
+#[test]
+fn a_range_outside_the_definite_interval_or_non_finite_is_refused_and_registers_nothing() {
+    let (mut session, _, s3, vendor) = range_session();
+    let before = session.ledger().results().len();
+    let head = session.ledger().head();
+    let request = |lo: f64, hi: f64, se: f64| DependenceRangeRequest {
+        label: "bad".into(),
+        studies: vec![
+            StudyEstimate { source: s3, estimate: 1.0, standard_error: 1.0 },
+            StudyEstimate { source: vendor, estimate: 3.0, standard_error: se },
+        ],
+        rho_lo: lo,
+        rho_hi: hi,
+        replaces: None,
+    };
+    // Inverted, perfectly correlated, below the definite interval for two
+    // studies (-1/(k-1) = -1), non-finite bounds and a non-positive standard error.
+    for (lo, hi, se) in [
+        (0.5, 0.2, 2.0),
+        (0.0, 1.0, 2.0),
+        (-1.0, 0.2, 2.0),
+        (f64::NAN, 0.2, 2.0),
+        (0.0, f64::INFINITY, 2.0),
+        (0.0, 0.5, 0.0),
+    ] {
+        let refusal = session.dependence_range(request(lo, hi, se), &ctx()).unwrap_err();
+        assert_eq!(refusal.code, "invalid_argument", "({lo}, {hi}, {se}): {refusal}");
+    }
+    assert_eq!(session.ledger().results().len(), before);
+    assert_eq!(session.ledger().head(), head);
+}
+
+#[test]
+fn an_exported_dependence_range_is_replayed_as_an_assumption_range_by_the_consumer() {
+    let (session, result, _, vendor) = range_session();
+    let export = session.export("range-ledger").unwrap();
+    assert_eq!(export.carried, vec![result]);
+    assert!(export.not_carried.is_empty());
+    let consumed = consume_evidence_ledger_artifact(&export.bytes, Some(&export.identity)).unwrap();
+    // The consumer recomputed the envelope; wire order is estimate min, rho at
+    // min, estimate max, rho at max, variance min, rho at min, variance max,
+    // rho at max. Hand values: -1/7 at 0.9, 7/5 at 0, 19/35 at 0.9, 1 at 1/2.
+    let env = consumed.synthesis_of(result).unwrap();
+    assert_eq!(env.method, "dependence_envelope");
+    let expected = [-1.0 / 7.0, 0.9, 1.4, 0.0, 19.0 / 35.0, 0.9, 1.0, 0.5];
+    assert_eq!(env.values.len(), expected.len());
+    for (value, want) in env.values.iter().zip(expected) {
+        close(*value, want, "replayed envelope");
+    }
+    // The label and the closed interval route survive the replay, and the
+    // unknown source stays unknown in the consumer's accounting.
+    let record = consumed.ledger().result(result).unwrap();
+    assert_eq!(record.claim_class.as_str(), "assumption_range");
+    assert!(record.mass.unknown_sources.contains(&vendor));
+    let refusal = consumed.ledger().request_interval(result).unwrap_err();
+    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.detail, "evidence_ledger.interval_not_licensed");
+    // The same history exports to the same identity, and the producer's range
+    // is bound into it: another range is another artifact.
+    assert_eq!(range_session().0.export("range-ledger").unwrap().identity, export.identity);
+}
+
+#[test]
+fn a_resealed_edit_of_the_dependence_range_is_refused_on_replay() {
+    let (session, result, s3, vendor) = range_session();
+    let records = vec![SynthesisRecord {
+        result,
+        sources: vec![s3, vendor],
+        method: SynthesisMethod::DependenceEnvelope {
+            estimates: vec![1.0, 3.0],
+            standard_errors: vec![1.0, 2.0],
+            rho_lo: 0.0,
+            rho_hi: 0.9,
+        },
+    }];
+    let (_, mut meta) = EvidenceLedgerArtifact::seal(session.ledger(), &records).unwrap();
+    assert!(EvidenceLedgerArtifact::from_meta(&meta, None).is_ok());
+    // A range other than the one the ledger recorded, consistently resealed,
+    // no longer binds to the ledger result.
+    meta.syntheses[0].rho_hi = Some(0.95_f64.to_bits());
+    EvidenceLedgerArtifact::reseal_identity(&mut meta);
+    let error = EvidenceLedgerArtifact::from_meta(&meta, None).unwrap_err();
+    assert_eq!(error, EvidenceLedgerArtifactError::SynthesisMismatch("assumption range"));
+    let (code, detail, _) = error.refusal().unwrap();
+    assert_eq!(code, "invalid_argument");
+    assert_eq!(detail, "evidence_ledger.synthesis_mismatch");
+}
+
 // ---------------------------------------------------------------------------
 // Cancellation
 // ---------------------------------------------------------------------------
@@ -889,11 +995,13 @@ fn cancellation_stops_before_a_synthesis_and_leaves_the_session_unchanged() {
     assert_eq!(session.state_digest_hex(), state);
     assert!(session.ledger().results().is_empty());
     // The same request under a live context succeeds.
-    assert!(session
-        .pool_summaries(
-            pooling("p", vec![summary(s1, 1.0, 1.0), summary(s2, 3.0, 4.0)]),
-            PoolingDeclaration::Independent,
-            &ctx(),
-        )
-        .is_ok());
+    assert!(
+        session
+            .pool_summaries(
+                pooling("p", vec![summary(s1, 1.0, 1.0), summary(s2, 3.0, 4.0)]),
+                PoolingDeclaration::Independent,
+                &ctx(),
+            )
+            .is_ok()
+    );
 }

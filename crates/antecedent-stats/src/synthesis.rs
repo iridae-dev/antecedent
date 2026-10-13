@@ -13,7 +13,7 @@
 //!   variance `1 / 1' S^-1 1` (Borenstein, Hedges, Higgins, Rothstein 2009,
 //!   ch. 11 for the diagonal case; Aitken 1935 for the general covariance).
 //! * [`random_effects_dersimonian_laird`] and [`random_effects_reml`]:
-//!   between-study variance by the method of moments (DerSimonian and Laird
+//!   between-study variance by the method of moments (`DerSimonian` and Laird
 //!   1986) and by restricted maximum likelihood, with Cochran's Q.
 //! * [`hierarchical_normal_borrowing`]: normal-normal borrowing with a
 //!   declared (discrete) prior on the between-study standard deviation,
@@ -323,11 +323,10 @@ pub fn fixed_effect_gls(
             symmetric[j * k + i] = mean;
         }
     }
-    let l = cholesky(&symmetric, k)
-        .ok_or(SynthesisError::Singular {
-            min_eigenvalue: check.min_eigenvalue,
-            max_eigenvalue: check.max_eigenvalue,
-        })?;
+    let l = cholesky(&symmetric, k).ok_or(SynthesisError::Singular {
+        min_eigenvalue: check.min_eigenvalue,
+        max_eigenvalue: check.max_eigenvalue,
+    })?;
     let ones = vec![1.0; k];
     let x = cholesky_solve(&l, k, &ones);
     let denominator: f64 = x.iter().sum();
@@ -372,7 +371,7 @@ pub fn fixed_effect_inverse_variance(
 /// Which estimator of the between-study variance produced a random-effects fit.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BetweenStudyMethod {
-    /// Method of moments (DerSimonian and Laird 1986).
+    /// Method of moments (`DerSimonian` and Laird 1986).
     DerSimonianLaird,
     /// Restricted maximum likelihood.
     RestrictedMaximumLikelihood,
@@ -503,7 +502,12 @@ pub fn random_effects_reml(
         let mut lo = 0.0;
         for _ in 0..REML_BISECTIONS {
             let mid = 0.5 * (lo + hi);
-            if mid == lo || mid == hi {
+            #[allow(
+                clippy::float_cmp,
+                reason = "bisection stalls exactly when the midpoint rounds onto an endpoint; an exact comparison is the termination test"
+            )]
+            let stalled = mid == lo || mid == hi;
+            if stalled {
                 break;
             }
             if reml_score(estimates, variances, mid) > 0.0 {
@@ -597,7 +601,9 @@ fn conditional_on_tau(
             let denom = 1.0 + v0 * sum_w;
             let precision = 1.0 / v0 + sum_w;
             ConditionalPosterior {
-                log_marginal: -0.5 * log_det - 0.5 * denom.ln() - 0.5 * (sdd - v0 * sd * sd / denom),
+                log_marginal: -0.5 * log_det
+                    - 0.5 * denom.ln()
+                    - 0.5 * (sdd - v0 * sd * sd / denom),
                 mean: m0 + sd / precision,
                 variance: 1.0 / precision,
             }
@@ -628,12 +634,16 @@ pub fn hierarchical_normal_borrowing(
     }
     if let MeanPrior::Normal { mean, variance } = mean_prior {
         if !mean.is_finite() || !variance.is_finite() || variance <= 0.0 {
-            return Err(SynthesisError::InvalidPrior("mean prior needs a finite mean and positive variance"));
+            return Err(SynthesisError::InvalidPrior(
+                "mean prior needs a finite mean and positive variance",
+            ));
         }
     }
     let n = tau_prior.support.len();
     if n == 0 || n > MAX_TAU_SUPPORT || tau_prior.probabilities.len() != n {
-        return Err(SynthesisError::InvalidPrior("tau prior support and probabilities disagree or exceed the bound"));
+        return Err(SynthesisError::InvalidPrior(
+            "tau prior support and probabilities disagree or exceed the bound",
+        ));
     }
     if tau_prior.support.iter().any(|t| !t.is_finite() || *t < 0.0) {
         return Err(SynthesisError::InvalidPrior("tau support must be finite and nonnegative"));
@@ -746,16 +756,9 @@ impl EquicorrelationTerms {
         let k = estimates.len() as f64;
         let a: f64 = standard_errors.iter().map(|s| 1.0 / s).sum();
         let b: f64 = standard_errors.iter().map(|s| 1.0 / (s * s)).sum();
-        let p: f64 =
-            estimates.iter().zip(standard_errors).map(|(y, s)| y / (s * s)).sum();
+        let p: f64 = estimates.iter().zip(standard_errors).map(|(y, s)| y / (s * s)).sum();
         let q: f64 = estimates.iter().zip(standard_errors).map(|(y, s)| y / s).sum();
-        Self {
-            k,
-            b,
-            p,
-            m: (k - 1.0) * b - a * a,
-            mp: (k - 1.0) * p - a * q,
-        }
+        Self { k, b, p, m: (k - 1.0) * b - a * a, mp: (k - 1.0) * p - a * q }
     }
 
     /// `1' S^-1 1 (1 - rho) (1 + (k-1) rho)` for `S = D R(rho) D`.

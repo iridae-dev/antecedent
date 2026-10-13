@@ -168,7 +168,7 @@ fn natural_direct_and_indirect_effects_match_the_enumerated_contrasts() {
 fn shifted_truth(case: &Case, label: &str) -> f64 {
     let target = case.targets.iter().find(|t| t.label == label).unwrap();
     let mut query = target.query.clone();
-    query.population = case.target_population.to_owned();
+    case.target_population.clone_into(&mut query.population);
     query.value(&case.populations).unwrap()
 }
 
@@ -252,10 +252,7 @@ fn absent_mislabelled_and_counted_laws_are_refused_before_a_number() {
         .iter()
         .filter(|law| {
             !(law.population() == "source"
-                && law
-                    .interventions()
-                    .iter()
-                    .any(|a| a.value.as_f64() == Some(1.0)))
+                && law.interventions().iter().any(|a| a.value.as_f64() == Some(1.0)))
         })
         .cloned()
         .collect();

@@ -218,7 +218,10 @@ pub fn route_card(route: MeasurementRoute) -> MeasurementRouteCard {
                 "non-differential error, or an explicit per-arm differential declaration",
                 "misclassification of the outcome; exposure misclassification is a separate closed route",
             ],
-            allowed: &[MeasurementOperation::LatentPrevalence, MeasurementOperation::RiskDifference],
+            allowed: &[
+                MeasurementOperation::LatentPrevalence,
+                MeasurementOperation::RiskDifference,
+            ],
             refused: BINARY_REFUSED,
         },
         MeasurementRoute::RepeatedMeasurements => MeasurementRouteCard {
@@ -358,6 +361,10 @@ pub struct MeasurementRequest<'a> {
 /// representation change without an explicit mapping; a non-differential
 /// analysis of a differential model (or the reverse); an operation the route
 /// does not license.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn check_measurement_request(
     model: &MeasurementModel,
     request: &MeasurementRequest<'_>,
@@ -441,6 +448,10 @@ fn binding_mismatch(detail: &str, expected: &str, supplied: &str) -> Measurement
 /// # Errors
 /// A missing or mismatched mapping, or intervention meaning requested through
 /// a mapping that does not carry it.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn check_representation_transfer(
     model_representation: &RepresentationVersion,
     requested: &RepresentationVersion,
@@ -461,7 +472,8 @@ pub fn check_representation_transfer(
         .with_supplied(format!("{}@{}", requested.coordinate_system_id, requested.version))
     };
     if model_representation == requested {
-        if requires_intervention_meaning && indicator_kind == MeasurementKind::LearnedVectorRepresentation
+        if requires_intervention_meaning
+            && indicator_kind == MeasurementKind::LearnedVectorRepresentation
         {
             return Err(unmapped("measurement_model.learned_coordinates_not_intervenable")
                 .with_remedy(
@@ -489,6 +501,10 @@ pub fn check_representation_transfer(
     Ok(())
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn check_structure(
     declared: ErrorStructure,
     assumed: ErrorStructure,
@@ -527,6 +543,10 @@ fn check_structure(
     .with_remedy(remedy))
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn check_operation(
     route: MeasurementRoute,
     operation: MeasurementOperation,
@@ -556,6 +576,10 @@ fn check_operation(
 /// # Errors
 /// A noisy, misclassified, assigned or learned-vector indicator, or a derived
 /// column, requested as a latent construct without a model.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn check_unmodelled_use(
     kind: MeasurementKind,
     requested_as_construct: bool,
@@ -610,6 +634,10 @@ impl LatentPosteriorTrust {
 /// posterior that is not over parameters, a missing construct coordinate in
 /// the model's population and regime, a missing sampling operation, or a trust
 /// state that is native (or unverified against this object) refuse.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn check_latent_posterior(
     model: &MeasurementModel,
     object: &ExternalScientificObject,
@@ -649,13 +677,16 @@ pub fn check_latent_posterior(
             .with_remedy("the latent variable is supplied by a posterior object"));
     };
     if posterior.kind != ExternalPosteriorKind::Parameter {
-        return Err(posterior_refusal("measurement_model.posterior_kind")
-            .with_remedy("supply a posterior over the latent coordinates (a parameter posterior)"));
+        return Err(posterior_refusal("measurement_model.posterior_kind").with_remedy(
+            "supply a posterior over the latent coordinates (a parameter posterior)",
+        ));
     }
     if !posterior.capabilities.contains(&ExternalCapability::Sample) {
         return Err(posterior_refusal("measurement_model.posterior_capability")
             .with_capability(ExternalCapability::Sample)
-            .with_remedy("the route consumes joint posterior draws; declare the sampling operation"));
+            .with_remedy(
+                "the route consumes joint posterior draws; declare the sampling operation",
+            ));
     }
     let covers = |quantity: &ScientificQuantity| {
         quantity.variable_id == model.construct.id
@@ -673,10 +704,10 @@ pub fn check_latent_posterior(
             ));
     }
     match trust {
-        ExternalTrustState::NativeLicensed => Err(posterior_refusal(
-            "measurement_model.posterior_native_trust",
-        )
-        .with_remedy("a provider object is never natively licensed; attest or verify it")),
+        ExternalTrustState::NativeLicensed => {
+            Err(posterior_refusal("measurement_model.posterior_native_trust")
+                .with_remedy("a provider object is never natively licensed; attest or verify it"))
+        }
         ExternalTrustState::ExternallyAttested { .. } => {
             Ok(LatentPosteriorTrust::ExternallyAttested)
         }
@@ -770,7 +801,7 @@ mod tests {
         }
     }
 
-    fn request<'a>(rep: &'a RepresentationVersion) -> MeasurementRequest<'a> {
+    fn request(rep: &RepresentationVersion) -> MeasurementRequest<'_> {
         MeasurementRequest {
             construct_id: "construct:disease",
             population_id: "clinic-a",
@@ -883,14 +914,16 @@ mod tests {
             semantics: MappingSemantics::InterventionPreserving { evidence_id: "exp".into() },
             ..mapping
         };
-        assert!(check_representation_transfer(
-            &rep(1),
-            &rep(2),
-            Some(&preserving),
-            true,
-            MeasurementKind::NoisyMisclassified,
-        )
-        .is_ok());
+        assert!(
+            check_representation_transfer(
+                &rep(1),
+                &rep(2),
+                Some(&preserving),
+                true,
+                MeasurementKind::NoisyMisclassified,
+            )
+            .is_ok()
+        );
         // Learned coordinates are not intervenable even at the same version.
         let refusal = check_representation_transfer(
             &rep(1),

@@ -150,10 +150,7 @@ impl OverlapDeclaration {
     #[must_use]
     pub fn relation(&self, a: &SampledTableKey, b: &SampledTableKey) -> DatasetOverlap {
         let (a, b) = if a < b { (a, b) } else { (b, a) };
-        self.pairs
-            .iter()
-            .find(|p| &p.a == a && &p.b == b)
-            .map_or(self.default, |p| p.relation)
+        self.pairs.iter().find(|p| &p.a == a && &p.b == b).map_or(self.default, |p| p.relation)
     }
 
     pub(crate) fn write_identity(&self, w: &mut CanonicalWriter) {
@@ -177,6 +174,15 @@ impl OverlapDeclaration {
 pub(crate) struct DatasetGroups {
     /// Table indices of each dataset, ascending; groups ordered by first member.
     pub(crate) groups: Vec<Vec<usize>>,
+}
+
+/// Union-find root with path halving.
+fn find(parent: &mut [usize], mut i: usize) -> usize {
+    while parent[i] != i {
+        parent[i] = parent[parent[i]];
+        i = parent[i];
+    }
+    i
 }
 
 /// Resolve a declaration against the tables (sorted canonically by the caller).
@@ -204,13 +210,6 @@ pub(crate) fn resolve_overlap(
     }
     let n = tables.len();
     let mut parent: Vec<usize> = (0..n).collect();
-    fn find(parent: &mut [usize], mut i: usize) -> usize {
-        while parent[i] != i {
-            parent[i] = parent[parent[i]];
-            i = parent[i];
-        }
-        i
-    }
     for i in 0..n {
         for j in (i + 1)..n {
             let relation = declaration.relation(&keys[i], &keys[j]);
@@ -273,12 +272,12 @@ pub(crate) fn resolve_overlap(
     let mut root_group: Vec<Option<usize>> = vec![None; n];
     for i in 0..n {
         let r = find(&mut parent, i);
-        match root_group[r] {
-            Some(g) => groups[g].push(i),
-            None => {
-                root_group[r] = Some(groups.len());
-                groups.push(vec![i]);
-            }
+        let known = root_group[r];
+        if let Some(g) = known {
+            groups[g].push(i);
+        } else {
+            root_group[r] = Some(groups.len());
+            groups.push(vec![i]);
         }
     }
     Ok(DatasetGroups { groups })
@@ -367,8 +366,9 @@ mod tests {
         assert!(once.clone().with_pair(a.clone(), b.clone(), DatasetOverlap::SharedUnits).is_err());
         assert!(once.clone().with_pair(a.clone(), a.clone(), DatasetOverlap::Independent).is_err());
         let absent = table("c", 2, vec![1, 1, 1]).key();
-        let names_absent =
-            OverlapDeclaration::all_independent().with_pair(a, absent, DatasetOverlap::Unknown).unwrap();
+        let names_absent = OverlapDeclaration::all_independent()
+            .with_pair(a, absent, DatasetOverlap::Unknown)
+            .unwrap();
         assert_eq!(code(&resolve_overlap(&tables, &names_absent).unwrap_err()), "invalid_argument");
     }
 }

@@ -39,8 +39,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use antecedent_core::SearchStop;
 use serde::{Deserialize, Serialize};
 
-use super::network::{Built, Input, Network, WorldIdx, build_network};
 use super::CounterfactualTransportProblem as Problem;
+use super::network::{Built, Input, Network, WorldIdx, build_network};
 
 /// Most response-function tuples of the varied clique.
 const MAX_CLIQUE_STATES: usize = 256;
@@ -256,9 +256,9 @@ impl<'a> Model<'a> {
         }
         let mut positions: Vec<Vec<usize>> = Vec::with_capacity(n);
         let mut canon: Vec<Vec<usize>> = Vec::with_capacity(n);
-        for v in 0..n {
+        for (v, mentioned_v) in mentioned.iter().enumerate().take(n) {
             let declared = problem.levels[v].len();
-            if mentioned[v].len() > 2 {
+            if mentioned_v.len() > 2 {
                 return Err(format!(
                     "variable {} is read at more than two levels; the witness model class is \
                      two-level",
@@ -266,7 +266,7 @@ impl<'a> Model<'a> {
                 ));
             }
             let target = declared.min(2);
-            let mut support: BTreeSet<usize> = mentioned[v].clone();
+            let mut support: BTreeSet<usize> = mentioned_v.clone();
             let mut next = 0usize;
             while support.len() < target {
                 support.insert(next);
@@ -299,14 +299,13 @@ impl<'a> Model<'a> {
             dom.push(rows);
             nfun.push(count);
         }
-        let numerator = match build_network(problem, wp.worlds, wp.numerator)
-            .map_err(|e| e.to_string())?
-        {
-            Built::Zero => {
-                return Err("the query's numerator is structurally impossible".to_owned());
-            }
-            Built::Net(net) => net,
-        };
+        let numerator =
+            match build_network(problem, wp.worlds, wp.numerator).map_err(|e| e.to_string())? {
+                Built::Zero => {
+                    return Err("the query's numerator is structurally impossible".to_owned());
+                }
+                Built::Net(net) => net,
+            };
         let denominator = if wp.given.is_empty() {
             None
         } else {
@@ -521,7 +520,7 @@ fn collect_counts(
     let n = model.n;
     let clique_radices: Vec<usize> = clique.iter().map(|&v| model.nfun[v]).collect();
     let states: usize = clique_radices.iter().product();
-    if states < 2 || states > MAX_CLIQUE_STATES {
+    if !(2..=MAX_CLIQUE_STATES).contains(&states) {
         return None;
     }
     let rest: Vec<usize> = (0..n).filter(|v| !clique.contains(v)).collect();
@@ -644,6 +643,10 @@ fn nullspace(rows: &[Vec<i128>], cols: usize) -> Option<Vec<Vec<i128>>> {
 }
 
 /// Search for a verified witness; see the module documentation.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one search over the cliques and baselines whose charging, caching and outcome bookkeeping stay together"
+)]
 pub(super) fn search_witness(
     wp: &WitnessProblem<'_>,
     charge: &mut dyn FnMut(usize, u64) -> Result<(), SearchStop>,
@@ -669,7 +672,7 @@ pub(super) fn search_witness(
     let mut reasons: Vec<String> = Vec::new();
     for clique in &cliques {
         let states: usize = clique.iter().map(|&v| model.nfun[v]).product();
-        if states < 2 || states > MAX_CLIQUE_STATES {
+        if !(2..=MAX_CLIQUE_STATES).contains(&states) {
             continue;
         }
         for baseline in Baseline::ALL {
@@ -697,9 +700,9 @@ pub(super) fn search_witness(
             };
             for delta in basis {
                 let dot = |q: &[i128]| -> Option<i128> {
-                    q.iter().zip(&delta).try_fold(0i128, |acc, (a, b)| {
-                        acc.checked_add(a.checked_mul(*b)?)
-                    })
+                    q.iter()
+                        .zip(&delta)
+                        .try_fold(0i128, |acc, (a, b)| acc.checked_add(a.checked_mul(*b)?))
                 };
                 let (Some(dn), Some(dd)) = (dot(&counts.numerator), dot(&counts.denominator))
                 else {
@@ -721,8 +724,7 @@ pub(super) fn search_witness(
                 else {
                     continue;
                 };
-                let first: Vec<String> =
-                    (0..m).map(|_| Rat { n: 1, d: m_i }.text()).collect();
+                let first: Vec<String> = (0..m).map(|_| Rat { n: 1, d: m_i }.text()).collect();
                 let second: Option<Vec<String>> = delta
                     .iter()
                     .map(|&x| {
@@ -780,6 +782,10 @@ pub(super) fn search_witness(
 type CellMap = BTreeMap<usize, Rat>;
 
 /// Both models' regime-law cells and query values, by exact enumeration.
+#[allow(
+    clippy::too_many_lines,
+    reason = "a flat sequence of exact enumeration steps over one pair of models, each feeding the next"
+)]
 fn evaluate_pair(
     model: &Model<'_>,
     layout: &Layout,
@@ -798,11 +804,12 @@ fn evaluate_pair(
                 .ok_or_else(|| "the witness names an unknown variable".to_owned())
         })
         .collect::<Result<_, _>>()?;
-    if clique.is_empty() || clique.windows(2).any(|w| w[0] >= w[1]) || !is_clique(problem, &clique) {
+    if clique.is_empty() || clique.windows(2).any(|w| w[0] >= w[1]) || !is_clique(problem, &clique)
+    {
         return Err("the varied set is not a bidirected clique".to_owned());
     }
-    let baseline = Baseline::from_tag(&record.baseline)
-        .ok_or_else(|| "unknown baseline".to_owned())?;
+    let baseline =
+        Baseline::from_tag(&record.baseline).ok_or_else(|| "unknown baseline".to_owned())?;
     let expected_support: Vec<Vec<u32>> = model
         .positions
         .iter()
@@ -813,7 +820,7 @@ fn evaluate_pair(
     }
     let radices: Vec<usize> = clique.iter().map(|&v| model.nfun[v]).collect();
     let states: usize = radices.iter().product();
-    if states < 2 || states > MAX_CLIQUE_STATES {
+    if !(2..=MAX_CLIQUE_STATES).contains(&states) {
         return Err("the varied clique's state space is outside the bound".to_owned());
     }
     let law = |texts: &[String]| -> Result<Vec<Rat>, String> {

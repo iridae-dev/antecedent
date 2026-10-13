@@ -45,6 +45,11 @@ pub use conditional::{
     ConditionalTransportRecord, admg_conditional_refusal, decide_admg_conditional_transport,
 };
 pub use conditional::{ConditionalNonTransportabilityProof, ConditionalNonTransportabilityRecord};
+pub use conditional_witness::{
+    CONDITIONAL_WITNESS_MAX_LATENT_LEVELS, ConditionalWitnessCheck, ConditionalWitnessRecord,
+    WitnessKernelRecord, WitnessLatentRecord, WitnessModelRecord, WitnessSearch,
+    search_conditional_witness, verify_conditional_witness,
+};
 pub use counterfactual_transport::{
     COUNTERFACTUAL_TRANSPORT_CONTRACT, COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS,
     COUNTERFACTUAL_TRANSPORT_MAX_ATOMS, COUNTERFACTUAL_TRANSPORT_MAX_CELLS,
@@ -53,10 +58,10 @@ pub use counterfactual_transport::{
     COUNTERFACTUAL_TRANSPORT_MAX_REGIMES, COUNTERFACTUAL_TRANSPORT_MAX_SOURCES,
     COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS, COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES,
     COUNTERFACTUAL_TRANSPORT_MAX_WORLDS, COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES,
-    CounterfactualCitedRegime, CounterfactualFactor, CounterfactualFunctional,
-    CounterfactualItem, CounterfactualItemSource, CounterfactualLevel,
-    CounterfactualMissingRegime, CounterfactualMovedAtom, CounterfactualSum,
-    CounterfactualSymbol, CounterfactualTransportDecision, CounterfactualTransportDerivation,
+    CounterfactualCitedRegime, CounterfactualFactor, CounterfactualFunctional, CounterfactualItem,
+    CounterfactualItemSource, CounterfactualLevel, CounterfactualMissingRegime,
+    CounterfactualMovedAtom, CounterfactualSum, CounterfactualSymbol,
+    CounterfactualTransportDecision, CounterfactualTransportDerivation,
     CounterfactualTransportInspection, CounterfactualTransportMissing,
     CounterfactualTransportObstruction, CounterfactualTransportProblem,
     CounterfactualTransportQuery, CounterfactualTransportSearchRecord,
@@ -64,11 +69,6 @@ pub use counterfactual_transport::{
     CounterfactualTransportWitness, CounterfactualTransportWitnessCheck,
     counterfactual_transport_refusal, identify_counterfactual_transport,
     replay_counterfactual_transport, verify_counterfactual_transport_witness,
-};
-pub use conditional_witness::{
-    CONDITIONAL_WITNESS_MAX_LATENT_LEVELS, ConditionalWitnessCheck, ConditionalWitnessRecord,
-    WitnessKernelRecord, WitnessLatentRecord, WitnessModelRecord, WitnessSearch,
-    search_conditional_witness, verify_conditional_witness,
 };
 use meta::{CLASSICAL_SETTING, META_SETTING, validate_meta_sources};
 pub use meta::{

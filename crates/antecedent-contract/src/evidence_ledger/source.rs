@@ -7,7 +7,9 @@ use std::sync::Arc;
 
 use antecedent_core::{CanonicalWriter, SemanticDigest};
 
-use super::ids::{LEDGER_IDENTITY_VERSION, ObservationId, OperationId, SourceId, digest_word, finish};
+use super::ids::{
+    LEDGER_IDENTITY_VERSION, ObservationId, OperationId, SourceId, digest_word, finish,
+};
 
 /// What a ledger entry is.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]

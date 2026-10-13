@@ -112,6 +112,12 @@ pub use sid::{
     verify_mz_transport_obstruction, verify_z_transport_derivation,
 };
 pub use sid::{
+    CONDITIONAL_WITNESS_MAX_LATENT_LEVELS, ConditionalNonTransportabilityProof,
+    ConditionalNonTransportabilityRecord, ConditionalWitnessCheck, ConditionalWitnessRecord,
+    WitnessKernelRecord, WitnessLatentRecord, WitnessModelRecord, WitnessSearch,
+    search_conditional_witness, verify_conditional_witness,
+};
+pub use sid::{
     COUNTERFACTUAL_TRANSPORT_CONTRACT, COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS,
     COUNTERFACTUAL_TRANSPORT_MAX_ATOMS, COUNTERFACTUAL_TRANSPORT_MAX_CELLS,
     COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE, COUNTERFACTUAL_TRANSPORT_MAX_LEVELS,
@@ -119,10 +125,10 @@ pub use sid::{
     COUNTERFACTUAL_TRANSPORT_MAX_REGIMES, COUNTERFACTUAL_TRANSPORT_MAX_SOURCES,
     COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS, COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES,
     COUNTERFACTUAL_TRANSPORT_MAX_WORLDS, COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES,
-    CounterfactualCitedRegime, CounterfactualFactor, CounterfactualFunctional,
-    CounterfactualItem, CounterfactualItemSource, CounterfactualLevel,
-    CounterfactualMissingRegime, CounterfactualMovedAtom, CounterfactualSum,
-    CounterfactualSymbol, CounterfactualTransportDecision, CounterfactualTransportDerivation,
+    CounterfactualCitedRegime, CounterfactualFactor, CounterfactualFunctional, CounterfactualItem,
+    CounterfactualItemSource, CounterfactualLevel, CounterfactualMissingRegime,
+    CounterfactualMovedAtom, CounterfactualSum, CounterfactualSymbol,
+    CounterfactualTransportDecision, CounterfactualTransportDerivation,
     CounterfactualTransportInspection, CounterfactualTransportMissing,
     CounterfactualTransportObstruction, CounterfactualTransportProblem,
     CounterfactualTransportQuery, CounterfactualTransportSearchRecord,
@@ -130,12 +136,6 @@ pub use sid::{
     CounterfactualTransportWitness, CounterfactualTransportWitnessCheck,
     counterfactual_transport_refusal, identify_counterfactual_transport,
     replay_counterfactual_transport, verify_counterfactual_transport_witness,
-};
-pub use sid::{
-    CONDITIONAL_WITNESS_MAX_LATENT_LEVELS, ConditionalNonTransportabilityProof,
-    ConditionalNonTransportabilityRecord, ConditionalWitnessCheck, ConditionalWitnessRecord,
-    WitnessKernelRecord, WitnessLatentRecord, WitnessModelRecord, WitnessSearch,
-    search_conditional_witness, verify_conditional_witness,
 };
 pub use sid::{
     STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES, STUDY_PLAN_MAX_PROPOSALS,

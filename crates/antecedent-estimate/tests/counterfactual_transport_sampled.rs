@@ -25,10 +25,10 @@ use antecedent_estimate::EstimationError;
 use antecedent_estimate::counterfactual_transport_sampled::{
     DatasetOverlap, LABEL_ENVELOPE_ONLY, LABEL_EXACT_ON_ESTIMATED_TABLES, LABEL_IDENTIFIED,
     LABEL_INFERENCE_WITHHELD, LABEL_PLUG_IN, LABEL_SMOOTHED_PLUG_IN, OverlapDeclaration,
-    SAMPLED_TRANSPORT_UNCERTAINTY_METHOD, STRUCTURAL_ENVELOPE_LABEL,
-    SampledCounterfactualTransportEstimate, SampledAxis, SampledRegimeCounts,
-    SampledRegimeCountsParts, SampledTransportLimits, SampledTransportRequest, SamplingDesign,
-    UNCALIBRATED_STANDARD_ERROR, UnseenCellRule, estimate_sampled_counterfactual_transport,
+    SAMPLED_TRANSPORT_UNCERTAINTY_METHOD, STRUCTURAL_ENVELOPE_LABEL, SampledAxis,
+    SampledCounterfactualTransportEstimate, SampledRegimeCounts, SampledRegimeCountsParts,
+    SampledTransportLimits, SampledTransportRequest, SamplingDesign, UNCALIBRATED_STANDARD_ERROR,
+    UnseenCellRule, estimate_sampled_counterfactual_transport,
 };
 use antecedent_expr::{ExactDiscreteLaw, ExactTransportData};
 use antecedent_identify::{
@@ -36,10 +36,10 @@ use antecedent_identify::{
     CounterfactualTransportDerivation, identify_counterfactual_transport,
 };
 use counterfactual_transport_adapter as adapter;
-use counterfactual_transport_cases::{
-    Case, CaseGraph, ExpectedClass, Target, all_cases,
+use counterfactual_transport_cases::{Case, CaseGraph, ExpectedClass, Target, all_cases};
+use finite_scm_oracle::{
+    Atom, CfVar, EvidenceSpec, FiniteScm, Mechanism, Population, TargetQuery, bern,
 };
-use finite_scm_oracle::{Atom, CfVar, EvidenceSpec, FiniteScm, Mechanism, Population, TargetQuery, bern};
 
 /// Absolute tolerance of a plug-in at the large-sample size below: about five
 /// standard deviations of the least precise estimand of the named designs.
@@ -86,12 +86,7 @@ fn multinomial(probabilities: &[f64], n: u64, rng: &mut Rng) -> Vec<u64> {
 
 fn table_of(law: &ExactDiscreteLaw, counts: Vec<u64>, structural: bool) -> SampledRegimeCounts {
     let zeros: Vec<usize> = if structural {
-        law.probabilities()
-            .iter()
-            .enumerate()
-            .filter(|(_, p)| **p == 0.0)
-            .map(|(i, _)| i)
-            .collect()
+        law.probabilities().iter().enumerate().filter(|(_, p)| **p == 0.0).map(|(i, _)| i).collect()
     } else {
         Vec::new()
     };
@@ -134,10 +129,7 @@ fn controllable_for(case: &Case) -> Vec<&'static str> {
     }
 }
 
-fn identify(
-    case: &Case,
-    target: &Target,
-) -> CounterfactualTransportDecision {
+fn identify(case: &Case, target: &Target) -> CounterfactualTransportDecision {
     let problem = adapter::problem(case);
     let catalog = adapter::catalog(case);
     let sources = adapter::sources(case, &controllable_for(case));
@@ -555,7 +547,7 @@ fn uncited_missing_and_undersized_tables_are_refused_before_a_number() {
     // A withheld experiment: the cited regime has no table.
     let thin: Vec<SampledRegimeCounts> = tables
         .iter()
-        .filter(|t| !(t.population() == "source" && !t.interventions().is_empty()))
+        .filter(|t| t.population() != "source" || t.interventions().is_empty())
         .cloned()
         .collect();
     let error = estimate(&derivation, thin, UnseenCellRule::Refuse).unwrap_err();
@@ -628,9 +620,8 @@ fn malformed_count_tables_are_refused_at_construction() {
     assert_eq!(good.content_identity(), table_of(law, counts, false).content_identity());
     // Stratifying on a variable the table does not measure.
     let mut bad = parts(good.counts().to_vec(), vec![]);
-    bad.design = SamplingDesign::Stratified {
-        variables: vec![antecedent_core::VariableId::from_raw(999)],
-    };
+    bad.design =
+        SamplingDesign::Stratified { variables: vec![antecedent_core::VariableId::from_raw(999)] };
     assert!(SampledRegimeCounts::try_new(bad).is_err());
 }
 
@@ -716,11 +707,7 @@ fn chain_case() -> Case {
         .endo("M", 2, Mechanism::new(|v, u| v[0] ^ u[1]))
         .endo("Y", 2, Mechanism::new(|v, u| v[1] ^ u[2]));
     let populations = vec![Population::new("pop", scm)];
-    let query = TargetQuery::new(
-        "pop",
-        vec![Atom::new(CfVar::under("Y", &[("X", 1)]), 1)],
-        vec![],
-    );
+    let query = TargetQuery::new("pop", vec![Atom::new(CfVar::under("Y", &[("X", 1)]), 1)], vec![]);
     let expected_value = query.value(&populations);
     Case {
         name: "chain_unread_coordinate",
@@ -761,9 +748,11 @@ fn a_factor_that_reads_fewer_coordinates_than_its_table_is_pooled_not_refused() 
     let n = |x: usize, m: usize, y: usize| counts[x * 4 + m * 2 + y] as f64;
     let mut by_hand = 0.0;
     for m in 0..2 {
-        let n_x1: f64 = (0..2).flat_map(|mm| (0..2).map(move |y| (mm, y))).map(|(mm, y)| n(1, mm, y)).sum();
+        let n_x1: f64 =
+            (0..2).flat_map(|mm| (0..2).map(move |y| (mm, y))).map(|(mm, y)| n(1, mm, y)).sum();
         let n_x1m: f64 = (0..2).map(|y| n(1, m, y)).sum();
-        let n_m: f64 = (0..2).flat_map(|x| (0..2).map(move |y| (x, y))).map(|(x, y)| n(x, m, y)).sum();
+        let n_m: f64 =
+            (0..2).flat_map(|x| (0..2).map(move |y| (x, y))).map(|(x, y)| n(x, m, y)).sum();
         let n_my1: f64 = (0..2).map(|x| n(x, m, 1)).sum();
         by_hand += (n_x1m / n_x1) * (n_my1 / n_m);
     }

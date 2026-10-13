@@ -193,9 +193,8 @@ fn prior_plus_likelihood_re_entry_is_refused() {
     );
     let posterior = add(
         &mut ledger,
-        SourceDeclaration::new("posterior", SourceKind::Prior).with_lineage(
-            Lineage::PriorPlusLikelihood { prior: elicited, likelihood },
-        ),
+        SourceDeclaration::new("posterior", SourceKind::Prior)
+            .with_lineage(Lineage::PriorPlusLikelihood { prior: elicited, likelihood }),
     );
     let error = ledger
         .combine(pooling("p", &[posterior, likelihood], PoolingDependence::Independent))
@@ -280,7 +279,9 @@ fn the_same_evidence_is_not_added_twice_and_rows_are_not_repeated_in_a_source() 
     let mut rows = obs(0..5);
     rows.push(rows[0]);
     let error = ledger
-        .add_source(SourceDeclaration::new("dup_rows", SourceKind::ObservationSet).with_observations(rows))
+        .add_source(
+            SourceDeclaration::new("dup_rows", SourceKind::ObservationSet).with_observations(rows),
+        )
         .expect_err("a repeated observation inside one source");
     expect_refusal(&error, "evidence_double_counted", "evidence_ledger.duplicate_row");
 }
@@ -512,7 +513,8 @@ fn each_operation_has_its_own_policy_on_the_same_overlapping_pair() {
 fn unknown_dependence_is_refused_by_every_operation_that_needs_it_known() {
     let mut ledger = EvidenceLedger::new();
     let a = add(&mut ledger, data("a", 0..10));
-    let prior_with_unknown_origin = add(&mut ledger, SourceDeclaration::new("p", SourceKind::Prior));
+    let prior_with_unknown_origin =
+        add(&mut ledger, SourceDeclaration::new("p", SourceKind::Prior));
     let claim = add(
         &mut ledger,
         SourceDeclaration::new("claim", SourceKind::ExternalClaim)
@@ -594,7 +596,14 @@ fn a_transported_claim_never_counts_as_native_target_data() {
     assert_eq!(record.transport_identities.len(), 1);
     assert_eq!(
         record.transport_identities[0],
-        ledger.source(transported).expect("source").declaration.transport.as_ref().expect("t").digest()
+        ledger
+            .source(transported)
+            .expect("source")
+            .declaration
+            .transport
+            .as_ref()
+            .expect("t")
+            .digest()
     );
 
     // transport-then-synthesize: pooled, the transport identity travels with it
@@ -706,9 +715,8 @@ fn scenario() -> Scenario {
         ledger.combine(pooling("s1_s2", &[s1, s2], PoolingDependence::Independent)).expect("ok");
     let r_s2_s3 =
         ledger.combine(pooling("s2_s3", &[s2, s3], PoolingDependence::Independent)).expect("ok");
-    let r_all = ledger
-        .combine(pooling("all", &[s1, s2, s3], PoolingDependence::Independent))
-        .expect("ok");
+    let r_all =
+        ledger.combine(pooling("all", &[s1, s2, s3], PoolingDependence::Independent)).expect("ok");
     let r_cite = ledger
         .combine(CombinationRequest {
             label: "cite_s1_s2".to_owned(),
@@ -862,14 +870,16 @@ fn update_replace_and_supersede_have_distinct_rules() {
     let error = ledger
         .supersede_source(
             model,
-            SourceDeclaration::new("claim", SourceKind::ExternalClaim).with_observations(obs(0..10)),
+            SourceDeclaration::new("claim", SourceKind::ExternalClaim)
+                .with_observations(obs(0..10)),
         )
         .expect_err("a claim does not supersede a model");
     expect_refusal(&error, "invalid_argument", "evidence_ledger.supersede_kind_mismatch");
     let error = ledger
         .replace_source(
             model,
-            SourceDeclaration::new("claim", SourceKind::ExternalClaim).with_observations(obs(0..10)),
+            SourceDeclaration::new("claim", SourceKind::ExternalClaim)
+                .with_observations(obs(0..10)),
         )
         .expect_err("kinds match");
     expect_refusal(&error, "invalid_argument", "evidence_ledger.kind_mismatch");
@@ -940,16 +950,14 @@ fn a_result_identity_ignores_the_order_of_its_sources() {
     let a = add(&mut ledger, data("a", 0..10));
     let b = add(&mut ledger, data("b", 10..20));
     let c = add(&mut ledger, data("c", 20..30));
-    let forward = ledger
-        .combine(pooling("p", &[a, b, c], PoolingDependence::Independent))
-        .expect("pooled");
+    let forward =
+        ledger.combine(pooling("p", &[a, b, c], PoolingDependence::Independent)).expect("pooled");
     let mut twin = EvidenceLedger::new();
     let a2 = add(&mut twin, data("a", 0..10));
     let b2 = add(&mut twin, data("b", 10..20));
     let c2 = add(&mut twin, data("c", 20..30));
-    let backward = twin
-        .combine(pooling("p", &[c2, a2, b2], PoolingDependence::Independent))
-        .expect("pooled");
+    let backward =
+        twin.combine(pooling("p", &[c2, a2, b2], PoolingDependence::Independent)).expect("pooled");
     assert_eq!(forward, backward);
 }
 
@@ -1025,8 +1033,16 @@ fn relations_use_the_composition_vocabulary() {
 #[test]
 fn bounds_are_enforced() {
     let mut ledger = EvidenceLedger::new();
-    let ids: Vec<SourceId> = (0..=MAX_COMBINATION_SOURCES as u32)
-        .map(|i| add(&mut ledger, data(&format!("s{i}"), i..i + 1)))
+    let ids: Vec<SourceId> = (0..=u32::try_from(MAX_COMBINATION_SOURCES)
+        .expect("the bound fits u32"))
+        .map(|i| {
+            #[allow(
+                clippy::range_plus_one,
+                reason = "`data` takes a half-open `Range<u32>`, not an inclusive range"
+            )]
+            let one = i..i + 1;
+            add(&mut ledger, data(&format!("s{i}"), one))
+        })
         .collect();
     let error = ledger
         .combine(pooling("too_many", &ids, PoolingDependence::Independent))
@@ -1045,9 +1061,8 @@ fn evidence_reuse_counts_the_cited_result_once() {
     let mut ledger = EvidenceLedger::new();
     let a = add(&mut ledger, data("a", 0..30));
     let b = add(&mut ledger, data("b", 30..50));
-    let pooled = ledger
-        .combine(pooling("pooled", &[a, b], PoolingDependence::Independent))
-        .expect("pooled");
+    let pooled =
+        ledger.combine(pooling("pooled", &[a, b], PoolingDependence::Independent)).expect("pooled");
     let cite = |ledger: &mut EvidenceLedger, label: &str| {
         ledger
             .combine(CombinationRequest {
@@ -1136,9 +1151,8 @@ fn no_interval_or_posterior_is_licensed_from_pooled_evidence() {
     let mut ledger = EvidenceLedger::new();
     let a = add(&mut ledger, data("a", 0..10));
     let b = add(&mut ledger, data("b", 10..20));
-    let pooled = ledger
-        .combine(pooling("p", &[a, b], PoolingDependence::Independent))
-        .expect("pooled");
+    let pooled =
+        ledger.combine(pooling("p", &[a, b], PoolingDependence::Independent)).expect("pooled");
     let record = ledger.result(pooled).expect("record");
     // the ledger licenses a point-only statement
     assert_eq!(record.claim_class, ClaimClass::PointOnly);

@@ -24,9 +24,9 @@ use antecedent_contract::{
 };
 use antecedent_core::measurement_model::{
     ArmBinding, BinaryArmRates, DifferentialAxis, ErrorStructure, MappingSemantics,
-    MeasurementBinding, MeasurementKind, MeasurementModel, MeasurementParameters,
-    MeasurementRoute, MeasurementVariable, ParameterEvidence, PosteriorReference,
-    RepresentationMapping, RepresentationVersion,
+    MeasurementBinding, MeasurementKind, MeasurementModel, MeasurementParameters, MeasurementRoute,
+    MeasurementVariable, ParameterEvidence, PosteriorReference, RepresentationMapping,
+    RepresentationVersion,
 };
 use antecedent_estimate::measurement::PosteriorCombination;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
@@ -111,9 +111,7 @@ pub(crate) fn list<'a>(map: &'a Map<String, Json>, key: &str) -> PyResult<&'a Ve
 pub(crate) fn reals(map: &Map<String, Json>, key: &str) -> PyResult<Vec<f64>> {
     list(map, key)?
         .iter()
-        .map(|v| {
-            v.as_f64().ok_or_else(|| crate::value_err(format!("`{key}` holds a non-number")))
-        })
+        .map(|v| v.as_f64().ok_or_else(|| crate::value_err(format!("`{key}` holds a non-number"))))
         .collect()
 }
 
@@ -195,9 +193,7 @@ fn parse_structure(name: &str) -> PyResult<ErrorStructure> {
     match name {
         "non_differential" => Ok(ErrorStructure::NonDifferential),
         "differential_arm" => Ok(ErrorStructure::Differential(DifferentialAxis::Arm)),
-        "differential_population" => {
-            Ok(ErrorStructure::Differential(DifferentialAxis::Population))
-        }
+        "differential_population" => Ok(ErrorStructure::Differential(DifferentialAxis::Population)),
         "differential_time" => Ok(ErrorStructure::Differential(DifferentialAxis::Time)),
         other => Err(crate::value_err(format!("unknown error structure `{other}`"))),
     }
@@ -218,9 +214,9 @@ fn parse_mapping(value: &Json) -> PyResult<RepresentationMapping> {
     let semantics = object(member(map, "semantics")?, "mapping semantics")?;
     let semantics = match text(semantics, "kind")?.as_str() {
         "coordinate_relabeling" => MappingSemantics::CoordinateRelabeling,
-        "intervention_preserving" => {
-            MappingSemantics::InterventionPreserving { evidence_id: text(semantics, "evidence_id")? }
-        }
+        "intervention_preserving" => MappingSemantics::InterventionPreserving {
+            evidence_id: text(semantics, "evidence_id")?,
+        },
         other => {
             return Err(crate::value_err(format!("unknown mapping semantics `{other}`")));
         }
@@ -393,7 +389,11 @@ fn parameters_json(parameters: &MeasurementParameters) -> Json {
                 "max_condition": max_condition,
             })
         }
-        MeasurementParameters::ExternalPosterior { reference, conditioned_on_outcome, min_draws } => {
+        MeasurementParameters::ExternalPosterior {
+            reference,
+            conditioned_on_outcome,
+            min_draws,
+        } => {
             json!({
                 "kind": "external_posterior",
                 "reference": {
@@ -412,7 +412,9 @@ fn parameters_json(parameters: &MeasurementParameters) -> Json {
 
 fn evidence_json(evidence: &ParameterEvidence) -> Json {
     match evidence {
-        ParameterEvidence::Declared { declarer } => json!({"kind": "declared", "declarer": declarer}),
+        ParameterEvidence::Declared { declarer } => {
+            json!({"kind": "declared", "declarer": declarer})
+        }
         ParameterEvidence::ValidationSample { sample_id, units } => {
             json!({"kind": "validation_sample", "sample_id": sample_id, "units": units})
         }
@@ -673,7 +675,11 @@ fn record_json(record: &antecedent_core::measurement_model::CorrectedFunctionalR
 fn estimate_json(estimate: &MeasurementEstimate) -> Json {
     let mut summary = record_json(estimate.record());
     summary["operation"] = json!(estimate.operation().as_str());
-    summary["provider_trust"] = json!(estimate.provider_trust().map(|t| t.as_str()));
+    summary["provider_trust"] = json!(
+        estimate
+            .provider_trust()
+            .map(antecedent_contract::measurement::LatentPosteriorTrust::as_str)
+    );
     summary["representation_mapping_id"] = json!(estimate.representation_mapping_id());
     summary["interval"] = Json::Null;
     summary
@@ -705,7 +711,7 @@ fn detail_json(estimate: &MeasurementEstimate) -> Json {
             "kind": "posterior_linear",
             "combination": match effect.combination {
                 PosteriorCombination::MultipleImputation => "multiple_imputation",
-                _ => "posterior_mean_substitution",
+                PosteriorCombination::PosteriorMeanSubstitution => "posterior_mean_substitution",
             },
             "dimension": effect.coefficients.len(),
             "coefficients": effect.coefficients,
@@ -764,11 +770,10 @@ pub(crate) struct ConsumedMeasurementHandle {
     inner: ConsumedMeasurement,
 }
 
-type Prepared = (Option<PreparedMeasurementHandle>, Option<MeasurementEstimateHandle>, Option<String>);
+type Prepared =
+    (Option<PreparedMeasurementHandle>, Option<MeasurementEstimateHandle>, Option<String>);
 
-fn refreshed(
-    outcome: Result<antecedent::MeasurementRefresh, MeasurementModelRefusal>,
-) -> Prepared {
+fn refreshed(outcome: Result<antecedent::MeasurementRefresh, MeasurementModelRefusal>) -> Prepared {
     match outcome {
         Ok(done) => (
             Some(PreparedMeasurementHandle { inner: done.prepared }),
@@ -814,7 +819,7 @@ impl PreparedMeasurementHandle {
             "evidence": identities.evidence.to_hex(),
             "model": identities.model.to_hex(),
             "operation": self.inner.operation().as_str(),
-            "provider_trust": self.inner.provider_trust().map(|t| t.as_str()),
+            "provider_trust": self.inner.provider_trust().map(antecedent_contract::measurement::LatentPosteriorTrust::as_str),
         })
         .to_string()
     }
@@ -929,11 +934,7 @@ impl MeasurementEstimateHandle {
     }
 
     /// The artifact bytes, or the refusal.
-    fn export(
-        &self,
-        py: Python<'_>,
-        artifact_id: &str,
-    ) -> (Option<Py<PyBytes>>, Option<String>) {
+    fn export(&self, py: Python<'_>, artifact_id: &str) -> (Option<Py<PyBytes>>, Option<String>) {
         match self.inner.export(artifact_id) {
             Ok(bytes) => (Some(PyBytes::new(py, &bytes).unbind()), None),
             Err(refusal) => (None, Some(refusal_json(&refusal))),
@@ -1006,12 +1007,10 @@ fn measurement_model_prepare(
         None => None,
     };
     let trust = match &provider {
-        Some(declaration) => {
-            match trust_of(declaration, receipt.as_deref()) {
-                Ok(trust) => Some(trust),
-                Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
-            }
-        }
+        Some(declaration) => match trust_of(declaration, receipt.as_deref()) {
+            Ok(trust) => Some(trust),
+            Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
+        },
         None => None,
     };
     let outcome = crate::detach_catch(py, move || {

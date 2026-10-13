@@ -11,6 +11,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(
+    clippy::needless_range_loop,
+    reason = "simulation fixtures index parallel columns by row and draw"
+)]
+
 use antecedent::{
     CategoricalTarget, MeasurementAnalysisBinding, MeasurementDetail, MeasurementInput,
     StudyBuilder, consume_measurement_model_artifact,
@@ -229,8 +234,8 @@ fn the_measurement_parameter_uncertainty_is_in_the_variance_and_the_functional()
     assert_eq!(uncertain.parameter_uncertainty(), ParameterUncertainty::Propagated);
     // The added variance is (d beta / d sigma^2)^2 Var(sigma^2), with
     // d beta / d sigma^2 = beta / Var(X | Z) = beta / 0.8.
-    let added = uncertain.standard_error().unwrap().powi(2)
-        - exact.standard_error().unwrap().powi(2);
+    let added =
+        uncertain.standard_error().unwrap().powi(2) - exact.standard_error().unwrap().powi(2);
     let slope = uncertain.point() / 0.8;
     assert!((added - slope * slope * 0.06 * 0.06).abs() / added < 0.1, "added {added}");
     // A downstream linear functional uses the joint covariance.
@@ -253,9 +258,7 @@ fn row_order_does_not_change_the_correction_and_the_same_inputs_give_the_same_bi
     };
     let backward = prepare_classical(&m, &rev).estimate(&ctx()).unwrap();
     assert!((forward.point() - backward.point()).abs() < 1e-9);
-    assert!(
-        (forward.standard_error().unwrap() - backward.standard_error().unwrap()).abs() < 1e-9
-    );
+    assert!((forward.standard_error().unwrap() - backward.standard_error().unwrap()).abs() < 1e-9);
     let again = prepare_classical(&m, &sim).estimate(&ctx()).unwrap();
     assert_eq!(forward.record(), again.record());
 }
@@ -348,9 +351,14 @@ fn a_declared_structure_is_never_pooled_with_the_other() {
         ErrorStructure::Differential(DifferentialAxis::Arm),
     );
     // Analysed as non-differential: refused.
-    let refusal =
-        StudyBuilder::measurement_model(differential.clone(), binding(), input.clone(), None, &ctx())
-            .unwrap_err();
+    let refusal = StudyBuilder::measurement_model(
+        differential.clone(),
+        binding(),
+        input.clone(),
+        None,
+        &ctx(),
+    )
+    .unwrap_err();
     assert_eq!(refusal.code, "differential_error_not_pooled");
     assert_eq!(refusal.detail, "measurement_model.differential_declared");
     // Analysed under its own declaration: the per-arm rates apply.
@@ -368,11 +376,13 @@ fn a_declared_structure_is_never_pooled_with_the_other() {
     assert!((right.point() - 0.2).abs() < 1e-12);
     assert!((right.naive_point().unwrap() - 0.3).abs() < 1e-12);
     // The shared-rate model is a different identity and a different answer.
-    let pooled = binary_model(vec![rates(None, 0.9, 0.8, 0.0, 0.0)], ErrorStructure::NonDifferential);
-    let wrong = StudyBuilder::measurement_model(pooled.clone(), binding(), input.clone(), None, &ctx())
-        .unwrap()
-        .estimate(&ctx())
-        .unwrap();
+    let pooled =
+        binary_model(vec![rates(None, 0.9, 0.8, 0.0, 0.0)], ErrorStructure::NonDifferential);
+    let wrong =
+        StudyBuilder::measurement_model(pooled.clone(), binding(), input.clone(), None, &ctx())
+            .unwrap()
+            .estimate(&ctx())
+            .unwrap();
     assert!((wrong.point() - 0.3 / 0.7).abs() < 1e-12);
     assert_ne!(right.model_identity(), wrong.model_identity());
 
@@ -450,14 +460,9 @@ fn a_mapping_carries_values_and_intervention_meaning_only_when_declared() {
     };
     let mut mapped = binding().with_mapping(relabel.clone());
     mapped.representation = relabel.to.clone();
-    let prepared = StudyBuilder::measurement_model(
-        m.clone(),
-        mapped,
-        classical_input(&sim),
-        None,
-        &ctx(),
-    )
-    .unwrap();
+    let prepared =
+        StudyBuilder::measurement_model(m.clone(), mapped, classical_input(&sim), None, &ctx())
+            .unwrap();
     let estimate = prepared.estimate(&ctx()).unwrap();
     assert_eq!(estimate.representation_mapping_id(), Some("map-relabel"));
     // Values crossed unchanged: the same correction as the unmapped one.
@@ -487,8 +492,7 @@ fn a_mapping_carries_values_and_intervention_meaning_only_when_declared() {
     let ok = StudyBuilder::measurement_model(m, b, classical_input(&sim), None, &ctx()).unwrap();
     // The mapping now carries the meaning; the route itself still refuses an
     // intervention on the recorded indicator (it is declared on the construct).
-    let refusal =
-        ok.check_operation(MeasurementOperation::InterveneOnRepresentation).unwrap_err();
+    let refusal = ok.check_operation(MeasurementOperation::InterveneOnRepresentation).unwrap_err();
     assert_eq!(refusal.code, "cell_not_licensed");
     assert_eq!(refusal.detail, "measurement_model.operation_not_licensed");
 }
@@ -506,7 +510,7 @@ fn repeated_world(units: usize, seed: u64) -> (Vec<f64>, Vec<f64>, Vec<u32>) {
     for i in 0..units {
         let x = normal(&mut rng);
         y.push(1.0 + 1.5 * x + normal(&mut rng));
-        let k = 2 + (i % 2) as u32; // 2 or 3 replicates
+        let k = 2 + u32::from(i % 2 == 1); // 2 or 3 replicates
         counts.push(k);
         for _ in 0..k {
             values.push(x + 0.5_f64.sqrt() * normal(&mut rng));
@@ -527,13 +531,14 @@ fn repeated_model(min_replicated_units: u32) -> MeasurementModel {
 #[test]
 fn repeated_measurements_estimate_the_icc_and_recover_the_coefficient() {
     let (y, values, counts) = repeated_world(6_000, 2024);
-    let input = |y: Vec<f64>, values: Vec<f64>, counts: Vec<u32>| MeasurementInput::RepeatedLinear {
-        outcome: y,
-        replicate_values: values,
-        replicate_counts: counts,
-        covariates: vec![],
-        covariate_count: 0,
-    };
+    let input =
+        |y: Vec<f64>, values: Vec<f64>, counts: Vec<u32>| MeasurementInput::RepeatedLinear {
+            outcome: y,
+            replicate_values: values,
+            replicate_counts: counts,
+            covariates: vec![],
+            covariate_count: 0,
+        };
     let prepared = StudyBuilder::measurement_model(
         repeated_model(50),
         binding(),
@@ -579,10 +584,8 @@ fn repeated_measurements_estimate_the_icc_and_recover_the_coefficient() {
 #[test]
 fn binary_prevalence_inverts_the_misclassification_algebra() {
     // pi = 0.3, Se = 0.9, Sp = 0.8: p* = 0.27 + 0.14 = 0.41.
-    let m = binary_model(
-        vec![rates(None, 0.9, 0.8, 0.0001, 0.0004)],
-        ErrorStructure::NonDifferential,
-    );
+    let m =
+        binary_model(vec![rates(None, 0.9, 0.8, 0.0001, 0.0004)], ErrorStructure::NonDifferential);
     let estimate = StudyBuilder::measurement_model(
         m,
         binding(),
@@ -612,10 +615,8 @@ fn shared_rates_keep_the_arm_covariance_that_split_rates_miss() {
         unexposed_events: 340,
         unexposed_total: 1000,
     };
-    let m = binary_model(
-        vec![rates(None, 0.9, 0.8, 0.0004, 0.0009)],
-        ErrorStructure::NonDifferential,
-    );
+    let m =
+        binary_model(vec![rates(None, 0.9, 0.8, 0.0004, 0.0009)], ErrorStructure::NonDifferential);
     let estimate = StudyBuilder::measurement_model(
         m,
         binding(),
@@ -683,7 +684,13 @@ fn exact_classes() -> Vec<ObservedClassSummary> {
         .map(|j| {
             let p: f64 = (0..3).map(|t| c[j * 3 + t] * pi[t]).sum();
             let ybar: f64 = (0..3).map(|t| c[j * 3 + t] * pi[t] * mu[t]).sum::<f64>() / p;
-            ObservedClassSummary { count: (p * n).round() as u64, mean: ybar, variance: 1.0 }
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "the rounded expected count is a small non-negative integer by construction"
+            )]
+            let count = (p * n).round() as u64;
+            ObservedClassSummary { count, mean: ybar, variance: 1.0 }
         })
         .collect()
 }
@@ -709,10 +716,8 @@ fn categorical_inversion_recovers_proportions_and_outcome_means() {
         assert_eq!(e.operation(), MeasurementOperation::LatentPrevalence);
         assert!(e.standard_error().unwrap() > 0.0);
     }
-    let contrast = run(CategoricalTarget::OutcomeContrast {
-        first: "high".into(),
-        second: "low".into(),
-    });
+    let contrast =
+        run(CategoricalTarget::OutcomeContrast { first: "high".into(), second: "low".into() });
     assert!((contrast.point() - 3.0).abs() < 1e-6, "{}", contrast.point());
     assert!(contrast.naive_point().unwrap() < 2.5);
     assert_eq!(contrast.operation(), MeasurementOperation::CategoryOutcomeMeans);
@@ -848,14 +853,9 @@ fn a_posterior_route_needs_the_exact_attested_provider_object() {
     .unwrap_err();
     assert_eq!(refusal.detail, "measurement_model.posterior_identity");
     // The exact object, attested, is consumed and labelled as such.
-    let prepared = StudyBuilder::measurement_model(
-        m,
-        binding(),
-        input(),
-        Some((&good, &attested)),
-        &ctx(),
-    )
-    .unwrap();
+    let prepared =
+        StudyBuilder::measurement_model(m, binding(), input(), Some((&good, &attested)), &ctx())
+            .unwrap();
     assert_eq!(prepared.provider_trust(), Some(LatentPosteriorTrust::ExternallyAttested));
     // A learned representation's coordinates are not intervenable.
     let refusal =
@@ -1068,14 +1068,11 @@ fn artifact_replays_independently_and_refuses_semantic_mutation() {
     assert!(consumed.covers_data_identity(&estimate.record().data_identity));
     assert_eq!(consumed.model(), prepared.model());
     // The consumer applies its own binding to the stored result.
-    assert!(consumed
-        .check_use(&binding(), MeasurementOperation::LinearAdjustedEffect)
-        .is_ok());
+    assert!(consumed.check_use(&binding(), MeasurementOperation::LinearAdjustedEffect).is_ok());
     let mut elsewhere = binding();
     elsewhere.population_id = "elsewhere".into();
-    let refusal = consumed
-        .check_use(&elsewhere, MeasurementOperation::LinearAdjustedEffect)
-        .unwrap_err();
+    let refusal =
+        consumed.check_use(&elsewhere, MeasurementOperation::LinearAdjustedEffect).unwrap_err();
     assert_eq!(refusal.detail, "measurement_model.population_mismatch");
 
     // Semantic mutations are different identities and are refused; the
@@ -1110,10 +1107,8 @@ fn artifact_replays_independently_and_refuses_semantic_mutation() {
 #[test]
 fn every_route_exports_a_result_a_consumer_recomputes() {
     // Binary prevalence.
-    let m = binary_model(
-        vec![rates(None, 0.9, 0.8, 0.0001, 0.0004)],
-        ErrorStructure::NonDifferential,
-    );
+    let m =
+        binary_model(vec![rates(None, 0.9, 0.8, 0.0001, 0.0004)], ErrorStructure::NonDifferential);
     let prepared = StudyBuilder::measurement_model(
         m,
         binding(),

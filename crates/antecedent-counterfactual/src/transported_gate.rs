@@ -132,15 +132,19 @@ pub fn refuse_transported_counterfactual(
                 antecedent_core::reason_code!("transport_missing_evidence"),
                 "transported_counterfactual.factor_missing",
                 missing_factors.first().map(RegimeFactorKey::label),
-                "supply every source and target regime factor cited by the composed proof",
+                "this temporal route stays closed; a finite discrete, static, acyclic \
+             semi-Markovian counterfactual transport question is answered by \
+             antecedent.transport.advanced.identify_counterfactual",
             )
         } else {
             (
                 antecedent_core::reason_code!("cell_not_licensed"),
                 "transported_counterfactual.route_frozen",
                 missing_gates.first().map(|g| g.name().to_owned()),
-                "pass the transport and fixed-population counterfactual licenses and state the \
-             cross-population assumptions; the joint theorem is still required",
+                "this temporal, continuous or non-finite route stays closed because the joint \
+             theorem is not derived; a finite discrete, static, acyclic semi-Markovian \
+             counterfactual transport question is answered by \
+             antecedent.transport.advanced.identify_counterfactual",
             )
         };
     TransportedCounterfactualRefusal {

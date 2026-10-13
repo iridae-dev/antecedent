@@ -114,7 +114,8 @@ pub const SAMPLED_TRANSPORT_DERIVATION_TAG: &str =
     "antecedent.estimate.counterfactual_transport_sampled.derivation.v1";
 
 pub(crate) const DETAIL_INVALID_COUNTS: &str = "counterfactual_transport_sampled.invalid_counts";
-pub(crate) const DETAIL_SAMPLE_SIZE: &str = "counterfactual_transport_sampled.sample_size_below_limit";
+pub(crate) const DETAIL_SAMPLE_SIZE: &str =
+    "counterfactual_transport_sampled.sample_size_below_limit";
 pub(crate) const DETAIL_UNSEEN: &str = "counterfactual_transport_sampled.unseen_cell";
 pub(crate) const DETAIL_SPARSE: &str = "counterfactual_transport_sampled.sparsity_above_limit";
 pub(crate) const DETAIL_OVERLAP_UNKNOWN: &str = "counterfactual_transport_sampled.overlap_unknown";
@@ -127,21 +128,22 @@ pub(crate) const DETAIL_NOT_CITED: &str = "counterfactual_transport_sampled.tabl
 pub(crate) const DETAIL_MISSING_TABLE: &str = "counterfactual_transport_sampled.missing_table";
 pub(crate) const DETAIL_ENVELOPE_BUDGET: &str = "counterfactual_transport_sampled.envelope_budget";
 pub(crate) const DETAIL_CANCELLED: &str = "counterfactual_transport_sampled.cancelled";
-pub(crate) const DETAIL_ENVELOPE_EMPTY: &str = "counterfactual_transport_sampled.envelope_undefined";
+pub(crate) const DETAIL_ENVELOPE_EMPTY: &str =
+    "counterfactual_transport_sampled.envelope_undefined";
 /// Detail of the withheld interval.
 pub const DETAIL_INTERVAL_NOT_LICENSED: &str =
     "counterfactual_transport_sampled.interval_not_licensed";
 
-pub(crate) fn refused(code: &'static str, detail: &str, message: impl AsRef<str>) -> EstimationError {
+pub(crate) fn refused(
+    code: &'static str,
+    detail: &str,
+    message: impl AsRef<str>,
+) -> EstimationError {
     EstimationError::refused(code, format!("{detail}: {}", message.as_ref()))
 }
 
 pub(crate) fn invalid_counts(message: impl AsRef<str>) -> EstimationError {
-    refused(
-        antecedent_core::reason_code!("invalid_argument"),
-        DETAIL_INVALID_COUNTS,
-        message,
-    )
+    refused(antecedent_core::reason_code!("invalid_argument"), DETAIL_INVALID_COUNTS, message)
 }
 
 /// The sampled evidence, its dependence declaration, the unseen-cell rule and the limits.
@@ -399,6 +401,10 @@ fn evidence_identity(request: &SampledTransportRequest, sorted: &[SampledRegimeC
 /// shared units that are not one dataset; `transport_budget_cancel` for a limit
 /// or cancellation; `transport_numerical_failure` when the tables contradict the
 /// graph beyond tolerance.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one pass whose declared-bound checks, sampling loop and refusal assembly share the same run state"
+)]
 pub fn estimate_sampled_counterfactual_transport(
     derivation: &CounterfactualTransportDerivation,
     request: &SampledTransportRequest,
@@ -413,9 +419,7 @@ pub fn estimate_sampled_counterfactual_transport(
     }
     validate_request(request)?;
     let mut tables: Vec<SampledRegimeCounts> = request.tables.clone();
-    tables.sort_by(|a, b| {
-        (a.key(), a.content_identity()).cmp(&(b.key(), b.content_identity()))
-    });
+    tables.sort_by_key(|a| (a.key(), a.content_identity()));
     if tables.windows(2).any(|w| w[0].key() == w[1].key()) {
         return Err(invalid_counts(
             "two count tables name one population, regime and intervention world",
@@ -463,10 +467,8 @@ pub fn estimate_sampled_counterfactual_transport(
         probabilities.push(p);
         smoothed.push(was_smoothed);
     }
-    let flavors: Vec<LawFlavor> = smoothed
-        .iter()
-        .map(|s| if *s { LawFlavor::Model } else { LawFlavor::Empirical })
-        .collect();
+    let flavors: Vec<LawFlavor> =
+        smoothed.iter().map(|s| if *s { LawFlavor::Model } else { LawFlavor::Empirical }).collect();
     let any_smoothed = smoothed.iter().any(|s| *s);
     let any_unseen = tables.iter().any(|t| !t.unseen_cells().is_empty());
     let envelope_mass = match request.unseen_rule {

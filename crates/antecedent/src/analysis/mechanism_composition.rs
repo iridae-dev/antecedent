@@ -106,7 +106,12 @@ impl MechanismCompositionRefusal {
     }
 
     /// A refusal whose subject is described by `subject`.
-    fn of(code: &'static str, stage: &'static str, detail: &str, subject: impl Into<String>) -> Self {
+    fn of(
+        code: &'static str,
+        stage: &'static str,
+        detail: &str,
+        subject: impl Into<String>,
+    ) -> Self {
         Self::one(ExternalRefusal::new(code, stage, detail).with_offending(subject.into()))
     }
 
@@ -163,9 +168,9 @@ impl From<MechanismCompositionRefusal> for crate::CausalError {
 
 fn model_refusal(error: CompositionError) -> MechanismCompositionRefusal {
     match error {
-        CompositionError::Incoherent { findings } => MechanismCompositionRefusal {
-            refusals: refusals_for_findings(&findings),
-        },
+        CompositionError::Incoherent { findings } => {
+            MechanismCompositionRefusal { refusals: refusals_for_findings(&findings) }
+        }
         CompositionError::Unsupported { message } => MechanismCompositionRefusal::of(
             antecedent_core::reason_code!("route_not_supported"),
             "compose",
@@ -399,9 +404,7 @@ impl DependenceInput {
         match self {
             Self::Unknown => DependenceDeclaration::Unknown,
             Self::IndependentByDesign { justification } => {
-                DependenceDeclaration::IndependentByDesign {
-                    justification: justification.clone(),
-                }
+                DependenceDeclaration::IndependentByDesign { justification: justification.clone() }
             }
             Self::AlignedJointLaw { law_id, .. } => {
                 DependenceDeclaration::AlignedJointLaw { law_id: law_id.clone() }
@@ -756,6 +759,10 @@ impl PreparedMechanismComposition {
     /// (the mechanism is a different one), a retained joint law or
     /// cross-covariance for a refitted mechanism, any prepare refusal on the
     /// new numbers, or cancellation.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "refits are consumed as one replacement set: the caller hands over the new fits and keeps no alias"
+    )]
     pub fn refresh_mechanisms(
         &self,
         refits: Vec<MechanismRefit>,
@@ -785,17 +792,19 @@ impl PreparedMechanismComposition {
                     format!("the refit of `{}` changes its mechanism family", refit.variable_id),
                 ));
             }
-            slot.source = refit.source.clone();
-            slot.declaration.artifact_id = refit.artifact_id.clone();
-            slot.declaration.evidence_id = refit.evidence_id.clone();
-            slot.uncertainty = refit.uncertainty.clone();
+            slot.source.clone_from(&refit.source);
+            slot.declaration.artifact_id.clone_from(&refit.artifact_id);
+            slot.declaration.evidence_id.clone_from(&refit.evidence_id);
+            slot.uncertainty.clone_from(&refit.uncertainty);
         }
-        match dependence {
-            Some(new) => request.dependence = new,
-            None => {
+        if let Some(new) = dependence {
+            request.dependence = new;
+        } else {
+            {
                 let described_the_earlier_fit = matches!(
                     request.dependence,
-                    DependenceInput::AlignedJointLaw { .. } | DependenceInput::CrossCovariance { .. }
+                    DependenceInput::AlignedJointLaw { .. }
+                        | DependenceInput::CrossCovariance { .. }
                 );
                 if described_the_earlier_fit && !refits.is_empty() {
                     return Err(MechanismCompositionRefusal::one(
@@ -901,9 +910,9 @@ impl ConsumedComposition {
     #[must_use]
     pub fn finite_distribution(&self) -> Option<Vec<(String, f64)>> {
         match &self.result {
-            CompositionResultWire::FiniteDistribution { probabilities } => Some(
-                probabilities.iter().map(|(l, p)| (l.clone(), f64::from_bits(*p))).collect(),
-            ),
+            CompositionResultWire::FiniteDistribution { probabilities } => {
+                Some(probabilities.iter().map(|(l, p)| (l.clone(), f64::from_bits(*p))).collect())
+            }
             _ => None,
         }
     }

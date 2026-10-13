@@ -91,7 +91,9 @@ pub enum MeasurementErrorError {
         minimum: f64,
     },
     /// The confusion matrix is singular or worse conditioned than declared.
-    #[error("confusion matrix is singular or ill-conditioned (condition {condition}, maximum {maximum})")]
+    #[error(
+        "confusion matrix is singular or ill-conditioned (condition {condition}, maximum {maximum})"
+    )]
     ConfusionIllConditioned {
         /// 1-norm condition number, infinite when singular.
         condition: f64,
@@ -200,11 +202,7 @@ impl ErrorVariance {
                 "error variance standard error must be finite and non-negative",
             ));
         }
-        Ok(Self {
-            variance,
-            estimate_variance: standard_error * standard_error,
-            influence: None,
-        })
+        Ok(Self { variance, estimate_variance: standard_error * standard_error, influence: None })
     }
 }
 
@@ -278,11 +276,8 @@ pub fn replicate_variance_components(
     let n0 = (n_obs - sum_k2 / n_obs) / (m_f - 1.0);
     let between = (msb - msw) / n0;
     let nu_bar = df_within as f64 / m_f;
-    let influence: Vec<f64> = sizes
-        .iter()
-        .zip(&ssw)
-        .map(|(&k, &s)| (s - f64::from(k - 1) * msw) / nu_bar)
-        .collect();
+    let influence: Vec<f64> =
+        sizes.iter().zip(&ssw).map(|(&k, &s)| (s - f64::from(k - 1) * msw) / nu_bar).collect();
     let estimate_variance = influence.iter().map(|v| v * v).sum::<f64>() / (m_f * m_f);
     let denom = between + msw;
     let icc = if denom > 0.0 { between / denom } else { f64::NAN };
@@ -512,6 +507,10 @@ impl LinearMoments {
     /// [`MeasurementErrorError`]. A reliability at or below
     /// `reliability_floor` refuses: the error variance leaves no latent
     /// variance to correct toward.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one pass accumulating every sufficient moment from the same rows, after a flat run of independent shape and finiteness checks"
+    )]
     pub fn accumulate(
         data: &LinearErrorData<'_>,
         error: &ErrorVariance,
@@ -520,7 +519,9 @@ impl LinearMoments {
         let n = data.y.len();
         let p = data.covariate_count;
         if p > MAX_MEASUREMENT_COVARIATES || n > MAX_MEASUREMENT_ROWS {
-            return Err(MeasurementErrorError::Shape("exceeds the declared row or covariate bound"));
+            return Err(MeasurementErrorError::Shape(
+                "exceeds the declared row or covariate bound",
+            ));
         }
         if data.w.len() != n || p.checked_mul(n) != Some(data.covariates.len()) {
             return Err(MeasurementErrorError::Shape("columns differ in length"));
@@ -540,9 +541,8 @@ impl LinearMoments {
         if !(finite_all(data.y) && finite_all(data.w) && finite_all(data.covariates)) {
             return Err(MeasurementErrorError::NonFinite("outcome, regressor or covariates"));
         }
-        if !(error.variance.is_finite() && error.variance >= 0.0)
-            || !(error.estimate_variance.is_finite() && error.estimate_variance >= 0.0)
-        {
+        let variance_ok = |v: f64| v.is_finite() && v >= 0.0;
+        if !variance_ok(error.variance) || !variance_ok(error.estimate_variance) {
             return Err(MeasurementErrorError::InvalidParameter("error variance"));
         }
         if !(reliability_floor.is_finite() && (0.0..1.0).contains(&reliability_floor)) {
@@ -595,10 +595,11 @@ impl LinearMoments {
         }
         let mut a = gram.clone();
         a[d + 1] -= error.variance * mean_inverse;
-        let beta = solve_spd(&a, d, &cross).ok_or(MeasurementErrorError::ReliabilityNotPositive {
-            reliability,
-            floor: reliability_floor,
-        })?;
+        let beta =
+            solve_spd(&a, d, &cross).ok_or(MeasurementErrorError::ReliabilityNotPositive {
+                reliability,
+                floor: reliability_floor,
+            })?;
         let naive = solve_spd(&gram, d, &cross).ok_or(MeasurementErrorError::SingularDesign)?;
 
         let mut meat = vec![0.0; d * d];
@@ -675,20 +676,15 @@ impl LinearMoments {
         {
             return Err(MeasurementErrorError::Shape("moments are inconsistent"));
         }
-        let all = [
-            &self.gram,
-            &self.cross,
-            &self.meat,
-            &self.naive_meat,
-            &self.influence_cross,
-        ];
-        if !all.iter().all(|v| finite_all(v))
-            || !self.influence_variance.is_finite()
-            || self.influence_variance < 0.0
-            || !self.error_variance.is_finite()
-            || self.error_variance < 0.0
-            || !(self.mean_inverse_replicates > 0.0 && self.mean_inverse_replicates <= 1.0)
-        {
+        let all = [&self.gram, &self.cross, &self.meat, &self.naive_meat, &self.influence_cross];
+        let moments_valid = all.iter().all(|v| finite_all(v))
+            && self.influence_variance.is_finite()
+            && self.influence_variance >= 0.0
+            && self.error_variance.is_finite()
+            && self.error_variance >= 0.0
+            && self.mean_inverse_replicates > 0.0
+            && self.mean_inverse_replicates <= 1.0;
+        if !moments_valid {
             return Err(MeasurementErrorError::NonFinite("moments"));
         }
         let n_f = self.n as f64;
@@ -722,9 +718,8 @@ impl LinearMoments {
         let naive_cov = sandwich(&m_inv, &self.naive_meat);
 
         // d beta / d sigma^2 = A^{-1} e_x beta_x mean(1/k).
-        let c: Vec<f64> = (0..d)
-            .map(|i| a_inv[i * d + 1] * beta[1] * self.mean_inverse_replicates)
-            .collect();
+        let c: Vec<f64> =
+            (0..d).map(|i| a_inv[i * d + 1] * beta[1] * self.mean_inverse_replicates).collect();
         let u = matvec(&a_inv, &self.influence_cross, d);
         let mut total = given.clone();
         for i in 0..d {
@@ -847,7 +842,7 @@ impl BinaryErrorRates {
             ));
         }
         let j = self.youden();
-        if !(j > minimum) {
+        if j.is_nan() || j <= minimum {
             return Err(MeasurementErrorError::YoudenTooSmall { youden: j, minimum });
         }
         Ok(j)
@@ -1184,7 +1179,7 @@ fn category_outcome_means(theta: &[f64], k: usize) -> Option<Vec<f64>> {
     // Q[j][t] = C[j][t] pi_t / p*_j
     let mut q = vec![0.0; k * k];
     for j in 0..k {
-        if !(p_star[j] > 0.0) {
+        if p_star[j].is_nan() || p_star[j] <= 0.0 {
             return None;
         }
         for t in 0..k {
@@ -1208,6 +1203,10 @@ fn category_outcome_means(theta: &[f64], k: usize) -> Option<Vec<f64>> {
 /// # Errors
 /// An empty observed class, a singular or ill-conditioned confusion matrix
 /// (1-norm condition above `max_condition`) or an empty latent category refuse.
+#[allow(
+    clippy::too_many_lines,
+    reason = "a flat sequence of independent validity checks followed by the delta-method assembly of one corrected categorical result"
+)]
 pub fn corrected_categories(
     classes: &[ObservedClassSummary],
     confusion: &ConfusionMatrix,
@@ -1224,7 +1223,11 @@ pub fn corrected_categories(
     }
     if classes.iter().any(|c| c.count < 2) {
         return Err(MeasurementErrorError::TooFewRows {
-            rows: classes.iter().map(|c| c.count as usize).min().unwrap_or(0),
+            rows: classes
+                .iter()
+                .map(|c| usize::try_from(c.count).unwrap_or(usize::MAX))
+                .min()
+                .unwrap_or(0),
             minimum: 2,
         });
     }
@@ -1304,7 +1307,8 @@ pub fn corrected_categories(
         up[idx] += h;
         let mut down = theta.clone();
         down[idx] -= h;
-        let f_up = category_outcome_means(&up, k).ok_or(MeasurementErrorError::EmptyLatentCategory)?;
+        let f_up =
+            category_outcome_means(&up, k).ok_or(MeasurementErrorError::EmptyLatentCategory)?;
         let f_down =
             category_outcome_means(&down, k).ok_or(MeasurementErrorError::EmptyLatentCategory)?;
         for i in 0..k {
@@ -1455,11 +1459,7 @@ pub fn rubin_combine(
             }
         }
     }
-    let covariance = within
-        .iter()
-        .zip(&between)
-        .map(|(w, b)| w + (1.0 + 1.0 / s_f) * b)
-        .collect();
+    let covariance = within.iter().zip(&between).map(|(w, b)| w + (1.0 + 1.0 / s_f) * b).collect();
     Ok(CombinedImputations {
         draws,
         dim: d,
@@ -1525,7 +1525,7 @@ mod tests {
         (a - b).abs() <= tol
     }
 
-    /// Standard normal by Box-Muller from the library SplitMix stream.
+    /// Standard normal by Box-Muller from the library `SplitMix` stream.
     fn normal(rng: &mut CausalRng) -> f64 {
         let u1 = 1.0 - rng.next_f64();
         let u2 = rng.next_f64();
@@ -1583,7 +1583,7 @@ mod tests {
         let x: Vec<f64> = (0..n).map(|_| normal(&mut rng)).collect();
         let w: Vec<f64> = x.iter().map(|v| v + sigma_u2.sqrt() * normal(&mut rng)).collect();
         let y: Vec<f64> = x.iter().map(|v| 1.0 + 2.0 * v + normal(&mut rng)).collect();
-        let nf = n as f64;
+        let nf = f64::from(n);
         let w_bar = w.iter().sum::<f64>() / nf;
         let s_w2 = w.iter().map(|v| (v - w_bar) * (v - w_bar)).sum::<f64>() / nf;
         let lambda = (s_w2 - sigma_u2) / s_w2;
@@ -1604,7 +1604,11 @@ mod tests {
             LinearMoments::accumulate(&data, &ErrorVariance::known(sigma_u2, 0.0).unwrap(), 0.01)
                 .unwrap();
         let fit = moments.solve().unwrap();
-        assert!(close(fit.coefficients[1], rc_slope, 1e-10), "{} vs {rc_slope}", fit.coefficients[1]);
+        assert!(
+            close(fit.coefficients[1], rc_slope, 1e-10),
+            "{} vs {rc_slope}",
+            fit.coefficients[1]
+        );
     }
 
     #[test]
@@ -1617,21 +1621,18 @@ mod tests {
             covariate_count: 0,
             replicate_counts: None,
         };
-        let exact = LinearMoments::accumulate(&data, &ErrorVariance::known(0.25, 0.0).unwrap(), 0.01)
-            .unwrap()
-            .solve()
-            .unwrap();
+        let exact =
+            LinearMoments::accumulate(&data, &ErrorVariance::known(0.25, 0.0).unwrap(), 0.01)
+                .unwrap()
+                .solve()
+                .unwrap();
         let uncertain =
             LinearMoments::accumulate(&data, &ErrorVariance::known(0.25, 0.05).unwrap(), 0.01)
                 .unwrap()
                 .solve()
                 .unwrap();
         assert_eq!(exact.coefficients, uncertain.coefficients);
-        assert!(close(
-            exact.covariance[3],
-            exact.covariance_given_error_variance[3],
-            1e-15
-        ));
+        assert!(close(exact.covariance[3], exact.covariance_given_error_variance[3], 1e-15));
         // d beta / d sigma^2 for the scalar slope: beta / (s_w^2 - sigma^2) = 3 / 1.0.
         let added = uncertain.covariance[3] - uncertain.covariance_given_error_variance[3];
         assert!(close(added, (3.0_f64 / 1.0).powi(2) * 0.05 * 0.05, 1e-10), "{added}");
@@ -1684,14 +1685,14 @@ mod tests {
         // DGP: X ~ N(0,1), Z = 0.5 X + N(0,1), Y = 1 + 1.5 X + 0.8 Z + N(0,1),
         // W_ij = X_i + U_ij with var(U) = 0.7, k = 3 replicates.
         // lambda (single) = 1 / 1.7; naive slope is attenuated well below 1.5.
-        let reps = 300;
+        let reps = 300_u32;
         let n = 1000;
         let k = 3_u32;
         let mut estimates = Vec::new();
         let mut se_sum = 0.0;
         let mut naive_sum = 0.0;
         for rep in 0..reps {
-            let mut rng = CausalRng::from_seed(1_000 + rep as u64);
+            let mut rng = CausalRng::from_seed(1_000 + u64::from(rep));
             let mut y = Vec::with_capacity(n);
             let mut z = Vec::with_capacity(n);
             let mut wbar = Vec::with_capacity(n);
@@ -1723,16 +1724,16 @@ mod tests {
             se_sum += fit.standard_error(1);
             naive_sum += fit.naive_coefficients[1];
         }
-        let mean = estimates.iter().sum::<f64>() / reps as f64;
+        let mean = estimates.iter().sum::<f64>() / f64::from(reps);
         let sd = (estimates.iter().map(|e| (e - mean) * (e - mean)).sum::<f64>()
-            / (reps as f64 - 1.0))
+            / (f64::from(reps) - 1.0))
             .sqrt();
         // Predeclared: |mean - 1.5| within 4 spreads of the mean of `reps` fits.
-        assert!(close(mean, 1.5, 4.0 * sd / (reps as f64).sqrt() + 0.01), "mean {mean} sd {sd}");
+        assert!(close(mean, 1.5, 4.0 * sd / f64::from(reps).sqrt() + 0.01), "mean {mean} sd {sd}");
         // The naive coefficient is attenuated: strictly below the truth by a wide margin.
-        assert!(naive_sum / (reps as f64) < 1.3, "naive {}", naive_sum / reps as f64);
+        assert!(naive_sum / f64::from(reps) < 1.3, "naive {}", naive_sum / f64::from(reps));
         // Mean reported SE tracks the empirical spread (predeclared band 0.8..1.25).
-        let ratio = (se_sum / reps as f64) / sd;
+        let ratio = (se_sum / f64::from(reps)) / sd;
         assert!((0.8..=1.25).contains(&ratio), "se/sd ratio {ratio}");
     }
 
@@ -1809,8 +1810,7 @@ mod tests {
         assert!(close(rd.variance_rates, expect_rates, 1e-12));
         // Independent-arm (differential) propagation of the same numbers differs,
         // because the shared rates correlate the arms.
-        let split =
-            corrected_risk_difference_differential(&table, &rates, &rates, 0.1).unwrap();
+        let split = corrected_risk_difference_differential(&table, &rates, &rates, 0.1).unwrap();
         assert!(close(split.corrected, rd.corrected, 1e-12));
         assert!(!close(split.variance, rd.variance, 1e-9));
     }
@@ -1852,6 +1852,11 @@ mod tests {
         for j in 0..3 {
             let p_star: f64 = (0..3).map(|t| c[j * 3 + t] * pi[t]).sum();
             let ybar: f64 = (0..3).map(|t| c[j * 3 + t] * pi[t] * mu[t]).sum::<f64>() / p_star;
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "the rounded expected count is a small non-negative integer by construction"
+            )]
             classes.push(ObservedClassSummary {
                 count: (p_star * n).round() as u64,
                 mean: ybar,
@@ -1882,19 +1887,15 @@ mod tests {
         // K = 2: C = [[Se, 1-Sp], [1-Se, Sp]], observed positives are class 0.
         let (se, sp) = (0.9, 0.8);
         let confusion =
-            ConfusionMatrix::new(2, vec![se, 1.0 - sp, 1.0 - se, sp], Some(vec![200, 300])).unwrap();
+            ConfusionMatrix::new(2, vec![se, 1.0 - sp, 1.0 - se, sp], Some(vec![200, 300]))
+                .unwrap();
         let classes = [
             ObservedClassSummary { count: 410, mean: 1.0, variance: 0.5 },
             ObservedClassSummary { count: 590, mean: 0.0, variance: 0.5 },
         ];
         let out = corrected_categories(&classes, &confusion, 20.0).unwrap();
-        let rates = BinaryErrorRates::new(
-            se,
-            sp,
-            se * (1.0 - se) / 200.0,
-            sp * (1.0 - sp) / 300.0,
-        )
-        .unwrap();
+        let rates = BinaryErrorRates::new(se, sp, se * (1.0 - se) / 200.0, sp * (1.0 - sp) / 300.0)
+            .unwrap();
         let rg = corrected_prevalence(410, 1000, &rates, 0.1).unwrap();
         assert!(close(out.proportions[0], rg.corrected, 1e-12));
         assert!(close(out.proportion_covariance[0], rg.variance, 1e-10));
@@ -1953,7 +1954,11 @@ mod tests {
         .solve()
         .unwrap();
         // Truth 2.0; the posterior-mean MC error adds v/S noise to m (small).
-        assert!(close(on_mean.naive_coefficients[1], 2.0, 4.0 * on_mean.naive_covariance[3].sqrt() + 0.05));
+        assert!(close(
+            on_mean.naive_coefficients[1],
+            2.0,
+            4.0 * on_mean.naive_covariance[3].sqrt() + 0.05
+        ));
         let on_draw = LinearMoments::accumulate(
             &LinearErrorData {
                 y: &y,
@@ -1980,8 +1985,8 @@ mod tests {
         let base: Vec<f64> = (0..n).map(|i| ((i * 3) % 11) as f64 * 0.2 + i as f64 * 0.1).collect();
         let mut draws = Vec::new();
         for s in 0..3 {
-            for i in 0..n {
-                draws.push(base[i] + 0.1 * s as f64 * (((i * 5 + s) % 7) as f64 - 3.0));
+            for (i, &b) in base.iter().enumerate() {
+                draws.push(b + 0.1 * s as f64 * (((i * 5 + s) % 7) as f64 - 3.0));
             }
         }
         let combined = combine_imputations_linear(&y, &draws, 3, &[], 0).unwrap();
@@ -1996,8 +2001,9 @@ mod tests {
     #[test]
     fn validation_sample_estimates_the_error_variance() {
         // W - X alternates +0.5 / -0.5 around zero: mean 0, variance 0.25 * n/(n-1).
-        let x: Vec<f64> = (0..10).map(|i| i as f64).collect();
-        let w: Vec<f64> = x.iter().enumerate().map(|(i, v)| v + if i % 2 == 0 { 0.5 } else { -0.5 }).collect();
+        let x: Vec<f64> = (0..10).map(f64::from).collect();
+        let w: Vec<f64> =
+            x.iter().enumerate().map(|(i, v)| v + if i % 2 == 0 { 0.5 } else { -0.5 }).collect();
         let (err, summary) = ErrorVariance::from_validation(&w, &x).unwrap();
         assert!(close(summary.error_mean, 0.0, 1e-15));
         assert!(close(err.variance, 0.25 * 10.0 / 9.0, 1e-12));

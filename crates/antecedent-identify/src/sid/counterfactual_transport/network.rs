@@ -29,8 +29,8 @@
 
 use std::collections::BTreeMap;
 
-use super::CounterfactualTransportProblem as Problem;
 use super::COUNTERFACTUAL_TRANSPORT_MAX_NODES;
+use super::CounterfactualTransportProblem as Problem;
 use crate::error::IdentificationError;
 
 /// One world of a query in internal indices: hard interventions and the edges
@@ -124,7 +124,8 @@ pub(super) fn build_network(
         let mut node_value: Vec<Option<usize>> = vec![None; raw.nodes.len()];
         for (&(world, variable), &level) in &known {
             if let Some(id) = raw.pair_node[world][variable] {
-                match node_value[id] {
+                let current = node_value[id];
+                match current {
                     None => node_value[id] = Some(level),
                     Some(existing) if existing != level => return Ok(Built::Zero),
                     Some(_) => {}
@@ -169,9 +170,11 @@ fn construct(
                 reading[world][variable] = Some(Input::Const(level));
                 continue;
             }
-            let mut inputs: Vec<(usize, Input)> = Vec::with_capacity(problem.parents[variable].len());
+            let mut inputs: Vec<(usize, Input)> =
+                Vec::with_capacity(problem.parents[variable].len());
             for &parent in &problem.parents[variable] {
-                let source = worlds[world].routes.get(&(parent, variable)).copied().unwrap_or(world);
+                let source =
+                    worlds[world].routes.get(&(parent, variable)).copied().unwrap_or(world);
                 let input = reading
                     .get(source)
                     .and_then(|row| row[parent])
@@ -220,22 +223,21 @@ fn finalize(
         }
     }
     if keep.iter().filter(|k| **k).count() > COUNTERFACTUAL_TRANSPORT_MAX_NODES {
-        return Err(IdentificationError::UnsupportedInput {
-            code: super::BOUNDS_EXCEEDED,
-        });
+        return Err(IdentificationError::UnsupportedInput { code: super::BOUNDS_EXCEEDED });
     }
     let mut rank: Vec<Option<usize>> = vec![None; m];
     let mut ordered: Vec<NetNode> = Vec::new();
     for &variable in &problem.topo {
         let mut group: Vec<(Vec<(usize, Input)>, usize)> = Vec::new();
-        for i in 0..m {
-            if keep[i] && raw.nodes[i].0 == variable {
+        for (i, &kept) in keep.iter().enumerate() {
+            if kept && raw.nodes[i].0 == variable {
                 let mut mapped = Vec::with_capacity(raw.nodes[i].1.len());
                 for &(parent, input) in &raw.nodes[i].1 {
                     let input = match input {
                         Input::Const(c) => Input::Const(c),
                         Input::Node(j) => Input::Node(
-                            rank[j].ok_or_else(|| invariant("a kept node reads an unranked node"))?,
+                            rank[j]
+                                .ok_or_else(|| invariant("a kept node reads an unranked node"))?,
                         ),
                     };
                     mapped.push((parent, input));
@@ -325,8 +327,6 @@ pub(super) enum Factored {
 /// exactly when it has one node per variable and every member reads each outside
 /// parent at one value; anything else is a [`Conflict`].
 pub(super) fn factorize(problem: &Problem, net: &Network) -> Factored {
-    let m = net.nodes.len();
-    let mut parent: Vec<usize> = (0..m).collect();
     fn find(parent: &mut [usize], mut i: usize) -> usize {
         while parent[i] != i {
             parent[i] = parent[parent[i]];
@@ -334,6 +334,8 @@ pub(super) fn factorize(problem: &Problem, net: &Network) -> Factored {
         }
         i
     }
+    let m = net.nodes.len();
+    let mut parent: Vec<usize> = (0..m).collect();
     for a in 0..m {
         for b in (a + 1)..m {
             let (va, vb) = (net.nodes[a].variable, net.nodes[b].variable);

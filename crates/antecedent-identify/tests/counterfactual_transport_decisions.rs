@@ -79,9 +79,9 @@ fn named_cases_decide_as_the_theory_says() {
             let label = format!("{} / {}", case.name, target.label);
             match target.class {
                 ExpectedClass::Identified | ExpectedClass::UndefinedZeroSupport => {
-                    let derivation = decision
-                        .derivation()
-                        .unwrap_or_else(|| panic!("{label}: expected a derivation, got {decision:?}"));
+                    let derivation = decision.derivation().unwrap_or_else(|| {
+                        panic!("{label}: expected a derivation, got {decision:?}")
+                    });
                     derivation
                         .replay_checked(&ExecutionContext::for_tests(1))
                         .unwrap_or_else(|e| panic!("{label}: replay failed: {e}"));
@@ -161,24 +161,21 @@ fn identified_derivations_cite_catalog_regimes_and_use_the_binary_complement() {
         derivation.numerator
     );
     let adapted = adapter::catalog(case);
-    let source_experiment = adapted.regime_of[&adapter::RegimeKey {
-        population: "source".to_owned(),
-        intervened: vec!["X".to_owned()],
-    }];
-    let source_observational = adapted.regime_of[&adapter::RegimeKey {
-        population: "source".to_owned(),
-        intervened: vec![],
-    }];
-    let target_marginal = adapted.regime_of[&adapter::RegimeKey {
-        population: "target".to_owned(),
-        intervened: vec![],
-    }];
+    let source_experiment = adapted.regime_of
+        [&adapter::RegimeKey { population: "source".to_owned(), intervened: vec!["X".to_owned()] }];
+    let source_observational = adapted.regime_of
+        [&adapter::RegimeKey { population: "source".to_owned(), intervened: vec![] }];
+    let target_marginal = adapted.regime_of
+        [&adapter::RegimeKey { population: "target".to_owned(), intervened: vec![] }];
     let cited: Vec<_> = derivation.cited.iter().map(|c| c.regime).collect();
     for regime in [source_experiment, source_observational, target_marginal] {
         assert!(cited.contains(&regime), "regime {regime:?} is cited: {cited:?}");
     }
     assert!(derivation.search.operations_consumed > 0);
-    assert_eq!(derivation.search.stages.first().map(String::as_str), Some("stage:supplied_regimes"));
+    assert_eq!(
+        derivation.search.stages.first().map(String::as_str),
+        Some("stage:supplied_regimes")
+    );
 }
 
 #[test]
@@ -199,7 +196,8 @@ fn conditional_reduction_moves_an_independent_conditioning_atom() {
 #[test]
 fn dependent_conditioning_is_not_reduced_when_the_event_depends_on_it() {
     let cases = all_cases();
-    let case = cases.iter().find(|c| c.name == "effect_of_treatment_on_treated_with_selection").unwrap();
+    let case =
+        cases.iter().find(|c| c.name == "effect_of_treatment_on_treated_with_selection").unwrap();
     let decision = decide(case, &case.targets[0]);
     let derivation = decision.derivation().expect("identified");
     // X <-> Y: the event Y_{x=1} is dependent on the factual X; no atom moves.
@@ -266,10 +264,8 @@ fn decisions_are_invariant_to_declaration_order() {
 #[test]
 fn a_mutated_derivation_or_witness_does_not_replay() {
     let cases = all_cases();
-    let ett = cases
-        .iter()
-        .find(|c| c.name == "effect_of_treatment_on_treated_with_selection")
-        .unwrap();
+    let ett =
+        cases.iter().find(|c| c.name == "effect_of_treatment_on_treated_with_selection").unwrap();
     let decision = decide(ett, &ett.targets[0]);
     let derivation = decision.derivation().unwrap();
     let ctx = ExecutionContext::for_tests(1);
@@ -307,7 +303,7 @@ fn tampered_error_code(
     obstruction: &antecedent_identify::CounterfactualTransportObstruction,
 ) -> (&'static str, &'static str) {
     let mut tampered = obstruction.clone();
-    tampered.witness.baseline = "not_a_baseline".to_owned();
+    "not_a_baseline".clone_into(&mut tampered.witness.baseline);
     let error = tampered.verify().unwrap_err();
     counterfactual_transport_refusal(&error).expect("an owned refusal")
 }
@@ -325,11 +321,8 @@ fn selection_missing_factors_and_wrong_labels_never_identify() {
     let adapted = adapter::catalog(case);
     let mut sources = adapter::sources(case, &controllable_for(case));
     sources[0] = CounterfactualTransportSource {
-        selection_targets: vec![
-            adapter::variable_id(case, "Z"),
-            adapter::variable_id(case, "Y"),
-        ]
-        .into(),
+        selection_targets: vec![adapter::variable_id(case, "Z"), adapter::variable_id(case, "Y")]
+            .into(),
         ..sources[0].clone()
     };
     let query = adapter::query(case, &target.query, sources);
@@ -364,9 +357,8 @@ fn selection_missing_factors_and_wrong_labels_never_identify() {
     let sources = adapter::sources(case, &controllable_for(case));
     let mut query = adapter::query(case, &target.query, sources);
     query.target = Arc::from("elsewhere");
-    let error =
-        identify_counterfactual_transport(&problem, &query, &adapted.catalog, limits, &ctx)
-            .unwrap_err();
+    let error = identify_counterfactual_transport(&problem, &query, &adapted.catalog, limits, &ctx)
+        .unwrap_err();
     assert_eq!(
         counterfactual_transport_refusal(&error),
         Some(("invalid_argument", "counterfactual_transport.invalid_catalog"))

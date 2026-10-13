@@ -119,11 +119,7 @@ pub struct Table {
 impl Table {
     fn empty(variables: Vec<String>, levels: Vec<usize>) -> Self {
         let size: usize = levels.iter().product();
-        Self {
-            variables,
-            levels,
-            probs: vec![0.0; size],
-        }
+        Self { variables, levels, probs: vec![0.0; size] }
     }
 
     fn position(&self, name: &str) -> usize {
@@ -150,10 +146,8 @@ impl Table {
 
     /// Probability that every `(variable, level)` in `assignment` holds.
     pub fn probability(&self, assignment: &[(&str, usize)]) -> f64 {
-        let pos: Vec<(usize, usize)> = assignment
-            .iter()
-            .map(|(n, l)| (self.position(n), *l))
-            .collect();
+        let pos: Vec<(usize, usize)> =
+            assignment.iter().map(|(n, l)| (self.position(n), *l)).collect();
         (0..self.probs.len())
             .filter(|&c| {
                 let d = self.decode(c);
@@ -186,11 +180,7 @@ impl Table {
         let mut joint: Vec<(&str, usize)> = target.to_vec();
         joint.extend_from_slice(given);
         let denominator = self.probability(given);
-        if denominator == 0.0 {
-            None
-        } else {
-            Some(self.probability(&joint) / denominator)
-        }
+        if denominator == 0.0 { None } else { Some(self.probability(&joint) / denominator) }
     }
 
     /// Largest absolute cellwise difference. Both tables must have the same
@@ -242,10 +232,7 @@ pub struct CfVar {
 impl CfVar {
     /// `V` with no intervention (the factual world).
     pub fn factual(var: &str) -> Self {
-        Self {
-            var: var.to_owned(),
-            interventions: Vec::new(),
-        }
+        Self { var: var.to_owned(), interventions: Vec::new() }
     }
 
     /// `V_{x1=l1, x2=l2, ...}` with constant levels.
@@ -263,10 +250,7 @@ impl CfVar {
     pub fn nested(var: &str, interventions: Vec<(&str, Setting)>) -> Self {
         Self {
             var: var.to_owned(),
-            interventions: interventions
-                .into_iter()
-                .map(|(n, s)| (n.to_owned(), s))
-                .collect(),
+            interventions: interventions.into_iter().map(|(n, s)| (n.to_owned(), s)).collect(),
         }
     }
 
@@ -316,11 +300,7 @@ pub struct ConditionalMass {
 impl ConditionalMass {
     /// `P(event | evidence)`, or `None` when the evidence has probability zero.
     pub fn value(&self) -> Option<f64> {
-        if self.evidence == 0.0 {
-            None
-        } else {
-            Some(self.joint / self.evidence)
-        }
+        if self.evidence == 0.0 { None } else { Some(self.joint / self.evidence) }
     }
 }
 
@@ -506,11 +486,7 @@ impl FiniteScm {
         let k = self.exo_laws.len();
         let mut state = vec![0usize; k];
         loop {
-            let p: f64 = state
-                .iter()
-                .enumerate()
-                .map(|(i, &l)| self.exo_laws[i][l])
-                .product();
+            let p: f64 = state.iter().enumerate().map(|(i, &l)| self.exo_laws[i][l]).product();
             if p > 0.0 {
                 f(&state, p);
             }
@@ -701,9 +677,8 @@ impl FiniteScm {
         }
         let mut bidirected = Vec::new();
         for k in 0..self.exo_laws.len() {
-            let readers: Vec<usize> = (0..self.n_endo())
-                .filter(|&i| self.depends_on_exo(i, k))
-                .collect();
+            let readers: Vec<usize> =
+                (0..self.n_endo()).filter(|&i| self.depends_on_exo(i, k)).collect();
             for (a, &i) in readers.iter().enumerate() {
                 for &j in &readers[a + 1..] {
                     let (x, y) = (self.endo_names[i].clone(), self.endo_names[j].clone());
@@ -716,10 +691,7 @@ impl FiniteScm {
         directed.dedup();
         bidirected.sort();
         bidirected.dedup();
-        InducedStructure {
-            directed,
-            bidirected,
-        }
+        InducedStructure { directed, bidirected }
     }
 }
 
@@ -754,10 +726,7 @@ pub fn selection_discrepancy(a: &FiniteScm, b: &FiniteScm) -> SelectionDiscrepan
     let mut exo_laws = Vec::new();
     let mut flagged = mechanism_vars.clone();
     for k in 0..a.exo_laws.len() {
-        let same = a.exo_laws[k]
-            .iter()
-            .zip(&b.exo_laws[k])
-            .all(|(x, y)| (x - y).abs() <= 1e-15);
+        let same = a.exo_laws[k].iter().zip(&b.exo_laws[k]).all(|(x, y)| (x - y).abs() <= 1e-15);
         if !same {
             exo_laws.push(a.exo_names[k].clone());
             for reader in a.exo_readers(&a.exo_names[k]) {
@@ -768,11 +737,7 @@ pub fn selection_discrepancy(a: &FiniteScm, b: &FiniteScm) -> SelectionDiscrepan
         }
     }
     flagged.sort();
-    SelectionDiscrepancy {
-        mechanism_vars,
-        exo_laws,
-        flagged,
-    }
+    SelectionDiscrepancy { mechanism_vars, exo_laws, flagged }
 }
 
 /// Every intervention regime over the endogenous variables of `scm`: each
@@ -782,15 +747,11 @@ pub fn all_regimes(scm: &FiniteScm) -> Vec<Vec<(String, usize)>> {
     let n = scm.n_endo();
     let mut out = Vec::new();
     for mask in 0..(1usize << n) {
-        let members: Vec<usize> = (0..n).filter(|i| mask >> i & 1 == 1).collect();
+        let members: Vec<usize> = (0..n).filter(|i| (mask >> i) & 1 == 1).collect();
         let dims: Vec<usize> = members.iter().map(|&i| scm.levels[i]).collect();
         for vals in all_assignments(&dims) {
             out.push(
-                members
-                    .iter()
-                    .zip(vals)
-                    .map(|(&i, l)| (scm.endo_names[i].clone(), l))
-                    .collect(),
+                members.iter().zip(vals).map(|(&i, l)| (scm.endo_names[i].clone(), l)).collect(),
             );
         }
     }
@@ -810,10 +771,7 @@ pub struct Population {
 
 impl Population {
     pub fn new(name: &str, scm: FiniteScm) -> Self {
-        Self {
-            name: name.to_owned(),
-            scm,
-        }
+        Self { name: name.to_owned(), scm }
     }
 }
 
@@ -882,18 +840,12 @@ pub struct TargetQuery {
 
 impl TargetQuery {
     pub fn new(population: &str, event: Vec<Atom>, evidence: Vec<Atom>) -> Self {
-        Self {
-            population: population.to_owned(),
-            event,
-            evidence,
-        }
+        Self { population: population.to_owned(), event, evidence }
     }
 
     /// Exact value, or `None` when the conditioning evidence has probability 0.
     pub fn value(&self, populations: &[Population]) -> Option<f64> {
-        population(populations, &self.population)
-            .conditional(&self.event, &self.evidence)
-            .value()
+        population(populations, &self.population).conditional(&self.event, &self.evidence).value()
     }
 }
 
@@ -911,10 +863,7 @@ pub struct WitnessReport {
 pub fn evidence_discrepancy(a: &[Population], b: &[Population], specs: &[EvidenceSpec]) -> f64 {
     let ta = build_evidence(a, specs);
     let tb = build_evidence(b, specs);
-    ta.iter()
-        .zip(&tb)
-        .map(|(x, y)| x.table.max_abs_diff(&y.table))
-        .fold(0.0, f64::max)
+    ta.iter().zip(&tb).map(|(x, y)| x.table.max_abs_diff(&y.table)).fold(0.0, f64::max)
 }
 
 /// Verify that two model families agree on every supplied evidence table (to
@@ -934,24 +883,15 @@ pub fn verify_non_identifiability_witness(
             "models disagree on supplied evidence by {discrepancy:e} > {evidence_tol:e}"
         ));
     }
-    let value_a = target
-        .value(a)
-        .ok_or_else(|| "target query undefined in model A".to_owned())?;
-    let value_b = target
-        .value(b)
-        .ok_or_else(|| "target query undefined in model B".to_owned())?;
+    let value_a = target.value(a).ok_or_else(|| "target query undefined in model A".to_owned())?;
+    let value_b = target.value(b).ok_or_else(|| "target query undefined in model B".to_owned())?;
     let gap = (value_a - value_b).abs();
     if gap <= gap_tol {
         return Err(format!(
             "models agree on the target query: {value_a} vs {value_b} (gap {gap:e})"
         ));
     }
-    Ok(WitnessReport {
-        max_evidence_discrepancy: discrepancy,
-        value_a,
-        value_b,
-        gap,
-    })
+    Ok(WitnessReport { max_evidence_discrepancy: discrepancy, value_a, value_b, gap })
 }
 
 /// A Bernoulli law `[1 - p1, p1]`.

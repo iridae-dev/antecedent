@@ -380,11 +380,14 @@ fn check_context(
                 }
                 AdmissionBasis::SelectionDiagram { targets } => {
                     if targets.iter().any(|t| t == v) {
-                        reason = Some("mechanism_composition.population_selection_arrow_into_mechanism");
+                        reason =
+                            Some("mechanism_composition.population_selection_arrow_into_mechanism");
                     } else if m.latent_causes.is_empty() {
                         admitted = true;
                     } else {
-                        reason = Some("mechanism_composition.population_latent_blocks_selection_admissibility");
+                        reason = Some(
+                            "mechanism_composition.population_latent_blocks_selection_admissibility",
+                        );
                     }
                 }
             }
@@ -505,8 +508,7 @@ fn check_graph(
             }
         }
     }
-    let mut ready: Vec<&str> =
-        indegree.iter().filter(|(_, n)| **n == 0).map(|(v, _)| *v).collect();
+    let mut ready: Vec<&str> = indegree.iter().filter(|(_, n)| **n == 0).map(|(v, _)| *v).collect();
     let mut removed = 0_usize;
     while let Some(v) = ready.pop() {
         removed += 1;
@@ -533,10 +535,7 @@ fn check_graph(
     }
 }
 
-fn check_latents(
-    by_var: &BTreeMap<&str, &MechanismDeclaration>,
-    c: &mut Collector,
-) {
+fn check_latents(by_var: &BTreeMap<&str, &MechanismDeclaration>, c: &mut Collector) {
     for m in by_var.values() {
         for l in &m.latent_causes {
             for other in &l.shared_with_variable_ids {
@@ -604,6 +603,10 @@ fn canonical_mechanism(m: &MechanismDeclaration) -> PlannedMechanism {
 /// namespaced detail. An `Ok` plan is a statement about declared coordinates
 /// only: numerical support, parameter-law validity and execution are checked by
 /// the model-level composition.
+#[allow(
+    clippy::too_many_lines,
+    reason = "a flat sequence of independent semantic checks over the declaration, each collecting its own refusals"
+)]
 pub fn check_mechanism_composition(
     decl: &MechanismCompositionDeclaration,
 ) -> Result<MechanismCompositionPlan, Vec<ExternalRefusal>> {
@@ -779,7 +782,8 @@ pub fn check_mechanism_composition(
         }
         let mut seen: BTreeMap<&str, &str> = BTreeMap::new();
         for m in &decl.mechanisms {
-            if let Some(first) = seen.insert(m.evidence_id.as_str(), m.output.variable_id.as_str()) {
+            if let Some(first) = seen.insert(m.evidence_id.as_str(), m.output.variable_id.as_str())
+            {
                 c.compare(
                     "posterior_dependence",
                     "mechanism_composition.posterior_dependence_shared_evidence_declared_independent",
@@ -959,7 +963,11 @@ mod tests {
         }
     }
 
-    fn mech(variable: &str, role: QuantityRole, parents: &[(&str, QuantityRole)]) -> MechanismDeclaration {
+    fn mech(
+        variable: &str,
+        role: QuantityRole,
+        parents: &[(&str, QuantityRole)],
+    ) -> MechanismDeclaration {
         MechanismDeclaration {
             output: q(variable, role),
             parents: parents.iter().map(|(p, r)| q(p, *r)).collect(),
@@ -1046,16 +1054,28 @@ mod tests {
     fn units_transform_and_role_mismatches_are_refused_without_conversion() {
         let mut d = decl();
         d.mechanisms[2].parents[1].units = "lb".into();
-        assert_eq!(details(check_mechanism_composition(&d)), ["mechanism_composition.units_mismatch"]);
+        assert_eq!(
+            details(check_mechanism_composition(&d)),
+            ["mechanism_composition.units_mismatch"]
+        );
         let mut d = decl();
         d.mechanisms[2].parents[1].transform_id = "log".into();
-        assert_eq!(details(check_mechanism_composition(&d)), ["mechanism_composition.transform_mismatch"]);
+        assert_eq!(
+            details(check_mechanism_composition(&d)),
+            ["mechanism_composition.transform_mismatch"]
+        );
         let mut d = decl();
         d.mechanisms[2].parents[1].role = QuantityRole::Covariate;
-        assert_eq!(details(check_mechanism_composition(&d)), ["mechanism_composition.quantity_role_mismatch"]);
+        assert_eq!(
+            details(check_mechanism_composition(&d)),
+            ["mechanism_composition.quantity_role_mismatch"]
+        );
         let mut d = decl();
         d.mechanisms[2].parents[1].functional_id = "mean".into();
-        assert_eq!(details(check_mechanism_composition(&d)), ["mechanism_composition.quantity_not_a_realization"]);
+        assert_eq!(
+            details(check_mechanism_composition(&d)),
+            ["mechanism_composition.quantity_not_a_realization"]
+        );
     }
 
     #[test]
@@ -1066,7 +1086,10 @@ mod tests {
             p.population_id = "source".into();
         }
         // y consumes m as seen in the target.
-        assert_eq!(details(check_mechanism_composition(&d)), ["mechanism_composition.population_undeclared_transport"]);
+        assert_eq!(
+            details(check_mechanism_composition(&d)),
+            ["mechanism_composition.population_undeclared_transport"]
+        );
 
         let mut selection = d.clone();
         selection.admissions.push(TransportAdmission {
@@ -1089,17 +1112,26 @@ mod tests {
 
         let mut regime = decl();
         regime.mechanisms[0].output.regime_id = "do(z=1)".into();
-        assert_eq!(details(check_mechanism_composition(&regime)), ["mechanism_composition.regime_undeclared_invariance"]);
+        assert_eq!(
+            details(check_mechanism_composition(&regime)),
+            ["mechanism_composition.regime_undeclared_invariance"]
+        );
     }
 
     #[test]
     fn graph_conditioning_cycle_latent_and_provenance_defects_are_refused() {
         let mut d = decl();
         d.edges.pop();
-        assert_eq!(details(check_mechanism_composition(&d)), ["mechanism_composition.parents_declared_graph_mismatch"]);
+        assert_eq!(
+            details(check_mechanism_composition(&d)),
+            ["mechanism_composition.parents_declared_graph_mismatch"]
+        );
         let mut d = decl();
         d.mechanisms[2].conditioning_variable_ids.push("w".into());
-        assert_eq!(details(check_mechanism_composition(&d)), ["mechanism_composition.conditioning_extra_conditioner"]);
+        assert_eq!(
+            details(check_mechanism_composition(&d)),
+            ["mechanism_composition.conditioning_extra_conditioner"]
+        );
         let cyc = MechanismCompositionDeclaration {
             mechanisms: vec![
                 mech("a", QuantityRole::Covariate, &[("b", QuantityRole::Covariate)]),
@@ -1108,7 +1140,10 @@ mod tests {
             edges: vec![("a".into(), "b".into()), ("b".into(), "a".into())],
             ..decl()
         };
-        assert_eq!(details(check_mechanism_composition(&cyc)), ["mechanism_composition.cycle_directed_cycle"]);
+        assert_eq!(
+            details(check_mechanism_composition(&cyc)),
+            ["mechanism_composition.cycle_directed_cycle"]
+        );
 
         let mut d = decl();
         d.mechanisms[1].latent_causes = vec![LatentCauseDeclaration {
@@ -1122,7 +1157,10 @@ mod tests {
 
         let mut d = decl();
         d.mechanisms[1].artifact_id = String::new();
-        assert_eq!(details(check_mechanism_composition(&d)), ["mechanism_composition.provenance_missing_artifact"]);
+        assert_eq!(
+            details(check_mechanism_composition(&d)),
+            ["mechanism_composition.provenance_missing_artifact"]
+        );
         let mut d = decl();
         d.mechanisms[1].origin = MechanismOriginKind::Declared;
         assert_eq!(

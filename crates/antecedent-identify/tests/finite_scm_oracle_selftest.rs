@@ -122,10 +122,8 @@ fn composition_holds() {
         .endo("W", 2, Mechanism::new(|v, u| v[0] ^ u[1]))
         .endo("Y", 2, Mechanism::new(|v, _| v[1]));
     let w1 = CfVar::under("W", &[("X", 1)]);
-    let composed = CfVar::nested(
-        "Y",
-        vec![("X", Setting::Level(1)), ("W", Setting::cf(w1.clone()))],
-    );
+    let composed =
+        CfVar::nested("Y", vec![("X", Setting::Level(1)), ("W", Setting::cf(w1.clone()))]);
     let plain = CfVar::under("Y", &[("X", 1)]);
     let a = m.counterfactual_table(&[composed, w1.clone()]);
     let b = m.counterfactual_table(&[plain, w1]);
@@ -150,10 +148,7 @@ fn nested_natural_effects_match_hand_values() {
         Atom::new(
             CfVar::nested(
                 "Y",
-                vec![
-                    ("X", Setting::Level(x)),
-                    ("M", Setting::cf(CfVar::under("M", &[("X", xp)]))),
-                ],
+                vec![("X", Setting::Level(x)), ("M", Setting::cf(CfVar::under("M", &[("X", xp)])))],
             ),
             1,
         )
@@ -170,10 +165,11 @@ fn nested_natural_effects_match_hand_values() {
 fn conditional_counterfactual_and_zero_support() {
     // X = U, Y = U with U ~ Bern(1/2): ETT P(Y_{X=0}=1 | X=1) = P(U=1 | U=1) = 1,
     // while P(Y_{X=0}=1) = P(U=1) = 1/2.
-    let m = FiniteScm::new()
-        .exo("U", bern(0.5))
-        .endo("X", 2, Mechanism::new(|_, u| u[0]))
-        .endo("Y", 2, Mechanism::new(|_, u| u[0]));
+    let m = FiniteScm::new().exo("U", bern(0.5)).endo("X", 2, Mechanism::new(|_, u| u[0])).endo(
+        "Y",
+        2,
+        Mechanism::new(|_, u| u[0]),
+    );
     let event = [Atom::new(y_under(0), 1)];
     assert_eq!(m.conditional(&event, &[Atom::factual("X", 1)]).value(), Some(1.0));
     assert_eq!(m.probability(&event), 0.5);
@@ -186,11 +182,8 @@ fn conditional_counterfactual_and_zero_support() {
 
 #[test]
 fn lookup_mechanism_matches_closure() {
-    let table = Mechanism::lookup(
-        vec![Input::Endo(0), Input::Exo(1)],
-        vec![2, 2],
-        vec![0, 1, 1, 0],
-    );
+    let table =
+        Mechanism::lookup(vec![Input::Endo(0), Input::Exo(1)], vec![2, 2], vec![0, 1, 1, 0]);
     let looked = FiniteScm::new()
         .exo("Ux", bern(0.5))
         .exo("Uy", bern(0.25))
@@ -221,10 +214,11 @@ fn induced_structure_and_selection_discrepancy_are_read_off_the_mechanisms() {
 #[test]
 fn two_model_witness_helper_accepts_and_rejects() {
     // A: X = U, Y = X.  B: Y reads the natural X, so do(X) has no direct reach.
-    let a = FiniteScm::new()
-        .exo("U", bern(0.5))
-        .endo("X", 2, Mechanism::new(|_, u| u[0]))
-        .endo("Y", 2, Mechanism::new(|v, _| v[0]));
+    let a = FiniteScm::new().exo("U", bern(0.5)).endo("X", 2, Mechanism::new(|_, u| u[0])).endo(
+        "Y",
+        2,
+        Mechanism::new(|v, _| v[0]),
+    );
     let b = a.blind_to_natural("Y", "X");
     let fa = vec![Population::new("p", a.clone())];
     let fb = vec![Population::new("p", b)];
@@ -265,10 +259,7 @@ fn all_regimes_enumerates_every_subset_and_level_combination() {
 // ---------------------------------------------------------------------------
 
 fn case(name: &str) -> Case {
-    all_cases()
-        .into_iter()
-        .find(|c| c.name == name)
-        .unwrap_or_else(|| panic!("no case {name}"))
+    all_cases().into_iter().find(|c| c.name == name).unwrap_or_else(|| panic!("no case {name}"))
 }
 
 fn sorted(mut v: Vec<(String, String)>) -> Vec<(String, String)> {
@@ -280,11 +271,7 @@ fn sorted(mut v: Vec<(String, String)>) -> Vec<(String, String)> {
 fn declared_graphs_match_the_structure_induced_by_the_models() {
     for c in all_cases() {
         let declared_directed: Vec<(String, String)> = sorted(
-            c.graph
-                .directed
-                .iter()
-                .map(|(a, b)| ((*a).to_owned(), (*b).to_owned()))
-                .collect(),
+            c.graph.directed.iter().map(|(a, b)| ((*a).to_owned(), (*b).to_owned())).collect(),
         );
         let declared_bidirected: Vec<(String, String)> = sorted(
             c.graph
@@ -301,7 +288,12 @@ fn declared_graphs_match_the_structure_induced_by_the_models() {
             for pop in family {
                 let ind = pop.scm.induced_structure();
                 for e in &ind.directed {
-                    assert!(declared_directed.contains(e), "{} {}: extra edge {e:?}", c.name, pop.name);
+                    assert!(
+                        declared_directed.contains(e),
+                        "{} {}: extra edge {e:?}",
+                        c.name,
+                        pop.name
+                    );
                 }
                 for e in &ind.bidirected {
                     assert!(
@@ -356,12 +348,11 @@ fn fixture_values_class_and_witness_flags_are_consistent() {
     for c in &cases {
         assert!(!c.derivation.is_empty());
         for t in &c.targets {
-            match t.class {
-                ExpectedClass::UndefinedZeroSupport => assert!(t.expected_value.is_none()),
-                _ => {
-                    let v = t.expected_value.expect("defined target");
-                    assert!((0.0..=1.0).contains(&v), "{} {}", c.name, t.label);
-                }
+            if t.class == ExpectedClass::UndefinedZeroSupport {
+                assert!(t.expected_value.is_none());
+            } else {
+                let v = t.expected_value.expect("defined target");
+                assert!((0.0..=1.0).contains(&v), "{} {}", c.name, t.label);
             }
         }
         let obstructed = c.targets[0].class != ExpectedClass::Identified
@@ -385,9 +376,8 @@ fn nonlinear_mediation_values_and_mediation_formula() {
         let mut f = 0.0;
         for z in 0..2 {
             for m in 0..3 {
-                let pm = src
-                    .conditional(&[("M", m)], &[("X", xps[k]), ("Z", z)])
-                    .expect("positivity");
+                let pm =
+                    src.conditional(&[("M", m)], &[("X", xps[k]), ("Z", z)]).expect("positivity");
                 let py = src
                     .conditional(&[("Y", 1)], &[("X", xs[k]), ("M", m), ("Z", z)])
                     .expect("positivity");
@@ -524,9 +514,5 @@ fn missing_experiment_is_witnessed_and_resolved_by_supplying_it() {
     with_experiment.push(EvidenceSpec::new("source", &[("X", 1)], &["Z", "X", "Y"]));
     assert!(evidence_discrepancy(&c.populations, alt, &with_experiment) > GAP_TOL);
     let c2 = case("joint_counterfactual_two_source_regimes");
-    assert!(
-        c2.evidence
-            .iter()
-            .any(|e| e.population == "source" && !e.regime.is_empty())
-    );
+    assert!(c2.evidence.iter().any(|e| e.population == "source" && !e.regime.is_empty()));
 }

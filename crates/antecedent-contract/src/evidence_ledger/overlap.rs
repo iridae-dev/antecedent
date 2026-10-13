@@ -153,8 +153,11 @@ pub(crate) fn intersection(a: &[ObservationId], b: &[ObservationId]) -> Vec<Obse
 }
 
 /// Sorted union of sorted, distinct id slices.
-pub(crate) fn union_sorted<'a>(sets: impl IntoIterator<Item = &'a [ObservationId]>) -> Vec<ObservationId> {
-    let mut all: Vec<ObservationId> = sets.into_iter().flat_map(<[ObservationId]>::to_vec).collect();
+pub(crate) fn union_sorted<'a>(
+    sets: impl IntoIterator<Item = &'a [ObservationId]>,
+) -> Vec<ObservationId> {
+    let mut all: Vec<ObservationId> =
+        sets.into_iter().flat_map(<[ObservationId]>::to_vec).collect();
     all.sort_unstable();
     all.dedup();
     all

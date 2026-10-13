@@ -19,9 +19,8 @@ use antecedent_contract::evidence_ledger::{
 };
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::counterfactual_transport_sampled::{
-    DatasetOverlap, OverlapDeclaration, SampledAxis, SampledRegimeCounts,
-    SampledRegimeCountsParts, SampledTransportLimits, SampledTransportRequest, SamplingDesign,
-    UnseenCellRule,
+    DatasetOverlap, OverlapDeclaration, SampledAxis, SampledRegimeCounts, SampledRegimeCountsParts,
+    SampledTransportLimits, SampledTransportRequest, SamplingDesign, UnseenCellRule,
 };
 use antecedent_expr::ExactDiscreteLaw;
 use antecedent_identify::{
@@ -196,7 +195,11 @@ fn fresh_consumer_recomputes_the_plug_in_from_the_counts_bit_for_bit() {
 
     // The number is the enumerated truth within sampling error at 5,000 units.
     let truth = case.targets[0].expected_value.unwrap();
-    assert!((replayed_point.probability - truth).abs() <= 0.06, "{} vs {truth}", replayed_point.probability);
+    assert!(
+        (replayed_point.probability - truth).abs() <= 0.06,
+        "{} vs {truth}",
+        replayed_point.probability
+    );
 
     // The io-error form carries registered reason codes and the same result.
     let again = consume_sampled_counterfactual_transport(
@@ -214,7 +217,7 @@ fn reseal(mut wire: Wire, edit: impl FnOnce(&mut Wire)) -> Vec<u8> {
     wire.sealed().unwrap().export().unwrap()
 }
 
-fn consume(bytes: &[u8]) -> Result<antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport, ArtifactError> {
+fn consume(bytes: &[u8]) -> Result<antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport, ArtifactError>{
     consume_sampled_counterfactual_transport_with_limits(
         bytes,
         &Expected::default(),
@@ -231,13 +234,9 @@ fn resealed_semantic_mutations_are_refused() {
     let request = request_for(&case, &a, 2);
     let ctx = ExecutionContext::for_tests(3);
     let (wire, _) = sampled_counterfactual_transport_artifact(&a, &request, &[], &ctx).unwrap();
-    let (other, _) = sampled_counterfactual_transport_artifact(
-        &b,
-        &request_for(&case, &b, 2),
-        &[],
-        &ctx,
-    )
-    .unwrap();
+    let (other, _) =
+        sampled_counterfactual_transport_artifact(&b, &request_for(&case, &b, 2), &[], &ctx)
+            .unwrap();
     consume(&wire.export().unwrap()).expect("the unmodified artifact replays");
 
     // Counts edited without resealing: the data digest refuses.
@@ -299,7 +298,10 @@ fn resealed_semantic_mutations_are_refused() {
         se.value = (f64::from_bits(se.value) * 2.0).to_bits();
     });
     let error = consume(&bytes).unwrap_err();
-    assert!(matches!(error, ArtifactError::EstimateMismatch { field: "standard_error" }), "{error:?}");
+    assert!(
+        matches!(error, ArtifactError::EstimateMismatch { field: "standard_error" }),
+        "{error:?}"
+    );
 
     // An interval smuggled in as an inference claim never seals.
     let mut smuggled = wire.clone();
@@ -366,9 +368,8 @@ fn a_stale_version_or_foreign_feature_is_refused_before_the_payload() {
 }
 
 fn declared(range: std::ops::Range<u32>, label: &str) -> SourceDeclaration {
-    SourceDeclaration::new(label, SourceKind::ObservationSet).with_observations(
-        range.map(|i| ObservationId::from_key("units", &i.to_le_bytes())),
-    )
+    SourceDeclaration::new(label, SourceKind::ObservationSet)
+        .with_observations(range.map(|i| ObservationId::from_key("units", &i.to_le_bytes())))
 }
 
 #[test]
@@ -400,7 +401,7 @@ fn the_ledger_declares_overlap_and_unknown_stays_unknown() {
         }
         overlap_declaration_from_ledger(&ledger, &bound).unwrap()
     };
-    let n = keys.len() as u32;
+    let n = u32::try_from(keys.len()).expect("a handful of tables");
 
     // Disjoint declared observations behind every table: independent.
     let disjoint: Vec<_> = (0..n).map(|i| Some(i * 10_000..i * 10_000 + 5_000)).collect();

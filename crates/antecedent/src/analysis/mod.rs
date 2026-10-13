@@ -48,6 +48,7 @@ pub mod conditional_study_ranking;
 mod contract;
 mod contract_identity;
 mod cost;
+mod counterfactual_transport;
 mod cpdag_scenarios;
 pub mod decision_claims;
 mod decision_contract_facade;
@@ -72,7 +73,6 @@ pub mod mechanism_composition;
 pub mod mechanism_discrepancy;
 mod mixed_source;
 pub mod msm_sensitivity;
-mod counterfactual_transport;
 mod mz_transport;
 pub mod native_claims;
 pub mod nonlinear_mediation;
@@ -146,6 +146,12 @@ pub use cost::{
     BatchCostEstimate, CostEstimate, InferenceDefault, JointCellCostEstimate, RetargetCostEstimate,
     estimate_joint_cell_cost,
 };
+pub use counterfactual_transport::{
+    CounterfactualTransportConsumption, CounterfactualTransportObstructionReport,
+    CounterfactualTransportOptions, CounterfactualTransportPreparation,
+    CounterfactualTransportResult, PreparedCounterfactualTransport,
+    consume_counterfactual_transport_artifact, prepare_counterfactual_transport,
+};
 pub use cpdag_scenarios::{
     CpdagEvaluation, PreparedCpdagCompletionScenarios, consume_cpdag_scenarios_artifact,
     consume_scenario_covariance_artifact, export_scenario_covariance,
@@ -154,6 +160,13 @@ pub use derived_treatment::{
     ConstituentRole, DeclaredExclusion, DerivedTreatmentDeclaration, DerivedTreatmentPlan,
     ExclusionRule, InterventionMeaning, SourceColumn, TemporalPosition, Transformation,
     check_derived_treatment, estimate_derived_joint_cells,
+};
+pub use evidence_ledger::{
+    BetweenStudy, BorrowingRequest, ConsumedEvidenceLedger, DependenceRangeRequest,
+    EvidenceLedgerRefusal, EvidenceLedgerSession, LedgerExport, LedgerRefresh, ObservationAccount,
+    PoolingDeclaration, PoolingRequest, RevisionReport, SourceChange, SourcePairRelation,
+    SourceRevision, StudyEstimate, StudySummary, SynthesisOutcome, SynthesisValue,
+    consume_evidence_ledger_artifact,
 };
 pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
@@ -175,21 +188,6 @@ pub use learned_continuous::{
     LearnedContinuousResult, PreparedLearnedContinuous, consume_learned_continuous_artifact,
 };
 pub use learned_trial::{LearnedTrialResult, LearnedTrialState};
-pub use mixed_source::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_artifact};
-pub use counterfactual_transport::{
-    CounterfactualTransportConsumption, CounterfactualTransportObstructionReport,
-    CounterfactualTransportOptions, CounterfactualTransportPreparation,
-    CounterfactualTransportResult, PreparedCounterfactualTransport,
-    consume_counterfactual_transport_artifact, prepare_counterfactual_transport,
-};
-pub use mz_transport::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
-pub use evidence_ledger::{
-    BetweenStudy, BorrowingRequest, ConsumedEvidenceLedger, DependenceRangeRequest,
-    EvidenceLedgerRefusal, EvidenceLedgerSession, LedgerExport, LedgerRefresh,
-    ObservationAccount, PoolingDeclaration, PoolingRequest, RevisionReport, SourceChange,
-    SourcePairRelation, SourceRevision, StudyEstimate, StudySummary, SynthesisOutcome,
-    SynthesisValue, consume_evidence_ledger_artifact,
-};
 pub use measurement_model::{
     CategoricalTarget, ConsumedMeasurement, MeasurementAnalysisBinding, MeasurementDetail,
     MeasurementEstimate, MeasurementInput, MeasurementModelRefusal, MeasurementRefresh,
@@ -200,6 +198,8 @@ pub use mechanism_composition::{
     MechanismCompositionRequest, MechanismInput, MechanismRefit, MechanismSource,
     PreparedMechanismComposition, consume_mechanism_composition_artifact,
 };
+pub use mixed_source::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_artifact};
+pub use mz_transport::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
 pub use preflight::{
     ArmCount, ArmSpec, ArmWeightEss, BatchPreflightReport, ColumnMissingness, ColumnPriority,
     ColumnWeight, DependentColumn, DroppedColumn, DuplicateGroup, FindingSeverity,

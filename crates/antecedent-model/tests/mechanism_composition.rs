@@ -2,16 +2,21 @@
 //! enumerated truth, with the refusals that individually valid mechanisms owe.
 //!
 //! Hand-computed oracle (linear-Gaussian chain), with
-//!   X = 1 + 2 e_X
-//!   M = 0.5 + 2 X + 1 e_M
-//!   Y = -1 + 0.5 X + 3 M + 0.5 e_Y
-//! so that Y = 0.5 + 6.5 X + 3 e_M + e_Y:
+//!   X = 1 + 2 `e_X`
+//!   M = 0.5 + 2 X + 1 `e_M`
+//!   Y = -1 + 0.5 X + 3 M + 0.5 `e_Y`
+//! so that Y = 0.5 + 6.5 X + 3 `e_M` + `e_Y`:
 //!   E[X]=1, E[M]=2.5, E[Y]=7
 //!   Var X=4, Var M=17, Var Y=178.25
 //!   Cov(X,M)=8, Cov(X,Y)=26, Cov(M,Y)=55
 //!   do(X=2): E[M]=4.5, E[Y]=13.5, Var M=1, Var Y=9.25, Cov(M,Y)=3
 //!   do(M=1): E[Y]=2.5, Var Y=1.25, Cov(X,Y)=2
 //!   E[Y|do(X=1)] - E[Y|do(X=0)] = 6.5
+
+#![allow(
+    clippy::needless_range_loop,
+    reason = "enumerated finite-SCM oracles index their tables by the level of each variable"
+)]
 
 use antecedent_core::ExecutionContext;
 use antecedent_model::compose::{
@@ -152,7 +157,7 @@ fn structural_sampling_matches_the_closed_form_moments_and_is_deterministic() {
     // Relative standard error of the variance is sqrt(2/n) = 0.0032; allow 6x.
     assert!((var / 9.25 - 1.0).abs() < 0.02, "var {var}");
     // do(X=2) fixes the column exactly.
-    assert!(col("X").iter().all(|&x| x == 2.0));
+    assert!(col("X").iter().all(|&x| x.to_bits() == 2.0_f64.to_bits()));
 
     let again = model.sample(&[("X", 2.0)], n, &ExecutionContext::for_tests(20_260_101)).unwrap();
     assert_eq!(table, again);
@@ -200,12 +205,18 @@ fn shared_latent_covariance_is_exact_and_a_dropped_latent_is_refused() {
     // Dropping B: A's latent is shared with a mechanism that is not here. The
     // composition must not silently treat A as independent of B.
     let err = ComposedLinearGaussian::compile(&spec_of(vec![a.clone()])).unwrap_err();
-    assert!(details(&err).contains(&"mechanism_composition.latent_shared_with_absent_mechanism"), "{err:?}");
+    assert!(
+        details(&err).contains(&"mechanism_composition.latent_shared_with_absent_mechanism"),
+        "{err:?}"
+    );
 
     // B does not declare the latent A claims to share.
     let plain_b = lg("B", 1.0, 1.0, &[]);
     let err = ComposedLinearGaussian::compile(&spec_of(vec![a.clone(), plain_b])).unwrap_err();
-    assert!(details(&err).contains(&"mechanism_composition.latent_sharing_not_reciprocal"), "{err:?}");
+    assert!(
+        details(&err).contains(&"mechanism_composition.latent_sharing_not_reciprocal"),
+        "{err:?}"
+    );
 
     // The dependence exists but its strength is not declared.
     let mut unloaded = a.clone();
@@ -219,7 +230,10 @@ fn shared_latent_covariance_is_exact_and_a_dropped_latent_is_refused() {
     let mut b_silent = b;
     b_silent.latents = vec![latent(Some(3.0), &[])];
     let err = ComposedLinearGaussian::compile(&spec_of(vec![a_silent, b_silent])).unwrap_err();
-    assert!(details(&err).contains(&"mechanism_composition.latent_sharing_not_declared"), "{err:?}");
+    assert!(
+        details(&err).contains(&"mechanism_composition.latent_sharing_not_declared"),
+        "{err:?}"
+    );
 }
 
 #[test]
@@ -293,7 +307,10 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused() {
     // ... and one that points into M does not.
     spec.selection_diagrams[0].selection_nodes[0].points_into = vec!["M".into()];
     let err = ComposedLinearGaussian::compile(&spec).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.population_selection_arrow_into_mechanism"]);
+    assert_eq!(
+        details(&err),
+        vec!["mechanism_composition.population_selection_arrow_into_mechanism"]
+    );
     // An explicit invariance assumption admits it regardless of the diagram.
     spec.invariances.push(InvarianceDeclaration {
         variable: "M".into(),
@@ -335,7 +352,10 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused() {
     mechanisms[1].provenance.origin = MechanismOrigin::Declared;
     let mut spec = spec_of(mechanisms);
     let err = ComposedLinearGaussian::compile(&spec).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.provenance_declared_mechanism_unacknowledged"]);
+    assert_eq!(
+        details(&err),
+        vec!["mechanism_composition.provenance_declared_mechanism_unacknowledged"]
+    );
     spec.admit_declared_mechanisms = true;
     assert!(ComposedLinearGaussian::compile(&spec).is_ok());
 }
@@ -387,6 +407,10 @@ fn ate_at(x: f64) -> MeanContrast {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one hand-derived gradient and two checked variances asserted side by side"
+)]
 fn independent_assumption_and_declared_covariance_give_different_checked_variances() {
     // E[Y | do(X=2)] = a_Y + b_YX*2 + b_YM*(a_M + b_MX*2).
     // Gradient: a_M: b_YM=3, b_MX: b_YM*2=6, a_X: 0, a_Y: 1, b_YX: 2,
@@ -419,15 +443,16 @@ fn independent_assumption_and_declared_covariance_give_different_checked_varianc
 
     // cov(b_MX, b_YM) = 0.002 adds 2 * 6 * 4.5 * 0.002 = 0.108.
     // Every other pair is an explicit zero block (a declared independence).
-    let cross = |first: &str, second: &str, fp: Vec<ParameterTerm>, sp: Vec<ParameterTerm>, v: Vec<f64>| {
-        CrossCovarianceBlock {
-            first: first.into(),
-            second: second.into(),
-            first_parameters: fp,
-            second_parameters: sp,
-            values: v,
-        }
-    };
+    let cross =
+        |first: &str, second: &str, fp: Vec<ParameterTerm>, sp: Vec<ParameterTerm>, v: Vec<f64>| {
+            CrossCovarianceBlock {
+                first: first.into(),
+                second: second.into(),
+                first_parameters: fp,
+                second_parameters: sp,
+                values: v,
+            }
+        };
     let m_terms = vec![ParameterTerm::Intercept, ParameterTerm::Coefficient("X".into())];
     let x_terms = vec![ParameterTerm::Intercept];
     let y_terms = vec![
@@ -476,9 +501,7 @@ fn independent_assumption_and_declared_covariance_give_different_checked_varianc
                 ("Y", ParameterTerm::Coefficient(p)) if p == "X" => 0.01,
                 _ => 0.0025,
             }
-        } else if ka.0 == "M"
-            && kb.0 == "M"
-        {
+        } else if ka.0 == "M" && kb.0 == "M" {
             -0.01
         } else if (ka == m_x && kb == y_m) || (ka == y_m && kb == m_x) {
             0.002
@@ -535,7 +558,10 @@ fn unknown_posterior_dependence_stays_unknown_and_refuses_the_uncertainty_claim(
     let err = model.mean_contrast_uncertainty(&ate_at(2.0)).unwrap_err();
     let d = details(&err);
     assert_eq!(d.len(), 2);
-    assert!(d.iter().all(|x| *x == "mechanism_composition.posterior_dependence_cross_covariance_missing"));
+    assert!(
+        d.iter()
+            .all(|x| *x == "mechanism_composition.posterior_dependence_cross_covariance_missing")
+    );
 
     // A mechanism that reports no marginal law has no uncertainty to propagate.
     let mut no_marginal = uncertain_chain(PosteriorDependence::IndependentByDesign {
@@ -555,7 +581,10 @@ fn misaligned_or_contradicted_uncertainty_is_refused_at_composition() {
     });
     spec.mechanisms[1].provenance.evidence_id = "data:X".into();
     let err = ComposedLinearGaussian::compile(&spec).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.posterior_dependence_shared_evidence_declared_independent"]);
+    assert_eq!(
+        details(&err),
+        vec!["mechanism_composition.posterior_dependence_shared_evidence_declared_independent"]
+    );
 
     // A posterior covariance and a sampling covariance are not one law.
     let mut spec = uncertain_chain(PosteriorDependence::IndependentByDesign {
@@ -672,10 +701,7 @@ fn composition_is_invariant_to_listing_order_and_to_consistent_relabeling() {
         near(a.mean_of(orig).unwrap(), b.mean_of(new).unwrap());
         near(a.variance_of(orig).unwrap(), b.variance_of(new).unwrap());
     }
-    near(
-        a.covariance_of("M", "Y").unwrap(),
-        b.covariance_of("a_mediator", "z_outcome").unwrap(),
-    );
+    near(a.covariance_of("M", "Y").unwrap(), b.covariance_of("a_mediator", "z_outcome").unwrap());
 }
 
 fn table_mechanism(
@@ -697,11 +723,7 @@ fn table_mechanism(
                         .zip(config.iter())
                         .map(|((p, _), l)| ((*p).to_owned(), (*l).to_owned()))
                         .collect(),
-                    probabilities: level_names
-                        .iter()
-                        .cloned()
-                        .zip(probs.iter().copied())
-                        .collect(),
+                    probabilities: level_names.iter().cloned().zip(probs.iter().copied()).collect(),
                 })
                 .collect(),
         },
@@ -809,21 +831,15 @@ fn composition_matches_the_enumerated_finite_scm() {
 
     // Agreement with the independent enumeration on every joint state. The
     // enumeration is indexed (x, m, y); the law is indexed (M, X, Y).
-    for (dx, dm_, intervention) in [
-        (None, None, vec![]),
-        (Some(1), None, vec![("X", "1")]),
-        (None, Some(1), vec![("M", "1")]),
-    ] {
+    for (dx, dm_, intervention) in
+        [(None, None, vec![]), (Some(1), None, vec![("X", "1")]), (None, Some(1), vec![("M", "1")])]
+    {
         let truth = enumerate(dx, dm_);
         let law = model.law(&intervention, &ctx).unwrap();
         for x in 0..2 {
             for m in 0..2 {
                 for y in 0..2 {
-                    let event = [
-                        ("X", ["0", "1"][x]),
-                        ("M", ["0", "1"][m]),
-                        ("Y", ["0", "1"][y]),
-                    ];
+                    let event = [("X", ["0", "1"][x]), ("M", ["0", "1"][m]), ("Y", ["0", "1"][y])];
                     near(law.probability(&event).unwrap(), truth[x * 4 + m * 2 + y]);
                 }
             }
@@ -861,7 +877,10 @@ fn finite_tables_that_cannot_compose_are_refused() {
         rows.pop();
     }
     let err = ComposedFinite::compile(&spec_of(mechanisms)).unwrap_err();
-    assert!(details(&err).contains(&"mechanism_composition.support_missing_parent_configuration"), "{err:?}");
+    assert!(
+        details(&err).contains(&"mechanism_composition.support_missing_parent_configuration"),
+        "{err:?}"
+    );
 
     // A row that is not a distribution.
     let mut mechanisms = binary_chain();

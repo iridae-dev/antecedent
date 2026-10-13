@@ -448,8 +448,7 @@ pub struct EvidenceLedgerSession {
     not_carried: BTreeMap<ResultId, &'static str>,
 }
 
-const NOT_CARRIED_PRIOR: &str =
-    "hierarchical borrowing over prior sources: the stored synthesis carries one study summary per \
+const NOT_CARRIED_PRIOR: &str = "hierarchical borrowing over prior sources: the stored synthesis carries one study summary per \
      source and a prior source has none";
 
 impl StudyBuilder {
@@ -479,6 +478,9 @@ fn too_many(count: usize) -> Result<(), EvidenceLedgerRefusal> {
     }
     Ok(())
 }
+
+/// Source ids, estimates and variances of a list of study summaries, in input order.
+type StudyColumns = (Vec<SourceId>, Vec<f64>, Vec<f64>);
 
 impl EvidenceLedgerSession {
     /// The ledger: sources, results, operations, head and state digest.
@@ -573,11 +575,9 @@ impl EvidenceLedgerSession {
     ) -> Result<SynthesisOutcome, EvidenceLedgerRefusal> {
         check_cancelled(ctx)?;
         let mut staged = self.ledger.clone();
-        let result =
-            staged.combine(request).map_err(|e| EvidenceLedgerRefusal::from_ledger(&e))?;
+        let result = staged.combine(request).map_err(|e| EvidenceLedgerRefusal::from_ledger(&e))?;
         check_cancelled(ctx)?;
-        let (value, method) =
-            compute().map_err(|e| EvidenceLedgerRefusal::from_synthesis(&e))?;
+        let (value, method) = compute().map_err(|e| EvidenceLedgerRefusal::from_synthesis(&e))?;
         let record = staged.result(result).ok_or_else(|| {
             EvidenceLedgerRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
@@ -596,10 +596,8 @@ impl EvidenceLedgerSession {
         self.values.insert(result, value);
         match carry {
             None => {
-                self.records.insert(
-                    result,
-                    SynthesisRecord { result, sources: study_sources, method },
-                );
+                self.records
+                    .insert(result, SynthesisRecord { result, sources: study_sources, method });
             }
             Some(reason) => {
                 self.not_carried.insert(result, reason);
@@ -608,7 +606,7 @@ impl EvidenceLedgerSession {
         Ok(outcome)
     }
 
-    fn studies(summaries: &[StudySummary]) -> Result<(Vec<SourceId>, Vec<f64>, Vec<f64>), EvidenceLedgerRefusal> {
+    fn studies(summaries: &[StudySummary]) -> Result<StudyColumns, EvidenceLedgerRefusal> {
         too_many(summaries.len())?;
         Ok((
             summaries.iter().map(|s| s.source).collect(),
@@ -766,12 +764,8 @@ impl EvidenceLedgerSession {
             combination,
             sources,
             move || {
-                let fit = hierarchical_normal_borrowing(
-                    &estimates,
-                    &variances,
-                    mean_prior,
-                    &tau_prior,
-                )?;
+                let fit =
+                    hierarchical_normal_borrowing(&estimates, &variances, mean_prior, &tau_prior)?;
                 Ok((
                     SynthesisValue::Hierarchical(fit),
                     SynthesisMethod::HierarchicalBorrowing {
@@ -939,9 +933,7 @@ impl EvidenceLedgerSession {
     pub fn revalidate_downstream(
         &mut self,
     ) -> Result<Vec<ResultRevalidation>, EvidenceLedgerRefusal> {
-        self.ledger
-            .revalidate_downstream()
-            .map_err(|e| EvidenceLedgerRefusal::from_ledger(&e))
+        self.ledger.revalidate_downstream().map_err(|e| EvidenceLedgerRefusal::from_ledger(&e))
     }
 
     /// An interval or posterior for a pooled result.

@@ -353,6 +353,26 @@ def test_transported_route_is_closed_with_every_missing_gate() -> None:
     assert "transported_counterfactual.route_frozen" in str(error)
 
 
+def test_transported_route_refusal_names_the_successor_route_and_its_scope() -> None:
+    for error in (
+        transported(required_factors=["source:rct", "target:field"]),
+        transported(
+            prerequisites=ALL_PASSED,
+            required_factors=["source:rct", "target:field"],
+            supplied_factors={"source:rct": "e1", "target:field": "e2"},
+        ),
+        transported(
+            prerequisites=ALL_PASSED,
+            required_factors=["source:rct"],
+            supplied_factors={},
+        ),
+    ):
+        assert error.remedy is not None
+        assert "antecedent.transport.advanced.identify_counterfactual" in error.remedy
+        assert "finite discrete, static, acyclic semi-Markovian" in error.remedy
+        assert error.missing_gates == () or error.missing_gates == GATES
+
+
 def test_transported_route_reports_only_the_gates_still_missing() -> None:
     error = transported(prerequisites=TransportedPrerequisites(transport_license=True))
     assert error.detail == "transported_counterfactual.route_frozen"

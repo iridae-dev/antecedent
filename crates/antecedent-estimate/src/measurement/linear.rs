@@ -133,8 +133,8 @@ pub fn correct_classical_linear_effect(
             "classical route needs classical error parameters",
         ));
     };
-    let error =
-        ErrorVariance::known(*error_variance, *error_variance_standard_error).map_err(|e| stats_error(&e))?;
+    let error = ErrorVariance::known(*error_variance, *error_variance_standard_error)
+        .map_err(|e| stats_error(&e))?;
     let raw = LinearErrorData {
         y: data.outcome,
         w: data.regressor,
@@ -163,6 +163,10 @@ pub fn correct_classical_linear_effect(
 /// # Errors
 /// As [`correct_classical_linear_effect`], and fewer units with two or more
 /// replicates than the model declares.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "public signature shared with the facade and its tests; the columns mirror the classical route's argument order"
+)]
 pub fn correct_repeated_linear_effect(
     model: &MeasurementModel,
     binding: &DataBinding,

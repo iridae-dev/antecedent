@@ -179,7 +179,7 @@ struct Engine<'a> {
     repairs: EvaluationRepairs,
 }
 
-impl<'a> Engine<'a> {
+impl Engine<'_> {
     fn tick(&mut self) -> Result<(), Failure> {
         self.work += 1;
         if self.work > self.limit {
@@ -291,11 +291,7 @@ impl<'a> Engine<'a> {
                         sentinel = Some(sentinel.map_or(ZERO_MASS, |s: f64| s.min(ZERO_MASS)));
                     }
                 }
-                if zero {
-                    Ok(0.0)
-                } else {
-                    Ok(sentinel.unwrap_or(product))
-                }
+                if zero { Ok(0.0) } else { Ok(sentinel.unwrap_or(product)) }
             }
             CounterfactualItemSource::Regime { intervened, .. } => {
                 let key: Vec<usize> = (0..self.cards.len())
@@ -357,9 +353,9 @@ impl<'a> Engine<'a> {
             })
             .collect();
         let mut idx0 = 0usize;
-        for v in 0..n {
-            if base[v] != usize::MAX {
-                idx0 += base[v] * self.strides[v];
+        for (v, &b) in base.iter().enumerate().take(n) {
+            if b != usize::MAX {
+                idx0 += b * self.strides[v];
             }
         }
         if early.is_empty() {
@@ -454,11 +450,11 @@ impl<'a> Engine<'a> {
         let mut sentinel: Option<f64> = None;
         loop {
             let mut idx = 0usize;
-            for v in 0..n {
-                let level = if base[v] == usize::MAX {
+            for (v, &b) in base.iter().enumerate().take(n) {
+                let level = if b == usize::MAX {
                     free.iter().position(|&f| f == v).map_or(0, |p| counters[p])
                 } else {
-                    base[v]
+                    b
                 };
                 idx += level * self.strides[v];
             }
@@ -645,6 +641,10 @@ pub(crate) fn evaluate_estimated_tables(
     evaluate_with_policy(derivation, data, limits, ctx, FreeCoordinatePolicy::MassWeightedAverage)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one evaluation over the closed-form policy whose per-term accumulation shares one run state"
+)]
 fn evaluate_with_policy(
     derivation: &CounterfactualTransportDerivation,
     data: &ExactTransportData,
@@ -667,7 +667,8 @@ fn evaluate_with_policy(
         rank[v] = position;
     }
     // Per regime item, the laws by intervention levels.
-    let mut laws: Vec<HashMap<Vec<usize>, LawView<'_>>> = Vec::with_capacity(derivation.items.len());
+    let mut laws: Vec<HashMap<Vec<usize>, LawView<'_>>> =
+        Vec::with_capacity(derivation.items.len());
     for item in &derivation.items {
         let mut views: HashMap<Vec<usize>, LawView<'_>> = HashMap::new();
         if let CounterfactualItemSource::Regime { regime, intervened } = item.source {
@@ -704,15 +705,14 @@ fn evaluate_with_policy(
         policy,
         repairs: EvaluationRepairs::default(),
     };
-    let mut evaluate = |functional: &CounterfactualFunctional,
-                        what: &str|
-     -> Result<f64, EstimationError> {
-        let value = engine.functional(functional).map_err(Failure::into_error)?;
-        if value < 0.0 {
-            return Err(describe(value, what));
-        }
-        Ok(value)
-    };
+    let mut evaluate =
+        |functional: &CounterfactualFunctional, what: &str| -> Result<f64, EstimationError> {
+            let value = engine.functional(functional).map_err(Failure::into_error)?;
+            if value < 0.0 {
+                return Err(describe(value, what));
+            }
+            Ok(value)
+        };
     let numerator = evaluate(&derivation.numerator, "the event probability")?;
     let denominator = evaluate(&derivation.denominator, "the conditioning probability")?;
     let guard = match &derivation.positivity_guard {
@@ -756,7 +756,9 @@ fn evaluate_with_policy(
         return Err(refused(
             antecedent_core::reason_code!("transport_numerical_failure"),
             DETAIL_INCOMPATIBLE,
-            format!("the probability {probability} is outside [0, 1]: the laws contradict the graph"),
+            format!(
+                "the probability {probability} is outside [0, 1]: the laws contradict the graph"
+            ),
         ));
     }
     let probability = probability.clamp(0.0, 1.0);
@@ -839,9 +841,7 @@ fn view_of<'a>(
             return Err(invalid("a law measures a variable outside the problem"));
         };
         if axis.values.len() != cards[variable] {
-            return Err(invalid(
-                "a law's levels do not match the variable's declared levels",
-            ));
+            return Err(invalid("a law's levels do not match the variable's declared levels"));
         }
         let mut position = vec![usize::MAX; cards[variable]];
         for (p, value) in axis.values.iter().enumerate() {
@@ -868,10 +868,7 @@ fn view_of<'a>(
     for k in (0..axes.len().saturating_sub(1)).rev() {
         law_strides[k] = law_strides[k + 1] * law.axes()[k + 1].values.len();
     }
-    Ok((
-        key,
-        LawView { probabilities: law.probabilities(), axes, positions, strides: law_strides },
-    ))
+    Ok((key, LawView { probabilities: law.probabilities(), axes, positions, strides: law_strides }))
 }
 
 // ---------------------------------------------------------------------------
@@ -947,7 +944,8 @@ fn lower_item(
             let intervention = arena.intern_intervention_assignments(assignments);
             let domain =
                 if intervened == 0 { DomainRef::Observational } else { DomainRef::Interventional };
-            let population = arena.intern_population(derivation.populations[item.population].as_ref());
+            let population =
+                arena.intern_population(derivation.populations[item.population].as_ref());
             arena.intern(ExprNode::Distribution {
                 variables,
                 conditioned_on,
@@ -978,8 +976,7 @@ fn lower_item(
                     }
                 }
                 let numerator = sum_out(arena, problem.variables_of_mask(later), body);
-                let denominator =
-                    sum_out(arena, problem.variables_of_mask(later | (1 << i)), body);
+                let denominator = sum_out(arena, problem.variables_of_mask(later | (1 << i)), body);
                 factors.push(arena.intern(ExprNode::Ratio { numerator, denominator }));
             }
             if factors.len() == 1 {

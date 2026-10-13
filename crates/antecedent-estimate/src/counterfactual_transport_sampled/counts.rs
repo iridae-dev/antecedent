@@ -17,8 +17,8 @@ use antecedent_core::{CanonicalWriter, RegimeId, Value, VariableId};
 use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, InterventionAssignment, LawTolerance};
 
 use super::{
-    DETAIL_INVALID_COUNTS, DETAIL_SAMPLE_SIZE, DETAIL_SPARSE, DETAIL_UNSEEN, SAMPLED_TRANSPORT_MAX_TABLE_CELLS,
-    invalid_counts, refused,
+    DETAIL_INVALID_COUNTS, DETAIL_SAMPLE_SIZE, DETAIL_SPARSE, DETAIL_UNSEEN,
+    SAMPLED_TRANSPORT_MAX_TABLE_CELLS, invalid_counts, refused,
 };
 use crate::error::EstimationError;
 
@@ -287,11 +287,7 @@ impl SampledRegimeCounts {
         SampledTableKey {
             population: Arc::clone(&self.population),
             regime: self.regime,
-            interventions: self
-                .interventions
-                .iter()
-                .map(|(v, l)| (*v, level_bits(*l)))
-                .collect(),
+            interventions: self.interventions.iter().map(|(v, l)| (*v, level_bits(*l))).collect(),
         }
     }
 
@@ -362,9 +358,8 @@ impl SampledRegimeCounts {
         for a in (0..n_axes.saturating_sub(1)).rev() {
             strides[a] = strides[a + 1] * self.axes[a + 1].levels.len();
         }
-        let chosen: Vec<usize> = (0..n_axes)
-            .filter(|a| variables.contains(&self.axes[*a].variable))
-            .collect();
+        let chosen: Vec<usize> =
+            (0..n_axes).filter(|a| variables.contains(&self.axes[*a].variable)).collect();
         let strata: usize = chosen.iter().map(|a| self.axes[*a].levels.len()).product();
         let mut out = Vec::with_capacity(self.counts.len());
         for cell in 0..self.counts.len() {
@@ -528,7 +523,8 @@ pub(crate) fn table_probabilities(
                     ),
                 ));
             }
-            UnseenCellRule::AdditiveSmoothing { .. } | UnseenCellRule::UnseenMassEnvelope { .. } => {
+            UnseenCellRule::AdditiveSmoothing { .. }
+            | UnseenCellRule::UnseenMassEnvelope { .. } => {
                 let fraction = unseen.len() as f64 / live.max(1) as f64;
                 if fraction > limits.max_unseen_fraction {
                     return Err(refused(
@@ -599,11 +595,13 @@ pub(crate) fn law_of(
         Arc::clone(&table.snapshot_identity),
         LawTolerance::default(),
     )
-    .map_err(|e| refused(
-        antecedent_core::reason_code!("invalid_argument"),
-        DETAIL_INVALID_COUNTS,
-        format!("the estimated table is not a finite law: {e}"),
-    ))?;
+    .map_err(|e| {
+        refused(
+            antecedent_core::reason_code!("invalid_argument"),
+            DETAIL_INVALID_COUNTS,
+            format!("the estimated table is not a finite law: {e}"),
+        )
+    })?;
     let counts = table.counts.clone();
     let law = match flavor {
         LawFlavor::Empirical => law.with_empirical_counts(counts),

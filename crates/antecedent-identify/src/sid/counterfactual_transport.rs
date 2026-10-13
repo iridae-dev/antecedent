@@ -153,14 +153,10 @@ pub fn counterfactual_transport_refusal(
         {
             Some((reason_code!("route_not_supported"), code))
         }
-        IdentificationError::InvalidInput { message }
-            if message.starts_with(INVALID_QUERY) =>
-        {
+        IdentificationError::InvalidInput { message } if message.starts_with(INVALID_QUERY) => {
             Some((reason_code!("invalid_argument"), INVALID_QUERY))
         }
-        IdentificationError::InvalidCatalog { message }
-            if message.starts_with(INVALID_CATALOG) =>
-        {
+        IdentificationError::InvalidCatalog { message } if message.starts_with(INVALID_CATALOG) => {
             Some((reason_code!("invalid_argument"), INVALID_CATALOG))
         }
         IdentificationError::InvalidDerivation { code }
@@ -250,7 +246,9 @@ impl CounterfactualTransportProblem {
             }
             let bits: Vec<u64> = list.iter().map(|x| (x + 0.0).to_bits()).collect();
             let distinct: BTreeSet<u64> = bits.iter().copied().collect();
-            if list.is_empty() || list.iter().any(|x| !x.is_finite()) || distinct.len() != bits.len()
+            if list.is_empty()
+                || list.iter().any(|x| !x.is_finite())
+                || distinct.len() != bits.len()
             {
                 return Err(invalid_query(format!(
                     "variable {} needs one to {} distinct finite levels",
@@ -269,14 +267,22 @@ impl CounterfactualTransportProblem {
         for &(a, b) in directed {
             match (index_of(a), index_of(b)) {
                 (Some(i), Some(j)) if i != j => directed_idx.push((i, j)),
-                _ => return Err(invalid_query("an edge names an unknown variable or is a self-loop")),
+                _ => {
+                    return Err(invalid_query(
+                        "an edge names an unknown variable or is a self-loop",
+                    ));
+                }
             }
         }
         let mut bidirected_idx: Vec<(usize, usize)> = Vec::with_capacity(bidirected.len());
         for &(a, b) in bidirected {
             match (index_of(a), index_of(b)) {
                 (Some(i), Some(j)) if i != j => bidirected_idx.push((i.min(j), i.max(j))),
-                _ => return Err(invalid_query("an edge names an unknown variable or is a self-loop")),
+                _ => {
+                    return Err(invalid_query(
+                        "an edge names an unknown variable or is a self-loop",
+                    ));
+                }
             }
         }
         directed_idx.sort_unstable();
@@ -386,7 +392,9 @@ impl CounterfactualTransportProblem {
     /// Declared levels of the variable at internal index `index`, in declared order.
     #[must_use]
     pub fn levels(&self, index: usize) -> Vec<f64> {
-        self.levels.get(index).map_or_else(Vec::new, |l| l.iter().map(|b| f64::from_bits(*b)).collect())
+        self.levels
+            .get(index)
+            .map_or_else(Vec::new, |l| l.iter().map(|b| f64::from_bits(*b)).collect())
     }
 
     /// Index of `level` among the declared levels of the variable at `index`.
@@ -508,7 +516,11 @@ impl CounterfactualTransportQuery {
             })
             .collect();
         sources.sort_by(|a, b| a.population.cmp(&b.population));
-        Self { event: self.event.clone(), target: Arc::clone(&self.target), sources: sources.into() }
+        Self {
+            event: self.event.clone(),
+            target: Arc::clone(&self.target),
+            sources: sources.into(),
+        }
     }
 
     /// Canonical text (a digest input).
@@ -729,7 +741,11 @@ impl CounterfactualTransportDerivation {
         }
         out.push_str("];items=[");
         for (index, item) in self.items.iter().enumerate() {
-            let _ = write!(out, "{index}:p{}:{:#x}:{:?};", item.population, item.variables, item.source);
+            let _ = write!(
+                out,
+                "{index}:p{}:{:#x}:{:?};",
+                item.population, item.variables, item.source
+            );
         }
         let _ = write!(out, "];numerator={:?};denominator={:?}", self.numerator, self.denominator);
         let _ = write!(out, ";guard={:?};moved={:?}", self.positivity_guard, self.moved);
@@ -973,6 +989,10 @@ fn atoms_map(atoms: &[(usize, usize, usize)]) -> Option<BTreeMap<(usize, usize),
     Some(map)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "a flat sequence of independent request, catalog and bound validity checks, each with its own typed rejection"
+)]
 fn validate(
     problem: &CounterfactualTransportProblem,
     query: &CounterfactualTransportQuery,
@@ -989,7 +1009,7 @@ fn validate(
                 .to_owned(),
         ));
     }
-    event.validate().map_err(|e| invalid_query(e))?;
+    event.validate().map_err(invalid_query)?;
     if event.worlds().len() > COUNTERFACTUAL_TRANSPORT_MAX_WORLDS
         || event.event().len() + event.given().len() > COUNTERFACTUAL_TRANSPORT_MAX_ATOMS
         || query.sources.len() > COUNTERFACTUAL_TRANSPORT_MAX_SOURCES
@@ -1002,13 +1022,11 @@ fn validate(
         return Err(Rejection::Unsupported(
             BOUNDS_EXCEEDED,
             format!(
-                "the request exceeds a declared bound (at most {} worlds, {} atoms, {} sources, \
-                 {} controllable variables per source, {} catalog regimes)",
-                COUNTERFACTUAL_TRANSPORT_MAX_WORLDS,
-                COUNTERFACTUAL_TRANSPORT_MAX_ATOMS,
-                COUNTERFACTUAL_TRANSPORT_MAX_SOURCES,
-                COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE,
-                COUNTERFACTUAL_TRANSPORT_MAX_REGIMES
+                "the request exceeds a declared bound (at most {COUNTERFACTUAL_TRANSPORT_MAX_WORLDS} worlds, \
+                 {COUNTERFACTUAL_TRANSPORT_MAX_ATOMS} atoms, \
+                 {COUNTERFACTUAL_TRANSPORT_MAX_SOURCES} sources, \
+                 {COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE} controllable variables per source, \
+                 {COUNTERFACTUAL_TRANSPORT_MAX_REGIMES} catalog regimes)"
             ),
         ));
     }
@@ -1029,7 +1047,9 @@ fn validate(
         let mut mask = 0u32;
         for v in variables {
             let Some(i) = problem.index_of(*v) else {
-                return Err(invalid_query(format!("{what} names unknown variable {}", v.raw())).into());
+                return Err(
+                    invalid_query(format!("{what} names unknown variable {}", v.raw())).into()
+                );
             };
             mask |= 1 << i;
         }
@@ -1043,7 +1063,8 @@ fn validate(
         if control == problem.full_mask() {
             return Err(Rejection::Unsupported(
                 BOUNDS_EXCEEDED,
-                "a source that can experiment on every variable leaves no measured variable".to_owned(),
+                "a source that can experiment on every variable leaves no measured variable"
+                    .to_owned(),
             ));
         }
         controllable.push(control);
@@ -1073,7 +1094,9 @@ fn validate(
             let (Some(parent), Some(child)) =
                 (problem.index_of(route.parent), problem.index_of(route.child))
             else {
-                return Err(invalid_query(format!("world {index} routes an unknown variable")).into());
+                return Err(
+                    invalid_query(format!("world {index} routes an unknown variable")).into()
+                );
             };
             if !problem.parents[child].contains(&parent) {
                 return Err(invalid_query(format!(
@@ -1143,7 +1166,7 @@ fn validate(
         }
     }
     // Catalog.
-    catalog.validate().map_err(|e| invalid_catalog(e))?;
+    catalog.validate().map_err(invalid_catalog)?;
     let mut usable: Vec<UsableRegime> = Vec::new();
     let mut ignored: Vec<(RegimeId, String)> = Vec::new();
     let mut unused_family: Vec<(usize, u32)> = Vec::new();
@@ -1158,7 +1181,8 @@ fn validate(
                 ),
             ));
         }
-        let Some(population) = populations.iter().position(|p| p.as_ref() == regime.population.as_ref())
+        let Some(population) =
+            populations.iter().position(|p| p.as_ref() == regime.population.as_ref())
         else {
             return Err(invalid_catalog(format!(
                 "regime {} belongs to population {}, which is neither the target nor a declared \
@@ -1190,7 +1214,7 @@ fn validate(
                 ))
                 .into());
             };
-            if intervened >> i & 1 == 0 {
+            if (intervened >> i) & 1 == 0 {
                 measured |= 1 << i;
             }
         }
@@ -1268,7 +1292,7 @@ struct Search<'c> {
     failures: Vec<String>,
 }
 
-impl<'c> Search<'c> {
+impl Search<'_> {
     fn charge(&mut self, depth: usize, bytes: u64) -> Result<(), SearchStop> {
         self.budget.charge(depth, bytes).inspect_err(|stop| {
             self.stop.get_or_insert(*stop);
@@ -1325,8 +1349,8 @@ fn derive_conjunction(
             let mut factors: Vec<CounterfactualFactor> = Vec::with_capacity(terms.len());
             let mut missing: Option<u32> = None;
             for term in &terms {
-                match ctx.closure.target_item(term.mask) {
-                    Some(item) => factors.push(CounterfactualFactor {
+                if let Some(item) = ctx.closure.target_item(term.mask) {
+                    factors.push(CounterfactualFactor {
                         item,
                         outputs: term
                             .outputs
@@ -1338,11 +1362,10 @@ fn derive_conjunction(
                             .iter()
                             .map(|&(v, level)| (v, lift_level(level)))
                             .collect(),
-                    }),
-                    None => {
-                        missing = Some(term.mask);
-                        break;
-                    }
+                    });
+                } else {
+                    missing = Some(term.mask);
+                    break;
                 }
             }
             match missing {
@@ -1440,6 +1463,10 @@ fn merged(
     Some(out)
 }
 
+/// A reduced conditional query: worlds, event, and the atoms moved into interventions.
+type ReducedConditioning =
+    (Vec<WorldIdx>, BTreeMap<(usize, usize), usize>, Vec<CounterfactualMovedAtom>);
+
 /// The conditional reduction: repeatedly move a conditioning atom into an
 /// intervention (in every world its node appears in) when the event's nodes are
 /// m-separated from it given the other conditioning nodes.
@@ -1448,8 +1475,7 @@ fn reduce_conditioning(
     worlds: &[WorldIdx],
     event: &BTreeMap<(usize, usize), usize>,
     given: &BTreeMap<(usize, usize), usize>,
-) -> Result<(Vec<WorldIdx>, BTreeMap<(usize, usize), usize>, Vec<CounterfactualMovedAtom>), IdentificationError>
-{
+) -> Result<ReducedConditioning, IdentificationError> {
     let mut worlds: Vec<WorldIdx> = worlds.to_vec();
     let mut given = given.clone();
     let mut moved: Vec<CounterfactualMovedAtom> = Vec::new();
@@ -1547,8 +1573,7 @@ fn derive_query(
                 derive_conjunction(ctx, search, &worlds, &reduced_given, 0, &used)?
             };
             if let (Some(numerator), Some(denominator)) = (numerator, denominator) {
-                let guard =
-                    derive_conjunction(ctx, search, &validated.worlds, &given, 0, &used)?;
+                let guard = derive_conjunction(ctx, search, &validated.worlds, &given, 0, &used)?;
                 let checked = guard.is_some();
                 return Ok(Some(QueryPlan {
                     numerator,
@@ -1652,7 +1677,14 @@ pub fn identify_counterfactual_transport(
         antecedent_core::execution_attempt::Operation::Identification,
         || {
             crate::execution_counts::note_check();
-            decide_bounded(problem, query, catalog, limits, COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES, ctx)
+            decide_bounded(
+                problem,
+                query,
+                catalog,
+                limits,
+                COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES,
+                ctx,
+            )
         },
     )
 }
@@ -1730,7 +1762,9 @@ fn decide_bounded(
                 Vec::new(),
             )))
         }
-        Err(Abort::Error(IdentificationError::UnsupportedInput { code })) if code == BOUNDS_EXCEEDED => {
+        Err(Abort::Error(IdentificationError::UnsupportedInput { code }))
+            if code == BOUNDS_EXCEEDED =>
+        {
             Ok(CounterfactualTransportDecision::UnsupportedScope(
                 CounterfactualTransportUnsupported {
                     detail: BOUNDS_EXCEEDED,
@@ -1763,10 +1797,7 @@ fn supplied_seeds(validated: &Validated) -> Vec<Seed> {
 /// Seeds of the declared family not supplied in full: every population's
 /// observational law and every source's experiments on subsets of its
 /// controllable set, each measuring every non-intervened variable.
-fn candidate_seeds(
-    validated: &Validated,
-    problem: &CounterfactualTransportProblem,
-) -> Vec<Seed> {
+fn candidate_seeds(validated: &Validated, problem: &CounterfactualTransportProblem) -> Vec<Seed> {
     let full = problem.full_mask();
     let mut seeds: Vec<Seed> = Vec::new();
     for population in 0..validated.populations.len() {
@@ -1795,6 +1826,10 @@ fn candidate_seeds(
     seeds
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the staged pipeline: one flat block per stage, each charging the budget and recording its outcome"
+)]
 fn run_stages(
     problem: &CounterfactualTransportProblem,
     catalog: &EvidenceCatalog,
@@ -1839,7 +1874,8 @@ fn run_stages(
             }
         }
         missing.sort_by(|a, b| {
-            (a.population.as_ref(), &a.interventions).cmp(&(b.population.as_ref(), &b.interventions))
+            (a.population.as_ref(), &a.interventions)
+                .cmp(&(b.population.as_ref(), &b.interventions))
         });
         missing.dedup();
         let detail = format!(
@@ -1938,7 +1974,8 @@ fn assemble(
         collect_items(guard, &mut roots);
     }
     let kept = reachable(closure, &roots);
-    let map: BTreeMap<usize, usize> = kept.iter().enumerate().map(|(new, &old)| (old, new)).collect();
+    let map: BTreeMap<usize, usize> =
+        kept.iter().enumerate().map(|(new, &old)| (old, new)).collect();
     let mut items = Vec::with_capacity(kept.len());
     let mut cited: BTreeMap<RegimeId, CounterfactualCitedRegime> = BTreeMap::new();
     for &old in &kept {
@@ -1955,11 +1992,19 @@ fn assemble(
                 });
                 CounterfactualItemSource::Regime { regime, intervened }
             }
-            ItemSource::Marginal { from } => CounterfactualItemSource::Marginal { from: remap(from) },
+            ItemSource::Marginal { from } => {
+                CounterfactualItemSource::Marginal { from: remap(from) }
+            }
             ItemSource::Extract { from } => CounterfactualItemSource::Extract { from: remap(from) },
-            ItemSource::Transfer { from } => CounterfactualItemSource::Transfer { from: remap(from) },
+            ItemSource::Transfer { from } => {
+                CounterfactualItemSource::Transfer { from: remap(from) }
+            }
         };
-        items.push(CounterfactualItem { population: item.population, variables: item.mask, source });
+        items.push(CounterfactualItem {
+            population: item.population,
+            variables: item.mask,
+            source,
+        });
     }
     remap_items(&mut numerator, &map);
     remap_items(&mut denominator, &map);
@@ -2065,7 +2110,11 @@ mod tests {
         interventions: &[u32],
         measured: &[u32],
     ) -> EvidenceRegime {
-        let kind = if interventions.is_empty() { RegimeKind::Observational } else { RegimeKind::Experimental };
+        let kind = if interventions.is_empty() {
+            RegimeKind::Observational
+        } else {
+            RegimeKind::Experimental
+        };
         EvidenceRegime::try_new(
             RegimeId::from_raw(id),
             kind,
@@ -2146,12 +2195,9 @@ mod tests {
     #[test]
     fn confounded_effect_needs_the_declared_experiment_and_otherwise_has_a_witness() {
         // 0 -> 1 with 0 <-> 1.
-        let problem = CounterfactualTransportProblem::new(
-            &binary(&[0, 1]),
-            &[(v(0), v(1))],
-            &[(v(0), v(1))],
-        )
-        .unwrap();
+        let problem =
+            CounterfactualTransportProblem::new(&binary(&[0, 1]), &[(v(0), v(1))], &[(v(0), v(1))])
+                .unwrap();
         let cat = catalog(vec![regime(0, "target", &[], &[0, 1])]);
         // No source can experiment: a verified two-model witness.
         let query = interventional_query(0, 1.0, 1, vec![source(&[], &[])]);
@@ -2172,10 +2218,7 @@ mod tests {
             other => panic!("expected missing evidence, got {other:?}"),
         }
         // Supplying it identifies.
-        let cat = catalog(vec![
-            regime(0, "target", &[], &[0, 1]),
-            regime(1, "source", &[0], &[1]),
-        ]);
+        let cat = catalog(vec![regime(0, "target", &[], &[0, 1]), regime(1, "source", &[0], &[1])]);
         let decision = decide(&problem, &query, &cat);
         assert!(decision.derivation().is_some(), "{decision:?}");
     }
@@ -2183,12 +2226,9 @@ mod tests {
     #[test]
     fn selection_on_the_outcome_blocks_the_source_experiment() {
         // 0 -> 1, 0 <-> 1, selection on 1: the source experiment cannot transport.
-        let problem = CounterfactualTransportProblem::new(
-            &binary(&[0, 1]),
-            &[(v(0), v(1))],
-            &[(v(0), v(1))],
-        )
-        .unwrap();
+        let problem =
+            CounterfactualTransportProblem::new(&binary(&[0, 1]), &[(v(0), v(1))], &[(v(0), v(1))])
+                .unwrap();
         let cat = catalog(vec![
             regime(0, "target", &[], &[0, 1]),
             regime(1, "source", &[0], &[1]),

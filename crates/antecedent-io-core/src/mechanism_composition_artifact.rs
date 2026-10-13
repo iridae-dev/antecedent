@@ -35,10 +35,10 @@ use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_model::compose::{
     CoherenceFinding, ComposedFinite, ComposedLinearGaussian, ComposedModelSpec, CompositionError,
     ContextCoordinate, ContrastArm, CrossCovarianceBlock, Domain, InvarianceDeclaration,
-    LatentDependence, MAX_COMPOSED_MECHANISMS, MeanContrast, MechanismContext,
-    MechanismDescriptor, MechanismFamily, MechanismForm, MechanismOrigin, MechanismProvenance,
-    MechanismUncertainty, ParameterId, ParameterTerm, ParentBinding, PosteriorDependence,
-    SelectionDiagramDeclaration, SelectionNodeDeclaration, TabularRow, UncertaintyMeaning,
+    LatentDependence, MAX_COMPOSED_MECHANISMS, MeanContrast, MechanismContext, MechanismDescriptor,
+    MechanismFamily, MechanismForm, MechanismOrigin, MechanismProvenance, MechanismUncertainty,
+    ParameterId, ParameterTerm, ParentBinding, PosteriorDependence, SelectionDiagramDeclaration,
+    SelectionNodeDeclaration, TabularRow, UncertaintyMeaning,
 };
 use serde::{Deserialize, Serialize};
 
@@ -743,11 +743,8 @@ impl MechanismCompositionPremisesWire {
     /// An unknown tag or a form that disagrees with its parents.
     pub fn to_spec(&self) -> Result<ComposedModelSpec, MechanismCompositionArtifactError> {
         let malformed = |m: &str| MechanismCompositionArtifactError::Malformed(m.into());
-        let mechanisms = self
-            .mechanisms
-            .iter()
-            .map(mechanism_from_wire)
-            .collect::<Result<Vec<_>, _>>()?;
+        let mechanisms =
+            self.mechanisms.iter().map(mechanism_from_wire).collect::<Result<Vec<_>, _>>()?;
         let mut invariances = Vec::with_capacity(self.invariances.len());
         for i in &self.invariances {
             let coordinate = match i.coordinate.as_str() {
@@ -840,18 +837,15 @@ pub fn mechanism_composition_identity(
 ) -> Result<String, IoError> {
     crate::digest_hex(
         IdentityDomain::Program,
-        &(
-            "mechanism_composition_v1",
-            MECHANISM_COMPOSITION_ARTIFACT_VERSION,
-            premises,
-            query,
-        ),
+        &("mechanism_composition_v1", MECHANISM_COMPOSITION_ARTIFACT_VERSION, premises, query),
     )
 }
 
 // ------------------------------------------------------------------ execution
 
-fn check_query_bounds(query: &CompositionQueryWire) -> Result<(), MechanismCompositionArtifactError> {
+fn check_query_bounds(
+    query: &CompositionQueryWire,
+) -> Result<(), MechanismCompositionArtifactError> {
     match query {
         CompositionQueryWire::GaussianInterventionLaw { interventions, .. } => {
             if interventions.len() > MECHANISM_COMPOSITION_MAX_INTERVENTIONS {
@@ -1088,12 +1082,16 @@ pub struct MechanismNumbers {
 /// # Errors
 /// A planned mechanism without numbers, a parent without a declared domain, or
 /// a dependence law of another kind than the plan declares.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear lowering of the plan whose steps share the declared numbers and dependence law"
+)]
 pub fn lower_plan(
     plan: &MechanismCompositionPlan,
     numbers: &BTreeMap<String, MechanismNumbers>,
     dependence: PosteriorDependence,
 ) -> Result<ComposedModelSpec, MechanismCompositionArtifactError> {
-    let malformed = |m: String| MechanismCompositionArtifactError::Malformed(m);
+    let malformed = MechanismCompositionArtifactError::Malformed;
     let mut mechanisms = Vec::with_capacity(plan.mechanisms.len());
     for m in &plan.mechanisms {
         let Some(n) = numbers.get(&m.variable_id) else {
@@ -1171,10 +1169,7 @@ pub fn lower_plan(
                 PosteriorDependence::IndependentByDesign { .. }
             )
             | (DependenceDeclaration::AlignedJointLaw { .. }, PosteriorDependence::Joint { .. })
-            | (
-                DependenceDeclaration::CrossCovariance,
-                PosteriorDependence::CrossCovariance { .. }
-            )
+            | (DependenceDeclaration::CrossCovariance, PosteriorDependence::CrossCovariance { .. })
     );
     if !kind_matches {
         return Err(malformed(

@@ -169,9 +169,8 @@ impl CounterfactualTransportArtifactError {
         match self {
             Self::Decode(_) | Self::Encode(_) => "artifact",
             Self::UnsupportedVersion { .. } => "version",
-            Self::UnsupportedSemantics(slot) => *slot,
+            Self::UnsupportedSemantics(slot) | Self::Malformed { slot, .. } => slot,
             Self::LimitsExceeded(_) => "limits",
-            Self::Malformed { slot, .. } => *slot,
             Self::PremisesMismatch => "premises_digest",
             Self::DataIdentityMismatch => "data_digest",
             Self::ExpectedIdentityMismatch { .. } => "expected_identity",
@@ -219,7 +218,10 @@ impl CounterfactualTransportArtifactError {
     }
 }
 
-fn malformed(slot: &'static str, message: impl Into<String>) -> CounterfactualTransportArtifactError {
+fn malformed(
+    slot: &'static str,
+    message: impl Into<String>,
+) -> CounterfactualTransportArtifactError {
     CounterfactualTransportArtifactError::Malformed { slot, message: message.into() }
 }
 
@@ -351,13 +353,8 @@ impl CounterfactualTransportQueryWire {
     pub fn to_query(
         &self,
     ) -> Result<CounterfactualTransportQuery, CounterfactualTransportArtifactError> {
-        let event = self
-            .event
-            .to_query()
-            .map_err(|error| malformed("query", error.to_string()))?;
-        let ids = |raw: &[u32]| {
-            raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>()
-        };
+        let event = self.event.to_query().map_err(|error| malformed("query", error.to_string()))?;
+        let ids = |raw: &[u32]| raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
         let query = CounterfactualTransportQuery {
             event,
             target: Arc::from(self.target.as_str()),
@@ -773,8 +770,7 @@ impl CounterfactualTransportArtifactWire {
         if !self.variable_names.is_empty()
             && (self.variable_names.len() != n
                 || self.variable_names.iter().any(|name| name.trim().is_empty())
-                || self.variable_names.iter().collect::<std::collections::BTreeSet<_>>().len()
-                    != n)
+                || self.variable_names.iter().collect::<std::collections::BTreeSet<_>>().len() != n)
         {
             return Err(malformed(
                 "variable_names",
@@ -851,7 +847,8 @@ impl CounterfactualTransportArtifactWire {
     /// A shape or bound failure, or an encoding failure.
     pub fn export(&self) -> Result<Vec<u8>, CounterfactualTransportArtifactError> {
         self.validate_shape()?;
-        crate::to_cbor(self).map_err(|e| CounterfactualTransportArtifactError::Encode(e.to_string()))
+        crate::to_cbor(self)
+            .map_err(|e| CounterfactualTransportArtifactError::Encode(e.to_string()))
     }
 
     /// Decode, refusing any other version before the payload is interpreted,
@@ -882,11 +879,14 @@ impl CounterfactualTransportArtifactWire {
         expected: &CounterfactualTransportExpectedIdentity,
     ) -> Result<(), CounterfactualTransportArtifactError> {
         use CounterfactualTransportArtifactError as E;
-        let premises = self.expected_premises_digest().map_err(|e| malformed("premises_digest", e.to_string()))?;
+        let premises = self
+            .expected_premises_digest()
+            .map_err(|e| malformed("premises_digest", e.to_string()))?;
         if premises != self.premises_digest {
             return Err(E::PremisesMismatch);
         }
-        let data = self.expected_data_digest().map_err(|e| malformed("data_digest", e.to_string()))?;
+        let data =
+            self.expected_data_digest().map_err(|e| malformed("data_digest", e.to_string()))?;
         if data != self.data_digest {
             return Err(E::DataIdentityMismatch);
         }

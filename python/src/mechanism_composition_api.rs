@@ -158,10 +158,9 @@ fn parse_domain(value: &Json) -> PyResult<Domain> {
 fn pair_list(map: &Map<String, Json>, key: &str) -> PyResult<Vec<(String, Json)>> {
     let mut out = Vec::new();
     for entry in list(map, key)? {
-        let pair = entry
-            .as_array()
-            .filter(|pair| pair.len() == 2)
-            .ok_or_else(|| crate::value_err(format!("`{key}` holds an entry that is not a pair")))?;
+        let pair = entry.as_array().filter(|pair| pair.len() == 2).ok_or_else(|| {
+            crate::value_err(format!("`{key}` holds an entry that is not a pair"))
+        })?;
         let name = pair[0]
             .as_str()
             .ok_or_else(|| crate::value_err(format!("`{key}` holds a pair without a name")))?;
@@ -248,10 +247,9 @@ fn parse_mechanism(value: &Json) -> PyResult<MechanismInput> {
     let map = object(value, "mechanism")?;
     let mut parent_domains = Vec::new();
     for entry in list(map, "parent_domains")? {
-        let pair = entry
-            .as_array()
-            .filter(|pair| pair.len() == 2)
-            .ok_or_else(|| crate::value_err("`parent_domains` holds an entry that is not a pair"))?;
+        let pair = entry.as_array().filter(|pair| pair.len() == 2).ok_or_else(|| {
+            crate::value_err("`parent_domains` holds an entry that is not a pair")
+        })?;
         let name = pair[0]
             .as_str()
             .ok_or_else(|| crate::value_err("`parent_domains` holds a pair without a name"))?;
@@ -295,19 +293,16 @@ fn parse_admission(value: &Json) -> PyResult<TransportAdmission> {
 
 fn parse_parameter_id(value: &Json) -> PyResult<ParameterId> {
     let map = object(value, "parameter id")?;
-    Ok(ParameterId {
-        mechanism: text(map, "mechanism")?,
-        term: parse_term(member(map, "term")?)?,
-    })
+    Ok(ParameterId { mechanism: text(map, "mechanism")?, term: parse_term(member(map, "term")?)? })
 }
 
 fn parse_dependence(value: &Json) -> PyResult<DependenceInput> {
     let map = object(value, "dependence")?;
     match text(map, "kind")?.as_str() {
         "unknown" => Ok(DependenceInput::Unknown),
-        "independent_by_design" => Ok(DependenceInput::IndependentByDesign {
-            justification: text(map, "justification")?,
-        }),
+        "independent_by_design" => {
+            Ok(DependenceInput::IndependentByDesign { justification: text(map, "justification")? })
+        }
         "aligned_joint_law" => Ok(DependenceInput::AlignedJointLaw {
             law_id: text(map, "law_id")?,
             meaning: parse_meaning(&text(map, "meaning")?)?,
@@ -466,6 +461,9 @@ pub(crate) struct PreparedCompositionHandle {
 
 type Refused<T> = (Option<T>, Option<String>);
 
+/// Variable names and one column of draws per variable.
+type SampledColumns = (Vec<String>, Vec<Vec<f64>>);
+
 fn refused<T>(refusal: &MechanismCompositionRefusal) -> Refused<T> {
     (None, Some(refusal_json(refusal)))
 }
@@ -503,8 +501,7 @@ impl PreparedCompositionHandle {
 
     /// The joint Gaussian law under `do(interventions)`.
     fn intervention_law(&self, interventions_json: &str) -> PyResult<Refused<String>> {
-        let interventions =
-            parse_interventions(&parse(interventions_json, "interventions")?)?;
+        let interventions = parse_interventions(&parse(interventions_json, "interventions")?)?;
         Ok(match self.inner.intervention_law(&borrowed(&interventions)) {
             Ok(law) => (
                 Some(
@@ -570,9 +567,8 @@ impl PreparedCompositionHandle {
         n_rows: usize,
         seed: u64,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<Refused<(Vec<String>, Vec<Vec<f64>>)>> {
-        let interventions =
-            parse_interventions(&parse(interventions_json, "interventions")?)?;
+    ) -> PyResult<Refused<SampledColumns>> {
+        let interventions = parse_interventions(&parse(interventions_json, "interventions")?)?;
         let inner = self.inner.clone();
         let outcome = crate::detach_catch(py, move || {
             let ctx = execution_context(seed, None, cancel);
@@ -628,9 +624,7 @@ impl PreparedCompositionHandle {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<PreparedCompositionHandle>> {
         let refits = match parse(refits_json, "refits")? {
-            Json::Array(items) => {
-                items.iter().map(parse_refit).collect::<PyResult<Vec<_>>>()?
-            }
+            Json::Array(items) => items.iter().map(parse_refit).collect::<PyResult<Vec<_>>>()?,
             _ => return Err(crate::value_err("refits must be a list")),
         };
         let dependence = match dependence_json {
@@ -744,9 +738,9 @@ fn mechanism_composition_fitted_source(
         ))
     };
     let compiled = &model.inner.model;
-    let dense = compiled
-        .dense_of(id(position)?)
-        .ok_or_else(|| crate::value_err(format!("`{variable}` is not a node of the fitted model")))?;
+    let dense = compiled.dense_of(id(position)?).ok_or_else(|| {
+        crate::value_err(format!("`{variable}` is not a node of the fitted model"))
+    })?;
     let gather = compiled
         .gather_for(dense)
         .ok_or_else(|| crate::value_err(format!("`{variable}` has no parent gather plan")))?;

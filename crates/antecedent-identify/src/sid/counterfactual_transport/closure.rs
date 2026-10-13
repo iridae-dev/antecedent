@@ -156,7 +156,9 @@ pub(super) fn districts_of(problem: &Problem, mask: u32) -> Vec<u32> {
 /// ancestors in the graph restricted to the non-intervened variables.
 pub(super) fn regime_measured_is_factor(problem: &Problem, intervened: u32, measured: u32) -> bool {
     let free = problem.full_mask() & !intervened;
-    measured != 0 && measured & intervened == 0 && measured & !free == 0
+    measured != 0
+        && measured & intervened == 0
+        && measured & !free == 0
         && ancestral_in(problem, free, measured)
 }
 
@@ -235,8 +237,8 @@ pub(super) fn close(
             }
             for new in produced {
                 let key = (new.population, new.mask);
-                if !closure.index.contains_key(&key) {
-                    closure.index.insert(key, closure.items.len());
+                if let std::collections::btree_map::Entry::Vacant(slot) = closure.index.entry(key) {
+                    slot.insert(closure.items.len());
                     closure.items.push(new);
                 }
             }

@@ -32,21 +32,19 @@ pub mod linear;
 pub mod posterior;
 
 use antecedent_core::ExecutionContext;
+use antecedent_core::identity::SemanticDigest;
 use antecedent_core::measurement_model::{
     ArmBinding, CorrectedFunctionalRecord, ErrorStructure, MeasurementInference, MeasurementModel,
     MeasurementModelError, MeasurementRoute, ParameterUncertainty, RepresentationVersion,
     VarianceComponent, measurement_data_digest,
 };
 use antecedent_stats::measurement_error::MeasurementErrorError;
-use antecedent_core::identity::SemanticDigest;
 
 pub use binary::{
     CorrectedBinaryPrevalence, CorrectedBinaryRiskDifference, RiskDifferenceInput,
     correct_binary_prevalence, correct_binary_risk_difference,
 };
-pub use categorical::{
-    CategoricalFunctional, CorrectedCategoricalOutcome, correct_categorical,
-};
+pub use categorical::{CategoricalFunctional, CorrectedCategoricalOutcome, correct_categorical};
 pub use linear::{
     CorrectedLinearEffect, LinearMeasuredData, correct_classical_linear_effect,
     correct_repeated_linear_effect,
@@ -68,7 +66,11 @@ pub struct MeasurementError {
 }
 
 impl MeasurementError {
-    pub(crate) fn new(code: &'static str, detail: &'static str, message: impl Into<String>) -> Self {
+    pub(crate) fn new(
+        code: &'static str,
+        detail: &'static str,
+        message: impl Into<String>,
+    ) -> Self {
         Self { code, detail, message: message.into() }
     }
 }

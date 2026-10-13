@@ -633,13 +633,13 @@ mod tests {
         );
         assert_eq!(Domain::Real.contained_in(&wide), Containment::Partial);
         assert_eq!(wide.contained_in(&Domain::Real), Containment::Contained);
+        assert_eq!(Domain::Levels(vec!["a".into()]).contained_in(&wide), Containment::KindMismatch);
         assert_eq!(
-            Domain::Levels(vec!["a".into()]).contained_in(&wide),
-            Containment::KindMismatch
-        );
-        assert_eq!(
-            Domain::Levels(vec!["a".into(), "b".into()])
-                .contained_in(&Domain::Levels(vec!["a".into(), "b".into(), "c".into()])),
+            Domain::Levels(vec!["a".into(), "b".into()]).contained_in(&Domain::Levels(vec![
+                "a".into(),
+                "b".into(),
+                "c".into()
+            ])),
             Containment::Contained
         );
     }
@@ -650,7 +650,10 @@ mod tests {
             first: "z".into(),
             second: "a".into(),
             first_parameters: vec![ParameterTerm::Intercept],
-            second_parameters: vec![ParameterTerm::Intercept, ParameterTerm::Coefficient("q".into())],
+            second_parameters: vec![
+                ParameterTerm::Intercept,
+                ParameterTerm::Coefficient("q".into()),
+            ],
             values: vec![1.0, 2.0],
         };
         let canon = canonical_block(&block);

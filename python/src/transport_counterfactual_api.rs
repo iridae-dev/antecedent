@@ -84,10 +84,7 @@ pub(crate) fn io_refusal(code: &'static str, message: String) -> PyErr {
     error(IoError::Refused { code, message })
 }
 
-fn interventions_json(
-    interventions: &[(VariableId, f64)],
-    names: &[String],
-) -> serde_json::Value {
+fn interventions_json(interventions: &[(VariableId, f64)], names: &[String]) -> serde_json::Value {
     interventions
         .iter()
         .map(|(v, level)| (variable_name(names, *v), serde_json::json!(level)))
@@ -212,9 +209,7 @@ fn unprepared_payload(
                     })).collect::<Vec<_>>(),
                     "message": message,
                 }),
-                format!(
-                    "{message}; supply a catalog regime and an exact law for {regimes}"
-                ),
+                format!("{message}; supply a catalog regime and an exact law for {regimes}"),
             )
         }
         CounterfactualTransportDecision::UnsupportedScope(unsupported) => (
@@ -294,17 +289,18 @@ impl CounterfactualTransportDecisionNative {
     /// The prepared derivation of an identified decision; any other decision
     /// raises its typed reason.
     fn prepared(&self) -> PyResult<PreparedCounterfactualTransportNative> {
-        match (&self.prepared, &self.graph, &self.catalog) {
-            (Some(prepared), Some(graph), Some(catalog)) => {
-                Ok(PreparedCounterfactualTransportNative {
-                    inner: prepared.clone(),
-                    graph: graph.clone(),
-                    catalog: catalog.clone(),
-                    max_support_rows: self.max_support_rows,
-                    memory_bytes: self.memory_bytes,
-                })
-            }
-            _ => {
+        if let (Some(prepared), Some(graph), Some(catalog)) =
+            (&self.prepared, &self.graph, &self.catalog)
+        {
+            Ok(PreparedCounterfactualTransportNative {
+                inner: prepared.clone(),
+                graph: graph.clone(),
+                catalog: catalog.clone(),
+                max_support_rows: self.max_support_rows,
+                memory_bytes: self.memory_bytes,
+            })
+        } else {
+            {
                 let (code, detail, text) = self.refusal.clone().unwrap_or((
                     antecedent_core::reason_code!("transport_not_certified"),
                     String::new(),
@@ -504,6 +500,10 @@ fn parse_atoms(names: &[String], atoms: Vec<AtomTuple>) -> PyResult<Vec<Counterf
 #[pyfunction]
 #[pyo3(signature=(graph, levels, worlds, event, given, target, sources, catalog, *, max_operations=None, max_depth=None, max_eval_operations=None, max_eval_depth=None, max_support_rows=1_000_000, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one flat decode of each declared argument into the typed problem, then a single identification call"
+)]
 #[doc(hidden)]
 fn identify_counterfactual_transport_native(
     py: Python<'_>,
@@ -581,7 +581,8 @@ fn identify_counterfactual_transport_native(
     let defaults = ExactEvaluationLimits::default();
     let options = CounterfactualTransportOptions {
         search: SearchLimits {
-            operations: max_operations.unwrap_or(COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS.operations),
+            operations: max_operations
+                .unwrap_or(COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS.operations),
             depth: max_depth.unwrap_or(COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS.depth),
         },
         evaluation: ExactEvaluationLimits {

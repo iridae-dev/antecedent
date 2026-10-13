@@ -78,10 +78,8 @@ pub fn assemble_parameter_covariance(
                         let cols = block.second_parameters.len();
                         for (i, a) in block.first_parameters.iter().enumerate() {
                             for (j, b) in block.second_parameters.iter().enumerate() {
-                                let ida = ParameterId {
-                                    mechanism: block.first.clone(),
-                                    term: a.clone(),
-                                };
+                                let ida =
+                                    ParameterId { mechanism: block.first.clone(), term: a.clone() };
                                 let idb = ParameterId {
                                     mechanism: block.second.clone(),
                                     term: b.clone(),

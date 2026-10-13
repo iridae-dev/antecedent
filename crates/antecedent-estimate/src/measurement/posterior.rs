@@ -79,6 +79,10 @@ pub struct CorrectedPosteriorLinearEffect {
 /// A malformed model, binding, route or structure mismatch, fewer draws than
 /// the model's minimum, a shape mismatch, a rank-deficient fit, or
 /// cancellation refuse.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one flat sequence of independent refusal checks followed by the single corrected-effect assembly"
+)]
 pub fn correct_latent_posterior_linear_effect(
     model: &MeasurementModel,
     binding: &DataBinding,
@@ -151,8 +155,7 @@ pub fn correct_latent_posterior_linear_effect(
             record,
         });
     }
-    let means =
-        posterior_means(data.draws, n, data.draw_count).map_err(|e| stats_error(&e))?;
+    let means = posterior_means(data.draws, n, data.draw_count).map_err(|e| stats_error(&e))?;
     let exact = ErrorVariance::known(0.0, 0.0).map_err(|e| stats_error(&e))?;
     let raw = LinearErrorData {
         y: data.outcome,

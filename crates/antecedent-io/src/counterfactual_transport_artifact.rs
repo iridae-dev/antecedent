@@ -248,7 +248,7 @@ fn evaluation_refusal(error: &EstimationError) -> Error {
     match error {
         EstimationError::Refused { code, message }
         | EstimationError::RefusedWithFields { code, message, .. } => {
-            Error::Replay { code: *code, message: message.clone() }
+            Error::Replay { code, message: message.clone() }
         }
         other => Error::LawInvalid(other.to_string()),
     }
@@ -338,10 +338,10 @@ pub fn consume_counterfactual_transport_with_limits(
     wire.check_digests(expected)?;
     let problem = wire.problem.to_problem()?;
     let query = wire.query.to_query()?;
-    let catalog = wire.catalog.to_catalog().map_err(|error| Error::Malformed {
-        slot: "catalog",
-        message: error.to_string(),
-    })?;
+    let catalog = wire
+        .catalog
+        .to_catalog()
+        .map_err(|error| Error::Malformed { slot: "catalog", message: error.to_string() })?;
     let outcome = if wire.status == COUNTERFACTUAL_TRANSPORT_IDENTIFIED {
         ConsumedCounterfactualTransportOutcome::Identified(Box::new(consume_identified(
             &wire, problem, query, &catalog, ctx,
@@ -367,9 +367,8 @@ fn consume_identified(
             message: "an identified artifact carries a derivation and a result".into(),
         });
     };
-    let decision =
-        replay_counterfactual_transport(&problem, &query, catalog, &stored.search, ctx)
-            .map_err(|error| replay_refusal(&error))?;
+    let decision = replay_counterfactual_transport(&problem, &query, catalog, &stored.search, ctx)
+        .map_err(|error| replay_refusal(&error))?;
     let derivation = match decision {
         CounterfactualTransportDecision::Identified(derivation) => *derivation,
         CounterfactualTransportDecision::Exhausted(receipt) => {
@@ -438,9 +437,7 @@ fn consume_obstructed(
         verify_counterfactual_transport_witness(&problem, &query, &catalog, &stored.witness)
             .map_err(|error| Error::ObstructionInvalid(error.to_string()))?;
     if check.first_value == check.second_value {
-        return Err(Error::ObstructionInvalid(
-            "the two models give the same query value".into(),
-        ));
+        return Err(Error::ObstructionInvalid("the two models give the same query value".into()));
     }
     if check.first_value != stored.first_value
         || check.second_value != stored.second_value

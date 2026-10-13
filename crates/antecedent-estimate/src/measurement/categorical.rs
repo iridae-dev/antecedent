@@ -80,15 +80,15 @@ impl CorrectedCategoricalOutcome {
         match *functional {
             CategoricalFunctional::Proportion(level) => {
                 let i = self.index(level)?;
-                Ok((r.proportions[i], r.observed_proportions[i], r.proportion_covariance[i * k + i]))
+                Ok((
+                    r.proportions[i],
+                    r.observed_proportions[i],
+                    r.proportion_covariance[i * k + i],
+                ))
             }
             CategoricalFunctional::OutcomeMean(level) => {
                 let i = self.index(level)?;
-                Ok((
-                    r.outcome_means[i],
-                    self.classes[i].mean,
-                    r.outcome_mean_covariance[i * k + i],
-                ))
+                Ok((r.outcome_means[i], self.classes[i].mean, r.outcome_mean_covariance[i * k + i]))
             }
             CategoricalFunctional::OutcomeContrast { first, second } => {
                 let i = self.index(first)?;
@@ -165,10 +165,8 @@ pub fn correct_categorical(
         .map_err(|e| stats_error(&e))?;
     let result =
         corrected_categories(classes, &matrix, *max_condition).map_err(|e| stats_error(&e))?;
-    let flat: Vec<f64> = classes
-        .iter()
-        .flat_map(|c| [c.count as f64, c.mean, c.variance])
-        .collect();
+    let flat: Vec<f64> =
+        classes.iter().flat_map(|c| [c.count as f64, c.mean, c.variance]).collect();
     let uncertainty = if column_counts.is_some() {
         ParameterUncertainty::Propagated
     } else {

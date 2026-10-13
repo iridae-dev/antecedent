@@ -298,10 +298,12 @@ impl CategoricalTarget {
         match self {
             Self::Proportion(level) => CategoricalReplayFunctional::Proportion(level.clone()),
             Self::OutcomeMean(level) => CategoricalReplayFunctional::OutcomeMean(level.clone()),
-            Self::OutcomeContrast { first, second } => CategoricalReplayFunctional::OutcomeContrast {
-                first: first.clone(),
-                second: second.clone(),
-            },
+            Self::OutcomeContrast { first, second } => {
+                CategoricalReplayFunctional::OutcomeContrast {
+                    first: first.clone(),
+                    second: second.clone(),
+                }
+            }
         }
     }
 }
@@ -411,10 +413,9 @@ impl MeasurementInput {
                 Self::BinaryRiskDifference { exposed_arm_id: a, unexposed_arm_id: b, .. },
                 Self::BinaryRiskDifference { exposed_arm_id: c, unexposed_arm_id: d, .. },
             ) => a == c && b == d,
-            (
-                Self::Categorical { target: first, .. },
-                Self::Categorical { target: second, .. },
-            ) => first == second,
+            (Self::Categorical { target: first, .. }, Self::Categorical { target: second, .. }) => {
+                first == second
+            }
             _ => false,
         }
     }
@@ -627,6 +628,10 @@ impl PreparedMeasurementModel {
     /// The estimator's coded refusals (reliability, Youden index, confusion
     /// conditioning, replicates or draws below the model's minimum, rank
     /// deficiency) or cancellation. Nothing is returned partially.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one match over the model's route, each arm assembling its corrected functional from the same retained data"
+    )]
     pub fn estimate(
         &self,
         ctx: &ExecutionContext,
@@ -641,7 +646,8 @@ impl PreparedMeasurementModel {
             arm_id: self.binding.arm_id.clone(),
             representation: self.model.representation.clone(),
         };
-        let from_estimate = |error: MeasurementError| MeasurementModelRefusal::from_estimate(&error);
+        let from_estimate =
+            |error: MeasurementError| MeasurementModelRefusal::from_estimate(&error);
         let (record, replay, detail) = match &self.input {
             MeasurementInput::ClassicalLinear {
                 outcome,
@@ -705,11 +711,7 @@ impl PreparedMeasurementModel {
                 let corrected = correct_binary_risk_difference(
                     &self.model,
                     &data_binding,
-                    &RiskDifferenceInput {
-                        exposed_arm_id,
-                        unexposed_arm_id,
-                        table: *table,
-                    },
+                    &RiskDifferenceInput { exposed_arm_id, unexposed_arm_id, table: *table },
                     ctx,
                 )
                 .map_err(from_estimate)?;
@@ -759,10 +761,9 @@ impl PreparedMeasurementModel {
                             coefficient_index: 1,
                         }
                     }
-                    (_, _, Some(moments)) => MeasurementReplay::Linear {
-                        moments: moments.clone(),
-                        coefficient_index: 1,
-                    },
+                    (_, _, Some(moments)) => {
+                        MeasurementReplay::Linear { moments: moments.clone(), coefficient_index: 1 }
+                    }
                     _ => {
                         return Err(MeasurementModelRefusal {
                             code: antecedent_core::reason_code!("invalid_argument"),
@@ -1010,8 +1011,7 @@ impl MeasurementEstimate {
                         remedy: None,
                     });
                 }
-                let value: f64 =
-                    weights.iter().zip(&effect.coefficients).map(|(w, b)| w * b).sum();
+                let value: f64 = weights.iter().zip(&effect.coefficients).map(|(w, b)| w * b).sum();
                 let mut variance = 0.0;
                 for i in 0..d {
                     for j in 0..d {
@@ -1125,10 +1125,8 @@ pub fn consume_measurement_model_artifact(
 ) -> Result<ConsumedMeasurement, MeasurementModelRefusal> {
     let artifact = MeasurementModelArtifact::from_bytes(bytes, expected_model_identity_hex)
         .map_err(|error| MeasurementModelRefusal::from_io(&error))?;
-    let model =
-        artifact.model().map_err(|error| MeasurementModelRefusal::from_io(&error))?;
-    let result =
-        artifact.result().map_err(|error| MeasurementModelRefusal::from_io(&error))?;
+    let model = artifact.model().map_err(|error| MeasurementModelRefusal::from_io(&error))?;
+    let result = artifact.result().map_err(|error| MeasurementModelRefusal::from_io(&error))?;
     let replayed = match &result {
         Some(r) => Some(
             replay_values(&model, &r.replay)

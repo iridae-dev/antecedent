@@ -15,9 +15,7 @@ use std::collections::BTreeMap;
 use antecedent_core::ExecutionContext;
 
 use super::coherence::check_composition;
-use super::descriptor::{
-    ComposedModelSpec, MAX_FINITE_STATES, MechanismFamily, MechanismForm,
-};
+use super::descriptor::{ComposedModelSpec, MAX_FINITE_STATES, MechanismFamily, MechanismForm};
 use super::{COMPOSITION_STREAM_DOMAIN, CompositionError, noise_stream_index};
 
 /// The exact joint law of a finite composition under one regime.
@@ -73,9 +71,8 @@ impl FiniteLaw {
         }
         let mut total = 0.0;
         for (state, p) in self.probabilities.iter().enumerate() {
-            let hit = required
-                .iter()
-                .all(|&(i, l)| (state / strides[i]) % self.levels[i].len() == l);
+            let hit =
+                required.iter().all(|&(i, l)| (state / strides[i]) % self.levels[i].len() == l);
             if hit {
                 total += p;
             }
@@ -179,12 +176,11 @@ impl ComposedFinite {
                 let mut producible = true;
                 for (k, &pi) in pa.iter().enumerate() {
                     let level_name = &row.parent_levels[k].1;
-                    match levels[pi].iter().position(|l| l == level_name) {
-                        Some(li) => config = config * levels[pi].len() + li,
-                        None => {
-                            producible = false;
-                            break;
-                        }
+                    if let Some(li) = levels[pi].iter().position(|l| l == level_name) {
+                        config = config * levels[pi].len() + li;
+                    } else {
+                        producible = false;
+                        break;
                     }
                 }
                 if !producible {
@@ -196,7 +192,10 @@ impl ComposedFinite {
             }
             if table.iter().any(|p| p.is_nan()) {
                 return Err(CompositionError::Numerical {
-                    message: format!("table of `{}` leaves a producible configuration undefined", d.variable),
+                    message: format!(
+                        "table of `{}` leaves a producible configuration undefined",
+                        d.variable
+                    ),
                 });
             }
             parents.push(pa);
@@ -230,7 +229,10 @@ impl ComposedFinite {
         &self.spec
     }
 
-    fn resolve(&self, interventions: &[(&str, &str)]) -> Result<Vec<Option<usize>>, CompositionError> {
+    fn resolve(
+        &self,
+        interventions: &[(&str, &str)],
+    ) -> Result<Vec<Option<usize>>, CompositionError> {
         let mut fixed: Vec<Option<usize>> = vec![None; self.variables.len()];
         for &(name, level) in interventions {
             let Some(i) = self.variables.iter().position(|v| v == name) else {
@@ -287,17 +289,15 @@ impl ComposedFinite {
             }
             let mut p = 1.0;
             for v in 0..n {
-                match fixed[v] {
-                    Some(l) => {
-                        if state[v] != l {
-                            p = 0.0;
-                            break;
-                        }
+                let pinned = fixed[v];
+                if let Some(l) = pinned {
+                    if state[v] != l {
+                        p = 0.0;
+                        break;
                     }
-                    None => {
-                        let width = self.levels[v].len();
-                        p *= self.tables[v][self.config(v, &state) * width + state[v]];
-                    }
+                } else {
+                    let width = self.levels[v].len();
+                    p *= self.tables[v][self.config(v, &state) * width + state[v]];
                 }
             }
             probabilities.push(p);

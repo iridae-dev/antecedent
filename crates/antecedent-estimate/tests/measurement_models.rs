@@ -8,14 +8,18 @@
 //! normal posterior of a latent regressor. Simulations use fixed seeds and
 //! predeclared tolerances written in terms of the reported standard error.
 
+#![allow(
+    clippy::needless_range_loop,
+    reason = "simulation fixtures index parallel columns by row and draw"
+)]
+
 use antecedent_contract::measurement::{
     LatentPosteriorTrust, MeasurementOperation, MeasurementRequest, check_latent_posterior,
     check_measurement_request,
 };
 use antecedent_contract::{
-    ExternalCapability, ExternalPosteriorKind, ExternalScientificObject,
-    ExternalTrustState, PosteriorProviderContract, ProviderObjectIdentity, QuantityRole,
-    ScientificQuantity,
+    ExternalCapability, ExternalPosteriorKind, ExternalScientificObject, ExternalTrustState,
+    PosteriorProviderContract, ProviderObjectIdentity, QuantityRole, ScientificQuantity,
 };
 use antecedent_core::measurement_model::{
     ArmBinding, BinaryArmRates, DifferentialAxis, ErrorStructure, MeasurementBinding,
@@ -204,7 +208,8 @@ fn variance_includes_the_uncertainty_of_the_error_variance() {
     // The added variance is (d beta / d sigma^2)^2 Var(sigma^2) with
     // d beta / d sigma^2 = beta / (Var(W | Z) - sigma^2) = beta / Var(X | Z).
     let d = uncertain.fit.dim;
-    let added = uncertain.fit.covariance[d + 1] - uncertain.fit.covariance_given_error_variance[d + 1];
+    let added =
+        uncertain.fit.covariance[d + 1] - uncertain.fit.covariance_given_error_variance[d + 1];
     let slope = uncertain.record.point / 0.8;
     assert!((added - slope * slope * 0.06 * 0.06).abs() / added < 0.1, "added {added}");
     // A downstream linear functional uses the joint covariance, not the
@@ -242,8 +247,8 @@ fn reliability_at_or_below_the_floor_refuses_with_a_registered_code() {
     let sim = simulate(500, 5);
     // Var(W | Z) is about 1.6; an error variance of 5 leaves no latent variance.
     let m = classical_model(5.0, 0.0);
-    let err =
-        correct_classical_linear_effect(&m, &data_binding(), &linear_data(&sim), &ctx()).unwrap_err();
+    let err = correct_classical_linear_effect(&m, &data_binding(), &linear_data(&sim), &ctx())
+        .unwrap_err();
     assert_eq!(err.code, "measurement_not_identified");
     assert_eq!(err.detail, "measurement_model.reliability_too_small");
 }
@@ -263,7 +268,7 @@ fn repeated_measurements_estimate_the_icc_and_recover_the_coefficient() {
     for i in 0..n {
         let x = normal(&mut rng);
         y.push(1.0 + 1.5 * x + normal(&mut rng));
-        let k = 2 + (i % 2) as u32; // 2 or 3 replicates
+        let k = 2 + u32::from(i % 2 == 1); // 2 or 3 replicates
         counts.push(k);
         for _ in 0..k {
             values.push(x + 0.5_f64.sqrt() * normal(&mut rng));
@@ -275,17 +280,9 @@ fn repeated_measurements_estimate_the_icc_and_recover_the_coefficient() {
         ErrorStructure::NonDifferential,
         MeasurementParameters::Repeated { min_replicated_units: 50, min_reliability: 0.1 },
     );
-    let result = correct_repeated_linear_effect(
-        &m,
-        &data_binding(),
-        &y,
-        &values,
-        &counts,
-        &[],
-        0,
-        &ctx(),
-    )
-    .unwrap();
+    let result =
+        correct_repeated_linear_effect(&m, &data_binding(), &y, &values, &counts, &[], 0, &ctx())
+            .unwrap();
     let components = result.components.as_ref().unwrap();
     assert!((components.intraclass_correlation - 1.0 / 1.5).abs() < 0.03);
     assert!((components.within_variance - 0.5).abs() < 0.03);
@@ -294,7 +291,6 @@ fn repeated_measurements_estimate_the_icc_and_recover_the_coefficient() {
     // Mean of 2.5 replicates still attenuates: the naive slope is below truth.
     assert!(result.record.naive_point.unwrap() < 1.5 - 5.0 * se);
     assert_eq!(result.record.parameter_uncertainty, ParameterUncertainty::Propagated);
-
 }
 
 #[test]
@@ -307,7 +303,7 @@ fn too_few_replicated_units_refuse_with_measurement_not_identified() {
     for i in 0..n {
         let x = normal(&mut rng);
         y.push(1.0 + 1.5 * x + normal(&mut rng));
-        let k = 2 + (i % 2) as u32;
+        let k = 2 + u32::from(i % 2 == 1);
         counts.push(k);
         for _ in 0..k {
             values.push(x + 0.5_f64.sqrt() * normal(&mut rng));
@@ -319,17 +315,9 @@ fn too_few_replicated_units_refuse_with_measurement_not_identified() {
         ErrorStructure::NonDifferential,
         MeasurementParameters::Repeated { min_replicated_units: 10_000, min_reliability: 0.1 },
     );
-    let err = correct_repeated_linear_effect(
-        &few,
-        &data_binding(),
-        &y,
-        &values,
-        &counts,
-        &[],
-        0,
-        &ctx(),
-    )
-    .unwrap_err();
+    let err =
+        correct_repeated_linear_effect(&few, &data_binding(), &y, &values, &counts, &[], 0, &ctx())
+            .unwrap_err();
     assert_eq!(err.code, "measurement_not_identified");
     assert_eq!(err.detail, "measurement_model.insufficient_replicates");
 }
@@ -372,11 +360,8 @@ fn binary_risk_difference_recovers_truth_and_pooling_differential_error_fails() 
         unexposed_events: 180,
         unexposed_total: 1000,
     };
-    let input = RiskDifferenceInput {
-        exposed_arm_id: "treated",
-        unexposed_arm_id: "control",
-        table,
-    };
+    let input =
+        RiskDifferenceInput { exposed_arm_id: "treated", unexposed_arm_id: "control", table };
     let differential = binary_model(
         vec![
             binary_rates(Some("treated"), 0.9, 0.8, 0.0, 0.0),
@@ -393,10 +378,8 @@ fn binary_risk_difference_recovers_truth_and_pooling_differential_error_fails() 
     // The non-differential route with the treated arm's rates applied to both
     // arms is a different, wrong answer: it is never reached from the
     // differential model, and run explicitly it misses the truth.
-    let pooled = binary_model(
-        vec![binary_rates(None, 0.9, 0.8, 0.0, 0.0)],
-        ErrorStructure::NonDifferential,
-    );
+    let pooled =
+        binary_model(vec![binary_rates(None, 0.9, 0.8, 0.0, 0.0)], ErrorStructure::NonDifferential);
     let wrong = correct_binary_risk_difference(&pooled, &data_binding(), &input, &ctx()).unwrap();
     assert!(!wrong.differential);
     assert!((wrong.record.point - 0.3 / 0.7).abs() < 1e-12);
@@ -405,13 +388,10 @@ fn binary_risk_difference_recovers_truth_and_pooling_differential_error_fails() 
 
     // An arm the differential model has no rates for refuses; it never falls
     // back to another arm's rates.
-    let unknown = RiskDifferenceInput {
-        exposed_arm_id: "treated",
-        unexposed_arm_id: "placebo",
-        table,
-    };
-    let err =
-        correct_binary_risk_difference(&differential, &data_binding(), &unknown, &ctx()).unwrap_err();
+    let unknown =
+        RiskDifferenceInput { exposed_arm_id: "treated", unexposed_arm_id: "placebo", table };
+    let err = correct_binary_risk_difference(&differential, &data_binding(), &unknown, &ctx())
+        .unwrap_err();
     assert_eq!(err.detail, "measurement_model.arm_mismatch");
 }
 
@@ -423,11 +403,8 @@ fn shared_rates_keep_the_arm_covariance_that_split_rates_miss() {
         unexposed_events: 340,
         unexposed_total: 1000,
     };
-    let input = RiskDifferenceInput {
-        exposed_arm_id: "treated",
-        unexposed_arm_id: "control",
-        table,
-    };
+    let input =
+        RiskDifferenceInput { exposed_arm_id: "treated", unexposed_arm_id: "control", table };
     let shared = binary_model(
         vec![binary_rates(None, 0.9, 0.8, 0.0004, 0.0009)],
         ErrorStructure::NonDifferential,
@@ -487,12 +464,19 @@ fn categorical_inversion_recovers_proportions_and_outcome_means() {
         .map(|j| {
             let p: f64 = (0..3).map(|t| c[j * 3 + t] * pi[t]).sum();
             let ybar: f64 = (0..3).map(|t| c[j * 3 + t] * pi[t] * mu[t]).sum::<f64>() / p;
-            ObservedClassSummary { count: (p * n).round() as u64, mean: ybar, variance: 1.0 }
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "the rounded expected count is a small non-negative integer by construction"
+            )]
+            let count = (p * n).round() as u64;
+            ObservedClassSummary { count, mean: ybar, variance: 1.0 }
         })
         .collect();
     let out = correct_categorical(&m, &data_binding(), &classes, &ctx()).unwrap();
     for (level, truth) in [("low", 0.5), ("mid", 0.3), ("high", 0.2)] {
-        let (value, _, variance) = out.functional(&CategoricalFunctional::Proportion(level)).unwrap();
+        let (value, _, variance) =
+            out.functional(&CategoricalFunctional::Proportion(level)).unwrap();
         assert!((value - truth).abs() < 1e-9, "{level}: {value}");
         assert!(variance > 0.0);
     }
@@ -590,7 +574,8 @@ fn posterior_mean_substitution_recovers_the_slope_that_a_single_draw_attenuates(
         covariates: &[],
         covariate_count: 0,
     };
-    let result = correct_latent_posterior_linear_effect(&m, &data_binding(), &data, &ctx()).unwrap();
+    let result =
+        correct_latent_posterior_linear_effect(&m, &data_binding(), &data, &ctx()).unwrap();
     assert_eq!(result.combination, PosteriorCombination::PosteriorMeanSubstitution);
     let se = result.record.standard_error.unwrap();
     // Predeclared: 4 SE plus 0.03 for the finite-draw (v / S) attenuation.
@@ -623,7 +608,8 @@ fn posterior_mean_substitution_recovers_the_slope_that_a_single_draw_attenuates(
 
     // Fewer draws than declared refuses.
     let few = PosteriorLinearData { draw_count: 10, draws: &marginal[..10 * n], ..data };
-    let err = correct_latent_posterior_linear_effect(&m, &data_binding(), &few, &ctx()).unwrap_err();
+    let err =
+        correct_latent_posterior_linear_effect(&m, &data_binding(), &few, &ctx()).unwrap_err();
     assert_eq!(err.detail, "measurement_model.insufficient_draws");
 }
 
@@ -640,7 +626,8 @@ fn outcome_conditioned_draws_combine_by_rubins_rules() {
         covariates: &[],
         covariate_count: 0,
     };
-    let result = correct_latent_posterior_linear_effect(&m, &data_binding(), &data, &ctx()).unwrap();
+    let result =
+        correct_latent_posterior_linear_effect(&m, &data_binding(), &data, &ctx()).unwrap();
     assert_eq!(result.combination, PosteriorCombination::MultipleImputation);
     let se = result.record.standard_error.unwrap();
     assert!((result.record.point - 2.0).abs() < 4.0 * se + 0.02, "{} se {se}", result.record.point);
@@ -765,18 +752,17 @@ fn population_regime_arm_and_representation_must_match_the_data() {
 fn route_and_structure_mismatches_are_never_pooled() {
     let sim = small();
     // A binary model sent down the classical route.
-    let binary = binary_model(
-        vec![binary_rates(None, 0.9, 0.8, 0.0, 0.0)],
-        ErrorStructure::NonDifferential,
-    );
+    let binary =
+        binary_model(vec![binary_rates(None, 0.9, 0.8, 0.0, 0.0)], ErrorStructure::NonDifferential);
     let err = correct_classical_linear_effect(&binary, &data_binding(), &linear_data(&sim), &ctx())
         .unwrap_err();
     assert_eq!(err.code, "route_not_supported");
     // A differential-by-time declaration has no bounded route and is not pooled.
     let mut by_time = classical_model(0.6, 0.0);
     by_time.structure = ErrorStructure::Differential(DifferentialAxis::Time);
-    let err = correct_classical_linear_effect(&by_time, &data_binding(), &linear_data(&sim), &ctx())
-        .unwrap_err();
+    let err =
+        correct_classical_linear_effect(&by_time, &data_binding(), &linear_data(&sim), &ctx())
+            .unwrap_err();
     assert_eq!(err.code, "differential_error_not_pooled");
     // Differential by population on the binary route is refused, not pooled.
     let mut binary_by_population = binary.clone();
@@ -828,10 +814,7 @@ fn estimator_and_contract_refuse_the_same_requests_with_the_same_details() {
     interval.operation = MeasurementOperation::Interval;
     let refusal = check_measurement_request(&m, &interval, None).unwrap_err();
     assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(
-        antecedent_estimate::measurement::interval_not_licensed().code,
-        "cell_not_licensed"
-    );
+    assert_eq!(antecedent_estimate::measurement::interval_not_licensed().code, "cell_not_licensed");
 }
 
 // ---------------------------------------------------------------------------
@@ -846,10 +829,7 @@ fn artifact_replays_independently_and_refuses_semantic_mutation() {
         correct_classical_linear_effect(&m, &data_binding(), &linear_data(&sim), &ctx()).unwrap();
     let result = MeasurementResult {
         record: effect.record.clone(),
-        replay: MeasurementReplay::Linear {
-            moments: effect.moments.clone(),
-            coefficient_index: 1,
-        },
+        replay: MeasurementReplay::Linear { moments: effect.moments.clone(), coefficient_index: 1 },
         provider_trust: None,
     };
     let artifact = MeasurementModelArtifact::new(&m, Some(&result)).unwrap();

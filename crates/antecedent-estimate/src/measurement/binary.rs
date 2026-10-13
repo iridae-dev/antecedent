@@ -7,8 +7,8 @@
 
 use antecedent_core::ExecutionContext;
 use antecedent_core::measurement_model::{
-    ArmBinding, BinaryArmRates, CorrectedFunctionalRecord, DifferentialAxis, ErrorStructure, MeasurementModel,
-    MeasurementParameters, MeasurementRoute, ParameterUncertainty,
+    ArmBinding, BinaryArmRates, CorrectedFunctionalRecord, DifferentialAxis, ErrorStructure,
+    MeasurementModel, MeasurementParameters, MeasurementRoute, ParameterUncertainty,
 };
 use antecedent_stats::measurement_error::{
     BinaryErrorRates, CorrectedProportion, CorrectedRiskDifference, TwoByTwoCounts,
@@ -68,9 +68,7 @@ fn rates_of(entry: &BinaryArmRates) -> Result<BinaryErrorRates, MeasurementError
     .map_err(|e| stats_error(&e))
 }
 
-fn parameters(
-    model: &MeasurementModel,
-) -> Result<(&[BinaryArmRates], f64), MeasurementError> {
+fn parameters(model: &MeasurementModel) -> Result<(&[BinaryArmRates], f64), MeasurementError> {
     match &model.parameters {
         MeasurementParameters::Binary { rates, min_youden } => Ok((rates, *min_youden)),
         _ => Err(MeasurementError::new(
@@ -142,7 +140,8 @@ pub fn correct_binary_prevalence(
         }
     };
     let rates = rates_of(entry)?;
-    let result = corrected_prevalence(events, total, &rates, min_youden).map_err(|e| stats_error(&e))?;
+    let result =
+        corrected_prevalence(events, total, &rates, min_youden).map_err(|e| stats_error(&e))?;
     let identity = digest(&[("events", &[events as f64]), ("total", &[total as f64])]);
     let record = build_record(RecordParts {
         model,
@@ -217,7 +216,9 @@ pub fn correct_binary_risk_difference(
                     MeasurementError::new(
                         antecedent_core::reason_code!("measurement_binding_mismatch"),
                         "measurement_model.arm_mismatch",
-                        format!("the model is differential by arm and has no rates for arm `{arm}`"),
+                        format!(
+                            "the model is differential by arm and has no rates for arm `{arm}`"
+                        ),
                     )
                 })
             };

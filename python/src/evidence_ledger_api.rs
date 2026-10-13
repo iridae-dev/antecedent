@@ -51,6 +51,9 @@ fn refusal_json(refusal: &EvidenceLedgerRefusal) -> String {
 
 type Refused<T> = (Option<T>, Option<String>);
 
+/// Exported bytes, identity, carried result ids and `(result id, reason)` of results not carried.
+type LedgerExportParts = (Py<PyBytes>, String, Vec<String>, Vec<(String, String)>);
+
 fn refused<T>(refusal: &EvidenceLedgerRefusal) -> Refused<T> {
     (None, Some(refusal_json(refusal)))
 }
@@ -125,7 +128,10 @@ fn parse_transport(value: &Json) -> PyResult<TransportIdentity> {
     Ok(TransportIdentity {
         source_populations: texts(map, "source_populations")?,
         target_population: text(map, "target_population")?,
-        selection_diagram: digest(&text(map, "selection_diagram")?, "a selection diagram identity")?,
+        selection_diagram: digest(
+            &text(map, "selection_diagram")?,
+            "a selection diagram identity",
+        )?,
         assumptions: texts(map, "assumptions")?,
     })
 }
@@ -234,7 +240,10 @@ fn parse_borrowing(value: &Json) -> PyResult<BorrowingRequest> {
         priors: source_ids(map, "priors")?,
         likelihood: parse_summaries(map, "likelihood")?,
         mean_prior,
-        tau_prior: TauPrior { support: reals(tau, "support")?, probabilities: reals(tau, "probabilities")? },
+        tau_prior: TauPrior {
+            support: reals(tau, "support")?,
+            probabilities: reals(tau, "probabilities")?,
+        },
         replaces: optional_result(map, "replaces")?,
     })
 }
@@ -390,7 +399,7 @@ fn record_json(record: &ResultRecord) -> Json {
         "mass": mass_json(&record.mass),
         "claim_class": record.claim_class.as_str(),
         "observations_digest": record.observations_digest.map(|d| d.to_hex()),
-        "transport_identities": record.transport_identities.iter().map(|d| d.to_hex()).collect::<Vec<_>>(),
+        "transport_identities": record.transport_identities.iter().map(antecedent_core::SemanticDigest::to_hex).collect::<Vec<_>>(),
         "data_reuse": record.data_reuse,
         "dependence_declared": record.dependence_declared,
         "replaces": record.replaces.map(|id| id.to_hex()),
@@ -575,7 +584,10 @@ impl EvidenceLedgerHandle {
 
     /// The standing of one result: still_valid, recompute or withdrawn.
     fn standing(&self, result: &str) -> PyResult<Option<&'static str>> {
-        Ok(self.inner.standing(result_id(result)?).map(|s| s.as_str()))
+        Ok(self
+            .inner
+            .standing(result_id(result)?)
+            .map(antecedent_contract::evidence_ledger::Revalidation::as_str))
     }
 
     /// Add a source; a refusal leaves the session unchanged.
@@ -632,8 +644,7 @@ impl EvidenceLedgerHandle {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
         let request = parse_pooling(&parse(request_json, "pooling request")?)?;
-        let dependence =
-            parse_pooling_dependence(&parse(dependence_json, "pooling dependence")?)?;
+        let dependence = parse_pooling_dependence(&parse(dependence_json, "pooling dependence")?)?;
         let ctx = execution_context(0, None, cancel);
         Ok(match self.inner.pool_summaries(request, dependence, &ctx) {
             Ok(outcome) => (Some(outcome_json(&outcome).to_string()), None),
@@ -812,11 +823,7 @@ impl EvidenceLedgerHandle {
     }
 
     /// Write the ledger and the syntheses bound to its results.
-    fn export(
-        &self,
-        py: Python<'_>,
-        artifact_id: &str,
-    ) -> Refused<(Py<PyBytes>, String, Vec<String>, Vec<(String, String)>)> {
+    fn export(&self, py: Python<'_>, artifact_id: &str) -> Refused<LedgerExportParts> {
         match self.inner.export(artifact_id) {
             Ok(done) => (
                 Some((

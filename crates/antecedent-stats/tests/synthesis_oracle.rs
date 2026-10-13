@@ -29,9 +29,8 @@ fn solve_dense(a: &[f64], b: &[f64], k: usize) -> Vec<f64> {
         })
         .collect();
     for col in 0..k {
-        let pivot = (col..k)
-            .max_by(|&i, &j| m[i][col].abs().total_cmp(&m[j][col].abs()))
-            .expect("pivot");
+        let pivot =
+            (col..k).max_by(|&i, &j| m[i][col].abs().total_cmp(&m[j][col].abs())).expect("pivot");
         m.swap(col, pivot);
         for row in (col + 1)..k {
             let factor = m[row][col] / m[col][col];
@@ -44,8 +43,8 @@ fn solve_dense(a: &[f64], b: &[f64], k: usize) -> Vec<f64> {
     let mut x = vec![0.0; k];
     for i in (0..k).rev() {
         let mut sum = m[i][k];
-        for j in (i + 1)..k {
-            sum -= m[i][j] * x[j];
+        for (j, &xj) in x.iter().enumerate().take(k).skip(i + 1) {
+            sum -= m[i][j] * xj;
         }
         x[i] = sum / m[i][i];
     }
@@ -173,12 +172,12 @@ fn covariance_must_be_positive_semidefinite_and_definite() {
 // -- random effects ------------------------------------------------------------------------
 
 /// y = (0, 2, 6), v = (1, 2, 4); w = (1, 1/2, 1/4), W = 7/4.
-/// mu_FE = (0 + 1 + 3/2)/(7/4) = 10/7; Q = sum w y^2 - (sum w y)^2 / W
+/// `mu_FE` = (0 + 1 + 3/2)/(7/4) = 10/7; Q = sum w y^2 - (sum w y)^2 / W
 ///   = (0 + 2 + 9) - (5/2)^2/(7/4) = 11 - 25/7 = 52/7; df = 2;
 /// C = W - sum w^2 / W = 7/4 - (21/16)/(7/4) = 7/4 - 3/4 = 1;
 /// tau^2 = (52/7 - 2)/1 = 38/7 = 5.428571...
 /// RE weights 1/(v + 38/7) = 7/45, 7/52, 7/66, so
-/// mu_RE = 3330/1457 = 2.285518188..., variance 25740/10199 = 2.523776841...
+/// `mu_RE` = 3330/1457 = 2.285518188..., variance 25740/10199 = 2.523776841...
 /// I^2 = (Q - df)/Q = 19/26.
 #[test]
 fn dersimonian_laird_matches_the_hand_derivation() {
@@ -270,22 +269,19 @@ fn random_effects_need_two_studies() {
 // -- hierarchical borrowing ----------------------------------------------------------------
 
 /// One support point tau = 1, flat mean prior, y = (0, 2, 6), v = (1, 2, 4):
-/// w = 1/(v + 1) = (1/2, 1/3, 1/5), W = 31/30, mu_hat = (0 + 2/3 + 6/5)/(31/30) = 56/31,
-/// variance 30/31. Study i: B = 1/(1 + v_i); mean B y + (1 - B) mu_hat,
+/// w = 1/(v + 1) = (1/2, 1/3, 1/5), W = 31/30, `mu_hat` = (0 + 2/3 + 6/5)/(31/30) = 56/31,
+/// variance 30/31. Study i: B = 1/(1 + `v_i`); mean B y + (1 - B) `mu_hat`,
 /// variance B v + (1 - B)^2 30/31 (0.9032..., 0.7419...; 1.8710, 1.0968; 2.6452, 1.4194).
 #[test]
 fn hierarchical_borrowing_at_a_single_tau_matches_the_closed_form() {
     let prior = TauPrior { support: vec![1.0], probabilities: vec![1.0] };
-    let fit = hierarchical_normal_borrowing(
-        &[0.0, 2.0, 6.0],
-        &[1.0, 2.0, 4.0],
-        MeanPrior::Flat,
-        &prior,
-    )
-    .expect("fit");
+    let fit =
+        hierarchical_normal_borrowing(&[0.0, 2.0, 6.0], &[1.0, 2.0, 4.0], MeanPrior::Flat, &prior)
+            .expect("fit");
     close(fit.mean, 56.0 / 31.0, 1e-12, "mean");
     close(fit.variance, 30.0 / 31.0, 1e-12, "variance");
-    let expected_means = [0.903_225_806_451_612_9, 1.870_967_741_935_483_8, 2.645_161_290_322_580_6];
+    let expected_means =
+        [0.903_225_806_451_612_9, 1.870_967_741_935_483_8, 2.645_161_290_322_580_6];
     let expected_variances =
         [0.741_935_483_870_967_7, 1.096_774_193_548_387, 1.419_354_838_709_677_5];
     for i in 0..3 {
@@ -297,8 +293,8 @@ fn hierarchical_borrowing_at_a_single_tau_matches_the_closed_form() {
 
 /// A three-point tau prior (0, 1, 3 with probabilities 0.2, 0.5, 0.3). The posterior over
 /// tau is proportional to prior x marginal likelihood, the marginal likelihood being the
-/// integral of prod N(y_i; mu, v_i + tau^2) over mu (flat prior) or against N(1, 4); the
-/// expected numbers come from Simpson integration with 40001 nodes over mu_hat +- 40 sd,
+/// integral of prod `N(y_i`; mu, `v_i` + tau^2) over mu (flat prior) or against N(1, 4); the
+/// expected numbers come from Simpson integration with 40001 nodes over `mu_hat` +- 40 sd,
 /// independent of the closed-form `log` marginal in the library.
 #[test]
 fn hierarchical_mixture_matches_numerical_integration() {
@@ -350,12 +346,7 @@ fn hierarchical_prior_declarations_are_validated() {
     }
     let ok = TauPrior { support: vec![1.0], probabilities: vec![1.0] };
     assert!(matches!(
-        hierarchical_normal_borrowing(
-            &y,
-            &v,
-            MeanPrior::Normal { mean: 0.0, variance: 0.0 },
-            &ok
-        ),
+        hierarchical_normal_borrowing(&y, &v, MeanPrior::Normal { mean: 0.0, variance: 0.0 }, &ok),
         Err(SynthesisError::InvalidPrior(_))
     ));
 }
@@ -463,5 +454,8 @@ fn the_envelope_refuses_degenerate_and_non_definite_ranges() {
         pooled_dependence_envelope(&y, &[1.0, 0.0, 1.0], 0.0, 0.5),
         Err(SynthesisError::NonPositiveVariance(_))
     ));
-    assert!(matches!(equicorrelated_gls(&y, &s, 1.0), Err(SynthesisError::InvalidCorrelationRange(_))));
+    assert!(matches!(
+        equicorrelated_gls(&y, &s, 1.0),
+        Err(SynthesisError::InvalidCorrelationRange(_))
+    ));
 }

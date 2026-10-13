@@ -191,10 +191,13 @@ pub fn catalog_of(case: &Case, specs: &[EvidenceSpec]) -> AdaptedCatalog {
     AdaptedCatalog { catalog, regime_of }
 }
 
+/// One world's fixed levels and its routes `(parent, child) -> world`.
+type WorldRecord = (BTreeMap<String, usize>, BTreeMap<(String, String), usize>);
+
 struct Worlds<'a> {
     case: &'a Case,
     /// `(fixed levels, routes (parent, child) -> world)` per world.
-    worlds: Vec<(BTreeMap<String, usize>, BTreeMap<(String, String), usize>)>,
+    worlds: Vec<WorldRecord>,
 }
 
 impl Worlds<'_> {
@@ -229,9 +232,11 @@ impl Worlds<'_> {
 }
 
 /// The typed query of an oracle target in the case's target population.
-pub fn query(case: &Case, target: &TargetQuery, sources: Vec<CounterfactualTransportSource>)
-    -> CounterfactualTransportQuery
-{
+pub fn query(
+    case: &Case,
+    target: &TargetQuery,
+    sources: Vec<CounterfactualTransportSource>,
+) -> CounterfactualTransportQuery {
     let mut builder = Worlds { case, worlds: Vec::new() };
     let mut event: Vec<(usize, &Atom)> = Vec::new();
     let mut given: Vec<(usize, &Atom)> = Vec::new();
@@ -286,19 +291,19 @@ pub fn laws(case: &Case, adapted: &AdaptedCatalog) -> ExactTransportData {
     laws_of(case, adapted, &case.evidence)
 }
 
-pub fn laws_of(case: &Case, adapted: &AdaptedCatalog, specs: &[EvidenceSpec]) -> ExactTransportData {
+pub fn laws_of(
+    case: &Case,
+    adapted: &AdaptedCatalog,
+    specs: &[EvidenceSpec],
+) -> ExactTransportData {
     let tables = crate::finite_scm_oracle::build_evidence(&case.populations, specs);
     let mut out: Vec<ExactDiscreteLaw> = Vec::with_capacity(tables.len());
     for (spec, table) in specs.iter().zip(&tables) {
         let key = regime_key(spec);
         let regime = adapted.regime_of[&key];
         let intervened: Vec<&str> = key.intervened.iter().map(String::as_str).collect();
-        let keep: Vec<&str> = spec
-            .variables
-            .iter()
-            .map(String::as_str)
-            .filter(|n| !intervened.contains(n))
-            .collect();
+        let keep: Vec<&str> =
+            spec.variables.iter().map(String::as_str).filter(|n| !intervened.contains(n)).collect();
         let projected = table.table.marginal(&keep);
         let axes: Vec<DiscreteAxis> = projected
             .variables

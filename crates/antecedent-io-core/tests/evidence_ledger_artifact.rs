@@ -149,7 +149,7 @@ fn reseal(mut meta: EvidenceLedgerMeta) -> EvidenceLedgerMeta {
 
 // -- round trip --------------------------------------------------------------------------------
 
-/// Oracle values: the stats-layer hand derivations (DerSimonian-Laird tau^2 = 38/7,
+/// Oracle values: the stats-layer hand derivations (`DerSimonian`-Laird tau^2 = 38/7,
 /// GLS weights (1, 0), envelope [-1/7, 7/5] with variance maximum 1 at 1/2, hierarchical
 /// borrowing at tau = 1 giving 56/31 and 30/31).
 #[test]
@@ -164,7 +164,10 @@ fn a_fresh_consumer_replays_the_ledger_and_recomputes_the_syntheses() {
     assert_eq!(consumed.ledger().state_digest(), f.ledger.state_digest());
     assert_eq!(consumed.ledger().operations().len(), f.ledger.operations().len());
     let mass = &consumed.ledger().result(f.covariance).expect("result").mass;
-    assert_eq!((mass.declared_slots, mass.distinct_observations, mass.repeated_slots), (70, 60, 10));
+    assert_eq!(
+        (mass.declared_slots, mass.distinct_observations, mass.repeated_slots),
+        (70, 60, 10)
+    );
 
     let by_result = |id: ResultId| {
         consumed.syntheses().iter().find(|s| s.result == id).expect("synthesis").clone()
@@ -306,17 +309,11 @@ fn a_resealed_declaration_edit_is_refused_on_replay() {
     let (_, mut meta) = sealed();
     // make study 2 share an observation with study 1: its identity changes, so every
     // later reference to the stored identity no longer resolves
-    let first_row = meta.operations[0]
-        .source
-        .as_ref()
-        .and_then(|s| s.observations.as_ref())
-        .expect("rows")[0]
-        .clone();
-    let rows = meta.operations[1]
-        .source
-        .as_mut()
-        .and_then(|s| s.observations.as_mut())
-        .expect("rows");
+    let first_row =
+        meta.operations[0].source.as_ref().and_then(|s| s.observations.as_ref()).expect("rows")[0]
+            .clone();
+    let rows =
+        meta.operations[1].source.as_mut().and_then(|s| s.observations.as_mut()).expect("rows");
     rows[0] = first_row;
     let error = EvidenceLedgerArtifact::from_meta(&reseal(meta), None).expect_err("refused");
     assert!(error.refusal().is_some(), "{error}");
@@ -347,11 +344,8 @@ fn a_resealed_covariance_or_range_edit_no_longer_binds_to_the_ledger_result() {
     assert_eq!(error, EvidenceLedgerArtifactError::SynthesisMismatch("covariance binding"));
 
     let (_, mut meta) = sealed();
-    let env = meta
-        .syntheses
-        .iter_mut()
-        .find(|s| s.method == "dependence_envelope")
-        .expect("envelope");
+    let env =
+        meta.syntheses.iter_mut().find(|s| s.method == "dependence_envelope").expect("envelope");
     env.rho_hi = Some(0.95_f64.to_bits());
     let error = EvidenceLedgerArtifact::from_meta(&reseal(meta), None).expect_err("refused");
     assert_eq!(error, EvidenceLedgerArtifactError::SynthesisMismatch("assumption range"));
@@ -398,10 +392,7 @@ fn a_consistently_resealed_artifact_of_another_history_fails_the_retained_identi
     let (_, other) = EvidenceLedgerArtifact::seal(&f.ledger, &f.records).expect("seal");
     let retained = meta.identity;
     let error = EvidenceLedgerArtifact::from_meta(&other, Some(&retained)).expect_err("refused");
-    assert_eq!(
-        error,
-        EvidenceLedgerArtifactError::IdentityMismatch { field: "retained_identity" }
-    );
+    assert_eq!(error, EvidenceLedgerArtifactError::IdentityMismatch { field: "retained_identity" });
 }
 
 #[test]
@@ -419,8 +410,8 @@ fn versions_markers_and_corruption_are_refused() {
         EvidenceLedgerArtifact::from_meta(&foreign, None),
         Err(EvidenceLedgerArtifactError::UnsupportedSemantics("feature marker"))
     ));
-    let mut bytes =
-        EvidenceLedgerArtifact::to_bytes(&f.ledger, &f.records, "evidence-ledger-3").expect("bytes");
+    let mut bytes = EvidenceLedgerArtifact::to_bytes(&f.ledger, &f.records, "evidence-ledger-3")
+        .expect("bytes");
     let middle = bytes.len() / 2;
     bytes[middle] ^= 0xff;
     assert!(EvidenceLedgerArtifact::from_bytes(&bytes, None).is_err());
@@ -522,7 +513,8 @@ fn evidence_reuse_survives_export_with_mass_counted_once() {
             replaces: None,
         })
         .expect("reuse");
-    let bytes = EvidenceLedgerArtifact::to_bytes(&ledger, &[], "evidence-ledger-reuse").expect("bytes");
+    let bytes =
+        EvidenceLedgerArtifact::to_bytes(&ledger, &[], "evidence-ledger-reuse").expect("bytes");
     let consumed = EvidenceLedgerArtifact::from_bytes(&bytes, None).expect("consume");
     let original = consumed.ledger().result(pooled).expect("result").mass.clone();
     assert_eq!(
@@ -546,7 +538,8 @@ fn repeated_observation_use_survives_export_flagged() {
             replaces: None,
         })
         .expect("repeated use");
-    let bytes = EvidenceLedgerArtifact::to_bytes(&ledger, &[], "evidence-ledger-repeat").expect("bytes");
+    let bytes =
+        EvidenceLedgerArtifact::to_bytes(&ledger, &[], "evidence-ledger-repeat").expect("bytes");
     let consumed = EvidenceLedgerArtifact::from_bytes(&bytes, None).expect("consume");
     assert!(consumed.ledger().result(repeated).expect("result").data_reuse);
 }

@@ -222,8 +222,7 @@ impl ComposedLinearGaussian {
         let mut done = vec![false; n];
         let mut order = Vec::with_capacity(n);
         while order.len() < n {
-            let next = (0..n)
-                .find(|&v| !done[v] && nodes[v].parents.iter().all(|&(p, _)| done[p]));
+            let next = (0..n).find(|&v| !done[v] && nodes[v].parents.iter().all(|&(p, _)| done[p]));
             let Some(v) = next else {
                 return Err(CompositionError::Numerical {
                     message: "no topological order after coherence check".into(),
@@ -253,10 +252,7 @@ impl ComposedLinearGaussian {
         &self.order
     }
 
-    fn resolve(
-        &self,
-        interventions: &[(&str, f64)],
-    ) -> Result<Vec<Option<f64>>, CompositionError> {
+    fn resolve(&self, interventions: &[(&str, f64)]) -> Result<Vec<Option<f64>>, CompositionError> {
         let mut fixed: Vec<Option<f64>> = vec![None; self.variables.len()];
         for &(name, value) in interventions {
             let Some(i) = self.variables.iter().position(|v| v == name) else {
@@ -451,7 +447,8 @@ impl ComposedLinearGaussian {
             // rounding at the level of the tolerance.
             variance = 0.0;
         }
-        let meaning = self.spec.mechanisms.iter().find_map(|d| d.uncertainty.as_ref().map(|u| u.meaning));
+        let meaning =
+            self.spec.mechanisms.iter().find_map(|d| d.uncertainty.as_ref().map(|u| u.meaning));
         let gradient: Vec<(ParameterId, f64)> =
             assembled.parameters.iter().cloned().zip(g.iter().copied()).collect();
         Ok(FunctionalUncertainty {
@@ -484,16 +481,18 @@ impl ComposedLinearGaussian {
         let sources = n + self.latents.len();
         if n_rows == 0 || n_rows.saturating_mul(sources.max(1)) > MAX_SAMPLE_CELLS {
             return Err(CompositionError::Unsupported {
-                message: format!("sample size {n_rows} outside 1..={}", MAX_SAMPLE_CELLS / sources.max(1)),
+                message: format!(
+                    "sample size {n_rows} outside 1..={}",
+                    MAX_SAMPLE_CELLS / sources.max(1)
+                ),
             });
         }
         let draw = |role: u64, name: &str| -> Result<Vec<f64>, CompositionError> {
             if ctx.cancellation.is_cancelled() {
                 return Err(CompositionError::Cancelled);
             }
-            let mut rng = ctx
-                .rng
-                .stream_for(COMPOSITION_STREAM_DOMAIN, noise_stream_index(role, name));
+            let mut rng =
+                ctx.rng.stream_for(COMPOSITION_STREAM_DOMAIN, noise_stream_index(role, name));
             let mut column = Vec::with_capacity(n_rows);
             for r in 0..n_rows {
                 if r % 4096 == 4095 && ctx.cancellation.is_cancelled() {
@@ -516,8 +515,8 @@ impl ComposedLinearGaussian {
             let node = &self.nodes[v];
             let noise = draw(0, &self.variables[v])?;
             let mut column = Vec::with_capacity(n_rows);
-            for r in 0..n_rows {
-                let mut value = node.intercept + node.sigma * noise[r];
+            for (r, &z) in noise.iter().enumerate().take(n_rows) {
+                let mut value = node.intercept + node.sigma * z;
                 for &(p, b) in &node.parents {
                     value += b * columns[p][r];
                 }

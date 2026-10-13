@@ -14,7 +14,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::descriptor::{
-    ComposedModelSpec, ContextCoordinate, Containment, CrossCovarianceBlock, Domain,
+    ComposedModelSpec, Containment, ContextCoordinate, CrossCovarianceBlock, Domain,
     MAX_COMPOSED_LATENTS, MAX_COMPOSED_MECHANISMS, MAX_LEVELS_PER_VARIABLE,
     MAX_PARENTS_PER_MECHANISM, MechanismDescriptor, MechanismFamily, MechanismForm,
     MechanismOrigin, MechanismUncertainty, ParameterId, ParameterTerm, PosteriorDependence,
@@ -158,7 +158,11 @@ impl CoherenceFinding {
         Self { kind, detail, subject: subject.into(), expected: None, supplied: None, remedy }
     }
 
-    pub(crate) fn comparing(mut self, expected: impl Into<String>, supplied: impl Into<String>) -> Self {
+    pub(crate) fn comparing(
+        mut self,
+        expected: impl Into<String>,
+        supplied: impl Into<String>,
+    ) -> Self {
         self.expected = Some(expected.into());
         self.supplied = Some(supplied.into());
         self
@@ -249,6 +253,10 @@ pub fn parameter_layout(spec: &ComposedModelSpec) -> Vec<ParameterId> {
     out
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "a flat sequence of independent structural checks, each pushing its own coherence findings"
+)]
 fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
     use CoherenceKind::Shape;
     if spec.mechanisms.is_empty() {
@@ -450,12 +458,11 @@ fn check_table_shape(
     }
     let mut expected_rows = 1_usize;
     for p in &d.parents {
-        match &p.domain {
-            Domain::Levels(l) => expected_rows = expected_rows.saturating_mul(l.len()),
-            _ => {
-                out.push(table_defect("a parent of a finite mechanism needs a level domain"));
-                return;
-            }
+        if let Domain::Levels(l) = &p.domain {
+            expected_rows = expected_rows.saturating_mul(l.len());
+        } else {
+            out.push(table_defect("a parent of a finite mechanism needs a level domain"));
+            return;
         }
     }
     let parent_names: Vec<&str> = d.parents.iter().map(|p| p.variable.as_str()).collect();
@@ -507,7 +514,8 @@ fn check_table_shape(
 }
 
 fn check_family(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
-    let families: BTreeSet<MechanismFamily> = spec.mechanisms.iter().map(|d| d.form.family()).collect();
+    let families: BTreeSet<MechanismFamily> =
+        spec.mechanisms.iter().map(|d| d.form.family()).collect();
     if families.len() > 1 {
         out.push(
             CoherenceFinding::new(
@@ -571,11 +579,7 @@ fn check_identity(
     }
 }
 
-fn check_cycles(
-    spec: &ComposedModelSpec,
-    known: &BTreeSet<&str>,
-    out: &mut Vec<CoherenceFinding>,
-) {
+fn check_cycles(spec: &ComposedModelSpec, known: &BTreeSet<&str>, out: &mut Vec<CoherenceFinding>) {
     let mut edges: BTreeSet<(&str, &str)> = BTreeSet::new();
     for d in &spec.mechanisms {
         for p in &d.parents {
@@ -622,12 +626,8 @@ fn check_cycles(
 fn check_parent_and_conditioning_sets(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
     for d in &spec.mechanisms {
         let supplied: BTreeSet<String> = d.parents.iter().map(|p| p.variable.clone()).collect();
-        let declared: BTreeSet<String> = spec
-            .edges
-            .iter()
-            .filter(|(_, c)| *c == d.variable)
-            .map(|(p, _)| p.clone())
-            .collect();
+        let declared: BTreeSet<String> =
+            spec.edges.iter().filter(|(_, c)| *c == d.variable).map(|(p, _)| p.clone()).collect();
         if supplied != declared {
             out.push(
                 CoherenceFinding::new(
@@ -667,10 +667,7 @@ fn check_parent_and_conditioning_sets(spec: &ComposedModelSpec, out: &mut Vec<Co
     }
 }
 
-fn check_units_transform_support(
-    spec: &ComposedModelSpec,
-    out: &mut Vec<CoherenceFinding>,
-) {
+fn check_units_transform_support(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
     let by_var: BTreeMap<&str, &MechanismDescriptor> =
         spec.mechanisms.iter().map(|d| (d.variable.as_str(), d)).collect();
     for d in &spec.mechanisms {
@@ -763,9 +760,7 @@ fn check_context(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
                         "declare a selection diagram or an invariance assumption for this mechanism, or refit it in the target population",
                     )));
                 } else if diagrams.iter().any(|s| {
-                    s.selection_nodes
-                        .iter()
-                        .any(|n| n.points_into.iter().any(|v| *v == d.variable))
+                    s.selection_nodes.iter().any(|n| n.points_into.iter().any(|v| *v == d.variable))
                 }) {
                     out.push(compare(CoherenceFinding::new(
                         CoherenceKind::Population,
@@ -865,8 +860,11 @@ fn check_latents(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
     for (latent, ms) in &users {
         if ms.len() > 1 {
             for m in ms {
-                let others: BTreeSet<&str> =
-                    ms.iter().filter(|o| o.variable != m.variable).map(|o| o.variable.as_str()).collect();
+                let others: BTreeSet<&str> = ms
+                    .iter()
+                    .filter(|o| o.variable != m.variable)
+                    .map(|o| o.variable.as_str())
+                    .collect();
                 let declared: BTreeSet<&str> = m
                     .latents
                     .iter()
@@ -981,6 +979,10 @@ fn check_uncertainty_marginal(
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "a flat sequence of independent uncertainty-alignment and posterior-dependence checks, each pushing its own findings"
+)]
 fn check_uncertainty(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
     use CoherenceKind::{PosteriorDependence as Dep, UncertaintyAlignment as Align};
     let mut meanings = BTreeSet::new();
@@ -1198,9 +1200,7 @@ pub fn check_composition(spec: &ComposedModelSpec) -> Vec<CoherenceFinding> {
 }
 
 fn finish(mut findings: Vec<CoherenceFinding>) -> Vec<CoherenceFinding> {
-    findings.sort_by(|a, b| {
-        (a.kind, a.detail, &a.subject).cmp(&(b.kind, b.detail, &b.subject))
-    });
+    findings.sort_by(|a, b| (a.kind, a.detail, &a.subject).cmp(&(b.kind, b.detail, &b.subject)));
     findings.dedup();
     findings
 }

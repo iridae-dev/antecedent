@@ -53,9 +53,9 @@ pub mod graph_mixed;
 pub mod graph_networkx;
 pub mod graphless_support;
 pub mod identity;
+pub mod measurement_model_wire;
 pub mod mechanism_composition_artifact;
 pub mod mechanism_wire;
-pub mod measurement_model_wire;
 pub mod migrate;
 /// `Mmap::map` lives here. [`crate::reader::MappedArtifactReader`] has the
 /// mapped constructors (`open_path_mapped`, `from_mmap`) under the same

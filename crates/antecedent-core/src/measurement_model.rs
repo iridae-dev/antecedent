@@ -646,6 +646,10 @@ impl MeasurementModel {
         self.validate_parameters()
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one arm per measurement route, each checking its own parameter block against its own structure"
+    )]
     fn validate_parameters(&self) -> Result<(), MeasurementModelError> {
         let floor_ok = |v: f64| v.is_finite() && (0.0..1.0).contains(&v);
         match &self.parameters {
@@ -690,8 +694,7 @@ impl MeasurementModel {
                             "sensitivity and specificity must lie in [0, 1]",
                         ));
                     }
-                    if !(variance(arm.sensitivity_variance) && variance(arm.specificity_variance))
-                    {
+                    if !(variance(arm.sensitivity_variance) && variance(arm.specificity_variance)) {
                         return Err(MeasurementModelError::InvalidParameter(
                             "rate variances must be finite and non-negative",
                         ));
@@ -701,21 +704,24 @@ impl MeasurementModel {
                     }
                 }
                 let shared = rates.len() == 1 && rates[0].arm_id.is_none();
-                let per_arm = rates.len() >= 2
-                    && rates.iter().all(|arm| arm.arm_id.is_some())
-                    && {
-                        let mut ids: Vec<&str> =
-                            rates.iter().filter_map(|arm| arm.arm_id.as_deref()).collect();
-                        ids.sort_unstable();
-                        ids.windows(2).all(|pair| pair[0] != pair[1])
-                    };
+                let per_arm = rates.len() >= 2 && rates.iter().all(|arm| arm.arm_id.is_some()) && {
+                    let mut ids: Vec<&str> =
+                        rates.iter().filter_map(|arm| arm.arm_id.as_deref()).collect();
+                    ids.sort_unstable();
+                    ids.windows(2).all(|pair| pair[0] != pair[1])
+                };
                 match self.structure {
                     ErrorStructure::NonDifferential if shared => {}
                     ErrorStructure::Differential(DifferentialAxis::Arm) if per_arm => {}
                     _ => return Err(MeasurementModelError::StructureParameterMismatch),
                 }
             }
-            MeasurementParameters::Categorical { levels, confusion, column_counts, max_condition } => {
+            MeasurementParameters::Categorical {
+                levels,
+                confusion,
+                column_counts,
+                max_condition,
+            } => {
                 let k = levels.len();
                 if !(2..=16).contains(&k)
                     || confusion.len() != k * k
@@ -1088,10 +1094,7 @@ mod tests {
         assert_eq!(per_arm.validate(), Ok(()));
         let mut not_declared = per_arm.clone();
         not_declared.structure = ErrorStructure::NonDifferential;
-        assert_eq!(
-            not_declared.validate(),
-            Err(MeasurementModelError::StructureParameterMismatch)
-        );
+        assert_eq!(not_declared.validate(), Err(MeasurementModelError::StructureParameterMismatch));
         // Differential by population has no parameter layout in this route.
         let mut by_population = per_arm;
         by_population.structure = ErrorStructure::Differential(DifferentialAxis::Population);

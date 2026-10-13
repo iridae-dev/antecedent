@@ -132,7 +132,10 @@ struct CheckedCombination {
 }
 
 enum Plan {
-    Add { source: CanonicalSource, overlaps: Vec<DetectedOverlap> },
+    Add {
+        source: CanonicalSource,
+        overlaps: Vec<DetectedOverlap>,
+    },
     Retire {
         retire: Retire,
         target: SourceId,
@@ -293,7 +296,7 @@ impl EvidenceLedger {
                 Overlap::Independent
             }
             (EffectiveObservations::Unknown(reason), _)
-            | (_, EffectiveObservations::Unknown(reason)) => Overlap::Unknown { reason: *reason },
+            | (_, EffectiveObservations::Unknown(reason)) => Overlap::Unknown { reason },
         }
     }
 
@@ -376,8 +379,7 @@ impl EvidenceLedger {
 
     fn reentry_between(&self, a: &EvidenceSource, b: &EvidenceSource) -> ReentryKind {
         let from_lineage = |descendant: &EvidenceSource, ancestor: SourceId| {
-            if descendant.id == ancestor
-                || !self.lineage_closure(descendant.id).contains(&ancestor)
+            if descendant.id == ancestor || !self.lineage_closure(descendant.id).contains(&ancestor)
             {
                 return None;
             }
@@ -481,7 +483,10 @@ impl EvidenceLedger {
         }
     }
 
-    fn canonical_source(&self, declaration: &SourceDeclaration) -> Result<CanonicalSource, LedgerError> {
+    fn canonical_source(
+        &self,
+        declaration: &SourceDeclaration,
+    ) -> Result<CanonicalSource, LedgerError> {
         if !text_ok(&declaration.label) {
             return Err(invalid!(
                 "evidence_ledger.invalid_declaration",
@@ -621,18 +626,17 @@ impl EvidenceLedger {
                     Ok(EffectiveObservations::Known(Arc::new(rows.clone())))
                 }
                 (Some(rows), None) => Ok(EffectiveObservations::Known(Arc::new(rows.clone()))),
-                (None, _) => Ok(EffectiveObservations::Unknown(
-                    "the rows of a subset were not declared",
-                )),
+                (None, _) => {
+                    Ok(EffectiveObservations::Unknown("the rows of a subset were not declared"))
+                }
             },
             Lineage::PriorPlusLikelihood { .. } | Lineage::DerivedFromUsedData { .. } => {
                 let parents = declaration.lineage.parents();
                 let rows: Vec<Option<Arc<Vec<ObservationId>>>> =
                     parents.iter().map(|p| parent_rows(*p)).collect();
                 let all_known = rows.iter().all(Option::is_some);
-                let union = all_known.then(|| {
-                    union_sorted(rows.iter().flatten().map(|r| r.as_slice()))
-                });
+                let union =
+                    all_known.then(|| union_sorted(rows.iter().flatten().map(|r| r.as_slice())));
                 match (declared, union) {
                     (Some(declared), Some(union)) => {
                         if !is_subset(declared, &union) {
@@ -725,7 +729,7 @@ impl EvidenceLedger {
         error.with_sources([a, b])
     }
 
-    fn unknown_overlap(&self, a: SourceId, b: SourceId, reason: &str) -> LedgerError {
+    fn unknown_overlap(a: SourceId, b: SourceId, reason: &str) -> LedgerError {
         overlap_unknown!(
             "evidence_ledger.overlap_unknown",
             "the observations behind {a} and {b} are not known ({reason}); independence is not assumed. Declare the row-level observations, supply a covariance with cross terms, or request an assumption range"
@@ -744,7 +748,7 @@ impl EvidenceLedger {
                         return Err(self.double_counting(a, b, shared));
                     }
                     Overlap::Unknown { reason } => {
-                        unknown.get_or_insert_with(|| self.unknown_overlap(a, b, reason));
+                        unknown.get_or_insert_with(|| Self::unknown_overlap(a, b, reason));
                     }
                 }
             }
@@ -767,7 +771,7 @@ impl EvidenceLedger {
                         return Err(shared_detail(self, a, b, shared));
                     }
                     Overlap::Unknown { reason } => {
-                        unknown.get_or_insert_with(|| self.unknown_overlap(a, b, reason));
+                        unknown.get_or_insert_with(|| Self::unknown_overlap(a, b, reason));
                     }
                 }
             }
@@ -775,7 +779,7 @@ impl EvidenceLedger {
         unknown.map_or(Ok(()), Err)
     }
 
-    fn native_and_transported(&self, a: SourceId, b: SourceId, shared: u64) -> LedgerError {
+    fn native_and_transported(a: SourceId, b: SourceId, shared: u64) -> LedgerError {
         double_counted!(
             "evidence_ledger.native_and_transported",
             "native source and transported claim ({a}, {b}) rest on {shared} common observation(s): the same source cannot count as native target data and as transported evidence"
@@ -814,6 +818,10 @@ impl EvidenceLedger {
         Ok((mass, digest, transports))
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one arm per combination operation, each a flat sequence of independent admissibility checks"
+    )]
     fn check_combination(
         &self,
         request: &CombinationRequest,
@@ -856,13 +864,15 @@ impl EvidenceLedger {
                     ));
                 }
                 let ids = self.check_listed(sources)?;
-                *sources = ids.clone();
+                sources.clone_from(&ids);
                 // A claim that carries transport identity is never native data.
                 let (transported, native): (Vec<SourceId>, Vec<SourceId>) =
                     ids.iter().copied().partition(|id| {
                         self.source(*id).is_some_and(|s| s.declaration.transport.is_some())
                     });
-                self.require_disjoint_groups(&native, &transported, Self::native_and_transported)?;
+                self.require_disjoint_groups(&native, &transported, |_, a, b, shared| {
+                    Self::native_and_transported(a, b, shared)
+                })?;
                 match *dependence {
                     PoolingDependence::Independent => self.require_pairwise_independent(&ids)?,
                     PoolingDependence::DeclaredCovariance { has_cross_covariance, .. } => {
@@ -969,7 +979,9 @@ impl EvidenceLedger {
                 }
                 transported.sort_unstable();
                 native.sort_unstable();
-                self.require_disjoint_groups(native, transported, Self::native_and_transported)?;
+                self.require_disjoint_groups(native, transported, |_, a, b, shared| {
+                    Self::native_and_transported(a, b, shared)
+                })?;
                 direct = ids;
                 precomputed = None;
             }
@@ -1002,7 +1014,7 @@ impl EvidenceLedger {
                     ));
                 }
                 let ids = self.check_listed(sources)?;
-                *sources = ids.clone();
+                sources.clone_from(&ids);
                 let mass = self.mass_account(&ids)?;
                 if let Some(&first) = mass.unknown_sources.first() {
                     return Err(overlap_unknown!(
@@ -1071,7 +1083,7 @@ impl EvidenceLedger {
                         )
                         .with_sources([a, b]));
                     }
-                    Overlap::Unknown { reason } => return Err(self.unknown_overlap(a, b, reason)),
+                    Overlap::Unknown { reason } => return Err(Self::unknown_overlap(a, b, reason)),
                 }
             }
         }
@@ -1232,9 +1244,9 @@ impl EvidenceLedger {
                 SynthesisOperation::EvidenceReuse { of } => {
                     match self.result(*of).map(|r| &r.status) {
                         Some(ResultStatus::Valid) => Revalidation::StillValid,
-                        Some(ResultStatus::NeedsRecompute { .. } | ResultStatus::Replaced { .. }) => {
-                            Revalidation::Recompute
-                        }
+                        Some(
+                            ResultStatus::NeedsRecompute { .. } | ResultStatus::Replaced { .. },
+                        ) => Revalidation::Recompute,
                         Some(ResultStatus::Withdrawn { .. }) | None => Revalidation::Withdrawn,
                     }
                 }
@@ -1330,6 +1342,10 @@ impl EvidenceLedger {
         Ok(())
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "a flat sequence of independent retirement checks, one per way a source can be withdrawn or superseded"
+    )]
     fn plan_retire(
         &self,
         retire: Retire,
@@ -1346,8 +1362,7 @@ impl EvidenceLedger {
                 )
                 .with_sources([target]));
             }
-            (Retire::Withdraw, _) => {}
-            (_, SourceStatus::Active) => {}
+            (Retire::Withdraw, _) | (_, SourceStatus::Active) => {}
             (_, _) => {
                 return Err(retired!(
                     "evidence_ledger.source_superseded",
@@ -1366,12 +1381,7 @@ impl EvidenceLedger {
             }
         }
         let Some(replacement) = replacement else {
-            return Ok(Plan::Retire {
-                retire,
-                target,
-                reason: reason.cloned(),
-                replacement: None,
-            });
+            return Ok(Plan::Retire { retire, target, reason: reason.cloned(), replacement: None });
         };
         let canonical = self.canonical_source(replacement)?;
         if canonical
@@ -1438,12 +1448,7 @@ impl EvidenceLedger {
         }
         self.check_new_source_bounds(&canonical)?;
         let overlaps = self.overlaps_with_existing(&canonical, Some(target));
-        Ok(Plan::Retire {
-            retire,
-            target,
-            reason: None,
-            replacement: Some((canonical, overlaps)),
-        })
+        Ok(Plan::Retire { retire, target, reason: None, replacement: Some((canonical, overlaps)) })
     }
 
     fn check_new_source_bounds(&self, source: &CanonicalSource) -> Result<(), LedgerError> {
@@ -1529,10 +1534,9 @@ impl EvidenceLedger {
                 let successor = replacement.as_ref().map(|(source, _)| source.id);
                 let index = self.source_index[&target];
                 self.sources[index].status = match (retire, successor) {
-                    (Retire::Withdraw, _) | (_, None) => SourceStatus::Withdrawn {
-                        reason: reason.unwrap_or_default(),
-                        by: id,
-                    },
+                    (Retire::Withdraw, _) | (_, None) => {
+                        SourceStatus::Withdrawn { reason: reason.unwrap_or_default(), by: id }
+                    }
                     (Retire::Update, Some(by)) => SourceStatus::Updated { by, operation: id },
                     (Retire::Replace, Some(by)) => SourceStatus::Replaced { by, operation: id },
                     (Retire::Supersede, Some(by)) => SourceStatus::Superseded { by, operation: id },
@@ -1584,6 +1588,9 @@ impl EvidenceLedger {
     ///
     /// # Errors
     /// A typed refusal.
+    ///
+    /// # Panics
+    /// Never in practice: an applied add always records the source it created.
     pub fn add_source(&mut self, source: SourceDeclaration) -> Result<SourceId, LedgerError> {
         let applied = self.apply(LedgerOperation::Add { source })?;
         Ok(applied.effect.created_source.expect("an applied add records the source it created"))
@@ -1649,6 +1656,9 @@ impl EvidenceLedger {
     ///
     /// # Errors
     /// A typed refusal: double counting, unknown overlap, a retired source.
+    ///
+    /// # Panics
+    /// Never in practice: an applied combination always records the result it created.
     pub fn combine(&mut self, request: CombinationRequest) -> Result<ResultId, LedgerError> {
         let applied = self.apply(LedgerOperation::Combine { request })?;
         Ok(applied.effect.created_result.expect("an applied combine records the result it created"))
