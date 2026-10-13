@@ -1,0 +1,26 @@
+# Algorithm provenance for scientific_bridge.law_substitution (see docs/scientific-bridges.md).
+
+feature_id = "scientific_bridge.law_substitution"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# papers = [] because this record is a closed semantic boundary: a mean, a predictive law, a
+# posterior, an identified set and a joint outcome law answer different questions, and the
+# bridge refuses to interconvert them; no published estimator or theorem is implemented.
+papers = [
+]
+
+implementation_deviations = [
+ "No estimator and no transformation: the record refuses a request for one kind of object when only another is held, and names the route that would supply it.",
+ "The rule is the decision contract's own: a mean is not a predictive law, a posterior over a mean is not an outcome law, an identified set is not a point, and marginal laws do not determine a joint law. No bridge relaxes it.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "exhaustive enumeration of the ordered pairs of the five value kinds",
+ "semantic mutation of a stored value kind by an independent artifact consumer",
+]

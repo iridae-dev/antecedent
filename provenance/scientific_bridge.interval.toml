@@ -1,0 +1,24 @@
+# Algorithm provenance for scientific_bridge.interval (see docs/scientific-bridges.md).
+
+feature_id = "scientific_bridge.interval"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# papers = [] because the record is the closed interval route of a bridged claim: no interval,
+# posterior or coverage statement is licensed, so no published interval method is implemented.
+papers = [
+]
+
+implementation_deviations = [
+ "No interval, posterior or coverage statement: whole-method coverage of a bridge (source uncertainty, mapping uncertainty and the declared assumptions together) has not been measured, so the request is refused with cell_not_licensed.",
+ "The sampling uncertainty of the mapping (trial-level regression error, estimated misclassification rates) is not propagated into the bridged value.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "executed refusal of an interval request on a bridged claim and on its consumed artifact",
+]
