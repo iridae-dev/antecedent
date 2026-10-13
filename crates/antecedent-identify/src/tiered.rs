@@ -607,11 +607,12 @@ mod tests {
         // closure measures roughly cubic in p (unoptimized: ~230 ms at p=200,
         // ~8.1 s at p=667). An absolute bound measures the machine, not the
         // algorithm, and fails under parallel test load; bound the growth
-        // instead. Each round times both sizes back to back, so the pair
-        // shares whatever load the machine is under and their ratio cancels
-        // it; the median over rounds discards a round a spike split.
-        // Doubling p costs ~8x when cubic; 12x leaves headroom and still
-        // rejects a quartic regression (16x).
+        // instead. Load only ever adds time to a run, so the minimum over
+        // rounds is the closest measurement of the algorithm's own cost at
+        // each size, and the ratio of the two minima is stable where a ratio
+        // of paired single runs is not (a spike on either side of one pair
+        // moves it by multiples). Doubling p costs ~8x when cubic; 12x leaves
+        // headroom and still rejects a quartic regression (16x).
         assert_joint_width_identified(100, |_| true);
         assert_joint_width_identified(200, |_| true);
         let (small_schema, small_bg) = facet_width_joint(100);
@@ -623,16 +624,17 @@ mod tests {
             identify_tiered_joint(bg, schema, query).unwrap();
             started.elapsed()
         };
-        let mut ratios: Vec<f64> = (0..7)
-            .map(|_| {
-                let small = time(&small_bg, &small_schema, &small_query);
-                let large = time(&large_bg, &large_schema, &large_query);
-                large.as_secs_f64() / small.as_secs_f64().max(1e-6)
-            })
-            .collect();
-        ratios.sort_by(f64::total_cmp);
-        let median = ratios[ratios.len() / 2];
-        assert!(median < 12.0, "p 100 -> 200 grew {median:.1}x (per round: {ratios:.1?})");
+        let mut small_best = std::time::Duration::MAX;
+        let mut large_best = std::time::Duration::MAX;
+        for _ in 0..7 {
+            small_best = small_best.min(time(&small_bg, &small_schema, &small_query));
+            large_best = large_best.min(time(&large_bg, &large_schema, &large_query));
+        }
+        let growth = large_best.as_secs_f64() / small_best.as_secs_f64().max(1e-6);
+        assert!(
+            growth < 12.0,
+            "p 100 -> 200 grew {growth:.1}x (best of 7: {small_best:?} -> {large_best:?})"
+        );
         let large = time(&large_bg, &large_schema, &large_query);
         assert!(large.as_secs() < 10, "200-node joint closure took {large:?}");
     }
