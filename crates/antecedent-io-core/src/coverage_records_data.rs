@@ -385,7 +385,13 @@ mod tests {
         assert_eq!(loaded.query, rows[0]["query"].as_str().expect("query"));
         assert_eq!(loaded.mcse.to_bits(), 0.015_951_097_140_949_27_f64.to_bits());
         assert_eq!(loaded.grid.len(), rows[0]["grid"].as_array().expect("grid").len());
-        assert!(ATTESTING_RECORD_IDS.contains(&loaded.id));
+        let expected_attesting: Vec<&str> = raw["attesting_record_ids"]
+            .as_array()
+            .expect("attesting ID array")
+            .iter()
+            .map(|id| id.as_str().expect("attesting ID"))
+            .collect();
+        assert_eq!(ATTESTING_RECORD_IDS.iter().copied().collect::<Vec<_>>(), expected_attesting);
         assert!(method_listed(IntervalMethod::AnalyticSe));
         assert!(method_listed(IntervalMethod::None));
     }

@@ -703,44 +703,11 @@ def attesting_record_ids() -> list[str]:
     a matching record may report `calibrated`. It fails closed: a commit this clone
     cannot resolve, or no git at all, leaves a record out.
 
-    Regenerating the support-matrix docs on a tree whose surface has already
-    drifted would otherwise replace a previously emitted list with nothing.
-    When the registry rows are unchanged and the live assessment is empty, the
-    ids already in the snapshot stay. A changed registry takes the live result,
-    including an empty one.
+    An empty live assessment invalidates every prior cached attestation. Matching
+    record IDs or unchanged measurement rows cannot establish that the current
+    implementation still matches the measured surface.
     """
-    records = load("parity/coverage_records.toml").get("record") or []
-    record_ids = {str(row["id"]) for row in records}
-    live = _live_attesting_record_ids()
-    if live:
-        return live
-    previous = _snapshot_attesting_ids(record_ids)
-    if previous is not None:
-        return previous
-    legacy = _legacy_rust_attesting_ids()
-    if legacy is not None:
-        return legacy
-    return live
-
-
-def _legacy_rust_attesting_ids() -> list[str] | None:
-    """Ids from the pre-snapshot literal module, used once while that file remains.
-
-    The loader that replaced the literal does not contain this static, so this
-    returns nothing after the migration commit.
-    """
-    path = ROOT / "crates" / "antecedent-io-core" / "src" / "coverage_records_data.rs"
-    if not path.is_file():
-        return None
-    text = read_text(path)
-    marker = "pub static ATTESTING_RECORD_IDS: &[&str] = &["
-    start = text.find(marker)
-    if start < 0:
-        return None
-    end = text.find("];", start)
-    if end < 0:
-        return None
-    return re.findall(r'"([^"]*)"', text[start:end])
+    return _live_attesting_record_ids()
 
 
 def _live_attesting_record_ids() -> list[str]:
@@ -758,19 +725,6 @@ def _live_attesting_record_ids() -> list[str]:
     except (OSError, subprocess.SubprocessError, SystemExit) as exc:
         print(f"warning: no record is marked attesting ({exc})", file=sys.stderr)
         return []
-
-
-def _snapshot_attesting_ids(record_ids: set[str]) -> list[str] | None:
-    if not COVERAGE_SNAPSHOT.is_file():
-        return None
-    data = json.loads(read_text(COVERAGE_SNAPSHOT))
-    rows = data.get("records") or []
-    if {str(row["id"]) for row in rows} != record_ids:
-        return None
-    ids = data.get("attesting_record_ids") or []
-    if not ids:
-        return None
-    return [str(item) for item in ids]
 
 
 def write_snapshot(path: Path, payload: dict) -> None:
