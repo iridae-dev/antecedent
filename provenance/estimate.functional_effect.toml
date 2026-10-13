@@ -9,7 +9,7 @@ copied_tests = false
 # an already identified scalar functional (ATE / path-specific NE) on
 # empirical discrete tables. Identification is identify.id / path_specific.
 papers = [
- { title = "A General Identification Condition for Causal Effects", sections = ["ID algorithm"] },
+ { title = "Identification of Joint Interventional Distributions in Recursive Semi-Markovian Causal Models", url = "https://escholarship.org/uc/item/9598x714", sections = ["Algorithm ID: lineage of the already identified expression, not the empirical plug-in evaluator"] },
  { title = "Identification of Conditional Interventional Distributions", doi = "10.48550/arXiv.1206.6876", sections = ["IDC algorithm"] },
 ]
 

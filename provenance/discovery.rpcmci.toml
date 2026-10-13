@@ -11,7 +11,7 @@ papers = [
 
 implementation_deviations = [
  "This is primarily a caller-labelled per-regime PCMCI+ wrapper, whereas Regime-PCMCI jointly learns persistent latent regime assignments and per-regime PCMCI graphs.",
- "Optional assignment refinement uses hard per-time OLS residual reassignment from discovered lag-1 parents only; it omits the paper's regime-learning optimization, persistence constraints, and higher-lag or contemporaneous terms.",
+ "Optional assignment refinement fits an intercept and all retained positive-lag parents for every variable under each regime, sums squared prediction errors standardized by each variable's variance, and chooses a hard label path by Viterbi with a caller-configured switch penalty. Intercept-only variables remain in the score; contemporaneous parents are excluded. This persistence penalty is implemented, but is not the paper's full regime-learning optimization or evidence of equivalence to it.",
  "Short regimes are skipped under a fixed minimum-length policy, and failed refinement retains the preceding labelled result.",
 ]
 

@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Optimal Structure Identification With Greedy Search", sections = ["Insert/Delete/Reverse operators, Meek completion (Theorem/Corollary on local search optimality)"] },
+ { title = "Optimal Structure Identification With Greedy Search", url = "https://www.jmlr.org/papers/volume3/chickering02b/chickering02b.pdf", sections = ["Definitions 12 and 13: Insert and Delete operators", "Theorems 15 and 17: validity conditions for Insert and Delete; the extra Reverse phase is a repository extension"] },
 ]
 
 implementation_deviations = [

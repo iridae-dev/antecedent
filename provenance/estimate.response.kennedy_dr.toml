@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Nonparametric methods for doubly robust estimation of continuous treatment effects", doi = "10.1111/rssb.12212", sections = ["Section 3.1: doubly robust pseudo-outcome mapping", "Section 3.2: kernel estimator of the effect curve"] },
+  { title = "Nonparametric methods for doubly robust estimation of continuous treatment effects", doi = "10.1111/rssb.12212", sections = ["Section 3.1: doubly robust pseudo-outcome mapping", "Section 3.2: local-linear kernel estimator of the effect curve", "Section 3.4: marginalization term in the influence-function variance"] },
 ]
 
 # Derived from the Kennedy et al. construction, not the exact estimator analyzed
@@ -24,7 +24,8 @@ implementation_deviations = [
  "nuisance penalty lambda is a fixed caller-supplied constant (default 1.0); the GCV selection path in fit_gam is never invoked, so nuisance complexity does not grow with n",
  "conditional treatment density is a Gaussian plug-in from a GAM conditional mean plus a single pooled homoskedastic residual scale, not a nonparametric conditional density estimator",
  "least-squares additive GAMs and the influence sandwich require finite outcome moments; a tail ratio max|Y-median|/(1.4826 MAD) above 20 is reported as response.heavy_tailed_outcome rather than inherited from the Kennedy et al. rates",
- "default curve bandwidth is Silverman's normal-reference KDE rule on the marginal treatment distribution, not a bandwidth selected for local-polynomial regression risk as in Section 3.2",
+ "the response curve uses an unbounded Gaussian local-quadratic fit rather than the paper's local-linear construction; the additive nuisance model makes the empirical covariate-marginalization influence term constant over the grid",
+ "default curve bandwidth is Silverman's normal-reference KDE rule on the marginal treatment distribution, rather than the cross-validation criterion in Section 3.5; smoothing bias and bandwidth-selection uncertainty are not represented in the curve's intervals",
  "cross-fitting folds are deterministic index-modulo splits rather than randomized sample splitting",
 ]
 

@@ -5,21 +5,26 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-# The Kennedy pseudo-outcome is smoothed by a local quadratic weighted least-
-# squares fit. Its fitted linear/quadratic coefficients give first/second
-# derivatives at the requested point. Log-scale variants are algebraic
-# transformations of that derivative; no extra causal identification theorem is
-# claimed.
+# The conventional point uses a local quadratic fit of the Kennedy pseudo-outcome.
+# Interval coordinates use higher-order fits and their joint robust covariance.
+# Bias correction, transformed intervals and the Bayesian row-weight construction
+# are separate from causal identification and do not inherit coverage wholesale.
 papers = [
   { title = "Nonparametric methods for doubly robust estimation of continuous treatment effects", doi = "10.1111/rssb.12212", sections = ["Section 3.1: doubly robust pseudo-outcome mapping", "Section 3.2, equations (4)-(5): local-polynomial smoothing target"] },
   { title = "Local Polynomial Regression: Optimal Kernels and Asymptotic Minimax Efficiency", doi = "10.1023/A:1003162622169", sections = ["Section 2, equations defining the local polynomial coefficient estimator and derivative extraction"] },
+  { title = "Coverage error optimal confidence intervals for local polynomial regression", doi = "10.3150/21-BEJ1445", url = "https://arxiv.org/html/1808.01398v4", sections = ["Section 2, equations (8)-(10): robust bias correction and fixed-n Studentization", "Supplement S.3.2-S.3.3: interior bias terms for odd and even p-nu (arXiv v4)"] },
+  { title = "Some Problems in Interval Estimation", doi = "10.1111/j.2517-6161.1954.tb00159.x", sections = ["Fieller ratio confidence-set construction: invert the test for the numerator minus a candidate ratio times the denominator"] },
+  { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet(1,...,1) observation weights; construction only for the Bayesian derivative route"] },
 ]
 
 implementation_deviations = [
   "The estimator reuses the restricted Kennedy nuisance construction: additive penalized outcome and treatment GAMs, a homoskedastic Gaussian conditional treatment density, and deterministic cross-fitting.",
   "First- and second-order derivatives are obtained from an unbounded Gaussian local-quadratic fit with a caller-supplied bandwidth; the cited local-polynomial theory does not prescribe this fixed kernel, degree, or bandwidth policy.",
   "Only derivative orders one and two are supported.",
-  "Uncertainty is a pointwise normal interval derived from local influence values and is conditional on fitted nuisances and bandwidth. Smoothing bias, bandwidth selection, nuisance uncertainty, and simultaneous coverage are omitted.",
+  "Frequentist uncertainty uses higher-order coordinates at the same bandwidth (pilot b = h): the local-cubic slope for the first derivative and local-quartic level and curvature for the second derivative and nonlinear transformations. The standard errors and full joint covariance come from rowwise heteroskedasticity-robust influences of those coordinates. The point remains the conventional quadratic estimate; the interval center is bias-corrected and can differ from that point.",
+  "Nonlinear transformations use the full delta-method gradient and covariance at the corrected coordinates. First-order log-log elasticity instead inverts the joint normal ratio test by Fieller's method; the reported standard_error is still a delta approximation, and an unbounded confidence set withholds a finite scalar interval. Fieller's normal-theory construction supplies no exact finite-sample guarantee for these estimated local coordinates.",
+  "Bias correction follows the higher-order-fit construction, with a quartic rather than merely a cubic where the leading interior even-parity bias requires it. The cited coverage theory assumes an IID regression sample, compactly supported kernels and suitable shrinking bandwidths; this implementation uses cross-fitted pseudo-outcomes, an unbounded Gaussian kernel and a caller-fixed bandwidth. Higher-order smoothing bias, fitted-nuisance uncertainty, bandwidth selection, and simultaneous coverage remain outside the frequentist interval; no coverage-error optimality theorem is inherited.",
+  "The Bayesian route uses Dirichlet(1,...,1)/Exp(1) row weights, refits both cross-fitted nuisances and rebuilds the pseudo-outcome on every draw, then fits the weighted quadratic and corrected higher-order coordinates. The reported value averages conventional draws; equal-tail credible bounds and standard_error use corrected draws. Bandwidth, folds, knots and penalties stay fixed. This is a Bayesian-bootstrap construction, not a coefficient-posterior claim or a frequentist Fieller interval.",
 ]
 
 upstream_implementations_observed = []
@@ -27,5 +32,8 @@ upstream_implementations_observed = []
 test_sources = [
  "conformance/response/staged_derivatives",
   "crates/antecedent-estimate/src/response/tests.rs",
+  "crates/antecedent-estimate/src/response/derivative.rs",
+  "crates/antecedent-estimate/src/response/transform.rs",
+  "crates/antecedent-estimate/src/response/bayes.rs",
   "crates/antecedent-stats/src/response.rs",
 ]
