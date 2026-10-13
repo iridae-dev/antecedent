@@ -180,6 +180,12 @@ pub(crate) fn declared_exceeds_usize_limit(declared: Option<u64>, limit: usize) 
     }
 }
 
+impl From<std::io::Error> for IoError {
+    fn from(value: std::io::Error) -> Self {
+        Self::Io(value.to_string())
+    }
+}
+
 #[cfg(test)]
 mod count_tests {
     use super::{IoError, declared_exceeds_usize_limit, fit_u64, lossless_u64};
@@ -211,11 +217,5 @@ mod count_tests {
         assert!(declared_exceeds_usize_limit(Some(8), 7));
         assert!(!declared_exceeds_usize_limit(Some(7), 7));
         assert!(declared_exceeds_usize_limit(None, usize::MAX));
-    }
-}
-
-impl From<std::io::Error> for IoError {
-    fn from(value: std::io::Error) -> Self {
-        Self::Io(value.to_string())
     }
 }

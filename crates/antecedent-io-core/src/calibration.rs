@@ -537,7 +537,7 @@ mod tests {
 
     #[test]
     fn construction_index_matches_a_linear_scan() {
-        for record in RECORDS.iter() {
+        for record in &RECORDS {
             let key = key_from(record);
             let indexed: Vec<_> = shipped_candidates(&key)
                 .iter()
@@ -546,7 +546,7 @@ mod tests {
                 .collect();
             assert_eq!(indexed, matching_ids(&key), "{}", record.id);
         }
-        for alias in FUNCTIONAL_IDENTITY_ALIASES.iter() {
+        for alias in &FUNCTIONAL_IDENTITY_ALIASES {
             let Some(record) = RECORDS.iter().find(|record| record.id == alias.record_id) else {
                 continue;
             };
@@ -563,7 +563,7 @@ mod tests {
 
     #[test]
     fn attesting_index_matches_linear_membership() {
-        for record in RECORDS.iter() {
+        for record in &RECORDS {
             assert_eq!(
                 record_attests_current_code(record),
                 ATTESTING_RECORD_IDS.contains(&record.id),

@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::verify::*;
+use super::verify::verify_contract_against_body;
 
 use std::sync::Arc;
 
@@ -24,7 +24,7 @@ use crate::{
     StructuralWeightBasisWire, to_cbor,
 };
 
-/// Acceptance and handoff operation stored as the historical snake_case text.
+/// Acceptance and handoff operation stored as the historical `snake_case` text.
 ///
 /// [`AcceptanceReport`] keeps `Arc<str>` because that type lives in
 /// `antecedent-contract`. These variants are the only texts this crate writes.

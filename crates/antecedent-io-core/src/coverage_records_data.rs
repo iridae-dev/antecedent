@@ -30,7 +30,7 @@ pub struct StaticTable<T: 'static> {
 impl<T: 'static> StaticTable<T> {
     /// `'static` iterator. Prefer this over the [`Deref`] to `[T]`, whose items
     /// are bound to the borrow of the handle.
-    #[must_use]
+    #[must_use = "consume the iterator to visit the coverage records"]
     pub fn iter(&self) -> std::slice::Iter<'static, T> {
         (self.load)().iter()
     }
@@ -62,6 +62,15 @@ impl<T: 'static> IntoIterator for StaticTable<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         (self.load)().iter()
+    }
+}
+
+impl<T: 'static> IntoIterator for &StaticTable<T> {
+    type Item = &'static T;
+    type IntoIter = std::slice::Iter<'static, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }
 
@@ -374,7 +383,7 @@ mod tests {
         let loaded = record_for(id).expect("id round-trip");
         assert_eq!(loaded.id, id);
         assert_eq!(loaded.query, rows[0]["query"].as_str().expect("query"));
-        assert_eq!(loaded.mcse.to_bits(), 0.01595109714094927_f64.to_bits());
+        assert_eq!(loaded.mcse.to_bits(), 0.015_951_097_140_949_27_f64.to_bits());
         assert_eq!(loaded.grid.len(), rows[0]["grid"].as_array().expect("grid").len());
         assert!(ATTESTING_RECORD_IDS.contains(&loaded.id));
         assert!(method_listed(IntervalMethod::AnalyticSe));

@@ -223,8 +223,8 @@ impl LearnedModelWire {
         }
     }
 
-    fn to_model(&self) -> Result<LearnedJointModel, LearnedJointArtifactError> {
-        Ok(LearnedJointModel {
+    fn to_model(&self) -> LearnedJointModel {
+        LearnedJointModel {
             graph: self.graph.to_class(),
             features: self.features.clone(),
             basis_degree: self.basis_degree,
@@ -237,7 +237,7 @@ impl LearnedModelWire {
             },
             max_unsupported_mass: self.max_unsupported_mass,
             conflict_z_threshold: self.conflict_z_threshold,
-        })
+        }
     }
 }
 
@@ -651,7 +651,7 @@ impl LearnedJointArtifactWire {
             return Err(LearnedJointArtifactError::ExpectationMismatch("data identity").into());
         }
         let id = transport_identification_from_wire(&wire.identification);
-        let model = wire.model.to_model()?;
+        let model = wire.model.to_model();
         let sources: Vec<SourceData> = wire.sources.iter().map(source_from_wire).collect();
         let target = TargetData {
             identity: identity_from_wire(&wire.target.identity),

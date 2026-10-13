@@ -1,4 +1,4 @@
-//! Closed model-declaration codes stored as the historical snake_case strings.
+//! Closed model-declaration codes stored as the historical `snake_case` strings.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -2,8 +2,19 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::consume::*;
-use super::replay::*;
+use super::consume::{
+    claim_domains, claim_id_matches, claim_kind_name, claim_value_matches_body, contract_seal_of,
+    identification_product_matches_body, require_nested_digest, require_payload_digest,
+    require_present, require_slot, support_empirical, validate_mixture_masses, weight_basis_name,
+};
+use super::replay::{
+    contract_uses_estimator, is_aipw_contract, is_functional_distribution_contract,
+    is_response_functional_effect_contract, is_scalar_functional_effect_contract,
+    replay_functional_response_grid, verify_checked_aipw, verify_checked_aipw_rows,
+    verify_checked_iv, verify_checked_linear_adjustment, verify_frontdoor_lowering,
+    verify_layer_links, verify_linear_fit_moments, verify_nested_counterfactual_result,
+    verify_temporal_nested_point,
+};
 
 use std::sync::Arc;
 

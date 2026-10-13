@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::consume::*;
+use super::consume::{require_nested_digest, require_payload_digest};
 
 use antecedent_core::IdentityDomain;
 

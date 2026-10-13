@@ -102,6 +102,7 @@ fn finish_dag_wire(
 
 /// How a class reads one DOT document. The parser records edges; the class
 /// decides which marks it can represent.
+#[derive(Clone, Copy)]
 pub(crate) struct DotParseOptions {
     /// `graph` as well as `digraph`. A DAG document rejects `graph`.
     pub allow_graph_keyword: bool,
@@ -136,7 +137,7 @@ pub(crate) fn parse_dot_graph(dot: &str, options: DotParseOptions) -> Result<Par
     lexer.skip_ws_and_comments();
     let kw = lexer.expect_ident()?.to_ascii_lowercase();
     let digraph = kw == "digraph";
-    if !digraph && !(options.allow_graph_keyword && kw == "graph") {
+    if !(digraph || options.allow_graph_keyword && kw == "graph") {
         let expected = if options.allow_graph_keyword { "digraph/graph" } else { "digraph" };
         return Err(IoError::Convert(format!("expected {expected}, found `{kw}`")));
     }

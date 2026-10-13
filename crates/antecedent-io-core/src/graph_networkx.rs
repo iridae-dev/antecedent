@@ -154,12 +154,14 @@ impl NodeLinkEndpoints for NetworkXLink {
     }
 }
 
+type NodeLinkBinding = (Vec<String>, Vec<(u32, u32)>);
+
 /// Intern node-link ids in document order. Edge marks stay on `T` for the
 /// graph class to accept or refuse.
 pub(crate) fn bind_node_link<T: NodeLinkEndpoints>(
     nodes: &[NetworkXNode],
     links: &[T],
-) -> Result<(Vec<String>, Vec<(u32, u32)>), IoError> {
+) -> Result<NodeLinkBinding, IoError> {
     let mut order = Vec::new();
     let mut index = HashMap::new();
     let mut kinds = NodeIdKinds::default();

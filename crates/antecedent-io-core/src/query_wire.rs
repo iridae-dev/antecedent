@@ -1477,7 +1477,7 @@ pub struct InterferenceQueryWire {
     pub probability_draws: u32,
 }
 
-/// Shapley mode tag, stored as the historical snake_case label.
+/// Shapley mode tag, stored as the historical `snake_case` label.
 ///
 /// The sample count stays on [`AllocationMethodWire::Shapley::n`].
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -1491,7 +1491,7 @@ pub enum ShapleyModeWire {
     Permutation,
 }
 
-/// Attribution component set, stored as the historical snake_case label.
+/// Attribution component set, stored as the historical `snake_case` label.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AttributionComponentsWire {
@@ -1534,7 +1534,7 @@ impl From<AttributionComponentsWire> for AttributionComponents {
     }
 }
 
-/// Mediation contrast, stored as the historical snake_case label.
+/// Mediation contrast, stored as the historical `snake_case` label.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum MediationContrastWire {

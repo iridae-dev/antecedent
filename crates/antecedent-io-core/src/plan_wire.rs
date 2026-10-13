@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::convert::{vars_from_raw, vars_to_raw};
 use crate::error::IoError;
 
-/// Data classification, stored as the historical snake_case label.
+/// Data classification, stored as the historical `snake_case` label.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum DataClassificationWire {
@@ -53,7 +53,7 @@ impl From<DataClassificationWire> for DataClassification {
     }
 }
 
-/// Buffer layout, stored as the historical snake_case label.
+/// Buffer layout, stored as the historical `snake_case` label.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum BufferMaterializationWire {
@@ -89,7 +89,7 @@ impl From<BufferMaterializationWire> for BufferMaterialization {
     }
 }
 
-/// Kernel class, stored as the historical snake_case label.
+/// Kernel class, stored as the historical `snake_case` label.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum KernelSelectionWire {

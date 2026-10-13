@@ -264,8 +264,8 @@ impl JointModelWire {
         }
     }
 
-    fn to_model(&self) -> Result<JointTransportModel, JointBayesianArtifactError> {
-        Ok(JointTransportModel {
+    fn to_model(&self) -> JointTransportModel {
+        JointTransportModel {
             graph: self.graph.to_class(),
             features: self.features.clone(),
             varying: self.varying.to_block(),
@@ -277,7 +277,7 @@ impl JointModelWire {
             },
             max_unsupported_mass: self.max_unsupported_mass,
             conflict_z_threshold: self.conflict_z_threshold,
-        })
+        }
     }
 }
 
@@ -735,7 +735,7 @@ impl JointBayesianArtifactWire {
             return Err(JointBayesianArtifactError::ExpectationMismatch("data identity").into());
         }
         let id = transport_identification_from_wire(&wire.identification);
-        let model = wire.model.to_model()?;
+        let model = wire.model.to_model();
         let sources: Vec<SourceData> =
             wire.sources.iter().map(JointSourceWire::to_source).collect();
         let target = TargetData {
