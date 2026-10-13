@@ -6,8 +6,6 @@ use antecedent_core::CausalRng;
 use antecedent_data::TabularData;
 use antecedent_kernels::{ViewError, shuffled_fold_assignment};
 use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
-#[cfg(feature = "gaussian-process")]
-use antecedent_stats::{chol_log_det, chol_solve, cholesky_spd};
 
 use crate::batch::ParentBatch;
 use crate::compile::{CompiledCausalModel, MechanismSlot, ParentGatherPlan};

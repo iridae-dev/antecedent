@@ -15,6 +15,7 @@ use crate::compile::{CompiledCausalModel, MechanismSlot, ParentGatherPlan};
 use crate::error::ModelError;
 
 mod basis;
+#[cfg(feature = "gaussian-process")]
 mod gp;
 mod hierarchical;
 mod linear;
@@ -23,7 +24,7 @@ mod state_space;
 /// Family-specific fitters used by [`fit_family_weighted`].
 pub(super) use basis::*;
 #[cfg(feature = "gaussian-process")]
-pub(super) use gp::{GpGrid, fit_gaussian_process, gp_grid};
+use gp::fit_gaussian_process;
 use hierarchical::{fit_hierarchical_glm, fit_hierarchical_linear};
 use linear::{fit_linear_gaussian, fit_linear_gaussian_weighted};
 /// State-space fitters used by [`fit_family_weighted`].

@@ -8,8 +8,6 @@ use std::sync::Arc;
 use antecedent_stats::{
     FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace, fit_glm_ridge,
 };
-#[cfg(feature = "gaussian-process")]
-use antecedent_stats::{chol_log_det, chol_solve, cholesky_spd};
 
 use super::super::cv::FitFrame;
 use crate::compile::MechanismSlot;

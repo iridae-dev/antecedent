@@ -1,11 +1,15 @@
 //! Gaussian-process mechanism fit.
 
+use std::sync::Arc;
+
+use super::{FitFrame, MechanismSlot};
+
 #[cfg(feature = "gaussian-process")]
 use crate::error::ModelError;
 #[cfg(feature = "gaussian-process")]
 use antecedent_stats::{chol_log_det, chol_solve, cholesky_spd};
 
-/// Row cap for the [`MechanismFamily::GaussianProcess`] grid search.
+/// Row cap for the [`super::MechanismFamily::GaussianProcess`] grid search.
 ///
 /// The fit runs a 25-cell `(ℓ, σ)` grid where every cell builds an O(n²) dense
 /// Gram matrix and factors it with an O(n³) Cholesky, and family scoring refits
@@ -16,7 +20,7 @@ use antecedent_stats::{chol_log_det, chol_solve, cholesky_spd};
 /// `fit_family(GaussianProcess)` refuses with [`ModelError::Unsupported`]
 /// instead of silently hanging; because model selection records failed
 /// families and picks among the rest, the refusal is surfaced in
-/// [`MechanismAssignment::failed_families`] and another family is selected.
+/// [`crate::registry::MechanismAssignment::failed_families`] and another family is selected.
 #[cfg(feature = "gaussian-process")]
 pub const GP_FAMILY_MAX_ROWS: usize = 1_000;
 

@@ -18,8 +18,6 @@ use antecedent_core::VariableId;
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
 use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
-#[cfg(feature = "gaussian-process")]
-use antecedent_stats::{chol_log_det, chol_solve, cholesky_spd};
 
 use crate::compile::{CompiledCausalModel, CompiledMechanismStore, MechanismSlot};
 use crate::error::ModelError;
@@ -967,7 +965,7 @@ mod tests {
     #[test]
     fn gaussian_process_matches_exact_logdet_oracle() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../conformance/gcm/gaussian_process/expected.json"
+            "../../../../conformance/gcm/gaussian_process/expected.json"
         ))
         .unwrap();
         let (data, y) = gp_oracle_table(1.0, 1.0, 0.0);

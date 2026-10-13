@@ -4,8 +4,6 @@ use super::{data_rss, fit_ar1, fit_linear_gaussian, residual_sigma};
 use std::sync::Arc;
 
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
-#[cfg(feature = "gaussian-process")]
-use antecedent_stats::{chol_log_det, chol_solve, cholesky_spd};
 
 use super::super::cv::FitFrame;
 use crate::basis::column_moments;

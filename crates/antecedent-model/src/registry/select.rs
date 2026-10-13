@@ -2,8 +2,6 @@
 
 use antecedent_core::{ValueType, VariableId};
 use antecedent_data::{TableView, TabularData};
-#[cfg(feature = "gaussian-process")]
-use antecedent_stats::{chol_log_det, chol_solve, cholesky_spd};
 
 use super::{LOW_CARDINALITY_MAX_LEVELS, LOW_CARDINALITY_MIN_ROWS_PER_LEVEL, MechanismTyping};
 

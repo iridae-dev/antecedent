@@ -6,8 +6,6 @@ use std::sync::Arc;
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, GlmOptions, LeastSquaresWorkspace, MultinomialDesignRef,
 };
-#[cfg(feature = "gaussian-process")]
-use antecedent_stats::{chol_log_det, chol_solve, cholesky_spd};
 
 use super::super::MechanismFamily;
 use super::super::cv::FitFrame;
