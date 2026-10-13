@@ -586,7 +586,7 @@ impl Searcher<'_> {
         let mut sufficient: Vec<Vec<usize>> = Vec::new();
         let mut combos = Subsets::new(n_studies, depth);
         let mut stopped = None;
-        while let Some(combo) = combos.next() {
+        for combo in combos.by_ref() {
             if covered(&sufficient, &combo) {
                 walk.dominated += 1;
                 continue;

@@ -253,7 +253,7 @@ fn build_table_with(
         }
         let mut columns = Vec::with_capacity(action.inputs.len());
         for (position, quantity) in action.inputs.iter().enumerate() {
-            let column = locate(&parsed, &action.id, position, quantity)?;
+            let column = locate(parsed, &action.id, position, quantity)?;
             if mask.is_some_and(|m| !m[column]) {
                 return Err(DecisionEvalError::UnsupportedCoordinate {
                     action: action.id.clone(),

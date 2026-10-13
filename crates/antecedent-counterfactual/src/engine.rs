@@ -402,10 +402,7 @@ impl CounterfactualEngine {
             let mut rng =
                 ctx.rng.stream_for(StreamDomain::Counterfactual, predict_world_stream(wi));
             evaluate_world_into(
-                &self.model,
-                exo,
-                &overlay,
-                None,
+                WorldEvaluation { model: &self.model, exo, overlay: &overlay, frozen: None },
                 &mut rng,
                 &mut values,
                 &mut parent_buf,
@@ -930,16 +927,22 @@ fn column_is_finite_constant(col: &[f64]) -> Option<f64> {
 /// columns). The mechanism slot is borrowed unless a soft overlay replaces it.
 /// `rng` is the caller's stream. [`CounterfactualEngine::predict`] passes each
 /// world its own stream from [`predict_world_stream`].
+#[derive(Clone, Copy)]
+struct WorldEvaluation<'a> {
+    model: &'a CompiledCausalModel,
+    exo: &'a ExogenousPosterior,
+    overlay: &'a InterventionOverlay,
+    frozen: Option<&'a [bool]>,
+}
+
 fn evaluate_world_into(
-    model: &CompiledCausalModel,
-    exo: &ExogenousPosterior,
-    overlay: &InterventionOverlay,
-    frozen: Option<&[bool]>,
+    evaluation: WorldEvaluation<'_>,
     rng: &mut CausalRng,
     values: &mut ValueBatchMut<'_>,
     parent_buf: &mut Vec<f64>,
     ws: &mut MechanismWorkspace,
 ) -> Result<(), CounterfactualError> {
+    let WorldEvaluation { model, exo, overlay, frozen } = evaluation;
     let n_units = exo.n_units;
     for gather in model.parent_gathers.iter() {
         let node = gather.child;
@@ -1028,10 +1031,7 @@ fn nested_column_frozen_mean(
     let mut values = ValueBatchMut::new(n_units, n_nodes, &mut values_buf)?;
     let mut parent_buf = Vec::new();
     evaluate_world_into(
-        &engine.model,
-        exo,
-        overlay,
-        Some(is_frozen),
+        WorldEvaluation { model: &engine.model, exo, overlay, frozen: Some(is_frozen) },
         &mut rng,
         &mut values,
         &mut parent_buf,

@@ -701,7 +701,7 @@ impl RankDrawStats {
 
     fn uncertainty_ok(&self, z: f64, threshold: f64) -> bool {
         let k = self.means.len();
-        if k < 2 || self.means.first().map(Welford::count).unwrap_or(0) == 0 {
+        if k < 2 || self.means.first().map_or(0, Welford::count) == 0 {
             return true;
         }
         let mut order: Vec<usize> = (0..k).collect();
@@ -961,7 +961,7 @@ impl EntropyChannel {
         for (&w, &cat) in self.weights.iter().zip(&self.cat_of) {
             total += w * self.likelihood(reliability, y, cat);
         }
-        if !(total > 0.0) {
+        if total.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
             return 0.0;
         }
         let mut h = 0.0;

@@ -293,9 +293,9 @@ fn resolve_trust(evidence: &TrustEvidence, provider_id: &str, snapshot_id: &str)
             // A receipt may verify several exact requests of one provider; the
             // input is backed only by one that names this provider and snapshot.
             let verified =
-                receipt.requests().iter().map(|request| request.identity()).find(|object| {
-                    object.provider_id == provider_id && object.snapshot_id == snapshot_id
-                });
+                receipt.requests().iter().map(antecedent_contract::VerifiedRequest::identity).find(
+                    |object| object.provider_id == provider_id && object.snapshot_id == snapshot_id,
+                );
             match verified {
                 Some(object) => Resolved {
                     kind: ProviderKind::ExternalExactRequestVerified,

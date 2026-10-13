@@ -607,7 +607,7 @@ fn external_law_for_other_prior_draws_or_sample_size_refuses() {
 struct ReportingSize(u64);
 
 impl DecisionSignal<f64> for ReportingSize {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "reporting_size"
     }
 
