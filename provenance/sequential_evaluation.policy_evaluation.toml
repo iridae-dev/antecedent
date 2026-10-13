@@ -1,0 +1,30 @@
+# Algorithm provenance for sequential_evaluation.policy_evaluation (see docs/sequential-evaluation.md).
+
+feature_id = "sequential_evaluation.policy_evaluation"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "A new approach to causal inference in mortality studies with a sustained exposure period: application to control of the healthy worker survivor effect (Robins, Mathematical Modelling 7:1393-1512)", doi = "10.1016/0270-0255(86)90088-6", sections = ["The g-computation algorithm formula for time-varying treatments"] },
+ { title = "Marginal Mean Models for Dynamic Regimes (Murphy, van der Laan and Robins, J Am Stat Assoc 96:1410-1423)", doi = "10.1198/016214501753382327", sections = ["Dynamic regimes and the value of a regime"] },
+ { title = "Planning and acting in partially observable stochastic domains (Kaelbling, Littman and Cassandra, Artif Intell 101:99-134)", doi = "10.1016/S0004-3702(98)00023-X", sections = ["Belief states and the Bayesian belief update"] },
+ { title = "A Generalization of Sampling Without Replacement from a Finite Universe (Horvitz and Thompson, J Am Stat Assoc 47:663-685)", doi = "10.1080/01621459.1952.10483446", sections = ["The inverse-probability weighted estimator"] },
+]
+
+implementation_deviations = [
+ "Evaluates a supplied finite-horizon policy on a declared finite model by exact enumeration of observed histories; it does not estimate nuisance models, learn or optimize a policy, or implement a planner.",
+ "The sequential importance-weighting estimator applies the Horvitz-Thompson identity along the policy steps with the logged assignment probabilities; it is the ordinary and self-normalized estimator only, with no doubly robust or marginalized weights.",
+ "Belief updates use the measurement model's declared parameters as exact; their estimation uncertainty is not propagated.",
+ "Only a point value is produced; the importance-weighting standard error and the rollout error are uncalibrated diagnostics and no interval is licensed.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "hand-solved finite decision tree with delayed outcomes and a stopping boundary",
+ "independent forward joint-probability enumeration written in the test",
+ "enumerated finite logged population under a dyadic logging policy",
+]
