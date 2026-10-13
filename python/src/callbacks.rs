@@ -31,14 +31,14 @@ use crate::interrupt::callback_failure;
 static INSPECT_SIGNATURE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static NUMPY_DEFAULT_RNG: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
-fn inspect_signature<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+fn inspect_signature(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
     let func = INSPECT_SIGNATURE.get_or_try_init(py, || -> PyResult<_> {
         Ok(py.import("inspect")?.getattr("signature")?.unbind())
     })?;
     Ok(func.bind(py).clone())
 }
 
-fn numpy_default_rng<'py>(py: Python<'py>, seed: u64) -> PyResult<Bound<'py, PyAny>> {
+fn numpy_default_rng(py: Python<'_>, seed: u64) -> PyResult<Bound<'_, PyAny>> {
     let func = NUMPY_DEFAULT_RNG.get_or_try_init(py, || -> PyResult<_> {
         Ok(py.import("numpy.random")?.getattr("default_rng")?.unbind())
     })?;

@@ -2005,11 +2005,11 @@ impl super::Study {
         let route =
             GraphPosteriorFrequentistRoute { data, query, run: &run, estimator_id, conditional };
         let atoms =
-            self.estimate_graph_posterior_frequentist_atoms(&route, &identified, &graphs, ctx)?;
+            Self::estimate_graph_posterior_frequentist_atoms(&route, &identified, &graphs, ctx)?;
         let mix =
             mix_graph_posterior_frequentist_atoms(&identified.graphs, subsample_drop.mass, atoms)?;
         let mut diagnostics = graph_posterior_frequentist_diagnostics(&mix, subsample_notes);
-        let (refutations, na_diagnostics) = self.refute_graph_posterior_frequentist(
+        let (refutations, na_diagnostics) = Self::refute_graph_posterior_frequentist(
             &route,
             matches!(mix.mixed.policy, StructuralAggregationPolicy::GraphDependentAtoms),
             &mix.refute_atoms,
@@ -2049,7 +2049,6 @@ impl super::Study {
     /// Per-atom linear-adjustment estimates for the atoms the Interactive subsample kept,
     /// with each atom's weighted SE item and row-aligned influence function.
     fn estimate_graph_posterior_frequentist_atoms(
-        &self,
         route: &GraphPosteriorFrequentistRoute<'_>,
         identified: &super::super::prepared::CachedGraphPosteriorIdentification,
         graphs: &WeightedGraphSamples,
@@ -2135,7 +2134,6 @@ impl super::Study {
     /// Refutation suite over the Frequentist graph-posterior atoms: per atom when the mix is
     /// graph-dependent, the pooled envelope refutation otherwise.
     fn refute_graph_posterior_frequentist(
-        &self,
         route: &GraphPosteriorFrequentistRoute<'_>,
         graph_dependent: bool,
         refute_atoms: &[EnvelopeRefuteAtom],

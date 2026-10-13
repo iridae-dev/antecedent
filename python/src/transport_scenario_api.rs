@@ -377,7 +377,7 @@ fn prepare_transport_scenarios_stage(
                 antecedent::StudyBuilder::conditional_transport_scenarios(
                     &set,
                     ConditionalTransportQuery { base: query, conditioned_on },
-                    antecedent::EvidenceSearch { catalog: catalog, budget: budget },
+                    antecedent::EvidenceSearch { catalog, budget },
                     data,
                     request,
                     evaluation,
@@ -387,7 +387,7 @@ fn prepare_transport_scenarios_stage(
             (Provider::Exact(data), None) => antecedent::StudyBuilder::transport_scenarios(
                 &set,
                 query,
-                antecedent::EvidenceSearch { catalog: catalog, budget: budget },
+                antecedent::EvidenceSearch { catalog, budget },
                 data,
                 request,
                 evaluation,
@@ -397,11 +397,8 @@ fn prepare_transport_scenarios_stage(
                 antecedent::StudyBuilder::transport_scenarios_empirical(
                     &set,
                     query,
-                    antecedent::EvidenceSearch { catalog: catalog, budget: budget },
-                    antecedent::EmpiricalScenarioInput {
-                        input: input,
-                        max_joint_cells: max_support_rows,
-                    },
+                    antecedent::EvidenceSearch { catalog, budget },
+                    antecedent::EmpiricalScenarioInput { input, max_joint_cells: max_support_rows },
                     request,
                     evaluation,
                     &ctx,

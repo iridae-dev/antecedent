@@ -30,7 +30,7 @@ pub struct StaticTable<T: 'static> {
 impl<T: 'static> StaticTable<T> {
     /// `'static` iterator. Prefer this over the [`Deref`] to `[T]`, whose items
     /// are bound to the borrow of the handle.
-    #[must_use]
+    #[must_use = "iterate the table or use the returned rows"]
     pub fn iter(&self) -> std::slice::Iter<'static, T> {
         (self.load)().iter()
     }

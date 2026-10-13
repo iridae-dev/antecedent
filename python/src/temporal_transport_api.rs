@@ -299,7 +299,7 @@ fn prepare_temporal_transport_stage(
             &spec,
             antecedent::SequenceEndpoints { sequence: &sequence, source: &source, target: &target },
             antecedent::EvidenceSearch {
-                catalog: catalog,
+                catalog,
                 budget: SearchLimits { operations: max_steps, depth: max_depth },
             },
             data,

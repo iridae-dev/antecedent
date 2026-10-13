@@ -258,7 +258,7 @@ pub(crate) fn parse_estimator_config(
                 antecedent_core::reason_code!("route_not_supported"),
                 message.as_str(),
             ));
-            return Err(crate::value_err_code(code, tail.to_string()));
+            return Err(crate::value_err_code(code, tail));
         }
         if !valid_keys.contains(&key.as_str()) {
             let owners = estimators_accepting(&key);

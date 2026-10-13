@@ -103,7 +103,7 @@ fn parse_quantity(json: &str) -> PyResult<ScientificQuantity> {
     check_size(json)?;
     let wire: ScientificQuantityWire = serde_json::from_str(json)
         .map_err(|e| crate::value_err(format!("invalid coordinate: {e}")))?;
-    ScientificQuantity::try_from(wire).map_err(|e| crate::value_err(e.to_owned()))
+    ScientificQuantity::try_from(wire).map_err(crate::value_err)
 }
 
 fn parse_quantities(json: &str) -> PyResult<Vec<ScientificQuantity>> {
@@ -112,7 +112,7 @@ fn parse_quantities(json: &str) -> PyResult<Vec<ScientificQuantity>> {
         .map_err(|e| crate::value_err(format!("invalid coordinates: {e}")))?;
     wires
         .into_iter()
-        .map(|wire| ScientificQuantity::try_from(wire).map_err(|e| crate::value_err(e.to_owned())))
+        .map(|wire| ScientificQuantity::try_from(wire).map_err(crate::value_err))
         .collect()
 }
 
@@ -585,7 +585,7 @@ fn composition_input_from_external_claim(
         .cloned()
         .map(ScientificQuantity::try_from)
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| crate::value_err(error))?;
+        .map_err(crate::value_err)?;
     let statuses = identity
         .point_status
         .iter()

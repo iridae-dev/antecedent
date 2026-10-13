@@ -191,7 +191,7 @@ fn mediation_dag() -> Dag {
     g
 }
 
-fn dag_for(cell: &antecedent::SupportCell, n: u32) -> Dag {
+fn dag_for(cell: antecedent::SupportCell, n: u32) -> Dag {
     match cell.query.as_str() {
         "MediationEffect" | "PathSpecificEffect" | "NestedCounterfactualEffect" => mediation_dag(),
         "AverageDerivative"
@@ -293,13 +293,13 @@ fn pag_envelope_fixture() -> (TabularData, Pag) {
     (data, pag)
 }
 
-fn uses_pag_envelope(cell: &antecedent::SupportCell) -> bool {
+fn uses_pag_envelope(cell: antecedent::SupportCell) -> bool {
     cell.graph_class.as_str() == "Pag"
         && matches!(cell.query.as_str(), "AverageEffect" | "ConditionalEffect")
         && cell.structure.as_str() != "graph_posterior"
 }
 
-fn uses_identified_temporal_pag(cell: &antecedent::SupportCell) -> bool {
+fn uses_identified_temporal_pag(cell: antecedent::SupportCell) -> bool {
     cell.graph_class.as_str() == "TemporalPag"
         && cell.structure.as_str() != "graph_posterior"
         && !matches!(
@@ -344,7 +344,7 @@ fn identified_pag_pin() -> serde_json::Value {
 // A confounder triangle read as a MAG leaves `t -> y` invisible (nothing points
 // into `t` from outside `y`'s neighbourhood), so PAG responses are refused on
 // it; these cells need the fixture whose treatment edge has a visibility witness.
-fn uses_pag_response_curve(cell: &antecedent::SupportCell) -> bool {
+fn uses_pag_response_curve(cell: antecedent::SupportCell) -> bool {
     cell.graph_class.as_str() == "Pag"
         && matches!(cell.query.as_str(), "ResponseCurve" | "InterventionResponse")
 }
@@ -598,7 +598,7 @@ fn intervention_response(treatments: &[u32], outcome: u32, temporal: bool) -> Ca
     clippy::too_many_lines,
     reason = "one arm per support-matrix cell maps the cell to its literal query"
 )]
-fn query_for(cell: &antecedent::SupportCell) -> CausalQuery {
+fn query_for(cell: antecedent::SupportCell) -> CausalQuery {
     let temporal_graph =
         matches!(cell.graph_class.as_str(), "TemporalDag" | "TemporalCpdag" | "TemporalPag");
     match cell.query.as_str() {
@@ -770,12 +770,12 @@ fn query_for(cell: &antecedent::SupportCell) -> CausalQuery {
     }
 }
 
-fn needs_series(cell: &antecedent::SupportCell) -> bool {
+fn needs_series(cell: antecedent::SupportCell) -> bool {
     matches!(cell.query.as_str(), "PulseEffect" | "SustainedEffect" | "TemporalMediationEffect")
         || matches!(cell.graph_class.as_str(), "TemporalDag" | "TemporalCpdag" | "TemporalPag")
 }
 
-fn point_family_query(cell: &antecedent::SupportCell) -> bool {
+fn point_family_query(cell: antecedent::SupportCell) -> bool {
     matches!(
         cell.query.as_str(),
         "TemporalConditionalPulse"
@@ -797,7 +797,7 @@ fn point_family_query(cell: &antecedent::SupportCell) -> bool {
     clippy::match_same_arms,
     reason = "one arm per support-matrix query kind, in matrix order, so each reads against the row it mirrors"
 )]
-fn n_vars(cell: &antecedent::SupportCell) -> u32 {
+fn n_vars(cell: antecedent::SupportCell) -> u32 {
     if cell.graph_class.as_str() == "TemporalPag"
         && cell.structure.as_str() == "graph_posterior"
         && point_family_query(cell)
@@ -844,8 +844,8 @@ struct CellSetup {
     clippy::too_many_lines,
     reason = "one arm per support-matrix cell maps the cell to its builder setup"
 )]
-fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
-    let expected = cell_coordinate(*cell);
+fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
+    let expected = cell_coordinate(cell);
     let query = query_for(cell);
     let n = n_vars(cell);
     let series = needs_series(cell);
@@ -1156,7 +1156,7 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
     reason = "one arm per optional-estimator cell maps the cell to its builder setup, in matrix order"
 )]
 fn optional_estimator_setup(
-    cell: &antecedent::SupportCell,
+    cell: antecedent::SupportCell,
     estimator: EstimatorId,
 ) -> Result<CellSetup, String> {
     let name = estimator.as_str();
@@ -1194,7 +1194,7 @@ fn optional_estimator_setup(
         return Ok(setup);
     };
 
-    let expected = cell_coordinate(*cell);
+    let expected = cell_coordinate(cell);
     let accepted = cell.structure.as_str() == "accepted";
     let n = 120usize;
     let (data, query, graph, identifier, rd) = match kind {
@@ -1346,7 +1346,7 @@ fn inspect_setup(setup: &CellSetup) -> Result<antecedent::CausalContract, String
 }
 
 fn inspect_cell(cell: antecedent::SupportCell) -> Result<antecedent::CausalContract, String> {
-    inspect_setup(&cell_setup(&cell)?)
+    inspect_setup(&cell_setup(cell)?)
 }
 
 /// The identifier and estimator a licensed cell's execution ran, as recorded on its
@@ -1469,7 +1469,7 @@ fn every_licensed_query_has_a_fixture_profile() {
         let cell =
             antecedent::SupportCell::from_labels(query, "Dag", "explicit", "Frequentist", "none")
                 .expect("fixture support axis");
-        let _ = dag_for(&cell, 4);
+        let _ = dag_for(cell, 4);
     }
 }
 
@@ -1480,7 +1480,7 @@ fn every_licensed_cell_completes_the_compiler_path() {
     let mut n = 0usize;
     for cell in licensed_support_cells() {
         n += 1;
-        match cell_setup(&cell).and_then(consume_setup) {
+        match cell_setup(cell).and_then(consume_setup) {
             Ok(route) => routes.push(route),
             Err(err) => failures.push(err),
         }
@@ -1524,7 +1524,7 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
         count += 1;
         let coordinate = cell_coordinate(cell);
         let probe = (|| -> Result<(String, String), String> {
-            let setup = cell_setup(&cell)?;
+            let setup = cell_setup(cell)?;
             let CellSetup { expected: _, builder, data } = setup;
             let ctx = ExecutionContext::for_tests(1);
             let study = builder.clone().build().map_err(|e| format!("build: {e}"))?;
@@ -1673,7 +1673,7 @@ fn diagnostic_optional_estimator_closure_after_builder_and_study_drop() {
         }
 
         let probe = (|| -> Result<(), String> {
-            let CellSetup { builder, data, .. } = optional_estimator_setup(&cell, estimator)?;
+            let CellSetup { builder, data, .. } = optional_estimator_setup(cell, estimator)?;
             let ctx = ExecutionContext::for_tests(1);
             let study = builder.clone().build().map_err(|e| format!("build: {e}"))?;
             let mut prepared = study.prepare(&ctx).map_err(|e| format!("prepare: {e}"))?;

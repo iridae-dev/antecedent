@@ -218,7 +218,7 @@ fn json_string(text: &str) -> String {
     serde_json::Value::String(text.to_owned()).to_string()
 }
 
-fn json_opt(text: &Option<String>) -> String {
+fn json_opt(text: Option<&String>) -> String {
     match text {
         Some(text) => json_string(text),
         None => "null".to_owned(),
@@ -231,11 +231,11 @@ fn wire_json(wire: &antecedent_io::external_binding_wire::RefusalWire) -> String
         json_string(&wire.code),
         json_string(&wire.stage),
         json_string(&wire.detail),
-        json_opt(&wire.offending),
-        json_opt(&wire.expected),
-        json_opt(&wire.supplied),
-        json_opt(&wire.capability),
-        json_opt(&wire.remedy),
+        json_opt(wire.offending.as_ref()),
+        json_opt(wire.expected.as_ref()),
+        json_opt(wire.supplied.as_ref()),
+        json_opt(wire.capability.as_ref()),
+        json_opt(wire.remedy.as_ref()),
     )
 }
 

@@ -600,8 +600,8 @@ impl ObservationRecoveryStage {
                 effect,
                 derivation,
                 antecedent::RecoveryEvaluation {
-                    observed: observed,
-                    requests: requests,
+                    observed,
+                    requests,
                     limits: ExactEvaluationLimits { operations: max_operations, depth: max_depth },
                 },
                 &ctx,

@@ -354,7 +354,7 @@ impl PyPreparedAnalysis {
                     // An incomplete payload stays the ValueError it always was.
                     antecedent::CausalError::Compile { message } => crate::value_err(message),
                     antecedent::CausalError::Rejected(failure) => {
-                        crate::value_err(failure.message().to_owned())
+                        crate::value_err(failure.message())
                     }
                     other => py_err(other),
                 })?;

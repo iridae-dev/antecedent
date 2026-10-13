@@ -264,8 +264,13 @@ mod tests {
         for token in &live {
             link(token);
         }
-        let queued = PENDING
-            .with(|pending| pending.borrow().iter().filter_map(|weak| weak.upgrade()).count());
+        let queued = PENDING.with(|pending| {
+            pending
+                .borrow()
+                .iter()
+                .filter_map(antecedent_core::WeakCancellationToken::upgrade)
+                .count()
+        });
         assert_eq!(queued, live.len());
         PENDING.with(|pending| pending.borrow_mut().clear());
     }
