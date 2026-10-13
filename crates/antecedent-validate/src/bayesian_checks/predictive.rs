@@ -15,6 +15,7 @@ use antecedent_stats::GlmFamily;
 
 use crate::common::RefutationReport;
 use crate::error::ValidationError;
+use crate::predictive_assessment::PredictiveReplicates;
 
 use super::calibration::{push_mean_and_dispersion, summarize_predictive_check};
 use super::sbc::{prior_correlation_cholesky, prior_standard_normals};
@@ -850,6 +851,56 @@ impl PosteriorPredictiveCheck {
             report.residual_p_value = omnibus;
         }
         Ok(report)
+    }
+
+    /// The replicate outcomes [`Self::check`] summarizes, as draw-major
+    /// [`PredictiveReplicates`] over the design rows.
+    ///
+    /// Same parameter-draw selection and replicate-noise stream as the check, so
+    /// the replicates are the ones its discrepancy statistics describe. Each
+    /// row's replicates are a predictive sample law that
+    /// [`crate::predictive_assessment`] scores (CRPS) and checks (PIT) through
+    /// the one scoring surface.
+    ///
+    /// # Errors
+    ///
+    /// Missing coefficients / empty draws.
+    pub fn replicates(
+        &self,
+        problem: &PreparedBayesianProblem,
+        posterior: &CausalPosterior,
+    ) -> Result<PredictiveReplicates, ValidationError> {
+        let n = problem.design.nrows;
+        let p = problem.design.ncols;
+        let total = posterior.draws.n_draws;
+        let n_draws = total.min(self.n_sims as usize);
+        if n_draws == 0 {
+            return Err(ValidationError::estimation_msg("no posterior draws for PPC"));
+        }
+        let mut rng = CausalRng::from_seed(self.seed ^ REPLICATE_NOISE_STREAM);
+        let mut values = Vec::with_capacity(n_draws * n);
+        let mut y_pred = vec![0.0; n];
+        let mut beta = vec![0.0; p];
+        for k in 0..n_draws {
+            let d = strided_draw_index(k, n_draws, total);
+            for (c, slot) in beta.iter_mut().enumerate() {
+                *slot = posterior.draws.get(d, c).map_err(ValidationError::from)?;
+            }
+            fitted_means(problem, &beta, self.family, &mut y_pred);
+            let sigma = if self.family == GlmFamily::GaussianIdentity {
+                let ssr: f64 =
+                    problem.design.outcome.iter().zip(&y_pred).map(|(y, m)| (y - m).powi(2)).sum();
+                let chi2 = sample_gamma(n as f64 / 2.0, 0.5, &mut rng);
+                (ssr / chi2.max(f64::MIN_POSITIVE)).sqrt()
+            } else {
+                0.0
+            };
+            add_observation_noise(self.family, sigma, &mut y_pred, &mut rng);
+            values.extend_from_slice(&y_pred);
+        }
+        PredictiveReplicates::new(n_draws, n, values).map_err(|error| {
+            ValidationError::estimation_msg(format!("replicates are not a predictive law: {error}"))
+        })
     }
 
     /// [`Self::check`] plus the temporal [`SerialDiscrepancy`] axis.

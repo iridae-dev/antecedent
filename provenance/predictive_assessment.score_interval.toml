@@ -1,0 +1,15 @@
+feature_id = "predictive_assessment.score_interval"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: a closed variant; no method is implemented, so there is nothing to cite.
+papers = [
+]
+implementation_deviations = [
+  "Intentionally implements nothing: the interval route stays closed until whole-method coverage is measured at a declared sampling design.",
+]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs", "crates/antecedent/tests/predictive_assessment_facade.rs"]

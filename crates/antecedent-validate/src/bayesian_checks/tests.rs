@@ -203,6 +203,42 @@ fn prior_and_posterior_ppc_run() {
 }
 
 #[test]
+fn posterior_predictive_replicates_are_the_replicates_the_check_summarizes() {
+    use crate::predictive_assessment::ForecastLaw;
+
+    let (data, estimand, query) = toy();
+    let bayes = BayesianGComputationAte {
+        backend: BayesianBackendKind::ConjugateGaussian,
+        n_draws: 100,
+        seed: 2,
+        prior_scale: 10.0,
+        ..BayesianGComputationAte::new()
+    };
+    let prep = bayes.prepare(&data, &estimand, &query).unwrap();
+    let ctx = ExecutionContext::for_tests(1);
+    let mut ws = BayesianGCompWorkspace::default();
+    let post =
+        bayes.fit(&prep, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx).unwrap();
+    let check = PosteriorPredictiveCheck { n_sims: 50, ..PosteriorPredictiveCheck::new() };
+    let report = check.check(&prep, &post).unwrap();
+    let replicates = check.replicates(&prep, &post).unwrap();
+    assert_eq!(replicates.draws(), 50);
+    assert_eq!(replicates.observations(), prep.design.nrows);
+    // Each row's replicates are a sample law; their grand mean is the check's predictive mean.
+    let mut total = 0.0;
+    let mut count = 0_usize;
+    for law in replicates.laws() {
+        let ForecastLaw::EmpiricalSample { draws } = law else {
+            panic!("a replicate set is scored as sample laws");
+        };
+        assert_eq!(draws.len(), 50);
+        total += draws.iter().sum::<f64>();
+        count += draws.len();
+    }
+    assert!((total / count as f64 - report.predictive_mean).abs() < 1e-9);
+}
+
+#[test]
 fn summarize_check_observed_outside_range_never_reports_zero() {
     // Simulated draws are tightly clustered; an observation far outside the
     // range on either side must not collapse the Monte Carlo p-value to

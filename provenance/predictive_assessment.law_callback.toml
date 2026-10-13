@@ -1,0 +1,15 @@
+feature_id = "predictive_assessment.law_callback"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: a closed variant; no method is implemented, so there is nothing to cite.
+papers = [
+]
+implementation_deviations = [
+  "Intentionally implements nothing: callback laws are refused by name; a provider law is accepted only as materialized finite, sample or evaluated values.",
+]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs"]

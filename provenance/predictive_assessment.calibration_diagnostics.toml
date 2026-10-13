@@ -1,0 +1,19 @@
+feature_id = "predictive_assessment.calibration_diagnostics"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Probabilistic Forecasts, Calibration and Sharpness (Gneiting, Balabdaoui and Raftery, J. R. Stat. Soc. B 69(2), 2007)", doi = "10.1111/j.1467-9868.2007.00587.x", sections = ["probabilistic calibration, the PIT, and sharpness"] },
+ { title = "Predictive Model Assessment for Count Data (Czado, Gneiting and Held, Biometrics 65(4), 2009)", doi = "10.1111/j.1541-0420.2009.01191.x", sections = ["the non-randomized PIT histogram for discrete predictive distributions"] },
+ { title = "Statistical Theory: The Prequential Approach (Dawid, J. R. Stat. Soc. A 147(2), 1984)", doi = "10.2307/2981683", sections = ["the PIT of sequential forecasts is uniform under the true law"] },
+]
+implementation_deviations = [
+  "The PIT histogram of a discrete or ensemble law is the non-randomized form (mass spread uniformly over [F(y-), F(y)]); the KS distance is computed on the mid-PIT, which is discrete for ensembles and has a floor of order 1/m, so it is descriptive.",
+  "No test, p-value or significance level is attached to any diagnostic: independence of the cases is not assumed, and no coordinate has measured calibration.",
+  "Central prediction intervals of a sample use the exchangeable-rank (type 6) quantile; intervals of a finite law use the quantile function with a 1e-12 tolerance on the cumulative probability.",
+]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs"]

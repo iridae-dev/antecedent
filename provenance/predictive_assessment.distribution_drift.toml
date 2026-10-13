@@ -1,0 +1,16 @@
+feature_id = "predictive_assessment.distribution_drift"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The two-sample Kolmogorov-Smirnov distance is textbook; the population stability index is an industry convention with no introducing paper.
+papers = [
+]
+implementation_deviations = [
+  "The population stability index adds a half-count pseudocount to every bin so that empty bins stay finite; the choice is declared and bound to the route, not a tuned value.",
+  "No significance level is attached to either statistic; the windows are chosen by the caller.",
+]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs"]
