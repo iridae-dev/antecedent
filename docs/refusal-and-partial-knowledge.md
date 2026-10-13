@@ -320,6 +320,95 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `counterfactual_transport_sampled.table_not_cited` | `invalid_argument` | Supply tables only for the populations and regimes the stored derivation cites. |
 | `counterfactual_transport_sampled.unseen_cell` | `transport_support_failure` | Choose a declared additive pseudo-count (smoothed, labelled) or an unseen-mass envelope rule; zero-filling is never done. |
 
+ok
+### Observation-conditioned queries
+
+`observation_query.*`. A conditioning claim and an interventional claim are distinct, and a recorded indicator value is not the construct it measures; a refusal names the declaration or evidence that would license the request. See [observation-queries.md](observation-queries.md).
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `observation_query.arm_mismatch` | `measurement_binding_mismatch` | Declare a model for this arm, or ask about the arm the model covers. |
+| `observation_query.artifact_invalid` | `invalid_argument` | Supply an intact observation_query_v1 artifact of the supported layout. |
+| `observation_query.artifact_refused` | `invalid_argument` | Supply the artifact whose identity equals the retained one and whose result recomputes from its premises. |
+| `observation_query.blank_field` | `invalid_argument` | Name the outcome variable and the variable and level of every slot. |
+| `observation_query.calibrated_probability_closed` | `cell_not_licensed` | None available yet: a probability from a model fitted to a sample is a point value with no claim about how often it is right; calibration needs a measured whole-method record at the query's coordinate. |
+| `observation_query.cancelled` | `cancelled_no_claim` | Rerun without cancellation; the cancellation is not a verdict on the model. |
+| `observation_query.construct_mismatch` | `measurement_binding_mismatch` | Request the construct the model names, or declare a model for the construct asked about. |
+| `observation_query.construct_observed_directly` | `invalid_argument` | Condition on the construct directly or on its measured indicator, not both. |
+| `observation_query.differential_error_unsupported` | `differential_error_not_pooled` | Use a non-differential model; error that differs has no bounded conditioning route and is never pooled. |
+| `observation_query.indicator_kind` | `invalid_argument` | Use a direct slot for an error-free recorded value, or declare the indicator's measurement kind. |
+| `observation_query.indicator_mismatch` | `measurement_binding_mismatch` | Declare a model for this indicator. |
+| `observation_query.interval_route_closed` | `cell_not_licensed` | None available yet: the exact value under the declared model, or the labelled point value of a fitted model, is the result; an interval needs a measured whole-method coverage record. |
+| `observation_query.intervention_in_conditioning_slot` | `quantity_semantics_mismatch` | State an assigned value as an intervention query; a conditioning slot holds only recorded values, and the observed and interventional laws are separate claims. |
+| `observation_query.invalid_declaration` | `invalid_argument` | Supply named levels and distributions that sum to one, with probabilities in range. |
+| `observation_query.level_unreachable` | `evidence_cannot_reach_level` | State a level inside the reachable range, supply a signal with a larger likelihood ratio, or allow more observations; the refusal states the most extreme reachable value. |
+| `observation_query.measured_as_construct` | `proxy_offered_as_construct` | Declare a measurement model (a confusion matrix or reliability) relating the indicator to the construct and condition through it, or ask the question about the recorded indicator itself. |
+| `observation_query.measured_background` | `route_not_supported` | Hold recorded values fixed; condition on a measured signal in a conditional-outcome query. |
+| `observation_query.measurement_route` | `route_not_supported` | Declare a binary-misclassification or categorical-confusion measurement model. |
+| `observation_query.mixed_conditioning_and_intervention` | `route_not_supported` | Ask the conditional and the interventional claims separately; a distribution conditioning on observations after an intervention has no bounded route. |
+| `observation_query.multiple_measured_signals` | `route_not_supported` | Condition on one measured signal per query; several indicators need a joint measurement model. |
+| `observation_query.outcome_assigned` | `invalid_argument` | Ask about an outcome that is not assigned in the same query. |
+| `observation_query.population_mismatch` | `measurement_binding_mismatch` | Establish the measurement model for this population, or declare the invariance premise under a transport contract. |
+| `observation_query.positive_level` | `invalid_argument` | Declare which level of the construct is the positive class. |
+| `observation_query.regime_mismatch` | `measurement_binding_mismatch` | Establish the measurement model for this regime, or declare the invariance premise under a transport contract. |
+| `observation_query.repeated_slot` | `invalid_argument` | Assign each variable at most once. |
+| `observation_query.request_unsupported` | `route_not_supported` | State the query within the bounded finite family. |
+| `observation_query.unknown_level` | `invalid_argument` | Name a declared level in the variable's level coding. |
+| `observation_query.unknown_variable` | `unknown_variable` | Name a variable of the composed model. |
+| `observation_query.zero_probability_evidence` | `invalid_argument` | Condition on values the declared model gives positive probability, or revise the model's support. |
+
+### Scientific bridges
+
+`scientific_bridge.*`. A bridge states the assumptions under which one quantity answers a question about another; a refusal names the declaration, evidence or route that would license the request. A mean, predictive law, posterior, identified set and joint outcome law are never interchanged.
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `scientific_bridge.artifact_invalid` | `invalid_argument` | Supply an intact scientific_bridge_v1 artifact. |
+| `scientific_bridge.association_as_intervention` | `bridge_substitution_refused` | Declare and name the identification under which the predictive quantity equals the causal quantity, or identify the causal quantity from the data. |
+| `scientific_bridge.assumption_evidence_missing` | `bridge_assumption_missing` | Name the identity of the evidence the assumption rests on. |
+| `scientific_bridge.assumption_missing` | `bridge_assumption_missing` | Declare the assumption with an identity and name the evidence it rests on. |
+| `scientific_bridge.blank_field` | `scientific_bridge_invalid` | Name every identity and statement in at most the declared number of bytes. |
+| `scientific_bridge.conditioning_mismatch` | `bridge_binding_mismatch` | Bridge quantities with the same conditioning. |
+| `scientific_bridge.degenerate_validation` | `bridge_mapping_not_licensed` | Validate in trials that differ in their effects. |
+| `scientific_bridge.differential_error` | `differential_error_not_pooled` | Bridge through a non-differential model, or analyse the arms with their own rates. |
+| `scientific_bridge.duplicate_assumption` | `scientific_bridge_invalid` | Give every declared assumption its own identity. |
+| `scientific_bridge.endpoint_classes` | `scientific_bridge_invalid` | Connect the class pair the bridge kind relates. |
+| `scientific_bridge.functional_not_supported` | `bridge_mapping_not_licensed` | State the quantity as a prevalence or risk on the probability scale. |
+| `scientific_bridge.horizon_mismatch` | `bridge_binding_mismatch` | Bridge quantities of one horizon. |
+| `scientific_bridge.identity_mismatch` | `route_not_supported` | Supply the artifact whose recomputed identity equals the retained identity, or regenerate it from the intended bridge. |
+| `scientific_bridge.interval_not_licensed` | `cell_not_licensed` | None available yet: a bridged claim is a point value; whole-method coverage of a bridge is not measured. |
+| `scientific_bridge.invalid_quantity` | `scientific_bridge_invalid` | Name the variable, units, population, regime, functional and transform with canonical conditioning. |
+| `scientific_bridge.malformed_mapping` | `scientific_bridge_invalid` | Declare the mapping within its range. |
+| `scientific_bridge.mapping_not_allowed` | `scientific_bridge_invalid` | Carry the value by a mapping the bridge kind allows. |
+| `scientific_bridge.mapping_scope_mismatch` | `bridge_binding_mismatch` | Establish the model for the bridge's scope, or declare the evidence scope the model was established for. |
+| `scientific_bridge.measurement_model_mismatch` | `bridge_binding_mismatch` | Bridge the quantities the measurement model relates. |
+| `scientific_bridge.measurement_route_not_supported` | `bridge_mapping_not_licensed` | Use a binary-misclassification model, or its own corrected-functional record. |
+| `scientific_bridge.model_identity_mismatch` | `bridge_binding_mismatch` | Name the identity of the measurement model the mapping uses. |
+| `scientific_bridge.model_score_as_probability` | `bridge_substitution_refused` | Use the model's calibrated predictive law where it supplies one; no calibration bridge is licensed for a score. |
+| `scientific_bridge.non_finite_value` | `scientific_bridge_invalid` | Bridge finite point values with finite mapping numbers. |
+| `scientific_bridge.outside_attainable_range` | `bridge_mapping_not_licensed` | Check the declared rates and the recorded value. |
+| `scientific_bridge.outside_validated_range` | `bridge_mapping_not_licensed` | Validate trials that cover the effect; extrapolation is not licensed. |
+| `scientific_bridge.population_mismatch` | `bridge_binding_mismatch` | Bridge quantities of one population; population transport is a separate declared route. |
+| `scientific_bridge.predictive_importance_as_causal_effect` | `bridge_substitution_refused` | Ask the causal question directly: identify and estimate the effect of the feature under a declared graph. |
+| `scientific_bridge.provenance` | `scientific_bridge_invalid` | Derive a claim whose identity differs from its source. |
+| `scientific_bridge.proxy_as_construct` | `proxy_offered_as_construct` | State a measurement model that relates the measured quantity to the construct and bridge through its correction. |
+| `scientific_bridge.quantity_mismatch` | `bridge_binding_mismatch` | Supply a claim about the contract's source quantity. |
+| `scientific_bridge.regime_mismatch` | `bridge_binding_mismatch` | Bridge quantities of one regime. |
+| `scientific_bridge.replay_mismatch` | `invalid_argument` | Regenerate the artifact from the contract and the source claim. |
+| `scientific_bridge.scientific_endpoint_as_utility` | `bridge_substitution_refused` | Declare the utility function that maps the endpoint to decision utility and bridge through it. |
+| `scientific_bridge.source_not_point` | `cell_not_licensed` | Bridge a claim that carries one finite point value. |
+| `scientific_bridge.stated_preference_as_realized_behavior` | `bridge_substitution_refused` | Declare the behavioral linkage by which the stated preference determines the realized choice and name its evidence. |
+| `scientific_bridge.too_many_assumptions` | `scientific_bridge_invalid` | Declare at most the bounded number of assumptions. |
+| `scientific_bridge.transport_premise_mismatch` | `bridge_binding_mismatch` | Declare the premise for exactly the scope the bridge was established in and the scope the claim is about. |
+| `scientific_bridge.transport_premise_missing` | `bridge_assumption_missing` | Declare the transportability premise with its identity and evidence, or establish the bridge in the claim's own population. |
+| `scientific_bridge.transport_premise_unused` | `bridge_binding_mismatch` | Remove the premise, or bridge a claim about another scope. |
+| `scientific_bridge.units_mismatch` | `bridge_binding_mismatch` | Supply the claim in the declared units; no implicit conversion is made. |
+| `scientific_bridge.validation_r_squared_too_low` | `bridge_mapping_not_licensed` | Validate a better surrogate, or declare the coefficient of determination the evidence supports. |
+| `scientific_bridge.validation_trials_too_few` | `bridge_mapping_not_licensed` | Validate the surrogate in at least the declared number of trials. |
+| `scientific_bridge.value_kind_not_carried` | `cell_not_licensed` | Only a point mean is bridged; transforming a law, posterior, identified set or joint law needs its own licensed route. |
+| `scientific_bridge.value_kind_substitution` | `bridge_substitution_refused` | Supply the requested object from its own route; these are not interchangeable. |
+| `scientific_bridge.youden_too_small` | `measurement_not_identified` | A more accurate measurement or a larger declared minimum-evidence study is needed. |
+
 ## Remedies
 
 Some refusals also name what the caller can change to proceed. The remedy is

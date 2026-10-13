@@ -316,3 +316,241 @@ purpose = "closed interval route of sampled counterfactual transport pending mea
 depends_on = ["counterfactual.transport_sampled"]
 record = "counterfactual.transport_sampled_interval"
 record_state = "frozen"
+
+[[feature]]
+id = "cohort_decision.mean_contrast"
+purpose = "weighted cohort-mean treatment contrast of a retained fitted effect model as one native decision quantity"
+depends_on = ["decision.contract", "decision.functionals"]
+record = "cohort_decision.mean_contrast"
+record_state = "frozen"
+
+[[feature]]
+id = "cohort_decision.declared_shift"
+purpose = "cohort-mean contrast for a cohort from another population under a declared covariate shift with a support overlap check"
+depends_on = ["cohort_decision.mean_contrast"]
+record = "cohort_decision.declared_shift"
+record_state = "frozen"
+
+[[feature]]
+id = "cohort_decision.interval"
+purpose = "closed interval route of the cohort-mean contrast pending measured whole-method coverage"
+depends_on = ["cohort_decision.mean_contrast"]
+record = "cohort_decision.interval"
+record_state = "frozen"
+
+[[feature]]
+id = "cohort_decision.law_valued_request"
+purpose = "closed probability, quantile, nonlinear-utility and joint-law routes of the cohort-mean contrast"
+depends_on = ["cohort_decision.mean_contrast"]
+record = "cohort_decision.law_valued_request"
+record_state = "frozen"
+
+[[feature]]
+id = "decision_reliability.sampled_decision"
+purpose = "numerical reliability and separate uncertainty components of a sampled decision"
+depends_on = ["distribution.joint_alignment"]
+record = "decision_reliability.sampled_decision"
+record_state = "frozen"
+
+[[feature]]
+id = "decision_reliability.ranking_statement"
+purpose = "best, top-k and better-than-baseline Monte Carlo probabilities over a finite candidate set"
+depends_on = ["distribution.joint_alignment"]
+record = "decision_reliability.ranking_statement"
+record_state = "frozen"
+
+[[feature]]
+id = "decision_reliability.selection_aware_evaluation"
+purpose = "winner's-curse bound, held-out re-evaluation and sample splitting of a selected decision"
+depends_on = ["distribution.joint_alignment"]
+record = "decision_reliability.selection_aware_evaluation"
+record_state = "frozen"
+
+[[feature]]
+id = "decision_reliability.ranking_probability_interval"
+purpose = "closed: published ranking probability and interval"
+depends_on = ["decision_reliability.sampled_decision"]
+record = "decision_reliability.ranking_probability_interval"
+record_state = "frozen"
+
+[[feature]]
+id = "decision_reliability.combined_uncertainty"
+purpose = "closed: combined uncertainty number"
+depends_on = ["decision_reliability.sampled_decision"]
+record = "decision_reliability.combined_uncertainty"
+record_state = "frozen"
+
+[[feature]]
+id = "predictive_assessment.proper_scores"
+purpose = "log, CRPS, Brier and energy scores of predictive laws with a recomputing artifact"
+depends_on = []
+record = "predictive_assessment.proper_scores"
+record_state = "frozen"
+
+[[feature]]
+id = "predictive_assessment.score_differences"
+purpose = "paired score differences with declared serial or cluster dependence"
+depends_on = ["predictive_assessment.proper_scores"]
+record = "predictive_assessment.score_differences"
+record_state = "frozen"
+
+[[feature]]
+id = "predictive_assessment.calibration_diagnostics"
+purpose = "PIT, reliability, coverage and sharpness labelled as unmeasured diagnostics"
+depends_on = ["predictive_assessment.proper_scores"]
+record = "predictive_assessment.calibration_diagnostics"
+record_state = "frozen"
+
+[[feature]]
+id = "predictive_assessment.overlap_check"
+purpose = "held-out check from row-level observation identities"
+depends_on = ["evidence_ledger.overlap_accounting"]
+record = "predictive_assessment.overlap_check"
+record_state = "frozen"
+
+[[feature]]
+id = "predictive_assessment.distribution_drift"
+purpose = "separately labelled PIT drift comparison of two windows"
+depends_on = ["predictive_assessment.calibration_diagnostics"]
+record = "predictive_assessment.distribution_drift"
+record_state = "frozen"
+
+[[feature]]
+id = "predictive_assessment.score_interval"
+purpose = "none: the request is refused"
+depends_on = ["predictive_assessment.proper_scores", "predictive_assessment.score_differences"]
+record = "predictive_assessment.score_interval"
+record_state = "frozen"
+
+[[feature]]
+id = "predictive_assessment.law_callback"
+purpose = "none: callback laws are refused by name"
+depends_on = ["predictive_assessment.proper_scores"]
+record = "predictive_assessment.law_callback"
+record_state = "frozen"
+
+[[feature]]
+id = "predictive_assessment.causal_validity"
+purpose = "none: a score is not causal validity or a probability of a claim"
+depends_on = ["predictive_assessment.proper_scores"]
+record = "predictive_assessment.causal_validity"
+record_state = "frozen"
+
+[[feature]]
+id = "observation_query.finite_law_conditioning"
+purpose = "exact conditioning, intervention, measured-signal and threshold-crossing queries on a composed finite causal model, kept distinct in identity and value"
+depends_on = ["mechanism_composition.acyclic_joint_model", "measurement.binary_misclassification"]
+record = "observation_query.finite_law_conditioning"
+record_state = "frozen"
+
+[[feature]]
+id = "observation_query.posterior_update"
+purpose = "exact posterior of a declared finite or conjugate model after new evidence"
+depends_on = []
+record = "observation_query.posterior_update"
+record_state = "frozen"
+
+[[feature]]
+id = "observation_query.evidence_requirement"
+purpose = "exact evidence required to move a posterior or decision probability to a declared level"
+depends_on = ["observation_query.posterior_update"]
+record = "observation_query.evidence_requirement"
+record_state = "frozen"
+
+[[feature]]
+id = "observation_query.calibrated_probability"
+purpose = "closed interval and calibration routes for observation-conditioned probabilities"
+depends_on = ["observation_query.finite_law_conditioning", "observation_query.posterior_update", "observation_query.evidence_requirement"]
+record = "observation_query.calibrated_probability"
+record_state = "frozen"
+
+[[feature]]
+id = "scientific_bridge.typed_bridges"
+purpose = "Under which declared assumptions does a claim about one scientific quantity answer a question about another"
+depends_on = ["measurement.model_contract", "measurement.binary_misclassification", "evidence_ledger.transport_provenance"]
+record = "scientific_bridge.typed_bridges"
+record_state = "frozen"
+
+[[feature]]
+id = "scientific_bridge.law_substitution"
+purpose = "closed: a mean, predictive law, posterior, identified set and joint outcome law are not interchangeable across a bridge"
+depends_on = ["scientific_bridge.typed_bridges"]
+record = "scientific_bridge.law_substitution"
+record_state = "frozen"
+
+[[feature]]
+id = "scientific_bridge.interval"
+purpose = "closed: an interval, posterior or coverage statement for a bridged claim"
+depends_on = ["scientific_bridge.typed_bridges"]
+record = "scientific_bridge.interval"
+record_state = "frozen"
+
+[[feature]]
+id = "sequential_evaluation.policy_evaluation"
+purpose = "finite-horizon evaluation of a caller-supplied contingent policy by sequential g-formula enumeration and logged-data importance weighting, point-only"
+depends_on = ["measurement.model_contract", "measurement.probabilistic_categorical", "measurement.binary_misclassification", "evidence_ledger.overlap_accounting", "design.evsi"]
+record = "sequential_evaluation.policy_evaluation"
+record_state = "frozen"
+
+[[feature]]
+id = "adaptive_inference.analysis_contract"
+purpose = "Is the retained analysis contract of an adaptive experiment complete and consistent enough to license any inference, and which element is missing when it is not"
+depends_on = ["evidence_ledger.repeated_observation_use"]
+record = "adaptive_inference.analysis_contract"
+record_state = "frozen"
+
+[[feature]]
+id = "adaptive_inference.procedure_matrix"
+purpose = "For a given assignment policy, outcome structure, monitoring strategy and stopping rule, does the engine license inference, refuse it, or carry it forward with an owner"
+depends_on = ["adaptive_inference.analysis_contract"]
+record = "adaptive_inference.procedure_matrix"
+record_state = "frozen"
+
+[[feature]]
+id = "adaptive_inference.bayesian_posterior"
+purpose = "After a Thompson-sampling trial with interim looks, what is each arm's posterior and which arm is best, valid despite the adaptive assignment"
+depends_on = ["adaptive_inference.analysis_contract", "adaptive_inference.procedure_matrix"]
+record = "adaptive_inference.bayesian_posterior"
+record_state = "frozen"
+
+[[feature]]
+id = "adaptive_inference.decision_theoretic_stopping"
+purpose = "At an interim look of a Thompson-sampling trial, does the declared posterior expected-loss rule say stop, and which arm would be chosen"
+depends_on = ["adaptive_inference.bayesian_posterior"]
+record = "adaptive_inference.decision_theoretic_stopping"
+record_state = "frozen"
+
+[[feature]]
+id = "adaptive_inference.adaptive_weighting"
+purpose = "From an epsilon-greedy trial with interim looks, what is an arm's mean or the contrast of two arms, estimated so that the adaptive assignment does not bias it"
+depends_on = ["adaptive_inference.analysis_contract", "adaptive_inference.procedure_matrix"]
+record = "adaptive_inference.adaptive_weighting"
+record_state = "frozen"
+
+[[feature]]
+id = "adaptive_inference.repeated_measures_weighting"
+purpose = "From an adaptive trial of subjects each measured repeatedly, what is the contrast of arm means with the subject, not the measurement, as the unit"
+depends_on = ["adaptive_inference.adaptive_weighting"]
+record = "adaptive_inference.repeated_measures_weighting"
+record_state = "frozen"
+
+[[feature]]
+id = "adaptive_inference.anytime_valid_sequence"
+purpose = "For bounded outcomes under adaptive assignment and data-dependent stopping, what time-uniform confidence sequence does each arm's mean have"
+depends_on = ["adaptive_inference.analysis_contract", "adaptive_inference.procedure_matrix"]
+record = "adaptive_inference.anytime_valid_sequence"
+record_state = "frozen"
+
+[[feature]]
+id = "adaptive_inference.group_sequential"
+purpose = "For a randomized trial with fixed allocation and pre-specified interim looks, what efficacy boundaries spend the declared alpha, and did the observed statistic cross one"
+depends_on = ["adaptive_inference.analysis_contract", "adaptive_inference.procedure_matrix"]
+record = "adaptive_inference.group_sequential"
+record_state = "frozen"
+
+[[feature]]
+id = "adaptive_inference.guarantees_closed"
+purpose = "Can an interval, credible interval, error rate or coverage statement be reported for an adaptive procedure's result"
+depends_on = ["adaptive_inference.bayesian_posterior", "adaptive_inference.adaptive_weighting", "adaptive_inference.anytime_valid_sequence", "adaptive_inference.group_sequential"]
+record = "adaptive_inference.guarantees_closed"
+record_state = "frozen"

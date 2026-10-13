@@ -24,6 +24,7 @@ pub mod overlap;
 pub mod overlap_rule;
 mod panel_slice;
 pub mod placebo;
+pub mod predictive_assessment;
 pub mod rcc;
 pub mod riesz;
 pub mod sensitivity;

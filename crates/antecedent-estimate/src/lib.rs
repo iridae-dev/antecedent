@@ -15,6 +15,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod adaptive_inference;
 pub mod adjustment;
 pub mod admg_conditional_transport;
 pub mod aipw;

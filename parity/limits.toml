@@ -1708,3 +1708,19 @@ implementation = [{ path = "crates/antecedent-io-core/src/measurement_model_wire
 documentation = [{ path = "crates/antecedent-io-core/src/measurement_model_wire.rs", constant = "MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES" }]
 guard = { path = "crates/antecedent-io-core/src/measurement_model_wire.rs", pattern = 'bytes\.len\(\) > MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES' }
 refusal = { path = "crates/antecedent-io-core/src/measurement_model_wire.rs", pattern = 'bytes\.len\(\) > MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES \{[\s\S]{0,100}return Err\(IoError::TooLarge\)' }
+
+[[bound]]
+record = "scientific_bridge.typed_bridges"
+key = "max_assumptions"
+implementation = [{ path = "crates/antecedent-contract/src/bridge/contract.rs", constant = "MAX_BRIDGE_ASSUMPTIONS" }]
+documentation = [{ path = "crates/antecedent-contract/src/bridge/contract.rs", constant = "MAX_BRIDGE_ASSUMPTIONS" }]
+guard = { path = "crates/antecedent-contract/src/bridge/contract.rs", pattern = 'self\.assumptions\.len\(\) > MAX_BRIDGE_ASSUMPTIONS' }
+refusal = { path = "crates/antecedent-contract/src/bridge/contract.rs", pattern = 'self\.assumptions\.len\(\) > MAX_BRIDGE_ASSUMPTIONS \{\s+return Err\(too_many_assumptions\(\)\)' }
+
+[[bound]]
+record = "scientific_bridge.typed_bridges"
+key = "max_validation_trials"
+implementation = [{ path = "crates/antecedent-contract/src/bridge/mapping.rs", constant = "MAX_VALIDATION_TRIALS" }]
+documentation = [{ path = "crates/antecedent-contract/src/bridge/mapping.rs", constant = "MAX_VALIDATION_TRIALS" }]
+guard = { path = "crates/antecedent-contract/src/bridge/mapping.rs", pattern = 'validation\.trials\.len\(\) > MAX_VALIDATION_TRIALS' }
+refusal = { path = "crates/antecedent-contract/src/bridge/mapping.rs", pattern = 'validation\.trials\.len\(\) > MAX_VALIDATION_TRIALS \{[\s\S]{0,100}malformed_mapping' }

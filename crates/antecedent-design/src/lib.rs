@@ -6,6 +6,7 @@
 #![deny(missing_docs)]
 
 pub mod candidate;
+pub mod cohort_decision_input;
 pub mod composition_boundary;
 pub mod composition_bundle;
 pub mod composition_verifiers;
@@ -15,6 +16,7 @@ pub mod decision_artifact;
 pub mod decision_contract;
 pub mod decision_eval;
 pub mod decision_refusal;
+pub mod decision_reliability;
 pub mod decision_robust_artifact;
 pub mod decision_robustness;
 pub mod decision_structural;
@@ -39,6 +41,8 @@ pub mod repair_artifact;
 pub mod result;
 pub mod rollout_artifact;
 pub mod sensitivity_decision;
+pub mod sequential_evaluation;
+pub mod sequential_evaluation_artifact;
 pub mod signal;
 pub(crate) mod structure_aggregator;
 pub mod study_candidate;

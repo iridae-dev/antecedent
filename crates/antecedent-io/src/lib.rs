@@ -147,6 +147,7 @@ pub use analysis_wire::{
     refutation_from_wire, refutation_to_wire,
 };
 
+pub mod adaptive_inference_result_artifact;
 pub mod admg_conditional_transport_artifact;
 pub mod counterfactual_transport_artifact;
 pub mod cpdag_completion_artifact;
@@ -173,8 +174,12 @@ pub mod temporal_transport_artifact;
 pub mod transport_interference_wire;
 pub mod transport_scenario_artifact;
 pub mod z_transport_artifact;
+pub use antecedent_io_core::adaptive_monitoring_contract_artifact;
+pub use antecedent_io_core::cohort_decision;
+pub use antecedent_io_core::observation_query_artifact;
 pub use antecedent_io_core::{
-    evidence_ledger_artifact, measurement_model_wire, mechanism_composition_artifact,
+    bridge_artifact, evidence_ledger_artifact, measurement_model_wire,
+    mechanism_composition_artifact,
 };
 pub use model_bundle::{
     ModelBundle, ModelBundleEncode, ModelBundleHeaderWire, decode_model_bundle, encode_model_bundle,
@@ -339,6 +344,8 @@ pub mod mechanism_discrepancy_artifact;
 pub mod msm_sensitivity_adapter;
 /// Nonlinear-mediation artifact (`nonlinear_mediation_v1`) and its re-estimating consumer.
 pub mod nonlinear_mediation_artifact;
+/// Predictive assessment artifact (`predictive_assessment_v1`) and its re-scoring consumer.
+pub mod predictive_assessment_artifact;
 /// Ordered-response recovery artifact (`ordered_response_recovery_v1`) and its re-deciding consumer.
 pub mod recovery_chain_artifact;
 /// Sensitivity-surface artifact (`sensitivity_decision_v1`) and its recomputing consumer.

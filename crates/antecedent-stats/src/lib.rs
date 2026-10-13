@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod adaptive_inference;
 pub mod ci;
 pub mod cluster;
 pub mod covariance;

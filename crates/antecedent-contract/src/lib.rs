@@ -14,6 +14,8 @@
 #![deny(missing_docs)]
 #![warn(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 
+pub mod adaptive_design;
+pub mod bridge;
 pub mod capability;
 pub mod claim;
 pub mod composition_provenance;
@@ -25,6 +27,7 @@ pub mod external_refusal;
 pub mod measurement;
 pub mod mechanism_composition;
 pub mod obligation;
+pub mod observation_query;
 pub mod plan;
 pub mod program_binding;
 pub mod provenance;
@@ -80,6 +83,12 @@ pub use mechanism_composition::{
     check_mechanism_composition, composition_refusal, reason_code_for_kind,
 };
 pub use obligation::{ObligationKind, ObligationRecord, ObligationScope};
+pub use observation_query::{
+    InferenceBasis, MeasuredIndicator, OBSERVATION_QUERY_STAGE, ObservationContext,
+    ObservationOperation, ObservationSlotsRequest, ObservedSlot, SlotProvenance, SlotValue,
+    calibration_refusal, check_observation_slots, interval_refusal, level_unreachable_refusal,
+    measured_likelihood, zero_probability_evidence_refusal,
+};
 pub use plan::{
     BufferMaterialization, DataClassification, ExecutionPerformanceRecord, KernelSelection,
     LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord,

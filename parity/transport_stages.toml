@@ -7052,3 +7052,1133 @@ stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
 notes = "The ledger licenses no interval, posterior or coverage statement for pooled evidence; the Python surface raises cell_not_licensed."
+
+[[routes]]
+route = "antecedent.cohort_decision.FittedEffectModel.decision_source"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_to_retained_model_and_declared_cohort"
+evidence = "verified_retained_fitted_effect_model_and_declared_cohort"
+functional = "cohort_mean_of_retained_conditional_contrast_with_support_check"
+guarantee = "exact_weighted_mean_of_retained_predictions_affine_expectation_point_only"
+evidence_test = "crates/antecedent/tests/cohort_decision.rs"
+evidence_assertion = "producer_to_cohort_to_affine_contract_matches_the_hand_calculation"
+notes = "Rust facade route: binds a declared cohort to a verified retained model, checks every row against its support contract and issues one mean_difference quantity. No utility standard error or interval."
+
+[[routes]]
+route = "antecedent.cohort_decision.consume_cohort_decision_source"
+stage = "consume"
+status = "licensed"
+graph = "not_applicable_to_retained_model_and_declared_cohort"
+evidence = "verified_retained_fitted_effect_model_and_declared_cohort"
+functional = "replayed_cohort_mean_under_retained_identity_parent_population_units_contrast_and_cohort"
+guarantee = "independent_consumer_recomputes_every_number_and_refuses_resealed_edits"
+evidence_test = "crates/antecedent/tests/cohort_decision.rs"
+evidence_assertion = "the_source_replays_in_a_fresh_consumer_under_the_retained_identity"
+notes = "Independent consumer of cohort_decision_source_v1: rebuilds the model, re-checks support and recomputes the mean before comparing."
+
+[[routes]]
+route = "antecedent.cohort_decision.evaluate_cohort_decision"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_to_retained_model_and_declared_cohort"
+evidence = "verified_retained_fitted_effect_model_and_declared_cohort"
+functional = "expectation_of_an_affine_utility_of_the_cohort_mean_contrast"
+guarantee = "exact_affine_expectation_point_only_no_standard_error"
+evidence_test = "crates/antecedent/tests/cohort_decision.rs"
+evidence_assertion = "affine_contracts_on_the_cohort_source_match_hand_calculated_utilities"
+notes = "Feeds the existing support-aware decision evaluator one mean; probability, quantile, nonlinear utility and joint-law requests stay refused."
+
+[[routes]]
+route = "antecedent.cohort_decision.cohort_forward_claim"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_to_retained_model_and_declared_cohort"
+evidence = "verified_retained_fitted_effect_model_and_declared_cohort"
+functional = "cohort_mean_as_a_forward_source_of_a_finite_action_inverse_query"
+guarantee = "target_mean_on_affine_utility_point_only"
+evidence_test = "crates/antecedent-design/tests/cohort_decision_input.rs"
+evidence_assertion = "the_cohort_mean_is_a_licensed_forward_source_of_an_inverse_query"
+notes = "The cohort mean is a licensed mean forward claim of an inverse query; a shifted cohort is refused route_not_supported."
+
+[[routes]]
+route = "antecedent.cohort_decision.declared_covariate_shift"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_to_retained_model_and_declared_cohort"
+evidence = "verified_retained_fitted_effect_model_and_declared_cohort"
+functional = "cohort_mean_of_source_model_under_declared_invariance_with_support_overlap_check"
+guarantee = "declared_assumption_point_only_extrapolative_label"
+evidence_test = "crates/antecedent-io-core/src/cohort_decision/tests.rs"
+evidence_assertion = "a_cohort_from_another_population_needs_a_declared_shift_and_support_overlap"
+notes = "Accepted only under an explicit declaration naming the invariant modifiers; every row must lie in the support contract; labelled extrapolative."
+
+[[routes]]
+route = "antecedent.cohort_decision.interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed until whole-method coverage of the cohort-weight and support-selection step is measured; the model-based standard error is a labelled diagnostic only."
+
+[[routes]]
+route = "antecedent.cohort_decision.law_valued_request"
+stage = "evaluate"
+status = "closed"
+reason_code = "decision_contract_unsatisfied"
+notes = "A cohort mean supplies no law; probability, quantile, nonlinear utility and joint-law requests are refused with the aligned-law remedy."
+
+[[routes]]
+route = "antecedent.decision_reliability.assess"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_to_supplied_utility_draws"
+evidence = "finite_candidate_utility_draws_with_declared_dependence"
+functional = "three_separate_uncertainty_components_and_monte_carlo_error_of_utility_functionals"
+guarantee = "numerical_standard_error_and_effective_sample_size_uncalibrated_no_interval"
+evidence_test = "crates/antecedent-design/tests/decision_reliability.rs"
+evidence_assertion = "cvar_of_a_known_normal_has_the_influence_function_standard_error"
+notes = "Rust facade route; point-only diagnostic, no interval or calibration. Python surface not yet wired."
+
+[[routes]]
+route = "antecedent.decision_reliability.export"
+stage = "representation"
+status = "licensed"
+graph = "not_applicable_to_supplied_utility_draws"
+evidence = "finite_candidate_utility_draws_with_declared_dependence"
+functional = "decision_reliability_v1_artifact"
+guarantee = "numerical_standard_error_and_effective_sample_size_uncalibrated_no_interval"
+evidence_test = "crates/antecedent-design/tests/decision_reliability.rs"
+evidence_assertion = "the_artifact_round_trips_and_is_recomputed_from_the_draws"
+notes = "Rust facade route; point-only diagnostic, no interval or calibration. Python surface not yet wired."
+
+[[routes]]
+route = "antecedent.decision_reliability.consume_decision_reliability_artifact"
+stage = "consume"
+status = "licensed"
+graph = "not_applicable_to_supplied_utility_draws"
+evidence = "finite_candidate_utility_draws_with_declared_dependence"
+functional = "bit_for_bit_recomputation_of_the_report_from_the_draws"
+guarantee = "numerical_standard_error_and_effective_sample_size_uncalibrated_no_interval"
+evidence_test = "crates/antecedent-design/tests/decision_reliability.rs"
+evidence_assertion = "semantic_mutations_of_the_artifact_are_refused"
+notes = "Rust facade route; point-only diagnostic, no interval or calibration. Python surface not yet wired."
+
+[[routes]]
+route = "antecedent.decision_reliability.ranking_statements"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_to_supplied_utility_draws"
+evidence = "finite_candidate_utility_draws_with_declared_coupling"
+functional = "best_top_k_and_better_than_baseline_monte_carlo_probability"
+guarantee = "monte_carlo_ranking_diagnostic_uncalibrated_no_interval"
+evidence_test = "crates/antecedent-design/tests/decision_reliability.rs"
+evidence_assertion = "enumerated_four_state_law_gives_exact_best_top_k_and_baseline_probabilities"
+notes = "Rust facade route; point-only diagnostic, no interval or calibration. Python surface not yet wired."
+
+[[routes]]
+route = "antecedent.decision_reliability.selection_correction"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_to_supplied_utility_draws"
+evidence = "selection_draws_with_search_record_and_independent_validation"
+functional = "winners_curse_bound_and_held_out_value"
+guarantee = "winners_curse_bound_and_held_out_reevaluation_point_only_no_interval"
+evidence_test = "crates/antecedent-design/tests/decision_reliability.rs"
+evidence_assertion = "in_sample_maximum_is_biased_up_and_held_out_value_is_unbiased"
+notes = "Rust facade route; point-only diagnostic, no interval or calibration. Python surface not yet wired."
+
+[[routes]]
+route = "antecedent.decision_reliability.publish"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "No ranking or optimality probability, confidence set or selection-corrected interval is licensed until a coverage record measures it at its candidate-set size, Monte Carlo budget and selection rule."
+
+[[routes]]
+route = "antecedent.decision_reliability.combined_uncertainty"
+stage = "uncertainty"
+status = "closed"
+reason_code = "uncertainty_components_not_combined"
+notes = "Source spread, Monte Carlo error and selection-induced uncertainty are never summed into one number."
+
+[[routes]]
+route = "antecedent.predictive_assessment.proper_scores"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "predictive_laws_with_realized_observations_and_a_declared_design"
+functional = "mean_log_score,_CRPS,_Brier_score_and_energy_score_of_each_predictor_over_the_assessed_obs"
+guarantee = "exact_closed_form_or_finite_law_scores_point_only_no_interval"
+evidence_test = "crates/antecedent-validate/tests/predictive_assessment.rs"
+evidence_assertion = "gaussian_crps_matches_the_closed_form_hand_values"
+notes = "Rust facade route; point-only or labelled diagnostic, no interval. The Python surface is not wired yet."
+
+[[routes]]
+route = "antecedent.predictive_assessment.consume_predictive_assessment_artifact"
+stage = "consume"
+status = "licensed"
+graph = "not_applicable"
+evidence = "stored_laws_observations_declarations_and_results"
+functional = "independent_rescoring_and_recomputation"
+guarantee = "identity_and_values_must_replay"
+evidence_test = "crates/antecedent-io/tests/predictive_assessment_artifact.rs"
+evidence_assertion = "a_fresh_consumer_reproduces_every_score_and_the_identity"
+notes = "Rust facade route; point-only, no interval. The Python surface is not wired yet."
+
+[[routes]]
+route = "antecedent.predictive_assessment.score_differences"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "predictive_laws_with_realized_observations_and_a_declared_design"
+functional = "mean_paired_score_difference_between_named_predictors_and_its_dependence-aware_standard_er"
+guarantee = "paired_difference_with_declared_dependence_standard_error_diagnostic_no_interval"
+evidence_test = "crates/antecedent-validate/tests/predictive_assessment.rs"
+evidence_assertion = "the_variance_of_a_mean_difference_follows_the_declared_dependence"
+notes = "Rust facade route; point-only or labelled diagnostic, no interval. The Python surface is not wired yet."
+
+[[routes]]
+route = "antecedent.predictive_assessment.calibration_diagnostics"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "predictive_laws_with_realized_observations_and_a_declared_design"
+functional = "PIT_histogram,_reliability_table,_empirical_interval_coverage_and_sharpness_of_each_predic"
+guarantee = "labelled_unmeasured_diagnostics_no_calibration_guarantee_no_interval"
+evidence_test = "crates/antecedent-validate/tests/predictive_assessment.rs"
+evidence_assertion = "a_calibrated_generator_has_a_uniform_pit_and_nominal_coverage"
+notes = "Rust facade route; point-only or labelled diagnostic, no interval. The Python surface is not wired yet."
+
+[[routes]]
+route = "antecedent.predictive_assessment.overlap_check"
+stage = "prepare"
+status = "licensed"
+graph = "not_applicable"
+evidence = "predictive_laws_with_realized_observations_and_a_declared_design"
+functional = "overlap_status_of_each_predictor_against_the_assessed_observations"
+guarantee = "exact_set_arithmetic_over_declared_observation_identities_no_inference"
+evidence_test = "crates/antecedent-validate/tests/predictive_assessment.rs"
+evidence_assertion = "overlap_is_detected_from_row_identities_and_labelled"
+notes = "Rust facade route; point-only or labelled diagnostic, no interval. The Python surface is not wired yet."
+
+[[routes]]
+route = "antecedent.predictive_assessment.distribution_drift"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "predictive_laws_with_realized_observations_and_a_declared_design"
+functional = "KS_distance_and_population_stability_index_of_the_PIT_between_two_windows"
+guarantee = "labelled_unmeasured_drift_diagnostic_no_significance_level"
+evidence_test = "crates/antecedent-validate/tests/predictive_assessment.rs"
+evidence_assertion = "rolling_origin_reports_a_score_per_origin_and_a_serial_standard_error"
+notes = "Rust facade route; point-only or labelled diagnostic, no interval. The Python surface is not wired yet."
+
+[[routes]]
+route = "antecedent.predictive_assessment.score_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Rust facade route closed with a typed refusal; no interval, causal-validity or callback-law result is produced."
+
+[[routes]]
+route = "antecedent.predictive_assessment.law_callback"
+stage = "prepare"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Rust facade route closed with a typed refusal; no interval, causal-validity or callback-law result is produced."
+
+[[routes]]
+route = "antecedent.predictive_assessment.causal_validity"
+stage = "uncertainty"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Rust facade route closed with a typed refusal; no interval, causal-validity or callback-law result is produced."
+
+[[routes]]
+route = "antecedent_contract.observation_query.check_observation_slots"
+stage = "prepare"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "declared_conditioning_and_intervention_slots"
+functional = "semantic_check_of_a_conditioning_request"
+guarantee = "refusal_before_any_probability_is_formed"
+evidence_test = "crates/antecedent/tests/observation_query_facade.rs"
+evidence_assertion = "an_intervention_smuggled_into_a_conditioning_slot_is_refused_with_its_remedy"
+notes = "Rust route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent_contract.observation_query.measured_likelihood"
+stage = "prepare"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "declared_non_differential_measurement_model"
+functional = "likelihood_of_a_recorded_indicator_value_given_the_construct"
+guarantee = "declared_sensitivity_specificity_or_confusion_column"
+evidence_test = "crates/antecedent-contract/src/observation_query.rs"
+evidence_assertion = "the_binary_likelihood_is_the_declared_sensitivity_and_specificity"
+notes = "Rust route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent_model.observation_query.condition"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "exact_finite_joint_law"
+functional = "conditional_distribution_of_an_outcome_given_recorded_values"
+guarantee = "exact_enumeration_given_the_declared_tables"
+evidence_test = "crates/antecedent-model/tests/observation_query.rs"
+evidence_assertion = "conditioning_and_intervention_disagree_on_a_confounded_model_and_both_are_exact"
+notes = "Rust route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent_model.observation_query.intervene"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "exact_finite_joint_law"
+functional = "interventional_distribution_by_truncated_factorization"
+guarantee = "exact_enumeration_given_the_declared_tables"
+evidence_test = "crates/antecedent-model/tests/observation_query.rs"
+evidence_assertion = "conditioning_and_intervention_disagree_on_a_confounded_model_and_both_are_exact"
+notes = "Rust route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent_model.observation_query.conditioning_and_intervention"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "exact_finite_joint_law"
+functional = "paired_conditioning_and_interventional_distributions"
+guarantee = "both_laws_from_one_model_never_substituted"
+evidence_test = "crates/antecedent-model/tests/observation_query.rs"
+evidence_assertion = "conditioning_and_intervention_disagree_on_a_confounded_model_and_both_are_exact"
+notes = "Rust route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent_model.observation_query.condition_on_measured"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "exact_finite_joint_law_and_declared_indicator_likelihood"
+functional = "construct_posterior_and_outcome_given_a_recorded_indicator_value"
+guarantee = "bayes_inversion_of_the_declared_likelihood"
+evidence_test = "crates/antecedent-model/tests/observation_query.rs"
+evidence_assertion = "a_measured_signal_is_inverted_through_the_confusion_not_read_as_the_construct"
+notes = "Rust route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent_model.observation_query.threshold_crossing_observations"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "exact_finite_joint_law"
+functional = "observed_signal_levels_that_move_an_outcome_probability_across_a_level"
+guarantee = "exact_enumeration_given_the_declared_tables"
+evidence_test = "crates/antecedent-model/tests/observation_query.rs"
+evidence_assertion = "threshold_crossing_lists_the_observations_that_cross_and_their_probability"
+notes = "Rust route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.observation_query.PreparedMechanismComposition.observe"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "prepared_finite_composition"
+functional = "conditioned_or_interventional_distribution_of_a_checked_request"
+guarantee = "exact_given_the_declared_model_or_labelled_point_value_of_a_fitted_model"
+evidence_test = "crates/antecedent/tests/observation_query_facade.rs"
+evidence_assertion = "conditioning_and_intervention_disagree_and_stay_distinct_in_identity_and_value"
+notes = "Rust facade route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.observation_query.PreparedMechanismComposition.condition_on"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "prepared_finite_composition"
+functional = "conditional_distribution_of_an_outcome_given_recorded_values"
+guarantee = "exact_given_the_declared_model_or_labelled_point_value_of_a_fitted_model"
+evidence_test = "crates/antecedent/tests/observation_query_facade.rs"
+evidence_assertion = "conditioning_and_intervention_disagree_and_stay_distinct_in_identity_and_value"
+notes = "Rust facade route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.observation_query.PreparedMechanismComposition.intervene_on"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "prepared_finite_composition"
+functional = "interventional_distribution_of_an_outcome"
+guarantee = "exact_given_the_declared_model_or_labelled_point_value_of_a_fitted_model"
+evidence_test = "crates/antecedent/tests/observation_query_facade.rs"
+evidence_assertion = "conditioning_and_intervention_disagree_and_stay_distinct_in_identity_and_value"
+notes = "Rust facade route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.observation_query.PreparedMechanismComposition.condition_versus_intervene"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "prepared_finite_composition"
+functional = "paired_conditioning_and_interventional_distributions"
+guarantee = "exact_given_the_declared_model_or_labelled_point_value_of_a_fitted_model"
+evidence_test = "crates/antecedent/tests/observation_query_facade.rs"
+evidence_assertion = "conditioning_and_intervention_disagree_and_stay_distinct_in_identity_and_value"
+notes = "Rust facade route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.observation_query.PreparedMechanismComposition.threshold_crossing"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "prepared_finite_composition"
+functional = "observed_signal_levels_that_move_an_outcome_probability_across_a_level"
+guarantee = "exact_given_the_declared_model_or_labelled_point_value_of_a_fitted_model"
+evidence_test = "crates/antecedent/tests/observation_query_facade.rs"
+evidence_assertion = "a_threshold_no_observation_reaches_is_refused_with_the_supremum_reachable"
+notes = "Rust facade route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.observation_query.ObservationClaim.export"
+stage = "representation"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "premises_query_reading_and_result_bits"
+functional = "observation_query_artifact"
+guarantee = "identity_over_premises_operation_query_and_reading"
+evidence_test = "crates/antecedent/tests/observation_query_facade.rs"
+evidence_assertion = "the_artifact_replays_and_every_semantic_mutation_is_refused"
+notes = "Rust facade route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.observation_query.consume_observation_query_artifact"
+stage = "consume"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "stored_premises_query_reading_and_result_bits"
+functional = "independent_replay_of_the_stored_query"
+guarantee = "bit_identity_of_the_replayed_result"
+evidence_test = "crates/antecedent/tests/observation_query_facade.rs"
+evidence_assertion = "the_artifact_replays_and_every_semantic_mutation_is_refused"
+notes = "Rust facade route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent_contract.observation_query.intervention_in_conditioning_slot"
+stage = "prepare"
+status = "closed"
+reason_code = "quantity_semantics_mismatch"
+notes = "Closed adjacent variant with a typed refusal; the request states what would license it."
+
+[[routes]]
+route = "antecedent_contract.observation_query.mixed_conditioning_and_intervention"
+stage = "prepare"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Closed adjacent variant with a typed refusal; the request states what would license it."
+
+[[routes]]
+route = "antecedent_contract.observation_query.measured_as_construct"
+stage = "prepare"
+status = "closed"
+reason_code = "proxy_offered_as_construct"
+notes = "Closed adjacent variant with a typed refusal; the request states what would license it."
+
+[[routes]]
+route = "antecedent_contract.observation_query.multiple_measured_signals"
+stage = "prepare"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Closed adjacent variant with a typed refusal; the request states what would license it."
+
+[[routes]]
+route = "antecedent_contract.observation_query.differential_measured_signal"
+stage = "prepare"
+status = "closed"
+reason_code = "differential_error_not_pooled"
+notes = "Closed adjacent variant with a typed refusal; the request states what would license it."
+
+[[routes]]
+route = "antecedent_model.observation_query.threshold_unreachable"
+stage = "evaluate"
+status = "closed"
+reason_code = "evidence_cannot_reach_level"
+notes = "Closed adjacent variant with a typed refusal; the request states what would license it."
+
+[[routes]]
+route = "antecedent_model.observation_query.finite_bayes_posterior"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "declared_prior_and_likelihood"
+functional = "posterior_of_a_finite_hypothesis_space"
+guarantee = "exact_bayes_rule_given_the_declared_model"
+evidence_test = "crates/antecedent-model/tests/observation_query.rs"
+evidence_assertion = "finite_bayes_update_matches_the_hand_computed_posterior"
+notes = "Rust route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent_model.observation_query.conjugate_update"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "declared_beta_prior_and_counts"
+functional = "beta_bernoulli_posterior_and_predictive_probability"
+guarantee = "exact_conjugate_update"
+evidence_test = "crates/antecedent-model/tests/observation_query.rs"
+evidence_assertion = "conjugate_update_matches_the_closed_form"
+notes = "Rust route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.observation_posterior.finite_posterior"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "declared_prior_and_likelihood"
+functional = "posterior_of_a_finite_hypothesis_space"
+guarantee = "exact_bayes_rule_given_the_declared_model"
+evidence_test = "crates/antecedent/tests/observation_query_facade.rs"
+evidence_assertion = "bayes_updates_through_the_facade_match_hand_values"
+notes = "Rust facade route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.observation_posterior.conjugate_posterior"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "declared_beta_prior_and_counts"
+functional = "beta_bernoulli_posterior_and_predictive_probability"
+guarantee = "exact_conjugate_update"
+evidence_test = "crates/antecedent/tests/observation_query_facade.rs"
+evidence_assertion = "bayes_updates_through_the_facade_match_hand_values"
+notes = "Rust facade route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent_model.observation_query.required_bayes_factor"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "declared_prior_and_level"
+functional = "minimal_bayes_factor_that_reaches_a_level"
+guarantee = "exact_odds_ratio"
+evidence_test = "crates/antecedent-model/tests/observation_query.rs"
+evidence_assertion = "the_required_bayes_factor_is_the_odds_ratio"
+notes = "Rust route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent_model.observation_query.observations_required_binary_signal"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "declared_signal_rates_prior_and_level"
+functional = "minimal_reading_count_that_reaches_a_level"
+guarantee = "exact_integer_minimum_with_verification"
+evidence_test = "crates/antecedent-model/tests/observation_query.rs"
+evidence_assertion = "observations_required_for_a_binary_signal_are_the_exact_minimum"
+notes = "Rust route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent_model.observation_query.observations_required_conjugate"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "declared_beta_prior_and_level"
+functional = "minimal_observation_count_that_reaches_a_predictive_level"
+guarantee = "exact_integer_minimum_with_verification"
+evidence_test = "crates/antecedent-model/tests/observation_query.rs"
+evidence_assertion = "observations_required_for_a_conjugate_model_match_the_closed_form"
+notes = "Rust route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.observation_evidence.required_bayes_factor"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "declared_prior_and_level"
+functional = "minimal_bayes_factor_that_reaches_a_level"
+guarantee = "exact_odds_ratio"
+evidence_test = "crates/antecedent/tests/observation_query_facade.rs"
+evidence_assertion = "required_evidence_through_the_facade_matches_closed_forms"
+notes = "Rust facade route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.observation_evidence.required_observations_binary_signal"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "declared_signal_rates_prior_and_level"
+functional = "minimal_reading_count_that_reaches_a_level"
+guarantee = "exact_integer_minimum_with_verification"
+evidence_test = "crates/antecedent/tests/observation_query_facade.rs"
+evidence_assertion = "required_evidence_through_the_facade_matches_closed_forms"
+notes = "Rust facade route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.observation_evidence.required_observations_conjugate"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "declared_beta_prior_and_level"
+functional = "minimal_observation_count_that_reaches_a_predictive_level"
+guarantee = "exact_integer_minimum_with_verification"
+evidence_test = "crates/antecedent/tests/observation_query_facade.rs"
+evidence_assertion = "required_evidence_through_the_facade_matches_closed_forms"
+notes = "Rust facade route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent_model.observation_query.evidence_level_unreachable"
+stage = "evaluate"
+status = "closed"
+reason_code = "evidence_cannot_reach_level"
+notes = "Closed adjacent variant with a typed refusal stating the most extreme reachable value."
+
+[[routes]]
+route = "antecedent.observation_query.ObservationClaim.interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "The route licenses no interval or calibration statement; the facade refuses with cell_not_licensed."
+
+[[routes]]
+route = "antecedent.observation_query.ObservationClaim.calibrated_probability"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "The route licenses no interval or calibration statement; the facade refuses with cell_not_licensed."
+
+[[routes]]
+route = "antecedent.scientific_bridge.prepare"
+stage = "prepare"
+status = "licensed"
+graph = "not_applicable_the_bridge_checks_declarations_and_does_not_identify"
+evidence = "bridge_contract_with_declared_assumptions_mapping_and_scope"
+functional = "licensing_verdict_of_a_bridge_contract"
+guarantee = "checked_declaration_no_number_formed"
+evidence_test = "crates/antecedent/tests/scientific_bridge_facade.rs"
+evidence_assertion = "a_surrogate_bridge_is_prepared_derived_exported_and_consumed_independently"
+notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+
+[[routes]]
+route = "antecedent.scientific_bridge.derive.surrogate_terminal_outcome"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_trial_level_association_of_effects_no_graph"
+evidence = "validation_trial_effect_pairs_and_a_source_surrogate_effect"
+functional = "terminal_effect_from_the_trial_level_least_squares_line"
+guarantee = "least_squares_trial_level_point_inside_the_validated_range_no_interval"
+evidence_test = "crates/antecedent-contract/tests/scientific_bridge.rs"
+evidence_assertion = "surrogate_bridge_matches_the_hand_computed_trial_level_regression"
+notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+
+[[routes]]
+route = "antecedent.scientific_bridge.derive.latent_measured_outcome"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_the_correction_is_causal_only_where_identification_licenses_the_adjustment"
+evidence = "binary_misclassification_model_and_a_recorded_or_latent_prevalence"
+functional = "latent_prevalence_from_recorded_or_recorded_from_latent"
+guarantee = "rogan_gladen_inversion_and_forward_map_point_no_interval"
+evidence_test = "crates/antecedent-contract/tests/scientific_bridge.rs"
+evidence_assertion = "a_measured_prevalence_is_the_latent_prevalence_only_through_the_model"
+notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+
+[[routes]]
+route = "antecedent.scientific_bridge.derive.predictive_causal_quantity"
+stage = "evaluate"
+status = "licensed"
+graph = "identification_declared_or_established_by_the_identification_layer"
+evidence = "a_point_mean_already_standardized_under_the_named_identification"
+functional = "causal_quantity_equal_to_the_predictive_functional_under_identification"
+guarantee = "identity_under_declared_identification_point_no_interval"
+evidence_test = "crates/antecedent-contract/tests/scientific_bridge.rs"
+evidence_assertion = "an_association_is_a_causal_quantity_only_under_a_named_identification"
+notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+
+[[routes]]
+route = "antecedent.scientific_bridge.derive.preference_realized_behavior"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_declared_behavioral_linkage_no_graph"
+evidence = "a_stated_preference_mean_and_a_declared_linkage_or_calibration"
+functional = "realized_behavior_mean_from_the_stated_preference_mean"
+guarantee = "declared_linkage_identity_or_affine_calibration_point_no_interval"
+evidence_test = "crates/antecedent-contract/tests/scientific_bridge.rs"
+evidence_assertion = "a_stated_preference_is_realized_behavior_only_under_a_declared_linkage"
+notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+
+[[routes]]
+route = "antecedent.scientific_bridge.derive.parameter_intervention_response"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_declared_parameter_interpretation_no_graph"
+evidence = "a_fitted_parameter_value_and_a_declared_intervention_contrast"
+functional = "intervention_response_mean_from_the_parameter"
+guarantee = "declared_affine_contrast_point_no_interval"
+evidence_test = "crates/antecedent-contract/tests/scientific_bridge.rs"
+evidence_assertion = "a_model_parameter_is_an_intervention_response_only_through_its_declared_contrast"
+notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+
+[[routes]]
+route = "antecedent.scientific_bridge.derive.scientific_decision_utility"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_declared_utility_function_no_graph"
+evidence = "a_scientific_endpoint_mean_and_a_declared_affine_utility_function"
+functional = "expected_utility_of_an_affine_utility_of_the_endpoint"
+guarantee = "declared_affine_utility_of_a_mean_exact_for_the_expectation_point_no_interval"
+evidence_test = "crates/antecedent-contract/tests/scientific_bridge.rs"
+evidence_assertion = "a_scientific_endpoint_is_a_utility_only_through_a_declared_utility_function"
+notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+
+[[routes]]
+route = "antecedent.scientific_bridge.derive.transported_surrogate"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_declared_transportability_premise_no_selection_diagram_derivation"
+evidence = "validation_trials_in_one_population_and_a_source_effect_in_another_with_a_declared_premise"
+functional = "terminal_effect_in_the_claim_population_under_the_declared_premise"
+guarantee = "trial_level_point_carried_under_a_declared_transportability_premise_no_interval"
+evidence_test = "crates/antecedent/tests/scientific_bridge_facade.rs"
+evidence_assertion = "a_transported_bridge_names_its_premise_or_is_refused"
+notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+
+[[routes]]
+route = "antecedent.scientific_bridge.consume_scientific_bridge_artifact"
+stage = "consume"
+status = "licensed"
+graph = "not_applicable_replay_of_a_stored_derivation"
+evidence = "scientific_bridge_v1_container_and_a_retained_identity"
+functional = "replayed_bridged_claim_value_identity_and_fit"
+guarantee = "stored_contract_and_source_rederived_and_compared_bit_for_bit"
+evidence_test = "crates/antecedent-io-core/tests/scientific_bridge_artifact.rs"
+evidence_assertion = "a_fresh_consumer_replays_the_bridge_and_recomputes_its_values"
+notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+
+[[routes]]
+route = "antecedent.scientific_bridge.predictive_importance_as_causal_effect"
+stage = "evaluate"
+status = "closed"
+reason_code = "bridge_substitution_refused"
+notes = "Permanently closed adjacent route of the scientific bridge: the request is refused with a typed reason that names the declaration or route that would license it."
+
+[[routes]]
+route = "antecedent.scientific_bridge.model_score_as_probability"
+stage = "evaluate"
+status = "closed"
+reason_code = "bridge_substitution_refused"
+notes = "Permanently closed adjacent route of the scientific bridge: the request is refused with a typed reason that names the declaration or route that would license it."
+
+[[routes]]
+route = "antecedent.scientific_bridge.extrapolated_surrogate"
+stage = "evaluate"
+status = "closed"
+reason_code = "bridge_mapping_not_licensed"
+notes = "Permanently closed adjacent route of the scientific bridge: the request is refused with a typed reason that names the declaration or route that would license it."
+
+[[routes]]
+route = "antecedent.scientific_bridge.value_kind_substitution"
+stage = "evaluate"
+status = "closed"
+reason_code = "bridge_substitution_refused"
+notes = "Permanently closed adjacent route of the scientific bridge: the request is refused with a typed reason that names the declaration or route that would license it."
+
+[[routes]]
+route = "antecedent.scientific_bridge.value_kind_not_carried"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Permanently closed adjacent route of the scientific bridge: the request is refused with a typed reason that names the declaration or route that would license it."
+
+[[routes]]
+route = "antecedent.scientific_bridge.interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Permanently closed adjacent route of the scientific bridge: the request is refused with a typed reason that names the declaration or route that would license it."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.evaluate_policy"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_dynamic_structural_model_no_causal_graph_search"
+evidence = "finite_dynamic_model_and_fixed_contingent_policy"
+functional = "policy_value_by_enumerated_histories"
+guarantee = "fixed_policy_value_exact_over_declared_finite_model_point_only"
+evidence_test = "crates/antecedent-design/tests/sequential_evaluation.rs"
+evidence_assertion = "exact_values_match_hand_computation_and_the_independent_oracle"
+notes = "Rust producer in antecedent-design with a facade in antecedent::analysis::sequential_evaluation; point-only, no interval. The Python surface is a separate phase."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.compare_policies"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_dynamic_structural_model_no_causal_graph_search"
+evidence = "finite_dynamic_model_and_named_policy_comparisons"
+functional = "act_now_wait_collect_or_choose_after_observation_values"
+guarantee = "fixed_policy_comparison_values_point_only_no_optimality_claim"
+evidence_test = "crates/antecedent-design/tests/sequential_evaluation.rs"
+evidence_assertion = "comparisons_score_collecting_evidence_through_the_design_ranker"
+notes = "Rust producer in antecedent-design with a facade in antecedent::analysis::sequential_evaluation; point-only, no interval. The Python surface is a separate phase."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.value_of_collecting_evidence"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_dynamic_structural_model_no_causal_graph_search"
+evidence = "finite_channel_and_commit_actions"
+functional = "expected_value_of_sample_information_by_design_ranker_checked_against_enumeration"
+guarantee = "ranker_evsi_exact_and_checked_against_enumerated_collect_then_act_value"
+evidence_test = "crates/antecedent-design/tests/sequential_evaluation.rs"
+evidence_assertion = "comparisons_score_collecting_evidence_through_the_design_ranker"
+notes = "Rust producer in antecedent-design with a facade in antecedent::analysis::sequential_evaluation; point-only, no interval. The Python surface is a separate phase."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.BeliefTracker.observe"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_dynamic_structural_model_no_causal_graph_search"
+evidence = "declared_finite_model_with_bound_measurement_models"
+functional = "bayes_belief_update_with_once_only_ledger_record"
+guarantee = "exact_bayes_update_each_record_counted_once_no_inference"
+evidence_test = "crates/antecedent-design/tests/sequential_evaluation.rs"
+evidence_assertion = "belief_updates_record_each_observation_and_action_once"
+notes = "Rust producer in antecedent-design with a facade in antecedent::analysis::sequential_evaluation; point-only, no interval. The Python surface is a separate phase."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.evaluate_off_policy"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_dynamic_structural_model_no_causal_graph_search"
+evidence = "logged_finite_trajectories_with_assignment_probabilities"
+functional = "importance_weighted_policy_value"
+guarantee = "ordinary_importance_weighted_mean_unbiased_under_positivity_point_only"
+evidence_test = "crates/antecedent-design/tests/sequential_evaluation.rs"
+evidence_assertion = "off_policy_weighting_recovers_the_enumerated_value_and_the_log_is_counted_once"
+notes = "Rust producer in antecedent-design with a facade in antecedent::analysis::sequential_evaluation; point-only, no interval. The Python surface is a separate phase."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.rollout_policy"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_dynamic_structural_model_no_causal_graph_search"
+evidence = "finite_dynamic_model_and_fixed_policy"
+functional = "monte_carlo_policy_value_diagnostic"
+guarantee = "seeded_rollout_mean_with_uncalibrated_monte_carlo_error_point_only"
+evidence_test = "crates/antecedent-design/tests/sequential_evaluation.rs"
+evidence_assertion = "rollouts_agree_with_the_enumeration_within_the_declared_tolerance"
+notes = "Rust producer in antecedent-design with a facade in antecedent::analysis::sequential_evaluation; point-only, no interval. The Python surface is a separate phase."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.consume_sequential_evaluation_artifact"
+stage = "consume"
+status = "licensed"
+graph = "finite_dynamic_structural_model_no_causal_graph_search"
+evidence = "sequential_evaluation_v1_bytes_and_retained_identities"
+functional = "replayed_value_receipts_and_identities"
+guarantee = "stored_numbers_equal_recomputation_bit_for_bit_no_new_inference"
+evidence_test = "crates/antecedent-design/tests/sequential_evaluation.rs"
+evidence_assertion = "artifact_replays_bit_for_bit_and_carries_receipts_for_a_fresh_consumer"
+notes = "Rust producer in antecedent-design with a facade in antecedent::analysis::sequential_evaluation; point-only, no interval. The Python surface is a separate phase."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.static_score_table"
+stage = "evaluate"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Permanently closed adjacent route of sequential policy evaluation: the request is refused with a typed reason that names the declaration, contract or evidence that would license it."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.policy_change_inside_evaluation"
+stage = "evaluate"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Permanently closed adjacent route of sequential policy evaluation: the request is refused with a typed reason that names the declaration, contract or evidence that would license it."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.transported_policy"
+stage = "evaluate"
+status = "closed"
+reason_code = "transport_missing_evidence"
+notes = "Permanently closed adjacent route of sequential policy evaluation: the request is refused with a typed reason that names the declaration, contract or evidence that would license it."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.temporal_transport"
+stage = "evaluate"
+status = "closed"
+reason_code = "transport_missing_evidence"
+notes = "Permanently closed adjacent route of sequential policy evaluation: the request is refused with a typed reason that names the declaration, contract or evidence that would license it."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Permanently closed adjacent route of sequential policy evaluation: the request is refused with a typed reason that names the declaration, contract or evidence that would license it."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.unsupported_history_action"
+stage = "evaluate"
+status = "closed"
+reason_code = "history_support_violated"
+notes = "Permanently closed adjacent route of sequential policy evaluation: the request is refused with a typed reason that names the declaration, contract or evidence that would license it."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.differential_observation_channel"
+stage = "evaluate"
+status = "closed"
+reason_code = "differential_error_not_pooled"
+notes = "Permanently closed adjacent route of sequential policy evaluation: the request is refused with a typed reason that names the declaration, contract or evidence that would license it."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.collect_evidence_beyond_one_observation"
+stage = "evaluate"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Permanently closed adjacent route of sequential policy evaluation: the request is refused with a typed reason that names the declaration, contract or evidence that would license it."
+
+[[routes]]
+route = "antecedent_contract.adaptive_design.AdaptiveDesignContract.new"
+stage = "prepare"
+status = "licensed"
+graph = "not_applicable_the_result_is_a_property_of_the_retained_assignment_history_not_of_a_causal_graph"
+evidence = "retained_assignment_history_of_one_adaptive_experiment"
+functional = "validated_analysis_contract"
+guarantee = "semantic_contract_exact"
+evidence_test = "crates/antecedent-contract/tests/adaptive_design.rs"
+evidence_assertion = "a_complete_declaration_is_accepted"
+notes = "Rust contract constructor; refuses one detail per missing element and defaults nothing."
+
+[[routes]]
+route = "antecedent_io_core.adaptive_monitoring_contract_artifact.consume"
+stage = "consume"
+status = "licensed"
+graph = "not_applicable_the_result_is_a_property_of_the_retained_assignment_history_not_of_a_causal_graph"
+evidence = "adaptive_monitoring_contract_v1_artifact"
+functional = "replayed_analysis_contract_with_procedure_rule_and_paradigm"
+guarantee = "semantic_contract_exact"
+evidence_test = "crates/antecedent-io-core/tests/adaptive_monitoring_contract_artifact.rs"
+evidence_assertion = "a_fresh_consumer_sees_the_procedure_the_rule_and_the_paradigm"
+notes = "Fresh consumer replays the contract, boundaries and observation accounting; no statistical claim."
+
+[[routes]]
+route = "antecedent_contract.adaptive_design.fixed_sample_on_adaptive_data"
+stage = "evaluate"
+status = "closed"
+reason_code = "adaptive_design_ignored"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent_contract.adaptive_design.exposure_differs_from_assignment"
+stage = "evaluate"
+status = "closed"
+reason_code = "adaptive_assumption_violated"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent_contract.adaptive_design.outcome_dependent_delay"
+stage = "evaluate"
+status = "closed"
+reason_code = "adaptive_assumption_violated"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent_contract.adaptive_design.pooling_looks_as_independent"
+stage = "evaluate"
+status = "closed"
+reason_code = "evidence_double_counted"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent_contract.adaptive_design.procedure_status"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_the_result_is_a_property_of_the_retained_assignment_history_not_of_a_causal_graph"
+evidence = "procedure_axis_values"
+functional = "procedure_cell_classification"
+guarantee = "semantic_contract_exact"
+evidence_test = "crates/antecedent-contract/tests/adaptive_design.rs"
+evidence_assertion = "the_matrix_lists_every_combination_once_and_classifies_each"
+notes = "Total over the product of the four axes; the registry table agrees cell by cell."
+
+[[routes]]
+route = "antecedent_contract.adaptive_design.cell.carried_forward"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent_contract.adaptive_design.cell.pairing_not_licensed"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent_contract.adaptive_design.cell.incoherent"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent_contract.adaptive_design.paradigm_not_licensed_for_cell"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent_estimate.adaptive_inference.bayesian_posterior"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_the_result_is_a_property_of_the_retained_assignment_history_not_of_a_causal_graph"
+evidence = "observed_bernoulli_counts_per_arm"
+functional = "beta_bernoulli_posterior_probability_best_expected_loss"
+guarantee = "exact_posterior_given_declared_prior_point_only"
+evidence_test = "crates/antecedent-estimate/tests/adaptive_inference.rs"
+evidence_assertion = "the_posterior_is_conjugate_and_carries_its_premise_and_a_closed_guarantee"
+notes = "Point-only; the credible interval is closed."
+
+[[routes]]
+route = "antecedent_estimate.adaptive_inference.bayesian_posterior.credible_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent_estimate.adaptive_inference.expected_loss_stopping"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_the_result_is_a_property_of_the_retained_assignment_history_not_of_a_causal_graph"
+evidence = "posterior_of_each_arm_and_declared_loss_threshold"
+functional = "posterior_expected_loss_stop_decision"
+guarantee = "exact_decision_given_declared_loss_and_prior_point_only"
+evidence_test = "crates/antecedent-estimate/tests/adaptive_inference.rs"
+evidence_assertion = "a_posterior_rule_decides_from_the_history_and_claims_no_error_rate"
+notes = "Point-only decision; reliability closed."
+
+[[routes]]
+route = "antecedent_estimate.adaptive_inference.expected_loss_stopping.reliability"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent_estimate.adaptive_inference.adaptively_weighted_estimate"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_the_result_is_a_property_of_the_retained_assignment_history_not_of_a_causal_graph"
+evidence = "assigned_arms_probabilities_and_observed_outcomes"
+functional = "adaptively_weighted_arm_mean_or_contrast"
+guarantee = "adaptively_weighted_point_with_uncalibrated_martingale_variance"
+evidence_test = "crates/antecedent-estimate/tests/adaptive_inference.rs"
+evidence_assertion = "weighted_estimates_match_the_hand_calculation_and_never_clip"
+notes = "Point with an uncalibrated plug-in variance; no interval."
+
+[[routes]]
+route = "antecedent_estimate.adaptive_inference.adaptively_weighted_estimate.interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent_estimate.adaptive_inference.adaptively_weighted_estimate.probability_clipping"
+stage = "evaluate"
+status = "closed"
+reason_code = "adaptive_assumption_violated"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent_estimate.adaptive_inference.repeated_measures_weighted_estimate"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_the_result_is_a_property_of_the_retained_assignment_history_not_of_a_causal_graph"
+evidence = "assigned_arms_probabilities_and_subject_level_measurements"
+functional = "subject_level_adaptively_weighted_contrast"
+guarantee = "subject_level_adaptively_weighted_point_with_uncalibrated_martingale_variance"
+evidence_test = "crates/antecedent-estimate/tests/adaptive_inference.rs"
+evidence_assertion = "a_subject_size_multiplier_reweights_the_scores"
+notes = "Point with an uncalibrated plug-in variance; no interval."
+
+[[routes]]
+route = "antecedent_estimate.adaptive_inference.repeated_measures_weighted_estimate.interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent_estimate.adaptive_inference.hierarchical_clustered_outcome"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent_estimate.adaptive_inference.anytime_valid_arm_sequences"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_the_result_is_a_property_of_the_retained_assignment_history_not_of_a_causal_graph"
+evidence = "bounded_arm_outcomes_in_pull_order"
+functional = "uncalibrated_confidence_sequence_of_arm_means"
+guarantee = "time_uniform_sequence_theorem_unmeasured_as_a_procedure"
+evidence_test = "crates/antecedent-estimate/tests/adaptive_inference.rs"
+evidence_assertion = "confidence_sequences_match_the_closed_form_and_union_bound_a_contrast"
+notes = "Sequence numbers labelled uncalibrated; the whole-procedure guarantee is closed."
+
+[[routes]]
+route = "antecedent_estimate.adaptive_inference.anytime_valid_arm_sequences.guarantee"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent_estimate.adaptive_inference.anytime_valid_arm_sequences.betting_martingale"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent_estimate.adaptive_inference.group_sequential_decision"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_the_result_is_a_property_of_the_retained_assignment_history_not_of_a_causal_graph"
+evidence = "standardized_statistics_at_pre_specified_looks"
+functional = "alpha_spending_efficacy_boundaries_and_first_crossing"
+guarantee = "alpha_spending_boundaries_by_numerical_integration_point_only"
+evidence_test = "crates/antecedent-estimate/tests/adaptive_inference.rs"
+evidence_assertion = "group_sequential_boundaries_and_decisions_follow_the_published_values"
+notes = "Boundaries and the first crossing; adjusted inference closed."
+
+[[routes]]
+route = "antecedent_estimate.adaptive_inference.group_sequential_decision.stagewise_adjusted_inference"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent_contract.adaptive_design.cell.group_sequential_with_adaptive_assignment"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent.adaptive_inference.interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent.adaptive_inference.fixed_sample"
+stage = "evaluate"
+status = "closed"
+reason_code = "adaptive_design_ignored"
+notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."

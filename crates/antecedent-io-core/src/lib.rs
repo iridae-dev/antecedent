@@ -13,15 +13,18 @@
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod adaptive_monitoring_contract_artifact;
 pub mod analysis_result_artifact;
 pub mod analysis_wire;
 pub mod artifact_codec;
 mod artifact_kinds;
 pub mod bayesian_prior_recalc_artifact;
+pub mod bridge_artifact;
 pub mod calibration;
 pub mod canonical_json;
 pub mod causal_artifact;
 mod claim_identity;
+pub mod cohort_decision;
 pub mod compact_export;
 pub mod container;
 mod contract_reason;
@@ -67,6 +70,7 @@ pub mod migrate;
     reason = "memory-mapped reader; the caller guarantees the file is not mutated while mapped"
 )]
 pub mod mmap_file;
+pub mod observation_query_artifact;
 pub mod plan_wire;
 pub mod posterior;
 pub mod prior_bank;
@@ -207,6 +211,13 @@ pub use mechanism_wire::{
 pub use migrate::{
     STABLE_FORMAT, SUPPORTED_SOURCE_FORMATS, is_supported_source, migrate_artifact,
     read_and_migrate,
+};
+pub use observation_query_artifact::{
+    ConsumedObservationQuery, MeasuredSlotWire, OBSERVATION_QUERY_ARTIFACT_FEATURE,
+    OBSERVATION_QUERY_ARTIFACT_VERSION, ObservationQueryArtifactError,
+    ObservationQueryArtifactWire, ObservationQueryWire, ObservationResultWire,
+    evaluate_observation_query, inference_basis_of, observation_query_identity,
+    query_error_refusals,
 };
 pub use plan_wire::{
     ExecutionPerformanceWire, LogicalAnalysisPlanWire, PhysicalExecutionPlanWire,

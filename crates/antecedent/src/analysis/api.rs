@@ -27,6 +27,11 @@ pub use super::{
     evaluate_identified_sets, evaluate_robust, utility_interval,
 };
 pub use super::{
+    AdaptiveInferenceOutcome, AdaptiveInferenceRefusal, AdaptiveInferenceSession,
+    ConsumedAdaptiveResult, ConsumedMonitoringContract, consume_adaptive_inference_result_artifact,
+    consume_adaptive_monitoring_contract_artifact,
+};
+pub use super::{
     AdmgConditionalResult, PreparedAdmgConditionalTransport,
     consume_admg_conditional_obstruction_artifact, consume_admg_conditional_transport_artifact,
     export_admg_conditional_obstruction,
@@ -69,6 +74,10 @@ pub use super::{
     consume_evidence_ledger_artifact,
 };
 pub use super::{
+    BridgeInspection, ConsumedScientificBridge, PreparedScientificBridge, ScientificBridgeExport,
+    ScientificBridgeRefusal, ScientificBridgeResult, consume_scientific_bridge_artifact,
+};
+pub use super::{
     CategoricalTarget, ConsumedMeasurement, MeasurementAnalysisBinding, MeasurementDetail,
     MeasurementEstimate, MeasurementInput, MeasurementModelRefusal, MeasurementRefresh,
     PreparedMeasurementModel, consume_measurement_model_artifact,
@@ -108,6 +117,11 @@ pub use super::{MzTransportResult, PreparedMzTransport, consume_mz_transport_art
 pub use super::{
     ObservationRecoveryResult, PreparedObservationRecovery, RecoveryEvaluation,
     consume_observation_recovery_artifact,
+};
+pub use super::{
+    PredictiveAssessmentRefusal, PreparedPredictiveAssessment,
+    consume_predictive_assessment_artifact, fit_declaration_from_ledger,
+    observation_keys_from_ledger, posterior_predictive_predictor,
 };
 pub use super::{
     PreparedCpdagCompletionScenarios, consume_cpdag_scenarios_artifact,

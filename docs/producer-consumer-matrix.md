@@ -186,29 +186,48 @@ executed by `test_producer_consumer_matrix_<row>_row[<consumer>]`.
 
 Original diagnostic carry-through preserves source scopes and semantic coordinates; a transformed value does not acquire a new local effective sample size or overlap diagnostic. External bound-response artifacts retain original support and exact request identity, but their original format contains no numerical diagnostic vectors. That absence remains explicit. `decision_robust.ExternalReceipt.from_claim` takes a caller-supplied scalar without an original response-coordinate mapping: it preserves provider, snapshot and request references while recording caller attestation, including when the original response had verified-extension standing. Those references supply no numerical verification or source diagnostic license for the scalar.
 
-## Fitted prediction boundary and the next delivery package
+## Fitted prediction boundary and the cohort-mean decision source
 
 The matrix's `fitted_effect_model` row is the `CompactExport` representation (including
 its support/mask declarations). The separate public `prediction.FittedEffectModel`
 loads and verifies an executed parent analysis claim, then predicts CATE points from
-its immutable fitted payload. Its `EffectPrediction` currently retains only point
-values and the parent claim identity. It does not retain a cohort snapshot, row
-identities, declared outcome units/contrast quantity or target-row support. Neither
-representation currently supplies a direct native `Contract.evaluate` source.
+its immutable fitted payload. Its `EffectPrediction` retains only point values and the
+parent claim identity: it keeps no cohort snapshot, row identities, declared outcome
+units or target-row support, and a bare prediction is not a `Contract.evaluate` source.
 Prediction verification authenticates the parent model; it does not certify a new
 cohort's support or create absolute potential-outcome means or a joint law.
 
-The bounded 2.4 delivery package is a native cohort-mean contrast adapter: retain
-the verified fitted payload and original query/contrast; bind strict named feature
-schema, finite cohort rows, row count, cohort snapshot/digest and target population;
-check target-row support using the original fitted model's support contract; require
-explicit outcome units; and emit one source-bound `mean_difference` quantity for
-the declared cohort's weighted mean CATE. Preserve original diagnostics and exact
-conditioning/cohort identity, with no inherited utility standard error or confidence
-interval. Provide typed missing/outside-support, population/schema/unit/contrast
-mismatch and changed-cohort refusals; original evidence metadata and retained
-expectation checks; and producer-to-adapter-to-affine-contract tests with independent
-hand-computed cohort oracles. Nonlinear utility, probability, quantile and joint-law
-consumers must continue to refuse unless a separate native producer actually
-supplies aligned outcome draws. This package requires a real native authority and
-support route before exposing a convenience Python prediction-to-decision method.
+The native cohort-mean contrast adapter closes that boundary for one operation. It
+retains the verified fitted payload with the original query and contrast and the
+producer's fitted-row support contract (a model without that contract is refused, not
+assumed supported). It binds a cohort: strict named feature rows (none missing, none
+extra), row identities, a cohort snapshot digest, a target population, finite
+normalized weights and explicit outcome units. Every row is checked against the support
+contract before anything is issued. It then issues one source-bound `mean_difference`
+coordinate, the weighted mean of the conditional contrast, whose conditioning names the
+cohort snapshot digest and whose parent claim, original diagnostics and assumptions are
+preserved. The coordinate answers the expectation of an affine utility and nothing else.
+
+| Request | Cohort-mean source |
+| --- | --- |
+| Expectation of an affine utility of the cohort-mean contrast | DIRECT: the one mean, point-only, no utility standard error or interval |
+| Interval, band or posterior for the cohort mean | REFUSED: `cell_not_licensed`, `cohort_decision.interval_not_licensed` (route closed pending measured whole-method coverage) |
+| Probability, quantile, tail expectation, nonlinear utility | REFUSED: `decision_contract_unsatisfied`, `cohort_decision.law_not_supplied` (needs aligned outcome draws from a producer of an interventional law) |
+| Joint law with another quantity, or draws of the contrast | REFUSED: `joint_law_required`, `cohort_decision.joint_law_required` |
+| Inverse query on the cohort-mean contrast | ADAPTER: the same mean as a finite-action forward source, point-only |
+| Cohort from another population | ADAPTER under a declared covariate shift with every row inside the support contract; labelled `Extrapolative`; otherwise REFUSED `transport_missing_evidence`, `cohort_decision.shift_declaration_required` |
+
+Trust follows the model's origin. A source built from a verified native analysis result
+resolves as native: its numbers are recomputed from the retained payload and the cohort
+rows, never read from a caller-supplied prediction. A source built from a caller-built
+compact export is a declared model, resolves as an external attestation and is refused
+where native is required. The export (`cohort_decision_source_v1`) embeds the model
+payload, the cohort rows and the result; a consumer holding only the bytes and the
+retained identity recomputes every number and refuses a changed row, weight,
+coefficient, unit, population or parent, including a resealed container.
+
+For a linear compact model that retains its coefficient covariance, the variance of
+the weighted cohort-mean contrast `phibar' V phibar` is computable. It is reported as
+an uncalibrated standard error on the source and is never passed to a decision input.
+Its calibration is a whole-method design (cohort-weight and support-selection step
+included) that has not been measured, so the interval route stays closed.

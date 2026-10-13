@@ -20,6 +20,7 @@ pub(crate) use checked_ref;
 
 pub mod api;
 
+pub mod adaptive_inference;
 mod admg_conditional_transport;
 mod batch;
 mod batch_export;
@@ -42,6 +43,7 @@ mod checked_temporal_graph_posterior_effect;
 mod checked_temporal_graph_posterior_response;
 mod checked_temporal_response;
 pub mod closed_pilots;
+pub mod cohort_decision;
 pub mod compact_export;
 pub mod composition;
 pub mod conditional_study_ranking;
@@ -52,6 +54,7 @@ mod counterfactual_transport;
 mod cpdag_scenarios;
 pub mod decision_claims;
 mod decision_contract_facade;
+pub mod decision_reliability;
 mod derived_treatment;
 pub mod design_ranking;
 pub mod dose_grid_functional;
@@ -76,6 +79,10 @@ pub mod msm_sensitivity;
 mod mz_transport;
 pub mod native_claims;
 pub mod nonlinear_mediation;
+pub mod observation_evidence;
+pub mod observation_posterior;
+pub mod observation_query;
+pub mod predictive_assessment;
 mod preflight;
 pub(crate) mod query_license;
 mod rank_drop_estimate;
@@ -90,7 +97,9 @@ pub mod recalc_temporal_measured;
 mod recovery;
 pub mod recovery_chain;
 pub mod repair;
+pub mod scientific_bridge;
 pub mod sensitivity_decision;
+pub mod sequential_evaluation;
 mod smoothed_dose;
 mod statistical;
 pub mod temporal_counterfactual;
@@ -105,6 +114,11 @@ pub mod transported_counterfactual;
 pub mod vector_treatment;
 mod z_transport;
 mod z_transport_sensitivity_artifact;
+pub use adaptive_inference::{
+    AdaptiveInferenceOutcome, AdaptiveInferenceRefusal, AdaptiveInferenceSession,
+    ConsumedAdaptiveResult, ConsumedMonitoringContract, consume_adaptive_inference_result_artifact,
+    consume_adaptive_monitoring_contract_artifact,
+};
 pub use admg_conditional_transport::{
     AdmgConditionalResult, PreparedAdmgConditionalTransport,
     consume_admg_conditional_obstruction_artifact, consume_admg_conditional_transport_artifact,
@@ -156,6 +170,10 @@ pub use cpdag_scenarios::{
     CpdagEvaluation, PreparedCpdagCompletionScenarios, consume_cpdag_scenarios_artifact,
     consume_scenario_covariance_artifact, export_scenario_covariance,
 };
+pub use decision_reliability::{
+    DecisionReliabilityInspection, DecisionReliabilityRefusal, PreparedDecisionReliability,
+    consume_decision_reliability_artifact,
+};
 pub use derived_treatment::{
     ConstituentRole, DeclaredExclusion, DerivedTreatmentDeclaration, DerivedTreatmentPlan,
     ExclusionRule, InterventionMeaning, SourceColumn, TemporalPosition, Transformation,
@@ -200,6 +218,11 @@ pub use mechanism_composition::{
 };
 pub use mixed_source::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_artifact};
 pub use mz_transport::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
+pub use predictive_assessment::{
+    PredictiveAssessmentRefusal, PreparedPredictiveAssessment,
+    consume_predictive_assessment_artifact, fit_declaration_from_ledger,
+    observation_keys_from_ledger, posterior_predictive_predictor,
+};
 pub use preflight::{
     ArmCount, ArmSpec, ArmWeightEss, BatchPreflightReport, ColumnMissingness, ColumnPriority,
     ColumnWeight, DependentColumn, DroppedColumn, DuplicateGroup, FindingSeverity,
@@ -211,6 +234,10 @@ pub use rank_drop_estimate::{RankDropEstimate, estimate_with_rank_drop};
 pub use recovery::{
     ObservationRecoveryResult, PreparedObservationRecovery, RecoveryEvaluation,
     consume_observation_recovery_artifact,
+};
+pub use scientific_bridge::{
+    BridgeInspection, ConsumedScientificBridge, PreparedScientificBridge, ScientificBridgeExport,
+    ScientificBridgeRefusal, ScientificBridgeResult, consume_scientific_bridge_artifact,
 };
 pub use smoothed_dose::{PreparedSmoothedDose, SmoothedDoseResult, consume_smoothed_dose_artifact};
 pub use statistical::{

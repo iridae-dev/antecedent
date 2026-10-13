@@ -481,3 +481,72 @@ meaning = "The measurement correction is not identified at the declared bound: Y
 id = "measurement_posterior_not_trusted"
 applies_to = ["runtime_refusal"]
 meaning = "A latent-variable posterior supplied by an external provider cannot be consumed: its object or request identity differs from the model's reference, it is not a parameter posterior over the construct in the model's population and regime, it declares no sampling operation, or it claims native trust. Trust is never inferred from metadata; the refusal states the verification or attestation that would license consumption."
+
+# Scientific bridges (promotion records: scientific_bridge.* in parity/promotion.toml).
+[[code]]
+id = "scientific_bridge_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "A bridge between scientific quantities is not well formed: a blank or oversized identity or statement, a quantity with an incomplete coordinate, a class pair the bridge kind does not connect, a mapping the kind does not allow, a duplicated assumption identity, a non-finite or malformed mapping number, a transportability premise declared where nothing is transported. The refusal names the field and the declaration that would make the bridge well formed."
+
+[[code]]
+id = "bridge_assumption_missing"
+applies_to = ["runtime_refusal"]
+meaning = "A bridge rests on an assumption that is not declared, or that names no evidence: the kind's principal assumption (measurement model, behavioral linkage, surrogate validation, identification, parameter interpretation, utility mapping), or the transportability premise when the bridge's evidence was established for another population or regime than the claim's. The refusal names the assumption kind and the identity or evidence that would license the bridge."
+
+[[code]]
+id = "bridge_substitution_refused"
+applies_to = ["runtime_refusal"]
+meaning = "One scientific quantity was offered as another that it is not: an association as an intervention, a stated preference as realized behavior, a predictive importance as a causal effect, a model score as a probability, a scientific endpoint as a utility, or a mean, predictive law, posterior, identified set or joint outcome law where another of those objects is required. These are not interchangeable and no bridge relaxes that; the refusal names both and the declaration or route that would license the request."
+
+[[code]]
+id = "bridge_binding_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "The parts of a bridge disagree: the claim is about another quantity, units, population, regime, horizon or conditioning than the contract's source; the source and target differ in population, or in regime where a regime change is not part of the bridge kind; the measurement model names other variables, another identity or another population and regime than the bridge's evidence scope; or the transportability premise is for another transport. The refusal names the expected and supplied coordinates."
+
+[[code]]
+id = "bridge_mapping_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "A bridge's mapping cannot carry this value: fewer validation trials than declared, a trial-level coefficient of determination below the declared minimum, validation effects that do not vary, a surrogate effect outside the range the validation trials covered (no extrapolation), a recorded prevalence outside the attainable range of the declared misclassification rates, or a functional or scale the correction does not invert. The refusal states the declared bound and the evidence that would license the value."
+
+[[code]]
+id = "candidate_search_record_required"
+applies_to = ["runtime_refusal"]
+meaning = "A ranking, optimality or selection-aware statement was requested over candidates that an adaptive search produced, and no search record names the generator, its budget, the number of candidates evaluated and the selection rule. Retained candidates alone would silently condition the claim on a search it does not describe; the refusal states the record that would license the request."
+
+[[code]]
+id = "validation_stream_not_independent"
+applies_to = ["runtime_refusal"]
+meaning = "A held-out or split re-evaluation of a selected decision uses draws that overlap, or are not separated from, the draws that selected it (the same stream coordinates, or an overlapping or too-close range of one stream), so it cannot correct selection bias. The refusal names both segments and the independent stream or gap that would license the request."
+
+[[code]]
+id = "uncertainty_components_not_combined"
+applies_to = ["runtime_refusal"]
+meaning = "One combined uncertainty number was requested for a sampled or selected decision. Source-distribution spread, Monte Carlo error and selection-induced uncertainty are reported separately and never summed; a combined statement is a whole-procedure claim that needs a calibration at the coordinate (candidate-set size, Monte Carlo budget, selection rule)."
+
+# Observation-conditioned queries (promotion records: observation_query.* in parity/promotion.toml).
+[[code]]
+id = "evidence_cannot_reach_level"
+applies_to = ["runtime_refusal"]
+meaning = "A posterior or decision probability cannot be moved to the declared level by any admissible evidence: the declared signal does not move the probability in that direction, no observed level of the signal crosses it, or reaching it needs more observations than the declared bound. The refusal states the level asked for and the most extreme value that is reachable (a supremum when raising, an infimum when lowering), and what would license a different answer."
+
+# Sequential decision evaluation (promotion records: sequential_evaluation.* in parity/promotion.toml).
+[[code]]
+id = "history_support_violated"
+applies_to = ["runtime_refusal"]
+meaning = "A supplied policy takes an action, with positive probability, in a reachable history where the action has no support (a positivity violation): the model declares no support for it there, or the logging policy that generated the logged data has probability zero or no declared decision there, or no logged trajectory is consistent with the target policy so every importance weight is zero. The value of the policy is not identified by extrapolating across the gap; the refusal names the history, the action and the support declaration or logged coverage that would license the evaluation."
+
+# Adaptive-experiment inference (promotion records: adaptive_inference.* in parity/promotion.toml).
+[[code]]
+id = "adaptive_contract_incomplete"
+applies_to = ["runtime_refusal"]
+meaning = "Inference from an adaptive experiment is requested but an element of its retained analysis contract is missing: the assignment-policy history, the realized assignment probabilities, the exposure history, outcome availability and delay, the interim analyses or the stopping rule. One detail names each missing element; nothing is defaulted and the final sample is never analysed as if the design were fixed."
+
+[[code]]
+id = "adaptive_design_ignored"
+applies_to = ["runtime_refusal"]
+meaning = "An analysis that presumes a design fixed in advance (fixed sample size, fixed assignment, no stopping rule) is requested for data collected under an adaptive assignment policy, interim monitoring or a stopping rule. The refusal names the adaptive-design routes that account for the design."
+
+[[code]]
+id = "adaptive_assumption_violated"
+applies_to = ["runtime_refusal"]
+meaning = "An assumption an adaptive-experiment route rests on fails in the retained history: units received an arm other than the one assigned, outcome availability depends on the outcome, or an estimand arm had assignment probability below the declared floor. Nothing is clipped, dropped or imputed; the refusal names the declaration or model that would license the request."

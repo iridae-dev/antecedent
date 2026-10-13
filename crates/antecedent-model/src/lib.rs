@@ -18,6 +18,7 @@ pub mod evaluate;
 pub mod lgssm;
 pub mod mechanism;
 pub mod model_collection;
+pub mod observation_query;
 pub mod overlay;
 pub mod registry;
 pub mod sample;
