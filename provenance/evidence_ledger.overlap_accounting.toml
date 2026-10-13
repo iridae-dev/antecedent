@@ -1,0 +1,20 @@
+feature_id = "evidence_ledger.overlap_accounting"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: Set arithmetic over declared observation identities, with a lineage check and a once-counted mass; original engineering with no introducing paper.
+papers = [
+]
+implementation_deviations = [
+  "Overlap is computed over producer-declared row identities; the ledger cannot verify that two distinct identities are not the same physical observation, and undeclared observations are unknown, never independent.",
+  "Statistical dependence between disjoint observations (clusters, shared units under a different identity) is not represented; a producer who knows of it declares a covariance or an assumption range.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-contract/tests/evidence_ledger.rs",
+  "crates/antecedent-stats/tests/synthesis_oracle.rs",
+  "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs",
+]

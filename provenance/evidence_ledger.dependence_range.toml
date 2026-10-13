@@ -1,0 +1,21 @@
+feature_id = "evidence_ledger.dependence_range"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "On Least Squares and Linear Combination of Observations (Aitken, Proc. R. Soc. Edinburgh 55, 1935)", doi = "10.1017/S0370164600014346", sections = ["generalized least squares under a covariance; the equicorrelated closed form and its extremes over a correlation interval are derived in-repo"] },
+]
+implementation_deviations = [
+  "Only one common pairwise correlation (equicorrelation) is ranged over; arbitrary correlation matrices, per-pair intervals and a general positive semidefinite completion are not implemented.",
+  "The mean's monotonicity and the variance's stationarity quadratic are derived in-repo and checked against a brute-force grid, not taken from a paper.",
+  "The envelope is an assumption range; it is never presented as a confidence or credible interval.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-contract/tests/evidence_ledger.rs",
+  "crates/antecedent-stats/tests/synthesis_oracle.rs",
+  "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs",
+]

@@ -1,0 +1,22 @@
+feature_id = "evidence_ledger.hierarchical_borrowing"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Estimation in Parallel Randomized Experiments (Rubin, 1981)", doi = "10.3102/10769986006004377", sections = ["the normal-normal hierarchical model for parallel experiments and its conditional posteriors"] },
+  { title = "Prior distributions for variance parameters in hierarchical models (Gelman, 2006)", doi = "10.1214/06-BA117A", sections = ["the between-group standard deviation as the parameter that needs a declared prior"] },
+]
+implementation_deviations = [
+  "The prior on tau is a declared finite support with explicit probabilities, not a continuous density; a continuous prior is an approximation by its support and the posterior is exact only for the declared one.",
+  "Normal likelihood on study summaries with known sampling variances; no t correction, no covariance between studies.",
+  "Posterior mean and variance only; no credible interval or calibration is claimed.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-contract/tests/evidence_ledger.rs",
+  "crates/antecedent-stats/tests/synthesis_oracle.rs",
+  "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs",
+]
