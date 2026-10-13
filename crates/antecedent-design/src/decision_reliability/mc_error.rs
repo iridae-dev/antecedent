@@ -536,13 +536,16 @@ fn cvar_lower(values: &[f64], alpha: f64) -> (f64, f64) {
     ((head + (mass - (k as f64 - 1.0)) * zeta) / mass, zeta)
 }
 
+/// A mean-like functional's point value (`None` for the series mean) and its series.
+type MeanLikeSeries = (Option<f64>, Vec<f64>);
+
 /// `(value, series)` of a mean-like functional. `value` is `None` when the point
 /// estimate is the (possibly weighted) series mean.
 fn mean_like(
     values: &[f64],
     weights: Option<&[f64]>,
     functional: &Functional,
-) -> Result<Option<(Option<f64>, Vec<f64>)>, ReliabilityError> {
+) -> Result<Option<MeanLikeSeries>, ReliabilityError> {
     Ok(match functional {
         Functional::ExpectedUtility => Some((None, values.to_vec())),
         Functional::ThresholdProbability { threshold, side } => {
@@ -608,23 +611,20 @@ pub fn estimate(
     if values.iter().any(|v| !v.is_finite()) {
         return Err(ReliabilityError::invalid("non_finite_utility", "utilities must be finite"));
     }
-    let estimate = match mean_like(values, weights, functional)? {
-        Some((value, series)) => {
-            let stats = series_stats(&series, weights, dependence, plan)?;
-            McEstimate {
-                value: value.unwrap_or(stats.mean),
-                standard_error: stats.standard_error,
-                effective_sample_size: stats.ess,
-                n_draws: values.len() as u64,
-                method: influence_method(functional, stats.method),
-            }
+    let estimate = if let Some((value, series)) = mean_like(values, weights, functional)? {
+        let stats = series_stats(&series, weights, dependence, plan)?;
+        McEstimate {
+            value: value.unwrap_or(stats.mean),
+            standard_error: stats.standard_error,
+            effective_sample_size: stats.ess,
+            n_draws: values.len() as u64,
+            method: influence_method(functional, stats.method),
         }
-        None => {
-            let Functional::Quantile { p } = functional else {
-                return Err(ReliabilityError::invalid("functional", "unreachable quantile arm"));
-            };
-            quantile_estimate(values, weights, dependence, plan, *p)?
-        }
+    } else {
+        let Functional::Quantile { p } = functional else {
+            return Err(ReliabilityError::invalid("functional", "unreachable quantile arm"));
+        };
+        quantile_estimate(values, weights, dependence, plan, *p)?
     };
     Ok(FunctionalEstimate { functional: functional.clone(), estimate })
 }
@@ -692,38 +692,32 @@ pub fn estimate_difference(
             reason: "shared_stream_series_of_different_length",
         });
     }
-    let (se, ess, method) = match functional {
-        Functional::Quantile { p } => {
-            if weights.is_some() {
-                return Err(ReliabilityError::RouteNotSupported {
-                    message: "weighted quantile difference".into(),
-                });
-            }
-            let batches = plan.batches(a.len())?;
-            let m = a.len() / batches;
-            let qa = batch_quantiles(a, batches, m, *p);
-            let qb = batch_quantiles(b, batches, m, *p);
-            let paired: Vec<f64> = qa.iter().zip(&qb).map(|(x, y)| x - y).collect();
-            let (_, variance) = welford(&paired);
-            (
-                (variance / batches as f64).sqrt(),
-                None,
-                StandardErrorMethod::BatchQuantiles {
-                    batches: batches as u32,
-                    batch_len: m as u32,
-                },
-            )
+    let (se, ess, method) = if let Functional::Quantile { p } = functional {
+        if weights.is_some() {
+            return Err(ReliabilityError::RouteNotSupported {
+                message: "weighted quantile difference".into(),
+            });
         }
-        _ => {
-            let series_a = mean_like(a, weights, functional)?.map(|(_, s)| s);
-            let series_b = mean_like(b, weights, functional)?.map(|(_, s)| s);
-            let (Some(sa), Some(sb)) = (series_a, series_b) else {
-                return Err(ReliabilityError::invalid("functional", "no influence series"));
-            };
-            let paired: Vec<f64> = sa.iter().zip(&sb).map(|(x, y)| x - y).collect();
-            let stats = series_stats(&paired, weights, dependence, plan)?;
-            (stats.standard_error, Some(stats.ess), influence_method(functional, stats.method))
-        }
+        let batches = plan.batches(a.len())?;
+        let m = a.len() / batches;
+        let qa = batch_quantiles(a, batches, m, *p);
+        let qb = batch_quantiles(b, batches, m, *p);
+        let paired: Vec<f64> = qa.iter().zip(&qb).map(|(x, y)| x - y).collect();
+        let (_, variance) = welford(&paired);
+        (
+            (variance / batches as f64).sqrt(),
+            None,
+            StandardErrorMethod::BatchQuantiles { batches: batches as u32, batch_len: m as u32 },
+        )
+    } else {
+        let series_a = mean_like(a, weights, functional)?.map(|(_, s)| s);
+        let series_b = mean_like(b, weights, functional)?.map(|(_, s)| s);
+        let (Some(sa), Some(sb)) = (series_a, series_b) else {
+            return Err(ReliabilityError::invalid("functional", "no influence series"));
+        };
+        let paired: Vec<f64> = sa.iter().zip(&sb).map(|(x, y)| x - y).collect();
+        let stats = series_stats(&paired, weights, dependence, plan)?;
+        (stats.standard_error, Some(stats.ess), influence_method(functional, stats.method))
     };
     let independent = va + vb;
     let ratio = (independent > 0.0).then(|| se * se / independent);

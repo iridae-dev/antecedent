@@ -310,8 +310,8 @@ fn standard_normal_draws(n: usize, replicate: u64) -> Vec<f64> {
     (0..n).map(|_| standard_normal(&mut rng)).collect()
 }
 
-/// Asymptotic standard error of the lower-tail CVaR estimator for a standard normal:
-/// `sd(min(U, q)) / (alpha sqrt(n))`, with the moments of `min(U, q)` in closed form.
+/// Asymptotic standard error of the lower-tail `CVaR` estimator for a standard normal:
+/// `sd(min(U, q)) / (alpha * sqrt(n))`, with the moments of `min(U, q)` in closed form.
 fn cvar_theory_se(alpha: f64, n: usize) -> f64 {
     let q = norm_inv(alpha);
     let phi = norm_pdf(q);

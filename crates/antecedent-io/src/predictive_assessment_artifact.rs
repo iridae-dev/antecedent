@@ -658,9 +658,9 @@ fn dependence_wire(dependence: Option<&DependenceDeclaration>) -> DependenceWire
     match dependence {
         Some(DependenceDeclaration::Serial { time_index, truncation_lag }) => {
             wire.truncation_lag = Some(*truncation_lag);
-            wire.time_index = time_index.clone();
+            time_index.clone_into(&mut wire.time_index);
         }
-        Some(DependenceDeclaration::Cluster { labels }) => wire.labels = labels.clone(),
+        Some(DependenceDeclaration::Cluster { labels }) => labels.clone_into(&mut wire.labels),
         Some(DependenceDeclaration::Iid) | None => {}
     }
     wire

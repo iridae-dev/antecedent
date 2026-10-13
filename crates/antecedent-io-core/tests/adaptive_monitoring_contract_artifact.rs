@@ -163,7 +163,7 @@ fn resealed_semantic_mutations_are_refused() {
         meta.declaration.assignment_probability_bits.as_mut().unwrap()[3] =
             vec![0.45_f64.to_bits(), 0.55_f64.to_bits()];
     });
-    assert!(matches!(outcome, Err(Error::Refused { .. }) | Err(Error::IdentityMismatch { .. })));
+    assert!(matches!(outcome, Err(Error::Refused { .. } | Error::IdentityMismatch { .. })));
     // Another outcome.
     let outcome = edited(P::FrequentistGroupSequential, group_sequential(), |meta| {
         meta.declaration.outcome_bits[0] = vec![9.0_f64.to_bits()];

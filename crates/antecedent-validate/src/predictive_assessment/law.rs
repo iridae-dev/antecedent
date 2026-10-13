@@ -659,7 +659,6 @@ impl LawSource {
                 detail::INVALID_LAW,
                 format!("predictor `{predictor}` declares a blank native model label"),
             )),
-            Self::Native { .. } => Ok(()),
             Self::Provider { identity, .. } if !identity.is_complete() => Err(invalid(
                 detail::PROVIDER_IDENTITY_INCOMPLETE,
                 format!(
@@ -668,7 +667,7 @@ impl LawSource {
                      identities through the provider contract"
                 ),
             )),
-            Self::Provider { .. } => Ok(()),
+            Self::Native { .. } | Self::Provider { .. } => Ok(()),
             Self::Callback { description } => Err(unsupported(
                 detail::LAW_CALLBACK_NOT_BUILT,
                 format!(

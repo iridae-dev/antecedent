@@ -434,13 +434,7 @@ pub fn held_out_evaluation(
     if let Some(ranges) = by_stream.get(&validation_segment.stream) {
         let (v0, v1) = (validation_segment.start, validation_segment.end());
         let too_close = ranges.iter().any(|&(s0, s1)| {
-            let separation = if s1 <= v0 {
-                v0 - s1
-            } else if v1 <= s0 {
-                s0 - v1
-            } else {
-                0
-            };
+            let separation = if s1 <= v0 { v0 - s1 } else { s0.saturating_sub(v1) };
             let overlapping = !(s1 <= v0 || v1 <= s0);
             overlapping || separation < gap
         });

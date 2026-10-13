@@ -20,6 +20,10 @@
     clippy::needless_range_loop,
     reason = "enumerated closed-form oracles index small fixed tables by arm and level"
 )]
+#![allow(
+    clippy::cast_lossless,
+    reason = "the oracle loops are over the small integers 0 and 1 used as binary levels"
+)]
 
 use std::sync::Arc;
 

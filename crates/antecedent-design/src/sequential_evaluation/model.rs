@@ -545,9 +545,8 @@ impl FiniteSequentialModel {
                 "give every action a distinct label",
             ));
         }
-        if !(action.utility_cost.is_finite() && action.utility_cost >= 0.0)
-            || !(action.resource_use.is_finite() && action.resource_use >= 0.0)
-        {
+        let non_negative = |v: f64| v.is_finite() && v >= 0.0;
+        if !non_negative(action.utility_cost) || !non_negative(action.resource_use) {
             return Err(refusal!(
                 "invalid_argument",
                 "sequential_evaluation.action_cost",

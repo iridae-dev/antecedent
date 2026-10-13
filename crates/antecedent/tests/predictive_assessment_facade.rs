@@ -36,6 +36,10 @@ fn rows(from: u32, to: u32) -> Vec<ObservationId> {
     (from..to).map(|i| ObservationId::from_key("cohort", &i.to_le_bytes())).collect()
 }
 
+#[allow(
+    clippy::struct_field_names,
+    reason = "the fields name the ledger and the two sources it holds"
+)]
 struct Ledger {
     ledger: EvidenceLedger,
     train: SourceId,

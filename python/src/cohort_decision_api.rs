@@ -279,7 +279,7 @@ fn cohort_decision_law_refusal(kind: &str) -> PyResult<String> {
         }
     };
     let mut refusal = request.refusal();
-    refusal.subject = kind.to_owned();
+    kind.clone_into(&mut refusal.subject);
     Ok(refusal_json(&refusal, "evaluate"))
 }
 

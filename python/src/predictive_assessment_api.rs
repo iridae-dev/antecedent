@@ -567,25 +567,25 @@ impl PredictiveAssessmentHandle {
     }
 
     /// Always the typed refusal: no interval for a score or a score difference.
-    fn request_score_interval(&self) -> PyResult<String> {
+    fn request_score_interval(&self) -> String {
         match self.inner.request_score_interval() {
-            Err(refusal) => Ok(refusal_json(&refusal)),
+            Err(refusal) => refusal_json(&refusal),
             Ok(never) => match never {},
         }
     }
 
     /// Always the typed refusal: a score is not causal validity.
-    fn request_causal_validity(&self) -> PyResult<String> {
+    fn request_causal_validity(&self) -> String {
         match self.inner.request_causal_validity() {
-            Err(refusal) => Ok(refusal_json(&refusal)),
+            Err(refusal) => refusal_json(&refusal),
             Ok(never) => match never {},
         }
     }
 
     /// Always the typed refusal: a model score is not the probability of a claim.
-    fn request_score_as_probability(&self) -> PyResult<String> {
+    fn request_score_as_probability(&self) -> String {
         match self.inner.request_score_as_probability() {
-            Err(refusal) => Ok(refusal_json(&refusal)),
+            Err(refusal) => refusal_json(&refusal),
             Ok(never) => match never {},
         }
     }

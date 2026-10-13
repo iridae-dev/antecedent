@@ -605,7 +605,8 @@ pub fn standardized_difference(
 #[doc(hidden)]
 #[must_use]
 pub fn weighted_wald_interval_internal(result: &WeightedResult, level: f64) -> Option<(f64, f64)> {
-    if !(level > 0.0 && level < 1.0) || !result.uncalibrated_variance.is_finite() {
+    let level_in_range = level > 0.0 && level < 1.0;
+    if !level_in_range || !result.uncalibrated_variance.is_finite() {
         return None;
     }
     let z = antecedent_stats::special::normal_ppf(0.5 + level / 2.0);

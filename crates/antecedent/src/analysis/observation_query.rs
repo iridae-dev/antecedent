@@ -207,6 +207,12 @@ pub struct ObservationClaim {
     wire: ObservationQueryArtifactWire,
 }
 
+/// The two laws of a paired claim and their largest absolute difference.
+pub type PairedLaws = (Vec<(String, f64)>, Vec<(String, f64)>, f64);
+
+/// The rows of a threshold-crossing claim and the total crossing probability.
+pub type ThresholdRows = (Vec<(String, f64, f64, bool)>, f64);
+
 impl ObservationClaim {
     /// Identity of the claim (premises, query, operation and reading).
     #[must_use]
@@ -282,14 +288,12 @@ impl ObservationClaim {
     #[must_use]
     pub fn evidence_probability(&self) -> Option<f64> {
         match &self.wire.result {
-            ObservationResultWire::Conditional { evidence_probability_bits, .. } => {
+            ObservationResultWire::Conditional { evidence_probability_bits, .. }
+            | ObservationResultWire::FinitePosterior { evidence_probability_bits, .. } => {
                 Some(f64::from_bits(*evidence_probability_bits))
             }
             ObservationResultWire::Paired { conditioning_evidence_bits, .. } => {
                 Some(f64::from_bits(*conditioning_evidence_bits))
-            }
-            ObservationResultWire::FinitePosterior { evidence_probability_bits, .. } => {
-                Some(f64::from_bits(*evidence_probability_bits))
             }
             _ => None,
         }
@@ -318,7 +322,7 @@ impl ObservationClaim {
     /// The two laws of a paired claim: `(conditioning, intervention, largest
     /// absolute difference)`.
     #[must_use]
-    pub fn paired(&self) -> Option<(Vec<(String, f64)>, Vec<(String, f64)>, f64)> {
+    pub fn paired(&self) -> Option<PairedLaws> {
         match &self.wire.result {
             ObservationResultWire::Paired {
                 conditioning,
@@ -338,7 +342,7 @@ impl ObservationClaim {
     /// `(signal level, probability of observing it, conditional probability,
     /// crosses)`, and the total probability of a crossing observation.
     #[must_use]
-    pub fn threshold_rows(&self) -> Option<(Vec<(String, f64, f64, bool)>, f64)> {
+    pub fn threshold_rows(&self) -> Option<ThresholdRows> {
         match &self.wire.result {
             ObservationResultWire::ThresholdCrossing { crossing_probability_bits, rows } => Some((
                 rows.iter()
@@ -473,12 +477,13 @@ impl PreparedMechanismComposition {
             interventions: &request.interventions,
         })
         .map_err(ObservationQueryRefusal::one)?;
-        let query = match request.operation {
-            ObservationOperation::Intervention => ObservationQueryWire::InterventionalOutcome {
+        let query = if request.operation == ObservationOperation::Intervention {
+            ObservationQueryWire::InterventionalOutcome {
                 outcome: request.outcome.clone(),
                 interventions: request.interventions.clone(),
-            },
-            _ => {
+            }
+        } else {
+            {
                 let mut observed = Vec::new();
                 let mut measured = None;
                 for slot in &request.conditioning {

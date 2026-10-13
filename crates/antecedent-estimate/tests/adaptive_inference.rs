@@ -57,9 +57,11 @@ fn a_posterior_rule_decides_from_the_history_and_claims_no_error_rate() {
             .unwrap();
     assert_eq!(stop.best_arm, 0);
     assert!(stop.stop);
-    let keep_going =
-        expected_loss_stopping(&posterior, PosteriorRule::ProbabilityBest { threshold: 0.9999999 })
-            .unwrap();
+    let keep_going = expected_loss_stopping(
+        &posterior,
+        PosteriorRule::ProbabilityBest { threshold: 0.999_999_9 },
+    )
+    .unwrap();
     assert!(!keep_going.stop);
     let loss =
         expected_loss_stopping(&posterior, PosteriorRule::ExpectedLoss { loss_threshold: 1e-6 })

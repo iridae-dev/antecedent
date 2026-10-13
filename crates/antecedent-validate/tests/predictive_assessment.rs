@@ -831,7 +831,7 @@ fn the_assessment_is_invariant_to_case_order_and_deterministic() {
 fn a_changed_law_or_observation_changes_the_identity() {
     let base = assess_predictive_laws(&generator_spec(30), &ctx()).unwrap();
     let mut shifted = generator_spec(30);
-    shifted.predictors[1].laws[3] = ForecastLaw::gaussian(0.0, 0.5000001);
+    shifted.predictors[1].laws[3] = ForecastLaw::gaussian(0.0, 0.500_000_1);
     let changed = assess_predictive_laws(&shifted, &ctx()).unwrap();
     assert_ne!(base.identity.digest, changed.identity.digest);
     assert_eq!(base.identity.observations, changed.identity.observations);

@@ -145,57 +145,50 @@ fn weigh(
             .actions
             .get(step.action)
             .ok_or_else(|| inconsistent(id, "a logged action is not declared"))?;
-        match compiled.crossed_boundary(&belief) {
-            Some(boundary) => {
-                let stop = compiled.boundaries[boundary].stop_action;
-                if step.action != stop || step.assignment_probability.to_bits() != 1.0_f64.to_bits()
-                {
-                    return Err(inconsistent(
-                        id,
-                        "a declared stopping boundary was crossed but the logged step is not its forced stop with assignment probability one",
-                    ));
-                }
+        if let Some(boundary) = compiled.crossed_boundary(&belief) {
+            let stop = compiled.boundaries[boundary].stop_action;
+            if step.action != stop || step.assignment_probability.to_bits() != 1.0_f64.to_bits() {
+                return Err(inconsistent(
+                    id,
+                    "a declared stopping boundary was crossed but the logged step is not its forced stop with assignment probability one",
+                ));
             }
-            None => {
-                let logged = step.assignment_probability;
-                if !(logged.is_finite() && logged > 0.0 && logged <= 1.0) {
-                    return Err(inconsistent(
-                        id,
-                        "a logged assignment probability is not in (0, 1]",
-                    ));
-                }
-                let declared = behaviour.probability(&history, step.action);
-                if declared.is_none_or(|p| p.to_bits() != logged.to_bits()) {
-                    return Err(inconsistent(
-                        id,
-                        "a logged assignment probability differs from the declared logging policy in that history",
-                    ));
-                }
-                if !compiled.support.is_supported(&history, step.action) {
+        } else {
+            let logged = step.assignment_probability;
+            if !(logged.is_finite() && logged > 0.0 && logged <= 1.0) {
+                return Err(inconsistent(id, "a logged assignment probability is not in (0, 1]"));
+            }
+            let declared = behaviour.probability(&history, step.action);
+            if declared.is_none_or(|p| p.to_bits() != logged.to_bits()) {
+                return Err(inconsistent(
+                    id,
+                    "a logged assignment probability differs from the declared logging policy in that history",
+                ));
+            }
+            if !compiled.support.is_supported(&history, step.action) {
+                return Err(refusal!(
+                    "history_support_violated",
+                    "sequential_evaluation.action_not_supported",
+                    format!(
+                        "trajectory `{id}` took `{}` in history {history}, where the model declares no support",
+                        spec.label
+                    ),
+                    "declare the support evidence for the logged action, or drop the trajectory",
+                ));
+            }
+            match target.probability(&history, step.action) {
+                Some(pi) => weight *= pi / logged,
+                None if weight > 0.0 => {
                     return Err(refusal!(
-                        "history_support_violated",
-                        "sequential_evaluation.action_not_supported",
+                        "invalid_argument",
+                        "sequential_evaluation.policy_incomplete",
                         format!(
-                            "trajectory `{id}` took `{}` in history {history}, where the model declares no support",
-                            spec.label
+                            "the target policy declares no decision for the reachable history {history}"
                         ),
-                        "declare the support evidence for the logged action, or drop the trajectory",
+                        "declare an action for every history the target policy can reach",
                     ));
                 }
-                match target.probability(&history, step.action) {
-                    Some(pi) => weight *= pi / logged,
-                    None if weight > 0.0 => {
-                        return Err(refusal!(
-                            "invalid_argument",
-                            "sequential_evaluation.policy_incomplete",
-                            format!(
-                                "the target policy declares no decision for the reachable history {history}"
-                            ),
-                            "declare an action for every history the target policy can reach",
-                        ));
-                    }
-                    None => {}
-                }
+                None => {}
             }
         }
         resource += spec.resource_use;

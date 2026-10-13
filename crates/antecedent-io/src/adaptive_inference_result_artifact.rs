@@ -556,7 +556,7 @@ pub struct AdaptiveResultMeta {
     pub identity: String,
 }
 
-fn spec_to_wire(spec: &AdaptiveResultSpec) -> Result<SpecWire, Error> {
+fn spec_to_wire(spec: &AdaptiveResultSpec) -> SpecWire {
     let mut wire = SpecWire {
         kind: String::new(),
         look: spec.look(),
@@ -605,7 +605,7 @@ fn spec_to_wire(spec: &AdaptiveResultSpec) -> Result<SpecWire, Error> {
             wire.second_arm = Some(*treatment_arm);
         }
     }
-    Ok(wire)
+    wire
 }
 
 fn spec_from_wire(wire: &SpecWire) -> Result<AdaptiveResultSpec, Error> {
@@ -688,7 +688,7 @@ fn close(stored: f64, recomputed: f64) -> bool {
     (stored - recomputed).abs() <= ADAPTIVE_RESULT_REPLAY_TOLERANCE * recomputed.abs().max(1.0)
 }
 
-fn result_refusal(error: AdaptiveResultError) -> Error {
+fn result_refusal(error: &AdaptiveResultError) -> Error {
     Error::Refused { code: error.code, message: format!("{}: {}", error.detail, error.message) }
 }
 
@@ -712,7 +712,7 @@ fn check(
         return Err(Error::ResultMismatch("paradigm"));
     }
     let recomputed = compute_adaptive_result(contract_artifact.contract(), &spec, ctx)
-        .map_err(result_refusal)?;
+        .map_err(|error| result_refusal(&error))?;
     if recomputed.method != meta.method || recomputed.closed_guarantee != meta.closed_guarantee {
         return Err(Error::ResultMismatch("method or closed guarantee"));
     }
@@ -802,14 +802,15 @@ impl AdaptiveInferenceResultArtifact {
         spec: &AdaptiveResultSpec,
         ctx: &ExecutionContext,
     ) -> Result<(Self, AdaptiveResultMeta), Error> {
-        let result = compute_adaptive_result(contract, spec, ctx).map_err(result_refusal)?;
+        let result =
+            compute_adaptive_result(contract, spec, ctx).map_err(|error| result_refusal(&error))?;
         let (_, contract_meta) =
             AdaptiveMonitoringContractArtifact::seal(contract, spec.paradigm())?;
         let mut meta = AdaptiveResultMeta {
             version: ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION,
             feature: ADAPTIVE_INFERENCE_RESULT_ARTIFACT_FEATURE.to_owned(),
             contract: contract_meta,
-            spec: spec_to_wire(spec)?,
+            spec: spec_to_wire(spec),
             method: result.method.to_owned(),
             value_bits: result.values.iter().map(|v| v.to_bits()).collect(),
             claim: "point_only".to_owned(),

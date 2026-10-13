@@ -309,19 +309,16 @@ impl ReliabilityReport {
 }
 
 fn weighted_spread(values: &[f64], weights: Option<&[f64]>) -> (f64, f64) {
-    match weights {
-        Some(w) => {
-            let sum: f64 = w.iter().sum();
-            let mean = values.iter().zip(w).map(|(u, wi)| u * wi).sum::<f64>() / sum;
-            let squares: f64 = values.iter().zip(w).map(|(u, wi)| wi * (u - mean).powi(2)).sum();
-            (mean, (squares / sum).sqrt())
-        }
-        None => {
-            let n = values.len() as f64;
-            let mean = values.iter().sum::<f64>() / n;
-            let var = values.iter().map(|u| (u - mean).powi(2)).sum::<f64>() / (n - 1.0);
-            (mean, var.sqrt())
-        }
+    if let Some(w) = weights {
+        let sum: f64 = w.iter().sum();
+        let mean = values.iter().zip(w).map(|(u, wi)| u * wi).sum::<f64>() / sum;
+        let squares: f64 = values.iter().zip(w).map(|(u, wi)| wi * (u - mean).powi(2)).sum();
+        (mean, (squares / sum).sqrt())
+    } else {
+        let n = values.len() as f64;
+        let mean = values.iter().sum::<f64>() / n;
+        let var = values.iter().map(|u| (u - mean).powi(2)).sum::<f64>() / (n - 1.0);
+        (mean, var.sqrt())
     }
 }
 
