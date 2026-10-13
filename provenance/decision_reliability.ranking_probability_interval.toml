@@ -1,0 +1,18 @@
+feature_id = "decision_reliability.ranking_probability_interval"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: a closed variant: no method is implemented, so there is nothing to cite.
+papers = [
+]
+implementation_deviations = [
+  "Intentionally implements nothing: published ranking and optimality probabilities and intervals stay closed until a whole-procedure coverage record measures them at a candidate-set size, Monte Carlo budget and selection rule.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/tests/decision_reliability.rs",
+  "crates/antecedent/tests/decision_reliability_facade.rs",
+]
