@@ -73,6 +73,59 @@ fn actual_attested_mean_grid_and_branch_one_receipt_reuse() {
     assert_eq!(changed.claim.values().unwrap(), [4.5, 5.0, 5.5]);
     assert_eq!(changed.receipt.totals().external_invocations, 1);
 }
+
+#[test]
+fn callback_request_identity_changes_when_planner_branch_changes() {
+    use antecedent_core::recalc::{Branch, Stage};
+
+    let request = request(1, CallbackPolicy::Deterministic);
+    let mut other_branch = request.clone();
+    other_branch.branch = Branch::new(2).unwrap();
+
+    assert_ne!(request.digest(), other_branch.digest());
+
+    let mut provider = Provider::new(&request);
+    let mut session = ExternalCallbackSession::new();
+    let first = execute(&mut session, &request, &mut provider);
+    let mut other_provider = Provider::new(&other_branch);
+    let other = execute(&mut ExternalCallbackSession::new(), &other_branch, &mut other_provider);
+    assert_ne!(
+        first.requested.own(Stage::ExternalStudy(request.branch)),
+        other.requested.own(Stage::ExternalStudy(other_branch.branch)),
+    );
+    let artifact = session.export_output().unwrap();
+    assert!(
+        ExternalCallbackSession::resume(&artifact, &other_branch).is_err(),
+        "an attested result for one callback branch cannot be resumed for another"
+    );
+}
+
+#[test]
+fn side_effect_retry_key_cannot_cross_planner_branches() {
+    use antecedent_core::recalc::Branch;
+
+    let mut request = request(1, CallbackPolicy::SideEffecting);
+    request.descriptor.idempotency_supported = true;
+    request.idempotency_key = Some("same-provider-key".into());
+    let mut provider = Provider::new(&request);
+    provider.fail = true;
+    let mut session = ExternalCallbackSession::new();
+
+    assert!(matches!(
+        session.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(999)),
+        Err(ExternalCallbackError::Attempt { detail: "external_recalc.callback_failed", .. })
+    ));
+    assert_eq!(provider.calls, 1);
+
+    request.branch = Branch::new(2).unwrap();
+    provider.fail = false;
+    assert!(matches!(
+        session.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(999)),
+        Err(ExternalCallbackError::Request("external_recalc.idempotency_conflict"))
+    ));
+    assert_eq!(provider.calls, 1, "a changed branch must not reuse the first request's key");
+}
+
 #[test]
 fn seeded_callback_rng_mutations_and_actual_fresh_replay() {
     let mut request = request(0, CallbackPolicy::Seeded);

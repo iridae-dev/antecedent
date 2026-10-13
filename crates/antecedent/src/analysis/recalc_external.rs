@@ -407,6 +407,7 @@ impl ExternalCallbackRequest {
     pub fn digest(&self) -> StageIdentity {
         let mut parts = vec![
             Fields::new()
+                .word(u64::from(self.branch.index()))
                 .text(&self.program.identity())
                 .bytes(&claim_fields(&self.claim))
                 .bytes(&contract_fields(&self.contract))
