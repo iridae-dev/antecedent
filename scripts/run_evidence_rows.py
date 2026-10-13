@@ -75,14 +75,15 @@ def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
 failures: list[str] = []
 
 
-def check(label: str, cmd: list[str], cwd: Path, counter, exact: bool) -> None:
+def check(labels: list[str], cmd: list[str], cwd: Path, counter, exact: bool) -> None:
+    label = ", ".join(labels)
     code, log = run(cmd, cwd)
     passed, failed = counter(log)
     wanted = "exactly 1" if exact else "at least 1"
     ok = code == 0 and failed == 0 and (passed == 1 if exact else passed >= 1)
     if not ok:
         tail = "\n".join(log.splitlines()[-40:])
-        failures.append(label)
+        failures.extend(labels)
         print(
             f"FAIL: {label}: exit={code} passed={passed} failed={failed} "
             f"(want {wanted} passed, 0 failed)\n  $ {' '.join(cmd)}\n{tail}"
@@ -244,7 +245,7 @@ for (crate, target), members in rust_batches.items():
         # Attribute a failed target to its exact cited tests as well.
         before = len(failures)
         for name, labels in members.items():
-            check(", ".join(labels), ["cargo", "test", "-p", crate, *target,
+            check(labels, ["cargo", "test", "-p", crate, *target,
                                       "--", "--exact", name], root, cargo_counts, exact=True)
         if len(failures) == before:
             failures.append(f"{crate} {' '.join(target)} batch")
@@ -284,7 +285,7 @@ if python_nodes:
         print(f"FAIL: Python batch failed although cited nodes passed alone:\n{log[-3000:]}")
 
 for (crate, target, part), labels in filter_batches.items():
-    check(", ".join(labels), ["cargo", "test", "-p", crate, *target, "--", part], root, cargo_counts, exact=False)
+    check(labels, ["cargo", "test", "-p", crate, *target, "--", part], root, cargo_counts, exact=False)
 
 if failures:
     print(f"{gate}: {len(failures)} failing row(s): {', '.join(failures)}")

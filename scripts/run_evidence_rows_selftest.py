@@ -73,6 +73,8 @@ evidence_assertion = "evidence_test"
                               ("EMPTY", "passed=0")):
         bad = run(**{setting: "1"})
         assert bad.returncode != 0 and expected in bad.stdout, (setting, bad.stdout, bad.stderr)
+        if setting == "EMPTY":
+            assert "self_test: 2 failing row(s): first, second" in bad.stdout, bad.stdout
 
     uv = bin_dir / "uv"
     uv.write_text("""#!/usr/bin/env python3
