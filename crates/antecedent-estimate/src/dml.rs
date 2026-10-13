@@ -216,11 +216,13 @@ impl DmlAte {
             marginal.effect,
             problem,
             &nuisance,
-            self.folds,
-            [self.outcome, self.treatment],
-            "dml",
-            ctx.rng.master_seed(),
-            &marginal.ehat,
+            CrossfitAipwTableContext {
+                folds: self.folds,
+                learners: [self.outcome, self.treatment],
+                route: "dml",
+                seed: ctx.rng.master_seed(),
+                clipped: &marginal.ehat,
+            },
         )
     }
 
@@ -360,12 +362,11 @@ fn aipw_score_table_clipped(
             // A fit that already clipped `ê` passes that vector. Guarding again would
             // copy the raw scores and apply the same clip; the table formulas are unchanged.
             let guarded;
-            let ehat_rows: &[f64] = match clipped {
-                Some(rows) => rows,
-                None => {
-                    guarded = guarded_propensity(raw_e, clip)?;
-                    guarded.as_slice()
-                }
+            let ehat_rows: &[f64] = if let Some(rows) = clipped {
+                rows
+            } else {
+                guarded = guarded_propensity(raw_e, clip)?;
+                guarded.as_slice()
             };
             let mut scores = vec![0.0; 2 * n];
             let mut propensities = vec![0.0; 2 * n];
@@ -446,16 +447,22 @@ pub(crate) fn aipw_marginal_from_nuisance(
 ///
 /// A trimmed problem keeps no table. The treatment-nuisance provenance is copied as-is;
 /// a caller that fits a further stage appends that stage after this returns.
+#[derive(Clone, Copy)]
+pub(crate) struct CrossfitAipwTableContext<'a> {
+    pub(crate) folds: usize,
+    pub(crate) learners: [LearnerSpec; 2],
+    pub(crate) route: &'a str,
+    pub(crate) seed: u64,
+    pub(crate) clipped: &'a [f64],
+}
+
 pub(crate) fn attach_crossfit_aipw_table(
     mut effect: EffectEstimate,
     problem: &PreparedPropensityProblem,
     nuisance: &AipwPredictions,
-    folds: usize,
-    learners: [LearnerSpec; 2],
-    route: &str,
-    seed: u64,
-    clipped: &[f64],
+    table_context: CrossfitAipwTableContext<'_>,
 ) -> Result<EffectEstimate, EstimationError> {
+    let CrossfitAipwTableContext { folds, learners, route, seed, clipped } = table_context;
     if scores_retargetable(problem) {
         effect = effect.with_score_table(Some(aipw_score_table_clipped(
             problem,

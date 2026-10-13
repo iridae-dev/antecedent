@@ -105,7 +105,7 @@ impl PropensityModel {
     /// Propagates GLM/backend failures.
     pub fn fit(
         problem: &PreparedPropensityProblem,
-        backend: &FaerBackend,
+        backend: FaerBackend,
         workspace: &mut PropensityWorkspace,
         options: &GlmOptions,
     ) -> Result<Self, EstimationError> {
@@ -114,7 +114,7 @@ impl PropensityModel {
             problem.nrows,
             problem.design_ncols,
             &problem.treatment,
-            backend,
+            &backend,
             workspace,
             options,
         )

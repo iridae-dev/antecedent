@@ -208,7 +208,7 @@ impl DistanceMatching {
         // rows (raw scores) — it does not otherwise influence the covariate-space contrast.
         let diag = PropensityModel::fit(
             problem,
-            &self.backend,
+            self.backend,
             &mut workspace.propensity,
             &self.glm_options,
         )?;

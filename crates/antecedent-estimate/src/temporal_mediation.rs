@@ -691,6 +691,7 @@ impl ContrastFit {
 /// `(first coefficient, second coefficient, design, σ², residuals)` of a fitted two- or
 /// three-column mediation regression.
 type OlsColumns = (f64, f64, Vec<f64>, f64, Vec<f64>);
+type OlsFit = (Vec<f64>, Vec<f64>, f64, Vec<f64>);
 
 /// Column-major `[1 | lead… | extra…]` and its column count.
 ///
@@ -699,8 +700,8 @@ type OlsColumns = (f64, f64, Vec<f64>, f64, Vec<f64>);
 fn mediation_design(lead: &[&[f64]], extra: &[&[f64]], n: usize) -> (Vec<f64>, usize) {
     let lead_cols = 1 + lead.len();
     let mut design = vec![0.0; n * lead_cols];
-    for i in 0..n {
-        design[i] = 1.0;
+    for value in design.iter_mut().take(n) {
+        *value = 1.0;
     }
     for (c, column) in lead.iter().enumerate() {
         for i in 0..n {
@@ -719,7 +720,7 @@ fn ols_mechanism(
     lead: &[&[f64]],
     extra: &[&[f64]],
     y: &[f64],
-) -> Result<(Vec<f64>, Vec<f64>, f64, Vec<f64>), EstimationError> {
+) -> Result<OlsFit, EstimationError> {
     let n = y.len();
     let (design, ncols) = mediation_design(lead, extra, n);
     let (coef, residuals) = ols_fit_with_residuals(backend, &design, ncols, y)?;

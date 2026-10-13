@@ -353,7 +353,7 @@ fn level_probabilities(
     level: ExposureLevel,
 ) -> Result<Vec<f64>, EstimationError> {
     let mut probabilities = Vec::with_capacity(incoming.len());
-    for unit in 0..incoming.len() {
+    for neighbors in incoming {
         let mut probability = 0.0;
         for (saturation, saturation_mass) in [(low, 1.0 - high_share), (high, high_share)] {
             #[allow(
@@ -361,7 +361,6 @@ fn level_probabilities(
                 reason = "exposure own-level is a categorical 0.0/1.0 flag, not a measured quantity"
             )]
             let own_mass = if level.own == 1.0 { saturation } else { 1.0 - saturation };
-            let neighbors = &incoming[unit];
             let mut neighbor_mass = 0.0;
             for mask in 0..(1_usize << neighbors.len()) {
                 let mut mass = 1.0;

@@ -395,7 +395,7 @@ pub fn max_t_critical_with_df_polled(
         }
         maxima.push(max_abs);
     }
-    maxima.sort_by(|a, b| a.total_cmp(b));
+    maxima.sort_by(f64::total_cmp);
     Ok(Some(crate::util::monte_carlo_critical(&maxima, level)))
 }
 
@@ -552,10 +552,10 @@ mod tests {
     fn max_t_total_order_places_nonfinite_draws_after_finite_ones() {
         // `max_t_critical_with_df_polled` sorts with `total_cmp`, so a non-finite
         // draw cannot tie with a finite one the way `partial_cmp`'s Equal fallback did.
-        let mut maxima = vec![1.0, f64::NAN, 0.0, f64::INFINITY];
-        maxima.sort_by(|a, b| a.total_cmp(b));
-        assert_eq!(maxima[0], 0.0);
-        assert_eq!(maxima[1], 1.0);
+        let mut maxima = [1.0, f64::NAN, 0.0, f64::INFINITY];
+        maxima.sort_by(f64::total_cmp);
+        assert_eq!(maxima[0].to_bits(), 0.0_f64.to_bits());
+        assert_eq!(maxima[1].to_bits(), 1.0_f64.to_bits());
         assert!(maxima[2].is_infinite());
         assert!(maxima[3].is_nan());
     }

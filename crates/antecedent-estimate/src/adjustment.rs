@@ -797,7 +797,7 @@ impl LinearAdjustmentAte {
         } else {
             solve_linear(
                 self.fit_kind,
-                &self.backend,
+                self.backend,
                 &problem.design.matrix,
                 problem.design.nrows,
                 problem.design.ncols,
@@ -884,7 +884,7 @@ impl LinearAdjustmentAte {
                 x_boot[c * n + r] = problem.design.matrix[c * rows + src];
             }
         }
-        Ok(solve_linear(self.fit_kind, &self.backend, x_boot, n, p, y_boot, &mut workspace.ols)?
+        Ok(solve_linear(self.fit_kind, self.backend, x_boot, n, p, y_boot, &mut workspace.ols)?
             .coefficients)
     }
 
@@ -928,7 +928,7 @@ struct SolvedLinear {
 /// One solver body for the point fit and for bootstrap resamples.
 fn solve_linear(
     kind: LinearFitKind,
-    backend: &FaerBackend,
+    backend: FaerBackend,
     x: &[f64],
     n: usize,
     p: usize,
@@ -947,8 +947,8 @@ fn solve_linear(
             })
         }
         LinearFitKind::Ridge { lambda } => {
-            let fit =
-                fit_ridge(x, n, p, y, lambda, backend, workspace).map_err(EstimationError::from)?;
+            let fit = fit_ridge(x, n, p, y, lambda, &backend, workspace)
+                .map_err(EstimationError::from)?;
             Ok(SolvedLinear {
                 coefficients: fit.coefficients,
                 residuals: fit.residuals,
@@ -988,7 +988,7 @@ fn solve_linear(
         }
         LinearFitKind::Huber { c } => {
             let opts = MEstimateOptions { c, ..MEstimateOptions::default() };
-            let fit = fit_huber_m(x, n, p, y, &opts, backend, workspace)
+            let fit = fit_huber_m(x, n, p, y, &opts, &backend, workspace)
                 .map_err(EstimationError::from)?;
             // An unconverged IRLS run is a snapshot of an unfinished reweighting
             // sequence, not the M-estimator's fixed point; publishing it — and an

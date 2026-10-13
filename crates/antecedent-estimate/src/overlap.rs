@@ -507,8 +507,8 @@ mod tests {
         for s in &mut clipped {
             *s = clip_propensity(*s, clip);
         }
-        assert_eq!(clip_propensity(1e-12, clip), clip);
-        assert_eq!(clip_propensity(1.0 - 1e-12, clip), 1.0 - clip);
+        assert_eq!(clip_propensity(1e-12, clip).to_bits(), clip.to_bits());
+        assert_eq!(clip_propensity(1.0 - 1e-12, clip).to_bits(), (1.0 - clip).to_bits());
         let est = compute_ipw_weights(&t, &clipped, &e, IpwTarget::Ate, None);
         let diag = observed_ipw_weights(&t, &e, IpwTarget::Ate, clip, None);
         for (a, b) in est.iter().zip(&diag) {

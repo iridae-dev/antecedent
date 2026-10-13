@@ -806,7 +806,7 @@ impl AipwAte {
 
         let model = PropensityModel::fit(
             problem,
-            &self.backend,
+            self.backend,
             &mut workspace.propensity,
             &self.glm_options,
         )
@@ -1335,11 +1335,11 @@ const PENALIZED_BOOTSTRAP_STREAM: u64 = 0xA1D7_0001;
 ///
 /// The fold seed and replicate nuisance are written onto a clone only when they differ
 /// from `problem`. A problem that already carries both matches that clone, so it is reused.
-fn penalized_bootstrap_base<'a>(
-    problem: &'a PreparedPropensityProblem,
+fn penalized_bootstrap_base(
+    problem: &PreparedPropensityProblem,
     fold_seed: u64,
     nuisance: PropensityNuisance,
-) -> std::borrow::Cow<'a, PreparedPropensityProblem> {
+) -> std::borrow::Cow<'_, PreparedPropensityProblem> {
     if problem.fold_seed == fold_seed && problem.propensity == nuisance {
         std::borrow::Cow::Borrowed(problem)
     } else {

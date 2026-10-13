@@ -235,7 +235,7 @@ impl PropensityMatching {
         let trim = trim_of(problem.overlap);
         let model = PropensityModel::fit(
             problem,
-            &self.backend,
+            self.backend,
             &mut workspace.propensity,
             &self.glm_options,
         )?;

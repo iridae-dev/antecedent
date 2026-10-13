@@ -301,11 +301,13 @@ impl DrLearner {
             )),
             problem,
             &nuisance,
-            self.folds,
-            [self.outcome, self.treatment],
-            "dr_learner",
-            ctx.rng.master_seed(),
-            &ehat,
+            crate::dml::CrossfitAipwTableContext {
+                folds: self.folds,
+                learners: [self.outcome, self.treatment],
+                route: "dr_learner",
+                seed: ctx.rng.master_seed(),
+                clipped: &ehat,
+            },
         )?;
         effect.crossfit.learner_provenance.push(fitted.provenance());
         match fitted.portable() {
