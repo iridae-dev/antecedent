@@ -657,7 +657,16 @@ impl DistributionArtifact {
     fn require_joint(&self, left: usize, right: usize) -> Result<(), IoError> {
         self.require_coordinate(left)?;
         self.require_coordinate(right)?;
-        if self.metadata.identity.alignment != DrawAlignment::Joint {
+        // The joint-law propagation rule decides whether rows are paired.
+        let alignment = match self.metadata.identity.alignment {
+            DrawAlignment::Joint => antecedent_contract::InputAlignment::Aligned {
+                alignment_id: "declared_pairing".to_owned(),
+            },
+            DrawAlignment::IndependentMarginals => {
+                antecedent_contract::InputAlignment::IndependentMarginals
+            }
+        };
+        if antecedent_contract::check_rows_pairable(&alignment).is_err() {
             return Err(IoError::Refused {
                 code: antecedent_core::reason_code!("joint_law_required"),
                 message: "aligned_joint_draws.marginals_not_joint: independent marginals do not define covariance or nonlinear joint expectations".into(),

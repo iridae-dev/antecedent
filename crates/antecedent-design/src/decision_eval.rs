@@ -229,7 +229,16 @@ fn build_table_with(
     parsed: &[Option<ScientificQuantity>],
 ) -> Result<Table, DecisionEvalError> {
     let alignment = source.metadata().identity.alignment;
-    if alignment != DrawAlignment::Joint {
+    // The joint-law propagation rule decides whether the rows are paired.
+    let rule_alignment = match alignment {
+        DrawAlignment::Joint => antecedent_contract::InputAlignment::Aligned {
+            alignment_id: "declared_pairing".to_owned(),
+        },
+        DrawAlignment::IndependentMarginals => {
+            antecedent_contract::InputAlignment::IndependentMarginals
+        }
+    };
+    if antecedent_contract::check_rows_pairable(&rule_alignment).is_err() {
         return Err(DecisionEvalError::JointLawRequired {
             action: contract
                 .actions

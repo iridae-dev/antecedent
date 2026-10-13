@@ -1439,11 +1439,7 @@ fn validate_route(
     let Some(input) = source else {
         return Err(unlicensed());
     };
-    let aligned = matches!(
-        &input.source,
-        InputSource::JointLaw(artifact)
-            if artifact.metadata().identity.alignment == DrawAlignment::Joint
-    );
+    let aligned = rows_pairable(input);
     let capable = match route.kind {
         RouteKind::Covariance => {
             input.provenance.capabilities.contains(&ExternalCapability::Covariance)
@@ -1565,6 +1561,23 @@ pub fn check_composition(
     })
 }
 
+/// Whether an input's rows are realizations of one joint law, decided by the
+/// joint-law propagation rule (`antecedent_contract::check_rows_pairable`).
+fn rows_pairable(input: &DecisionInput) -> bool {
+    let alignment = match &input.source {
+        InputSource::JointLaw(artifact)
+            if artifact.metadata().identity.alignment == DrawAlignment::Joint =>
+        {
+            antecedent_contract::InputAlignment::Aligned {
+                alignment_id: "declared_pairing".to_owned(),
+            }
+        }
+        InputSource::JointLaw(_) => antecedent_contract::InputAlignment::IndependentMarginals,
+        _ => antecedent_contract::InputAlignment::MomentsOnly,
+    };
+    antecedent_contract::check_rows_pairable(&alignment).is_ok()
+}
+
 /// Check that the draws of `inputs` may be paired row by row.
 ///
 /// Pairing draws from separate sources treats them as independent, so this is
@@ -1580,13 +1593,15 @@ pub fn check_paired_draws(
 ) -> Result<CompositionReceipt, BoundaryError> {
     let mut draw_count = None;
     for input in inputs {
+        // The propagation rule decides whether the input's rows may be paired;
+        // the refusal keeps this module's existing error and detail.
         let InputSource::JointLaw(artifact) = &input.source else {
             return Err(BoundaryError::Eval(DecisionEvalError::JointLawRequired {
                 action: None,
                 supplied_alignment: "not_a_joint_law",
             }));
         };
-        if artifact.metadata().identity.alignment != DrawAlignment::Joint {
+        if !rows_pairable(input) {
             return Err(BoundaryError::Eval(DecisionEvalError::JointLawRequired {
                 action: None,
                 supplied_alignment: "not_a_joint_law",
