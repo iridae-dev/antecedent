@@ -11368,7 +11368,7 @@ refusals = [
   { code = "invalid_argument", detail = "decision_reliability.artifact_id_missing", when = "The display identity of the artifact is blank.", remedy = "Supply the intact artifact, or regenerate it from the draws; a retained identity must equal the recomputed one." },
 ]
 routes = [
-  { name = "antecedent.decision_reliability.assess", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["decision_reliability_rank", "decision_reliability_publish"] },
+  { name = "antecedent.decision_reliability.assess", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["decision_reliability_assess", "decision_reliability_rank", "decision_reliability_publish", "rank", "publish"] },
   { name = "antecedent.decision_reliability.export", stage = "representation", status = "licensed", claim = "point_only" },
   { name = "antecedent.decision_reliability.consume_decision_reliability_artifact", stage = "consume", status = "licensed", claim = "point_only", covers = ["consume_decision_reliability_artifact", "decision_reliability_consume"] },
 ]
@@ -12072,7 +12072,7 @@ surface_rust = ["crates/antecedent/src/analysis/observation_query.rs"]
 surface_exports = ["python/antecedent/observation_query.py"]
 owned_exports = ["Recorded", "Assigned", "Hypothetical", "Measured", "ObservationClaim", "ObservationQueryRefusal", "PairedLaw", "ThresholdRow", "ConsumedObservationClaim", "condition_on", "intervene_on", "condition_versus_intervene", "threshold_crossing", "consume_observation_query_artifact"]
 surface_pyo3 = ["python/src/observation_query_api.rs"]
-surface_values = ["ObservationQueryRefusal", "ObservationRequest", "ObservationClaim", "ConsumedObservationClaim", "MeasuredSlotWire", "ObservationQueryWire", "ObservationResultWire", "Direction", "Recorded", "Assigned", "Hypothetical", "Measured", "PairedLaw", "ThresholdRow"]
+surface_values = ["ObservationQueryRefusal", "ObservationRequest", "ObservationClaim", "ConsumedObservationClaim", "MeasuredSlotWire", "ObservationQueryWire", "ObservationResultWire", "Direction", "Recorded", "Assigned", "Hypothetical", "Measured", "PairedLaw", "ThresholdRow", "PairedLaws", "ThresholdRows"]
 refusals = [
   { code = "invalid_argument", detail = "observation_query.blank_field", when = "A required identity or level of a query slot is blank.", remedy = "Name the outcome variable and the variable and level of every slot." },
   { code = "quantity_semantics_mismatch", detail = "observation_query.intervention_in_conditioning_slot", when = "An assigned or hypothetical value is placed in a conditioning slot, or an intervention is supplied to a conditioning query.", remedy = "State an assigned value as an intervention query; a conditioning slot holds only recorded values, and the observed and interventional laws are separate claims." },
