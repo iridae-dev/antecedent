@@ -47,6 +47,10 @@ requiring an exception, with the exact type where the consumer types its input
 | `decision` | a decision result | `decision.Decision` (`Contract.evaluate(...)`) |
 | `study_ranking` | a study ranking | `design.DesignRankingResult` (`design.rank_designs`, basis `net_value`) |
 | `failed_contract` | a failed identification contract (added: the only producer `repair` takes) | `repair.BackdoorContract` or `TransportContract` |
+| `measurement_result` | a measurement-model result (point-only, uncalibrated standard error) | `measurement_models.prepare_measurement_model(...).estimate()` (`MeasurementEstimate`) and its `PreparedMeasurementModel` |
+| `composed_model` | a composed mechanism model | `mechanism_composition.compose_mechanisms(...)` (`PreparedMechanismComposition`) and its `export` artifact |
+| `evidence_ledger` | an evidence ledger and its pooled results (point-only or assumption range) | `evidence_ledger.EvidenceLedger` (`pool_summaries`, `random_effects`, `hierarchical_borrowing`, `dependence_range`) and its `export` |
+| `counterfactual_transport_result` | a counterfactual transport result (exact or sampled plug-in point) | `transport.advanced.CounterfactualTransportDerivation.evaluate(...)` (`CounterfactualTransportResult`); `estimate_sampled(...)` (`SampledCounterfactualTransportEstimate`) |
 <!-- generated:producer-consumer:producers:end -->
 
 `failed_contract` is outside the original producer inventory; it is added so that the `repair`
@@ -85,8 +89,12 @@ column has a DIRECT route. "External bound claim" is read as a bound external cl
 | `decision` | REFUSED: a result is not a source; `CausalTypeError` from `Contract.evaluate`, `CausalTypeError` from `evaluate_with_support` | REFUSED: `CausalTypeError` | ADAPTER: the contract (a `Contract`, whose action set is checked, or its identity string, which binds only the identity) frames `design.DesignDecision`; EVSI 1/4, net 3/20 | REFUSED: `CausalTypeError` | REFUSED: `CausalTypeError`; CPDAG `scenario_decision.no_native_run` | REFUSED: `CausalTypeError` | DIRECT: `result.export()` as a `decision_result` node beneath its law and contract (risky 2, safe 3); a mean-source result is exported only by `composition_bundle.mean_decision` | ADAPTER: `stage_identity(Stage.DECISION, contract_identity + source_digest)` declared by the caller |
 | `study_ranking` | REFUSED: `CausalTypeError` from `Contract.evaluate`; `CausalTypeError` from `evaluate_with_support` | REFUSED: `CausalTypeError` | DIRECT: `design.consume(ranking.export(), expected_identity=ranking.expectation())` (EVSI 1/4 and 1/8, net 3/20 and 1/40; external signals never natively replayed); a changed cost map REFUSED `design_ranking.cost_units_mismatch` (`design_cost_units_mismatch`) | REFUSED: `CausalTypeError` | REFUSED: `CausalTypeError`; CPDAG `scenario_decision.no_native_run` | REFUSED: `CausalTypeError` | DIRECT: `add_artifact("study_ranking", ranking.export())`; it cannot stand in for a `decision_result` (`CompositionBundleRefusal`) | ADAPTER: `stage_identity(Stage.UTILITY, ranking.identity)` declared by the caller; the stage model has no ranking stage |
 | `failed_contract` | REFUSED: `CausalTypeError` from `Contract.evaluate`; `CausalTypeError` from `evaluate_with_support` | REFUSED: `CausalTypeError` | REFUSED: `CausalTypeError` (not a `design.StatePrior`) | REFUSED: `CausalTypeError` | REFUSED: `CausalTypeError`; CPDAG `scenario_decision.no_native_run` | DIRECT: `repair.obligations(contract)` (one joint-law obligation over t, y, z1, z2) and `repair.repair(contract, candidates)` (only the cohort that observes all four repairs it); Rust `repair::repair` | REFUSED: no export; `CausalTypeError` | ADAPTER: `stage_identity(Stage.QUERY, contract_id)` declared by the caller |
+| `measurement_result` | ADAPTER: the caller declares one `MeanSource` coordinate for the latent construct (the model's population and regime) carrying the independently consumed point, with the model identity as provider and the data identity as snapshot; `Contract.evaluate` and `evaluate_with_support` then answer an affine utility only (prevalence 0.3: act 0.2, hold 0.6), mean-only with no standard error and no export; a quantile contract REFUSED `decision_evaluation.mean_source_insufficient`; the estimate and the prepared model themselves raise `CausalTypeError` | ADAPTER: the same declared mean as a `MeanClaim` into `InverseQuery.evaluate` (target mean 0.5 keeps `hold`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the estimate itself raises `CausalTypeError` | REFUSED: `CausalTypeError` (not a `design.StatePrior`); a point is neither a prior nor a signal | REFUSED: `CausalTypeError`, artifact must be a `SensitivityArtifact` | REFUSED: `CausalTypeError`; CPDAG `scenario_decision.no_native_run` | REFUSED: `CausalTypeError` from `obligations` and `repair` | REFUSED: no node kind: the artifact container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the estimate, the prepared model and an object whose `export` is not the bundle exporter raise `CausalTypeError` or `CompositionBundleRefusal` | ADAPTER: `stage_identity(Stage.EVIDENCE, model identity plus data identity)` declared by the caller |
+| `composed_model` | ADAPTER: the caller declares two `MeanSource` coordinates, the outcome mean under `do(X=1)` and under `do(X=0)` read from `intervention_law`, with the plan identity as provider; the Gaussian law, its variance and its samples are not carried, so only an affine utility is answered (act 27, hold 1); a quantile contract REFUSED `decision_evaluation.mean_source_insufficient`; the prepared composition itself raises `CausalTypeError` | ADAPTER: the same declared means as a `MeanClaim` into `InverseQuery.evaluate` (target mean 5 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the prepared composition itself raises `CausalTypeError` | REFUSED: `CausalTypeError` (not a `design.StatePrior`); a point is neither a prior nor a signal | REFUSED: `CausalTypeError`, artifact must be a `SensitivityArtifact` | REFUSED: `CausalTypeError`; CPDAG `scenario_decision.no_native_run` | REFUSED: `CausalTypeError` from `obligations` and `repair` | REFUSED: no node kind: the artifact container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the prepared composition, whose `export` takes a query, raises `CausalTypeError` | ADAPTER: `stage_identity(Stage.SCORE_ARTIFACT, plan identity)` declared by the caller |
+| `evidence_ledger` | ADAPTER: the caller declares the pooled quantity (the ledger carries no estimand, units or population) as one `MeanSource` coordinate carrying a `point_only` pooled estimate (7/5 of two disjoint studies), with the result identity as provider and the ledger head as snapshot; an affine utility only (act 4.6, hold 2.8), mean-only with no variance and no export; an `assumption_range` envelope has no point and raises `CausalTypeError`; a pooled interval REFUSED `evidence_ledger.interval_not_licensed` | ADAPTER: the same declared mean as a `MeanClaim` into `InverseQuery.evaluate` (target mean 3 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the ledger, the outcome and the envelope themselves raise `CausalTypeError` | REFUSED: `CausalTypeError` (not a `design.StatePrior`); a point is neither a prior nor a signal | REFUSED: `CausalTypeError`, artifact must be a `SensitivityArtifact` | REFUSED: `CausalTypeError`; CPDAG `scenario_decision.no_native_run` | REFUSED: `CausalTypeError` from `obligations` and `repair` | REFUSED: no node kind: the artifact container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the ledger session, whose `export` returns a `LedgerExport` rather than bytes, raises `CausalTypeError` | ADAPTER: `stage_identity(Stage.EVIDENCE, ledger export identity)` declared by the caller |
+| `counterfactual_transport_result` | ADAPTER: the caller declares two `MeanSource` coordinates, the mean of a binary outcome indicator under `do(X=1)` and `do(X=0)` (a probability is the mean of its indicator), from the exact results (3/4 and 1/2) or from the sampled plug-in points (the same values from the counts; the standard error is not carried); an affine utility only (act 2, hold 1); a quantile contract REFUSED `decision_evaluation.mean_source_insufficient`; the result objects themselves raise `CausalTypeError` | ADAPTER: the same declared means as a `MeanClaim` into `InverseQuery.evaluate` (target mean 1.5 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the result objects themselves raise `CausalTypeError` | REFUSED: `CausalTypeError` (not a `design.StatePrior`); a point is neither a prior nor a signal | REFUSED: `CausalTypeError`, artifact must be a `SensitivityArtifact` | REFUSED: `CausalTypeError`; CPDAG `scenario_decision.no_native_run` | REFUSED: `CausalTypeError` from `obligations` and `repair` | REFUSED: no node kind: the artifact container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; a result object whose `export` takes no `artifact_id` raises `CausalTypeError` | ADAPTER: `stage_identity(Stage.IDENTIFICATION, premises digest plus data digest)` declared by the caller |
 
-Counts: 88 cells, **15 DIRECT**, **15 ADAPTER**, **58 REFUSED**, **0 UNVERIFIED**. Every cell is
+Counts: 120 cells, **15 DIRECT**, **27 ADAPTER**, **78 REFUSED**, **0 UNVERIFIED**. Every cell is
 executed by `test_producer_consumer_matrix_<row>_row[<consumer>]`.
 <!-- generated:producer-consumer:matrix:end -->
 
@@ -107,6 +115,11 @@ executed by `test_producer_consumer_matrix_<row>_row[<consumer>]`.
 | `cell_not_licensed` | `sensitivity_decision_composition.composition_not_licensed` | a sampling interval composed with an assumption range |
 | `joint_law_required` | `composition_bundle.unsupported_law` | a mean decision whose functional needs a joint law, or a joint-law result over a mean-only claim |
 | `design_cost_units_mismatch` | `design_ranking.cost_units_mismatch` | `design.consume` under a different cost map |
+| `cell_not_licensed` | `measurement_model.interval_closed` | `MeasurementEstimate.interval` and `PreparedMeasurementModel.interval` |
+| `cell_not_licensed` | `measurement_model.operation_not_licensed` | `PreparedMeasurementModel.check_operation` for an operation the route card refuses (`condition_on_construct`) |
+| `cell_not_licensed` | `mechanism_composition.interval_route_closed` | `PreparedMechanismComposition.interval` |
+| `cell_not_licensed` | `evidence_ledger.interval_not_licensed` | `EvidenceLedger.pooled_interval` |
+| `cell_not_licensed` | `counterfactual_transport_sampled.interval_not_licensed` | the interval of a sampled counterfactual transport estimate |
 <!-- generated:producer-consumer:refusals:end -->
 
 ## Findings
@@ -128,6 +141,28 @@ executed by `test_producer_consumer_matrix_<row>_row[<consumer>]`.
   caller-supplied digests. Executing family sessions bind checked native state and
   measure actual work; the plan alone supplies no evidence that a fit or provider
   exists. See [recalculation capabilities](recalculation-capabilities.md).
+- **Point-only producers reach a mean consumer by declaration.** A measurement result, a
+  composed mechanism model, an evidence ledger and a counterfactual transport result each
+  return a point (with at most an uncalibrated standard error or a declared-mechanism
+  variance). None has a native decision or inverse-query entry. The `decision` and
+  `inverse_query` cells are ADAPTER cells in which the caller writes the coordinate (the
+  construct, population and regime for a measurement; the intervention regime for a
+  composition or a transported probability; the pooled quantity for a ledger, which carries
+  no estimand) and the producer's own identity as provider and snapshot into
+  `decision.MeanSource` or `inverse_query.MeanClaim`. The consumer answers the expectation of
+  an affine utility and nothing else: the standard error, variance, law and samples are not
+  carried, the decision cannot be exported, and a quantile or probability contract is
+  refused `decision_evaluation.mean_source_insufficient`. A ledger dependence envelope is an
+  assumption range with no point, so it is not a source. A probability from counterfactual
+  transport is a mean of its binary indicator; exact and sampled plug-in points enter the
+  same way.
+- **No bundle node, prior or sensitivity input for those producers.** Their artifacts are not
+  composition-bundle node kinds (`detect_kind` is `None`), a point is not a `design.StatePrior`
+  or a signal, and none is a `SensitivityArtifact`, a scenario stage or a failed contract; the
+  cells are REFUSED with the typed errors the entry points raise. The `recalc_plan` cells are
+  caller-declared digests, as for every producer. A bundle node kind, a sensitivity surface
+  over a ledger dependence range, and a typed adapter that carries the standard error and
+  model identity into the decision are not delivered.
 - **Mean-only native producers remain mean-only.** Actual producer-issued aligned credible
   rows are retained when present; handcrafted views cannot create them. A joint law from a
   native Python response needs draws retained there; Rust supplies one from credible draws.
@@ -141,6 +176,10 @@ executed by `test_producer_consumer_matrix_<row>_row[<consumer>]`.
 `test_producer_consumer_matrix_identified_scenarios_row`, `test_producer_consumer_matrix_sensitivity_artifact_row`,
 `test_producer_consumer_matrix_decision_row`, `test_producer_consumer_matrix_study_ranking_row`,
 `test_producer_consumer_matrix_failed_contract_row`,
+`test_producer_consumer_matrix_measurement_result_row`,
+`test_producer_consumer_matrix_composed_model_row`,
+`test_producer_consumer_matrix_evidence_ledger_row`,
+`test_producer_consumer_matrix_counterfactual_transport_result_row`,
 `test_producer_consumer_matrix_every_boundary_rejects_neighbours_with_typed_errors` and
 `test_producer_consumer_matrix_a_mean_never_answers_a_probability_a_quantile_or_a_law`, all in
 `python/tests/test_producer_consumer_matrix.py`.

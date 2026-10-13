@@ -58,6 +58,26 @@ key = "failed_contract"
 object = "a failed identification contract (added: the only producer `repair` takes)"
 built_from = "`repair.BackdoorContract` or `TransportContract`"
 
+[[producer]]
+key = "measurement_result"
+object = "a measurement-model result (point-only, uncalibrated standard error)"
+built_from = "`measurement_models.prepare_measurement_model(...).estimate()` (`MeasurementEstimate`) and its `PreparedMeasurementModel`"
+
+[[producer]]
+key = "composed_model"
+object = "a composed mechanism model"
+built_from = "`mechanism_composition.compose_mechanisms(...)` (`PreparedMechanismComposition`) and its `export` artifact"
+
+[[producer]]
+key = "evidence_ledger"
+object = "an evidence ledger and its pooled results (point-only or assumption range)"
+built_from = "`evidence_ledger.EvidenceLedger` (`pool_summaries`, `random_effects`, `hierarchical_borrowing`, `dependence_range`) and its `export`"
+
+[[producer]]
+key = "counterfactual_transport_result"
+object = "a counterfactual transport result (exact or sampled plug-in point)"
+built_from = "`transport.advanced.CounterfactualTransportDerivation.evaluate(...)` (`CounterfactualTransportResult`); `estimate_sampled(...)` (`SampledCounterfactualTransportEstimate`)"
+
 [[consumer]]
 key = "decision"
 python = "`Contract.evaluate`, `composition.evaluate_with_support`, `decision_robust.finite_scenarios`, `decision_robust.identified_sets`"
@@ -626,6 +646,198 @@ consumer = "recalc_plan"
 status = "ADAPTER"
 detail = "`stage_identity(Stage.QUERY, contract_id)` declared by the caller"
 
+[[cell]]
+producer = "measurement_result"
+consumer = "decision"
+status = "ADAPTER"
+detail = "the caller declares one `MeanSource` coordinate for the latent construct (the model's population and regime) carrying the independently consumed point, with the model identity as provider and the data identity as snapshot; `Contract.evaluate` and `evaluate_with_support` then answer an affine utility only (prevalence 0.3: act 0.2, hold 0.6), mean-only with no standard error and no export; a quantile contract REFUSED `decision_evaluation.mean_source_insufficient`; the estimate and the prepared model themselves raise `CausalTypeError`"
+
+[[cell]]
+producer = "measurement_result"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "the same declared mean as a `MeanClaim` into `InverseQuery.evaluate` (target mean 0.5 keeps `hold`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the estimate itself raises `CausalTypeError`"
+
+[[cell]]
+producer = "measurement_result"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`); a point is neither a prior nor a signal"
+
+[[cell]]
+producer = "measurement_result"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "measurement_result"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "measurement_result"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`"
+
+[[cell]]
+producer = "measurement_result"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no node kind: the artifact container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the estimate, the prepared model and an object whose `export` is not the bundle exporter raise `CausalTypeError` or `CompositionBundleRefusal`"
+
+[[cell]]
+producer = "measurement_result"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, model identity plus data identity)` declared by the caller"
+
+[[cell]]
+producer = "composed_model"
+consumer = "decision"
+status = "ADAPTER"
+detail = "the caller declares two `MeanSource` coordinates, the outcome mean under `do(X=1)` and under `do(X=0)` read from `intervention_law`, with the plan identity as provider; the Gaussian law, its variance and its samples are not carried, so only an affine utility is answered (act 27, hold 1); a quantile contract REFUSED `decision_evaluation.mean_source_insufficient`; the prepared composition itself raises `CausalTypeError`"
+
+[[cell]]
+producer = "composed_model"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "the same declared means as a `MeanClaim` into `InverseQuery.evaluate` (target mean 5 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the prepared composition itself raises `CausalTypeError`"
+
+[[cell]]
+producer = "composed_model"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`); a point is neither a prior nor a signal"
+
+[[cell]]
+producer = "composed_model"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "composed_model"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "composed_model"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`"
+
+[[cell]]
+producer = "composed_model"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no node kind: the artifact container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the prepared composition, whose `export` takes a query, raises `CausalTypeError`"
+
+[[cell]]
+producer = "composed_model"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.SCORE_ARTIFACT, plan identity)` declared by the caller"
+
+[[cell]]
+producer = "evidence_ledger"
+consumer = "decision"
+status = "ADAPTER"
+detail = "the caller declares the pooled quantity (the ledger carries no estimand, units or population) as one `MeanSource` coordinate carrying a `point_only` pooled estimate (7/5 of two disjoint studies), with the result identity as provider and the ledger head as snapshot; an affine utility only (act 4.6, hold 2.8), mean-only with no variance and no export; an `assumption_range` envelope has no point and raises `CausalTypeError`; a pooled interval REFUSED `evidence_ledger.interval_not_licensed`"
+
+[[cell]]
+producer = "evidence_ledger"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "the same declared mean as a `MeanClaim` into `InverseQuery.evaluate` (target mean 3 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the ledger, the outcome and the envelope themselves raise `CausalTypeError`"
+
+[[cell]]
+producer = "evidence_ledger"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`); a point is neither a prior nor a signal"
+
+[[cell]]
+producer = "evidence_ledger"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "evidence_ledger"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "evidence_ledger"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`"
+
+[[cell]]
+producer = "evidence_ledger"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no node kind: the artifact container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the ledger session, whose `export` returns a `LedgerExport` rather than bytes, raises `CausalTypeError`"
+
+[[cell]]
+producer = "evidence_ledger"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, ledger export identity)` declared by the caller"
+
+[[cell]]
+producer = "counterfactual_transport_result"
+consumer = "decision"
+status = "ADAPTER"
+detail = "the caller declares two `MeanSource` coordinates, the mean of a binary outcome indicator under `do(X=1)` and `do(X=0)` (a probability is the mean of its indicator), from the exact results (3/4 and 1/2) or from the sampled plug-in points (the same values from the counts; the standard error is not carried); an affine utility only (act 2, hold 1); a quantile contract REFUSED `decision_evaluation.mean_source_insufficient`; the result objects themselves raise `CausalTypeError`"
+
+[[cell]]
+producer = "counterfactual_transport_result"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "the same declared means as a `MeanClaim` into `InverseQuery.evaluate` (target mean 1.5 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the result objects themselves raise `CausalTypeError`"
+
+[[cell]]
+producer = "counterfactual_transport_result"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`); a point is neither a prior nor a signal"
+
+[[cell]]
+producer = "counterfactual_transport_result"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "counterfactual_transport_result"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "counterfactual_transport_result"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`"
+
+[[cell]]
+producer = "counterfactual_transport_result"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no node kind: the artifact container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; a result object whose `export` takes no `artifact_id` raises `CausalTypeError`"
+
+[[cell]]
+producer = "counterfactual_transport_result"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.IDENTIFICATION, premises digest plus data digest)` declared by the caller"
+
 [[refusal]]
 code = "`decision_contract_unsatisfied`"
 detail = "`native_claims.source_not_supplied` (expected `joint_draws,marginal_draws`, supplied `mean`)"
@@ -685,3 +897,28 @@ where = "a mean decision whose functional needs a joint law, or a joint-law resu
 code = "`design_cost_units_mismatch`"
 detail = "`design_ranking.cost_units_mismatch`"
 where = "`design.consume` under a different cost map"
+
+[[refusal]]
+code = "`cell_not_licensed`"
+detail = "`measurement_model.interval_closed`"
+where = "`MeasurementEstimate.interval` and `PreparedMeasurementModel.interval`"
+
+[[refusal]]
+code = "`cell_not_licensed`"
+detail = "`measurement_model.operation_not_licensed`"
+where = "`PreparedMeasurementModel.check_operation` for an operation the route card refuses (`condition_on_construct`)"
+
+[[refusal]]
+code = "`cell_not_licensed`"
+detail = "`mechanism_composition.interval_route_closed`"
+where = "`PreparedMechanismComposition.interval`"
+
+[[refusal]]
+code = "`cell_not_licensed`"
+detail = "`evidence_ledger.interval_not_licensed`"
+where = "`EvidenceLedger.pooled_interval`"
+
+[[refusal]]
+code = "`cell_not_licensed`"
+detail = "`counterfactual_transport_sampled.interval_not_licensed`"
+where = "the interval of a sampled counterfactual transport estimate"

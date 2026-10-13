@@ -20,7 +20,21 @@ consumer types its input. The hand values mirror the single-route tests they reu
   ``E[P Q] = 2``, ``E[safe] = 3`` and ``P(P Q >= 4) = 1/2``;
 * frozen guess decision with accuracies 3/4 and 5/8, cost 1/10: EVSI ``1/4`` and ``1/8``, net
   ``3/20`` and ``1/40``;
-* frozen sensitivity surface ``A = 2 - gamma`` against ``B = 1``: an exact tie at ``gamma = 1``.
+* frozen sensitivity surface ``A = 2 - gamma`` against ``B = 1``: an exact tie at ``gamma = 1``;
+* binary misclassification with sensitivity 9/10, specificity 4/5 and 410 positives in 1000:
+  latent prevalence ``(0.41 + 0.8 - 1) / 0.7 = 0.3``;
+* the declared linear-Gaussian chain ``X -> M -> Y`` of ``test_mechanism_composition.py``:
+  ``E[Y | do(X=1)] = 7`` and ``E[Y | do(X=0)] = 1/2``, ``Var(Y | do(X=1)) = 37/4``;
+* two disjoint studies ``y = (1, 3)``, variances ``(1, 4)``: pooled estimate 7/5, variance 4/5;
+* a confounding-free ``X -> Y`` population with joint law ``(1/4, 1/4, 1/8, 3/8)``:
+  ``P(Y_{x=1} = 1) = 3/4`` and ``P(Y_{x=0} = 1) = 1/2``.
+
+The four point-only producers (measurement result, composed model, evidence ledger,
+counterfactual transport result) reach a mean consumer only through a declaration the caller
+writes (``MeanSource`` or ``MeanClaim``: the coordinate, the point, and the producer identity as
+provider and snapshot). Nothing here makes that point a law, a posterior or a response: a
+quantile or probability contract is refused ``decision_evaluation.mean_source_insufficient`` and
+the standard error is not carried.
 """
 
 from __future__ import annotations
@@ -50,7 +64,10 @@ from antecedent import (
 from antecedent import composition as comp
 from antecedent import composition_bundle as cb
 from antecedent import design as dr
+from antecedent import evidence_ledger as el
 from antecedent import inverse_query as iq
+from antecedent import measurement_models as mm
+from antecedent import mechanism_composition as mc
 from antecedent import sensitivity_decision as sd
 from antecedent.compact_export import CompactExport, Intercept, Linear, Numeric, Power, Quantity
 from antecedent.errors import (
@@ -60,6 +77,7 @@ from antecedent.errors import (
     CausalValueError,
 )
 from antecedent.estimation import PreparedBatch, RetargetClaim
+from antecedent.evidence_ledger import EvidenceLedgerRefusal
 from antecedent.external import ExternalRefusal
 from antecedent.inference import PosteriorArtifact, encode_posterior_artifact
 from antecedent.joint_distribution import (
@@ -67,6 +85,8 @@ from antecedent.joint_distribution import (
     JointDistributionArtifact,
     ScientificQuantity,
 )
+from antecedent.measurement_models import MeasurementModelRefusal
+from antecedent.mechanism_composition import MechanismCompositionRefusal
 from antecedent.recalc import RecalcRequest, RecalcSession, Stage, TargetWeights, Utility
 from antecedent.results.response import (
     CausalResponseView,
@@ -91,6 +111,10 @@ PRODUCERS: tuple[str, ...] = (
     "decision",
     "study_ranking",
     "failed_contract",
+    "measurement_result",
+    "composed_model",
+    "evidence_ledger",
+    "counterfactual_transport_result",
 )
 CONSUMERS: tuple[str, ...] = (
     "decision",
@@ -576,6 +600,156 @@ def _recalc_request() -> RecalcRequest:
     )
 
 
+# ------------------------------------------------------- fixtures: point-only producers
+# Measurement result, composed model, evidence ledger and counterfactual transport result each
+# return a point (at most with an uncalibrated standard error or a declared-mechanism variance).
+
+
+def _measurement_analysis() -> mm.AnalysisBinding:
+    return mm.AnalysisBinding(
+        construct_id="construct:latent", population_id="cohort", regime_id="observational"
+    )
+
+
+def _measurement_prepared() -> mm.PreparedMeasurementModel:
+    """Sensitivity 9/10, specificity 4/5, 410 positives of 1000: latent prevalence 0.3."""
+    model = mm.MeasurementModel(
+        indicator=mm.MeasurementVariable("schema:indicator", "noisy_misclassified", "unit"),
+        construct=mm.MeasurementVariable("construct:latent", "latent_scientific", "unit"),
+        parameters=mm.BinaryParameters(
+            (mm.BinaryRates(0.9, 0.8, 1e-4, 4e-4, arm_id=None),), min_youden=0.1
+        ),
+        population_id="cohort",
+        regime_id="observational",
+        evidence=mm.ParameterEvidence.declared("producer-consumer-matrix"),
+        structure="non_differential",
+        representation=mm.RepresentationVersion("scalar", 1),
+    )
+    return mm.prepare_measurement_model(
+        model, _measurement_analysis(), mm.BinaryPrevalenceData(410, 1000)
+    )
+
+
+_COMPOSITION_ROLES = {"X": "treatment", "M": "mediator", "Y": "outcome"}
+
+
+def _mechanism(variable: str, intercept: float, sigma: float, parents: Any = ()) -> mc.Mechanism:
+    def quantity(name: str) -> mc.Quantity:
+        return mc.Quantity(
+            name,
+            units="u",
+            population_id="pop",
+            role=_COMPOSITION_ROLES.get(name, "covariate"),
+            variable_name=f"label of {name}",
+        )
+
+    declaration = mc.MechanismDeclaration(
+        output=quantity(variable),
+        parents=tuple(quantity(name) for name, _ in parents),
+        artifact_id=f"fit:{variable}",
+        evidence_id=f"data:{variable}",
+    )
+    return mc.Mechanism.declared_linear(
+        declaration, intercept=intercept, sigma=sigma, coefficients=dict(parents)
+    )
+
+
+def _composition() -> mc.PreparedMechanismComposition:
+    """``X = 1 + 2 e``, ``M = 1/2 + 2 X + e``, ``Y = -1 + X/2 + 3 M + e/2``."""
+    return mc.compose_mechanisms(
+        [
+            _mechanism("X", 1.0, 2.0),
+            _mechanism("M", 0.5, 1.0, [("X", 2.0)]),
+            _mechanism("Y", -1.0, 0.5, [("X", 0.5), ("M", 3.0)]),
+        ],
+        target_population_id="pop",
+        admit_declared_mechanisms=True,
+    )
+
+
+@dataclass(frozen=True)
+class Ledgered:
+    """One ledger, its point-only pooled outcome and its assumption-range envelope."""
+
+    ledger: el.EvidenceLedger
+    pooled: el.SynthesisOutcome
+    envelope: el.SynthesisOutcome
+    export: el.LedgerExport
+
+
+def _ledgered() -> Ledgered:
+    ledger = el.EvidenceLedger()
+    first = ledger.add_source(
+        el.SourceDeclaration("s1", "observation_set", observations=el.rows("cohort", range(0, 10)))
+    )
+    second = ledger.add_source(
+        el.SourceDeclaration("s2", "observation_set", observations=el.rows("cohort", range(10, 20)))
+    )
+    pooled = ledger.pool_summaries(
+        "pooled", [el.StudySummary(first, 1.0, 1.0), el.StudySummary(second, 3.0, 4.0)]
+    )
+    envelope = ledger.dependence_range(
+        "range",
+        [el.StudyEstimate(first, 1.0, 1.0), el.StudyEstimate(second, 3.0, 2.0)],
+        rho_lo=0.0,
+        rho_hi=0.9,
+    )
+    return Ledgered(ledger, pooled, envelope, ledger.export())
+
+
+@dataclass(frozen=True)
+class Transported:
+    """The exact results and the sampled plug-ins of ``P(Y_{x=1} = 1)`` and ``P(Y_{x=0} = 1)``."""
+
+    treated: transport.CounterfactualTransportResult
+    control: transport.CounterfactualTransportResult
+    sampled_treated: transport.SampledCounterfactualTransportEstimate
+    sampled_control: transport.SampledCounterfactualTransportEstimate
+
+
+def _transported() -> Transported:
+    """Unconfounded ``X -> Y`` with joint law ``(1/4, 1/4, 1/8, 3/8)`` over ``(x, y)``."""
+    graph = Admg.from_edges(["X", "Y"], [("X", "Y")], [])
+    catalog = transport.EvidenceCatalog(
+        regimes=(
+            transport.EvidenceRegime(
+                "pop|obs", "pop", kind="observational", interventions=[], measured=["X", "Y"]
+            ),
+        )
+    )
+    axes = (("X", (0.0, 1.0)), ("Y", (0.0, 1.0)))
+    law = transport.ExactDiscreteLaw(
+        "pop", "pop|obs", axes, (0.25, 0.25, 0.125, 0.375), "snap|pop|obs", interventions=()
+    )
+    table = transport.SampledCountTable(
+        "pop", "pop|obs", axes, [5000, 5000, 2500, 7500], "snap|pop|obs"
+    )
+    results = []
+    for level in (1.0, 0.0):
+        decided = transport.identify_counterfactual(
+            graph=graph,
+            query=transport.CounterfactualTransportQuery(
+                target="pop",
+                levels={"X": (0.0, 1.0), "Y": (0.0, 1.0)},
+                worlds=(transport.CounterfactualWorld("do", {"X": level}),),
+                event=(transport.CounterfactualEvent("Y", 1.0, "do"),),
+            ),
+            catalog=catalog,
+        )
+        assert decided.status == "identified", decided.decision
+        derivation = decided.derivation
+        results.append(
+            (
+                derivation.evaluate(evidence=[law]),
+                derivation.estimate_sampled(
+                    [table], overlap=transport.SamplingOverlap.all_independent()
+                ),
+            )
+        )
+    (treated, sampled_treated), (control, sampled_control) = results
+    return Transported(treated, control, sampled_treated, sampled_control)
+
+
 # ------------------------------------------------------------------------------------- objects
 
 
@@ -595,10 +769,18 @@ class Objs:
     result: decision.Decision
     ranking: dr.DesignRankingResult
     failed: repair.BackdoorContract
+    measurement_prepared: mm.PreparedMeasurementModel
+    measurement: mm.MeasurementEstimate
+    composition: mc.PreparedMechanismComposition
+    composition_export: mc.CompositionExport
+    ledgered: Ledgered
+    transported: Transported
 
 
 def _build_objects() -> Objs:
     program = _native_program()
+    prepared = _measurement_prepared()
+    composition = _composition()
     return Objs(
         native=program_claims.native_claim(_native_view(), program),
         native_program=program,
@@ -628,6 +810,12 @@ def _build_objects() -> Objs:
         result=gen.decision_contract().evaluate(gen.decision_source()),
         ranking=_ranking(),
         failed=_failed_contract(),
+        measurement_prepared=prepared,
+        measurement=prepared.estimate(),
+        composition=composition,
+        composition_export=composition.export({"X": 1.0}, outcome="Y"),
+        ledgered=_ledgered(),
+        transported=_transported(),
     )
 
 
@@ -649,7 +837,25 @@ def _object(producer: str, o: Objs) -> object:
         "decision": o.result,
         "study_ranking": o.ranking,
         "failed_contract": o.failed,
+        "measurement_result": o.measurement,
+        "composed_model": o.composition,
+        "evidence_ledger": o.ledgered.ledger,
+        "counterfactual_transport_result": o.transported.treated,
     }[producer]
+
+
+def _companions(producer: str, o: Objs) -> tuple[object, ...]:
+    """The other objects the row stands for, fed to the same entry points as the primary one."""
+    return {
+        "measurement_result": (o.measurement_prepared,),
+        "composed_model": (o.composition_export,),
+        "evidence_ledger": (o.ledgered.pooled, o.ledgered.envelope, o.ledgered.export),
+        "counterfactual_transport_result": (
+            o.transported.control,
+            o.transported.sampled_treated,
+            o.transported.sampled_control,
+        ),
+    }.get(producer, ())
 
 
 def _bundle_payload(producer: str, o: Objs) -> object:
@@ -660,6 +866,14 @@ def _bundle_payload(producer: str, o: Objs) -> object:
         return bytes(encode_posterior_artifact(o.posterior))
     if producer == "identified_scenarios":
         return bytes(o.stage.export())
+    if producer == "measurement_result":
+        return o.measurement.export()
+    if producer == "composed_model":
+        return o.composition_export.artifact
+    if producer == "evidence_ledger":
+        return o.ledgered.export.artifact
+    if producer == "counterfactual_transport_result":
+        return o.transported.treated.export()
     return _object(producer, o)
 
 
@@ -758,14 +972,27 @@ def _payload(producer: str, consumer: str, o: Objs) -> object:
     return _bundle_payload(producer, o) if consumer == "bundle_node" else _object(producer, o)
 
 
+def _payloads(producer: str, consumer: str, o: Objs) -> tuple[object, ...]:
+    """The primary payload and the row's companions, each as ``consumer`` would be handed it.
+
+    A bundle consumer is also handed the exporter objects themselves (the estimate, the ledger
+    session, the result) so that an exporter that is not the bundle protocol is typed.
+    """
+    primary = _payload(producer, consumer, o)
+    if consumer == "bundle_node":
+        extras = (_object(producer, o), *_companions(producer, o))
+        return (primary, *extras)
+    return (primary, *_companions(producer, o))
+
+
 def _check_refused(producer: str, consumer: str, o: Objs) -> None:
     """No entry point of ``consumer`` accepts ``producer``; typed where the consumer types it."""
-    payload = _payload(producer, consumer, o)
-    for label, feed, expected in FEEDERS[consumer]:
-        with pytest.raises(Exception) as caught:  # noqa: PT011
-            feed(payload)
-        if expected is not None:
-            assert isinstance(caught.value, expected), (producer, label, type(caught.value))
+    for payload in _payloads(producer, consumer, o):
+        for label, feed, expected in FEEDERS[consumer]:
+            with pytest.raises(Exception) as caught:  # noqa: PT011
+                feed(payload)
+            if expected is not None:
+                assert isinstance(caught.value, expected), (producer, label, type(caught.value))
 
 
 # --------------------------------------------------------------------------- recalc adapter
@@ -1257,6 +1484,16 @@ def _recalc_stage(producer: str, o: Objs) -> tuple[Stage, str]:
         "decision": (Stage.DECISION, o.result.contract_identity + o.result.source_digest),
         "study_ranking": (Stage.UTILITY, o.ranking.identity),
         "failed_contract": (Stage.QUERY, o.failed.contract_id),
+        "measurement_result": (
+            Stage.EVIDENCE,
+            o.measurement.model_identity + o.measurement.data_identity,
+        ),
+        "composed_model": (Stage.SCORE_ARTIFACT, o.composition.plan_identity),
+        "evidence_ledger": (Stage.EVIDENCE, o.ledgered.export.identity),
+        "counterfactual_transport_result": (
+            Stage.IDENTIFICATION,
+            str(o.transported.treated.premises_digest) + str(o.transported.treated.data_digest),
+        ),
     }[producer]
 
 
@@ -1289,6 +1526,392 @@ def _check_retargeted_recalc(o: Objs) -> None:
     assert {m.name for m in o.retarget.claims} == {"a", "b"}
 
 
+# ------------------------------------------------- declared means of the point-only producers
+
+
+@dataclass(frozen=True)
+class Declared:
+    """What the caller writes to carry a producer's point into a mean consumer.
+
+    The coordinates, the points, and the producer's own identity as provider and snapshot. It
+    claims nothing about the outcome law: only an affine utility's expectation is answered.
+    """
+
+    quantities: tuple[ScientificQuantity, ...]
+    means: tuple[float, ...]
+    provider_id: str
+    snapshot_id: str
+    causal_contract_id: str
+
+    def source(self) -> decision.MeanSource:
+        return decision.MeanSource(
+            coordinates=self.quantities,
+            means=self.means,
+            provider_id=self.provider_id,
+            snapshot_id=self.snapshot_id,
+            causal_contract_id=self.causal_contract_id,
+        )
+
+    def claim(self) -> iq.MeanClaim:
+        return iq.MeanClaim(
+            coordinates=self.quantities,
+            means=self.means,
+            provider_id=self.provider_id,
+            snapshot_id=self.snapshot_id,
+            causal_contract_id=self.causal_contract_id,
+        )
+
+    def contract(self, criterion: decision.Criterion | None = None) -> decision.Contract:
+        """``act`` reads the first coordinate (utility ``4 m - 1``), ``hold`` the last (``2 m``)."""
+        return decision.Contract(
+            actions=(
+                decision.Action(
+                    "act", inputs=(self.quantities[0],), utility=decision.x(0) * 4.0 - 1.0
+                ),
+                decision.Action("hold", inputs=(self.quantities[-1],), utility=decision.x(0) * 2.0),
+            ),
+            utility_units="utility",
+            criterion=criterion or decision.Criterion.expected_utility(),
+            target_population=self.quantities[0].population_id,
+        )
+
+
+def _declared_quantity(
+    variable: str, regime: str, *, units: str, population: str, functional: str = "mean"
+) -> ScientificQuantity:
+    return ScientificQuantity(
+        variable_id=variable,
+        variable_name=variable,
+        role="outcome",
+        units=units,
+        population_id=population,
+        regime_id=regime,
+        horizon=0,
+        functional_id=functional,
+    )
+
+
+def _check_declared_decision(declared: Declared, *, act: float, hold: float, selected: str) -> None:
+    """``Contract.evaluate`` and ``evaluate_with_support`` over the declared mean source."""
+    contract = declared.contract()
+    decided = contract.evaluate(declared.source())
+    by_id = {a.id: a for a in decided.actions}
+    assert by_id["act"].expected_utility == pytest.approx(act, abs=1e-12)
+    assert by_id["hold"].expected_utility == pytest.approx(hold, abs=1e-12)
+    assert decided.selected == (selected,)
+    # A point carries no sampling error and no regret: nothing was upgraded on the way in.
+    assert by_id["act"].standard_error is None and decided.evpi is None
+    assert any("means only" in line for line in decided.assumptions)
+    with pytest.raises(decision.DecisionRefusal) as export:
+        decided.export()
+    assert export.value.detail == "decision_evaluation.mean_source_not_replayable"
+    assert export.value.reason_code == "route_not_supported"
+
+    # The support-aware evaluator takes the same means as a caller-written input.
+    adapted = comp.DecisionInput.from_means(
+        "declared",
+        list(declared.quantities),
+        list(declared.means),
+        provider_id=declared.provider_id,
+        snapshot_id=declared.snapshot_id,
+        causal_contract_id=declared.causal_contract_id,
+    )
+    assert adapted.source == "mean" and not adapted.native
+    supported = comp.evaluate_with_support(contract, [adapted])
+    assert supported.outcome("act").expected_utility == pytest.approx(act, abs=1e-12)
+    assert supported.verdict.selected == selected
+
+    # A mean is not an outcome distribution: a quantile or a probability is refused.
+    with pytest.raises(decision.DecisionRefusal) as quantile:
+        declared.contract(decision.Criterion.quantile(0.5)).evaluate(declared.source())
+    assert quantile.value.detail == "decision_evaluation.mean_source_insufficient"
+    assert quantile.value.reason_code == "decision_contract_unsatisfied"
+    assert_registered_refusal(quantile.value)
+    with pytest.raises(comp.SupportRefusal) as probability:
+        comp.evaluate_functional(
+            contract, "act", comp.Functional.probability(0.5, "upper"), adapted
+        )
+    assert probability.value.detail == "composition_boundary.mean_is_not_a_distribution"
+
+
+def _check_declared_inverse(
+    declared: Declared, *, target: float, feasible: tuple[str, ...]
+) -> None:
+    answered = iq.InverseQuery(
+        declared.contract(), ("act", "hold"), (iq.target_mean(target),)
+    ).evaluate(declared.claim())
+    assert answered.feasible_actions == feasible
+    assert answered.selected == feasible[0]
+    for constraint in (
+        iq.probability_threshold(0.5, 0.5, tail="lower", direction="at_most"),
+        iq.target_quantile(0.5, 0.5),
+    ):
+        with pytest.raises(iq.InverseQueryRefusal) as refused:
+            iq.InverseQuery(declared.contract(), ("act", "hold"), (constraint,)).evaluate(
+                declared.claim()
+            )
+        assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
+        assert refused.value.reason_code == "decision_contract_unsatisfied"
+        assert_registered_refusal(refused.value)
+
+
+def _check_raw_rejected(*objects: object, feeders: tuple[Callable[[Any], object], ...]) -> None:
+    """The producer's own objects are no source: every entry point of the slot types them."""
+    for obj in objects:
+        for feed in feeders:
+            with pytest.raises(CausalTypeError):
+                feed(obj)
+
+
+_DECISION_FEEDERS = (_feed_evaluate, _feed_support)
+_INVERSE_FEEDERS = (_feed_inverse,)
+
+
+# ------------------------------------------------------------------ measurement result
+
+
+def _declared_measurement(o: Objs) -> Declared:
+    estimate = o.measurement
+    consumed = mm.consume_measurement_model_artifact(estimate.export(), estimate.model_identity)
+    # Oracle: pi = (p* + Sp - 1) / (Se + Sp - 1) with p* = 410 / 1000, Se = 9/10, Sp = 4/5.
+    assert estimate.point == pytest.approx(0.3, abs=1e-12)
+    assert estimate.naive_point == pytest.approx(0.41, abs=1e-15)
+    assert consumed.point == pytest.approx(estimate.point, abs=1e-12)
+    assert estimate.operation == "latent_prevalence"
+    assert estimate.inference == "uncalibrated_standard_error"
+    # The independent consumer re-asks the contract for the analysis the decision is about.
+    consumed.check_use(_measurement_analysis(), "latent_prevalence")
+    with pytest.raises(MeasurementModelRefusal) as unlicensed:
+        o.measurement_prepared.check_operation("condition_on_construct")
+    assert unlicensed.value.reason_code == "cell_not_licensed"
+    assert unlicensed.value.detail == "measurement_model.operation_not_licensed"
+    for closed in (estimate, o.measurement_prepared):
+        with pytest.raises(MeasurementModelRefusal) as interval:
+            closed.interval()
+        assert interval.value.detail == "measurement_model.interval_closed"
+    quantity = _declared_quantity(
+        "construct:latent", "observational", units="unit", population="cohort"
+    )
+    return Declared(
+        (quantity,),
+        (consumed.point,),
+        f"measurement_model:{estimate.model_identity}",
+        f"data:{estimate.data_identity}",
+        "declared:latent_prevalence",
+    )
+
+
+def _check_measurement_decision(o: Objs) -> None:
+    declared = _declared_measurement(o)
+    _check_declared_decision(declared, act=0.2, hold=0.6, selected="hold")
+    _check_raw_rejected(o.measurement, o.measurement_prepared, feeders=_DECISION_FEEDERS)
+
+
+def _check_measurement_inverse(o: Objs) -> None:
+    declared = _declared_measurement(o)
+    _check_declared_inverse(declared, target=0.5, feasible=("hold",))
+    _check_raw_rejected(o.measurement, o.measurement_prepared, feeders=_INVERSE_FEEDERS)
+
+
+# ---------------------------------------------------------------------- composed model
+
+
+def _declared_composition(o: Objs) -> Declared:
+    composition = o.composition
+    treated = composition.intervention_law({"X": 1.0})
+    control = composition.intervention_law({"X": 0.0})
+    # Oracle by hand: M = 1/2 + 2 X, Y = -1 + X/2 + 3 M, so E[Y | do(X)] = 1/2 + 13/2 X and
+    # Var(Y | do(X)) = 9 * 1 + 1/4.
+    assert treated.mean_of("Y") == pytest.approx(7.0, abs=1e-12)
+    assert control.mean_of("Y") == pytest.approx(0.5, abs=1e-12)
+    assert treated.variance_of("Y") == pytest.approx(9.25, abs=1e-12)
+    contrast = composition.mean_contrast(mc.MeanContrast.ate("Y", "X", 1.0, 0.0))
+    assert contrast == pytest.approx(6.5, abs=1e-12)
+    # The independent consumer replays the premises and the stored query to the same law.
+    replayed = mc.consume_mechanism_composition_artifact(
+        o.composition_export.artifact, o.composition_export.premises_digest
+    )
+    assert isinstance(replayed.result, mc.GaussianLawResult)
+    assert replayed.result.mean == pytest.approx(7.0, abs=1e-12)
+    assert replayed.result.variance == pytest.approx(9.25, abs=1e-12)
+    assert o.composition.declared_mechanisms, "a declared mechanism is never labelled fitted"
+    with pytest.raises(MechanismCompositionRefusal) as closed:
+        composition.interval()
+    assert closed.value.reason_code == "cell_not_licensed"
+    assert closed.value.details == ("mechanism_composition.interval_route_closed",)
+    treated_q = _declared_quantity("Y", "do(X=1)", units="u", population="pop")
+    control_q = _declared_quantity("Y", "do(X=0)", units="u", population="pop")
+    return Declared(
+        (treated_q, control_q),
+        (treated.mean_of("Y"), control.mean_of("Y")),
+        f"mechanism_composition:{composition.plan_identity}",
+        f"premises:{o.composition_export.premises_digest}",
+        "declared:mechanism_composition",
+    )
+
+
+def _check_composition_decision(o: Objs) -> None:
+    declared = _declared_composition(o)
+    _check_declared_decision(declared, act=27.0, hold=1.0, selected="act")
+    _check_raw_rejected(o.composition, o.composition_export, feeders=_DECISION_FEEDERS)
+
+
+def _check_composition_inverse(o: Objs) -> None:
+    declared = _declared_composition(o)
+    _check_declared_inverse(declared, target=5.0, feasible=("act",))
+    _check_raw_rejected(o.composition, o.composition_export, feeders=_INVERSE_FEEDERS)
+
+
+# ---------------------------------------------------------------------- evidence ledger
+
+
+def _declared_ledger(o: Objs) -> Declared:
+    ledgered = o.ledgered
+    pooled = ledgered.pooled
+    value = pooled.value
+    # Oracle: inverse-variance pooling of y = (1, 3), v = (1, 4): weights (4/5, 1/5), 7/5, 4/5.
+    assert isinstance(value, el.FixedEffect)
+    assert pooled.claim_class == "point_only"
+    assert value.estimate == pytest.approx(7.0 / 5.0, abs=1e-12)
+    assert value.variance == pytest.approx(4.0 / 5.0, abs=1e-12)
+    # An independent consumer replays the operations and recomputes the pooled values.
+    assert pooled.result in ledgered.export.carried
+    replayed = el.consume_evidence_ledger_artifact(
+        ledgered.export.artifact, ledgered.export.identity
+    )
+    replay = replayed.synthesis_of(pooled.result)
+    assert replay is not None
+    assert any(abs(v - 7.0 / 5.0) < 1e-9 for v in replay.values)
+    # The dependence range is an assumption range: no point, so no source.
+    assert ledgered.envelope.claim_class == "assumption_range"
+    assert isinstance(ledgered.envelope.value, el.DependenceEnvelope)
+    with pytest.raises(EvidenceLedgerRefusal) as closed:
+        ledgered.ledger.pooled_interval(pooled.result)
+    assert closed.value.reason_code == "cell_not_licensed"
+    assert closed.value.detail == "evidence_ledger.interval_not_licensed"
+    # The ledger carries no estimand: the caller declares the pooled quantity.
+    quantity = _declared_quantity(
+        "pooled_effect",
+        "contrast:treated-control",
+        units="unit",
+        population="target",
+        functional="mean_difference",
+    )
+    return Declared(
+        (quantity,),
+        (value.estimate,),
+        f"evidence_ledger_result:{pooled.result}",
+        f"ledger_head:{ledgered.ledger.head}",
+        "declared:pooled_effect",
+    )
+
+
+def _ledger_objects(o: Objs) -> tuple[object, ...]:
+    ledgered = o.ledgered
+    return (
+        ledgered.ledger,
+        ledgered.pooled,
+        ledgered.envelope,
+        ledgered.envelope.value,
+        ledgered.export,
+    )
+
+
+def _check_ledger_decision(o: Objs) -> None:
+    declared = _declared_ledger(o)
+    _check_declared_decision(declared, act=4.6, hold=2.8, selected="act")
+    _check_raw_rejected(*_ledger_objects(o), feeders=_DECISION_FEEDERS)
+
+
+def _check_ledger_inverse(o: Objs) -> None:
+    declared = _declared_ledger(o)
+    _check_declared_inverse(declared, target=3.0, feasible=("act",))
+    _check_raw_rejected(*_ledger_objects(o), feeders=_INVERSE_FEEDERS)
+
+
+# ----------------------------------------------------- counterfactual transport result
+
+
+def _declared_transport(o: Objs, *, sampled: bool) -> Declared:
+    t = o.transported
+    # Oracle: P(Y=1 | X=1) = (3/8) / (1/2) = 3/4 and P(Y=1 | X=0) = (1/4) / (1/2) = 1/2.
+    assert t.treated.probability == pytest.approx(0.75, abs=1e-12)
+    assert t.control.probability == pytest.approx(0.5, abs=1e-12)
+    assert t.treated.uncertainty is None and t.treated.scope.endswith("point_only")
+    assert t.treated.premises_digest is not None and t.treated.data_digest is not None
+    consumed = transport.consume_counterfactual_transport_artifact(
+        t.treated.export(),
+        expected_premises_digest=t.treated.premises_digest,
+        expected_data_digest=t.treated.data_digest,
+    )
+    assert consumed.independently_verified
+    assert consumed.probability == t.treated.probability
+    # The sampled plug-in has the same value from counts, four labels and no interval.
+    for estimate, truth in ((t.sampled_treated, 0.75), (t.sampled_control, 0.5)):
+        assert estimate.probability == pytest.approx(truth, abs=1e-12)
+        assert estimate.labels["point_estimate"] == "plug_in_point_estimate"
+        assert estimate.labels["statistical_inference"] == "withheld_cell_not_licensed"
+        assert estimate.interval["available"] is False
+        assert estimate.interval["reason"] == "cell_not_licensed"
+        assert estimate.interval["detail"] == (
+            "counterfactual_transport_sampled.interval_not_licensed"
+        )
+        assert estimate.standard_error is not None
+        assert estimate.standard_error["label"] == "uncalibrated_standard_error"
+    treated_q = _declared_quantity("Y", "do(X=1)", units="probability", population="pop")
+    control_q = _declared_quantity("Y", "do(X=0)", units="probability", population="pop")
+    if sampled:
+        assert t.sampled_treated.probability is not None
+        assert t.sampled_control.probability is not None
+        return Declared(
+            (treated_q, control_q),
+            (t.sampled_treated.probability, t.sampled_control.probability),
+            f"sampled_counterfactual_transport:{t.sampled_treated.derivation_identity}",
+            f"evidence:{t.sampled_treated.evidence_identity}",
+            "declared:counterfactual_transport",
+        )
+    return Declared(
+        (treated_q, control_q),
+        (t.treated.probability, t.control.probability),
+        f"counterfactual_transport:{t.treated.premises_digest}",
+        f"data:{t.treated.data_digest}",
+        "declared:counterfactual_transport",
+    )
+
+
+def _transport_objects(o: Objs) -> tuple[object, ...]:
+    t = o.transported
+    return (t.treated, t.control, t.sampled_treated, t.sampled_control)
+
+
+def _check_transport_decision(o: Objs) -> None:
+    for sampled in (False, True):
+        declared = _declared_transport(o, sampled=sampled)
+        _check_declared_decision(declared, act=2.0, hold=1.0, selected="act")
+    _check_raw_rejected(*_transport_objects(o), feeders=_DECISION_FEEDERS)
+
+
+def _check_transport_inverse(o: Objs) -> None:
+    for sampled in (False, True):
+        declared = _declared_transport(o, sampled=sampled)
+        _check_declared_inverse(declared, target=1.5, feasible=("act",))
+    _check_raw_rejected(*_transport_objects(o), feeders=_INVERSE_FEEDERS)
+
+
+# -------------------------------------------------------------- bundle boundary (new rows)
+
+
+def _check_no_bundle_node_kind(producer: str, o: Objs) -> None:
+    """The producer's artifact is not a bundle node kind, whatever kind it is offered as."""
+    payload = _bundle_payload(producer, o)
+    assert isinstance(payload, bytes)
+    assert cb.detect_kind(payload) is None
+    for kind in ("decision_result", "distribution"):
+        with pytest.raises(cb.CompositionBundleRefusal) as wrong:
+            cb.Bundle.builder().add_artifact(kind, payload)
+        assert_registered_refusal(wrong.value)
+
+
 # ------------------------------------------------------------------------- the check registry
 
 Check = Callable[[Objs], None]
@@ -1313,6 +1936,26 @@ CHECKS: dict[tuple[str, str], Check] = {
     ("study_ranking", "design_ranking"): _check_ranking_design,
     ("study_ranking", "bundle_node"): _check_ranking_bundle,
     ("failed_contract", "repair"): _check_failed_repair,
+    ("measurement_result", "decision"): _check_measurement_decision,
+    ("measurement_result", "inverse_query"): _check_measurement_inverse,
+    ("composed_model", "decision"): _check_composition_decision,
+    ("composed_model", "inverse_query"): _check_composition_inverse,
+    ("evidence_ledger", "decision"): _check_ledger_decision,
+    ("evidence_ledger", "inverse_query"): _check_ledger_inverse,
+    ("counterfactual_transport_result", "decision"): _check_transport_decision,
+    ("counterfactual_transport_result", "inverse_query"): _check_transport_inverse,
+}
+#: Further checks of a REFUSED cell, beyond feeding every entry point of the consumer.
+REFUSED_EXTRAS: dict[tuple[str, str], Check] = {
+    (producer, "bundle_node"): (
+        lambda o, producer=producer: _check_no_bundle_node_kind(producer, o)
+    )
+    for producer in (
+        "measurement_result",
+        "composed_model",
+        "evidence_ledger",
+        "counterfactual_transport_result",
+    )
 }
 
 
@@ -1320,6 +1963,8 @@ def _run_cell(producer: str, consumer: str, o: Objs) -> None:
     status = _status(producer, consumer)
     if status == "REFUSED":
         _check_refused(producer, consumer, o)
+        if (producer, consumer) in REFUSED_EXTRAS:
+            REFUSED_EXTRAS[(producer, consumer)](o)
         return
     if (producer, consumer) in CHECKS:
         CHECKS[(producer, consumer)](o)
@@ -1335,10 +1980,10 @@ def test_producer_consumer_matrix_declares_every_cell_once_and_counts_them() -> 
     assert set(STATUS) == set(PRODUCERS)
     assert all(len(row) == len(CONSUMERS) for row in STATUS.values())
     cells = [status for row in STATUS.values() for status in row]
-    assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 88
+    assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 120
     assert cells.count("DIRECT") == 15
-    assert cells.count("ADAPTER") == 15
-    assert cells.count("REFUSED") == 58
+    assert cells.count("ADAPTER") == 27
+    assert cells.count("REFUSED") == 78
     assert set(cells) == {"DIRECT", "ADAPTER", "REFUSED"}
     # Every non-refused cell has a check; the only shared one is the recalc adapter.
     for producer in PRODUCERS:
@@ -1412,6 +2057,28 @@ def test_producer_consumer_matrix_failed_contract_row(consumer: str, objs: Objs)
     _run_cell("failed_contract", consumer, objs)
 
 
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_measurement_result_row(consumer: str, objs: Objs) -> None:
+    _run_cell("measurement_result", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_composed_model_row(consumer: str, objs: Objs) -> None:
+    _run_cell("composed_model", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_evidence_ledger_row(consumer: str, objs: Objs) -> None:
+    _run_cell("evidence_ledger", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_counterfactual_transport_result_row(
+    consumer: str, objs: Objs
+) -> None:
+    _run_cell("counterfactual_transport_result", consumer, objs)
+
+
 # ------------------------------------------------------------------------ cross-cutting rules
 
 
@@ -1423,11 +2090,11 @@ def test_producer_consumer_matrix_every_boundary_rejects_neighbours_with_typed_e
         for consumer in FEEDERS:
             if _status(producer, consumer) != "REFUSED":
                 continue
-            payload = _payload(producer, consumer, objs)
-            for label, feed, expected in FEEDERS[consumer]:
-                assert expected is not None, (producer, label)
-                with pytest.raises(expected):
-                    feed(payload)
+            for payload in _payloads(producer, consumer, objs):
+                for label, feed, expected in FEEDERS[consumer]:
+                    assert expected is not None, (producer, label)
+                    with pytest.raises(expected):
+                        feed(payload)
 
 
 def test_producer_consumer_matrix_invalid_export_signatures_are_typed_but_callback_errors_propagate(
