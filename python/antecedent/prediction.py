@@ -64,10 +64,56 @@ class FittedEffectModel:
         self._native = native
 
     @classmethod
-    def load(cls, artifact: bytes) -> FittedEffectModel:
+    def load(cls, artifact: bytes, *, expected_parent_claim: str | None = None) -> FittedEffectModel:
+        """Load the portable fitted effect of a verified result.
+
+        ``expected_parent_claim`` is the claim identity the consumer retained; a different
+        claim refuses ``cohort_decision.wrong_parent_identity``.
+        """
         from ._native import FittedEffectModel as NativeModel
 
-        return cls(NativeModel.load(artifact))
+        model = cls(NativeModel.load(artifact))
+        if expected_parent_claim is not None and model.parent_claim != expected_parent_claim:
+            from .cohort_decision import CohortDecisionRefusal
+
+            raise CohortDecisionRefusal(
+                {
+                    "code": "invalid_argument",
+                    "stage": "bind",
+                    "detail": "cohort_decision.wrong_parent_identity",
+                    "offending": model.parent_claim,
+                    "message": "the model comes from a different parent claim than the one retained",
+                    "remedy": "load the model from the claim the consumer retained",
+                }
+            )
+        return model
+
+    def decision_source(
+        self,
+        *,
+        cohort: Any,
+        outcome_units: str,
+        shift: Any = None,
+        expected_contrast: str | None = None,
+    ) -> Any:
+        """Bind a declared cohort and issue one native cohort-mean contrast source.
+
+        ``cohort`` is a :class:`antecedent.cohort_decision.CohortBinding`; ``outcome_units``
+        label the original outcome scale (never inferred or converted). Every row is checked
+        against the model's own support contract. A cohort from another population needs a
+        :class:`antecedent.cohort_decision.CovariateShift`. The result feeds
+        :meth:`antecedent.decision.Contract.evaluate` and answers the expectation of an affine
+        utility only. Raises :class:`antecedent.cohort_decision.CohortDecisionRefusal`.
+        """
+        from .cohort_decision import decision_source_from_model
+
+        return decision_source_from_model(
+            self,
+            cohort=cohort,
+            outcome_units=outcome_units,
+            shift=shift,
+            expected_contrast=expected_contrast,
+        )
 
     @property
     def features(self) -> tuple[str, ...]:

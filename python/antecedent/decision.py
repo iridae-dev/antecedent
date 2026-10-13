@@ -363,12 +363,28 @@ class MeanSource:
     rng_id: str = "none:mean_grid"
     _original_native: Any = field(default=None, repr=False, compare=False)
     _original_effect: Any = field(default=None, repr=False, compare=False)
+    _original_cohort: Any = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         coerce_fields(self, coordinates=tuple(self.coordinates))
         coerce_fields(self, means=tuple(float(m) for m in self.means))
 
     def _validated_original(self):
+        if self._original_cohort is not None:
+            actual = self._original_cohort._verified_mean_source()
+            supplied = {
+                "coordinates": [q._wire() for q in self.coordinates],
+                "means": list(self.means),
+                "provider_id": self.provider_id,
+                "snapshot_id": self.snapshot_id,
+                "causal_contract_id": self.causal_contract_id,
+                "rng_id": self.rng_id,
+            }
+            if json.loads(json.dumps(supplied)) != json.loads(json.dumps(actual)):
+                raise CausalValueError(
+                    "a cohort mean source must retain the fields its source replays to"
+                )
+            return None
         if self._original_effect is not None:
             original, value, units, population = self._original_effect
             raw = original._raw
@@ -622,6 +638,9 @@ class Contract:
         ``decision_contract_unsatisfied`` (``decision_evaluation.mean_source_insufficient``).
         Regret and EVPI are unavailable for such a decision.
         """
+        cohort_source = getattr(source, "_cohort_mean_source", None)
+        if cohort_source is not None:
+            source = cohort_source()
         result_source = _result_mean_source(
             self,
             source,
