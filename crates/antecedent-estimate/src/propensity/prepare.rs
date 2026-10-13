@@ -221,7 +221,9 @@ impl PropensityEstimationWorkspace {
             distance,
             features_hash: feature_key(donor_features),
         };
-        let needs_rebuild = self.matching_index.is_none() || self.matching_index_key != key;
+        let needs_rebuild = self.matching_index.as_ref().is_none_or(|index| {
+            self.matching_index_key != key || !index.matches_features(donor_features)
+        });
         if needs_rebuild {
             let donor_ids: Vec<usize> = (0..n_donors).collect();
             let index = MatchingIndex::exact(donor_features, dim, &donor_ids, distance)
@@ -586,6 +588,36 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn matching_index_cache_verifies_geometry_after_a_hash_key_hit() {
+        // These finite one-dimensional donor sets have different nearest neighbors to
+        // the same query. Force the compact hash field to match, simulating the exact
+        // cache-key collision that a 64-bit fingerprint must not treat as equality.
+        let original = [0.0, 2.0];
+        let changed = [9.0, 10.0];
+        let query = [9.5];
+        let mut workspace = PropensityEstimationWorkspace::default();
+        workspace.ensure_matching_index(&original, 1, MatchingDistance::Absolute).unwrap();
+        let stale = workspace.matching_index.as_ref().unwrap().nearest(&query, None).unwrap();
+        assert_eq!(
+            stale.map(|(id, distance)| (id, distance.to_bits())),
+            Some((1, 7.5_f64.to_bits()))
+        );
+
+        workspace.matching_index_key.features_hash = feature_key(&changed);
+        workspace.ensure_matching_index(&changed, 1, MatchingDistance::Absolute).unwrap();
+        let warm = workspace.matching_index.as_ref().unwrap().nearest(&query, None).unwrap();
+        let fresh = MatchingIndex::exact(&changed, 1, &[0, 1], MatchingDistance::Absolute)
+            .unwrap()
+            .nearest(&query, None)
+            .unwrap();
+
+        assert_eq!(workspace.matching_index_builds, 2);
+        let warm_bits = warm.map(|(id, distance)| (id, distance.to_bits()));
+        assert_eq!(warm_bits, fresh.map(|(id, distance)| (id, distance.to_bits())));
+        assert_eq!(warm_bits, Some((0, 0.5_f64.to_bits())));
+    }
 
     #[test]
     #[allow(

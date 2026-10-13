@@ -71,6 +71,21 @@ impl MatchingIndex {
         })
     }
 
+    /// Whether this index retains these exact feature bits.
+    ///
+    /// Callers may use this to verify a compact hash key before reusing the index. The
+    /// retained donor features make the check allocation-free and prevent a hash collision
+    /// from replaying nearest-neighbor results from different donor features.
+    #[must_use]
+    pub fn matches_features(&self, features_rowmajor: &[f64]) -> bool {
+        self.features.len() == features_rowmajor.len()
+            && self
+                .features
+                .iter()
+                .zip(features_rowmajor)
+                .all(|(stored, candidate)| stored.to_bits() == candidate.to_bits())
+    }
+
     /// Number of donors.
     #[must_use]
     pub fn len(&self) -> usize {

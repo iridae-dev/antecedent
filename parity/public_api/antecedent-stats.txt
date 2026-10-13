@@ -1293,6 +1293,7 @@ pub fn <antecedent_stats::MatchingIndex>::fn kth_self_distances(features_rowmajo
 pub fn <antecedent_stats::MatchingIndex>::fn kth_self_distances_of_donors(&self, k: usize, out: &mut [f64]) -> core::result::Result<(), antecedent_stats::StatsError>
 pub fn <antecedent_stats::MatchingIndex>::fn len(&self) -> usize
 pub fn <antecedent_stats::MatchingIndex>::fn match_all(&self, queries_rowmajor: &[f64], n_queries: usize, caliper: core::option::Option<f64>, out_donor_row: &mut [usize], out_distance: &mut [f64]) -> core::result::Result<u32, antecedent_stats::StatsError>
+pub fn <antecedent_stats::MatchingIndex>::fn matches_features(&self, features_rowmajor: &[f64]) -> bool
 pub fn <antecedent_stats::MatchingIndex>::fn nearest(&self, query: &[f64], caliper: core::option::Option<f64>) -> core::result::Result<core::option::Option<(usize, f64)>, antecedent_stats::StatsError>
 pub fn <antecedent_stats::MatchingIndex>::fn retained_memory_bytes(&self) -> u64
 pub fn <antecedent_stats::MixedKnnDependence>::fn new(k: usize) -> Self
