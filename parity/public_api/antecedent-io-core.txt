@@ -48,6 +48,7 @@ impl core::clone::Clone for antecedent_io_core::AssumptionTagWire
 impl core::clone::Clone for antecedent_io_core::AttestedEvidenceWire
 impl core::clone::Clone for antecedent_io_core::BayesianBindingWire
 impl core::clone::Clone for antecedent_io_core::CalibrationSlotWire
+impl core::clone::Clone for antecedent_io_core::CalibrationStatus
 impl core::clone::Clone for antecedent_io_core::CausalPayloadHeader
 impl core::clone::Clone for antecedent_io_core::CausalPayloadKind
 impl core::clone::Clone for antecedent_io_core::CausalPayloadWire
@@ -490,6 +491,7 @@ impl core::cmp::Eq for antecedent_io_core::AssumptionRecordWire
 impl core::cmp::Eq for antecedent_io_core::AssumptionSlotWire
 impl core::cmp::Eq for antecedent_io_core::AssumptionTagWire
 impl core::cmp::Eq for antecedent_io_core::BayesianBindingWire
+impl core::cmp::Eq for antecedent_io_core::CalibrationStatus
 impl core::cmp::Eq for antecedent_io_core::CausalPayloadHeader
 impl core::cmp::Eq for antecedent_io_core::CausalPayloadKind
 impl core::cmp::Eq for antecedent_io_core::CheckedAipwLoweringWire
@@ -693,6 +695,7 @@ impl core::cmp::PartialEq for antecedent_io_core::AssumptionTagWire
 impl core::cmp::PartialEq for antecedent_io_core::AttestedEvidenceWire
 impl core::cmp::PartialEq for antecedent_io_core::BayesianBindingWire
 impl core::cmp::PartialEq for antecedent_io_core::CalibrationSlotWire
+impl core::cmp::PartialEq for antecedent_io_core::CalibrationStatus
 impl core::cmp::PartialEq for antecedent_io_core::CausalPayloadHeader
 impl core::cmp::PartialEq for antecedent_io_core::CausalPayloadKind
 impl core::cmp::PartialEq for antecedent_io_core::CausalPayloadWire
@@ -1099,6 +1102,7 @@ impl core::cmp::PartialEq for antecedent_io_core::transported_counterfactual_art
 impl core::cmp::PartialEq for antecedent_io_core::transported_counterfactual_artifact::UnitContrastWire
 impl core::cmp::PartialEq for antecedent_io_core::wire::GraphCpdagWire
 impl core::cmp::PartialEq for antecedent_io_core::wire::ScalarTypeWire
+impl core::cmp::PartialEq<&str> for antecedent_io_core::CalibrationStatus
 impl core::cmp::PartialEq<&str> for antecedent_io_core::ContractReason
 impl core::cmp::PartialEq<str> for antecedent_io_core::ContractReason
 impl core::cmp::PartialOrd for antecedent_io_core::compact_export::TermSpec
@@ -1111,6 +1115,7 @@ impl core::convert::From<&antecedent_contract::quantity::ScientificQuantity> for
 impl core::convert::From<&antecedent_core::query::policy_value::MultiActionPolicyInputs> for antecedent_io_core::query_wire::MultiActionPolicyInputsWire
 impl core::convert::From<&antecedent_io_core::DagWire> for antecedent_io_core::DagJson
 impl core::convert::From<&antecedent_io_core::sensitivity_artifact::JointSensitivityView> for antecedent_io_core::sensitivity_artifact::JointSensitivityView
+impl core::convert::From<&str> for antecedent_io_core::CalibrationStatus
 impl core::convert::From<antecedent_contract::external_binding::BoundTrustLevel> for antecedent_io_core::external_claim_artifact::ExternalClaimTrust
 impl core::convert::From<antecedent_contract::external_refusal::ExternalRefusal> for antecedent_io_core::external_binding_wire::ExternalBindingRefusalWire
 impl core::convert::From<antecedent_contract::plan::BufferMaterialization> for antecedent_io_core::plan_wire::BufferMaterializationWire
@@ -1195,6 +1200,7 @@ impl core::fmt::Debug for antecedent_io_core::AssumptionTagWire
 impl core::fmt::Debug for antecedent_io_core::AttestedEvidenceWire
 impl core::fmt::Debug for antecedent_io_core::BayesianBindingWire
 impl core::fmt::Debug for antecedent_io_core::CalibrationSlotWire
+impl core::fmt::Debug for antecedent_io_core::CalibrationStatus
 impl core::fmt::Debug for antecedent_io_core::CausalPayloadHeader
 impl core::fmt::Debug for antecedent_io_core::CausalPayloadKind
 impl core::fmt::Debug for antecedent_io_core::CausalPayloadWire
@@ -1627,6 +1633,7 @@ impl core::fmt::Debug for antecedent_io_core::transported_counterfactual_artifac
 impl core::fmt::Debug for antecedent_io_core::wire::GraphCpdagWire
 impl core::fmt::Debug for antecedent_io_core::wire::ScalarTypeWire
 impl core::fmt::Display for antecedent_io_core::ArtifactCheckError
+impl core::fmt::Display for antecedent_io_core::CalibrationStatus
 impl core::fmt::Display for antecedent_io_core::IoError
 impl core::fmt::Display for antecedent_io_core::compact_export::ExportRefusal
 impl core::fmt::Display for antecedent_io_core::counterfactual_id_artifact::CounterfactualIdArtifactError
@@ -1654,6 +1661,7 @@ impl core::hash::Hash for antecedent_io_core::TemporalCoordinates
 impl core::hash::Hash for antecedent_io_core::TemporalNodeKeyWire
 impl core::hash::Hash for antecedent_io_core::quantity_wire::QuantityConditionWire
 impl core::hash::Hash for antecedent_io_core::sensitivity_artifact::PointSupport
+impl core::marker::Copy for antecedent_io_core::CalibrationStatus
 impl core::marker::Copy for antecedent_io_core::CausalPayloadKind
 impl core::marker::Copy for antecedent_io_core::CompressPolicy
 impl core::marker::Copy for antecedent_io_core::ConsumeLimits
@@ -1722,6 +1730,7 @@ impl core::marker::Freeze for antecedent_io_core::AssumptionTagWire [auto]
 impl core::marker::Freeze for antecedent_io_core::AttestedEvidenceWire [auto]
 impl core::marker::Freeze for antecedent_io_core::BayesianBindingWire [auto]
 impl core::marker::Freeze for antecedent_io_core::CalibrationSlotWire [auto]
+impl core::marker::Freeze for antecedent_io_core::CalibrationStatus [auto]
 impl core::marker::Freeze for antecedent_io_core::CausalPayloadHeader [auto]
 impl core::marker::Freeze for antecedent_io_core::CausalPayloadKind [auto]
 impl core::marker::Freeze for antecedent_io_core::CausalPayloadWire [auto]
@@ -2172,6 +2181,7 @@ impl core::marker::Send for antecedent_io_core::AssumptionTagWire [auto]
 impl core::marker::Send for antecedent_io_core::AttestedEvidenceWire [auto]
 impl core::marker::Send for antecedent_io_core::BayesianBindingWire [auto]
 impl core::marker::Send for antecedent_io_core::CalibrationSlotWire [auto]
+impl core::marker::Send for antecedent_io_core::CalibrationStatus [auto]
 impl core::marker::Send for antecedent_io_core::CausalPayloadHeader [auto]
 impl core::marker::Send for antecedent_io_core::CausalPayloadKind [auto]
 impl core::marker::Send for antecedent_io_core::CausalPayloadWire [auto]
@@ -2622,6 +2632,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::AssumptionTagWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::AttestedEvidenceWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::BayesianBindingWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::CalibrationSlotWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::CalibrationStatus
 impl core::marker::StructuralPartialEq for antecedent_io_core::CausalPayloadHeader
 impl core::marker::StructuralPartialEq for antecedent_io_core::CausalPayloadKind
 impl core::marker::StructuralPartialEq for antecedent_io_core::CausalPayloadWire
@@ -3044,6 +3055,7 @@ impl core::marker::Sync for antecedent_io_core::AssumptionTagWire [auto]
 impl core::marker::Sync for antecedent_io_core::AttestedEvidenceWire [auto]
 impl core::marker::Sync for antecedent_io_core::BayesianBindingWire [auto]
 impl core::marker::Sync for antecedent_io_core::CalibrationSlotWire [auto]
+impl core::marker::Sync for antecedent_io_core::CalibrationStatus [auto]
 impl core::marker::Sync for antecedent_io_core::CausalPayloadHeader [auto]
 impl core::marker::Sync for antecedent_io_core::CausalPayloadKind [auto]
 impl core::marker::Sync for antecedent_io_core::CausalPayloadWire [auto]
@@ -3494,6 +3506,7 @@ impl core::marker::Unpin for antecedent_io_core::AssumptionTagWire [auto]
 impl core::marker::Unpin for antecedent_io_core::AttestedEvidenceWire [auto]
 impl core::marker::Unpin for antecedent_io_core::BayesianBindingWire [auto]
 impl core::marker::Unpin for antecedent_io_core::CalibrationSlotWire [auto]
+impl core::marker::Unpin for antecedent_io_core::CalibrationStatus [auto]
 impl core::marker::Unpin for antecedent_io_core::CausalPayloadHeader [auto]
 impl core::marker::Unpin for antecedent_io_core::CausalPayloadKind [auto]
 impl core::marker::Unpin for antecedent_io_core::CausalPayloadWire [auto]
@@ -3944,6 +3957,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AssumptionT
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AttestedEvidenceWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::BayesianBindingWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::CalibrationSlotWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::CalibrationStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::CausalPayloadHeader [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::CausalPayloadKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::CausalPayloadWire [auto]
@@ -4394,6 +4408,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AssumptionTagW
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AttestedEvidenceWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::BayesianBindingWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::CalibrationSlotWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::CalibrationStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::CausalPayloadHeader [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::CausalPayloadKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::CausalPayloadWire [auto]
@@ -4842,6 +4857,7 @@ impl serde_core::ser::Serialize for antecedent_io_core::AssumptionTagWire
 impl serde_core::ser::Serialize for antecedent_io_core::AttestedEvidenceWire
 impl serde_core::ser::Serialize for antecedent_io_core::BayesianBindingWire
 impl serde_core::ser::Serialize for antecedent_io_core::CalibrationSlotWire
+impl serde_core::ser::Serialize for antecedent_io_core::CalibrationStatus
 impl serde_core::ser::Serialize for antecedent_io_core::CausalPayloadHeader
 impl serde_core::ser::Serialize for antecedent_io_core::CausalPayloadKind
 impl serde_core::ser::Serialize for antecedent_io_core::CausalPosteriorWire
@@ -5249,6 +5265,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AssumptionTag
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AttestedEvidenceWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::BayesianBindingWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::CalibrationSlotWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::CalibrationStatus
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::CausalPayloadHeader
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::CausalPayloadKind
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::CausalPosteriorWire
@@ -5750,6 +5767,7 @@ pub const fn antecedent_io_core::contract_section::weight_basis_name(basis: ante
 pub enum antecedent_io_core::ArtifactKind
 pub enum antecedent_io_core::AssignmentDesignWire
 pub enum antecedent_io_core::AssumptionTagWire
+pub enum antecedent_io_core::CalibrationStatus
 pub enum antecedent_io_core::CausalPayloadKind
 pub enum antecedent_io_core::CausalPayloadWire
 pub enum antecedent_io_core::CausalQueryWire
@@ -5961,7 +5979,7 @@ pub field antecedent_io_core::CalibrationSlotWire::scope_dependence: core::optio
 pub field antecedent_io_core::CalibrationSlotWire::scope_n: core::option::Option<u64>
 pub field antecedent_io_core::CalibrationSlotWire::scope_n_max: core::option::Option<u64>
 pub field antecedent_io_core::CalibrationSlotWire::secondary: alloc::vec::Vec<antecedent_io_core::CalibrationSlotWire>
-pub field antecedent_io_core::CalibrationSlotWire::status: alloc::string::String
+pub field antecedent_io_core::CalibrationSlotWire::status: antecedent_io_core::CalibrationStatus
 pub field antecedent_io_core::CausalPayloadHeader::payload_kind: antecedent_io_core::CausalPayloadKind
 pub field antecedent_io_core::CausalPayloadHeader::variable_names: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io_core::CausalPosteriorWire::backend_id: alloc::string::String
@@ -7960,10 +7978,11 @@ pub fn <antecedent_io_core::ArtifactReader<R>>::fn load_sections(&mut self, ids:
 pub fn <antecedent_io_core::ArtifactReader<R>>::fn manifest(&self) -> &antecedent_io_core::ArtifactManifest
 pub fn <antecedent_io_core::ArtifactReader<R>>::fn open_seek(inner: R) -> core::result::Result<Self, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::ArtifactReader<R>>::fn stats(&self) -> antecedent_io_core::SectionLoadStats
-pub fn <antecedent_io_core::CalibrationSlotWire>::fn from_record(record: &antecedent_io_core::coverage_records_data::CoverageRecord, status: &str) -> Self
+pub fn <antecedent_io_core::CalibrationSlotWire>::fn from_record(record: &antecedent_io_core::coverage_records_data::CoverageRecord, status: antecedent_io_core::CalibrationStatus) -> Self
 pub fn <antecedent_io_core::CalibrationSlotWire>::fn unavailable(reason: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_io_core::CalibrationSlotWire>::fn with_basis(self, basis: &antecedent_io_core::calibration::CalibrationBasisWire) -> Self
 pub fn <antecedent_io_core::CalibrationSlotWire>::fn with_reason(self, reason: &str) -> Self
+pub fn <antecedent_io_core::CalibrationStatus>::const fn as_str(self) -> &'static str
 pub fn <antecedent_io_core::CausalPayloadWire>::const fn kind(&self) -> antecedent_io_core::CausalPayloadKind
 pub fn <antecedent_io_core::CausalQueryWire>::fn target_population(&self) -> core::option::Option<&antecedent_io_core::TargetPopulationWire>
 pub fn <antecedent_io_core::CausalQueryWire>::fn target_population_mut(&mut self) -> core::option::Option<&mut antecedent_io_core::TargetPopulationWire>
@@ -8973,6 +8992,7 @@ pub use antecedent_io_core::contract_section::AttestedEvidenceWire = antecedent_
 pub use antecedent_io_core::contract_section::CONTRACT_SECTION = antecedent_io_core::CONTRACT_SECTION
 pub use antecedent_io_core::contract_section::CONTRACT_SECTION_FORMAT = antecedent_io_core::CONTRACT_SECTION_FORMAT
 pub use antecedent_io_core::contract_section::CalibrationSlotWire = antecedent_io_core::CalibrationSlotWire
+pub use antecedent_io_core::contract_section::CalibrationStatus = antecedent_io_core::CalibrationStatus
 pub use antecedent_io_core::contract_section::CheckedAipwLoweringWire = antecedent_io_core::CheckedAipwLoweringWire
 pub use antecedent_io_core::contract_section::CheckedAipwRowsWire = antecedent_io_core::CheckedAipwRowsWire
 pub use antecedent_io_core::contract_section::CheckedIvLoweringWire = antecedent_io_core::CheckedIvLoweringWire
@@ -9377,6 +9397,9 @@ pub variant antecedent_io_core::AssumptionTagWire::PiecewiseStationarity
 pub variant antecedent_io_core::AssumptionTagWire::Positivity
 pub variant antecedent_io_core::AssumptionTagWire::PriorRestriction { id: alloc::string::String, description: core::option::Option<alloc::string::String> }
 pub variant antecedent_io_core::AssumptionTagWire::Stationarity
+pub variant antecedent_io_core::CalibrationStatus::Calibrated
+pub variant antecedent_io_core::CalibrationStatus::ScopeNotAssessed
+pub variant antecedent_io_core::CalibrationStatus::Unavailable
 pub variant antecedent_io_core::CausalPayloadKind::InterferenceEstimate
 pub variant antecedent_io_core::CausalPayloadKind::Query
 pub variant antecedent_io_core::CausalPayloadKind::ResponseResult

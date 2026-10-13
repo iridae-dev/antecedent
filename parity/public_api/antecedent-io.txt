@@ -150,6 +150,10 @@ impl core::clone::Clone for antecedent_io::mechanism_discrepancy_artifact::Resul
 impl core::clone::Clone for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire
 impl core::clone::Clone for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits
 impl core::clone::Clone for antecedent_io::mixed_source_artifact::MixedSourcePointWire
+impl core::clone::Clone for antecedent_io::model_codes::GraphClassCode
+impl core::clone::Clone for antecedent_io::model_codes::SourceDependenceCode
+impl core::clone::Clone for antecedent_io::model_codes::SourceSharingCode
+impl core::clone::Clone for antecedent_io::model_codes::VaryingBlockCode
 impl core::clone::Clone for antecedent_io::mz_transport_artifact::MzContrastWire
 impl core::clone::Clone for antecedent_io::mz_transport_artifact::MzTransportArtifactWire
 impl core::clone::Clone for antecedent_io::mz_transport_artifact::MzTransportConsumeLimits
@@ -323,6 +327,10 @@ impl core::cmp::Eq for antecedent_io::learned_joint_transport_artifact::LearnedP
 impl core::cmp::Eq for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire
 impl core::cmp::Eq for antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyIdentity
 impl core::cmp::Eq for antecedent_io::mechanism_discrepancy_artifact::ParentWire
+impl core::cmp::Eq for antecedent_io::model_codes::GraphClassCode
+impl core::cmp::Eq for antecedent_io::model_codes::SourceDependenceCode
+impl core::cmp::Eq for antecedent_io::model_codes::SourceSharingCode
+impl core::cmp::Eq for antecedent_io::model_codes::VaryingBlockCode
 impl core::cmp::Eq for antecedent_io::nested_markov_artifact::NestedGraphWire
 impl core::cmp::Eq for antecedent_io::nested_markov_artifact::NestedMarkovArtifactError
 impl core::cmp::Eq for antecedent_io::nested_markov_artifact::NestedMarkovExpectation
@@ -462,6 +470,10 @@ impl core::cmp::PartialEq for antecedent_io::mechanism_discrepancy_artifact::Pop
 impl core::cmp::PartialEq for antecedent_io::mechanism_discrepancy_artifact::PopulationWire
 impl core::cmp::PartialEq for antecedent_io::mechanism_discrepancy_artifact::ResultWire
 impl core::cmp::PartialEq for antecedent_io::mixed_source_artifact::MixedSourcePointWire
+impl core::cmp::PartialEq for antecedent_io::model_codes::GraphClassCode
+impl core::cmp::PartialEq for antecedent_io::model_codes::SourceDependenceCode
+impl core::cmp::PartialEq for antecedent_io::model_codes::SourceSharingCode
+impl core::cmp::PartialEq for antecedent_io::model_codes::VaryingBlockCode
 impl core::cmp::PartialEq for antecedent_io::mz_transport_artifact::MzContrastWire
 impl core::cmp::PartialEq for antecedent_io::mz_transport_artifact::MzUncertaintyWire
 impl core::cmp::PartialEq for antecedent_io::nested_markov_artifact::NestedContrastWire
@@ -750,6 +762,10 @@ impl core::fmt::Debug for antecedent_io::mechanism_discrepancy_artifact::ResultW
 impl core::fmt::Debug for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire
 impl core::fmt::Debug for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits
 impl core::fmt::Debug for antecedent_io::mixed_source_artifact::MixedSourcePointWire
+impl core::fmt::Debug for antecedent_io::model_codes::GraphClassCode
+impl core::fmt::Debug for antecedent_io::model_codes::SourceDependenceCode
+impl core::fmt::Debug for antecedent_io::model_codes::SourceSharingCode
+impl core::fmt::Debug for antecedent_io::model_codes::VaryingBlockCode
 impl core::fmt::Debug for antecedent_io::mz_transport_artifact::MzContrastWire
 impl core::fmt::Debug for antecedent_io::mz_transport_artifact::MzTransportArtifactWire
 impl core::fmt::Debug for antecedent_io::mz_transport_artifact::MzTransportConsumeLimits
@@ -919,6 +935,10 @@ impl core::marker::Copy for antecedent_io::joint_bayesian_transport_artifact::Jo
 impl core::marker::Copy for antecedent_io::joint_bayesian_transport_artifact::JointOptionsWire
 impl core::marker::Copy for antecedent_io::learned_continuous_artifact::LearnedContinuousConsumeLimits
 impl core::marker::Copy for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits
+impl core::marker::Copy for antecedent_io::model_codes::GraphClassCode
+impl core::marker::Copy for antecedent_io::model_codes::SourceDependenceCode
+impl core::marker::Copy for antecedent_io::model_codes::SourceSharingCode
+impl core::marker::Copy for antecedent_io::model_codes::VaryingBlockCode
 impl core::marker::Copy for antecedent_io::mz_transport_artifact::MzContrastWire
 impl core::marker::Copy for antecedent_io::mz_transport_artifact::MzTransportConsumeLimits
 impl core::marker::Copy for antecedent_io::nested_markov_artifact::NestedContrastWire
@@ -1068,6 +1088,10 @@ impl core::marker::Freeze for antecedent_io::mixed_source_artifact::ConsumedMixe
 impl core::marker::Freeze for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire [auto]
 impl core::marker::Freeze for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits [auto]
 impl core::marker::Freeze for antecedent_io::mixed_source_artifact::MixedSourcePointWire [auto]
+impl core::marker::Freeze for antecedent_io::model_codes::GraphClassCode [auto]
+impl core::marker::Freeze for antecedent_io::model_codes::SourceDependenceCode [auto]
+impl core::marker::Freeze for antecedent_io::model_codes::SourceSharingCode [auto]
+impl core::marker::Freeze for antecedent_io::model_codes::VaryingBlockCode [auto]
 impl core::marker::Freeze for antecedent_io::mz_transport_artifact::ConsumedMzTransport [auto]
 impl core::marker::Freeze for antecedent_io::mz_transport_artifact::MzContrastWire [auto]
 impl core::marker::Freeze for antecedent_io::mz_transport_artifact::MzTransportArtifactWire [auto]
@@ -1346,6 +1370,10 @@ impl core::marker::Send for antecedent_io::mixed_source_artifact::ConsumedMixedS
 impl core::marker::Send for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire [auto]
 impl core::marker::Send for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits [auto]
 impl core::marker::Send for antecedent_io::mixed_source_artifact::MixedSourcePointWire [auto]
+impl core::marker::Send for antecedent_io::model_codes::GraphClassCode [auto]
+impl core::marker::Send for antecedent_io::model_codes::SourceDependenceCode [auto]
+impl core::marker::Send for antecedent_io::model_codes::SourceSharingCode [auto]
+impl core::marker::Send for antecedent_io::model_codes::VaryingBlockCode [auto]
 impl core::marker::Send for antecedent_io::mz_transport_artifact::ConsumedMzTransport [auto]
 impl core::marker::Send for antecedent_io::mz_transport_artifact::MzContrastWire [auto]
 impl core::marker::Send for antecedent_io::mz_transport_artifact::MzTransportArtifactWire [auto]
@@ -1602,6 +1630,10 @@ impl core::marker::StructuralPartialEq for antecedent_io::mechanism_discrepancy_
 impl core::marker::StructuralPartialEq for antecedent_io::mechanism_discrepancy_artifact::PopulationWire
 impl core::marker::StructuralPartialEq for antecedent_io::mechanism_discrepancy_artifact::ResultWire
 impl core::marker::StructuralPartialEq for antecedent_io::mixed_source_artifact::MixedSourcePointWire
+impl core::marker::StructuralPartialEq for antecedent_io::model_codes::GraphClassCode
+impl core::marker::StructuralPartialEq for antecedent_io::model_codes::SourceDependenceCode
+impl core::marker::StructuralPartialEq for antecedent_io::model_codes::SourceSharingCode
+impl core::marker::StructuralPartialEq for antecedent_io::model_codes::VaryingBlockCode
 impl core::marker::StructuralPartialEq for antecedent_io::mz_transport_artifact::MzContrastWire
 impl core::marker::StructuralPartialEq for antecedent_io::mz_transport_artifact::MzUncertaintyWire
 impl core::marker::StructuralPartialEq for antecedent_io::nested_markov_artifact::NestedContrastWire
@@ -1845,6 +1877,10 @@ impl core::marker::Sync for antecedent_io::mixed_source_artifact::ConsumedMixedS
 impl core::marker::Sync for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire [auto]
 impl core::marker::Sync for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits [auto]
 impl core::marker::Sync for antecedent_io::mixed_source_artifact::MixedSourcePointWire [auto]
+impl core::marker::Sync for antecedent_io::model_codes::GraphClassCode [auto]
+impl core::marker::Sync for antecedent_io::model_codes::SourceDependenceCode [auto]
+impl core::marker::Sync for antecedent_io::model_codes::SourceSharingCode [auto]
+impl core::marker::Sync for antecedent_io::model_codes::VaryingBlockCode [auto]
 impl core::marker::Sync for antecedent_io::mz_transport_artifact::ConsumedMzTransport [auto]
 impl core::marker::Sync for antecedent_io::mz_transport_artifact::MzContrastWire [auto]
 impl core::marker::Sync for antecedent_io::mz_transport_artifact::MzTransportArtifactWire [auto]
@@ -2123,6 +2159,10 @@ impl core::marker::Unpin for antecedent_io::mixed_source_artifact::ConsumedMixed
 impl core::marker::Unpin for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire [auto]
 impl core::marker::Unpin for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits [auto]
 impl core::marker::Unpin for antecedent_io::mixed_source_artifact::MixedSourcePointWire [auto]
+impl core::marker::Unpin for antecedent_io::model_codes::GraphClassCode [auto]
+impl core::marker::Unpin for antecedent_io::model_codes::SourceDependenceCode [auto]
+impl core::marker::Unpin for antecedent_io::model_codes::SourceSharingCode [auto]
+impl core::marker::Unpin for antecedent_io::model_codes::VaryingBlockCode [auto]
 impl core::marker::Unpin for antecedent_io::mz_transport_artifact::ConsumedMzTransport [auto]
 impl core::marker::Unpin for antecedent_io::mz_transport_artifact::MzContrastWire [auto]
 impl core::marker::Unpin for antecedent_io::mz_transport_artifact::MzTransportArtifactWire [auto]
@@ -2400,6 +2440,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mixed_source_art
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mixed_source_artifact::MixedSourcePointWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::model_codes::GraphClassCode [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::model_codes::SourceDependenceCode [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::model_codes::SourceSharingCode [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::model_codes::VaryingBlockCode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mz_transport_artifact::ConsumedMzTransport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mz_transport_artifact::MzContrastWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mz_transport_artifact::MzTransportArtifactWire [auto]
@@ -2677,6 +2721,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mixed_source_artifa
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mixed_source_artifact::MixedSourcePointWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::model_codes::GraphClassCode [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::model_codes::SourceDependenceCode [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::model_codes::SourceSharingCode [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::model_codes::VaryingBlockCode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mz_transport_artifact::ConsumedMzTransport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mz_transport_artifact::MzContrastWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mz_transport_artifact::MzTransportArtifactWire [auto]
@@ -2925,6 +2973,10 @@ impl serde_core::ser::Serialize for antecedent_io::mechanism_discrepancy_artifac
 impl serde_core::ser::Serialize for antecedent_io::mechanism_discrepancy_artifact::ResultWire
 impl serde_core::ser::Serialize for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire
 impl serde_core::ser::Serialize for antecedent_io::mixed_source_artifact::MixedSourcePointWire
+impl serde_core::ser::Serialize for antecedent_io::model_codes::GraphClassCode
+impl serde_core::ser::Serialize for antecedent_io::model_codes::SourceDependenceCode
+impl serde_core::ser::Serialize for antecedent_io::model_codes::SourceSharingCode
+impl serde_core::ser::Serialize for antecedent_io::model_codes::VaryingBlockCode
 impl serde_core::ser::Serialize for antecedent_io::mz_transport_artifact::MzContrastWire
 impl serde_core::ser::Serialize for antecedent_io::mz_transport_artifact::MzTransportArtifactWire
 impl serde_core::ser::Serialize for antecedent_io::mz_transport_artifact::MzUncertaintyWire
@@ -3197,6 +3249,10 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::mechanism_discrepa
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::mechanism_discrepancy_artifact::ResultWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::mixed_source_artifact::MixedSourceArtifactWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::mixed_source_artifact::MixedSourcePointWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::model_codes::GraphClassCode
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::model_codes::SourceDependenceCode
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::model_codes::SourceSharingCode
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::model_codes::VaryingBlockCode
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::mz_transport_artifact::MzContrastWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::mz_transport_artifact::MzTransportArtifactWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::mz_transport_artifact::MzUncertaintyWire
@@ -3432,6 +3488,10 @@ pub const antecedent_io::z_transport_artifact::Z_TRANSPORT_NO_INTERVAL: &str
 pub const fn antecedent_io::recovery_chain_artifact::nonrecoverable_detail() -> (&'static str, &'static str)
 pub enum antecedent_io::PosteriorPayload
 pub enum antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire
+pub enum antecedent_io::model_codes::GraphClassCode
+pub enum antecedent_io::model_codes::SourceDependenceCode
+pub enum antecedent_io::model_codes::SourceSharingCode
+pub enum antecedent_io::model_codes::VaryingBlockCode
 pub enum antecedent_io::nested_markov_bayesian_artifact::BayesianFunctional
 pub enum antecedent_io::scenario_covariance_artifact::CovarianceMethodWire
 pub enum antecedent_io::scenario_covariance_artifact::FunctionalWire
@@ -3963,13 +4023,13 @@ pub field antecedent_io::joint_bayesian_transport_artifact::JointDrawsWire::name
 pub field antecedent_io::joint_bayesian_transport_artifact::JointDrawsWire::rng_id: alloc::string::String
 pub field antecedent_io::joint_bayesian_transport_artifact::JointDrawsWire::values: alloc::vec::Vec<f64>
 pub field antecedent_io::joint_bayesian_transport_artifact::JointModelWire::conflict_z_threshold: f64
-pub field antecedent_io::joint_bayesian_transport_artifact::JointModelWire::dependence: alloc::string::String
+pub field antecedent_io::joint_bayesian_transport_artifact::JointModelWire::dependence: antecedent_io::model_codes::SourceDependenceCode
 pub field antecedent_io::joint_bayesian_transport_artifact::JointModelWire::features: alloc::vec::Vec<u32>
-pub field antecedent_io::joint_bayesian_transport_artifact::JointModelWire::graph: alloc::string::String
+pub field antecedent_io::joint_bayesian_transport_artifact::JointModelWire::graph: antecedent_io::model_codes::GraphClassCode
 pub field antecedent_io::joint_bayesian_transport_artifact::JointModelWire::invariant_prior: antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire
 pub field antecedent_io::joint_bayesian_transport_artifact::JointModelWire::max_unsupported_mass: f64
-pub field antecedent_io::joint_bayesian_transport_artifact::JointModelWire::sharing: alloc::string::String
-pub field antecedent_io::joint_bayesian_transport_artifact::JointModelWire::varying: alloc::string::String
+pub field antecedent_io::joint_bayesian_transport_artifact::JointModelWire::sharing: antecedent_io::model_codes::SourceSharingCode
+pub field antecedent_io::joint_bayesian_transport_artifact::JointModelWire::varying: antecedent_io::model_codes::VaryingBlockCode
 pub field antecedent_io::joint_bayesian_transport_artifact::JointModelWire::varying_prior: antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire
 pub field antecedent_io::joint_bayesian_transport_artifact::JointOptionsWire::draws: usize
 pub field antecedent_io::joint_bayesian_transport_artifact::JointOptionsWire::seed: u64
@@ -4129,13 +4189,13 @@ pub field antecedent_io::learned_joint_transport_artifact::LearnedJointExpectati
 pub field antecedent_io::learned_joint_transport_artifact::LearnedJointExpectation::premises_digest: core::option::Option<alloc::string::String>
 pub field antecedent_io::learned_joint_transport_artifact::LearnedModelWire::basis_degree: usize
 pub field antecedent_io::learned_joint_transport_artifact::LearnedModelWire::conflict_z_threshold: f64
-pub field antecedent_io::learned_joint_transport_artifact::LearnedModelWire::dependence: alloc::string::String
+pub field antecedent_io::learned_joint_transport_artifact::LearnedModelWire::dependence: antecedent_io::model_codes::SourceDependenceCode
 pub field antecedent_io::learned_joint_transport_artifact::LearnedModelWire::features: alloc::vec::Vec<u32>
-pub field antecedent_io::learned_joint_transport_artifact::LearnedModelWire::graph: alloc::string::String
+pub field antecedent_io::learned_joint_transport_artifact::LearnedModelWire::graph: antecedent_io::model_codes::GraphClassCode
 pub field antecedent_io::learned_joint_transport_artifact::LearnedModelWire::invariant_prior: antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire
 pub field antecedent_io::learned_joint_transport_artifact::LearnedModelWire::max_unsupported_mass: f64
-pub field antecedent_io::learned_joint_transport_artifact::LearnedModelWire::sharing: alloc::string::String
-pub field antecedent_io::learned_joint_transport_artifact::LearnedModelWire::varying: alloc::string::String
+pub field antecedent_io::learned_joint_transport_artifact::LearnedModelWire::sharing: antecedent_io::model_codes::SourceSharingCode
+pub field antecedent_io::learned_joint_transport_artifact::LearnedModelWire::varying: antecedent_io::model_codes::VaryingBlockCode
 pub field antecedent_io::learned_joint_transport_artifact::LearnedModelWire::varying_prior: antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire
 pub field antecedent_io::learned_joint_transport_artifact::LearnedProviderWire::basis_id: alloc::string::String
 pub field antecedent_io::learned_joint_transport_artifact::LearnedProviderWire::basis_terms: alloc::vec::Vec<alloc::string::String>
@@ -5376,6 +5436,18 @@ pub fn <antecedent_io::mixed_source_artifact::MixedSourceArtifactWire>::fn expec
 pub fn <antecedent_io::mixed_source_artifact::MixedSourceArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits>::const fn replay(&self) -> antecedent_io_core::artifact_codec::ConsumeLimits
 pub fn <antecedent_io::mixed_source_artifact::MixedSourcePointWire>::fn from_distribution(distribution: &antecedent_expr::exact_plan::ExactDistribution) -> Self
+pub fn <antecedent_io::model_codes::GraphClassCode>::const fn as_str(self) -> &'static str
+pub fn <antecedent_io::model_codes::GraphClassCode>::const fn from_class(class: antecedent_estimate::joint_bayesian_transport::TransportGraphClass) -> Self
+pub fn <antecedent_io::model_codes::GraphClassCode>::const fn to_class(self) -> antecedent_estimate::joint_bayesian_transport::TransportGraphClass
+pub fn <antecedent_io::model_codes::SourceDependenceCode>::const fn as_str(self) -> &'static str
+pub fn <antecedent_io::model_codes::SourceDependenceCode>::const fn from_dependence(dependence: antecedent_estimate::joint_bayesian_transport::SourceDependence) -> Self
+pub fn <antecedent_io::model_codes::SourceDependenceCode>::const fn to_dependence(self) -> antecedent_estimate::joint_bayesian_transport::SourceDependence
+pub fn <antecedent_io::model_codes::SourceSharingCode>::const fn as_str(self) -> &'static str
+pub fn <antecedent_io::model_codes::SourceSharingCode>::const fn from_sharing(sharing: antecedent_estimate::joint_bayesian_transport::SourceSharing) -> Self
+pub fn <antecedent_io::model_codes::SourceSharingCode>::const fn to_sharing(self) -> antecedent_estimate::joint_bayesian_transport::SourceSharing
+pub fn <antecedent_io::model_codes::VaryingBlockCode>::const fn as_str(self) -> &'static str
+pub fn <antecedent_io::model_codes::VaryingBlockCode>::const fn from_block(block: antecedent_estimate::joint_bayesian_transport::VaryingBlock) -> Self
+pub fn <antecedent_io::model_codes::VaryingBlockCode>::const fn to_block(self) -> antecedent_estimate::joint_bayesian_transport::VaryingBlock
 pub fn <antecedent_io::mz_transport_artifact::MzTransportArtifactWire>::fn check_variable_names(&self, names: &[alloc::string::String]) -> core::result::Result<(), antecedent_io_core::transport_errors::MzTransportArtifactError>
 pub fn <antecedent_io::mz_transport_artifact::MzTransportArtifactWire>::fn checked(input: antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::mz_transport_artifact::MzTransportArtifactWire>::fn consume_with_limits(bytes: &[u8], limits: antecedent_io::mz_transport_artifact::MzTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::mz_transport_artifact::ConsumedMzTransport, antecedent_io_core::error::IoError>
@@ -5601,6 +5673,7 @@ pub mod antecedent_io::measured_inference
 pub mod antecedent_io::mechanism_discrepancy_artifact
 pub mod antecedent_io::mixed_source_artifact
 pub mod antecedent_io::model_bundle
+pub mod antecedent_io::model_codes
 pub mod antecedent_io::msm_sensitivity_adapter
 pub mod antecedent_io::mz_transport_artifact
 pub mod antecedent_io::nested_markov_artifact
@@ -5926,6 +5999,7 @@ pub use antecedent_io::CONTENT_CBOR = antecedent_io_core::CONTENT_CBOR
 pub use antecedent_io::CONTRACT_SECTION = antecedent_io_core::CONTRACT_SECTION
 pub use antecedent_io::CONTRACT_SECTION_FORMAT = antecedent_io_core::CONTRACT_SECTION_FORMAT
 pub use antecedent_io::CalibrationSlotWire = antecedent_io_core::CalibrationSlotWire
+pub use antecedent_io::CalibrationStatus = antecedent_io_core::CalibrationStatus
 pub use antecedent_io::CausalPayloadHeader = antecedent_io_core::CausalPayloadHeader
 pub use antecedent_io::CausalPayloadKind = antecedent_io_core::CausalPayloadKind
 pub use antecedent_io::CausalPayloadWire = antecedent_io_core::CausalPayloadWire
@@ -6577,6 +6651,16 @@ pub variant antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyA
 pub variant antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError::ResultMismatch(&'static str)
 pub variant antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError::UnsupportedSemantics(&'static str)
 pub variant antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError::UnsupportedVersion { version: u16 }
+pub variant antecedent_io::model_codes::GraphClassCode::Admg
+pub variant antecedent_io::model_codes::GraphClassCode::FixedDag
+pub variant antecedent_io::model_codes::GraphClassCode::GraphPosterior
+pub variant antecedent_io::model_codes::SourceDependenceCode::IndependentSamples
+pub variant antecedent_io::model_codes::SourceDependenceCode::OverlappingUnits
+pub variant antecedent_io::model_codes::SourceDependenceCode::Unknown
+pub variant antecedent_io::model_codes::SourceSharingCode::IndependentVaryingBlocks
+pub variant antecedent_io::model_codes::SourceSharingCode::SharedVaryingBlock
+pub variant antecedent_io::model_codes::VaryingBlockCode::Intercept
+pub variant antecedent_io::model_codes::VaryingBlockCode::InterceptAndCovariates
 pub variant antecedent_io::nested_markov_artifact::NestedMarkovArtifactError::DataIdentityMismatch
 pub variant antecedent_io::nested_markov_artifact::NestedMarkovArtifactError::ExpectationMismatch(&'static str)
 pub variant antecedent_io::nested_markov_artifact::NestedMarkovArtifactError::GraphIdMismatch
