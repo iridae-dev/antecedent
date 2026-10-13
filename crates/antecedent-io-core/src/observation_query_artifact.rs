@@ -391,6 +391,21 @@ impl ObservationQueryWire {
                 | Self::ThresholdCrossing { .. }
         )
     }
+
+    /// This query with every assignment list in canonical (variable, level)
+    /// order, so two declarations that differ only in listing order have one
+    /// wire form and one identity. Results do not depend on the order.
+    #[must_use]
+    pub fn canonical(mut self) -> Self {
+        match &mut self {
+            Self::ConditionalOutcome { observed, .. } => observed.sort(),
+            Self::InterventionalOutcome { interventions, .. } => interventions.sort(),
+            Self::ConditioningVersusIntervention { assignment, .. } => assignment.sort(),
+            Self::ThresholdCrossing { background, .. } => background.sort(),
+            _ => {}
+        }
+        self
+    }
 }
 
 fn level_bits(levels: &[(String, f64)]) -> Vec<(String, u64)> {
@@ -937,6 +952,7 @@ impl ObservationQueryArtifactWire {
         declared_basis: InferenceBasis,
         ctx: &ExecutionContext,
     ) -> Result<Self, ObservationQueryArtifactError> {
+        let query = query.canonical();
         let premises = spec.map(MechanismCompositionPremisesWire::from_spec);
         if let Some(p) = &premises {
             check_premises_bounds(p)?;
