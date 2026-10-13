@@ -602,7 +602,8 @@ def schema_cases() -> list[bool]:
             {
                 # Before any `#[cfg(test)]`: production code, not a test fixture.
                 "crates/antecedent/src/analysis/prepared/mod.rs": replace(
-                    "\nuse ", '\nconst _BYPASS: &str = "reason=bogus: typed by hand";\nuse '
+                    "\n#[cfg(test)]\nmod tests;",
+                    '\nconst _BYPASS: &str = "reason=bogus: typed by hand";\n\n#[cfg(test)]\nmod tests;',
                 )
             },
             ['raw "reason=..." literal'],
