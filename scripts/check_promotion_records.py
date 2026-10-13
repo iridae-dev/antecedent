@@ -748,7 +748,11 @@ for rec in records:
                 + "|".join(map(re.escape, spellings))
                 + r")(?![A-Za-z0-9_])"
             )
-            if not any(named.search(code_of(p, c)) for p, c in files.items()):
+            # A verified closed helper proves the emitted pair at its definition;
+            # generated code need not repeat that reason token at the invocation.
+            # Unproven occurrences still require the ordinary source-name check.
+            all_codes_proven = all(lit.reason_code == code for _, _, lit in uses)
+            if not all_codes_proven and not any(named.search(code_of(p, c)) for p, c in files.items()):
                 fail(
                     "refusal_pair_code",
                     f"{rid}: refusal ({code}, {detail}): no non-test file that emits {detail} "
