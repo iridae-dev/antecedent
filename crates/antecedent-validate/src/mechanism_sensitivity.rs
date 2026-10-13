@@ -676,6 +676,17 @@ struct OutcomeParentFrame {
     all_strata: Vec<Vec<usize>>,
 }
 
+struct KernelContaminationInput<'a> {
+    frame: &'a OutcomeParentFrame,
+    query: &'a ClassicalTransportQuery,
+    functional: &'a BoundTransportFunctional,
+    spec: &'a FixedGraphMechanismSensitivitySpec,
+    kernels: &'a BTreeMap<Vec<usize>, Vec<f64>>,
+    weights: &'a [f64],
+    indices: &'a BTreeMap<Vec<usize>, usize>,
+    perturbed_treatment_level: Option<usize>,
+}
+
 fn fixed_graph_mechanism_sensitivity_inner(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,
@@ -688,16 +699,16 @@ fn fixed_graph_mechanism_sensitivity_inner(
     let kernels = source_outcome_kernels(&frame, spec)?;
     let contrast = contrast_weights(&frame, spec)?;
     agree_parent_laws(&frame, spec, &contrast.control, &contrast.active)?;
-    evaluate_kernel_contamination(
-        &frame,
+    evaluate_kernel_contamination(&KernelContaminationInput {
+        frame: &frame,
         query,
         functional,
         spec,
-        &kernels,
-        &contrast.weights,
-        &contrast.indices,
+        kernels: &kernels,
+        weights: &contrast.weights,
+        indices: &contrast.indices,
         perturbed_treatment_level,
-    )
+    })
 }
 
 fn outcome_parent_frame(
@@ -911,15 +922,18 @@ fn agree_parent_laws(
 }
 
 fn evaluate_kernel_contamination(
-    frame: &OutcomeParentFrame,
-    query: &ClassicalTransportQuery,
-    functional: &BoundTransportFunctional,
-    spec: &FixedGraphMechanismSensitivitySpec,
-    kernels: &BTreeMap<Vec<usize>, Vec<f64>>,
-    weights: &[f64],
-    indices: &BTreeMap<Vec<usize>, usize>,
-    perturbed_treatment_level: Option<usize>,
+    input: &KernelContaminationInput<'_>,
 ) -> Result<FixedGraphMechanismSensitivityResult, FixedGraphSensitivityError> {
+    let KernelContaminationInput {
+        frame,
+        query,
+        functional,
+        spec,
+        kernels,
+        weights,
+        indices,
+        perturbed_treatment_level,
+    } = input;
     let outcome = frame.outcome;
     validate_sensitivity_bindings(functional, query, outcome, &frame.parents, spec)?;
     if !expression_uses_source_outcome_factor(functional, query, outcome, spec.source_kernel_regime)
@@ -929,11 +943,11 @@ fn evaluate_kernel_contamination(
     let mut sensitivity_weights = weights.to_vec();
     let mut fixed_contribution = 0.0;
     if let Some(perturbed_level) = perturbed_treatment_level {
-        if !spec.treatment_levels.contains(&perturbed_level) {
+        if !spec.treatment_levels.contains(perturbed_level) {
             return Err(FixedGraphSensitivityError::InvalidQuery);
         }
         for (stratum, weight) in frame.all_strata.iter().zip(&mut sensitivity_weights) {
-            if stratum[frame.treatment_position] != perturbed_level {
+            if stratum[frame.treatment_position] != *perturbed_level {
                 *weight = 0.0;
                 let mean = kernels[stratum]
                     .iter()

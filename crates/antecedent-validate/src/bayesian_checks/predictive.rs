@@ -369,7 +369,7 @@ impl PredictiveCheckReport {
             // The mixture is tempered only as far as its least-tempered atom.
             let mut tempering_kappa = Some(f64::INFINITY);
             for &&(w, report) in &atoms {
-                let Some(serial) = report.serial.as_ref() else { return None };
+                let serial = report.serial.as_ref()?;
                 let weight = (w / max_weight) / total;
                 observed_serial += weight * serial.observed;
                 predictive_serial += weight * serial.predictive_mean;

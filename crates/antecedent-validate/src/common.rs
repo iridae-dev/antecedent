@@ -1144,7 +1144,7 @@ pub(crate) fn map_problem_replicates<S, T: Send>(
     + Sync,
 ) -> Result<Vec<T>, ValidationError> {
     let plan = compile_replicate_plan(problem)?;
-    let shared = shared_for_replicates(problem, &plan);
+    let shared = shared_for_replicates(problem, plan.as_ref());
     if let Some(refit) = problem.effect_refit {
         let mut state = init();
         let mut out = Vec::with_capacity(replicates as usize);
@@ -1227,7 +1227,7 @@ pub(crate) fn map_drawn_problem_replicates<D: Sync, S, T: Send>(
     + Sync,
 ) -> Result<Vec<T>, ValidationError> {
     let plan = compile_replicate_plan(problem)?;
-    let shared = shared_for_replicates(problem, &plan);
+    let shared = shared_for_replicates(problem, plan.as_ref());
     if let Some(refit) = problem.effect_refit {
         let mut state = init();
         let mut out = Vec::with_capacity(replicates as usize);
@@ -1262,10 +1262,10 @@ fn compile_replicate_plan<'a>(
 
 fn shared_for_replicates<'a, 'plan>(
     problem: &'plan RefutationProblem<'a>,
-    plan: &'plan Option<PanelSliceTemplate<'a>>,
+    plan: Option<&'plan PanelSliceTemplate<'a>>,
 ) -> SharedProblem<'a, 'plan> {
     let mut shared = problem.shared();
-    if let Some(plan) = plan.as_ref() {
+    if let Some(plan) = plan {
         shared.panel_slices = Some(plan);
     }
     shared

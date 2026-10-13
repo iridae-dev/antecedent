@@ -1326,7 +1326,7 @@ fn bayesian_suite_does_not_drop_a_custom_validator() {
 
     struct Kept;
     impl CustomEffectValidator for Kept {
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "kept"
         }
         fn validate(

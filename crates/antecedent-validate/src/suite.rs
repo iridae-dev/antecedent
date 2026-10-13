@@ -745,15 +745,13 @@ impl ValidationSuite {
                 )?;
                 Ok(ValidationOutcome::Report(sens.to_report(&summary, bayes.original_ate)))
             }
-            ValidatorId::McmcDiagnostics => {
-                match McmcDiagnosticsCheck::new().check(bayes.posterior) {
-                    Some(rep) => Ok(ValidationOutcome::Report(rep)),
-                    None => Ok(na(
-                        ValidatorId::McmcDiagnostics,
-                        "MCMC diagnostics require an HMC/SMC posterior (Laplace/conjugate NotApplicable)",
-                    )),
-                }
-            }
+            ValidatorId::McmcDiagnostics => match McmcDiagnosticsCheck::check(bayes.posterior) {
+                Some(rep) => Ok(ValidationOutcome::Report(rep)),
+                None => Ok(na(
+                    ValidatorId::McmcDiagnostics,
+                    "MCMC diagnostics require an HMC/SMC posterior (Laplace/conjugate NotApplicable)",
+                )),
+            },
             other => {
                 Ok(na(other, "validator is not a Bayesian diagnostic; use ValidationSuite::run"))
             }
@@ -916,10 +914,12 @@ fn linear_paths(problem: &RefutationProblem<'_>) -> (bool, bool) {
     (static_linear, linear_ok)
 }
 
+#[allow(clippy::unnecessary_wraps, reason = "suite gate callbacks share one fallible signature")]
 fn allow(_problem: &RefutationProblem<'_>) -> Result<Option<&'static str>, ValidationError> {
     Ok(None)
 }
 
+#[allow(clippy::unnecessary_wraps, reason = "suite gate callbacks share one fallible signature")]
 fn gate_linear(
     problem: &RefutationProblem<'_>,
     reason: &'static str,
@@ -927,6 +927,7 @@ fn gate_linear(
     Ok((!linear_paths(problem).1).then_some(reason))
 }
 
+#[allow(clippy::unnecessary_wraps, reason = "suite gate callbacks share one fallible signature")]
 fn gate_static_linear(
     problem: &RefutationProblem<'_>,
     reason: &'static str,
@@ -934,6 +935,7 @@ fn gate_static_linear(
     Ok((!linear_paths(problem).0).then_some(reason))
 }
 
+#[allow(clippy::unnecessary_wraps, reason = "suite gate callbacks share one fallible signature")]
 fn gate_not_temporal(
     problem: &RefutationProblem<'_>,
     reason: &'static str,
@@ -1470,7 +1472,7 @@ mod tests {
         let stored = installed.arms.placebo.as_ref().expect("default arm");
         let fresh = PlaceboTreatment::new();
         assert_eq!(stored.replicates, fresh.replicates);
-        assert_eq!(stored.alpha, fresh.alpha);
+        assert_eq!(stored.alpha.to_bits(), fresh.alpha.to_bits());
         assert_eq!(stored.mode, fresh.mode);
         assert_eq!(stored.estimator.bootstrap_replicates, fresh.estimator.bootstrap_replicates);
 

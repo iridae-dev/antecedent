@@ -21,17 +21,11 @@ use crate::common::RefutationReport;
 pub(crate) struct McmcDiagnosticsCheck;
 
 impl McmcDiagnosticsCheck {
-    /// Construct.
-    #[must_use]
-    pub fn new() -> Self {
-        Self
-    }
-
     /// Evaluate against a fitted posterior's diagnostics.
     ///
     /// Returns `None` when the posterior is not MCMC (caller should emit `NotApplicable`).
     #[must_use]
-    pub fn check(&self, posterior: &CausalPosterior) -> Option<RefutationReport> {
+    pub fn check(posterior: &CausalPosterior) -> Option<RefutationReport> {
         let ate = posterior
             .effect_column()
             .and_then(|c| posterior.summaries.mean.get(c).copied())

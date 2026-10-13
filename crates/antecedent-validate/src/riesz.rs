@@ -151,7 +151,7 @@ impl RieszSensitivity {
         }
 
         let mut sorted = self.delta_grid.clone();
-        sorted.sort_by(|a, b| a.total_cmp(b));
+        sorted.sort_by(f64::total_cmp);
         let original_sign = centre.signum();
         let mut last_bound_ate = centre;
         let mut explained_away_at = None;

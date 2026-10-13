@@ -287,7 +287,7 @@ impl GridSetup {
         orthogonalize_confounder(&mut u, &mask, &columns);
 
         let mut sorted_grid = grid.to_vec();
-        sorted_grid.sort_by(|a, b| a.total_cmp(b));
+        sorted_grid.sort_by(f64::total_cmp);
 
         let original_sign = problem.original.ate.signum();
         // Worst-case orientation: load the confounder on Y against the observed effect so the
@@ -1062,7 +1062,7 @@ impl NonparametricSensitivity {
         orthogonalize_confounder(&mut u, &vec![true; n], &[t_res.clone(), y_res.clone()]);
 
         let mut sorted_grid = self.partial_r2_grid.clone();
-        sorted_grid.sort_by(|a, b| a.total_cmp(b));
+        sorted_grid.sort_by(f64::total_cmp);
         let original_sign = residual_ate.signum();
         // Worst-case orientation, as in `run_grid`: load U on Y against the observed sign.
         let dir = if residual_ate >= 0.0 { -1.0 } else { 1.0 };
