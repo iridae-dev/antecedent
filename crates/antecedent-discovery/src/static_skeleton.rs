@@ -100,7 +100,7 @@ impl UndirectedAdj {
     }
 
     /// Remove the undirected edge. Returns whether it was present.
-    pub(crate) fn remove(&mut self, edge: &(u32, u32)) -> bool {
+    pub(crate) fn remove(&mut self, edge: (u32, u32)) -> bool {
         let Some((i, j)) = self.positions(edge.0, edge.1) else {
             return false;
         };
@@ -115,7 +115,7 @@ impl UndirectedAdj {
         true
     }
 
-    pub(crate) fn contains(&self, edge: &(u32, u32)) -> bool {
+    pub(crate) fn contains(&self, edge: (u32, u32)) -> bool {
         self.positions(edge.0, edge.1).is_some_and(|(i, j)| self.test(i, j))
     }
 
@@ -127,7 +127,7 @@ impl UndirectedAdj {
     pub(crate) fn retain(&mut self, mut pred: impl FnMut(&(u32, u32)) -> bool) {
         for edge in self.edge_pairs() {
             if !pred(&edge) {
-                self.remove(&edge);
+                self.remove(edge);
             }
         }
     }
@@ -484,7 +484,7 @@ pub(crate) fn run_static_skeleton(
                 return Err(DiscoveryError::Cancelled);
             }
             let key = edge_key(x, y);
-            if !skel.adj.contains(&key) {
+            if !skel.adj.contains(key) {
                 continue;
             }
             if constraints.static_required(x, y) {
@@ -500,7 +500,7 @@ pub(crate) fn run_static_skeleton(
             )?;
 
             if let Some(z) = separating {
-                skel.adj.remove(&key);
+                skel.adj.remove(key);
                 record_sepset(&mut skel.sepsets, x, y, &z);
             } else if let Some((statistic, p_value)) = weakest {
                 let link = ScoredLink {
@@ -635,12 +635,12 @@ mod tests {
             assert_eq!(bits.insert(key), set.insert(key));
         }
         assert!(!bits.insert((3, 4)), "an id outside the variable list is not an edge");
-        assert_eq!(bits.remove(&(1, 4)), set.remove(&(1, 4)));
+        assert_eq!(bits.remove((1, 4)), set.remove(&(1, 4)));
         for i in 0..ids.len() {
             for j in (i + 1)..ids.len() {
                 let (a, b) = (ids[i], ids[j]);
                 let key = if a <= b { (a, b) } else { (b, a) };
-                assert_eq!(bits.contains(&key), set.contains(&key), "{key:?}");
+                assert_eq!(bits.contains(key), set.contains(&key), "{key:?}");
             }
         }
         let mut keys: Vec<_> = set.iter().copied().collect();

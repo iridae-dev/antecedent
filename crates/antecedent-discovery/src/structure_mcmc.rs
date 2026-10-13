@@ -465,7 +465,7 @@ mod tests {
         let pairs = candidate_directed_list(2, None);
         assert_eq!(pairs, [(0, 1), (1, 0)]);
         let states = [0, set_edge(0, 2, 0, 1, true), set_edge(0, 2, 1, 0, true)];
-        let mut transition_mass = [[0.0; 3]; 3];
+        let mut transition_mass = [[0.0_f64; 3]; 3];
         // Each directed-pair choice has probability 1/2, and each branch interval
         // below represents probability 1/2 under the uniform branch draw.
         for (from, &mask) in states.iter().enumerate() {
@@ -479,11 +479,11 @@ mod tests {
         }
         for i in 0..states.len() {
             for j in 0..states.len() {
-                assert_eq!(transition_mass[i][j], transition_mass[j][i]);
+                assert_eq!(transition_mass[i][j].to_bits(), transition_mass[j][i].to_bits());
             }
         }
-        assert_eq!(structure_kernel_ratio(StructureMove::Add), 1.0);
-        assert_eq!(structure_kernel_ratio(StructureMove::Delete), 1.0);
-        assert_eq!(structure_kernel_ratio(StructureMove::Reverse), 1.0);
+        assert_eq!(structure_kernel_ratio(StructureMove::Add).to_bits(), 1.0_f64.to_bits());
+        assert_eq!(structure_kernel_ratio(StructureMove::Delete).to_bits(), 1.0_f64.to_bits());
+        assert_eq!(structure_kernel_ratio(StructureMove::Reverse).to_bits(), 1.0_f64.to_bits());
     }
 }

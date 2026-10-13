@@ -271,7 +271,7 @@ impl Rfci {
             });
         }
 
-        scored.retain(|s| adj.contains(&edge_key(s.link.source, s.link.target)));
+        scored.retain(|s| adj.contains(edge_key(s.link.source, s.link.target)));
 
         let edge_evidence = static_edge_evidence(&scored, &sepsets, "rfci");
 
@@ -348,7 +348,7 @@ fn rfci_unshielded_triples(
         let nbrs = adjacent_vars(b, graph.adj, variables);
         for (i, &a) in nbrs.iter().enumerate() {
             for &c in &nbrs[i + 1..] {
-                if !graph.adj.contains(&edge_key(a, c)) {
+                if !graph.adj.contains(edge_key(a, c)) {
                     triples.push(a, b, c);
                 }
             }
@@ -356,10 +356,10 @@ fn rfci_unshielded_triples(
     }
 
     while let Some((a, b, c)) = triples.pop() {
-        if !graph.adj.contains(&edge_key(a, b)) || !graph.adj.contains(&edge_key(b, c)) {
+        if !graph.adj.contains(edge_key(a, b)) || !graph.adj.contains(edge_key(b, c)) {
             continue;
         }
-        if graph.adj.contains(&edge_key(a, c)) {
+        if graph.adj.contains(edge_key(a, c)) {
             continue; // no longer unshielded
         }
         let Some(sep_ac) = sepset_vars(graph.sepsets, a, c) else {
@@ -463,7 +463,7 @@ fn rfci_discriminating_paths(
                 continue;
             }
             let key = edge_key(u, v);
-            if adj.remove(&key) {
+            if adj.remove(key) {
                 record_sepset(sepsets, u, v, &minimal);
                 let ud = dense_of(u)?;
                 let vd = dense_of(v)?;
@@ -516,7 +516,7 @@ fn remove_edge_update(
         return Ok(());
     }
     let key = edge_key(x, y);
-    if !adj.remove(&key) {
+    if !adj.remove(key) {
         return Ok(());
     }
     record_sepset(sepsets, x, y, minimal);
@@ -528,13 +528,13 @@ fn remove_edge_update(
     let nx = adjacent_vars(x, adj, variables);
     let ny = adjacent_vars(y, adj, variables);
     for &b in &nx {
-        if b != y && adj.contains(&edge_key(y, b)) && !adj.contains(&edge_key(x, y)) {
+        if b != y && adj.contains(edge_key(y, b)) && !adj.contains(edge_key(x, y)) {
             // triple x-b-y is unshielded if x–y gone
             triples.push(x, b, y);
         }
     }
     for &b in &ny {
-        if b != x && adj.contains(&edge_key(x, b)) {
+        if b != x && adj.contains(edge_key(x, b)) {
             triples.push(x, b, y);
         }
     }

@@ -202,7 +202,7 @@ impl Fci {
             if ctx.cancellation.is_cancelled() {
                 return Err(DiscoveryError::Cancelled);
             }
-            if !adj.contains(&edge_key(x, y)) {
+            if !adj.contains(edge_key(x, y)) {
                 continue;
             }
             if self.constraints.static_required(x, y) {
@@ -246,7 +246,7 @@ impl Fci {
 
             if independent {
                 let key = edge_key(x, y);
-                adj.remove(&key);
+                adj.remove(key);
                 record_sepset(&mut sepsets, x, y, &best_sep);
                 let _ = pag.remove_edge(xd, yd);
                 let dense_sep: Vec<DenseNodeId> =
@@ -294,7 +294,7 @@ impl Fci {
         }
 
         // Refresh scored links to surviving edges.
-        scored.retain(|s| adj.contains(&edge_key(s.link.source, s.link.target)));
+        scored.retain(|s| adj.contains(edge_key(s.link.source, s.link.target)));
 
         let edge_evidence = static_edge_evidence(&scored, &sepsets, "fci");
 

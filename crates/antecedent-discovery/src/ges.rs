@@ -593,7 +593,7 @@ fn insert_delta(
     neu.push(x.raw());
     neu.sort_unstable();
     neu.dedup();
-    cached_operator_delta(cache, deltas, data, y.raw(), Arc::from(base), Arc::from(neu))
+    cached_operator_delta(cache, deltas, data, y.raw(), &Arc::from(base), &Arc::from(neu))
 }
 
 fn delete_delta(
@@ -624,13 +624,16 @@ fn delete_delta(
     without_x.extend_from_slice(&na_rest);
     without_x.sort_unstable();
     without_x.dedup();
-    cached_operator_delta(cache, deltas, data, y.raw(), Arc::from(with_x), Arc::from(without_x))
+    cached_operator_delta(cache, deltas, data, y.raw(), &Arc::from(with_x), &Arc::from(without_x))
 }
+
+/// Exact cache key for a GES operator delta.
+type GesDeltaKey = (u32, Arc<[u32]>, Arc<[u32]>);
 
 /// Operator deltas keyed by the exact `(node, old parents, new parents)` pair that was scored.
 #[derive(Default)]
 struct GesDeltaCache {
-    entries: HashMap<(u32, Arc<[u32]>, Arc<[u32]>), f64>,
+    entries: HashMap<GesDeltaKey, f64>,
 }
 
 fn cached_operator_delta(
@@ -638,15 +641,15 @@ fn cached_operator_delta(
     deltas: &mut GesDeltaCache,
     data: &GraphScoreData,
     node: u32,
-    old_parents: Arc<[u32]>,
-    new_parents: Arc<[u32]>,
+    old_parents: &Arc<[u32]>,
+    new_parents: &Arc<[u32]>,
 ) -> Result<f64, DiscoveryError> {
-    let key = (node, Arc::clone(&old_parents), Arc::clone(&new_parents));
+    let key = (node, Arc::clone(old_parents), Arc::clone(new_parents));
     if let Some(delta) = deltas.entries.get(&key).copied() {
         return Ok(delta);
     }
-    let old = local_score_or_degenerate(cache, data, node, &old_parents)?;
-    let new = local_score_or_degenerate(cache, data, node, &new_parents)?;
+    let old = local_score_or_degenerate(cache, data, node, old_parents)?;
+    let new = local_score_or_degenerate(cache, data, node, new_parents)?;
     let delta = operator_delta(old, new);
     deltas.entries.insert(key, delta);
     Ok(delta)

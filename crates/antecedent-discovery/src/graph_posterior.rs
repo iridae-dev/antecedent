@@ -1314,8 +1314,8 @@ mod tests {
         let mask = set_edge(0, n, 0, 1, true);
         let (edge, orient) = accumulate_marginals(n, &[0.25, 0.75], &[0, mask]);
         assert_eq!(edge, orient);
-        assert_eq!(edge[1], 0.75);
-        assert_eq!(edge[n], 0.0);
+        assert_eq!(edge[1].to_bits(), 0.75_f64.to_bits());
+        assert_eq!(edge[n].to_bits(), 0.0_f64.to_bits());
     }
 
     /// A chain that never moved must not publish, however good its other diagnostics look.

@@ -287,12 +287,14 @@ pub(crate) fn adjacent_vars(
     adj: &UndirectedAdj,
     variables: &[VariableId],
 ) -> Vec<VariableId> {
-    variables.iter().copied().filter(|&u| u != v && adj.contains(&edge_key(v, u))).collect()
+    variables.iter().copied().filter(|&u| u != v && adj.contains(edge_key(v, u))).collect()
 }
 
-/// Map a separating set to dense ids. A variable that is not in the graph is an error,
-/// not a silently shorter sepset.
+/// Column vectors with the corresponding original-variable index.
+pub(crate) type StaticColumns = (Vec<Arc<[f64]>>, HashMap<VariableId, usize>);
+
 /// What [`prepare_static_columns`] needs from the algorithm besides the table.
+#[derive(Clone, Copy)]
 pub(crate) struct StaticColumnRequest<'a> {
     /// CI test to prepare.
     pub ci: &'a (dyn antecedent_stats::ConditionalIndependence + Sync),
@@ -322,7 +324,7 @@ pub(crate) fn prepare_static_columns(
     variables: &[VariableId],
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
-) -> Result<(Vec<Arc<[f64]>>, HashMap<VariableId, usize>), DiscoveryError> {
+) -> Result<StaticColumns, DiscoveryError> {
     let StaticColumnRequest { ci, significance, alpha, fdr, empty_variables, insufficient_rows } =
         request;
     crate::ci::ensure_ci_decisions_meaningful(ci, significance, alpha, fdr)?;
@@ -330,7 +332,7 @@ pub(crate) fn prepare_static_columns(
         return Err(DiscoveryError::unsupported(empty_variables));
     }
     let owned = collect_float_columns(data, variables)?;
-    let n = owned.first().map(|c| c.len()).unwrap_or(0);
+    let n = owned.first().map_or(0, |c| c.len());
     crate::ci::ensure_ci_fits_rows(ci, n)?;
     if n < 3 {
         return Err(DiscoveryError::stats_msg(insufficient_rows));
@@ -345,6 +347,7 @@ pub(crate) fn prepare_static_columns(
 }
 
 /// Store one direction of each separating set as dense node ids.
+/// A variable that is not in the graph is an error, not a silently shorter sepset.
 ///
 /// # Errors
 ///
