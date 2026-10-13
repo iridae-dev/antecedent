@@ -4,7 +4,7 @@
 //!
 //! Oracles: the Beta-Bernoulli posterior of counts, whose parameters, mean and
 //! variance are closed forms and whose probability-best and expected loss were
-//! integrated with SciPy; and the hand calculation of augmented
+//! integrated with `SciPy`; and the hand calculation of augmented
 //! inverse-probability scores on a four-unit history.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

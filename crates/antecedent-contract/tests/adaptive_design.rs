@@ -44,7 +44,6 @@ fn thompson_cell() -> ProcedureCell {
 
 fn rule_for(cell: ProcedureCell) -> StoppingRuleDeclaration {
     let spec = match cell.stopping {
-        StoppingRuleKind::NoStopping => StoppingSpec::NoStopping,
         StoppingRuleKind::Efficacy if cell.monitoring == MonitoringStrategy::GroupSequential => {
             StoppingSpec::AlphaSpending {
                 spending: SpendingKind::OBrienFlemingType,
@@ -81,8 +80,7 @@ fn declaration(cell: ProcedureCell) -> AdaptiveDesignDeclaration {
             InterimAnalysis { units_enrolled: 8, information_fraction: 1.0 },
         ]
     };
-    let available_at_look =
-        (0..8).map(|unit| Some(if final_only || unit < 4 { 0 } else { 1 })).collect();
+    let available_at_look = (0..8).map(|unit| Some(u32::from(!(final_only || unit < 4)))).collect();
     let repeated = cell.outcome == OutcomeStructure::RepeatedMeasures;
     let outcomes = [1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0]
         .iter()

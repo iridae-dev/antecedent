@@ -70,10 +70,6 @@ fn refused<T>(refusal: &ObservationQueryRefusal) -> Refused<T> {
     (None, Some(refusals_json(refusal.code(), &refusal.refusals)))
 }
 
-fn levels(values: &[(String, f64)]) -> Json {
-    Json::Array(values.iter().map(|(l, p)| json!([l, p])).collect())
-}
-
 fn bits_levels(values: &[(String, u64)]) -> Json {
     Json::Array(values.iter().map(|(l, p)| json!([l, f64::from_bits(*p)])).collect())
 }
@@ -158,7 +154,6 @@ fn result_json(result: &ObservationResultWire) -> Json {
             "already_satisfied": already_satisfied,
             "bayes_factor": bayes_factor_bits.map(f64::from_bits),
         }),
-        _ => json!({"kind": "unrecognized"}),
     }
 }
 
@@ -423,6 +418,10 @@ fn observation_query_required_bayes_factor(
 /// The fewest readings of a binary signal that reach a level.
 #[pyfunction]
 #[pyo3(signature = (prior, level, direction, rate_given_hypothesis, rate_given_complement, max_observations, basis, *, cancel=None))]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the Python signature is the declared observation-query argument list, one parameter per declared quantity"
+)]
 fn observation_query_required_observations_binary(
     py: Python<'_>,
     prior: f64,
@@ -455,6 +454,10 @@ fn observation_query_required_observations_binary(
 /// The fewest consecutive successes or failures that reach a predictive level.
 #[pyfunction]
 #[pyo3(signature = (alpha, beta, level, direction, max_observations, basis, *, cancel=None))]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the Python signature is the declared observation-query argument list, one parameter per declared quantity"
+)]
 fn observation_query_required_observations_conjugate(
     py: Python<'_>,
     alpha: f64,

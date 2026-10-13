@@ -555,6 +555,10 @@ pub struct ParentIdentity {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "one value per decoded cohort model, held by value; boxing the compact export would not pay"
+)]
 enum ModelKind {
     Portable { effect: FittedEffect, features: Vec<String> },
     Compact { export: CompactExport, bytes: Vec<u8> },
@@ -1518,6 +1522,10 @@ impl CohortDecisionSource {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "wire shape: boxing would change the serialized form and the public variant shape"
+)]
 enum ModelWire {
     Portable {
         effect: FittedEffect,

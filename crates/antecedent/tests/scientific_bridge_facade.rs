@@ -16,6 +16,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(
+    clippy::needless_range_loop,
+    reason = "enumerated closed-form oracles index small fixed tables by arm and level"
+)]
+
 use std::sync::Arc;
 
 use antecedent::{

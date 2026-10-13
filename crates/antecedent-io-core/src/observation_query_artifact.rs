@@ -259,6 +259,10 @@ pub struct MeasuredSlotWire {
 /// What is asked.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "wire shape: boxing would change the serialized form and the public variant shape"
+)]
 pub enum ObservationQueryWire {
     /// `P(outcome | observed values)` on a composed finite model, optionally
     /// with one measured signal inverted through its measurement model.
@@ -890,7 +894,7 @@ pub fn inference_basis_of(spec: &ComposedModelSpec) -> InferenceBasis {
         .map(|m| match m.provenance.origin {
             MechanismOrigin::Declared => MechanismOriginKind::Declared,
             MechanismOrigin::Fitted => MechanismOriginKind::Fitted,
-            _ => MechanismOriginKind::ExternalBinding,
+            MechanismOrigin::ExternalBinding => MechanismOriginKind::ExternalBinding,
         })
         .collect();
     InferenceBasis::from_origins(&origins)

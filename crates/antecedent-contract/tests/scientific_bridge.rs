@@ -630,12 +630,12 @@ fn confounded_model_truth() -> (f64, f64) {
     let mut joint_x = [0.0_f64; 2];
     let mut joint_xy = [0.0_f64; 2];
     let mut interventional = [0.0_f64; 2];
-    for z in 0..2 {
+    for (z, &p_z) in pz.iter().enumerate() {
         for x in 0..2 {
             let p_x = if x == 1 { px1(z) } else { 1.0 - px1(z) };
-            joint_x[x] += pz[z] * p_x;
-            joint_xy[x] += pz[z] * p_x * py1(x, z);
-            interventional[x] += pz[z] * py1(x, z);
+            joint_x[x] += p_z * p_x;
+            joint_xy[x] += p_z * p_x * py1(x, z);
+            interventional[x] += p_z * py1(x, z);
         }
     }
     let association = joint_xy[1] / joint_x[1] - joint_xy[0] / joint_x[0];

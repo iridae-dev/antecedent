@@ -194,6 +194,7 @@ fn decision_reliability_rank(
 }
 
 /// Digests of a carrier (draws and candidate set), after validating its declarations.
+#[doc(hidden)]
 #[pyfunction]
 fn decision_reliability_digests(draws_json: &str) -> Refused<(String, String)> {
     let draws: DecisionDraws = match parse(draws_json, "draws") {

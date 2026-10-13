@@ -216,8 +216,8 @@ fn compact_variance_matches_the_hand_calculation_and_a_double_sum_oracle() {
         for j in 0..3 {
             let (pi, pj) = ([1.0, z[i]], [1.0, z[j]]);
             for a in 0..2 {
-                for b in 0..2 {
-                    variance += w[i] * w[j] * pi[a] * v[a][b] * pj[b];
+                for (b, &p_jb) in pj.iter().enumerate() {
+                    variance += w[i] * w[j] * pi[a] * v[a][b] * p_jb;
                 }
             }
         }

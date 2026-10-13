@@ -5,7 +5,7 @@
 //!
 //! Simulations use fixed seeds and tolerances written in terms of the Monte
 //! Carlo standard error. Boundary constants are independent: published
-//! values, or an independent grid recursion (SciPy).
+//! values, or an independent grid recursion (`SciPy`).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

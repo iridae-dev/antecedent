@@ -201,6 +201,10 @@ pub struct TrialWire {
 /// The mapping on the wire.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "wire shape: boxing would change the serialized form and the public variant shape"
+)]
 pub enum MappingWire {
     /// The value is unchanged.
     Identity,
