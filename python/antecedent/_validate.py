@@ -26,7 +26,10 @@ _INT_TYPES: tuple[type, ...] = (int, np.integer)
 
 
 def _message(template: str, what: str, value: object) -> str:
-    return template.format(what=what, got=type(value).__name__, value=value)
+    # Callers choose among these fields per message; unused fields are intentional.
+    # format_map preserves normal str.format field/conversion behavior without
+    # expanding a dynamic template into a fixed set of keyword arguments.
+    return template.format_map({"what": what, "got": type(value).__name__, "value": value})
 
 
 def real(

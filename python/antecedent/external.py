@@ -26,7 +26,7 @@ from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, replace
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -875,9 +875,11 @@ class BoundExternalColumn(BoundExternalClaim):
     _native: _NativeColumnClaim  # type: ignore[assignment]
 
     def __init__(self, native: _NativeColumnClaim, statement: str = "") -> None:
-        self._native = native
-        self._statement = statement
-        meta: dict[str, Any] = json.loads(native.metadata_json)
+        # Column claims expose the same metadata and provenance fields as a response
+        # claim, but intentionally have no response-level values_copy method.
+        # The base constructor only reads metadata_json and initializes shared state.
+        super().__init__(cast(_NativeClaim, native), statement)
+        meta = self._meta
         self._column: dict[str, Any] = meta["identity"]["column"]
         self._meta = {
             "identity": meta["identity"]["claim"],

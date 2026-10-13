@@ -1082,8 +1082,6 @@ def checked_execution_problems(row: dict) -> list[str]:
 
 def main(argv: list[str]) -> int:
     if argv[:1] == ["rows"] and len(argv) == 2:
-        import tomllib
-
         failed = 0
         for i, row in enumerate(tomllib.loads(Path(argv[1]).read_text(encoding="utf-8")).get("cell", []), 1):
             problems = row_evidence_problems(row)

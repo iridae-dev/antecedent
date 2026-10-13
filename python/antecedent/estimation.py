@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, cast
 
 import numpy as np
 
+from . import _estimate_helpers
 from ._api import describe_refusal
 from ._batch import (
     BatchRetarget,
@@ -28,7 +29,6 @@ from ._coerce import coerce_latency, coerce_query, coerce_refute
 from ._data import as_columns, ingest_columns, try_as_arrow_c_columns
 from ._estimate_helpers import (
     _not_applicable,
-    _static_edges,  # noqa: F401 — identify and _prepare_route import it from this module
     _unwrap_estimator,
 )
 from ._from_raw import _wrap_ate
@@ -155,6 +155,9 @@ from .transport.advanced import (
     TransportQuery,
     TransportResponseGridQuery,
 )
+
+# Compatibility alias consumed by the internal routing modules.
+_static_edges = _estimate_helpers._static_edges
 
 if TYPE_CHECKING:
     from .preflight import (

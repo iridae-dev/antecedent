@@ -57,11 +57,14 @@ def test_successful_refresh_keeps_the_new_snapshot() -> None:
 def test_refusal_names_read_columns_not_values() -> None:
     names = _load("_names")
 
+    class UnexpectedValueRead(RuntimeError):
+        """Sentinel: column-name validation must not retrieve column contents."""
+
     class Frame:
         columns = ["y", "t"]
 
         def __getitem__(self, key: str):
-            raise RuntimeError(f"value read of {key}")
+            raise UnexpectedValueRead(f"unexpected value read of {key}")
 
     frame = Frame()
     assert names.table_names(frame) == ("y", "t")

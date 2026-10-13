@@ -142,10 +142,15 @@ def main() -> int:
         def close(left: float, right: float) -> bool:
             return bool(np.isclose(left, right, rtol=0.0, atol=tol))
 
-        assert close(ate, freq["expected_ate"]), (ate, freq["expected_ate"])
-        assert close(ate_se, freq["expected_se"]), (ate_se, freq["expected_se"])
-        assert close(cate, cond["expected_ate"]), (cate, cond["expected_ate"])
-        assert close(cate_se, cond["expected_se"]), (cate_se, cond["expected_se"])
+        comparisons = (
+            (ate, freq["expected_ate"]),
+            (ate_se, freq["expected_se"]),
+            (cate, cond["expected_ate"]),
+            (cate_se, cond["expected_se"]),
+        )
+        for actual, expected in comparisons:
+            if not close(actual, expected):
+                raise AssertionError((actual, expected))
         print("reference matches expected.json")
     return 0
 
