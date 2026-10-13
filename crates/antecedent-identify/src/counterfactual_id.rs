@@ -1729,7 +1729,9 @@ const fn stop_error(stop: SearchStop) -> IdentificationError {
 }
 
 mod evaluation;
-pub use evaluation::{CounterfactualIdPoint, evaluate_counterfactual_functional};
+pub use evaluation::CounterfactualIdPoint;
+#[doc(hidden)]
+pub use evaluation::evaluate_counterfactual_functional;
 
 #[cfg(test)]
 mod tests {
