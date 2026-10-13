@@ -15,8 +15,12 @@ use antecedent_graph::{TemporalDag, ensure_lagged};
 use crate::analysis::builder::{DataInput, RefuteSuite};
 use crate::analysis::execute::Study;
 
-#[allow(clippy::cast_precision_loss)]
 fn xy_series(n: usize) -> TimeSeriesData {
+    xy_series_with_slope(n, 0.8)
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn xy_series_with_slope(n: usize, slope: f64) -> TimeSeriesData {
     let mut b = CausalSchemaBuilder::new();
     for (name, hint) in [("x", RoleHint::TreatmentCandidate), ("y", RoleHint::OutcomeCandidate)] {
         b.add_variable(
@@ -34,7 +38,7 @@ fn xy_series(n: usize) -> TimeSeriesData {
     let mut y = vec![0.0; n];
     for t in 1..n {
         x[t] = ((t as f64) * 0.07).sin();
-        y[t] = 0.8 * x[t - 1];
+        y[t] = slope * x[t - 1];
     }
     let cols = vec![
         OwnedColumn::Float64(
@@ -59,6 +63,49 @@ fn retained_rows(prepared: &crate::analysis::prepared::PreparedStudy) -> usize {
         DataInput::Temporal(data) => data.row_count(),
         _ => panic!("series handle must retain series data"),
     }
+}
+
+#[test]
+fn refresh_recomputes_numerics_and_preserves_cloned_snapshot_after_cached_contract() {
+    let mut graph = TemporalDag::empty();
+    let x1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let y0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(x1, y0).unwrap();
+    let query = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+        .with_policy(TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1)
+        .with_max_history_lag(Some(1));
+    let study = |data| {
+        Study::series(data)
+            .graph(graph.clone())
+            .temporal_query(query.clone())
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+    };
+    let ctx = ExecutionContext::for_tests(2);
+    let original = xy_series(160);
+    let changed = xy_series_with_slope(160, 2.3);
+    let mut warm = study(original.clone()).prepare(&ctx).unwrap();
+    // Prime both the result path and the lazy contract/program payload cache.
+    assert!((warm.estimate_series(&original, &ctx).unwrap().effect() - 0.8).abs() < 1e-10);
+    let before = warm.contract().unwrap().identities;
+    assert_eq!(before, warm.contract().unwrap().identities);
+    let retained = warm.clone();
+
+    let refreshed = warm.refresh_series(changed.clone(), &ctx).unwrap();
+    let cold = study(changed.clone()).prepare(&ctx).unwrap();
+    let fresh = cold.estimate_series(&changed, &ctx).unwrap();
+    // Independent structural truth: Y[t] = 2.3 X[t-1], with unit pulse contrast.
+    assert!((refreshed.effect() - 2.3).abs() < 1e-10);
+    assert_eq!(refreshed.effect().to_bits(), fresh.effect().to_bits());
+    let after = warm.contract().unwrap().identities;
+    assert_eq!(before.program, after.program);
+    assert_ne!(before.data_snapshot, after.data_snapshot);
+    assert_eq!(after, cold.contract().unwrap().identities);
+    assert_eq!(before, retained.contract().unwrap().identities);
+    assert!((retained.estimate_series(&original, &ctx).unwrap().effect() - 0.8).abs() < 1e-10);
 }
 
 #[test]
