@@ -807,7 +807,9 @@ impl PreparedMeasurementHandle {
         let identities = self.inner.identities();
         json!({
             "measurement": identities.measurement.to_hex(),
-            "binding": identities.binding.to_hex(),
+            "population": identities.population.to_hex(),
+            "regime": identities.regime.to_hex(),
+            "arm": identities.arm.to_hex(),
             "representation": identities.representation.to_hex(),
             "evidence": identities.evidence.to_hex(),
             "model": identities.model.to_hex(),
@@ -1046,7 +1048,9 @@ fn measurement_model_identities(model_json: &str) -> PyResult<String> {
     let identities = model.identities();
     Ok(json!({
         "measurement": identities.measurement.to_hex(),
-        "binding": identities.binding.to_hex(),
+        "population": identities.population.to_hex(),
+            "regime": identities.regime.to_hex(),
+            "arm": identities.arm.to_hex(),
         "representation": identities.representation.to_hex(),
         "evidence": identities.evidence.to_hex(),
         "model": identities.model.to_hex(),

@@ -956,13 +956,16 @@ class VarianceComponent:
 class MeasurementIdentities:
     """The separately frozen identities of a model (lowercase hex).
 
-    A change in the parameters moves ``measurement``; a change of population, regime or arm moves
-    ``binding``; a representation version moves ``representation``; provenance moves
-    ``evidence``. ``model`` binds all four and is the value a consumer retains.
+    A change in the parameters moves ``measurement``; a change of population moves ``population``,
+    of regime ``regime`` and of arm scope ``arm``, each alone; a representation version moves
+    ``representation``; provenance moves ``evidence``. ``model`` binds all six and is the value a
+    consumer retains.
     """
 
     measurement: str
-    binding: str
+    population: str
+    regime: str
+    arm: str
     representation: str
     evidence: str
     model: str
@@ -1146,7 +1149,9 @@ def _prepared(handle: Any) -> PreparedMeasurementModel:
         model_identity=identities["model"],
         identities=MeasurementIdentities(
             measurement=identities["measurement"],
-            binding=identities["binding"],
+            population=identities["population"],
+            regime=identities["regime"],
+            arm=identities["arm"],
             representation=identities["representation"],
             evidence=identities["evidence"],
             model=identities["model"],

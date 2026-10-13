@@ -1004,7 +1004,9 @@ fn changed_validation_parameters_rebuild_the_identities() {
     assert_ne!(rebuilt.prepared.identities().measurement, prepared.identities().measurement);
     assert_ne!(rebuilt.prepared.identities().evidence, prepared.identities().evidence);
     // The binding and representation identities are untouched.
-    assert_eq!(rebuilt.prepared.identities().binding, prepared.identities().binding);
+    assert_eq!(rebuilt.prepared.identities().population, prepared.identities().population);
+    assert_eq!(rebuilt.prepared.identities().regime, prepared.identities().regime);
+    assert_eq!(rebuilt.prepared.identities().arm, prepared.identities().arm);
     assert_eq!(rebuilt.prepared.identities().representation, prepared.identities().representation);
     assert_eq!(rebuilt.estimate.model_identity(), rebuilt.prepared.model().identities().model);
     assert_ne!(rebuilt.estimate.point().to_bits(), before.point().to_bits());

@@ -43,7 +43,9 @@ use crate::identity::{CanonicalWriter, SemanticDigest};
 pub const MEASUREMENT_MODEL_FORMAT: u16 = 1;
 
 const TAG_MEASUREMENT: &str = "antecedent.measurement_model.measurement.v1";
-const TAG_BINDING: &str = "antecedent.measurement_model.binding.v1";
+const TAG_POPULATION: &str = "antecedent.measurement_model.population.v1";
+const TAG_REGIME: &str = "antecedent.measurement_model.regime.v1";
+const TAG_ARM: &str = "antecedent.measurement_model.arm.v1";
 const TAG_REPRESENTATION: &str = "antecedent.measurement_model.representation.v1";
 const TAG_EVIDENCE: &str = "antecedent.measurement_model.evidence.v1";
 const TAG_MODEL: &str = "antecedent.measurement_model.model.v1";
@@ -579,20 +581,24 @@ pub struct MeasurementModel {
 
 /// The separately frozen identities of one model.
 ///
-/// Measurement, binding, representation and evidence identities are distinct
-/// digests so a change in one is visible as that change; the model identity
-/// binds all four.
+/// Measurement, population, regime, arm, representation and evidence
+/// identities are distinct, domain-tagged digests so a change in one is
+/// visible as that change and in no other; the model identity binds all six.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MeasurementIdentities {
     /// Route, indicator and construct, structure and parameters.
     pub measurement: SemanticDigest,
-    /// Population, regime and arm.
-    pub binding: SemanticDigest,
+    /// Population identity.
+    pub population: SemanticDigest,
+    /// Regime identity.
+    pub regime: SemanticDigest,
+    /// Arm scope (all arms, or one named arm).
+    pub arm: SemanticDigest,
     /// Representation coordinate system and version.
     pub representation: SemanticDigest,
     /// Provenance of the parameters.
     pub evidence: SemanticDigest,
-    /// All four together.
+    /// All six together, in the order of the fields above.
     pub model: SemanticDigest,
 }
 
@@ -793,14 +799,17 @@ impl MeasurementModel {
         self.structure.write(&mut measurement);
         self.parameters.write(&mut measurement);
 
-        let mut binding = CanonicalWriter::new(TAG_BINDING);
-        binding.text(&self.binding.population_id).text(&self.binding.regime_id);
+        let mut population = CanonicalWriter::new(TAG_POPULATION);
+        population.text(&self.binding.population_id);
+        let mut regime = CanonicalWriter::new(TAG_REGIME);
+        regime.text(&self.binding.regime_id);
+        let mut arm = CanonicalWriter::new(TAG_ARM);
         match &self.binding.arm {
             ArmBinding::AllArms => {
-                binding.word(1);
+                arm.word(1);
             }
-            ArmBinding::Arm(arm) => {
-                binding.word(2).text(arm);
+            ArmBinding::Arm(name) => {
+                arm.word(2).text(name);
             }
         }
 
@@ -813,16 +822,20 @@ impl MeasurementModel {
         self.evidence.write(&mut evidence);
 
         let measurement = SemanticDigest::from_bytes(measurement.finish());
-        let binding = SemanticDigest::from_bytes(binding.finish());
+        let population = SemanticDigest::from_bytes(population.finish());
+        let regime = SemanticDigest::from_bytes(regime.finish());
+        let arm = SemanticDigest::from_bytes(arm.finish());
         let representation = SemanticDigest::from_bytes(representation.finish());
         let evidence = SemanticDigest::from_bytes(evidence.finish());
         let mut model = CanonicalWriter::new(TAG_MODEL);
-        for digest in [&measurement, &binding, &representation, &evidence] {
+        for digest in [&measurement, &population, &regime, &arm, &representation, &evidence] {
             model.bytes(digest.as_bytes());
         }
         MeasurementIdentities {
             measurement,
-            binding,
+            population,
+            regime,
+            arm,
             representation,
             evidence,
             model: SemanticDigest::from_bytes(model.finish()),
@@ -1106,11 +1119,44 @@ mod tests {
         let mut population = base.clone();
         population.binding.population_id = "clinic-b".into();
         let p = population.identities();
-        assert_ne!(p.binding, id.binding);
+        assert_ne!(p.population, id.population);
         assert_ne!(p.model, id.model);
         assert_eq!(p.measurement, id.measurement);
+        assert_eq!(p.regime, id.regime);
+        assert_eq!(p.arm, id.arm);
         assert_eq!(p.representation, id.representation);
         assert_eq!(p.evidence, id.evidence);
+
+        // Changing only the regime moves only the regime digest (and the model).
+        let mut regime = base.clone();
+        regime.binding.regime_id = "do(a=1)".into();
+        let r = regime.identities();
+        assert_ne!(r.regime, id.regime);
+        assert_ne!(r.model, id.model);
+        assert_eq!(r.population, id.population);
+        assert_eq!(r.arm, id.arm);
+        assert_eq!(r.measurement, id.measurement);
+        assert_eq!(r.representation, id.representation);
+        assert_eq!(r.evidence, id.evidence);
+
+        // Changing only the arm scope moves only the arm digest (and the model).
+        let mut arm = base.clone();
+        arm.binding.arm = ArmBinding::Arm("treated".into());
+        let a = arm.identities();
+        assert_ne!(a.arm, id.arm);
+        assert_ne!(a.model, id.model);
+        assert_eq!(a.population, id.population);
+        assert_eq!(a.regime, id.regime);
+        assert_eq!(a.measurement, id.measurement);
+        assert_eq!(a.representation, id.representation);
+        assert_eq!(a.evidence, id.evidence);
+
+        // The three digests are domain separated: the same text in two roles differs.
+        let mut same_text = base.clone();
+        same_text.binding.population_id = "x".into();
+        same_text.binding.regime_id = "x".into();
+        let t = same_text.identities();
+        assert_ne!(t.population, t.regime);
 
         let mut version = base.clone();
         version.representation.version = 2;
@@ -1133,7 +1179,9 @@ mod tests {
         };
         let s = swapped.identities();
         assert_ne!(s.measurement, id.measurement);
-        assert_eq!(s.binding, id.binding);
+        assert_eq!(s.population, id.population);
+        assert_eq!(s.regime, id.regime);
+        assert_eq!(s.arm, id.arm);
 
         let mut evidence = base;
         evidence.evidence = ParameterEvidence::Declared { declarer: "lab".into() };

@@ -762,8 +762,10 @@ def test_changed_validation_parameters_rebuild_the_identities_and_nothing_else()
     assert new.model != old.model
     assert new.measurement != old.measurement
     assert new.evidence != old.evidence
-    # The binding and representation identities are untouched.
-    assert new.binding == old.binding
+    # The population, regime, arm and representation identities are untouched.
+    assert new.population == old.population
+    assert new.regime == old.regime
+    assert new.arm == old.arm
     assert new.representation == old.representation
     assert rebuilt.estimate.model_identity == new.model
     assert rebuilt.estimate.point != before.point
@@ -939,7 +941,9 @@ def test_the_identities_ignore_the_label_and_move_separately():
     assert relabeled == identities
 
     moved = mm.model_identities(classical_model(0.6, 0.05, population_id="clinic-b"))
-    assert moved.binding != identities.binding
+    assert moved.population != identities.population
+    assert moved.regime == identities.regime
+    assert moved.arm == identities.arm
     assert moved.model != identities.model
     assert moved.measurement == identities.measurement
     assert moved.representation == identities.representation
@@ -955,7 +959,9 @@ def test_the_identities_ignore_the_label_and_move_separately():
     a = mm.model_identities(binary_model([rates(0.9, 0.8, 1e-4, 4e-4)]))
     b = mm.model_identities(binary_model([rates(0.8, 0.9, 4e-4, 1e-4)]))
     assert a.measurement != b.measurement
-    assert a.binding == b.binding
+    assert a.population == b.population
+    assert a.regime == b.regime
+    assert a.arm == b.arm
 
     evidence = mm.model_identities(
         classical_model(0.6, 0.05, evidence=mm.ParameterEvidence.declared("lab"))

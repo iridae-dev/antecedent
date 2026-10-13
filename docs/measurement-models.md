@@ -54,8 +54,8 @@ measured coverage record.
 
 ## Artifact
 
-`measurement_model_v1` carries the model, its measurement, binding,
-representation and evidence identities and an optional corrected functional
+`measurement_model_v1` carries the model, its measurement,
+population, regime, arm, representation and evidence identities and an optional corrected functional
 with its sufficient inputs (moments, counts, class summaries or
 per-imputation fits). A consumer holding the bytes and the retained model
 identity recomputes the point and standard error with `antecedent-stats` only

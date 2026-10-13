@@ -162,13 +162,17 @@ pub struct MeasurementModelWire {
 pub struct MeasurementIdentityWire {
     /// Route, indicator and construct, structure and parameters.
     pub measurement: String,
-    /// Population, regime and arm.
-    pub binding: String,
+    /// Population identity.
+    pub population: String,
+    /// Regime identity.
+    pub regime: String,
+    /// Arm scope.
+    pub arm: String,
     /// Representation coordinate system and version.
     pub representation: String,
     /// Parameter provenance.
     pub evidence: String,
-    /// All four together.
+    /// All six together.
     pub model: String,
 }
 
@@ -623,7 +627,9 @@ fn identities_to_wire(model: &MeasurementModel) -> MeasurementIdentityWire {
     let ids = model.identities();
     MeasurementIdentityWire {
         measurement: ids.measurement.to_hex(),
-        binding: ids.binding.to_hex(),
+        population: ids.population.to_hex(),
+        regime: ids.regime.to_hex(),
+        arm: ids.arm.to_hex(),
         representation: ids.representation.to_hex(),
         evidence: ids.evidence.to_hex(),
         model: ids.model.to_hex(),

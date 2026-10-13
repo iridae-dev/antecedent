@@ -45,17 +45,19 @@ Declared in `antecedent_core::measurement_model`; format word
 | Identity | Tag | Binds |
 | --- | --- | --- |
 | measurement | `antecedent.measurement_model.measurement.v1` | format word, route, indicator and construct (id, kind tag, units), error structure (non-differential, or differential with its axis) and every parameter as bit patterns |
-| binding | `antecedent.measurement_model.binding.v1` | population id, regime id and arm scope (all arms, or one named arm) |
+| population | `antecedent.measurement_model.population.v1` | population id |
+| regime | `antecedent.measurement_model.regime.v1` | regime id |
+| arm | `antecedent.measurement_model.arm.v1` | arm scope (all arms, or one named arm) |
 | representation | `antecedent.measurement_model.representation.v1` | coordinate-system id and integer version |
 | evidence | `antecedent.measurement_model.evidence.v1` | where the parameters came from: declared (declarer), validation sample (id, units), replicate sample (id) or external provider (id) |
-| model | `antecedent.measurement_model.model.v1` | the four digests above, in that order |
+| model | `antecedent.measurement_model.model.v1` | the six digests above (measurement, population, regime, arm, representation, evidence), in that order |
 | data | `antecedent.measurement_model.data.v1` | the named numeric blocks (name, count, bit patterns) a corrected functional was computed from |
 
 The display label `model_id` is excluded from every digest. Variable
-identities are bound inside the measurement digest and population and regime
-share the binding digest; the code does not give variable, population or
-regime a digest of their own at this layer. The coordinates they come from
-are the quantity coordinates above, which the contract layer matches
+identities are bound inside the measurement digest; population, regime,
+arm scope, representation version and evidence each have a digest of their
+own, so changing one moves that digest and the model digest and no other. The
+coordinates population and regime come from are the quantity coordinates above, which the contract layer matches
 (`measurement_binding_mismatch` for a different construct, population,
 regime or arm). A representation mapping is a request-time check
 (`representation_mapping_required`): it is not part of the model's
@@ -195,9 +197,9 @@ canonical, so permuting the request leaves every identity unchanged.
 
 ## What is not frozen separately
 
-- A standalone digest for variable, population or regime exists only as the
-  quantity coordinate (and, in a measurement model, as fields inside the
-  binding and measurement digests).
+- A standalone digest for a variable exists only as the quantity coordinate
+  (and, in a measurement model, as fields inside the measurement digest);
+  population, regime and arm have their own measurement-model digests.
 - A measurement model's representation mapping is not part of its
   representation digest.
 - The plan identity of a composition holds an aligned joint law by id; the
