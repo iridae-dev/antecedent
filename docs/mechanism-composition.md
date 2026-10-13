@@ -72,8 +72,31 @@ a parameter-covariance variance only: it omits second-order terms, holds residua
 scales fixed and carries no coverage claim. The interval route is closed with
 `cell_not_licensed` until whole-method coverage is measured.
 
-## Not yet wired
+## Facade and lifecycle
 
-Facade (`analyze`, lifecycle refresh/export), Python surface, the
-producer/consumer matrix row, and the design composition-bundle node kind are
-later work; the routes are registered closed until then.
+`StudyBuilder::mechanism_composition` takes the semantic declarations and the
+numbers together: `check_mechanism_composition` checks the coordinates, the
+plan is bound to the numbers (`lower_plan`) and the result is compiled under
+the coherence checker, so every defect of a request is returned with its
+code, detail and remedy before anything executes. A mechanism built from a
+fitted registry slot is labelled `fitted`; coefficients or tables written down
+by the analyst are labelled `declared`, need the acknowledgement above and are
+listed by `declared_mechanisms()`. The facade sets the label from the source
+of the numbers. The prepared composition answers an intervention law, a mean
+contrast with its delta-method variance and explicit cross-covariance label,
+structural samples, or an exact finite law, and exports one query as
+`mechanism_composition_v1`.
+
+`refresh_mechanisms` takes mechanisms refitted on new outcome-only data:
+
+| | |
+|---|---|
+| keeps | the declared graph, units, transforms, populations, regimes, admissions, latent declarations, fitted domains and supports, the kind of declared dependence |
+| recomputes | the refitted numbers, their fit and evidence identities (so the plan identity), the reported marginal covariances, the joint model |
+| refuses | a refit of an unknown variable, of another family or with other parents; a joint law or cross-covariance declared for the earlier fit (it is `unknown` again until redeclared); any prepare refusal on the new numbers |
+
+The call takes `&self` and returns a new value; a refusal leaves the prepared
+composition unchanged.
+
+Not wired: the Python surface, the producer/consumer matrix row and the design
+composition-bundle node kind.

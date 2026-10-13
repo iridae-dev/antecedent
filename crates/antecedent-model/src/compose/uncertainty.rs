@@ -102,12 +102,17 @@ pub fn assemble_parameter_covariance(
         }
     };
     if !is_positive_semidefinite(&cov, p) {
-        return Err(vec![CoherenceFinding::new(
+        let finding = CoherenceFinding::new(
             CoherenceKind::UncertaintyAlignment,
             "mechanism_composition.uncertainty_assembled_not_psd",
             "composition",
             "the declared marginals and cross-covariances do not form one valid joint law; supply a positive semidefinite joint covariance",
-        )]);
+        );
+        debug_assert_eq!(
+            finding.kind.reason_code(),
+            antecedent_core::reason_code!("mechanism_composition_incoherent")
+        );
+        return Err(vec![finding]);
     }
     Ok(ParameterCovariance { parameters: layout, covariance: cov, dependence_label: label })
 }

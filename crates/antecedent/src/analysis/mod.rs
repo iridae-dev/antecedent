@@ -56,6 +56,7 @@ pub mod design_ranking;
 pub mod dose_grid_functional;
 pub mod effect_constancy;
 pub mod effect_constancy_consumers;
+pub mod evidence_ledger;
 mod exact;
 mod execute;
 mod inverse_outcome;
@@ -66,9 +67,12 @@ pub mod latent_class_effects;
 mod learned_continuous;
 pub mod learned_joint_closed;
 mod learned_trial;
+pub mod measurement_model;
+pub mod mechanism_composition;
 pub mod mechanism_discrepancy;
 mod mixed_source;
 pub mod msm_sensitivity;
+mod counterfactual_transport;
 mod mz_transport;
 pub mod native_claims;
 pub mod nonlinear_mediation;
@@ -172,7 +176,30 @@ pub use learned_continuous::{
 };
 pub use learned_trial::{LearnedTrialResult, LearnedTrialState};
 pub use mixed_source::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_artifact};
+pub use counterfactual_transport::{
+    CounterfactualTransportConsumption, CounterfactualTransportObstructionReport,
+    CounterfactualTransportOptions, CounterfactualTransportPreparation,
+    CounterfactualTransportResult, PreparedCounterfactualTransport,
+    consume_counterfactual_transport_artifact, prepare_counterfactual_transport,
+};
 pub use mz_transport::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
+pub use evidence_ledger::{
+    BetweenStudy, BorrowingRequest, ConsumedEvidenceLedger, DependenceRangeRequest,
+    EvidenceLedgerRefusal, EvidenceLedgerSession, LedgerExport, LedgerRefresh,
+    ObservationAccount, PoolingDeclaration, PoolingRequest, RevisionReport, SourceChange,
+    SourcePairRelation, SourceRevision, StudyEstimate, StudySummary, SynthesisOutcome,
+    SynthesisValue, consume_evidence_ledger_artifact,
+};
+pub use measurement_model::{
+    CategoricalTarget, ConsumedMeasurement, MeasurementAnalysisBinding, MeasurementDetail,
+    MeasurementEstimate, MeasurementInput, MeasurementModelRefusal, MeasurementRefresh,
+    PreparedMeasurementModel, consume_measurement_model_artifact,
+};
+pub use mechanism_composition::{
+    ConsumedComposition, DependenceInput, MechanismCompositionExport, MechanismCompositionRefusal,
+    MechanismCompositionRequest, MechanismInput, MechanismRefit, MechanismSource,
+    PreparedMechanismComposition, consume_mechanism_composition_artifact,
+};
 pub use preflight::{
     ArmCount, ArmSpec, ArmWeightEss, BatchPreflightReport, ColumnMissingness, ColumnPriority,
     ColumnWeight, DependentColumn, DroppedColumn, DuplicateGroup, FindingSeverity,

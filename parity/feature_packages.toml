@@ -302,3 +302,17 @@ purpose = "general finite counterfactual transport over selection diagrams"
 depends_on = []
 record = "counterfactual.transport_general"
 record_state = "frozen"
+
+[[feature]]
+id = "counterfactual.transport_sampled"
+purpose = "sampled counterfactual transport: plug-in of a stored derivation on count tables with a declared unseen-cell rule and overlap declaration"
+depends_on = ["counterfactual.transport_general"]
+record = "counterfactual.transport_sampled"
+record_state = "frozen"
+
+[[feature]]
+id = "counterfactual.transport_sampled_interval"
+purpose = "closed interval route of sampled counterfactual transport pending measured whole-method coverage"
+depends_on = ["counterfactual.transport_sampled"]
+record = "counterfactual.transport_sampled_interval"
+record_state = "frozen"

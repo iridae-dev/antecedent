@@ -30,6 +30,7 @@ pub mod contract_wire;
 pub mod contrast_wire;
 pub mod convert;
 pub mod counterfactual_id_artifact;
+pub mod counterfactual_transport_wire;
 pub mod coverage_records_data;
 pub mod cross_world_artifact;
 pub mod discovery_wire;

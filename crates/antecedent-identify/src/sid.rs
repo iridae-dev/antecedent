@@ -63,7 +63,7 @@ pub use counterfactual_transport::{
     CounterfactualTransportSource, CounterfactualTransportUnsupported,
     CounterfactualTransportWitness, CounterfactualTransportWitnessCheck,
     counterfactual_transport_refusal, identify_counterfactual_transport,
-    verify_counterfactual_transport_witness,
+    replay_counterfactual_transport, verify_counterfactual_transport_witness,
 };
 pub use conditional_witness::{
     CONDITIONAL_WITNESS_MAX_LATENT_LEVELS, ConditionalWitnessCheck, ConditionalWitnessRecord,

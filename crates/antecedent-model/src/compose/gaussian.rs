@@ -278,15 +278,18 @@ impl ComposedLinearGaussian {
             let outside_consumer =
                 self.input_domains[i].iter().any(|domain| !domain.contains_value(value));
             if outside_consumer || !own.contains_value(value) {
-                return Err(incoherent(
-                    CoherenceFinding::new(
-                        CoherenceKind::Support,
-                        "mechanism_composition.support_intervention_outside_domain",
-                        name,
-                        "intervene only within the domain every consumer of this variable was fitted on",
-                    )
-                    .comparing("a value inside the fitted domains", value.to_string()),
-                ));
+                let finding = CoherenceFinding::new(
+                    CoherenceKind::Support,
+                    "mechanism_composition.support_intervention_outside_domain",
+                    name,
+                    "intervene only within the domain every consumer of this variable was fitted on",
+                )
+                .comparing("a value inside the fitted domains", value.to_string());
+                debug_assert_eq!(
+                    finding.kind.reason_code(),
+                    antecedent_core::reason_code!("mechanism_composition_incoherent")
+                );
+                return Err(incoherent(finding));
             }
             fixed[i] = Some(value);
         }

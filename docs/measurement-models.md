@@ -61,6 +61,41 @@ per-imputation fits). A consumer holding the bytes and the retained model
 identity recomputes the point and standard error with `antecedent-stats` only
 and refuses any stored number that does not recompute.
 
+## Facade and lifecycle
+
+`StudyBuilder::measurement_model` prepares a corrected functional: the model,
+the analysis binding (construct, population, regime, arm, representation, an
+explicit mapping when the representation changed, the error structure the
+analysis assumes) and the outcome-side data of one bounded route. Every check
+runs before a number is formed, through `antecedent_contract::measurement`:
+a well-formed model, the construct (a measured column is never offered in its
+place), the binding, the declared structure, the operation the route enters
+and, for the posterior route, the exact attested or verified provider object.
+The data binding of the estimator is derived from the same fields. Estimation,
+export and consumption follow the sections above; the result carries the model
+identity, the `uncalibrated_standard_error` label and a closed interval.
+
+What `refresh` does, per route:
+
+| Route | `refresh` with new outcome-only data keeps | recomputes | refuses |
+|---|---|---|---|
+| classical continuous error | model, identities, binding, route, provider label | coefficients, covariance with the error-variance term, moments, data identity | data of another route family |
+| repeated measurements | same | replicate-based error variance and ICC, coefficients, covariance | another route family; fewer replicated units than the model declares |
+| binary misclassification | same | corrected prevalence or risk difference, variance parts | another functional or arm pair; Youden index at or below the minimum |
+| probabilistic categorical | same | corrected proportions, outcome means, covariances | another functional or levels; a confusion matrix worse conditioned than declared |
+| external latent posterior | same, including the attested or verified trust label | posterior-mean fit or per-imputation fits and their combination | another route family; fewer draws than declared |
+
+Validation parameters are not data. `with_validation_parameters` is the only
+way they change: it rebuilds the measurement and evidence identities (so the
+model identity), re-runs every prepare check and recomputes. It refuses
+parameters of another route and a different provider object. Both operations
+return a new value, so a refused update leaves the prepared state untouched.
+
+A relabeling mapping carries values across: the correction runs on the values
+as recorded and the estimate reports the mapping identity. It never carries
+intervention meaning without declared evidence, and the route itself refuses an
+intervention on the recorded indicator.
+
 ## References
 
 Carroll, Ruppert, Stefanski and Crainiceanu (2006), *Measurement Error in

@@ -202,6 +202,14 @@ markers below and compares it. Prose outside those markers is not read.
 | counterfactual.transport_general | max_sum_cells | 65536 | `crates/antecedent-identify/src/sid/counterfactual_transport.rs` |
 | counterfactual.transport_general | max_operations | 400000 | `crates/antecedent-identify/src/sid/counterfactual_transport.rs` |
 | counterfactual.transport_general | max_depth | 256 | `crates/antecedent-identify/src/sid/counterfactual_transport.rs` |
+| counterfactual.transport_sampled | max_tables | 64 | `crates/antecedent-estimate/src/counterfactual_transport_sampled.rs` |
+| counterfactual.transport_sampled | max_table_cells | 65536 | `crates/antecedent-estimate/src/counterfactual_transport_sampled.rs` |
+| counterfactual.transport_sampled | max_envelope_evaluations | 65536 | `crates/antecedent-estimate/src/counterfactual_transport_sampled.rs` |
+| mechanism_composition.acyclic_joint_model | max_mechanisms | 64 | `crates/antecedent-model/src/compose/descriptor.rs` |
+| mechanism_composition.acyclic_joint_model | max_parents_per_mechanism | 16 | `crates/antecedent-model/src/compose/descriptor.rs` |
+| mechanism_composition.acyclic_joint_model | max_latents | 32 | `crates/antecedent-model/src/compose/descriptor.rs` |
+| mechanism_composition.acyclic_joint_model | max_finite_states | 1048576 | `crates/antecedent-model/src/compose/descriptor.rs` |
+| mechanism_composition.acyclic_joint_model | max_sample_cells | 67108864 | `crates/antecedent-model/src/compose.rs` |
 <!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.

@@ -31,6 +31,7 @@ pub mod cell_aipw;
 pub mod conditional;
 pub mod continuous_dose;
 pub mod counterfactual_transport;
+pub mod counterfactual_transport_sampled;
 pub mod cpdag_scenarios;
 pub mod crossfit_aipw;
 pub mod crossfit_cache;

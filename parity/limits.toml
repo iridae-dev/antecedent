@@ -1571,3 +1571,68 @@ implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_tr
 documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'COUNTERFACTUAL_TRANSPORT_MAX_LIMITS: SearchLimits =\s*SearchLimits \{ operations: [0-9_]+, depth: ([0-9_]+) \}' }]
 guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'limits\.depth > COUNTERFACTUAL_TRANSPORT_MAX_LIMITS\.depth' }
 refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'limits\.depth > COUNTERFACTUAL_TRANSPORT_MAX_LIMITS\.depth[\s\S]{0,400}return Err\(bounds_exceeded' }
+
+[[bound]]
+record = "counterfactual.transport_sampled"
+key = "max_tables"
+implementation = [{ path = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs", constant = "SAMPLED_TRANSPORT_MAX_TABLES" }]
+documentation = [{ path = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs", constant = "SAMPLED_TRANSPORT_MAX_TABLES" }]
+guard = { path = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs", pattern = 'request\.tables\.len\(\) > SAMPLED_TRANSPORT_MAX_TABLES' }
+refusal = { path = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs", pattern = 'request\.tables\.len\(\) > SAMPLED_TRANSPORT_MAX_TABLES[\s\S]{0,200}return Err\(invalid_counts' }
+
+[[bound]]
+record = "counterfactual.transport_sampled"
+key = "max_table_cells"
+implementation = [{ path = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs", constant = "SAMPLED_TRANSPORT_MAX_TABLE_CELLS" }]
+documentation = [{ path = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs", constant = "SAMPLED_TRANSPORT_MAX_TABLE_CELLS" }]
+guard = { path = "crates/antecedent-estimate/src/counterfactual_transport_sampled/counts.rs", pattern = '\*c <= SAMPLED_TRANSPORT_MAX_TABLE_CELLS' }
+refusal = { path = "crates/antecedent-estimate/src/counterfactual_transport_sampled/counts.rs", pattern = '\*c <= SAMPLED_TRANSPORT_MAX_TABLE_CELLS\)[\s\S]{0,200}ok_or_else\(' }
+scope_fixture = { path = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs", pattern = '\bmalformed_count_tables_are_refused_at_construction\b' }
+
+[[bound]]
+record = "counterfactual.transport_sampled"
+key = "max_envelope_evaluations"
+implementation = [{ path = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs", constant = "SAMPLED_TRANSPORT_MAX_ENVELOPE_EVALUATIONS" }]
+documentation = [{ path = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs", constant = "SAMPLED_TRANSPORT_MAX_ENVELOPE_EVALUATIONS" }]
+guard = { path = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs", pattern = 'limits\.max_envelope_evaluations > SAMPLED_TRANSPORT_MAX_ENVELOPE_EVALUATIONS' }
+refusal = { path = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs", pattern = 'limits\.max_envelope_evaluations > SAMPLED_TRANSPORT_MAX_ENVELOPE_EVALUATIONS[\s\S]{0,200}return Err\(invalid_counts' }
+
+[[bound]]
+record = "mechanism_composition.acyclic_joint_model"
+key = "max_mechanisms"
+implementation = [{ path = "crates/antecedent-model/src/compose/descriptor.rs", constant = "MAX_COMPOSED_MECHANISMS" }]
+documentation = [{ path = "crates/antecedent-model/src/compose/descriptor.rs", constant = "MAX_COMPOSED_MECHANISMS" }]
+guard = { path = "crates/antecedent-model/src/compose/coherence.rs", pattern = 'spec\.mechanisms\.len\(\) > MAX_COMPOSED_MECHANISMS' }
+refusal = { path = "crates/antecedent-model/src/compose/coherence.rs", pattern = 'spec\.mechanisms\.len\(\) > MAX_COMPOSED_MECHANISMS[\s\S]{0,700}mechanism_composition\.shape_too_many_mechanisms' }
+
+[[bound]]
+record = "mechanism_composition.acyclic_joint_model"
+key = "max_parents_per_mechanism"
+implementation = [{ path = "crates/antecedent-model/src/compose/descriptor.rs", constant = "MAX_PARENTS_PER_MECHANISM" }]
+documentation = [{ path = "crates/antecedent-model/src/compose/descriptor.rs", constant = "MAX_PARENTS_PER_MECHANISM" }]
+guard = { path = "crates/antecedent-model/src/compose/coherence.rs", pattern = 'd\.parents\.len\(\) > MAX_PARENTS_PER_MECHANISM' }
+refusal = { path = "crates/antecedent-model/src/compose/coherence.rs", pattern = 'd\.parents\.len\(\) > MAX_PARENTS_PER_MECHANISM[\s\S]{0,700}mechanism_composition\.shape_too_many_parents' }
+
+[[bound]]
+record = "mechanism_composition.acyclic_joint_model"
+key = "max_latents"
+implementation = [{ path = "crates/antecedent-model/src/compose/descriptor.rs", constant = "MAX_COMPOSED_LATENTS" }]
+documentation = [{ path = "crates/antecedent-model/src/compose/descriptor.rs", constant = "MAX_COMPOSED_LATENTS" }]
+guard = { path = "crates/antecedent-model/src/compose/coherence.rs", pattern = 'distinct > MAX_COMPOSED_LATENTS' }
+refusal = { path = "crates/antecedent-model/src/compose/coherence.rs", pattern = 'distinct > MAX_COMPOSED_LATENTS[\s\S]{0,700}mechanism_composition\.latent_too_many' }
+
+[[bound]]
+record = "mechanism_composition.acyclic_joint_model"
+key = "max_finite_states"
+implementation = [{ path = "crates/antecedent-model/src/compose/descriptor.rs", constant = "MAX_FINITE_STATES" }]
+documentation = [{ path = "crates/antecedent-model/src/compose/descriptor.rs", constant = "MAX_FINITE_STATES" }]
+guard = { path = "crates/antecedent-model/src/compose/tabular.rs", pattern = 'n_states > MAX_FINITE_STATES' }
+refusal = { path = "crates/antecedent-model/src/compose/tabular.rs", pattern = 'n_states > MAX_FINITE_STATES[\s\S]{0,300}CompositionError::Unsupported' }
+
+[[bound]]
+record = "mechanism_composition.acyclic_joint_model"
+key = "max_sample_cells"
+implementation = [{ path = "crates/antecedent-model/src/compose.rs", constant = "MAX_SAMPLE_CELLS" }]
+documentation = [{ path = "crates/antecedent-model/src/compose.rs", constant = "MAX_SAMPLE_CELLS" }]
+guard = { path = "crates/antecedent-model/src/compose/gaussian.rs", pattern = 'saturating_mul\(sources\.max\(1\)\) > MAX_SAMPLE_CELLS' }
+refusal = { path = "crates/antecedent-model/src/compose/gaussian.rs", pattern = 'saturating_mul\(sources\.max\(1\)\) > MAX_SAMPLE_CELLS[\s\S]{0,300}CompositionError::Unsupported' }

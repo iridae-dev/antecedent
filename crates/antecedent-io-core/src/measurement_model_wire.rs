@@ -41,7 +41,7 @@ pub const MEASUREMENT_MODEL_ARTIFACT_VERSION: u16 = 1;
 pub const MAX_MEASUREMENT_IMPUTATIONS: usize = 10_000;
 const MAX_DIM: usize = 66;
 const ARTIFACT_KIND: &str = crate::artifact_kinds::MEASUREMENT_MODEL;
-const META_SECTION: &str = "measurement_model.meta";
+const META_SECTION: &str = "measurement_model_meta";
 /// Relative tolerance of the replay comparison.
 const REPLAY_TOLERANCE: f64 = 1e-10;
 
@@ -1156,11 +1156,24 @@ fn validate_metadata(meta: &MeasurementModelMetadata) -> Result<(), IoError> {
     let replay = replay_from_wire(&result.replay)?;
     let values = replay_values(&model, &replay)?;
     let rows_ok = values.rows == 0 || values.rows == record.rows;
+    // A posterior-mean substitution has no uncorrected counterpart: the fit on
+    // the posterior means *is* the correction, so its record carries none. The
+    // replay of its moments still computes the same-design naive solve, which
+    // is not a second value of the functional and is not compared.
+    let substitution = matches!(
+        &model.parameters,
+        MeasurementParameters::ExternalPosterior { conditioned_on_outcome: false, .. }
+    );
+    let naive_ok = if substitution {
+        record.naive_point.is_none()
+    } else {
+        record.naive_point.is_some() == values.naive_point.is_some()
+            && !record.naive_point.zip(values.naive_point).is_some_and(|(a, b)| !near(a, b))
+    };
     if record.functional_id != values.functional_id
         || !rows_ok
         || !near(record.point, values.point)
-        || record.naive_point.is_some() != values.naive_point.is_some()
-        || record.naive_point.zip(values.naive_point).is_some_and(|(a, b)| !near(a, b))
+        || !naive_ok
     {
         return Err(refused(
             "the stored result is not the recomputation of its inputs under the model",

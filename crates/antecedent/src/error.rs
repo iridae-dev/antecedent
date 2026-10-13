@@ -686,7 +686,9 @@ impl CausalError {
             | Self::Serialization(IoError::Refused { code, .. }) => return Some(code),
             // The multi-source limited-experiment route's frozen (code, detail) pairs.
             Self::Identify(error) => {
-                return antecedent_identify::mz_transport_refusal(error).map(|(code, _)| code);
+                return antecedent_identify::mz_transport_refusal(error)
+                    .or_else(|| antecedent_identify::counterfactual_transport_refusal(error))
+                    .map(|(code, _)| code);
             }
             Self::Serialization(error @ IoError::MzTransport(_)) => return error.reason_code(),
             _ => return None,

@@ -9,6 +9,7 @@
 pub(crate) const ANALYSIS_RESULT: &str = "analysis_result";
 pub(crate) const CAUSAL_PAYLOAD: &str = "causal_payload";
 pub(crate) const COMPACT_RUNTIME_EXPORT: &str = "compact_runtime_export_v1";
+pub(crate) const COUNTERFACTUAL_TRANSPORT: &str = "counterfactual_transport_v1";
 pub(crate) const EVIDENCE_LEDGER: &str = "evidence_ledger_v1";
 pub(crate) const EXTERNAL_CALLBACK: &str = "external_callback_v1";
 pub(crate) const EXTERNAL_COLUMN_CLAIM: &str = "external_column_claim_v1";
@@ -28,7 +29,8 @@ pub(crate) const TRANSPORTED_COUNTERFACTUAL: &str = "transported_counterfactual_
 #[cfg(test)]
 mod tests {
     use super::{
-        ANALYSIS_RESULT, CAUSAL_PAYLOAD, COMPACT_RUNTIME_EXPORT, EVIDENCE_LEDGER, EXTERNAL_CALLBACK,
+        ANALYSIS_RESULT, CAUSAL_PAYLOAD, COMPACT_RUNTIME_EXPORT, COUNTERFACTUAL_TRANSPORT,
+        EVIDENCE_LEDGER, EXTERNAL_CALLBACK,
         EXTERNAL_COLUMN_CLAIM, EXTERNAL_RESPONSE_CLAIM, FROZEN_SCORES, JOINT_DISTRIBUTION,
         JOINT_MECHANISM_SENSITIVITY, MEASUREMENT_MODEL, PROVIDER_RESULT, PROVIDER_VERIFICATION_RECEIPT,
         RECALC_RECEIPT, SENSITIVITY_DECISION, TEMPORAL_COUNTERFACTUAL, TRANSPORT_CERTIFICATE,
@@ -41,6 +43,7 @@ mod tests {
             ANALYSIS_RESULT,
             CAUSAL_PAYLOAD,
             COMPACT_RUNTIME_EXPORT,
+            COUNTERFACTUAL_TRANSPORT,
             EVIDENCE_LEDGER,
             EXTERNAL_CALLBACK,
             EXTERNAL_COLUMN_CLAIM,
@@ -64,6 +67,7 @@ mod tests {
             "mechanism_composition_v1",
             "mechanism_discrepancy_v1",
             "nonlinear_mediation_v1",
+            "sampled_counterfactual_transport_v1",
             "temporal_dependent_interval_internal",
             "temporal_initial_state_marginalization",
             "temporal_new_period_refresh",

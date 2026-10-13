@@ -125,6 +125,34 @@ const MISSING: f64 = -3.0;
 /// different values of coordinates the factor does not depend on.
 const AGREEMENT: f64 = 1e-9;
 
+/// How a factor that reads coordinates its declared parents do not include is
+/// evaluated.
+///
+/// On supplied exact laws such a factor takes one value at every setting of
+/// those coordinates, and a disagreement means the laws contradict the graph
+/// (`RequireAgreement`). On laws estimated from a sample the factor differs
+/// across those coordinates by sampling noise alone, so the estimated route
+/// reads the factor as the mass-weighted average, over the law's own mass on
+/// those coordinates given the factor's parents, of the per-setting values
+/// (`MassWeightedAverage`). The two coincide when the laws satisfy the graph.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum FreeCoordinatePolicy {
+    RequireAgreement,
+    MassWeightedAverage,
+}
+
+/// Tolerance repairs an estimated-table evaluation applied, reported rather
+/// than hidden.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct EvaluationRepairs {
+    /// Factors whose free coordinates were averaged (not required to agree).
+    pub(crate) averaged_factors: u64,
+    /// Consistency complements that were negative beyond tolerance and set to zero.
+    pub(crate) complements_clamped: u64,
+    /// Whether the final probability left `[0, 1]` beyond tolerance and was clamped.
+    pub(crate) probability_clamped: bool,
+}
+
 struct LawView<'a> {
     probabilities: &'a [f64],
     /// Variable (internal index) of each axis.
@@ -147,6 +175,8 @@ struct Engine<'a> {
     work: u64,
     limit: u64,
     ctx: &'a ExecutionContext,
+    policy: FreeCoordinatePolicy,
+    repairs: EvaluationRepairs,
 }
 
 impl<'a> Engine<'a> {
@@ -287,6 +317,106 @@ impl<'a> Engine<'a> {
         }
     }
 
+    /// The district item and the law it extracts from, following transfers.
+    fn extract_of(&self, mut item: usize) -> Option<(usize, usize)> {
+        loop {
+            match self.items[item].source {
+                CounterfactualItemSource::Transfer { from } => item = from,
+                CounterfactualItemSource::Extract { from } => return Some((item, from)),
+                _ => return None,
+            }
+        }
+    }
+
+    /// The mass-weighted average of a district factor over the coordinates that
+    /// precede its last member in the topological order and are neither district
+    /// members nor bound parents. `None` when the item is not a district
+    /// extraction (the agreement rule then applies).
+    fn averaged_factor(
+        &mut self,
+        factor_item: usize,
+        base: &[usize],
+    ) -> Result<Option<f64>, Failure> {
+        let Some((extract, from)) = self.extract_of(factor_item) else {
+            return Ok(None);
+        };
+        let n = self.cards.len();
+        let all = self.items[from].variables;
+        let district = self.items[extract].variables;
+        let Some(last_rank) =
+            (0..n).filter(|v| (district >> *v) & 1 == 1).map(|v| self.rank[v]).max()
+        else {
+            return Ok(None);
+        };
+        let early: Vec<usize> = (0..n)
+            .filter(|&v| {
+                base[v] == usize::MAX
+                    && (all >> v) & 1 == 1
+                    && (district >> v) & 1 == 0
+                    && self.rank[v] < last_rank
+            })
+            .collect();
+        let mut idx0 = 0usize;
+        for v in 0..n {
+            if base[v] != usize::MAX {
+                idx0 += base[v] * self.strides[v];
+            }
+        }
+        if early.is_empty() {
+            let value = self.value(factor_item, idx0)?;
+            return Ok(Some(value));
+        }
+        let summed: Vec<usize> = (0..n)
+            .filter(|&v| {
+                (all >> v) & 1 == 1
+                    && ((district >> v) & 1 == 1
+                        || (base[v] == usize::MAX && self.rank[v] > last_rank))
+            })
+            .collect();
+        let mut counters = vec![0usize; early.len()];
+        let mut weighted = 0.0;
+        let mut mass = 0.0;
+        let mut sentinel: Option<f64> = None;
+        loop {
+            let mut idx = idx0;
+            for (k, &v) in early.iter().enumerate() {
+                idx += counters[k] * self.strides[v];
+            }
+            let w = self.sum_over(from, idx, &summed)?;
+            if w < 0.0 {
+                sentinel = Some(sentinel.map_or(w, |s: f64| s.min(w)));
+            } else if w > 0.0 {
+                let c = self.value(factor_item, idx)?;
+                if c < 0.0 {
+                    sentinel = Some(sentinel.map_or(c, |s: f64| s.min(c)));
+                } else {
+                    weighted += w * c;
+                    mass += w;
+                }
+            }
+            let mut k = early.len();
+            loop {
+                if k == 0 {
+                    self.repairs.averaged_factors += 1;
+                    // A setting that is undefined (zero conditioning mass, no law) is
+                    // left out of the average, as the agreement rule leaves it out;
+                    // the factor is undefined only when no setting is defined.
+                    return Ok(Some(if mass > 0.0 {
+                        weighted / mass
+                    } else {
+                        sentinel.unwrap_or(ZERO_MASS)
+                    }));
+                }
+                k -= 1;
+                counters[k] += 1;
+                if counters[k] < self.cards[early[k]] {
+                    break;
+                }
+                counters[k] = 0;
+            }
+        }
+    }
+
     fn factor_value(
         &mut self,
         factor: &CounterfactualFactor,
@@ -311,6 +441,12 @@ impl<'a> Engine<'a> {
         let key = (factor.item, base.clone());
         if let Some(&cached) = self.factor_cache.get(&key) {
             return Ok(cached);
+        }
+        if self.policy == FreeCoordinatePolicy::MassWeightedAverage {
+            if let Some(value) = self.averaged_factor(factor.item, &base)? {
+                self.factor_cache.insert(key, value);
+                return Ok(value);
+            }
         }
         let free: Vec<usize> = (0..n).filter(|&v| base[v] == usize::MAX).collect();
         let mut counters = vec![0usize; free.len()];
@@ -413,6 +549,12 @@ impl<'a> Engine<'a> {
                     return Ok(b);
                 }
                 let difference = a - b;
+                if difference < -AGREEMENT * (1.0 + a.abs())
+                    && self.policy == FreeCoordinatePolicy::MassWeightedAverage
+                {
+                    self.repairs.complements_clamped += 1;
+                    return Ok(0.0);
+                }
                 if difference < -AGREEMENT * (1.0 + a.abs()) {
                     return Err(Failure::Incompatible(format!(
                         "the consistency complement is {difference}: the supplied laws are not \
@@ -481,6 +623,35 @@ pub fn evaluate_counterfactual_transport(
              supplied exact laws only and publishes no sampling inference",
         ));
     }
+    evaluate_with_policy(derivation, data, limits, ctx, FreeCoordinatePolicy::RequireAgreement)
+        .map(|(point, _)| point)
+}
+
+/// Evaluate a stored derivation on finite laws estimated from counts: the same
+/// arithmetic, with factor coordinates the graph does not read averaged under
+/// the law's own mass instead of required to agree, and the repairs reported.
+///
+/// The caller owns the claim label: this value is a plug-in estimate of the
+/// identified functional, not an exact finite-law evaluation.
+pub(crate) fn evaluate_estimated_tables(
+    derivation: &CounterfactualTransportDerivation,
+    data: &ExactTransportData,
+    limits: ExactEvaluationLimits,
+    ctx: &ExecutionContext,
+) -> Result<(CounterfactualTransportPoint, EvaluationRepairs), EstimationError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(Failure::Budget("the exact evaluation was cancelled").into_error());
+    }
+    evaluate_with_policy(derivation, data, limits, ctx, FreeCoordinatePolicy::MassWeightedAverage)
+}
+
+fn evaluate_with_policy(
+    derivation: &CounterfactualTransportDerivation,
+    data: &ExactTransportData,
+    limits: ExactEvaluationLimits,
+    ctx: &ExecutionContext,
+    policy: FreeCoordinatePolicy,
+) -> Result<(CounterfactualTransportPoint, EvaluationRepairs), EstimationError> {
     crate::transport::validate_exact_laws(&derivation.catalog, data)
         .map_err(|e| crate::transport::refuse_eval(&e))?;
     let problem = &derivation.problem;
@@ -530,6 +701,8 @@ pub fn evaluate_counterfactual_transport(
         work: 0,
         limit: u64::try_from(limits.operations).unwrap_or(u64::MAX),
         ctx,
+        policy,
+        repairs: EvaluationRepairs::default(),
     };
     let mut evaluate = |functional: &CounterfactualFunctional,
                         what: &str|
@@ -571,10 +744,15 @@ pub fn evaluate_counterfactual_transport(
         ));
     }
     let probability = numerator / denominator;
-    if !probability.is_finite()
+    let out_of_range = !probability.is_finite()
         || probability < -AGREEMENT
-        || probability > 1.0 + AGREEMENT * (1.0 + denominator.abs())
+        || probability > 1.0 + AGREEMENT * (1.0 + denominator.abs());
+    if out_of_range
+        && policy == FreeCoordinatePolicy::MassWeightedAverage
+        && probability.is_finite()
     {
+        engine.repairs.probability_clamped = true;
+    } else if out_of_range {
         return Err(refused(
             antecedent_core::reason_code!("transport_numerical_failure"),
             DETAIL_INCOMPATIBLE,
@@ -607,15 +785,19 @@ pub fn evaluate_counterfactual_transport(
             b.content_identity.as_str(),
         ))
     });
-    Ok(CounterfactualTransportPoint {
-        numerator,
-        denominator,
-        probability,
-        conditioning_mass,
-        conditioning_mass_checked: derivation.conditioning_mass_checked,
-        evidence,
-        cells_read: engine.reads,
-    })
+    let repairs = engine.repairs;
+    Ok((
+        CounterfactualTransportPoint {
+            numerator,
+            denominator,
+            probability,
+            conditioning_mass,
+            conditioning_mass_checked: derivation.conditioning_mass_checked,
+            evidence,
+            cells_read: engine.reads,
+        },
+        repairs,
+    ))
 }
 
 /// The `(intervention levels, view)` of one supplied law of a regime item.

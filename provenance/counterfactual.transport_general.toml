@@ -35,4 +35,5 @@ test_sources = [
  "crates/antecedent-identify/tests/support/counterfactual_transport_cases.rs",
  "crates/antecedent-identify/tests/counterfactual_transport_decisions.rs",
  "crates/antecedent-estimate/tests/counterfactual_transport_execution.rs",
+ "crates/antecedent/tests/counterfactual_transport_lifecycle.rs",
 ]

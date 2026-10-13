@@ -12,6 +12,7 @@ pub(crate) const LEARNED_TRIAL: &str = "learned_trial";
 pub(crate) const MARGINAL_SENSITIVITY_MODEL: &str = "marginal_sensitivity_model";
 pub(crate) const MECHANISM_DISCREPANCY: &str = "mechanism_discrepancy_v1";
 pub(crate) const NONLINEAR_MEDIATION: &str = "nonlinear_mediation_v1";
+pub(crate) const SAMPLED_COUNTERFACTUAL_TRANSPORT: &str = "sampled_counterfactual_transport_v1";
 pub(crate) const TEMPORAL_DEPENDENT_INTERVAL: &str = "temporal_dependent_interval_internal";
 pub(crate) const TEMPORAL_INITIAL_STATE: &str = "temporal_initial_state_marginalization";
 pub(crate) const TEMPORAL_NEW_PERIOD_REFRESH: &str = "temporal_new_period_refresh";
@@ -22,6 +23,7 @@ mod tests {
     use super::{
         CATEGORICAL_TREATMENT, EFFECT_CONSTANCY, LATENT_CLASS_EFFECTS, LEARNED_TRIAL,
         MARGINAL_SENSITIVITY_MODEL, MECHANISM_DISCREPANCY, NONLINEAR_MEDIATION,
+        SAMPLED_COUNTERFACTUAL_TRANSPORT,
         TEMPORAL_DEPENDENT_INTERVAL, TEMPORAL_INITIAL_STATE, TEMPORAL_NEW_PERIOD_REFRESH,
         VECTOR_TREATMENT,
     };
@@ -36,6 +38,7 @@ mod tests {
             MARGINAL_SENSITIVITY_MODEL,
             MECHANISM_DISCREPANCY,
             NONLINEAR_MEDIATION,
+            SAMPLED_COUNTERFACTUAL_TRANSPORT,
             TEMPORAL_DEPENDENT_INTERVAL,
             TEMPORAL_INITIAL_STATE,
             TEMPORAL_NEW_PERIOD_REFRESH,

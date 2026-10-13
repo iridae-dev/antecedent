@@ -82,6 +82,35 @@ impl CoherenceKind {
         }
     }
 
+    /// The registered reason code a finding of this kind carries. It is the
+    /// mapping the semantic contract applies by [`Self::tag`]: a malformed
+    /// declaration is an invalid argument, a quantity that does not match its
+    /// producer is a semantics mismatch, a cycle or a parent set that is not
+    /// the declared graph is an invalid graph, unknown or contradicted
+    /// dependence needs a joint law, and every other defect is an incoherent
+    /// composition.
+    #[must_use]
+    pub fn reason_code(self) -> &'static str {
+        match self {
+            Self::Shape => antecedent_core::reason_code!("invalid_argument"),
+            Self::VariableIdentity
+            | Self::Units
+            | Self::Transform
+            | Self::Population
+            | Self::Regime => antecedent_core::reason_code!("quantity_semantics_mismatch"),
+            Self::Cycle | Self::CausalParents => antecedent_core::reason_code!("graph_invalid"),
+            Self::PosteriorDependence => antecedent_core::reason_code!("joint_law_required"),
+            Self::Family
+            | Self::ConditioningSet
+            | Self::Support
+            | Self::SharedLatent
+            | Self::UncertaintyAlignment
+            | Self::Provenance => {
+                antecedent_core::reason_code!("mechanism_composition_incoherent")
+            }
+        }
+    }
+
     /// Every kind, in report order.
     pub const ALL: [CoherenceKind; 15] = [
         Self::Shape,

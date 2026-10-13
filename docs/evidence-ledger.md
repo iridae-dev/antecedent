@@ -71,6 +71,33 @@ the whole history.
   studies peaks at `rho = s_min / s_max`); the stationarity quadratic is
   solved exactly. The envelope is labelled `assumption_range`.
 
+## Facade and lifecycle
+
+`StudyBuilder::evidence_ledger` returns a session that holds the ledger and the
+numbers computed over it. Each combination (`pool_summaries`,
+`random_effects`, `hierarchical_borrowing`, `dependence_range`,
+`transport_claim`, `reuse_result`, `repeat_observations`) is registered with
+the ledger first, on a staged copy, so shared or unknown overlap and a retired
+source are refused before any number; the numbers are then computed with
+`antecedent_stats::synthesis` and the staged ledger is committed only when
+both succeed. `revise_source` applies add, update, replace, supersede and
+withdraw and returns the downstream classification. `synthesis` refuses a
+result that is no longer valid, so stale numbers are never served, and
+`pooled_interval` always refuses.
+
+`refresh` with added or retired evidence:
+
+| | |
+|---|---|
+| keeps | every result whose sources are untouched (`still_valid`) with its numbers; the operation history, chained onto the head identity |
+| recomputes | nothing automatically: a result whose input changed is classified `recompute` and is refused for use until a combination over the replacing sources is registered with `replaces` set |
+| refuses | the whole batch when one change is refused by the ledger (all-or-nothing); a withdrawn result's numbers; any use of a retired source |
+
+The session a refresh is called on is untouched either way. A hierarchical
+borrowing over prior sources is accounted in the ledger and computed in the
+session, but the stored synthesis format carries one summary per source, so
+the export lists such a result in `not_carried` instead of dropping it.
+
 ## Artifact
 
 `evidence_ledger_v1` stores every operation with its declaration, identity and

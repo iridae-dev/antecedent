@@ -1657,6 +1657,41 @@ pub fn identify_counterfactual_transport(
     )
 }
 
+/// Re-run a decision under exactly the limits a stored search record names:
+/// its operation and depth limits and its effective memory cap. A consumer of a
+/// stored derivation uses this to reproduce the decision (the receipt is part of
+/// the derivation's canonical text, so the limits in force must be the stored
+/// ones, not the replayer's defaults).
+///
+/// # Errors
+///
+/// As [`identify_counterfactual_transport`]; a stored memory cap above
+/// [`COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES`] is `counterfactual_transport.bounds_exceeded`.
+// doc(hidden): replay primitive of the artifact consumer, not a routed entry.
+#[doc(hidden)]
+pub fn replay_counterfactual_transport(
+    problem: &CounterfactualTransportProblem,
+    query: &CounterfactualTransportQuery,
+    catalog: &EvidenceCatalog,
+    record: &CounterfactualTransportSearchRecord,
+    ctx: &ExecutionContext,
+) -> Result<CounterfactualTransportDecision, IdentificationError> {
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::Identification,
+        || {
+            crate::execution_counts::note_check();
+            decide_bounded(
+                problem,
+                query,
+                catalog,
+                SearchLimits { operations: record.operations_limit, depth: record.depth_limit },
+                record.memory_limit_bytes,
+                ctx,
+            )
+        },
+    )
+}
+
 fn decide_bounded(
     problem: &CounterfactualTransportProblem,
     query: &CounterfactualTransportQuery,

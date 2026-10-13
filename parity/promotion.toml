@@ -9472,7 +9472,7 @@ truth_grid_allocation = "No repeated-sampling grid allocated. The only declared 
 [[record]]
 id = "mechanism_composition.acyclic_joint_model"
 capability = "mechanism_composition.acyclic_joint_model"
-status = "frozen"
+status = "in_progress"
 consumer_question = "Do independently fitted conditional mechanisms establish one coherent acyclic joint law, and what does that law say under intervention, with parameter uncertainty propagated only under a declared dependence?"
 theorem = "Pearl (2009) ch. 1 and 7: an acyclic structural model composes mechanisms into one joint law (Markov factorization; truncated factorization under do). Bollen (1989) ch. 2: the implied mean and covariance of a linear structural system are path sums of the structural coefficients. Pearl and Bareinboim (2014): a mechanism of a variable with no selection arrow into it is invariant across the populations of the selection diagram. Composition is exact given the declared mechanisms; nothing is inferred about units, populations, shared causes or dependence. The first-order delta method propagates a declared parameter covariance to a linear contrast of interventional means and omits second-order terms. NOT inherited: any coverage or interval guarantee."
 reference = "provenance/mechanism_composition.acyclic_joint_model.toml"
@@ -9490,6 +9490,8 @@ compatibility = "Additive. No existing artifact, model or route changes."
 search = false
 bounds = { max_mechanisms = 64, max_parents_per_mechanism = 16, max_latents = 32, max_finite_states = 1048576, max_sample_cells = 67108864, cancellation = true }
 inference_inventory_disposition = "point_output_listed_unmeasured"
+surface_rust = ["crates/antecedent/src/analysis/mechanism_composition.rs"]
+surface_values = ["MechanismCompositionRefusal", "MechanismSource", "MechanismInput", "DependenceInput", "MechanismCompositionRequest", "MechanismRefit", "PreparedMechanismComposition", "MechanismCompositionExport", "ConsumedComposition", "CompositionQueryWire", "CompositionResultWire"]
 refusals = [
   { code = "invalid_argument", detail = "mechanism_composition.shape_invalid_table", when = "A declared table or numeric field is malformed." },
   { code = "quantity_semantics_mismatch", detail = "mechanism_composition.units_mismatch", when = "A producer's units differ from the units its consumer was fitted in." },
@@ -9502,13 +9504,81 @@ refusals = [
   { code = "mechanism_composition_incoherent", detail = "mechanism_composition.provenance_missing_artifact", when = "A mechanism has no bound fit or binding identity." },
   { code = "joint_law_required", detail = "mechanism_composition.posterior_dependence_unknown", when = "An uncertainty claim over several mechanisms has no declared dependence." },
   { code = "cell_not_licensed", detail = "mechanism_composition.interval_route_closed", when = "An interval or posterior for a composed functional is requested; only a parameter-covariance variance exists and no coverage is measured." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.conditioning_extra_conditioner", when = "The fit conditioned on a variable that is not a declared parent, so it is not the mechanism of its parents." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.conditioning_parent_not_conditioned", when = "A declared parent was not in the fit's conditioning set." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.family_mixed", when = "Linear-Gaussian and finite-table mechanisms are mixed in one composition, or a refit changes a mechanism's family." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.identity_declaration_unknown_variable", when = "A declaration, parameter or refit names a variable that has no mechanism in the composition." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.identity_duplicate_mechanism", when = "Two mechanisms produce the same variable." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.identity_edge_unknown_variable", when = "A declared edge has an endpoint with no mechanism." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.identity_parent_without_mechanism", when = "A consumed parent has no mechanism of its own (a root needs its own marginal mechanism)." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.latent_family_unsupported", when = "A shared latent cause is declared on a family that has no latent term." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.latent_loading_undeclared", when = "A mechanism depends on a shared latent whose loading is not declared." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.latent_sharing_not_declared", when = "Two mechanisms depend on one latent that neither lists as shared." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.latent_sharing_not_reciprocal", when = "A latent is declared shared with a mechanism that does not declare it." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.latent_too_many", when = "More shared latent causes than the bound." },
+  { code = "invalid_argument", detail = "mechanism_composition.numbers_unbound", when = "A planned mechanism has no numbers, a parent has no fitted domain, or a loading names an undeclared latent." },
+  { code = "invalid_argument", detail = "mechanism_composition.numerical_failure", when = "A numerical failure after the declarations were accepted." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.population_invariance_unstated", when = "An invariance admission names no assumption statement." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.population_latent_blocks_selection_admissibility", when = "A mechanism with a declared shared latent is admitted by a selection diagram, which does not cover latent causes." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.population_parent_context_differs_from_fit", when = "A parent is declared in another population than the one the consuming mechanism was fitted in." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.population_selection_arrow_into_mechanism", when = "A declared selection arrow points into the admitted mechanism's variable." },
+  { code = "joint_law_required", detail = "mechanism_composition.posterior_dependence_cross_block_duplicate", when = "A cross-covariance pair is declared more than once." },
+  { code = "joint_law_required", detail = "mechanism_composition.posterior_dependence_cross_covariance_missing", when = "A pair of mechanisms has no cross-covariance block, so its dependence is unknown." },
+  { code = "joint_law_required", detail = "mechanism_composition.posterior_dependence_independence_unjustified", when = "Independence is declared without a justification." },
+  { code = "joint_law_required", detail = "mechanism_composition.posterior_dependence_shared_evidence_declared_independent", when = "Mechanisms estimated from the same evidence are declared independent." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.provenance_declared_mechanism_unacknowledged", when = "A mechanism written down by the analyst, not estimated, is not acknowledged by the composition." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.provenance_missing_evidence", when = "A mechanism names no evidence identity, so dependence cannot be judged." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.quantity_conditioned_event", when = "A mechanism quantity is conditioned on an observed event." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.quantity_conditioning_mismatch", when = "A parent and its producer are conditioned on different events." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.quantity_functional_mismatch", when = "A parent and its producer are different functionals of the variable." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.quantity_horizon_mismatch", when = "A parent and its producer refer to different time horizons." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.quantity_invalid_coordinate", when = "A semantic coordinate is blank or not canonical." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.quantity_not_a_realization", when = "A mechanism quantity is a mean or other summary, not a realized value." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.quantity_role_mismatch", when = "A parent and its producer name different variables or causal roles." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.regime_parent_context_differs_from_fit", when = "A parent is declared in another regime than the one the consuming mechanism was fitted in." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.regime_selection_diagram_not_applicable", when = "A selection diagram was offered for a regime change; only an explicit invariance admits it." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.regime_undeclared_invariance", when = "A mechanism fitted in another regime has no declared invariance." },
+  { code = "route_not_supported", detail = "mechanism_composition.request_unsupported", when = "The request is outside the bounded family: an unknown or repeated intervention variable, a sample size outside the bound, or a query of the other family." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.result_mismatch", when = "A stored result is not the replay of the stored premises and query." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.premises_mismatch", when = "The premises and query do not hash to the stored or the retained identity." },
+  { code = "invalid_argument", detail = "mechanism_composition.artifact_invalid", when = "Corrupt, truncated or unsupported artifact bytes, or a stored field that is not a well formed declaration." },
+  { code = "cancelled_no_claim", detail = "mechanism_composition.cancelled", when = "Cancelled before a composed result was formed; this is not a verdict on the mechanisms." },
+  { code = "invalid_argument", detail = "mechanism_composition.shape_blank_coordinate", when = "A target or declared coordinate is blank." },
+  { code = "invalid_argument", detail = "mechanism_composition.shape_blank_identity", when = "A mechanism, parent or latent identity is blank." },
+  { code = "invalid_argument", detail = "mechanism_composition.shape_coefficient_parent_mismatch", when = "A mechanism's coefficients do not name exactly its declared parents." },
+  { code = "invalid_argument", detail = "mechanism_composition.shape_duplicate_parent", when = "A mechanism lists one parent twice." },
+  { code = "invalid_argument", detail = "mechanism_composition.shape_empty_composition", when = "A composition declares no mechanism." },
+  { code = "invalid_argument", detail = "mechanism_composition.shape_invalid_domain", when = "A declared domain is malformed (an empty level set, bounds out of order or not finite)." },
+  { code = "invalid_argument", detail = "mechanism_composition.shape_invalid_latents", when = "A latent declaration is malformed." },
+  { code = "invalid_argument", detail = "mechanism_composition.shape_mechanism_count", when = "A declaration holds no mechanism or more than the bound." },
+  { code = "invalid_argument", detail = "mechanism_composition.shape_negative_scale", when = "A residual scale is negative." },
+  { code = "invalid_argument", detail = "mechanism_composition.shape_non_finite_parameter", when = "A coefficient, intercept or scale is not finite." },
+  { code = "invalid_argument", detail = "mechanism_composition.shape_too_many_mechanisms", when = "More mechanisms than the bound." },
+  { code = "invalid_argument", detail = "mechanism_composition.shape_too_many_parents", when = "A mechanism has more parents than the bound." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.slot_not_linear_gaussian", when = "A registry slot that is not a plain linear-Gaussian mechanism (a basis expansion, discrete, constant, vacant or pending slot) was offered." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.support_disjoint", when = "A producer's support and its consumer's fitted domain do not intersect." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.support_intervention_outside_domain", when = "An intervention value lies outside the domain a consumer was fitted on." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.support_kind_mismatch", when = "A producer is continuous and its consumer was fitted on levels, or the reverse." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.support_missing_parent_configuration", when = "A table has no row for a parent configuration the producers can emit." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.transform_mismatch", when = "A consumer was fitted on another scale or transform than its producer yields." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.uncertainty_assembled_not_psd", when = "The declared marginals and cross-covariances do not assemble to a positive semidefinite joint law." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.uncertainty_cross_block_shape", when = "A cross-covariance block does not have the shape of its two parameter sets." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.uncertainty_cross_block_unknown_mechanism", when = "A cross-covariance block names a mechanism that is not in the composition." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.uncertainty_family_unsupported", when = "A parameter uncertainty is declared for a finite-table mechanism, which has no propagated route." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.uncertainty_joint_parameter_set_mismatch", when = "A joint law does not cover exactly the composition's parameters." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.uncertainty_marginal_inconsistent_with_joint", when = "A mechanism's reported marginal contradicts the declared joint law." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.uncertainty_marginal_missing", when = "A mechanism reports no marginal parameter law, so there is nothing to propagate." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.uncertainty_not_psd", when = "A reported parameter covariance is not positive semidefinite." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.uncertainty_not_symmetric", when = "A reported parameter covariance is not symmetric." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.uncertainty_parameter_set_mismatch", when = "A reported covariance is over parameters other than the mechanism's." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.uncertainty_shape", when = "A reported covariance does not have the shape of its parameter list." },
 ]
 routes = [
-  { name = "antecedent_contract.check_mechanism_composition", stage = "prepare", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent_model.compose_linear_gaussian", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent_model.compose_finite_tables", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent_io.consume_mechanism_composition_artifact", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent_model.compose_parameter_uncertainty_delta", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true },
+  { name = "antecedent_contract.check_mechanism_composition", stage = "prepare", status = "licensed", claim = "none", covers = ["StudyBuilder.mechanism_composition"] },
+  { name = "antecedent_model.compose_linear_gaussian", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_model.compose_finite_tables", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_io.consume_mechanism_composition_artifact", stage = "consume", status = "licensed", claim = "none", covers = ["consume_mechanism_composition_artifact"] },
+  { name = "antecedent_model.compose_parameter_uncertainty_delta", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/mechanism_composition_facade.rs", refusal_assertion = "unknown_dependence_stays_unknown_and_refuses_the_uncertainty_claim" },
 ]
 fixtures = [
   { id = "mechanism_composition.acyclic_joint_model.hand_computed_gaussian_chain.positive", role = "positive", intent = "Total covariance and interventional laws of a three-variable linear-Gaussian chain equal the hand-computed path algebra.", evidence_test = "crates/antecedent-model/tests/mechanism_composition.rs", evidence_assertion = "composition_matches_the_hand_computed_gaussian_scm" },
@@ -9573,7 +9643,7 @@ truth_grid_allocation = "No repeated-sampling grid allocated; the declared point
 [[record]]
 id = "evidence_ledger.overlap_accounting"
 capability = "evidence_ledger.overlap_accounting"
-status = "frozen"
+status = "in_progress"
 consumer_question = "Which observations do two pieces of evidence share, and how many does a combined result count once?"
 theorem = "Overlap is set arithmetic over declared row-level observation identities: two sources are independent when both observation sets are known and disjoint, shared when they intersect, and unknown when either set is undeclared (an empty declared set overlaps nothing). A result counts the union of its sources' observations once; the slots a naive count would add beyond the union are reported as repeated. Lineage (duplicate, transform, subset, prior plus likelihood, derived from used data) is checked against the declared rows and resolves undeclared rows from parents. Unknown overlap is never promoted to independent."
 reference = "provenance/evidence_ledger.overlap_accounting.toml"
@@ -9590,6 +9660,8 @@ wire_changes = ["New artifact kind evidence_ledger_v1 (operations with chained i
 compatibility = "Additive. No existing claim, composition or artifact identity changes; the ledger is a new runtime object."
 search = false
 bounds = { cancellation = true }
+surface_rust = ["crates/antecedent/src/analysis/evidence_ledger.rs"]
+surface_values = ["EvidenceLedgerRefusal", "StudySummary", "StudyEstimate", "PoolingDeclaration", "BetweenStudy", "SynthesisValue", "SynthesisOutcome", "PoolingRequest", "BorrowingRequest", "DependenceRangeRequest", "SourceRevision", "SourceChange", "RevisionReport", "LedgerRefresh", "ObservationAccount", "SourcePairRelation", "LedgerExport", "EvidenceLedgerSession", "ConsumedEvidenceLedger", "AppliedOperation", "ClaimClass", "DetectedOverlap", "EvidenceSource", "Lineage", "MassAccount", "ObservationBasis", "ObservationId", "Overlap", "RelationKind", "ResultId", "ResultRecord", "ResultRevalidation", "ResultStatus", "Revalidation", "SourceDeclaration", "SourceId", "SourceKind", "SourceStatus", "SynthesisKind", "TransportIdentity"]
 refusals = [
   { code = "evidence_double_counted", detail = "evidence_ledger.duplicate_source", when = "The same source (same content identity) is added to the ledger a second time." },
   { code = "evidence_double_counted", detail = "evidence_ledger.duplicate_row", when = "One observation appears more than once inside a single declared source." },
@@ -9609,7 +9681,7 @@ refusals = [
   { code = "invalid_argument", detail = "evidence_ledger.synthesis_mismatch", when = "A stored synthesis does not match its ledger result or does not recompute." },
 ]
 routes = [
-  { name = "antecedent.evidence_ledger.account_observations", stage = "evaluate", status = "closed", reason_code = "route_not_supported" },
+  { name = "antecedent.evidence_ledger.account_observations", stage = "evaluate", status = "licensed", claim = "none", covers = ["consume_evidence_ledger_artifact"] },
 ]
 fixtures = [
   { id = "evidence_ledger.overlap_accounting.mass_accounting.positive", role = "positive", intent = "Overlapping 100/100/10-row sources: 210 slots, 160 distinct, 50 repeated; a duplicate adds slots, not observations.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "mass_accounting_counts_each_observation_once" },
@@ -9633,7 +9705,7 @@ inference_outputs = []
 [[record]]
 id = "evidence_ledger.statistical_pooling"
 capability = "evidence_ledger.statistical_pooling"
-status = "frozen"
+status = "in_progress"
 consumer_question = "What is the minimum-variance linear pooled estimate of study summaries with a stated covariance, and may these sources be pooled at all?"
 theorem = "Generalized least squares pooling (Aitken 1935) of study estimates y with sampling covariance S: the pooled estimate is 1'S^-1 y / 1'S^-1 1 with variance 1 / 1'S^-1 1; with a diagonal S this is inverse-variance fixed-effect pooling (Borenstein et al. 2009, ch. 11). The covariance is validated symmetric positive semidefinite and refused otherwise; a singular covariance has no weights and is refused. Weights may be negative under strong positive correlation and are reported. The ledger licenses the pooling only when its sources are pairwise independent (known, disjoint observations) or when a declared covariance with cross terms preserves their dependence; unknown overlap and shared rows declared independent are refused. The result is a point with its model-based variance; no interval or coverage is claimed."
 reference = "provenance/evidence_ledger.statistical_pooling.toml"
@@ -9661,9 +9733,10 @@ refusals = [
   { code = "route_not_supported", detail = "evidence_ledger.identity_mismatch", when = "An artifact's stored or retained identity differs from the recomputed one." },
   { code = "invalid_argument", detail = "evidence_ledger.replay_mismatch", when = "A stored operation identity, effect, head or state digest does not replay." },
   { code = "invalid_argument", detail = "evidence_ledger.synthesis_mismatch", when = "A stored synthesis does not match its ledger result or does not recompute." },
+  { code = "cancelled_no_claim", detail = "evidence_ledger.cancelled", when = "Cancelled before a synthesis was formed; the ledger is unchanged and this is not a verdict on the evidence." },
 ]
 routes = [
-  { name = "antecedent.evidence_ledger.pool_summaries", stage = "evaluate", status = "closed", reason_code = "route_not_supported" },
+  { name = "antecedent.evidence_ledger.pool_summaries", stage = "evaluate", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
   { id = "evidence_ledger.statistical_pooling.gls_two_study.positive", role = "positive", intent = "Hand-solved two-study GLS at rho 0, 1/4, 1/2 equals the library, including a zero weight at rho = s_min/s_max.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "generalized_least_squares_matches_the_two_study_closed_form" },
@@ -9702,7 +9775,7 @@ truth_grid_allocation = "No repeated-sampling grid allocated. The declared point
 [[record]]
 id = "evidence_ledger.random_effects"
 capability = "evidence_ledger.random_effects"
-status = "frozen"
+status = "in_progress"
 consumer_question = "What is the between-study variance and the random-effects pooled mean of independent study summaries?"
 theorem = "DerSimonian-Laird moment estimator tau^2 = max(0, (Q - (k-1)) / C) with Q = sum w (y - mu_FE)^2, w = 1/v and C = W - sum w^2 / W, and restricted maximum likelihood tau^2 from the first stationary point of the restricted likelihood above zero (score 1/2 [sum w^2 (y-mu)^2 - sum w + sum w^2 / W], bisected on a doubling bracket). The pooled mean uses weights 1/(v + tau^2); its variance is conditional on the estimated tau^2 and does not carry the uncertainty of tau^2. I^2 = max(0, (Q - df)/Q). For two studies both estimators equal (d^2 - (v1+v2))/2. Independent sources only; the ledger refuses overlapping or unknown sources. Point values only: no interval is claimed."
 reference = "provenance/evidence_ledger.random_effects.toml"
@@ -9728,7 +9801,7 @@ refusals = [
   { code = "invalid_argument", detail = "evidence_ledger.synthesis_mismatch", when = "A stored synthesis does not match its ledger result or does not recompute." },
 ]
 routes = [
-  { name = "antecedent.evidence_ledger.random_effects", stage = "evaluate", status = "closed", reason_code = "route_not_supported" },
+  { name = "antecedent.evidence_ledger.random_effects", stage = "evaluate", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
   { id = "evidence_ledger.random_effects.dersimonian_laird.positive", role = "positive", intent = "Hand derivation with exact fractions: tau^2 38/7, estimate 3330/1457.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "dersimonian_laird_matches_the_hand_derivation" },
@@ -9766,7 +9839,7 @@ truth_grid_allocation = "No repeated-sampling grid allocated. The declared point
 [[record]]
 id = "evidence_ledger.hierarchical_borrowing"
 capability = "evidence_ledger.hierarchical_borrowing"
-status = "frozen"
+status = "in_progress"
 consumer_question = "What do the studies' partially pooled effects and the common mean look like under a normal-normal hierarchical model with a declared prior on the between-study standard deviation?"
 theorem = "y_i | theta_i ~ N(theta_i, v_i), theta_i | mu, tau ~ N(mu, tau^2), mu flat or normal, tau from a declared finite prior. Given tau the posteriors of mu and theta_i are normal in closed form (mu: precision sum 1/(v_i+tau^2) plus the prior precision; theta_i: shrinkage factor B_i = tau^2/(tau^2+v_i), mean B_i y_i + (1-B_i) mu_hat, variance B_i v_i + (1-B_i)^2 Var(mu)); the marginal likelihood of tau is the product of normal densities with mu integrated out. The reported posterior mean and variance are the exact finite mixture over the declared support (Rubin 1981; prior on tau as discussed in Gelman 2006). A continuous prior is an approximation by its support. The ledger requires the likelihood sources pairwise independent and any prior's data origin disjoint from them. The output is a posterior mean and variance: point-only, no credible interval or calibration claim."
 reference = "provenance/evidence_ledger.hierarchical_borrowing.toml"
@@ -9794,7 +9867,7 @@ refusals = [
   { code = "invalid_argument", detail = "evidence_ledger.synthesis_mismatch", when = "A stored synthesis does not match its ledger result or does not recompute." },
 ]
 routes = [
-  { name = "antecedent.evidence_ledger.hierarchical_borrowing", stage = "evaluate", status = "closed", reason_code = "route_not_supported" },
+  { name = "antecedent.evidence_ledger.hierarchical_borrowing", stage = "evaluate", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
   { id = "evidence_ledger.hierarchical_borrowing.single_tau.positive", role = "positive", intent = "Single-tau closed form: mean 56/31, variance 30/31, shrunk study effects.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "hierarchical_borrowing_at_a_single_tau_matches_the_closed_form" },
@@ -9831,7 +9904,7 @@ truth_grid_allocation = "No repeated-sampling grid allocated. The declared point
 [[record]]
 id = "evidence_ledger.transport_provenance"
 capability = "evidence_ledger.transport_provenance"
-status = "frozen"
+status = "in_progress"
 consumer_question = "Does a claim carry its transport identity so that it is never counted as native target data?"
 theorem = "A ledger source may carry a transport identity: source populations, target population, selection-diagram digest and declared assumptions. A source with a transport identity cannot fill a native slot, a source without one cannot fill a transported slot, and a native source and a transported claim that share observations (or are the same source) are refused as counting one source twice, even when a covariance is declared. A result that contains transported sources reports their transport identities; it is not native target evidence. The ledger records and checks identity only: it does not identify or estimate a transported effect (selection diagrams in the sense of Pearl and Bareinboim 2014 belong to the transport routes)."
 reference = "provenance/evidence_ledger.transport_provenance.toml"
@@ -9859,7 +9932,7 @@ refusals = [
   { code = "invalid_argument", detail = "evidence_ledger.synthesis_mismatch", when = "A stored synthesis does not match its ledger result or does not recompute." },
 ]
 routes = [
-  { name = "antecedent.evidence_ledger.transport_claim", stage = "consume", status = "closed", reason_code = "route_not_supported" },
+  { name = "antecedent.evidence_ledger.transport_claim", stage = "consume", status = "licensed", claim = "none" },
 ]
 fixtures = [
   { id = "evidence_ledger.transport_provenance.transported_identity.positive", role = "positive", intent = "A transported claim is registered with its identity and never as native data.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "a_transported_claim_never_counts_as_native_target_data" },
@@ -9872,7 +9945,7 @@ inference_outputs = []
 [[record]]
 id = "evidence_ledger.evidence_reuse"
 capability = "evidence_ledger.evidence_reuse"
-status = "frozen"
+status = "in_progress"
 consumer_question = "May a result be cited again in a second analysis without its observations being counted twice?"
 theorem = "A reuse names an existing valid result and reports exactly that result's once-counted mass; citing it n times never multiplies its observations. A stale, withdrawn or replaced result is refused until it is recomputed. Reuse is a distinct operation from pooling and from repeated use of the same observations: it adds no new evidence."
 reference = "provenance/evidence_ledger.evidence_reuse.toml"
@@ -9898,7 +9971,7 @@ refusals = [
   { code = "invalid_argument", detail = "evidence_ledger.synthesis_mismatch", when = "A stored synthesis does not match its ledger result or does not recompute." },
 ]
 routes = [
-  { name = "antecedent.evidence_ledger.reuse_result", stage = "consume", status = "closed", reason_code = "route_not_supported" },
+  { name = "antecedent.evidence_ledger.reuse_result", stage = "consume", status = "licensed", claim = "none" },
 ]
 fixtures = [
   { id = "evidence_ledger.evidence_reuse.cited_once.positive", role = "positive", intent = "Two citations of a 50-observation result report 50 each.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "evidence_reuse_counts_the_cited_result_once" },
@@ -9911,7 +9984,7 @@ inference_outputs = []
 [[record]]
 id = "evidence_ledger.repeated_observation_use"
 capability = "evidence_ledger.repeated_observation_use"
-status = "frozen"
+status = "in_progress"
 consumer_question = "May the same observations serve a later stage of one workflow, and is the later result independent confirmation?"
 theorem = "A repeated-use result is licensed only as a declaration: the named sources must have known observations (so their repeated use can be accounted), the result counts each observation once, and it is flagged data_reuse. The flag is inherited by every citation. It is never independent confirmation and is not a pooling of the stages."
 reference = "provenance/evidence_ledger.repeated_observation_use.toml"
@@ -9937,7 +10010,7 @@ refusals = [
   { code = "invalid_argument", detail = "evidence_ledger.synthesis_mismatch", when = "A stored synthesis does not match its ledger result or does not recompute." },
 ]
 routes = [
-  { name = "antecedent.evidence_ledger.repeat_observations", stage = "consume", status = "closed", reason_code = "route_not_supported" },
+  { name = "antecedent.evidence_ledger.repeat_observations", stage = "consume", status = "licensed", claim = "none" },
 ]
 fixtures = [
   { id = "evidence_ledger.repeated_observation_use.flagged.positive", role = "positive", intent = "Repeated use is flagged, counts once and stays flagged when cited.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "repeated_observation_use_is_flagged_and_stays_flagged_when_cited" },
@@ -9950,7 +10023,7 @@ inference_outputs = []
 [[record]]
 id = "evidence_ledger.revision"
 capability = "evidence_ledger.revision"
-status = "frozen"
+status = "in_progress"
 consumer_question = "What happens to dependent claims when a source is updated, replaced, withdrawn or superseded?"
 theorem = "Each ledger operation (add, update, replace, withdraw, supersede, revalidate-downstream) is applied atomically, has an identity chained to the previous operation, and reports its downstream effect as a classification of every result: still_valid (nothing it rests on changed), recompute (an input changed and a successor exists) or withdrawn (an input it cannot do without is gone). Dependence flows through source lineage. Update only grows a source, replace corrects it, supersede replaces a model or claim; a retired source cannot enter new results, a stale result cannot be cited, and a recomputation retires the result it replaces while preserving it. The classification enum is claim-agnostic so later invalidation graphs can reuse it."
 reference = "provenance/evidence_ledger.revision.toml"
@@ -9983,7 +10056,7 @@ refusals = [
   { code = "invalid_argument", detail = "evidence_ledger.synthesis_mismatch", when = "A stored synthesis does not match its ledger result or does not recompute." },
 ]
 routes = [
-  { name = "antecedent.evidence_ledger.revise_source", stage = "consume", status = "closed", reason_code = "route_not_supported" },
+  { name = "antecedent.evidence_ledger.revise_source", stage = "consume", status = "licensed", claim = "none" },
 ]
 fixtures = [
   { id = "evidence_ledger.revision.withdrawal.positive", role = "positive", intent = "Withdrawal classifies dependents (withdrawn, recompute, still valid) and refuses new work on the source.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "withdrawing_a_source_classifies_and_refuses_dependents" },
@@ -10067,7 +10140,7 @@ truth_grid_allocation = "No repeated-sampling grid allocated. The declared point
 [[record]]
 id = "evidence_ledger.pooled_interval"
 capability = "evidence_ledger.pooled_interval"
-status = "frozen"
+status = "in_progress"
 consumer_question = "Can an interval, posterior or coverage statement be reported for pooled or borrowed evidence?"
 theorem = "Closed adjacent variant of the pooling, random-effects, borrowing and dependence-range records. The ledger licenses a point statement (or an assumption range) for pooled evidence and no interval, posterior or coverage statement: none has measured whole-method coverage, including the effect of estimated between-study variance and of declared dependence. The request is refused with a typed reason that names the point-only claim class."
 reference = "provenance/evidence_ledger.pooled_interval.toml"
@@ -10089,7 +10162,7 @@ refusals = [
   { code = "invalid_argument", detail = "evidence_ledger.unknown_result", when = "A referenced result is not in the ledger, or was already replaced." },
 ]
 routes = [
-  { name = "antecedent.evidence_ledger.pooled_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.evidence_ledger.pooled_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent/tests/evidence_ledger_facade.rs", refusal_assertion = "a_pooled_interval_is_never_licensed" },
 ]
 fixtures = [
   { id = "evidence_ledger.pooled_interval.point_fallback.positive", role = "positive", intent = "The point-only claim class is what a licensed pooling reports.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "a_registered_result_records_the_once_counted_mass", shared_evidence = true },
@@ -10102,7 +10175,7 @@ inference_outputs = []
 [[record]]
 id = "measurement.model_contract"
 capability = "measurement.model_contract"
-status = "frozen"
+status = "in_progress"
 consumer_question = "Can a measured column be related to the latent scientific quantity it is offered for, bound to a population, regime, arm and representation version, with differential error declared and proxy-as-construct refused?"
 theorem = "Semantic contract; no identification or coverage claim. Measurement-error models relate an indicator W to a latent X by a stated error structure (Carroll, Ruppert, Stefanski and Crainiceanu 2006, ch. 1-2); a result for X is conditional on that structure, and non-differential error means W is independent of the outcome given X. Nothing here inherits a theorem: it freezes which request may use a model."
 reference = "docs/measurement-models.md"
@@ -10133,6 +10206,8 @@ compatibility = "Additive. A typed measurement model is kept separate from the s
 search = false
 bounds = { cancellation = true }
 inference_inventory_disposition = "point_output_listed_unmeasured"
+surface_rust = ["crates/antecedent/src/analysis/measurement_model.rs"]
+surface_values = ["MeasurementModelRefusal", "MeasurementAnalysisBinding", "CategoricalTarget", "MeasurementInput", "MeasurementDetail", "PreparedMeasurementModel", "MeasurementEstimate", "MeasurementRefresh", "ConsumedMeasurement"]
 refusals = [
   { code = "measurement_model_invalid", detail = "measurement_model.indicator_observed", when = "An observed column is given an error model." },
   { code = "differential_error_not_pooled", detail = "measurement_model.structure_parameters", when = "The declared error structure disagrees with the parameter layout." },
@@ -10141,13 +10216,33 @@ refusals = [
   { code = "representation_mapping_required", detail = "measurement_model.intervention_meaning_not_carried", when = "Intervention meaning requested through a values-only mapping." },
   { code = "measurement_posterior_not_trusted", detail = "measurement_model.posterior_native_trust", when = "A provider posterior claims native trust." },
   { code = "cell_not_licensed", detail = "measurement_model.operation_not_licensed", when = "An operation outside the route's allowed set is requested." },
+  { code = "invalid_argument", detail = "measurement_model.artifact_invalid", when = "An artifact's bytes are corrupt, truncated, oversized or of another layout." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.artifact_refused", when = "An artifact's model identity differs from the one the consumer retained, or its stored result is bound to another model or does not recompute from its stored inputs." },
+  { code = "measurement_model_invalid", detail = "measurement_model.blank_field", when = "A model field that must be named (an identity, a unit, a population, a regime) is blank." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.construct_mismatch", when = "The analysis names a construct other than the model's." },
+  { code = "differential_error_not_pooled", detail = "measurement_model.differential_undeclared", when = "The analysis assumes error that differs while the model is declared non-differential." },
+  { code = "proxy_offered_as_construct", detail = "measurement_model.indicator_as_construct", when = "The measured column is named as the construct." },
+  { code = "measurement_model_invalid", detail = "measurement_model.indicator_kind", when = "The indicator's kind is not one the route accepts." },
+  { code = "invalid_argument", detail = "measurement_model.input_invalid", when = "A supplied value is malformed: a length mismatch, the same arm twice, or a weight vector of the wrong width." },
+  { code = "representation_mapping_required", detail = "measurement_model.learned_coordinates_not_intervenable", when = "An intervention on the coordinates of a learned vector representation is requested." },
+  { code = "measurement_model_invalid", detail = "measurement_model.parameter", when = "A parameter of the model is outside its range." },
+  { code = "measurement_posterior_not_trusted", detail = "measurement_model.posterior_capability", when = "The provider object declares no sampling operation." },
+  { code = "measurement_posterior_not_trusted", detail = "measurement_model.posterior_declaration", when = "The provider declaration is incomplete or inconsistent." },
+  { code = "measurement_posterior_not_trusted", detail = "measurement_model.posterior_kind", when = "The provider object is not a parameter posterior." },
+  { code = "measurement_posterior_not_trusted", detail = "measurement_model.posterior_quantity", when = "The posterior does not declare the construct in the model's population and regime." },
+  { code = "measurement_posterior_not_trusted", detail = "measurement_model.posterior_receipt", when = "A verification receipt does not cover the exact provider object." },
+  { code = "measurement_model_invalid", detail = "measurement_model.route_parameters", when = "The parameters belong to another route than the model declares." },
+  { code = "invalid_argument", detail = "measurement_model.unknown_level", when = "A category named by a functional is not a declared level of the confusion model." },
+  { code = "proxy_offered_as_construct", detail = "measurement_model.unmodelled_proxy", when = "A noisy, assigned, learned or derived column is requested as a construct with no model." },
+  { code = "measurement_model_invalid", detail = "measurement_model.unrecognized", when = "A model-construction failure outside the registered kinds." },
+  { code = "measurement_not_identified", detail = "measurement_model.variance_not_positive", when = "The corrected variance of the functional is not positive." },
 ]
 routes = [
-  { name = "antecedent_core.measurement_model.MeasurementModel.validate", stage = "prepare", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent_contract.measurement.check_measurement_request", stage = "prepare", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent_contract.measurement.check_representation_transfer", stage = "representation", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent_contract.measurement.check_latent_posterior", stage = "prepare", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent_io_core.measurement_model_wire.MeasurementModelArtifact.from_bytes", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_core.measurement_model.MeasurementModel.validate", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent_contract.measurement.check_measurement_request", stage = "prepare", status = "licensed", claim = "none", covers = ["PreparedMeasurementModel.estimate"] },
+  { name = "antecedent_contract.measurement.check_representation_transfer", stage = "representation", status = "licensed", claim = "none" },
+  { name = "antecedent_contract.measurement.check_latent_posterior", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent_io_core.measurement_model_wire.MeasurementModelArtifact.from_bytes", stage = "consume", status = "licensed", claim = "none", covers = ["consume_measurement_model_artifact"] },
   { name = "antecedent_estimate.measurement.interval_not_licensed", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "estimator_and_contract_refuse_the_same_requests_with_the_same_details" },
 ]
 fixtures = [
@@ -10162,7 +10257,7 @@ fixtures = [
 [[record]]
 id = "measurement.classical_continuous_error"
 capability = "measurement.classical_continuous_error"
-status = "frozen"
+status = "in_progress"
 consumer_question = "With additive classical measurement error of known or validated variance in a continuous regressor, what is the corrected linear adjusted effect and its standard error including the error-variance uncertainty?"
 theorem = "Carroll, Ruppert, Stefanski and Crainiceanu (2006) ch. 3-4: with W = X + U, U independent of (X, Z, Y) with mean zero and variance sigma_u^2, the naive least-squares slope is attenuated by lambda = Var(X|Z)/(Var(X|Z)+sigma_u^2); the corrected score V(Y - V'b) + S b (S = diag(0, sigma_u^2/k, 0)) has root (M - mean S)^-1 r, which equals regression calibration for a linear outcome model. The standard error is the first-order delta method over the stacked corrected score and the error-variance estimate. Inherited: consistency for a linear model with error-free covariates. NOT inherited: any finite-sample or coverage guarantee, nonlinear outcome models."
 reference = "docs/measurement-models.md"
@@ -10208,7 +10303,7 @@ refusals = [
   { code = "design_rank_deficient", detail = "measurement_model.design_singular", when = "The observed design is rank deficient." },
 ]
 routes = [
-  { name = "antecedent_estimate.measurement.correct_classical_linear_effect", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_estimate.measurement.correct_classical_linear_effect", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent_estimate.measurement.interval_not_licensed.classical_continuous_error", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "estimator_and_contract_refuse_the_same_requests_with_the_same_details" },
   { name = "antecedent_estimate.measurement.classical_continuous_error.nonlinear_outcome", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_license_them" },
   { name = "antecedent_estimate.measurement.classical_continuous_error.differential_by_population", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
@@ -10230,7 +10325,7 @@ fixtures = [
 [[record]]
 id = "measurement.repeated_measurements"
 capability = "measurement.repeated_measurements"
-status = "frozen"
+status = "in_progress"
 consumer_question = "With replicated error-prone measurements of a continuous regressor, what are the within/between variance components and ICC, and what is the corrected linear adjusted effect with the replicate-variance uncertainty propagated?"
 theorem = "Searle, Casella and McCulloch (1992) ch. 3: one-way random-effects ANOVA estimators MSW and (MSB-MSW)/n0 for unbalanced designs. Carroll et al. (2006) ch. 4: with replicates averaged, the row error variance is sigma_u^2/k_i and the same corrected score applies. The within variance is estimated from the analysis sample's own replicates and its influence function is retained in the covariance (a ratio-of-means linearization, distribution free). NOT inherited: normality-based F intervals for variance components or any coverage guarantee."
 reference = "docs/measurement-models.md"
@@ -10274,7 +10369,7 @@ refusals = [
   { code = "measurement_not_identified", detail = "measurement_model.insufficient_replicates", when = "Fewer units with two or more replicates than declared, or no within-unit variance." },
 ]
 routes = [
-  { name = "antecedent_estimate.measurement.correct_repeated_linear_effect", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_estimate.measurement.correct_repeated_linear_effect", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent_estimate.measurement.interval_not_licensed.repeated_measurements", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "estimator_and_contract_refuse_the_same_requests_with_the_same_details" },
   { name = "antecedent_estimate.measurement.repeated_measurements.nonlinear_outcome", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_license_them" },
   { name = "antecedent_estimate.measurement.repeated_measurements.differential_by_population", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
@@ -10291,7 +10386,7 @@ fixtures = [
 [[record]]
 id = "measurement.binary_misclassification"
 capability = "measurement.binary_misclassification"
-status = "frozen"
+status = "in_progress"
 consumer_question = "With a binary outcome misclassified at known or validated sensitivity and specificity, what are the corrected prevalence and risk difference, with the sensitivity/specificity uncertainty propagated and arm-specific error kept separate?"
 theorem = "Rogan and Gladen (1978): pi = (p* + Sp - 1)/(Se + Sp - 1). For two exposure arms under non-differential error RD = (p1* - p0*)/J with J = Se + Sp - 1 (Youden's index); the delta-method variance adds RD^2 (Var Se + Var Sp)/J^2 to the binomial sampling variance and keeps the covariance shared rates induce between arms. Differential error uses arm-specific rates from independent validation samples. Refused when J is at or below the declared minimum. NOT inherited: any interval guarantee; corrected proportions are reported unclipped."
 reference = "docs/measurement-models.md"
@@ -10337,9 +10432,9 @@ refusals = [
   { code = "differential_error_not_pooled", detail = "measurement_model.differential_axis_unsupported", when = "Error differing by population or time has no bounded route." },
 ]
 routes = [
-  { name = "antecedent_estimate.measurement.correct_binary_risk_difference", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_estimate.measurement.correct_binary_risk_difference", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent_estimate.measurement.interval_not_licensed.binary_misclassification", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "estimator_and_contract_refuse_the_same_requests_with_the_same_details" },
-  { name = "antecedent_estimate.measurement.correct_binary_prevalence", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_estimate.measurement.correct_binary_prevalence", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent_estimate.measurement.binary_misclassification.exposure_misclassification", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_license_them" },
   { name = "antecedent_estimate.measurement.binary_misclassification.differential_by_population", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
   { name = "antecedent_estimate.measurement.binary_misclassification.differential_by_time", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
@@ -10356,7 +10451,7 @@ fixtures = [
 [[record]]
 id = "measurement.probabilistic_categorical"
 capability = "measurement.probabilistic_categorical"
-status = "frozen"
+status = "in_progress"
 consumer_question = "With categorical labels assigned under a declared confusion matrix, what are the corrected category proportions, expected counts and category outcome means, with confusion-matrix uncertainty propagated?"
 theorem = "pi = C^-1 p* for a column-stochastic confusion matrix C[observed, true] (the K-category extension of Rogan and Gladen 1978; its K=2 case is the Youden inversion, checked in tests). Observed-class outcome means obey ybar = Q mu with Q[j,k] = C[j,k] pi_k / p*_j. Variance is delta-method over multinomial observed proportions, independent class means and independent confusion columns; the outcome-mean Jacobian is a central finite difference of the exact map. Refused when the 1-norm condition number exceeds the declared bound. NOT inherited: coverage; per-unit calibrated probabilities are not consumed."
 reference = "docs/measurement-models.md"
@@ -10402,7 +10497,7 @@ refusals = [
   { code = "measurement_not_identified", detail = "measurement_model.confusion_ill_conditioned", when = "The confusion matrix is singular, ill conditioned or leaves a latent category empty." },
 ]
 routes = [
-  { name = "antecedent_estimate.measurement.correct_categorical", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_estimate.measurement.correct_categorical", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent_estimate.measurement.interval_not_licensed.probabilistic_categorical", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "estimator_and_contract_refuse_the_same_requests_with_the_same_details" },
   { name = "antecedent_estimate.measurement.probabilistic_categorical.per_unit_soft_assignment", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_license_them" },
   { name = "antecedent_estimate.measurement.probabilistic_categorical.differential_by_population", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
@@ -10419,7 +10514,7 @@ fixtures = [
 [[record]]
 id = "measurement.external_latent_posterior"
 capability = "measurement.external_latent_posterior"
-status = "frozen"
+status = "in_progress"
 consumer_question = "Given a latent-variable posterior supplied by an external provider, what is the linear outcome effect of the latent regressor, how far is the provider trusted, and is the provider's own uncertainty propagated?"
 theorem = "Regression calibration (Carroll et al. 2006 ch. 4): for a linear outcome model E[Y|W] = a + b E[X|W], so the posterior mean substitutes exactly when the posterior does not condition on Y; a single draw adds Berkson noise and attenuates the slope. When the posterior conditions on Y its joint draws are proper imputations and Rubin (1987) combination applies: T = W + (1+1/S) B. NOT inherited: any property of the provider's posterior (it is attested or exact-request verified, never native); the substitution route cannot represent the provider's hyperparameter uncertainty and says so."
 reference = "docs/measurement-models.md"
@@ -10467,7 +10562,7 @@ refusals = [
   { code = "measurement_not_identified", detail = "measurement_model.insufficient_draws", when = "Fewer joint draws than the model declares." },
 ]
 routes = [
-  { name = "antecedent_estimate.measurement.correct_latent_posterior_linear_effect", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_estimate.measurement.correct_latent_posterior_linear_effect", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent_estimate.measurement.interval_not_licensed.external_latent_posterior", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "estimator_and_contract_refuse_the_same_requests_with_the_same_details" },
   { name = "antecedent_estimate.measurement.external_latent_posterior.nonlinear_outcome", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_license_them" },
   { name = "antecedent_estimate.measurement.external_latent_posterior.differential_by_population", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
@@ -10485,7 +10580,7 @@ fixtures = [
 [[record]]
 id = "counterfactual.transport_general"
 capability = "counterfactual.transport_general"
-status = "frozen"
+status = "in_progress"
 consumer_question = "What is a nested or conditional counterfactual probability in a target population, given labelled observational and interventional laws from the target and from source populations whose mechanisms may differ at declared variables?"
 theorem = "Counterfactual transportability (Correa, Lee and Bareinboim, ICML 2022, PMLR 162): a counterfactual distribution of the target is expressed through counterfactual factors that are single-world interventional laws, each either invariant across populations (no selection node into its variables) or identified from target evidence. Implemented as a sound, bounded decision procedure of that shape, not the published algorithm: ID* counterfactual graph and district decomposition (Shpitser and Pearl 2007, 2008); closure of single-world c-factors under ancestral marginalization and c-component extraction (Tian and Pearl 2002, Lemma 1 and the product formula) with transfer of a source factor when no selection target lies in it (Bareinboim and Pearl 2013); the IDC* reduction of a conditioning atom separated from the event; a binary consistency complement. Soundness holds in the finite-discrete induced-diagram class in which selection flags mechanisms and exogenous laws are shared; completeness is NOT claimed. A refusal to derive is not an obstruction. Non-transportability is claimed only through a two-model witness (response-function mixtures over a bidirected clique, identical laws on every declared regime, different query value) re-verified by exact rational enumeration; the witness search is a bounded heuristic, so a non-transportable query it does not find is not_certified."
 reference = "provenance/counterfactual.transport_general.toml"
@@ -10496,13 +10591,22 @@ evidence_family = "Joint laws P(M | do(Z)) of a population over a variable set M
 provider = "Exact finite laws through the existing exact transport provider contract (population, regime, snapshot identity); counted, empirical or posterior laws are refused."
 estimand = "P*(event | conditioning) for a conjunction of events over worlds with hard interventions and edge routes (nested counterfactuals, natural direct and indirect effects, effect of treatment on the treated), as an exact finite probability of the target population."
 inference_claim = "point_only"
-inference_notes = "Exact finite-law arithmetic. No sample interval, posterior or calibration is licensed; sampled counterfactual transport is a separate route that evaluates this derivation on estimated tables."
+inference_notes = "Exact finite-law arithmetic. No sample interval, posterior or calibration is licensed; sampled counterfactual transport is a separate route that evaluates this derivation on estimated tables. Consumption by other cells: a transported counterfactual probability is a point-only result. The inverse-outcome query and the decision contract do not accept it as a forward source today: REFUSED by absence (no API takes a CounterfactualTransportResult), with ADAPTER consumption scheduled for the inverse-query and decision-consumption work, whose first step is a typed adapter that carries the point-only label and refuses a request that needs a law or an interval."
 inference_inventory_disposition = "point_output_listed_unmeasured"
-owners = ["antecedent-identify", "antecedent-estimate"]
-identity_inputs = ["graph, declared levels and selection targets (canonical)", "world specifications (interventions as IEEE bits, edge routes) and event and conditioning conjunctions", "target and source population identities with controllable sets", "the evidence catalog: regimes, intervention sets, measured sets, population and regime identities", "search limits and memory cap stored in the derivation's search receipt", "each supplied law's snapshot and content identity at evaluation"]
-wire_changes = ["Not yet: no artifact, facade or Python wire exists. The derivation is an in-process value whose canonical text and search receipt are replayed by the identifier."]
+owners = ["antecedent-identify", "antecedent-estimate", "antecedent-io-core", "antecedent-io", "antecedent"]
+identity_inputs = ["graph, declared levels and selection targets (canonical)", "world specifications (interventions as IEEE bits, edge routes) and event and conditioning conjunctions", "target and source population identities with controllable sets", "the evidence catalog: regimes, intervention sets, measured sets, population and regime identities", "search limits and memory cap stored in the derivation's search receipt", "each supplied law's snapshot and content identity at evaluation", "variable names when named (bound by the premises digest)", "the expected identity a consumer holds: premises digest and data digest, both recomputed", "the stored evaluation limits and support budget", "the artifact version and required feature"]
+wire_changes = ["Additive: counterfactual transport artifact v1 (kind counterfactual_transport_v1). Premises digest: model class, query with selection diagram and controllable sets, variable names, search limits and memory cap, evaluation limits, and the conclusion (derivation canonical text with its search receipt, or the two-model witness). Data digest: the evidence catalog and every law table. The consumer re-decides under the stored limits, requires the identical derivation, recomputes the point bit for bit with the identity of every law read, or re-verifies the witness; unknown versions and required features are refused, never guessed. Point only: no interval, posterior or sampling slot exists in the format.", "No Python wire yet: the Python producer and consumer are a later step; no Python route is licensed."]
 compatibility = "Additive. The effect-on-the-treated identification contract effect_on_treated_admg_v1 and every interventional transport route are unchanged; this is a separate contract id."
 search = true
+search_impl = ["crates/antecedent-identify/src/sid/counterfactual_transport.rs"]
+surface_rust = ["crates/antecedent-identify/src/sid/counterfactual_transport.rs", "crates/antecedent-estimate/src/counterfactual_transport.rs", "crates/antecedent-io/src/counterfactual_transport_artifact.rs", "crates/antecedent/src/analysis/counterfactual_transport.rs"]
+surface_values = ["CounterfactualTransportProblem", "CounterfactualTransportSource", "CounterfactualTransportQuery", "CounterfactualLevel", "CounterfactualSymbol", "CounterfactualFactor", "CounterfactualSum", "CounterfactualFunctional", "CounterfactualItemSource", "CounterfactualItem", "CounterfactualMovedAtom", "CounterfactualCitedRegime", "CounterfactualTransportSearchRecord", "CounterfactualTransportDerivation", "CounterfactualMissingRegime", "CounterfactualTransportMissing", "CounterfactualTransportObstruction", "CounterfactualTransportInspection", "CounterfactualTransportUnsupported", "CounterfactualTransportDecision", "CounterfactualTransportWitness", "CounterfactualTransportWitnessCheck", "CounterfactualTransportEvidence", "CounterfactualTransportPoint", "LoweredCounterfactualItem", "CounterfactualTransportConsumeLimits", "ConsumedIdentifiedCounterfactualTransport", "ConsumedObstructedCounterfactualTransport", "ConsumedCounterfactualTransportOutcome", "ConsumedCounterfactualTransport", "CounterfactualTransportOptions", "CounterfactualTransportPreparation", "CounterfactualTransportObstructionReport", "CounterfactualTransportResult", "PreparedCounterfactualTransport", "CounterfactualTransportConsumption"]
+surface_internal = [
+  { name = "counterfactual_transport_refusal", why = "Pure (reason code, counterfactual_transport detail) mapping of an IdentificationError; not an executing route. Must stay pub: antecedent-io, the antecedent facade and its error mapping call it." },
+  { name = "replay_counterfactual_transport", why = "Replay primitive that re-runs a decision under the limits and memory cap a stored search record names; the routed entry is the artifact consumer. Must stay pub: antecedent-io calls it." },
+  { name = "counterfactual_transport_result_wire", why = "Pure projection of an evaluated point to its IEEE-bit wire form, shared by the producer and the consumer; not a route. Must stay pub: the antecedent facade and tests build wires with it." },
+  { name = "consume_counterfactual_transport", why = "Error-shape adapter of the routed typed consumer (typed failure to IoError::Refused with its registered code); the routed entry is consume_counterfactual_transport_with_limits. Must stay pub: the antecedent facade calls it." },
+]
 bounds = { max_observed = 8, max_levels = 4, max_worlds = 6, max_atoms = 16, max_network_nodes = 24, max_sources = 4, max_controllable_per_source = 4, max_regimes = 64, max_sum_cells = 65536, max_operations = 400000, max_depth = 256, cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "SearchLimits.operations", depth_limit = "SearchLimits.depth", memory_limit = "SearchBudget memory cap, never absent: the smaller of ExecutionContext.memory.hard_limit_bytes and the default search budget cap, live-state bytes cumulative across the stages of one decision" }
 refusals = [
   { code = "route_not_supported", detail = "counterfactual_transport.bounds_exceeded", when = "More than 8 variables, 4 levels, 6 worlds, 16 atoms, 4 sources, 4 controllables per source or 64 regimes, a kept network or summation above its cell bound, or search limits above the contract's maxima." },
@@ -10512,6 +10616,7 @@ refusals = [
   { code = "invalid_argument", detail = "counterfactual_transport.invalid_query", when = "A malformed graph, world, route, level, event, selection diagram or controllable set, or a conditioning event that has probability zero in every model." },
   { code = "invalid_argument", detail = "counterfactual_transport.invalid_catalog", when = "The catalog fails validation or a regime belongs to neither the target nor a declared source, or names a variable outside the problem." },
   { code = "invalid_argument", detail = "counterfactual_transport.invalid_evidence", when = "A supplied law's axes, levels, intervention set or world do not match the regime the derivation cites." },
+  { code = "invalid_argument", detail = "counterfactual_transport.invalid_artifact", when = "A stored artifact is malformed, resealed with another conclusion, self-inconsistent, not the expected identity, or its premises or data digest does not match; the slot that failed is named (version, required_features, status, problem, query, catalog, laws, variable_names, derivation, obstruction, result, premises_digest, data_digest, expected_identity)." },
   { code = "transport_proven_non_transportable", detail = "counterfactual_transport.checked_obstruction", when = "A two-model witness agrees on every regime law of the declared family and differs on the query, and re-verifies by exact enumeration." },
   { code = "transport_missing_evidence", detail = "counterfactual_transport.missing_regime", when = "The query is derivable if declared regimes the catalog lacks were supplied; they are named." },
   { code = "transport_not_certified", detail = "counterfactual_transport.factor_not_derivable", when = "The bounded search found neither a derivation nor a verified witness." },
@@ -10525,9 +10630,18 @@ refusals = [
   { code = "cell_not_licensed", detail = "counterfactual_transport.sampled_inference_closed", when = "A counted, empirical or posterior law is supplied; sampled counterfactual transport is a separate route." },
 ]
 routes = [
-  { name = "antecedent_identify.identify_counterfactual_transport", stage = "identify", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent_estimate.evaluate_counterfactual_transport", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent_identify.verify_counterfactual_transport_witness", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_identify.identify_counterfactual_transport", stage = "identify", status = "licensed", claim = "none" },
+  { name = "antecedent_estimate.evaluate_counterfactual_transport", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_identify.verify_counterfactual_transport_witness", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent_estimate.lower_counterfactual_transport_items", stage = "representation", status = "licensed", claim = "none" },
+  { name = "antecedent.prepare_counterfactual_transport", stage = "prepare", status = "licensed", claim = "point_only" },
+  { name = "antecedent.PreparedCounterfactualTransport.evaluate", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.PreparedCounterfactualTransport.estimate", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.consume_counterfactual_transport_artifact", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent_io.counterfactual_transport_artifact.consume_counterfactual_transport_with_limits", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent_io.counterfactual_transport_artifact.identified_counterfactual_transport_artifact", stage = "representation", status = "licensed", claim = "point_only" },
+  { name = "antecedent_io.counterfactual_transport_artifact.obstructed_counterfactual_transport_artifact", stage = "representation", status = "licensed", claim = "none" },
+  { name = "antecedent.counterfactual_transport.uncertainty", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/counterfactual_transport_lifecycle.rs", refusal_assertion = "absent_mislabelled_and_counted_evidence_is_refused_before_a_number" },
 ]
 fixtures = [
   { id = "counterfactual.transport_general.named_cases.positive", role = "positive", intent = "Nonlinear mediation (ternary mediator), joint and conditional counterfactuals with two source regimes, and a transportable latent district decide as identified, with replay.", evidence_test = "crates/antecedent-identify/tests/counterfactual_transport_decisions.rs", evidence_assertion = "named_cases_decide_as_the_theory_says" },
@@ -10542,5 +10656,114 @@ fixtures = [
   { id = "counterfactual.transport_general.budget_and_bounds.budget", role = "budget", intent = "An exhausted or cancelled search is a receipt, never a verdict; limits and graph bounds refuse by name.", evidence_test = "crates/antecedent-identify/tests/counterfactual_transport_decisions.rs", evidence_assertion = "budget_cancellation_and_bounds_are_typed_stops_not_verdicts" },
   { id = "counterfactual.transport_general.declaration_order.invariance", role = "invariance", intent = "Variable, edge, regime and source declaration order does not change the derivation.", evidence_test = "crates/antecedent-identify/tests/counterfactual_transport_decisions.rs", evidence_assertion = "decisions_are_invariant_to_declaration_order" },
   { id = "counterfactual.transport_general.provider_order.invariance", role = "invariance", intent = "Evaluation is deterministic and invariant to the order of supplied laws.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_execution.rs", evidence_assertion = "evaluation_is_deterministic_and_invariant_to_provider_order" },
-  { id = "counterfactual.transport_general.artifact_roundtrip.artifact", role = "artifact", intent = "A fresh consumer with the expected identity reruns identification and evaluation (artifact and consumer not yet built)." },
+  { id = "counterfactual.transport_general.artifact_roundtrip.artifact", role = "artifact", intent = "A fresh consumer holding only the bytes and the expected identity re-runs identification and evaluation under its own limits and recovers every identified oracle target bit for bit.", evidence_test = "crates/antecedent/tests/counterfactual_transport_lifecycle.rs", evidence_assertion = "identified_oracle_cases_export_and_replay_to_the_enumerated_truth" },
+  { id = "counterfactual.transport_general.fresh_process.artifact", role = "artifact", intent = "A separate process that holds only the exported file and the expected identity matches the enumerated truth and refuses another identity.", evidence_test = "crates/antecedent/tests/counterfactual_transport_lifecycle.rs", evidence_assertion = "a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle" },
+  { id = "counterfactual.transport_general.obstruction_replay.artifact", role = "artifact", intent = "An exported proven obstruction re-verifies its two-model witness from bytes in a consumer, and a tampered witness is refused in the obstruction slot.", evidence_test = "crates/antecedent/tests/counterfactual_transport_lifecycle.rs", evidence_assertion = "obstructions_export_and_replay_their_two_model_witness_from_bytes" },
+  { id = "counterfactual.transport_general.refresh_rebuild.truth", role = "truth", intent = "Refresh with changed numbers at an unchanged shape rebuilds the numerical state to the new enumerated truth with the same derivation; a refused or cancelled refresh keeps the previous state.", evidence_test = "crates/antecedent/tests/counterfactual_transport_lifecycle.rs", evidence_assertion = "prepare_once_then_refresh_rebuilds_the_numbers_and_a_refused_refresh_keeps_state" },
+  { id = "counterfactual.transport_general.resealed_mutation.negative", role = "negative", intent = "A resealed query, selection, table or derivation mutation is refused in the artifact slot it changes.", evidence_test = "crates/antecedent/tests/counterfactual_transport_lifecycle.rs", evidence_assertion = "resealed_query_selection_table_and_derivation_mutations_are_refused_by_slot" },
+  { id = "counterfactual.transport_general.unresealed_identity_limits.negative", role = "negative", intent = "Edits that are not resealed, another expected identity, another version or feature, an unknown field and consumer limits below the stored ones are refused before any work.", evidence_test = "crates/antecedent/tests/counterfactual_transport_lifecycle.rs", evidence_assertion = "edits_that_are_not_resealed_identity_versions_and_limits_are_refused" },
+  { id = "counterfactual.transport_general.refusals_name_license.negative", role = "negative", intent = "Missing declared regimes, zero conditioning mass, an exhausted or cancelled search, oversized limits and misnamed variables are coded refusals that name what would license the request.", evidence_test = "crates/antecedent/tests/counterfactual_transport_lifecycle.rs", evidence_assertion = "refusals_name_what_would_license_the_request" },
+  { id = "counterfactual.transport_general.facade_evidence_labels.negative", role = "negative", intent = "At the facade an absent, mislabelled or counted law is refused before any number, with cell_not_licensed for sampled evidence.", evidence_test = "crates/antecedent/tests/counterfactual_transport_lifecycle.rs", evidence_assertion = "absent_mislabelled_and_counted_evidence_is_refused_before_a_number" },
+]
+
+
+[[record]]
+id = "counterfactual.transport_sampled"
+capability = "counterfactual.transport_sampled"
+status = "frozen"
+consumer_question = "What is the estimated value of a nested or conditional counterfactual probability in a target population when the observational and interventional laws of the target and of the sources are known only through sampled counts, and what does the sample license about it?"
+theorem = "Plug-in estimation of an identified functional. The stored identification of counterfactual.transport_general expresses the target probability as a continuous function (sums of products and ratios of conditional probabilities read from the regime laws) of the finite regime laws wherever every conditioning event it divides by has positive mass. This route evaluates that stored function on laws estimated from counts, so the estimate converges to the identified value as every cited table's sample grows when the declared sampling design holds and the identification premises hold; that is an engineering claim checked by finite-SCM simulation, not a theorem of the counterfactual transportability papers, which assume exact distributions. The standard error is the first-order delta method of the multinomial cell proportions of each independent dataset (van der Vaart, Asymptotic Statistics, ch. 3): the variance of the gradient of the whole functional under the table's multinomial covariance, with the gradient taken by a central difference at relative step 1e-5. It is reported only as uncalibrated_standard_error. Unseen cells are refused, smoothed under a declared additive pseudo-count (the posterior mean of a symmetric Dirichlet, labelled smoothed), or reported as a structural envelope over a finite family of fillings of a declared unseen mass; none is zero-filled. A factor that reads fewer coordinates than the table supplying it is evaluated as its mass-weighted average over the unread coordinates. No coverage statement, interval or posterior is derived."
+reference = "provenance/counterfactual.transport_sampled.toml"
+guarantee = "plug_in_point_estimate_standard_error_uncalibrated_interval_closed"
+graph_class = "Static finite-discrete acyclic semi-Markovian ADMG over at most 8 observed variables with at most 4 declared levels each; the selection diagram and bounds of counterfactual.transport_general. Continuous, cyclic, temporal and selected-sample designs are separate rows."
+population_semantics = "One target population and up to 4 source populations as in counterfactual.transport_general; sampled evidence per population and regime. Tables are independent samples unless the declaration says they share units; shared units are modelled only for tables that are the same observations. An undeclared relation is refused."
+evidence_family = "One dense count table per cited population, regime and intervention level over exactly the variables the stored derivation cites, with a declared sampling design (independent units or strata with fixed totals), declared structural zeros, a declared unseen-cell rule and sample-size and sparsity limits. Count tables of overlapping units that are not identical are refused."
+provider = "Count tables validated and converted to finite laws (empirical shares, or smoothed laws labelled learned support) evaluated through the existing exact evaluation path on the stored derivation; no re-identification."
+estimand = "P*(event | conditioning) of the stored counterfactual transport derivation, as a plug-in estimate with its standard error; or, for an unseen-mass envelope request, a structural range over a finite family of fillings."
+inference_claim = "point_only"
+inference_notes = "Four claims are kept in separate fields: structural identification (the stored derivation), exact finite-law evaluation (exact on the estimated tables only), point estimate (plug-in or smoothed plug-in), statistical inference (withheld). The delta-method standard error is implemented and unmeasured; whole-method coverage across the sample-size grid, including estimated-table zero and sparse cells, is allocated and not measured. If it is not measured or fails at a coordinate the point estimate ships labelled and the interval route stays closed (counterfactual.transport_sampled_interval)."
+inference_inventory_disposition = "outputs_listed"
+prerequisite_records = ["counterfactual.transport_general", "evidence_ledger.overlap_accounting"]
+prerequisite_reason = "Evaluates the stored derivation of counterfactual.transport_general unchanged and takes its declared overlap from the evidence ledger's overlap accounting; neither record's guarantee, and no calibration, is inherited."
+owners = ["antecedent-estimate", "antecedent-io"]
+identity_inputs = ["the stored derivation's canonical text (graph, levels, query, selection diagram, items, functionals, search receipt)", "every count table: population, regime, intervention levels as IEEE bits, axes and levels, every count, snapshot identity, sampling design, structural zeros", "the overlap declaration: default relation and every declared pair", "the unseen-cell rule and its parameter bits", "minimum table total, sparsity fraction, envelope budget and evaluation limits", "the uncertainty method name and gradient step"]
+wire_changes = ["Additive: sampled_counterfactual_transport_v1 artifact binding counts, the derivation and its inputs, the estimate with its four claim labels, the uncertainty method and the overlap declaration; a fresh consumer re-decides the derivation and recomputes the estimate from the counts bit for bit. Estimator crates gain no dependency on the contract crate; the ledger-derived overlap declaration lives in antecedent-io."]
+compatibility = "Additive and separate from the exact route, whose refusal of counted laws (cell_not_licensed, counterfactual_transport.sampled_inference_closed) is unchanged; the exact route's evaluation is unchanged for supplied exact laws."
+search = false
+bounds = { max_tables = 64, max_table_cells = 65536, max_envelope_evaluations = 65536, cancellation = true }
+candidate_coverage_records = ["cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_mediation_covariate_shift", "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_two_source_joint", "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_latent_district"]
+refusals = [
+  { code = "invalid_argument", detail = "counterfactual_transport_sampled.invalid_counts", when = "A count table, unseen-cell rule or limit is malformed: no axes or levels, a repeated variable or level, a shape that does not match the counts, no observations, a structural zero with observations, or a parameter outside its range." },
+  { code = "invalid_argument", detail = "counterfactual_transport_sampled.table_not_cited", when = "A supplied table is for a population and regime the stored derivation does not cite." },
+  { code = "invalid_argument", detail = "counterfactual_transport_sampled.invalid_overlap", when = "An overlap declaration names a table twice, declares a pair with two relations, or names a table the request does not supply." },
+  { code = "transport_missing_provider", detail = "counterfactual_transport_sampled.missing_table", when = "A cited regime has no count table." },
+  { code = "transport_support_failure", detail = "counterfactual_transport_sampled.sample_size_below_limit", when = "A table carries fewer observations than the declared minimum." },
+  { code = "transport_support_failure", detail = "counterfactual_transport_sampled.unseen_cell", when = "A table has an unseen non-structural cell and the rule is refuse; the refusal names the smoothing or envelope rule that would license the request." },
+  { code = "transport_support_failure", detail = "counterfactual_transport_sampled.sparsity_above_limit", when = "A table's unseen share exceeds the declared sparsity limit under a smoothing or envelope rule." },
+  { code = "transport_support_failure", detail = "counterfactual_transport_sampled.envelope_undefined", when = "No member of the declared unseen-mass family has a defined value." },
+  { code = "transport_budget_cancel", detail = "counterfactual_transport_sampled.envelope_budget", when = "The unseen-mass family is larger than the declared limit." },
+  { code = "transport_budget_cancel", detail = "counterfactual_transport_sampled.cancelled", when = "The evaluation was cancelled." },
+  { code = "sampling_dependence_unknown", detail = "counterfactual_transport_sampled.overlap_unknown", when = "The relation of two tables' units is not declared or is declared unknown; independence is never assumed." },
+  { code = "evidence_double_counted", detail = "counterfactual_transport_sampled.overlap_declared_independent", when = "Two tables declared independent hold identical observations." },
+  { code = "route_not_supported", detail = "counterfactual_transport_sampled.shared_units_unlinked", when = "Two tables are declared to share units but are not the same observations, so no covariance is recoverable from counts." },
+  { code = "invalid_argument", detail = "counterfactual_transport_sampled.invalid_artifact", when = "A sampled artifact is malformed, resealed with a different semantic, carries an interval, or its stored estimate does not follow from its stored counts." },
+  { code = "route_not_supported", detail = "counterfactual_transport_sampled.bounds_exceeded", when = "A stored table count, table size, search limit or evaluation limit exceeds the consumer's." },
+]
+routes = [
+  { name = "antecedent_estimate.estimate_sampled_counterfactual_transport", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_io.consume_sampled_counterfactual_transport", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_io.overlap_declaration_from_ledger", stage = "prepare", status = "closed", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "counterfactual.transport_sampled.large_sample_cases.positive", role = "positive", intent = "Nonlinear mediation with a covariate shift, a two-source confounded model with experiments and a target marginal, and a front-door latent district converge to their enumerated truths at a predeclared tolerance, with four distinct claim labels and an uncalibrated standard error.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs", evidence_assertion = "large_samples_converge_to_the_enumerated_truth_with_four_distinct_labels" },
+  { id = "counterfactual.transport_sampled.natural_effects.truth", role = "truth", intent = "Natural direct and indirect effect contrasts of a nonlinear mediator converge to the enumerated contrasts.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs", evidence_assertion = "natural_direct_and_indirect_effects_converge_to_the_enumerated_contrasts" },
+  { id = "counterfactual.transport_sampled.standard_error.truth", role = "truth", intent = "Over 400 replicated samples the mean reported standard error is within 20 percent of the empirical standard deviation of the estimator, and the mean estimate is within its Monte Carlo band of the enumerated truth.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs", evidence_assertion = "reported_standard_error_matches_the_empirical_standard_deviation_of_the_estimator" },
+  { id = "counterfactual.transport_sampled.unread_coordinate.truth", role = "truth", intent = "A factor that reads fewer coordinates than its table equals the independent hand computation from the counts and the enumerated truth.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs", evidence_assertion = "a_factor_that_reads_fewer_coordinates_than_its_table_is_pooled_not_refused" },
+  { id = "counterfactual.transport_sampled.unseen_cells.negative", role = "negative", intent = "An unseen cell is refused, smoothed under a recorded pseudo-count, or enveloped with a labelled structural range; never zero-filled, and a sparsity limit refuses.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs", evidence_assertion = "unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled" },
+  { id = "counterfactual.transport_sampled.zero_support.negative", role = "negative", intent = "A conditioning event of zero mass in the estimated target table is a typed support failure, not a number.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs", evidence_assertion = "estimated_table_zero_support_is_a_typed_refusal_not_a_number" },
+  { id = "counterfactual.transport_sampled.overlap_declaration.negative", role = "negative", intent = "Undeclared or unknown overlap and shared units between different tables are refused with their typed reasons.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs", evidence_assertion = "overlap_must_be_declared_and_unlinked_shared_units_are_refused" },
+  { id = "counterfactual.transport_sampled.double_counting.negative", role = "negative", intent = "Tables declared independent that hold identical observations are refused as double counting; shared identical tables are one dataset.", evidence_test = "crates/antecedent-estimate/src/counterfactual_transport_sampled/overlap.rs", evidence_assertion = "identical_observations_declared_independent_are_double_counting" },
+  { id = "counterfactual.transport_sampled.evidence_mutation.negative", role = "negative", intent = "A withheld cited regime, an uncited table and a sample below the declared minimum are refused before any number.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs", evidence_assertion = "uncited_missing_and_undersized_tables_are_refused_before_a_number" },
+  { id = "counterfactual.transport_sampled.selection_obstruction.negative", role = "negative", intent = "A query whose selection on the outcome is a proven obstruction has no derivation, so no number is formed from counts.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs", evidence_assertion = "selection_obstruction_leaves_no_derivation_to_sample" },
+  { id = "counterfactual.transport_sampled.table_order.invariance", role = "invariance", intent = "The estimate and its standard error are deterministic and invariant to table order; a changed observation moves the identity and the number.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs", evidence_assertion = "estimates_are_deterministic_invariant_to_table_order_and_move_with_the_counts" },
+  { id = "counterfactual.transport_sampled.artifact_roundtrip.artifact", role = "artifact", intent = "A fresh consumer holding only the bytes and an expected identity re-decides the derivation and recomputes the plug-in estimate and standard error from the counts bit for bit.", evidence_test = "crates/antecedent-io/tests/sampled_counterfactual_transport_artifact.rs", evidence_assertion = "fresh_consumer_recomputes_the_plug_in_from_the_counts_bit_for_bit" },
+  { id = "counterfactual.transport_sampled.artifact_mutation.negative", role = "negative", intent = "Counts edited then resealed, the overlap declaration flipped, the derivation swapped and the stored estimate edited are each refused by the consumer, and no interval seals.", evidence_test = "crates/antecedent-io/tests/sampled_counterfactual_transport_artifact.rs", evidence_assertion = "resealed_semantic_mutations_are_refused" },
+  { id = "counterfactual.transport_sampled.ledger_overlap.negative", role = "negative", intent = "A ledger with disjoint declared observations yields independent tables; an undeclared source stays unknown and refuses; overlapping observations are shared units and refuse for different tables.", evidence_test = "crates/antecedent-io/tests/sampled_counterfactual_transport_artifact.rs", evidence_assertion = "the_ledger_declares_overlap_and_unknown_stays_unknown" },
+]
+inference_outputs = [
+  { fields = ["standard_error"], method = "delta method for the multinomial cell proportions of each independent dataset through the whole plug-in functional, central-difference gradient at relative step 1e-5; a nominal Wald candidate exists only behind the calibration-internal feature", implementation_status = "implemented_unmeasured", boundary = "Defined at tables whose every cited conditioning event has positive estimated mass. At smoothed tables it is the delta standard error at the smoothed table and omits the smoothing bias; an envelope request has no standard error. Unseen cells and small conditioning mass are named boundary probes, not licensed coordinates.", truth_design = "Known finite structural models enumerated by the independent oracle (nonlinear mediation with a covariate shift, two-source confounded model with source experiments and a target marginal, front-door latent district); units drawn multinomially from the enumerated observed regime laws; truth is the enumerated target probability.", method_source = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs", nominal_level = "0.95", measurement_suite = "unallocated", id = "counterfactual_transport_sampled.1", owner = "antecedent-estimate", operation_or_object = "sampled_counterfactual_transport", public_producers = [], closed_producers = ["antecedent_estimate.estimate_sampled_counterfactual_transport"], independent_consumers = ["counterfactual.transport_sampled.artifact_roundtrip.artifact"], truth_fixtures = ["crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::reported_standard_error_matches_the_empirical_standard_deviation_of_the_estimator"], acceptance_threshold = "Nominal 0.95 within 3 MCSE at each point of a three-point sample-size grid (units per table 250, 1000, 4000) with a 2000-replicate recheck; refusals of an outer replicate count as misses with at most 1 percent skips. Boundary probes (a cited table with an unseen cell under smoothing, conditioning mass below 0.02, a stratified design) are recorded and never gated. Nothing has been measured.", activation_disposition = "retain_closed_cell_not_licensed_until_measured", allocation_status = "coverage_ids_allocated_harness_not_written", role_allocation_note = "The estimator is a closed producer; the artifact consumer is the independent consumer. The calibration-internal Wald candidate is method_source, not a public route.", measurement_design_status = "design_named_harness_not_written", truth_grid_allocation = "Three designs: sampled_mediation_covariate_shift (target Y_{x1,M_{x0}}), sampled_two_source_joint (P*(Y_{x=1}=1, X=0)), sampled_latent_district (Y_{x=1}); units per table 250 / 1000 / 4000; whole method includes identification replay, table estimation, the unread-coordinate pooling and the delta standard error.", allocated_coverage_records = ["cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_mediation_covariate_shift", "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_two_source_joint", "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_latent_district"], inherited_coverage_records = [] },
+]
+
+[[record]]
+id = "counterfactual.transport_sampled_interval"
+capability = "counterfactual.transport_sampled_interval"
+status = "frozen"
+consumer_question = "Can an interval, posterior or coverage statement be reported for a sampled counterfactual transport estimate?"
+theorem = "Closed adjacent variant of counterfactual.transport_sampled. No interval, posterior or coverage statement is licensed: none has measured whole-method coverage across the sample-size grid, including estimated-table zero and sparse cells, the unread-coordinate pooling and the delta linearization near zero conditioning mass. The request is refused with a typed reason; the point estimate ships labelled and the delta standard error ships only as uncalibrated_standard_error."
+reference = "provenance/counterfactual.transport_sampled_interval.toml"
+guarantee = "interval_route_closed_pending_measurement"
+graph_class = "As counterfactual.transport_sampled."
+population_semantics = "As counterfactual.transport_sampled."
+evidence_family = "A sampled estimate with a standard error, asked for an interval."
+provider = "antecedent_estimate::counterfactual_transport_sampled::SampledInference"
+estimand = "none: the request is refused"
+inference_claim = "none"
+owners = ["antecedent-estimate", "antecedent-io"]
+identity_inputs = ["the sampled estimate's evidence identity"]
+wire_changes = ["None. The sampled artifact carries an interval-withheld descriptor and its consumer refuses any artifact that claims an interval."]
+compatibility = "Additive; opening the route later is its own record with whole-method coverage measurement."
+search = false
+bounds = { cancellation = true }
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+refusals = [
+  { code = "cell_not_licensed", detail = "counterfactual_transport_sampled.interval_not_licensed", when = "An interval, posterior or coverage statement is requested from a sampled counterfactual transport estimate." },
+]
+routes = [
+  { name = "antecedent_estimate.counterfactual_transport_sampled.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "counterfactual.transport_sampled_interval.point_fallback.positive", role = "positive", intent = "The point estimate and its uncalibrated standard error are what a sampled estimate reports.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs", evidence_assertion = "large_samples_converge_to_the_enumerated_truth_with_four_distinct_labels" },
+  { id = "counterfactual.transport_sampled_interval.interval_request.negative", role = "negative", intent = "No interval is published: the result carries cell_not_licensed with its detail and a standard error labelled uncalibrated.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs", evidence_assertion = "an_interval_is_never_published_and_the_standard_error_is_labelled_uncalibrated" },
+  { id = "counterfactual.transport_sampled_interval.exported_estimates.artifact", role = "artifact", intent = "A fresh consumer recomputes the estimate and finds no interval license in the artifact.", evidence_test = "crates/antecedent-io/tests/sampled_counterfactual_transport_artifact.rs", evidence_assertion = "fresh_consumer_recomputes_the_plug_in_from_the_counts_bit_for_bit" },
 ]

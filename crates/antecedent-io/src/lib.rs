@@ -79,7 +79,8 @@ pub use antecedent_io_core::{
     causal_query_to_wire_with_registry, causal_response_from_wire, causal_response_to_wire,
     checked_aipw_rows_digest, claim_digest, claim_domains, claim_kind_name, compact_export,
     consume_analysis_result, container, container_kind, contract_seal, contract_section,
-    contract_wire, contrast_wire, convert, counterfactual_id_artifact, coverage_records_data,
+    contract_wire, contrast_wire, convert, counterfactual_id_artifact,
+    counterfactual_transport_wire, coverage_records_data,
     cpdag_from_dot, cpdag_from_gml, cpdag_from_json, cpdag_from_networkx_node_link,
     cpdag_from_wire, cpdag_identity, cpdag_to_dot, cpdag_to_gml, cpdag_to_json,
     cpdag_to_networkx_node_link, cpdag_to_wire, cross_world_artifact, dag_from_dot, dag_from_gml,
@@ -148,6 +149,7 @@ pub use analysis_wire::{
 };
 
 pub mod admg_conditional_transport_artifact;
+pub mod counterfactual_transport_artifact;
 pub mod cpdag_completion_artifact;
 mod distribution_factor_laws;
 pub use distribution_factor_laws::distribution_factor_laws_to_wire;
@@ -158,6 +160,7 @@ pub mod mixed_source_artifact;
 pub mod model_bundle;
 pub mod model_codes;
 pub mod mz_transport_artifact;
+pub mod sampled_counterfactual_transport_artifact;
 pub mod nested_markov_artifact;
 pub mod nested_markov_bayesian_artifact;
 pub mod posterior_convert;
@@ -171,6 +174,9 @@ pub mod temporal_transport_artifact;
 pub mod transport_interference_wire;
 pub mod transport_scenario_artifact;
 pub mod z_transport_artifact;
+pub use antecedent_io_core::{
+    evidence_ledger_artifact, measurement_model_wire, mechanism_composition_artifact,
+};
 pub use model_bundle::{
     ModelBundle, ModelBundleEncode, ModelBundleHeaderWire, decode_model_bundle, encode_model_bundle,
 };
