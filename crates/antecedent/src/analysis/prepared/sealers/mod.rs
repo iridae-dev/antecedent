@@ -272,14 +272,15 @@ pub(super) fn seal_execution(cx: &SealContext<'_>) -> Result<PreparedExecution, 
             continue;
         };
         #[cfg(debug_assertions)]
-        debug_assert_eq!(
-            execution.kind(),
-            sealer.kind,
-            "the {:?} sealer returned another route",
-            sealer.kind,
-        );
-        #[cfg(debug_assertions)]
-        assert_no_undeclared_overlap(cx, sealer, &SEALERS[entry.0 + 1..]);
+        {
+            assert_eq!(
+                execution.kind(),
+                sealer.kind,
+                "the {:?} sealer returned another route",
+                sealer.kind,
+            );
+            assert_no_undeclared_overlap(cx, sealer, &SEALERS[entry.0 + 1..]);
+        }
         return Ok(execution);
     }
     Ok(PreparedExecution::OrdinaryDispatch)
