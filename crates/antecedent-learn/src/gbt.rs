@@ -96,9 +96,9 @@ impl LearnerFactory for GbtLearner {
                 return Err(LearnError::Shape { message: "weights length != physical rows" });
             }
             let gathered_w = gather_physical(w, x, x.nrows())?;
-            model.fit(&matrix, &gathered_y, &gathered_w, None).map_err(forust_err)?;
+            model.fit(&matrix, &gathered_y, &gathered_w, None).map_err(|err| forust_err(&err))?;
         } else {
-            model.fit_unweighted(&matrix, &gathered_y, None).map_err(forust_err)?;
+            model.fit_unweighted(&matrix, &gathered_y, None).map_err(|err| forust_err(&err))?;
         }
         Ok(Box::new(GbtPredictor { model, task: self.task, columns: x.ncols() }))
     }
@@ -196,6 +196,6 @@ impl FittedPredictor for GbtPredictor {
     }
 }
 
-fn forust_err(err: forust_ml::errors::ForustError) -> LearnError {
+fn forust_err(err: &forust_ml::errors::ForustError) -> LearnError {
     LearnError::Backend(format!("{err}"))
 }

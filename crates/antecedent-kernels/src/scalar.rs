@@ -388,7 +388,10 @@ mod tests {
             err,
             ViewError::InvalidShape { message: "mask length must equal vector length" }
         );
-        assert_eq!(x, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+        assert_eq!(
+            x.map(f64::to_bits),
+            [1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0].map(f64::to_bits)
+        );
     }
 
     #[test]
@@ -404,7 +407,7 @@ mod tests {
             pairwise_l1_fill(&[1.0, 2.0], &mut pair).unwrap_err(),
             ViewError::InvalidShape { message: "pairwise out must be n*n" }
         );
-        assert_eq!(pair, [9.0]);
+        assert_eq!(pair.map(f64::to_bits), [9.0_f64].map(f64::to_bits));
         let mut table = [7.0, 7.0, 7.0, 7.0];
         assert_eq!(
             accumulate_contingency(&[0, 1], &[0], &mut table, 2).unwrap_err(),
@@ -422,7 +425,7 @@ mod tests {
             accumulate_contingency(&[4], &[0], &mut table, 2).unwrap_err(),
             ViewError::InvalidShape { message: "contingency code out of range" }
         );
-        assert_eq!(table, [7.0, 7.0, 7.0, 7.0]);
+        assert_eq!(table.map(f64::to_bits), [7.0_f64, 7.0, 7.0, 7.0].map(f64::to_bits));
         assert_eq!(
             weighted_mean(&[1.0], &[1.0, 1.0]).unwrap_err(),
             ViewError::InvalidShape { message: "weighted_mean length mismatch" }

@@ -1541,7 +1541,7 @@ impl Engine<'_, '_> {
         };
         // Union-find, merged in topological order.
         let mut root: Vec<usize> = (0..pw.len()).collect();
-        for &v in topo.iter() {
+        for &v in topo {
             let bytes = (pw.len() as u64).saturating_mul(64).saturating_add(event_bytes(event));
             search.charge(depth, retained_bytes.saturating_add(bytes)).map_err(Halt::Stop)?;
             let copies: Vec<usize> =

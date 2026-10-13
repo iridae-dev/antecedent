@@ -24,8 +24,8 @@ mod state_space;
 pub(super) use basis::*;
 #[cfg(feature = "gaussian-process")]
 pub(super) use gp::{GpGrid, fit_gaussian_process, gp_grid};
-use hierarchical::*;
-use linear::*;
+use hierarchical::{fit_hierarchical_glm, fit_hierarchical_linear};
+use linear::{fit_linear_gaussian, fit_linear_gaussian_weighted};
 /// State-space fitters used by [`fit_family_weighted`].
 pub(super) use state_space::*;
 

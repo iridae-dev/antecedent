@@ -414,7 +414,7 @@ mod tests {
         let graphs = [&fork, &collider, &chain, &district, &latent];
         let mut ws = DSeparationWorkspace::default();
         for g in graphs {
-            let count = g.node_count() as u32;
+            let count = u32::try_from(g.node_count()).unwrap();
             for x in 0..count {
                 for y in 0..count {
                     if x == y {

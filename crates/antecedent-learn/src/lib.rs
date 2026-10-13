@@ -433,8 +433,8 @@ mod tests {
         assert!(out[n - 1] - out[0] > 90.0, "span {}", out[n - 1] - out[0]);
 
         let mut t = vec![0.0; n];
-        for i in 0..n {
-            t[i] = if i >= 15 { 1.0 } else { 0.0 };
+        for (i, value) in t.iter_mut().enumerate() {
+            *value = if i >= 15 { 1.0 } else { 0.0 };
         }
         let clf =
             resolve_for(LearnerSpec::GradientBoostedTrees(spec), PredictionTask::BinaryProbability)
@@ -470,8 +470,8 @@ mod tests {
         fitted.predict(view, &mut out, &ctx).unwrap();
         assert!(out.iter().all(|v| v.is_finite()));
         let mut t = vec![0.0; n];
-        for i in 0..n {
-            t[i] = if i >= n / 2 { 1.0 } else { 0.0 };
+        for (i, value) in t.iter_mut().enumerate() {
+            *value = if i >= n / 2 { 1.0 } else { 0.0 };
         }
         let clf =
             resolve_for(LearnerSpec::NeuralNet(spec), PredictionTask::BinaryProbability).unwrap();
@@ -498,8 +498,8 @@ mod tests {
         fitted.predict(view, &mut out, &ctx).unwrap();
         assert!(out.iter().any(|v| v.is_finite()));
         let mut t = vec![0.0; n];
-        for i in 0..n {
-            t[i] = if i >= n / 2 { 1.0 } else { 0.0 };
+        for (i, value) in t.iter_mut().enumerate() {
+            *value = if i >= n / 2 { 1.0 } else { 0.0 };
         }
         let clf = resolve_for(
             LearnerSpec::RandomForest(ForestSpec::default()),

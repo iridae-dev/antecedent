@@ -293,6 +293,7 @@ pub(crate) fn bayes_ball_reaches(
 }
 
 /// Adjacency rows and visibility rules used by a Bayes-ball traversal.
+#[derive(Clone, Copy)]
 pub(crate) struct BayesBallGraph<'a> {
     pub(crate) parents: &'a [Vec<DenseNodeId>],
     pub(crate) children: &'a [Vec<DenseNodeId>],

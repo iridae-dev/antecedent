@@ -266,10 +266,12 @@ pub(super) const SEALERS: [Sealer; ExecutionKind::SEALED_COUNT] = [
 /// Select the sealed operation for `cx`, or `OrdinaryDispatch` when no sealer
 /// admits it.
 pub(super) fn seal_execution(cx: &SealContext<'_>) -> Result<PreparedExecution, CausalError> {
-    for (index, sealer) in SEALERS.iter().enumerate() {
+    for entry in SEALERS.iter().enumerate() {
+        let sealer = entry.1;
         let Some(execution) = (sealer.seal)(cx)? else {
             continue;
         };
+        #[cfg(debug_assertions)]
         debug_assert_eq!(
             execution.kind(),
             sealer.kind,
@@ -277,7 +279,7 @@ pub(super) fn seal_execution(cx: &SealContext<'_>) -> Result<PreparedExecution, 
             sealer.kind,
         );
         #[cfg(debug_assertions)]
-        assert_no_undeclared_overlap(cx, sealer, &SEALERS[index + 1..]);
+        assert_no_undeclared_overlap(cx, sealer, &SEALERS[entry.0 + 1..]);
         return Ok(execution);
     }
     Ok(PreparedExecution::OrdinaryDispatch)

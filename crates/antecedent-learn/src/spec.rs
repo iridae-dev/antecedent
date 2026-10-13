@@ -352,13 +352,20 @@ fn require_resolved_task(
     Ok(())
 }
 
+#[cfg_attr(
+    feature = "ml-forest",
+    allow(
+        clippy::unnecessary_wraps,
+        reason = "the feature-disabled branch returns provider refusal through the shared Result API"
+    )
+)]
 fn resolve_forest(
     spec: crate::ForestSpec,
     task: PredictionTask,
 ) -> Result<Box<dyn LearnerFactory>, LearnError> {
     #[cfg(feature = "ml-forest")]
     {
-        return Ok(Box::new(crate::forest::ForestLearner::new(spec, task)));
+        Ok(Box::new(crate::forest::ForestLearner::new(spec, task)))
     }
     #[cfg(not(feature = "ml-forest"))]
     {
@@ -372,13 +379,20 @@ fn resolve_forest(
     }
 }
 
+#[cfg_attr(
+    feature = "ml-gbdt",
+    allow(
+        clippy::unnecessary_wraps,
+        reason = "the feature-disabled branch returns provider refusal through the shared Result API"
+    )
+)]
 fn resolve_gbt(
     spec: crate::GbtSpec,
     task: PredictionTask,
 ) -> Result<Box<dyn LearnerFactory>, LearnError> {
     #[cfg(feature = "ml-gbdt")]
     {
-        return Ok(Box::new(crate::gbt::GbtLearner::new(spec, task)));
+        Ok(Box::new(crate::gbt::GbtLearner::new(spec, task)))
     }
     #[cfg(not(feature = "ml-gbdt"))]
     {
@@ -392,13 +406,20 @@ fn resolve_gbt(
     }
 }
 
+#[cfg_attr(
+    feature = "ml-neural",
+    allow(
+        clippy::unnecessary_wraps,
+        reason = "the feature-disabled branch returns provider refusal through the shared Result API"
+    )
+)]
 fn resolve_neural(
     spec: crate::NeuralSpec,
     task: PredictionTask,
 ) -> Result<Box<dyn LearnerFactory>, LearnError> {
     #[cfg(feature = "ml-neural")]
     {
-        return Ok(Box::new(crate::neural::NeuralNetLearner::new(spec, task)));
+        Ok(Box::new(crate::neural::NeuralNetLearner::new(spec, task)))
     }
     #[cfg(not(feature = "ml-neural"))]
     {

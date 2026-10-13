@@ -2,8 +2,24 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::super::*;
-use super::*;
+use super::super::{
+    Admg, Arc, CatalogTransportResult, CausalExprArena, ClassicalTransportQuery,
+    DSeparationWorkspace, DenseNodeId, ExecutionContext, ExprId, HashMap, IdentificationError,
+    MzTransportDecision, SearchBudget, SearchCharge, SearchLimits, SearchReceipt, SearchStop,
+    SelectionDiagram, SharedSearch, VariableId, identify_catalog_transport_metered,
+};
+use super::{
+    BTreeMap, BTreeSet, BUDGET, EvidenceCatalog, FRONTIER_SHOWN, INVALID_QUERY, LeafBinding,
+    MAX_ALTERNATIVES, MISSING_JOINT, MIXED_SOURCE_DEFAULT_LIMITS, MIXED_SOURCE_MAX_DO,
+    MIXED_SOURCE_MAX_MOVE, MIXED_SOURCE_RULE_SET, Mask, MetaSource, MetaTransportQuery,
+    MixedExclusion, MixedInput, MixedQuantity, MixedRule, MixedSearchSummary,
+    MixedSourceDerivation, MixedSourceLeaf, MixedSourceQuery, MixedStageRecord, MixedStep,
+    NAMED_ROUTE, NOT_CERTIFIED, RegimeId, ValidatedMixedSourceQuery, ZTransportDecision,
+    ZTransportLimitsReceipt, ZTransportQuery, bit, bounds_exceeded, build_expression,
+    decide_z_transport_reporting, dense_variables, identify_meta_catalog_metered,
+    invalid_derivation, invalid_query, members, render_steps, size, subsets,
+    validate_mixed_source_query,
+};
 
 // ------------------------------------------------------------------ engine
 
@@ -1604,6 +1620,7 @@ pub fn bind_mixed_source_catalog(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use antecedent_core::DistributionAvailability;
     use antecedent_core::{
         DependenceGroup, EvidenceKind, EvidenceRegime, RegimeBinding, RegimeKind, SamplingDesign,
     };

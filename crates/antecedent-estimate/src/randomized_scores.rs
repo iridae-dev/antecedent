@@ -498,8 +498,9 @@ mod tests {
         tau_c: f64,
         one_sided: bool,
     ) -> (Vec<f64>, Vec<bool>, Vec<bool>, Vec<f64>) {
-        let draw =
-            |i: usize, salt: u64| crate::splitmix::keyed_unit_salted(rep as u64, i as u64, salt);
+        let draw = |i: usize, stream_coordinate: u64| {
+            crate::splitmix::keyed_unit_stream(rep as u64, i as u64, stream_coordinate)
+        };
         let mut outcomes = Vec::with_capacity(n);
         let mut assignment = Vec::with_capacity(n);
         let mut received = Vec::with_capacity(n);

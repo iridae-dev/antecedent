@@ -2,11 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    reason = "test fixtures compare exact constants and index with small literals"
-)]
-
 #[test]
 fn review_prior_sensitivity_verdict_is_unit_invariant() {
     let sensitivity = PriorSensitivity { max_relative_range: 0.25, ..PriorSensitivity::default() };
@@ -213,14 +208,15 @@ fn summarize_check_observed_outside_range_never_reports_zero() {
     // range on either side must not collapse the Monte Carlo p-value to
     // exactly 0 (D1: below/n or above/n hitting 0 or 1 exactly).
     let n = 200usize;
+    let n_sims = u32::try_from(n).expect("test simulation count fits in u32");
     let summaries: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect(); // [0, 1)
     let min_p = 2.0 / (n as f64 + 1.0);
 
-    let low = summarize_check(PredictiveCheckKind::Posterior, -10.0, &summaries, n as u32);
+    let low = summarize_check(PredictiveCheckKind::Posterior, -10.0, &summaries, n_sims);
     assert!(low.p_value > 0.0, "p_value must be strictly positive, got {}", low.p_value);
     assert!(low.p_value >= min_p, "p_value {} below the 2/(n+1) floor {min_p}", low.p_value);
 
-    let high = summarize_check(PredictiveCheckKind::Posterior, 10.0, &summaries, n as u32);
+    let high = summarize_check(PredictiveCheckKind::Posterior, 10.0, &summaries, n_sims);
     assert!(high.p_value > 0.0, "p_value must be strictly positive, got {}", high.p_value);
     assert!(high.p_value >= min_p, "p_value {} below the 2/(n+1) floor {min_p}", high.p_value);
 }
@@ -231,8 +227,9 @@ fn summarize_check_observed_near_centre_gives_high_p_value() {
     // the ordinary case: an observation near the middle of the simulated
     // distribution should give a p-value near 1, not just "not exactly 0".
     let n = 200usize;
+    let n_sims = u32::try_from(n).expect("test simulation count fits in u32");
     let summaries: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect(); // [0, 1)
-    let centre = summarize_check(PredictiveCheckKind::Posterior, 0.5, &summaries, n as u32);
+    let centre = summarize_check(PredictiveCheckKind::Posterior, 0.5, &summaries, n_sims);
     assert!(centre.p_value > 0.9, "expected p_value near 1, got {}", centre.p_value);
 }
 
@@ -443,10 +440,10 @@ fn sbc_to_report_gates_on_uniformity_not_just_mean() {
     // pass it. The χ² uniformity statistic must catch it.
     let n_reps = 200u32;
     let n_draws = 100usize;
+    let n_draws_u32 = u32::try_from(n_draws).expect("test draw count fits in u32");
     // Every replicate's rank is pinned at one of the two extremes (bins 0 and 9),
     // alternating — a textbook U shape.
-    let ranks: Vec<u32> =
-        (0..n_reps).map(|i| if i % 2 == 0 { 0 } else { n_draws as u32 }).collect();
+    let ranks: Vec<u32> = (0..n_reps).map(|i| if i % 2 == 0 { 0 } else { n_draws_u32 }).collect();
     let n_d = n_draws as f64;
     let fracs: Vec<f64> = ranks.iter().map(|&r| f64::from(r) / n_d).collect();
     let mean_rank_frac = fracs.iter().sum::<f64>() / fracs.len() as f64;
@@ -455,9 +452,12 @@ fn sbc_to_report_gates_on_uniformity_not_just_mean() {
         "fixture sanity: mean rank frac {mean_rank_frac} should look fine on its own"
     );
     let bins = 10usize;
+    let bins_u64 = u64::try_from(bins).expect("test bin count fits in u64");
+    let n_draws_u64 = u64::try_from(n_draws).expect("test draw count fits in u64");
     let mut counts = vec![0.0; bins];
     for &r in &ranks {
-        let b = ((u64::from(r) * bins as u64) / (n_draws as u64)).min(bins as u64 - 1) as usize;
+        let b = usize::try_from(((u64::from(r) * bins_u64) / n_draws_u64).min(bins_u64 - 1))
+            .expect("test bin index is bounded by the bin count");
         counts[b] += 1.0;
     }
     let expected = f64::from(n_reps) / bins as f64;

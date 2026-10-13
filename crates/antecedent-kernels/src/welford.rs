@@ -201,6 +201,8 @@ mod tests {
         }
         assert_eq!(mean[0].to_bits(), mean_ref[0].to_bits());
         assert_eq!(mean[1].to_bits(), mean_ref[1].to_bits());
-        assert_eq!(m2, m2_ref);
+        // This is a differential against the exact former update order, so bit equality is
+        // the contract rather than an approximate numerical comparison.
+        assert_eq!(m2.map(f64::to_bits), m2_ref.map(f64::to_bits));
     }
 }

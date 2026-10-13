@@ -479,114 +479,114 @@ impl IdIdentifier {
     ) -> Result<IdentificationResult, IdentificationError> {
         antecedent_core::execution_attempt::run_operation(
             antecedent_core::execution_attempt::Operation::Identification,
-            || {
-                crate::execution_counts::note_check();
-                query.validate().map_err(|_| {
-                    IdentificationError::unsupported("invalid average-effect query")
-                })?;
-                let t = prepared.var_to_dense(query.treatment)?;
-                let y = prepared.var_to_dense(query.outcome)?;
-                let mut y_set = BitSet::with_len(prepared.admg().node_count());
-                y_set.insert(y);
-                let mut x_set = BitSet::with_len(prepared.admg().node_count());
-                x_set.insert(t);
-
-                let mut arena = CausalExprArena::new();
-                let mut derivation = DerivationTrace::default();
-                derivation.push("general.id", "Shpitser–Pearl ID for ATE contrast");
-                let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
-                let mut perf = IdentificationPerformanceRecord::default();
-
-                let active = BitSet::full(prepared.admg().node_count());
-                let active_level = intervention_value(&query.active)?;
-                let control_level = intervention_value(&query.control)?;
-
-                let mut side = |assign: Assign,
-                                prepared: &PreparedAdmg,
-                                arena: &mut CausalExprArena,
-                                memo: &mut HashMap<SubproblemKey, IdOutcome>,
-                                derivation: &mut DerivationTrace,
-                                perf: &mut IdentificationPerformanceRecord|
-                 -> Result<IdOutcome, IdentificationError> {
-                    let mut run = IdRun {
-                        prepared,
-                        ancestors: AncestorMemo::default(),
-                        arena,
-                        memo,
-                        derivation,
-                        perf,
-                        ws: &mut workspace.graph,
-                        meter: &mut IdMeter::unmetered(),
-                    };
-                    id_recurse(
-                        &mut run,
-                        IdQuery {
-                            y: &y_set,
-                            x: &x_set,
-                            v: &active,
-                            dist: &DistCtx::Marginal,
-                            assign,
-                        },
-                    )
-                };
-                let left = match side(
-                    Arc::from([(t, active_level)]),
-                    prepared,
-                    &mut arena,
-                    &mut memo,
-                    &mut derivation,
-                    &mut perf,
-                )? {
-                    IdOutcome::Expr(e) => e,
-                    IdOutcome::Fail(hedge) => {
-                        return Ok(not_identified_with_hedge(
-                            CausalQuery::AverageEffect(query.clone()),
-                            derivation,
-                            prepared.declared_assumptions().clone(),
-                            perf,
-                            hedge,
-                        ));
-                    }
-                };
-                let right = match side(
-                    Arc::from([(t, control_level)]),
-                    prepared,
-                    &mut arena,
-                    &mut memo,
-                    &mut derivation,
-                    &mut perf,
-                )? {
-                    IdOutcome::Expr(e) => e,
-                    IdOutcome::Fail(hedge) => {
-                        return Ok(not_identified_with_hedge(
-                            CausalQuery::AverageEffect(query.clone()),
-                            derivation,
-                            prepared.declared_assumptions().clone(),
-                            perf,
-                            hedge,
-                        ));
-                    }
-                };
-
-                let functional = expectation_contrast(&mut arena, query.outcome, left, right)?;
-                let estimand = IdentifiedEstimand::new(
-                    Arc::from(EstimandMethod::GeneralId.as_str()),
-                    Arc::from([]),
-                    Arc::from([]),
-                    Arc::from([]),
-                    functional,
-                    None,
-                );
-                Ok(IdentificationResult::identified(
-                    CausalQuery::AverageEffect(query.clone()),
-                    vec![estimand],
-                    arena,
-                    derivation,
-                    with_causal_markov(&prepared, "general.id"),
-                    perf,
-                ))
-            },
+            || Self::identify_ate_impl(prepared, query, workspace),
         )
+    }
+
+    fn identify_ate_impl(
+        prepared: &PreparedAdmg,
+        query: &AverageEffectQuery,
+        workspace: &mut IdentificationWorkspace,
+    ) -> Result<IdentificationResult, IdentificationError> {
+        crate::execution_counts::note_check();
+        query
+            .validate()
+            .map_err(|_| IdentificationError::unsupported("invalid average-effect query"))?;
+        let t = prepared.var_to_dense(query.treatment)?;
+        let y = prepared.var_to_dense(query.outcome)?;
+        let mut y_set = BitSet::with_len(prepared.admg().node_count());
+        y_set.insert(y);
+        let mut x_set = BitSet::with_len(prepared.admg().node_count());
+        x_set.insert(t);
+
+        let mut arena = CausalExprArena::new();
+        let mut derivation = DerivationTrace::default();
+        derivation.push("general.id", "Shpitser–Pearl ID for ATE contrast");
+        let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
+        let mut perf = IdentificationPerformanceRecord::default();
+
+        let active = BitSet::full(prepared.admg().node_count());
+        let active_level = intervention_value(&query.active)?;
+        let control_level = intervention_value(&query.control)?;
+
+        let mut side = |assign: Assign,
+                        prepared: &PreparedAdmg,
+                        arena: &mut CausalExprArena,
+                        memo: &mut HashMap<SubproblemKey, IdOutcome>,
+                        derivation: &mut DerivationTrace,
+                        perf: &mut IdentificationPerformanceRecord|
+         -> Result<IdOutcome, IdentificationError> {
+            let mut run = IdRun {
+                prepared,
+                ancestors: AncestorMemo::default(),
+                arena,
+                memo,
+                derivation,
+                perf,
+                ws: &mut workspace.graph,
+                meter: &mut IdMeter::unmetered(),
+            };
+            id_recurse(
+                &mut run,
+                IdQuery { y: &y_set, x: &x_set, v: &active, dist: &DistCtx::Marginal, assign },
+            )
+        };
+        let left = match side(
+            Arc::from([(t, active_level)]),
+            prepared,
+            &mut arena,
+            &mut memo,
+            &mut derivation,
+            &mut perf,
+        )? {
+            IdOutcome::Expr(e) => e,
+            IdOutcome::Fail(hedge) => {
+                return Ok(not_identified_with_hedge(
+                    CausalQuery::AverageEffect(query.clone()),
+                    derivation,
+                    prepared.declared_assumptions().clone(),
+                    perf,
+                    hedge,
+                ));
+            }
+        };
+        let right = match side(
+            Arc::from([(t, control_level)]),
+            prepared,
+            &mut arena,
+            &mut memo,
+            &mut derivation,
+            &mut perf,
+        )? {
+            IdOutcome::Expr(e) => e,
+            IdOutcome::Fail(hedge) => {
+                return Ok(not_identified_with_hedge(
+                    CausalQuery::AverageEffect(query.clone()),
+                    derivation,
+                    prepared.declared_assumptions().clone(),
+                    perf,
+                    hedge,
+                ));
+            }
+        };
+
+        let functional = expectation_contrast(&mut arena, query.outcome, left, right)?;
+        let estimand = IdentifiedEstimand::new(
+            Arc::from(EstimandMethod::GeneralId.as_str()),
+            Arc::from([]),
+            Arc::from([]),
+            Arc::from([]),
+            functional,
+            None,
+        );
+        Ok(IdentificationResult::identified(
+            CausalQuery::AverageEffect(query.clone()),
+            vec![estimand],
+            arena,
+            derivation,
+            with_causal_markov(prepared, "general.id"),
+            perf,
+        ))
     }
 
     /// Identify the two-sided contrast
@@ -710,7 +710,7 @@ impl IdIdentifier {
             vec![estimand],
             arena,
             derivation,
-            with_causal_markov(&prepared, "general.id"),
+            with_causal_markov(prepared, "general.id"),
             perf,
         ))
     }
@@ -762,13 +762,13 @@ impl IdIdentifier {
                             vec![estimand],
                             arena,
                             derivation,
-                            with_causal_markov(&prepared, "general.id"),
+                            with_causal_markov(prepared, "general.id"),
                             perf,
                         ))
                     }
                     IdOutcome::Fail(hedge) => {
                         let hedge = hedge
-                            .with_problem(crate::hedge::HedgeProblem::capture(&prepared, x, y)?);
+                            .with_problem(crate::hedge::HedgeProblem::capture(prepared, x, y)?);
                         Ok(not_identified_with_hedge(
                             query,
                             derivation,

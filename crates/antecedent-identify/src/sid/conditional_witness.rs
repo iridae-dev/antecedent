@@ -672,7 +672,7 @@ fn reconstruct(a: u64) -> Option<Q> {
     (fp_of(q)? == a).then_some(q)
 }
 
-/// SplitMix64 starting at `state`, the same step as [`antecedent_core::CausalRng`].
+/// `SplitMix64` starting at `state`, the same step as [`antecedent_core::CausalRng`].
 fn witness_rng(state: u64) -> antecedent_core::CausalRng {
     antecedent_core::CausalRng::from_state(state)
 }

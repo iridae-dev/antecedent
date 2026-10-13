@@ -18,26 +18,26 @@ pub(crate) const fn seed_mix(seed: u64) -> u64 {
 /// fixtures are combined as `(replicate + 1)·GOLDEN_GAMMA ^ (index + 1)·INDEX_GAMMA`.
 pub(crate) const INDEX_GAMMA: u64 = 0xD1B5_4A32_D192_ED03;
 
-/// Multiplier of the third key coordinate (a salt) of the test-fixture stream key.
+/// Multiplier of the third stream coordinate of the test-fixture key.
 #[cfg(test)]
-pub(crate) const SALT_GAMMA: u64 = 0xA076_1D64_78BD_642F;
+pub(crate) const STREAM_GAMMA: u64 = 0xA076_1D64_78BD_642F;
 
 /// A uniform draw in `[0, 1)` keyed by `(replicate, index)`, so every fixture row of every
 /// replicate is a pure function of its coordinates (test fixtures).
 #[cfg(test)]
 #[must_use]
 pub(crate) fn keyed_unit(replicate: u64, index: u64) -> f64 {
-    keyed_unit_salted(replicate, index, 0)
+    keyed_unit_stream(replicate, index, 0)
 }
 
-/// [`keyed_unit`] with a third coordinate `salt` (zero reproduces [`keyed_unit`]).
+/// [`keyed_unit`] with a third stream coordinate (zero reproduces [`keyed_unit`]).
 #[cfg(test)]
 #[must_use]
-pub(crate) fn keyed_unit_salted(replicate: u64, index: u64, salt: u64) -> f64 {
+pub(crate) fn keyed_unit_stream(replicate: u64, index: u64, stream_coordinate: u64) -> f64 {
     unit_f64(mix64(
         replicate.wrapping_add(1).wrapping_mul(GOLDEN_GAMMA)
             ^ index.wrapping_add(1).wrapping_mul(INDEX_GAMMA)
-            ^ salt.wrapping_mul(SALT_GAMMA),
+            ^ stream_coordinate.wrapping_mul(STREAM_GAMMA),
     ))
 }
 

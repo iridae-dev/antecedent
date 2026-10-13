@@ -153,8 +153,14 @@ impl IdcIdentifier {
 
         let problem = IdcProblem { id: &self.inner, prepared, known_values: &known_values };
         let surgical = mutilate_bar_x(prepared.admg(), &x)?;
-        let expr_result =
-            idc_recurse(&problem, &y, &x, &z, &surgical, workspace, &mut derivation, &mut perf)?;
+        let expr_result = idc_recurse(
+            &problem,
+            &y,
+            &x,
+            &z,
+            &surgical,
+            &mut IdcRun { workspace, derivation: &mut derivation, perf: &mut perf },
+        )?;
 
         match expr_result {
             IdcOk::Identified { functional, arena } => {
@@ -205,18 +211,23 @@ struct IdcProblem<'a> {
     known_values: &'a std::collections::BTreeMap<VariableId, Value>,
 }
 
+/// Mutable workspaces and diagnostics shared by every step of one IDC search.
+struct IdcRun<'a> {
+    workspace: &'a mut IdentificationWorkspace,
+    derivation: &'a mut DerivationTrace,
+    perf: &'a mut IdentificationPerformanceRecord,
+}
+
 fn idc_recurse(
     problem: &IdcProblem<'_>,
     y: &BitSet,
     x: &BitSet,
     z: &BitSet,
     surgical: &Admg,
-    workspace: &mut IdentificationWorkspace,
-    derivation: &mut DerivationTrace,
-    perf: &mut IdentificationPerformanceRecord,
+    run: &mut IdcRun<'_>,
 ) -> Result<IdcOk, IdentificationError> {
     let IdcProblem { id, prepared, known_values } = *problem;
-    perf.candidates_examined = perf.candidates_examined.saturating_add(1);
+    run.perf.candidates_examined = run.perf.candidates_examined.saturating_add(1);
 
     // Line 1: move Z∈Z into intervention when Y ⊥ Z | X, Z\{Z} in G_{\bar X \underline Z}.
     // `surgical` is G_{\bar X}. A candidate whose node has no outgoing edge in that
@@ -234,24 +245,24 @@ fn idc_recurse(
             candidate = drop_outgoing_from(surgical, z_node)?;
             &candidate
         };
-        if y_separated_from(graph, y, z_node, &cond, &mut workspace.dsep)? {
-            derivation.push(
+        if y_separated_from(graph, y, z_node, &cond, &mut run.workspace.dsep)? {
+            run.derivation.push(
                 "general.idc.line1",
                 format!("insert Z={} into intervention (rule 2)", z_node.raw()),
             );
             let mut x2 = x.clone();
             x2.insert(z_node);
             let surgical = mutilate_bar_x(prepared.admg(), &x2)?;
-            return idc_recurse(problem, y, &x2, &z_rest, &surgical, workspace, derivation, perf);
+            return idc_recurse(problem, y, &x2, &z_rest, &surgical, run);
         }
     }
 
     // Line 2: P' = ID(Y∪Z, X); return P'/∑_Y P'
-    derivation.push("general.idc.line2", "reduce to ID on Y∪Z");
+    run.derivation.push("general.idc.line2", "reduce to ID on Y∪Z");
     let mut yz = y.clone();
     yz.union_with(z);
     let q = distribution_query_from_sets(prepared, &yz, x, known_values)?;
-    let id_res = id.identify(prepared, &q, workspace)?;
+    let id_res = id.identify(prepared, &q, run.workspace)?;
     if id_res.status != IdentificationStatus::NonparametricallyIdentified {
         return Ok(IdcOk::NotIdentified(id_res));
     }

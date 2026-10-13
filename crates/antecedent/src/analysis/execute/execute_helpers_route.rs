@@ -44,7 +44,7 @@ fn first_target(
     query_kind: &'static str,
 ) -> Result<VariableId, CausalError> {
     targets.first().copied().ok_or_else(|| CausalError::Compile {
-        message: format!("{query_kind} query declares no target variable"),
+        message: [query_kind, " query declares no target variable"].concat(),
     })
 }
 
