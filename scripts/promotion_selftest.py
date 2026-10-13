@@ -21,6 +21,7 @@ Rust and body-analysis fixtures cite synthetic test files outside the repo, reso
 statically (PROMOTION_SYNTHETIC_EVIDENCE), so the self-test does not depend on any
 cargo target compiling. Committed files are never written.
 """
+import ast
 import os
 import re
 import subprocess
@@ -866,12 +867,95 @@ def committed() -> tuple[bool, str]:
     return True, "self-test ok: the committed registry passes the checker"
 
 
+_PROBLEM_HELPERS = {
+    "rust_assertion_problems",
+    "python_assertion_problems",
+    "assertion_problems",
+}
+
+
+def _literal_rule_tuple(node: ast.AST) -> str | None:
+    if (
+        isinstance(node, ast.Tuple)
+        and len(node.elts) == 2
+        and isinstance(node.elts[0], ast.Constant)
+        and isinstance(node.elts[0].value, str)
+        and re.fullmatch(r"[a-z_]+", node.elts[0].value)
+    ):
+        return node.elts[0].value
+    return None
+
+
+def _helper_problem_tuples(function: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
+    """Rule ids in literal (rule, message) tuples emitted by an assertion helper."""
+    parents = {child: node for node in ast.walk(function) for child in ast.iter_child_nodes(node)}
+    rules: set[str] = set()
+    for node in ast.walk(function):
+        rule = _literal_rule_tuple(node)
+        if rule is None:
+            continue
+        parent = parents.get(node)
+        if isinstance(parent, ast.Call) and isinstance(parent.func, ast.Attribute):
+            if parent.func.attr == "append" and node in parent.args:
+                rules.add(rule)
+        elif isinstance(parent, ast.List):
+            list_parent = parents.get(parent)
+            if isinstance(list_parent, ast.Return):
+                rules.add(rule)
+    return rules
+
+
+def _used_rule_ids(checker_source: str, source_source: str) -> set[str]:
+    """Find literal fail() rules and rule tuples returned by known source helpers."""
+    checker_tree = ast.parse(checker_source)
+    source_tree = ast.parse(source_source)
+    used = {
+        node.args[0].value
+        for node in ast.walk(checker_tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "fail"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and isinstance(node.args[0].value, str)
+        and re.fullmatch(r"[a-z_]+", node.args[0].value)
+    }
+    for function in ast.walk(source_tree):
+        if (
+            isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and function.name in _PROBLEM_HELPERS
+        ):
+            used |= _helper_problem_tuples(function)
+    return used
+
+
+def _rule_id_extractor_controls() -> list[str]:
+    checker = '''
+def valid():
+    fail("direct_rule", "reported")
+# fail("comment_rule", "not code")
+DECOY = 'fail("string_rule", "not code")'
+'''
+    source = '''
+def rust_assertion_problems():
+    problems = []
+    problems.append(
+        ("evidence_should_panic", "real multiline helper tuple")
+    )
+    # problems.append(("comment_helper_rule", "not code"))
+    decoy = 'problems.append(("string_helper_rule", "not code"))'
+    return problems
+'''
+    found = _used_rule_ids(checker, source)
+    expected = {"direct_rule", "evidence_should_panic"}
+    return [] if found == expected else [f"AST rule-id controls found {found!r}, expected {expected!r}"]
+
+
 def rule_ids() -> tuple[list[str], set[str]]:
     listed = subprocess.run([sys.executable, str(CHECKER), "--list-rules"], capture_output=True, text=True, check=True).stdout.split()
-    used = set(re.findall(r'\bfail\(\s*"([a-z_]+)"', CHECKER.read_text(encoding="utf-8")))
-    # rules the source analysers hand back as (rule, message) pairs
-    used |= {r for r in listed if f'("{r}",' in (ROOT / "scripts/promotion_source.py").read_text(encoding="utf-8")}
-    return listed, used
+    checker_source = CHECKER.read_text(encoding="utf-8")
+    source_source = (ROOT / "scripts/promotion_source.py").read_text(encoding="utf-8")
+    return listed, _used_rule_ids(checker_source, source_source)
 
 
 def coverage_problems() -> list[str]:
@@ -879,7 +963,8 @@ def coverage_problems() -> list[str]:
     == the ids the cases are tagged with."""
     listed, used = rule_ids()
     tags = {c[0] for c in cases}
-    problems = [f"rule {r} is in RULES but never reported by fail()" for r in listed if r not in used]
+    problems = _rule_id_extractor_controls()
+    problems += [f"rule {r} is in RULES but never reported by fail()" for r in listed if r not in used]
     problems += [f"rule {r} is reported by fail() but missing from RULES" for r in sorted(used - set(listed))]
     problems += [f"rule {r} has no self-test case tagged with it" for r in listed if r not in tags]
     problems += [f"a self-test case is tagged with unknown rule {r}" for r in sorted(tags - set(listed))]
