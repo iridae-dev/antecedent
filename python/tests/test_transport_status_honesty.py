@@ -1,11 +1,10 @@
 """Regression tests: transport results must publish only native scientific status.
 
 Covers four related defects where the Python wrap layer authored a status
-instead of reading it from the native execution: a fabricated analytic SE
-(``python-pkg-1``), an unauthenticated export/load round trip
-(``python-pkg-2``), a catalog-search error rendered as "identified"
-(``python-pkg-3``), and identification/validation defaults that look like a
-pass when nothing was actually checked (``python-pkg-4``).
+instead of reading it from the native execution: a fabricated analytic SE, an
+unauthenticated export/load round trip, a catalog-search error rendered as
+"identified", and identification/validation defaults that look like a pass
+when nothing was actually checked.
 """
 
 from __future__ import annotations
@@ -87,7 +86,7 @@ def _statistical():
     )
 
 
-# --- python-pkg-1: fabricated se_analytic = 0.0 -----------------------------
+# --- fabricated se_analytic = 0.0 -------------------------------------------
 
 # No response-family query reachable through the public ``Transport`` surface
 # lowers to the plug-in "scalar" shape today: ``ResponseCurve`` refuses a
@@ -210,7 +209,7 @@ def test_exact_contrast_never_reports_a_fabricated_analytic_se():
     assert not math.isfinite(result.estimate.se_analytic)
 
 
-# --- python-pkg-4(b): validation defaults to passed=True when nothing ran --
+# --- validation defaults to passed=True when nothing ran -------------------
 
 
 def test_transport_validation_never_claims_passed_when_nothing_ran():
@@ -219,7 +218,7 @@ def test_transport_validation_never_claims_passed_when_nothing_ran():
     assert result.validation.passed is False
 
 
-# --- python-pkg-4(a): identification never defaults to identified ----------
+# --- identification never defaults to identified ---------------------------
 
 
 def test_identification_view_fails_closed_with_no_native_stage():
@@ -232,7 +231,7 @@ def test_identification_view_fails_closed_with_no_native_stage():
     assert view_empty_stage.status == "NotIdentified"
 
 
-# --- python-pkg-3: catalog-search error must not read as "identified" ------
+# --- catalog-search error must not read as "identified" --------------------
 
 
 def test_catalog_search_failure_is_reported_incomplete_not_identified():
@@ -273,7 +272,7 @@ def test_catalog_search_unrecognized_error_propagates():
         _day1.inspect_catalog = original
 
 
-# --- python-pkg-2: export/load must verify through the native consumer -----
+# --- export/load must verify through the native consumer -------------------
 
 
 def test_transport_export_is_verified_natively_not_a_bare_json_blob():

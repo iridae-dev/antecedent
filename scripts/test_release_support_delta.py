@@ -31,7 +31,7 @@ class ReleaseSupportDeltaTests(unittest.TestCase):
 
     def compare(self, cells, inventory, count=2, *, frozen=True):
         with tempfile.TemporaryDirectory() as directory:
-            baseline = Path(directory) / "v2.2.0.md"
+            baseline = Path(directory) / "v9.8.6.md"
             baseline.write_text(
                 f"{FROZEN_BEGIN if frozen else ''}\n{count} licensed of 4 meaningful cells\n\n{inventory}\n{FROZEN_END}",
                 encoding="utf-8",
@@ -70,14 +70,14 @@ class ReleaseSupportDeltaTests(unittest.TestCase):
     def test_delta_baseline_applies_to_the_older_inventory(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "v2.2.0.md").write_text(
+            (root / "v9.8.6.md").write_text(
                 f"{FROZEN_BEGIN}\n2 licensed of 4 meaningful cells\n\n{self.inventory}\n{FROZEN_END}",
                 encoding="utf-8",
             )
             added = "- `AverageEffect` × `Dag` × `accepted` × `Frequentist` × validation `none`"
-            (root / "v2.3.0.md").write_text(
+            (root / "v9.8.7.md").write_text(
                 f"{FROZEN_BEGIN}\n"
-                "Changes to generic analysis support since 2.2.0: 1 added coordinates, 0 removed coordinates.\n\n"
+                "Changes to generic analysis support since 9.8.6: 1 added coordinates, 0 removed coordinates.\n\n"
                 "### Added analysis coordinates\n\n"
                 f"{added}\n"
                 f"{FROZEN_END}",
@@ -92,7 +92,7 @@ class ReleaseSupportDeltaTests(unittest.TestCase):
                         self.cell("Admg", "accepted"),
                     ],
                     self.axes,
-                    root / "v2.3.0.md",
+                    root / "v9.8.7.md",
                 )
             )
         self.assertIn("1 added coordinates, 0 removed coordinates", rendered)
