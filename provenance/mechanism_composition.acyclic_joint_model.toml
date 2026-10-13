@@ -1,0 +1,30 @@
+feature_id = "mechanism_composition.acyclic_joint_model"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Causality: Models, Reasoning, and Inference (2nd ed.)", doi = "10.1017/CBO9780511803161", sections = ["Chapter 1: structural equations and Markovian factorization", "Chapter 3: truncated factorization under intervention", "Chapter 7: structural submodels and the effect of action"] },
+  { title = "Structural Equations with Latent Variables", doi = "10.1002/9781118619179", sections = ["Chapter 2: covariances and path analysis of linear structural equations"] },
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations", doi = "10.1214/14-STS486", sections = ["Selection diagrams and S-admissibility: a mechanism with no selection arrow into its variable is invariant"] },
+]
+
+implementation_deviations = [
+  "Composition is a bounded construction from these results, not an implementation of a published algorithm: one family per composition (additive-noise linear-Gaussian, or finite conditional tables), acyclic graphs only, no unobserved confounding other than declared unit-variance Gaussian latents with declared loadings.",
+  "Mean and covariance are exact path-algebra sums of the declared parameters (Bollen path analysis) and the finite law is the exact Markov factorization with truncated factorization for do(); there is no estimation step in composition.",
+  "Parameter uncertainty is propagated by the first-order delta method (Casella and Berger, Statistical Inference 2nd ed., section 5.5.4) for linear contrasts of interventional means only. The functional is multilinear in the parameters, so second-order terms are omitted; residual scales are held fixed. The result is a parameter-covariance variance, not an interval, and carries no coverage claim.",
+  "Population and regime admission represents a declared selection diagram or an explicit invariance assumption; it does not decide transportability. A selection arrow into a variable refuses its mechanism; a mechanism with a shared latent is admitted only by an explicit invariance declaration because S-admissibility given only the parent set is not established in the presence of a latent.",
+  "Separately fitted mechanisms are never assumed independent. Posterior dependence is a declaration (aligned joint law, explicit cross-mechanism covariance for every pair, or independence by design with a justification and distinct evidence identities); otherwise an uncertainty claim over more than one mechanism is refused.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "hand-computed linear-Gaussian chain with total covariance and interventional laws",
+  "independently coded brute-force enumeration of a finite structural causal model",
+  "crates/antecedent-model/tests/mechanism_composition.rs",
+  "crates/antecedent-contract/src/mechanism_composition.rs",
+  "crates/antecedent-io-core/tests/mechanism_composition_artifact.rs",
+]
