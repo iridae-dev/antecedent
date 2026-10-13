@@ -8,6 +8,7 @@ honest about where they stop:
 | Transported path-specific effect, affine-additive class | `antecedent.transported_counterfactual` | point-only under a fully specified structural fit; calibration unmeasured |
 | Selection differences and invariances behind each scenario answer | `antecedent.scenario_invariance` | derived report, nothing sealed |
 | Learned joint source-target transport | `antecedent.transport.advanced.learned_joint_transport` | measured scalar carrier only at a current, matching record; underlying posterior remains model-conditional |
+| General finite counterfactual transport (Rust: `antecedent::prepare_counterfactual_transport`; no Python entry yet) | not available from Python | exact point of a nested or conditional counterfactual probability from exact finite laws; no interval, posterior or calibration |
 
 For the ordinary transport compiler (`transport.Transport(...)`) see
 [transport and interference](transport-interference.md) and
@@ -135,6 +136,108 @@ except TransportedCounterfactualRefusal as refusal:
 `effect.identity` the digests a consumer retains. `consume_transported_counterfactual_artifact(data,
 expected_identity=effect.identity)` replays it and refuses a resealed change to any
 field.
+
+## General finite counterfactual transport
+
+The affine-additive route above needs a fitted structural model. The general
+finite route needs none: it answers a nested or conditional counterfactual
+probability of the **target** population, such as `P*(Y_{x, M_{x'}} = y)`, a
+natural direct or indirect effect contrast, or an effect of treatment on the
+treated, from *labelled laws* alone.
+
+Declared, and nothing else is accepted:
+
+- finitely many observed variables (at most 8) with declared levels (at most 4
+  each) on an acyclic graph with bidirected edges for latent confounding;
+- a selection diagram per source population: the variables whose mechanism may
+  differ between that source and the target, and the variables the source can
+  experiment on;
+- evidence regimes labelled by population and intervention set, each an exact
+  finite joint law (one law per intervention level). Evidence of one population
+  never stands in for another, and separate marginals never create a
+  cross-world law.
+
+The decision is a sound, bounded procedure, not a complete one. A formula is
+returned only when every factor it needs is either invariant (no selection
+target lies in it, so a source law transports) or derivable from the target's
+own laws. The outcomes are kept apart:
+
+| Outcome | Meaning | Reason code |
+| --- | --- | --- |
+| identified | a checked derivation exists from the supplied laws | none |
+| proven non-transportable | two finite models agree on every regime of the declared family and differ on the query, re-verified by exact enumeration | `transport_proven_non_transportable` |
+| missing evidence | a derivation exists if the named declared regimes were supplied | `transport_missing_evidence` |
+| not certified | the bounded search found neither a derivation nor a witness; this is not a proof | `transport_not_certified` |
+| out of contract | more than the bounds above, cyclic, continuous, temporal or sampled | `route_not_supported` |
+| stopped | operations, depth, memory or cancellation | `transport_budget_cancel` |
+
+```rust
+use antecedent::{
+    CounterfactualTransportConsumption, CounterfactualTransportOptions,
+    CounterfactualTransportPreparation, consume_counterfactual_transport_artifact,
+    prepare_counterfactual_transport,
+};
+
+// Decide once. `evidence` may be None: bind laws later with `refresh`.
+let decided = prepare_counterfactual_transport(
+    &problem, &query, &catalog, Some(laws), &CounterfactualTransportOptions::default(), &ctx,
+)?;
+let CounterfactualTransportPreparation::Identified(prepared) = decided else {
+    // a proven obstruction: `report.verify()` re-checks the witness, `report.export_artifact()`
+    // seals it
+    return Ok(());
+};
+let result = prepared.estimate(&ctx)?;
+let probability = result.probability(); // exact finite-law value
+
+// Changed numbers at the same shape: no search again, the numerical state is rebuilt.
+let refreshed = prepared.refresh(new_laws, &ctx)?;
+
+// Export, and replay from bytes plus an identity you hold independently.
+let bytes = result.export_artifact()?;
+let identity = result.identity()?;
+let consumed = consume_counterfactual_transport_artifact(
+    &bytes, &identity, Default::default(), &ctx,
+)?;
+```
+
+An exact law whose conditioning event has zero mass is a support failure, never
+an extended value, and a law at an intervention level nobody supplied is a
+missing provider, never a guessed table. A counted, empirical or posterior law is
+refused (`cell_not_licensed`): sampled counterfactual transport is a separate
+route and this one publishes no interval and no posterior.
+
+### Export and replay of the general route
+
+The `counterfactual_transport_v1` artifact keeps the model class, the query with
+its selection diagram, the complete evidence catalog and the law tables, the
+derivation with its search receipt, and the point with the identity of every law
+it read; an obstruction keeps the two-model witness instead. Two digests bind it:
+the premises digest (model class, query, names, search and evaluation limits and
+the conclusion) and the data digest (catalog and law tables). A consumer that
+holds the bytes and an expected identity re-decides under the stored limits,
+requires the identical derivation, recomputes the point bit for bit, and
+re-verifies a witness by exact enumeration. Another version or required feature,
+an unknown field, stored limits above the consumer's, an unexpected identity, or
+a resealed query, selection, table or derivation mutation is refused with the
+slot that failed named.
+
+Replay detects corruption and resealed edits that change the answer. It does not
+detect a producer that seals a wrong graph, query or law on purpose, and it does
+not detect an error in the identification theory shared by producer and
+consumer; the independent check is the finite-SCM enumeration in the tests.
+
+### What consumes a transported counterfactual probability
+
+The result is a point. The inverse-outcome query and the decision contract do
+not take it as a forward source today (no API accepts it); a typed adapter that
+carries the point-only label and refuses a request that needs a law or an
+interval is scheduled with the inverse-query and decision-consumption work.
+
+The producer row `counterfactual_transport_result` (a `CounterfactualTransportResult`
+or its exported artifact) joins [the producer and consumer matrix](producer-consumer-matrix.md)
+with the Python producer; until then its consumer cells are the REFUSED-by-absence
+state described above, not an unconsidered one, and nothing there executes it.
 
 ## Scenario invariance report
 
