@@ -35,6 +35,11 @@ elif 'nextest' in args:
     (bin_dir / "cargo-nextest").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8", newline="\n")
     (bin_dir / "cargo-nextest").chmod(0o755)
     (root / "crates/example/src").mkdir(parents=True)
+    (root / "crates/example/Cargo.toml").write_text(
+        '[package]\nname = "example"\nversion = "0.1.0"\nedition = "2021"\n',
+        encoding="utf-8",
+        newline="\n",
+    )
     (root / "crates/example/src/lib.rs").write_text("#[test] fn evidence_test() {}\n", encoding="utf-8", newline="\n")
     (root / "evidence.toml").write_text("""[[fixture_evidence]]
 id = "first"

@@ -4201,7 +4201,7 @@ estimators = ["linear.adjustment.ate"]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
-evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
+evidence_test = "crates/antecedent/src/analysis/execute/tests.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture_frequentist"
 checked_execution = [
   { estimator = "linear.adjustment.ate", test = "crates/antecedent/tests/checked_graph_posterior_effect_route_evidence.rs", assertion = "frequentist_dag_graph_posterior_effect_is_sealed_and_preserves_graph_mass" },
@@ -4219,7 +4219,7 @@ estimators = ["linear.adjustment.ate"]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
-evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
+evidence_test = "crates/antecedent/src/analysis/execute/tests.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture_frequentist"
 checked_execution = [
   { estimator = "linear.adjustment.ate", test = "crates/antecedent/tests/checked_graph_posterior_effect_route_evidence.rs", assertion = "frequentist_dag_graph_posterior_effect_is_sealed_and_preserves_graph_mass" },
@@ -4237,7 +4237,7 @@ estimators = ["linear.adjustment.ate"]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
-evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
+evidence_test = "crates/antecedent/src/analysis/execute/tests.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture_frequentist"
 checked_execution = [
   { estimator = "linear.adjustment.ate", test = "crates/antecedent/tests/checked_graph_posterior_effect_route_evidence.rs", assertion = "frequentist_dag_graph_posterior_effect_is_sealed_and_preserves_graph_mass" },
@@ -4255,7 +4255,7 @@ estimators = ["bayesian.gcomp"]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
-evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
+evidence_test = "crates/antecedent/src/analysis/execute/tests.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_dag_graph_posterior_ate_route_evidence.rs", assertion = "bayesian_dag_graph_posterior_ate_is_sealed_across_validation_lifecycle" },
@@ -4273,7 +4273,7 @@ estimators = ["bayesian.gcomp"]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
-evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
+evidence_test = "crates/antecedent/src/analysis/execute/tests.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_dag_graph_posterior_ate_route_evidence.rs", assertion = "bayesian_dag_graph_posterior_ate_is_sealed_across_validation_lifecycle" },
@@ -4291,7 +4291,7 @@ estimators = ["bayesian.gcomp"]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
-evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
+evidence_test = "crates/antecedent/src/analysis/execute/tests.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_dag_graph_posterior_ate_route_evidence.rs", assertion = "bayesian_dag_graph_posterior_ate_is_sealed_across_validation_lifecycle" },

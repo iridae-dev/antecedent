@@ -38,6 +38,7 @@ from pathlib import Path
 import _py_closure
 import _rust_source as _rust
 from _repo import REPO_ROOT as ROOT
+from _repo import cargo_target_feature_args
 
 PARSE_MARKERS = re.compile(
     r"serde_json::from_str|serde_json::from_slice|from_str::<|json\.loads|"
@@ -244,6 +245,22 @@ def _declared_modules(path: Path) -> list[tuple[Path, bool]]:
         if any(_disabling_cfg(b.attrs) for b in around):
             continue
         test_only = _is_cfg_test(attrs) or any(_is_cfg_test(b.attrs) for b in around)
+        declared_path = _rust_path_attribute(attrs)
+        if declared_path is not None:
+            # For this reader, honor `#[path]` only on a declaration at file
+            # scope. Nested module path bases depend on Rust's inline-module
+            # directory rules; guessing from `path.parent` could attest a file
+            # the compiler did not include.
+            if around:
+                continue
+            candidate = (path.parent / declared_path).resolve()
+            try:
+                candidate.relative_to(ROOT.resolve())
+            except ValueError:
+                continue
+            if candidate.is_file():
+                out.append((candidate, test_only))
+            continue
         if path.name in ("mod.rs", "lib.rs", "main.rs") or path.parent.name == "tests":
             base = path.parent
         else:
@@ -253,6 +270,28 @@ def _declared_modules(path: Path) -> list[tuple[Path, bool]]:
                 out.append((cand.resolve(), test_only))
                 break
     return out
+
+
+def _rust_path_attribute(attrs: list[str]) -> str | None:
+    """Read a literal `#[path = "..."]`; comments and string decoys are absent from attrs."""
+    for attr in attrs:
+        match = re.fullmatch(r"#\[\s*path\s*=\s*(.*?)\s*\]", attr, re.S)
+        if not match:
+            continue
+        literal = match.group(1)
+        if literal.startswith('r'):
+            raw = re.fullmatch(r'r(#{0,})"(.*?)"\1', literal, re.S)
+            if raw:
+                return raw.group(2)
+            return None
+        if not literal.startswith('"'):
+            return None
+        try:
+            value = ast.literal_eval(literal)
+        except (SyntaxError, ValueError):
+            return None
+        return value if isinstance(value, str) else None
+    return None
 
 
 @functools.cache
@@ -289,19 +328,27 @@ def target_root(path: Path) -> tuple[Path, str, list[str]] | None:
     if rel[2] == "tests":
         tests_dir = crate_dir / "tests"
         if len(rel) == 4:
-            return tests_dir / rel[3], crate, ["--test", Path(rel[3]).stem]
+            target = ["--test", Path(rel[3]).stem]
+            target.extend(cargo_target_feature_args(crate_dir / "Cargo.toml", target))
+            return tests_dir / rel[3], crate, target
         main = tests_dir / rel[3] / "main.rs"
         if main.is_file():
-            return main, crate, ["--test", rel[3]]
+            target = ["--test", rel[3]]
+            target.extend(cargo_target_feature_args(crate_dir / "Cargo.toml", target))
+            return main, crate, target
         # A file under tests/<dir>/ is compiled only as a module of some target.
         for top in sorted(tests_dir.glob("*.rs")):
             if path in target_files(top.resolve()):
-                return top, crate, ["--test", top.stem]
+                target = ["--test", top.stem]
+                target.extend(cargo_target_feature_args(crate_dir / "Cargo.toml", target))
+                return top, crate, target
         return None
     if rel[2] == "src":
         lib = crate_dir / "src" / "lib.rs"
         if lib.is_file():
-            return lib, crate, ["--lib"]
+            target = ["--lib"]
+            target.extend(cargo_target_feature_args(crate_dir / "Cargo.toml", target))
+            return lib, crate, target
     return None
 
 
@@ -642,6 +689,39 @@ def _rust_index(root_file: Path) -> dict[str, list[tuple[Path, RustItem]]]:
 _REF = re.compile(
     r"(?<![.:\w])([A-Za-z_]\w*)\s*(?:\(|!|::<)|\b([A-Z][A-Z0-9_]{2,})\b|(?<=[(,])\s*([a-z_]\w*)\s*(?=[,)])"
 )
+_QUALIFIED_FN = re.compile(r"(?<![.:\w])([A-Za-z_]\w*)::([A-Za-z_]\w*)\s*\(")
+
+
+def _declared_module_file(path: Path, name: str) -> Path | None:
+    """Resolve one enabled module declared directly in `path` (including `#[path]`)."""
+    masked, items = rust_items(path)
+    blocks = [it for it in items if it.kind == "mod"]
+    for match in _MOD_DECL.finditer(masked.skeleton):
+        if match.group(1) != name:
+            continue
+        attrs = _attrs_before(masked.skeleton, masked.code, match.start())
+        if _disabling_cfg(attrs):
+            continue
+        around = [b for b in blocks if b.body[0] < match.start() < b.body[1]]
+        if around:
+            continue
+        declared_path = _rust_path_attribute(attrs)
+        if declared_path is not None:
+            candidate = (path.parent / declared_path).resolve()
+            try:
+                candidate.relative_to(ROOT.resolve())
+            except ValueError:
+                return None
+            return candidate if candidate.is_file() else None
+        if path.name in ("mod.rs", "lib.rs", "main.rs") or path.parent.name == "tests":
+            base = path.parent
+        else:
+            base = path.with_suffix("")
+        for candidate in (base / f"{name}.rs", base / name / "mod.rs"):
+            if candidate.is_file():
+                return candidate.resolve()
+        return None
+    return None
 
 
 @functools.cache
@@ -689,6 +769,34 @@ def _rust_closure_parts(path: Path, name: str) -> tuple[str, str]:
         for ref in refs:
             if ref != it.name:
                 todo.extend(index.get(ref, ()))
+        # A qualified call is normally a method or associated function, so it
+        # is not followed by the unqualified identifier index above. Follow it
+        # only when its prefix is a real module declaration in this file and
+        # the module is part of the current Cargo target.
+        live = set(target_files(root_file))
+        for module_name, function_name in _QUALIFIED_FN.findall(skel):
+            module_file = _declared_module_file(ff, module_name)
+            if module_file is None or module_file not in live:
+                continue
+            module_masked, module_items = rust_items(module_file)
+            module_blocks = [child for child in module_items if child.kind == "mod"]
+            if _file_cfg_disabled(module_masked):
+                continue
+            todo.extend(
+                (module_file, child)
+                for child in module_items
+                if child.kind == "fn" and child.name == function_name
+                and not _disabling_cfg(child.attrs)
+                and not any(
+                    block.body[0] < child.start < block.body[1]
+                    for block in module_blocks
+                )
+                and not any(
+                    block.body[0] < child.start < block.body[1]
+                    and _disabling_cfg(block.attrs)
+                    for block in module_blocks
+                )
+            )
     return "\n".join(out), "\n".join(skel_out)
 
 
@@ -1000,7 +1108,12 @@ _BUILDER_DISCARDS = (
     re.compile(rf"\b{_BUILDER}\s*=\s*None\b", re.I),
 )
 _EXECUTES = re.compile(r"\b(?:execute|estimate(?:_[A-Za-z0-9_]+)?|interval|refresh_series|run|evaluate_exact)\s*\(")
-_INSPECTS_PLAN = re.compile(r"\b(?:program|plan|lowering)\b", re.I)
+_INSPECTS_PLAN = re.compile(
+    r"\b(?:program|plan|lowering)\b"
+    r"|\.logical_plan\b"
+    r"|\.checked_(?:temporal_response_info|temporal_mediation_info|bayesian_basis_cate_query)\b",
+    re.I,
+)
 
 
 def checked_execution_body_problems(body: str, assertion: str) -> list[str]:
@@ -1041,7 +1154,12 @@ def checked_execution_citation_problems(test_rel: str, assertion: str) -> list[s
         return ["test must be Rust or Python test code"]
     if problems:
         return [f"evidence assertion {assertion!r} is not an executing test: {p}" for p in problems]
-    return checked_execution_body_problems(closure(path, assertion), assertion)
+    body = (
+        _rust_closure_parts(path.resolve(), assertion)[1]
+        if path.suffix == ".rs"
+        else closure(path, assertion)
+    )
+    return checked_execution_body_problems(body, assertion)
 
 
 def checked_execution_problems(row: dict) -> list[str]:

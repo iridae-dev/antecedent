@@ -19,6 +19,8 @@ from collections import defaultdict
 from functools import cache
 from pathlib import Path
 
+from _repo import cargo_target_feature_args
+
 root = Path(sys.argv[1]).resolve()
 ledger = Path(sys.argv[2])
 repo = Path(sys.argv[3]).resolve()
@@ -194,6 +196,7 @@ for row in rows:
     else:
         target = ["--lib"]
         module = lib_module(test_rel)
+    target.extend(cargo_target_feature_args(root / "crates" / crate / "Cargo.toml", target))
     name, problem = resolve_rust(crate, target, assertion, test_rel, module)
     if problem:
         failures.append(cid)
