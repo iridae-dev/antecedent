@@ -1,0 +1,18 @@
+feature_id = "composition_verification.revalidated_interval"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: A closed variant: no method is implemented, so there is nothing to cite.
+papers = [
+]
+implementation_deviations = [
+  "Intentionally implements nothing: an interval, posterior or coverage statement for a revalidated or composed claim, and the inheritance of a calibration record by a claim about another target, stay closed until whole-method coverage is measured at the composed coordinate.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-contract/tests/composition_verification.rs",
+  "crates/antecedent/tests/composition_verification_facade.rs",
+]
