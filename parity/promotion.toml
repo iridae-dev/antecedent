@@ -2877,7 +2877,7 @@ owners = ["antecedent-identify", "antecedent-model", "antecedent-io", "anteceden
 prerequisite_records = ["counterfactual.path_specific_edge", "transport.finite_scenario_envelope"]
 identity_inputs = ["transport and cross-world proof IDs", "source/target population", "selection graph", "regimes", "edge assignments", "shared exogenous draws", "snapshots"]
 wire_changes = ["Planned composed artifact binding both proof records and the population map."]
-compatibility = "Existing source counterfactual and transported interventional points remain separate results. The narrow affine additive-noise class (selection only on covariates or the treatment, declared additive noise and shared noise laws) is now the separate promoted record counterfactual.transported_additive with its own route and artifact; this record remains carried_forward and closed for the GENERAL class (nonparametric mechanisms, recanting witnesses, nonlinear additive noise), and its closed gate is unchanged."
+compatibility = "Existing source counterfactual and transported interventional points remain separate results. The narrow affine additive-noise class (selection only on covariates or the treatment, declared additive noise and shared noise laws) is now the separate promoted record counterfactual.transported_additive with its own route and artifact; this record remains carried_forward and its own closed gate is unchanged. The general finite class (nonparametric mechanisms, recanting witnesses, nested and edge-route counterfactual queries over selection diagrams) is answered by the separately promoted successor counterfactual.transport_general (point-only; sampled point route counterfactual.transport_sampled; no interval claim); this record's gate function does not yet redirect to it."
 search = true
 bounds = { cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "joint proof operations", depth_limit = "two-slice proof depth", memory_limit = "live proof and factor bytes" }
 refusals = [
@@ -9472,7 +9472,7 @@ truth_grid_allocation = "No repeated-sampling grid allocated. The only declared 
 [[record]]
 id = "mechanism_composition.acyclic_joint_model"
 capability = "mechanism_composition.acyclic_joint_model"
-status = "in_progress"
+status = "promoted"
 consumer_question = "Do independently fitted conditional mechanisms establish one coherent acyclic joint law, and what does that law say under intervention, with parameter uncertainty propagated only under a declared dependence?"
 theorem = "Pearl (2009) ch. 1 and 7: an acyclic structural model composes mechanisms into one joint law (Markov factorization; truncated factorization under do). Bollen (1989) ch. 2: the implied mean and covariance of a linear structural system are path sums of the structural coefficients. Pearl and Bareinboim (2014): a mechanism of a variable with no selection arrow into it is invariant across the populations of the selection diagram. Composition is exact given the declared mechanisms; nothing is inferred about units, populations, shared causes or dependence. The first-order delta method propagates a declared parameter covariance to a linear contrast of interventional means and omits second-order terms. NOT inherited: any coverage or interval guarantee."
 reference = "provenance/mechanism_composition.acyclic_joint_model.toml"
@@ -9588,7 +9588,7 @@ routes = [
   { name = "antecedent.mechanism_composition.PreparedMechanismComposition.refresh_mechanisms", stage = "prepare", status = "licensed", claim = "point_only" },
   { name = "antecedent.mechanism_composition.PreparedMechanismComposition.export", stage = "representation", status = "licensed", claim = "point_only" },
   { name = "antecedent.mechanism_composition.consume_mechanism_composition_artifact", stage = "consume", status = "licensed", claim = "point_only", covers = ["mechanism_composition_consume"] },
-  { name = "antecedent.mechanism_composition.PreparedMechanismComposition.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_mechanism_composition.py", refusal_assertion = "test_unknown_dependence_stays_unknown_and_refuses_the_uncertainty_claim" },
+  { name = "antecedent.mechanism_composition.PreparedMechanismComposition.interval", stage = "uncertainty", status = "closed", permanent_in_release = true, reason_code = "cell_not_licensed", refusal_test = "python/tests/test_mechanism_composition.py", refusal_assertion = "test_unknown_dependence_stays_unknown_and_refuses_the_uncertainty_claim" },
 ]
 fixtures = [
   { id = "mechanism_composition.acyclic_joint_model.hand_computed_gaussian_chain.positive", role = "positive", intent = "Total covariance and interventional laws of a three-variable linear-Gaussian chain equal the hand-computed path algebra.", evidence_test = "crates/antecedent-model/tests/mechanism_composition.rs", evidence_assertion = "composition_matches_the_hand_computed_gaussian_scm" },
@@ -9664,7 +9664,7 @@ truth_grid_allocation = "No repeated-sampling grid allocated; the declared point
 [[record]]
 id = "evidence_ledger.overlap_accounting"
 capability = "evidence_ledger.overlap_accounting"
-status = "in_progress"
+status = "promoted"
 consumer_question = "Which observations do two pieces of evidence share, and how many does a combined result count once?"
 theorem = "Overlap is set arithmetic over declared row-level observation identities: two sources are independent when both observation sets are known and disjoint, shared when they intersect, and unknown when either set is undeclared (an empty declared set overlaps nothing). A result counts the union of its sources' observations once; the slots a naive count would add beyond the union are reported as repeated. Lineage (duplicate, transform, subset, prior plus likelihood, derived from used data) is checked against the declared rows and resolves undeclared rows from parents. Unknown overlap is never promoted to independent."
 reference = "provenance/evidence_ledger.overlap_accounting.toml"
@@ -9741,7 +9741,7 @@ inference_outputs = []
 [[record]]
 id = "evidence_ledger.statistical_pooling"
 capability = "evidence_ledger.statistical_pooling"
-status = "in_progress"
+status = "promoted"
 consumer_question = "What is the minimum-variance linear pooled estimate of study summaries with a stated covariance, and may these sources be pooled at all?"
 theorem = "Generalized least squares pooling (Aitken 1935) of study estimates y with sampling covariance S: the pooled estimate is 1'S^-1 y / 1'S^-1 1 with variance 1 / 1'S^-1 1; with a diagonal S this is inverse-variance fixed-effect pooling (Borenstein et al. 2009, ch. 11). The covariance is validated symmetric positive semidefinite and refused otherwise; a singular covariance has no weights and is refused. Weights may be negative under strong positive correlation and are reported. The ledger licenses the pooling only when its sources are pairwise independent (known, disjoint observations) or when a declared covariance with cross terms preserves their dependence; unknown overlap and shared rows declared independent are refused. The result is a point with its model-based variance; no interval or coverage is claimed."
 reference = "provenance/evidence_ledger.statistical_pooling.toml"
@@ -9795,9 +9795,9 @@ method = "Generalized least squares pooling by Cholesky solve of the validated c
 implementation_status = "implemented_unmeasured"
 owner = "antecedent-stats"
 operation_or_object = "antecedent_stats::synthesis::fixed_effect_gls"
-public_producers = []
-closed_producers = ["antecedent.evidence_ledger.pool_summaries"]
-independent_consumers = []
+public_producers = ["antecedent.evidence_ledger.pool_summaries"]
+closed_producers = []
+independent_consumers = ["antecedent.evidence_ledger.consume_evidence_ledger_artifact", "evidence_ledger.statistical_pooling.resealed_value.artifact"]
 method_source = "crates/antecedent-stats/src/synthesis.rs; crates/antecedent-contract/src/evidence_ledger.rs"
 truth_design = "Hand-solved closed forms and brute-force or numerical-integration oracles in crates/antecedent-stats/tests/synthesis_oracle.rs; finite fixture checks, not a repeated-sampling study."
 truth_fixtures = ["evidence_ledger.statistical_pooling.gls_two_study.positive", "evidence_ledger.statistical_pooling.inverse_variance.truth", "evidence_ledger.statistical_pooling.covariance_with_cross_terms.positive"]
@@ -9806,8 +9806,8 @@ acceptance_threshold = "Asserted values within the stated absolute tolerances in
 measurement_suite = "crates/antecedent-stats/tests/synthesis_oracle.rs"
 allocated_coverage_records = []
 inherited_coverage_records = []
-boundary = "The route publishes a point value (or an assumption range) only. No interval, posterior or coverage statement is licensed: the interval route is closed under evidence_ledger.pooled_interval until whole-method coverage is measured. The public facade route is not opened by this record."
-activation_disposition = "frozen_record_rust_producer_implemented_public_route_closed"
+boundary = "The route publishes a point value (or an assumption range) only. No interval, posterior or coverage statement is licensed: the interval route is closed under evidence_ledger.pooled_interval until whole-method coverage is measured. The point route is public in Rust and Python and its artifact is replayed by an independent consumer that recomputes the value."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
 allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
 measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
 truth_grid_allocation = "No repeated-sampling grid allocated. The declared point checks are the oracle tests in crates/antecedent-stats/tests/synthesis_oracle.rs."
@@ -9815,7 +9815,7 @@ truth_grid_allocation = "No repeated-sampling grid allocated. The declared point
 [[record]]
 id = "evidence_ledger.random_effects"
 capability = "evidence_ledger.random_effects"
-status = "in_progress"
+status = "promoted"
 consumer_question = "What is the between-study variance and the random-effects pooled mean of independent study summaries?"
 theorem = "DerSimonian-Laird moment estimator tau^2 = max(0, (Q - (k-1)) / C) with Q = sum w (y - mu_FE)^2, w = 1/v and C = W - sum w^2 / W, and restricted maximum likelihood tau^2 from the first stationary point of the restricted likelihood above zero (score 1/2 [sum w^2 (y-mu)^2 - sum w + sum w^2 / W], bisected on a doubling bracket). The pooled mean uses weights 1/(v + tau^2); its variance is conditional on the estimated tau^2 and does not carry the uncertainty of tau^2. I^2 = max(0, (Q - df)/Q). For two studies both estimators equal (d^2 - (v1+v2))/2. Independent sources only; the ledger refuses overlapping or unknown sources. Point values only: no interval is claimed."
 reference = "provenance/evidence_ledger.random_effects.toml"
@@ -9862,9 +9862,9 @@ method = "Moment (DerSimonian-Laird) and restricted-likelihood (bisection of the
 implementation_status = "implemented_unmeasured"
 owner = "antecedent-stats"
 operation_or_object = "antecedent_stats::synthesis::random_effects_dersimonian_laird"
-public_producers = []
-closed_producers = ["antecedent.evidence_ledger.random_effects"]
-independent_consumers = []
+public_producers = ["antecedent.evidence_ledger.random_effects"]
+closed_producers = []
+independent_consumers = ["antecedent.evidence_ledger.consume_evidence_ledger_artifact", "evidence_ledger.random_effects.fresh_consumer.artifact"]
 method_source = "crates/antecedent-stats/src/synthesis.rs; crates/antecedent-contract/src/evidence_ledger.rs"
 truth_design = "Hand-solved closed forms and brute-force or numerical-integration oracles in crates/antecedent-stats/tests/synthesis_oracle.rs; finite fixture checks, not a repeated-sampling study."
 truth_fixtures = ["evidence_ledger.random_effects.dersimonian_laird.positive", "evidence_ledger.random_effects.reml_grid.truth", "evidence_ledger.random_effects.two_study_closed_form.truth"]
@@ -9873,8 +9873,8 @@ acceptance_threshold = "Asserted values within the stated absolute tolerances in
 measurement_suite = "crates/antecedent-stats/tests/synthesis_oracle.rs"
 allocated_coverage_records = []
 inherited_coverage_records = []
-boundary = "The route publishes a point value (or an assumption range) only. No interval, posterior or coverage statement is licensed: the interval route is closed under evidence_ledger.pooled_interval until whole-method coverage is measured. The public facade route is not opened by this record."
-activation_disposition = "frozen_record_rust_producer_implemented_public_route_closed"
+boundary = "The route publishes a point value (or an assumption range) only. No interval, posterior or coverage statement is licensed: the interval route is closed under evidence_ledger.pooled_interval until whole-method coverage is measured. The point route is public in Rust and Python and its artifact is replayed by an independent consumer that recomputes the value."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
 allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
 measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
 truth_grid_allocation = "No repeated-sampling grid allocated. The declared point checks are the oracle tests in crates/antecedent-stats/tests/synthesis_oracle.rs."
@@ -9882,7 +9882,7 @@ truth_grid_allocation = "No repeated-sampling grid allocated. The declared point
 [[record]]
 id = "evidence_ledger.hierarchical_borrowing"
 capability = "evidence_ledger.hierarchical_borrowing"
-status = "in_progress"
+status = "promoted"
 consumer_question = "What do the studies' partially pooled effects and the common mean look like under a normal-normal hierarchical model with a declared prior on the between-study standard deviation?"
 theorem = "y_i | theta_i ~ N(theta_i, v_i), theta_i | mu, tau ~ N(mu, tau^2), mu flat or normal, tau from a declared finite prior. Given tau the posteriors of mu and theta_i are normal in closed form (mu: precision sum 1/(v_i+tau^2) plus the prior precision; theta_i: shrinkage factor B_i = tau^2/(tau^2+v_i), mean B_i y_i + (1-B_i) mu_hat, variance B_i v_i + (1-B_i)^2 Var(mu)); the marginal likelihood of tau is the product of normal densities with mu integrated out. The reported posterior mean and variance are the exact finite mixture over the declared support (Rubin 1981; prior on tau as discussed in Gelman 2006). A continuous prior is an approximation by its support. The ledger requires the likelihood sources pairwise independent and any prior's data origin disjoint from them. The output is a posterior mean and variance: point-only, no credible interval or calibration claim."
 reference = "provenance/evidence_ledger.hierarchical_borrowing.toml"
@@ -9931,9 +9931,9 @@ method = "Exact finite mixture over the declared tau support of closed-form norm
 implementation_status = "implemented_unmeasured"
 owner = "antecedent-stats"
 operation_or_object = "antecedent_stats::synthesis::hierarchical_normal_borrowing"
-public_producers = []
-closed_producers = ["antecedent.evidence_ledger.hierarchical_borrowing"]
-independent_consumers = []
+public_producers = ["antecedent.evidence_ledger.hierarchical_borrowing"]
+closed_producers = []
+independent_consumers = ["antecedent.evidence_ledger.consume_evidence_ledger_artifact", "evidence_ledger.hierarchical_borrowing.unlicensed_method.artifact"]
 method_source = "crates/antecedent-stats/src/synthesis.rs; crates/antecedent-contract/src/evidence_ledger.rs"
 truth_design = "Hand-solved closed forms and brute-force or numerical-integration oracles in crates/antecedent-stats/tests/synthesis_oracle.rs; finite fixture checks, not a repeated-sampling study."
 truth_fixtures = ["evidence_ledger.hierarchical_borrowing.single_tau.positive", "evidence_ledger.hierarchical_borrowing.mixture.truth"]
@@ -9942,8 +9942,8 @@ acceptance_threshold = "Asserted values within the stated absolute tolerances in
 measurement_suite = "crates/antecedent-stats/tests/synthesis_oracle.rs"
 allocated_coverage_records = []
 inherited_coverage_records = []
-boundary = "The route publishes a point value (or an assumption range) only. No interval, posterior or coverage statement is licensed: the interval route is closed under evidence_ledger.pooled_interval until whole-method coverage is measured. The public facade route is not opened by this record."
-activation_disposition = "frozen_record_rust_producer_implemented_public_route_closed"
+boundary = "The route publishes a point value (or an assumption range) only. No interval, posterior or coverage statement is licensed: the interval route is closed under evidence_ledger.pooled_interval until whole-method coverage is measured. The point route is public in Rust and Python and its artifact is replayed by an independent consumer that recomputes the value."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
 allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
 measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
 truth_grid_allocation = "No repeated-sampling grid allocated. The declared point checks are the oracle tests in crates/antecedent-stats/tests/synthesis_oracle.rs."
@@ -9951,7 +9951,7 @@ truth_grid_allocation = "No repeated-sampling grid allocated. The declared point
 [[record]]
 id = "evidence_ledger.transport_provenance"
 capability = "evidence_ledger.transport_provenance"
-status = "in_progress"
+status = "promoted"
 consumer_question = "Does a claim carry its transport identity so that it is never counted as native target data?"
 theorem = "A ledger source may carry a transport identity: source populations, target population, selection-diagram digest and declared assumptions. A source with a transport identity cannot fill a native slot, a source without one cannot fill a transported slot, and a native source and a transported claim that share observations (or are the same source) are refused as counting one source twice, even when a covariance is declared. A result that contains transported sources reports their transport identities; it is not native target evidence. The ledger records and checks identity only: it does not identify or estimate a transported effect (selection diagrams in the sense of Pearl and Bareinboim 2014 belong to the transport routes)."
 reference = "provenance/evidence_ledger.transport_provenance.toml"
@@ -9995,7 +9995,7 @@ inference_outputs = []
 [[record]]
 id = "evidence_ledger.evidence_reuse"
 capability = "evidence_ledger.evidence_reuse"
-status = "in_progress"
+status = "promoted"
 consumer_question = "May a result be cited again in a second analysis without its observations being counted twice?"
 theorem = "A reuse names an existing valid result and reports exactly that result's once-counted mass; citing it n times never multiplies its observations. A stale, withdrawn or replaced result is refused until it is recomputed. Reuse is a distinct operation from pooling and from repeated use of the same observations: it adds no new evidence."
 reference = "provenance/evidence_ledger.evidence_reuse.toml"
@@ -10037,7 +10037,7 @@ inference_outputs = []
 [[record]]
 id = "evidence_ledger.repeated_observation_use"
 capability = "evidence_ledger.repeated_observation_use"
-status = "in_progress"
+status = "promoted"
 consumer_question = "May the same observations serve a later stage of one workflow, and is the later result independent confirmation?"
 theorem = "A repeated-use result is licensed only as a declaration: the named sources must have known observations (so their repeated use can be accounted), the result counts each observation once, and it is flagged data_reuse. The flag is inherited by every citation. It is never independent confirmation and is not a pooling of the stages."
 reference = "provenance/evidence_ledger.repeated_observation_use.toml"
@@ -10079,7 +10079,7 @@ inference_outputs = []
 [[record]]
 id = "evidence_ledger.revision"
 capability = "evidence_ledger.revision"
-status = "in_progress"
+status = "promoted"
 consumer_question = "What happens to dependent claims when a source is updated, replaced, withdrawn or superseded?"
 theorem = "Each ledger operation (add, update, replace, withdraw, supersede, revalidate-downstream) is applied atomically, has an identity chained to the previous operation, and reports its downstream effect as a classification of every result: still_valid (nothing it rests on changed), recompute (an input changed and a successor exists) or withdrawn (an input it cannot do without is gone). Dependence flows through source lineage. Update only grows a source, replace corrects it, supersede replaces a model or claim; a retired source cannot enter new results, a stale result cannot be cited, and a recomputation retires the result it replaces while preserving it. The classification enum is claim-agnostic so later invalidation graphs can reuse it."
 reference = "provenance/evidence_ledger.revision.toml"
@@ -10241,7 +10241,7 @@ inference_outputs = []
 [[record]]
 id = "measurement.model_contract"
 capability = "measurement.model_contract"
-status = "in_progress"
+status = "promoted"
 consumer_question = "Can a measured column be related to the latent scientific quantity it is offered for, bound to a population, regime, arm and representation version, with differential error declared and proxy-as-construct refused?"
 theorem = "Semantic contract; no identification or coverage claim. Measurement-error models relate an indicator W to a latent X by a stated error structure (Carroll, Ruppert, Stefanski and Crainiceanu 2006, ch. 1-2); a result for X is conditional on that structure, and non-differential error means W is independent of the outcome given X. Nothing here inherits a theorem: it freezes which request may use a model."
 reference = "docs/measurement-models.md"
@@ -10273,7 +10273,8 @@ search = false
 prerequisite_records = ["distribution.joint_alignment", "external.scientific_providers", "external.trust_receipt"]
 prerequisite_reason = "Binds a measured column to a construct through the inherited scientific-quantity coordinates (variable, role, unit, scale, population, regime), and a provider-supplied latent posterior only through the typed external provider contract and its trust boundary (a provider posterior never carries native trust). No identification or coverage claim is inherited."
 bounds = { cancellation = true, max_artifact_bytes = 8388608 }
-inference_inventory_disposition = "point_output_listed_unmeasured"
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
 surface_rust = ["crates/antecedent/src/analysis/measurement_model.rs"]
 surface = ["python/antecedent/measurement_models.py"]
 surface_pyo3 = ["python/src/measurement_model_api.rs"]
@@ -10343,7 +10344,7 @@ fixtures = [
 [[record]]
 id = "measurement.classical_continuous_error"
 capability = "measurement.classical_continuous_error"
-status = "in_progress"
+status = "promoted"
 consumer_question = "With additive classical measurement error of known or validated variance in a continuous regressor, what is the corrected linear adjusted effect and its standard error including the error-variance uncertainty?"
 theorem = "Carroll, Ruppert, Stefanski and Crainiceanu (2006) ch. 3-4: with W = X + U, U independent of (X, Z, Y) with mean zero and variance sigma_u^2, the naive least-squares slope is attenuated by lambda = Var(X|Z)/(Var(X|Z)+sigma_u^2); the corrected score V(Y - V'b) + S b (S = diag(0, sigma_u^2/k, 0)) has root (M - mean S)^-1 r, which equals regression calibration for a linear outcome model. The standard error is the first-order delta method over the stacked corrected score and the error-variance estimate. Inherited: consistency for a linear model with error-free covariates. NOT inherited: any finite-sample or coverage guarantee, nonlinear outcome models."
 reference = "docs/measurement-models.md"
@@ -10412,11 +10413,34 @@ fixtures = [
   { id = "measurement.classical_continuous_error.python_parameter_uncertainty.positive", role = "positive", intent = "Python surface: the measurement-parameter uncertainty adds the delta-method variance and enters the downstream functional through the joint covariance.", evidence_test = "python/tests/test_measurement_models.py", evidence_assertion = "test_the_measurement_parameter_uncertainty_enters_the_variance_and_the_functional" },
   { id = "measurement.classical_continuous_error.python_reliability.negative", role = "negative", intent = "Python surface: an error variance leaving no latent variance raises measurement_not_identified.", evidence_test = "python/tests/test_measurement_models.py", evidence_assertion = "test_an_error_variance_that_leaves_no_latent_variance_refuses" },
 ]
+[[record.inference_outputs]]
+id = "measurement.classical_continuous_error.point.1"
+fields = ["corrected linear coefficient of the latent regressor and linear functionals", "delta-method standard error including the error-variance uncertainty"]
+method = "Regression calibration by the closed-form moment correction of the observed linear-model coefficients with a delta-method covariance that includes the error-variance estimate's variance."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::measurement::correct_classical_linear_effect"
+public_producers = ["antecedent_estimate.measurement.correct_classical_linear_effect"]
+closed_producers = ["antecedent_estimate.measurement.interval_not_licensed.classical_continuous_error"]
+independent_consumers = ["measurement.classical_continuous_error.artifact_replay.artifact"]
+method_source = "crates/antecedent-estimate/src/measurement/linear.rs; crates/antecedent-stats/src/measurement_error.rs"
+truth_design = "Closed-form attenuation algebra and a regression-calibration identity on hand-built moment matrices; finite fixture checks, not a repeated-sampling study."
+truth_fixtures = ["measurement.classical_continuous_error.attenuation_truth.truth", "measurement.classical_continuous_error.closed_form_exact.positive", "measurement.classical_continuous_error.variance_includes_parameters.positive"]
+nominal_level = "none; point value with an uncalibrated standard error, no interval or coverage target"
+acceptance_threshold = "Asserted values within the stated absolute tolerances in crates/antecedent-estimate/tests/measurement_models.rs; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/measurement_models.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes a corrected point value and a first-order delta-method standard error labelled uncalibrated. No interval, posterior or coverage statement is licensed: the interval route is closed with cell_not_licensed until whole-method coverage (measurement plus estimation) is measured."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The declared point checks are the oracle tests in crates/antecedent-estimate/tests/measurement_models.rs."
 
 [[record]]
 id = "measurement.repeated_measurements"
 capability = "measurement.repeated_measurements"
-status = "in_progress"
+status = "promoted"
 consumer_question = "With replicated error-prone measurements of a continuous regressor, what are the within/between variance components and ICC, and what is the corrected linear adjusted effect with the replicate-variance uncertainty propagated?"
 theorem = "Searle, Casella and McCulloch (1992) ch. 3: one-way random-effects ANOVA estimators MSW and (MSB-MSW)/n0 for unbalanced designs. Carroll et al. (2006) ch. 4: with replicates averaged, the row error variance is sigma_u^2/k_i and the same corrected score applies. The within variance is estimated from the analysis sample's own replicates and its influence function is retained in the covariance (a ratio-of-means linearization, distribution free). NOT inherited: normality-based F intervals for variance components or any coverage guarantee."
 reference = "docs/measurement-models.md"
@@ -10476,11 +10500,34 @@ fixtures = [
   { id = "measurement.repeated_measurements.artifact_replay.artifact", role = "artifact", intent = "An independent consumer recomputes the stored moments and refuses a mutated model.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "artifact_replays_independently_and_refuses_semantic_mutation" },
   { id = "measurement.repeated_measurements.python_icc.positive", role = "positive", intent = "Python surface: the intraclass correlation and within-unit variance match the pooled mean square of the replicates and the coefficient is recovered.", evidence_test = "python/tests/test_measurement_models.py", evidence_assertion = "test_repeated_measurements_estimate_the_icc_and_recover_the_coefficient" },
 ]
+[[record.inference_outputs]]
+id = "measurement.repeated_measurements.point.1"
+fields = ["within variance, between variance and intraclass correlation", "corrected linear coefficient of the latent regressor", "delta-method standard error including the replicate-variance uncertainty"]
+method = "One-way ANOVA variance components from replicate measurements, then the corrected linear coefficient with a delta-method covariance that propagates the replicate-variance estimate."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::measurement::correct_repeated_linear_effect"
+public_producers = ["antecedent_estimate.measurement.correct_repeated_linear_effect"]
+closed_producers = ["antecedent_estimate.measurement.interval_not_licensed.repeated_measurements"]
+independent_consumers = ["measurement.repeated_measurements.artifact_replay.artifact"]
+method_source = "crates/antecedent-estimate/src/measurement/linear.rs; crates/antecedent-stats/src/measurement_error.rs"
+truth_design = "Hand-computed ANOVA components and ICC on balanced and unbalanced replicate sets; finite fixture checks, not a repeated-sampling study."
+truth_fixtures = ["measurement.repeated_measurements.anova_closed_form.positive", "measurement.repeated_measurements.icc_and_recovery.truth"]
+nominal_level = "none; point value with an uncalibrated standard error, no interval or coverage target"
+acceptance_threshold = "Asserted values within the stated absolute tolerances in crates/antecedent-estimate/tests/measurement_models.rs; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/measurement_models.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes a corrected point value and a first-order delta-method standard error labelled uncalibrated. No interval, posterior or coverage statement is licensed: the interval route is closed with cell_not_licensed until whole-method coverage (measurement plus estimation) is measured."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The declared point checks are the oracle tests in crates/antecedent-estimate/tests/measurement_models.rs."
 
 [[record]]
 id = "measurement.binary_misclassification"
 capability = "measurement.binary_misclassification"
-status = "in_progress"
+status = "promoted"
 consumer_question = "With a binary outcome misclassified at known or validated sensitivity and specificity, what are the corrected prevalence and risk difference, with the sensitivity/specificity uncertainty propagated and arm-specific error kept separate?"
 theorem = "Rogan and Gladen (1978): pi = (p* + Sp - 1)/(Se + Sp - 1). For two exposure arms under non-differential error RD = (p1* - p0*)/J with J = Se + Sp - 1 (Youden's index); the delta-method variance adds RD^2 (Var Se + Var Sp)/J^2 to the binomial sampling variance and keeps the covariance shared rates induce between arms. Differential error uses arm-specific rates from independent validation samples. Refused when J is at or below the declared minimum. NOT inherited: any interval guarantee; corrected proportions are reported unclipped."
 reference = "docs/measurement-models.md"
@@ -10547,11 +10594,34 @@ fixtures = [
   { id = "measurement.binary_misclassification.python_differential.negative", role = "negative", intent = "Python surface: a differential model is never analysed as non-differential and uses each arm's own rates.", evidence_test = "python/tests/test_measurement_models.py", evidence_assertion = "test_a_differential_model_applies_each_arms_own_rates_and_is_never_pooled" },
   { id = "measurement.binary_misclassification.python_youden.negative", role = "negative", intent = "Python surface: a Youden index at or below the declared minimum raises measurement_not_identified.", evidence_test = "python/tests/test_measurement_models.py", evidence_assertion = "test_a_youden_index_at_or_below_the_minimum_refuses" },
 ]
+[[record.inference_outputs]]
+id = "measurement.binary_misclassification.point.1"
+fields = ["corrected latent prevalence and two-arm risk difference", "delta-method standard error including sensitivity and specificity uncertainty"]
+method = "Rogan-Gladen correction of observed proportions by the declared or validation-estimated sensitivity and specificity, with a delta-method variance that carries the shared-rate covariance."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::measurement::correct_binary_prevalence and correct_binary_risk_difference"
+public_producers = ["antecedent_estimate.measurement.correct_binary_prevalence", "antecedent_estimate.measurement.correct_binary_risk_difference"]
+closed_producers = ["antecedent_estimate.measurement.interval_not_licensed.binary_misclassification"]
+independent_consumers = ["measurement.binary_misclassification.artifact_replay.artifact"]
+method_source = "crates/antecedent-estimate/src/measurement/binary.rs; crates/antecedent-stats/src/measurement_error.rs"
+truth_design = "Rogan-Gladen algebra and enumerated differential-misclassification truths; finite fixture checks, not a repeated-sampling study."
+truth_fixtures = ["measurement.binary_misclassification.rogan_gladen_algebra.truth", "measurement.binary_misclassification.differential_truth.truth", "measurement.binary_misclassification.shared_rate_covariance.positive"]
+nominal_level = "none; point value with an uncalibrated standard error, no interval or coverage target"
+acceptance_threshold = "Asserted values within the stated absolute tolerances in crates/antecedent-estimate/tests/measurement_models.rs; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/measurement_models.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes a corrected point value and a first-order delta-method standard error labelled uncalibrated. No interval, posterior or coverage statement is licensed: the interval route is closed with cell_not_licensed until whole-method coverage (measurement plus estimation) is measured."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The declared point checks are the oracle tests in crates/antecedent-estimate/tests/measurement_models.rs."
 
 [[record]]
 id = "measurement.probabilistic_categorical"
 capability = "measurement.probabilistic_categorical"
-status = "in_progress"
+status = "promoted"
 consumer_question = "With categorical labels assigned under a declared confusion matrix, what are the corrected category proportions, expected counts and category outcome means, with confusion-matrix uncertainty propagated?"
 theorem = "pi = C^-1 p* for a column-stochastic confusion matrix C[observed, true] (the K-category extension of Rogan and Gladen 1978; its K=2 case is the Youden inversion, checked in tests). Observed-class outcome means obey ybar = Q mu with Q[j,k] = C[j,k] pi_k / p*_j. Variance is delta-method over multinomial observed proportions, independent class means and independent confusion columns; the outcome-mean Jacobian is a central finite difference of the exact map. Refused when the 1-norm condition number exceeds the declared bound. NOT inherited: coverage; per-unit calibrated probabilities are not consumed."
 reference = "docs/measurement-models.md"
@@ -10613,11 +10683,34 @@ fixtures = [
   { id = "measurement.probabilistic_categorical.artifact_replay.artifact", role = "artifact", intent = "The consumer recomputes from class summaries under the stored model.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "artifact_replays_independently_and_refuses_semantic_mutation" },
   { id = "measurement.probabilistic_categorical.python_inversion.positive", role = "positive", intent = "Python surface: the confusion inversion recovers the true proportions and outcome means of the exact class summaries.", evidence_test = "python/tests/test_measurement_models.py", evidence_assertion = "test_categorical_inversion_recovers_proportions_and_outcome_means" },
 ]
+[[record.inference_outputs]]
+id = "measurement.probabilistic_categorical.point.1"
+fields = ["corrected true-category proportions, expected counts, outcome means and contrasts", "delta-method standard error including confusion-matrix uncertainty"]
+method = "Inversion of the declared confusion matrix applied to observed category proportions, with a delta-method covariance through the inverse."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::measurement::correct_categorical"
+public_producers = ["antecedent_estimate.measurement.correct_categorical"]
+closed_producers = ["antecedent_estimate.measurement.interval_not_licensed.probabilistic_categorical"]
+independent_consumers = ["measurement.probabilistic_categorical.artifact_replay.artifact"]
+method_source = "crates/antecedent-estimate/src/measurement/categorical.rs; crates/antecedent-stats/src/measurement_error.rs"
+truth_design = "Matrix-inversion truth on enumerated confusion matrices and the binary special case equal to Rogan-Gladen; finite fixture checks, not a repeated-sampling study."
+truth_fixtures = ["measurement.probabilistic_categorical.matrix_inversion_truth.truth", "measurement.probabilistic_categorical.binary_special_case.positive"]
+nominal_level = "none; point value with an uncalibrated standard error, no interval or coverage target"
+acceptance_threshold = "Asserted values within the stated absolute tolerances in crates/antecedent-estimate/tests/measurement_models.rs; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/measurement_models.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes a corrected point value and a first-order delta-method standard error labelled uncalibrated. No interval, posterior or coverage statement is licensed: the interval route is closed with cell_not_licensed until whole-method coverage (measurement plus estimation) is measured."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The declared point checks are the oracle tests in crates/antecedent-estimate/tests/measurement_models.rs."
 
 [[record]]
 id = "measurement.external_latent_posterior"
 capability = "measurement.external_latent_posterior"
-status = "in_progress"
+status = "promoted"
 consumer_question = "Given a latent-variable posterior supplied by an external provider, what is the linear outcome effect of the latent regressor, how far is the provider trusted, and is the provider's own uncertainty propagated?"
 theorem = "Regression calibration (Carroll et al. 2006 ch. 4): for a linear outcome model E[Y|W] = a + b E[X|W], so the posterior mean substitutes exactly when the posterior does not condition on Y; a single draw adds Berkson noise and attenuates the slope. When the posterior conditions on Y its joint draws are proper imputations and Rubin (1987) combination applies: T = W + (1+1/S) B. NOT inherited: any property of the provider's posterior (it is attested or exact-request verified, never native); the substitution route cannot represent the provider's hyperparameter uncertainty and says so."
 reference = "docs/measurement-models.md"
@@ -10683,11 +10776,34 @@ fixtures = [
   { id = "measurement.external_latent_posterior.python_provider_trust.negative", role = "negative", intent = "Python surface: the exact attested provider object is required, native trust is refused and another request fingerprint is another object.", evidence_test = "python/tests/test_measurement_models.py", evidence_assertion = "test_a_posterior_route_needs_the_exact_attested_provider_object" },
   { id = "measurement.external_latent_posterior.python_rubin.positive", role = "positive", intent = "Python surface: substitution and Rubin's rules replay independently, the pooled point being the mean of the per-draw slopes.", evidence_test = "python/tests/test_measurement_models.py", evidence_assertion = "test_posterior_substitution_and_rubins_rules_replay_independently" },
 ]
+[[record.inference_outputs]]
+id = "measurement.external_latent_posterior.point.1"
+fields = ["linear coefficient of the latent regressor from externally supplied posterior draws", "standard error conditional on the supplied posterior"]
+method = "Posterior-mean substitution, or Rubin's rules over per-draw linear fits for outcome-conditioned draws, of the latent regressor supplied by an attested external provider object."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::measurement::correct_latent_posterior_linear_effect"
+public_producers = ["antecedent_estimate.measurement.correct_latent_posterior_linear_effect"]
+closed_producers = ["antecedent_estimate.measurement.interval_not_licensed.external_latent_posterior"]
+independent_consumers = ["measurement.external_latent_posterior.artifact_replay.artifact"]
+method_source = "crates/antecedent-estimate/src/measurement/posterior.rs; crates/antecedent-stats/src/measurement_error.rs"
+truth_design = "Posterior-mean and Rubin-combination values on hand-built draws and a Berkson-noise identity; finite fixture checks, not a repeated-sampling study."
+truth_fixtures = ["measurement.external_latent_posterior.posterior_mean_truth.truth", "measurement.external_latent_posterior.rubin_truth.truth", "measurement.external_latent_posterior.berkson_noise.positive"]
+nominal_level = "none; point value with an uncalibrated standard error, no interval or coverage target"
+acceptance_threshold = "Asserted values within the stated absolute tolerances in crates/antecedent-estimate/tests/measurement_models.rs; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/measurement_models.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The standard error is conditional on the supplied posterior being the correct law of the latent regressor; the provider's calibration is not established here. No interval, posterior or coverage statement is licensed: the interval route is closed with cell_not_licensed until whole-method coverage is measured."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The declared point checks are the oracle tests in crates/antecedent-estimate/tests/measurement_models.rs."
 
 [[record]]
 id = "counterfactual.transport_general"
 capability = "counterfactual.transport_general"
-status = "in_progress"
+status = "promoted"
 consumer_question = "What is a nested or conditional counterfactual probability in a target population, given labelled observational and interventional laws from the target and from source populations whose mechanisms may differ at declared variables?"
 theorem = "Counterfactual transportability (Correa, Lee and Bareinboim, ICML 2022, PMLR 162): a counterfactual distribution of the target is expressed through counterfactual factors that are single-world interventional laws, each either invariant across populations (no selection node into its variables) or identified from target evidence. Implemented as a sound, bounded decision procedure of that shape, not the published algorithm: ID* counterfactual graph and district decomposition (Shpitser and Pearl 2007, 2008); closure of single-world c-factors under ancestral marginalization and c-component extraction (Tian and Pearl 2002, Lemma 1 and the product formula) with transfer of a source factor when no selection target lies in it (Bareinboim and Pearl 2013); the IDC* reduction of a conditioning atom separated from the event; a binary consistency complement. Soundness holds in the finite-discrete induced-diagram class in which selection flags mechanisms and exogenous laws are shared; completeness is NOT claimed. A refusal to derive is not an obstruction. Non-transportability is claimed only through a two-model witness (response-function mixtures over a bidirected clique, identical laws on every declared regime, different query value) re-verified by exact rational enumeration; the witness search is a bounded heuristic, so a non-transportable query it does not find is not_certified."
 reference = "provenance/counterfactual.transport_general.toml"
@@ -10798,12 +10914,34 @@ fixtures = [
   { id = "counterfactual.transport_general.python_refresh.lifecycle", role = "lifecycle", intent = "Python surface: refresh rebuilds the numbers at an unchanged derivation, leaves the earlier value untouched and a refused refresh keeps the state.", evidence_test = "python/tests/test_transport_counterfactual.py", evidence_assertion = "test_refresh_rebuilds_the_numbers_and_leaves_the_decided_value_untouched" },
   { id = "counterfactual.transport_general.python_order.invariance", role = "invariance", intent = "Python surface: evaluation is deterministic and invariant to law and regime order.", evidence_test = "python/tests/test_transport_counterfactual.py", evidence_assertion = "test_evaluation_is_deterministic_and_invariant_to_law_and_regime_order" },
 ]
-
+[[record.inference_outputs]]
+id = "counterfactual.transport_general.point.1"
+fields = ["exact finite probability of a conjunction of counterfactual events in the target population, optionally conditional"]
+method = "Sound bounded derivation of single-world c-factors over a selection diagram and evaluation of the derived factor product over supplied exact finite regime laws; no estimation."
+implementation_status = "implemented_exact_conditional"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::evaluate_counterfactual_transport"
+public_producers = ["antecedent_estimate.evaluate_counterfactual_transport", "antecedent.PreparedCounterfactualTransport.evaluate", "antecedent.transport.advanced.CounterfactualTransportDerivation.evaluate"]
+closed_producers = ["antecedent.counterfactual_transport.uncertainty"]
+independent_consumers = ["counterfactual.transport_general.artifact_roundtrip.artifact", "counterfactual.transport_general.fresh_process.artifact", "counterfactual.transport_general.python_fresh_process.artifact"]
+method_source = "crates/antecedent-identify/src/sid/counterfactual_transport.rs; crates/antecedent-estimate/src/counterfactual_transport.rs"
+truth_design = "Brute-force enumeration of finite structural models with hand-built selection diagrams and regime laws; exact arithmetic oracle, not a repeated-sampling study."
+truth_fixtures = ["counterfactual.transport_general.enumerated_scm.truth", "counterfactual.transport_general.natural_effects.truth", "counterfactual.transport_general.changed_evidence.truth"]
+nominal_level = "not_applicable; exact finite-law arithmetic with no interval or coverage target"
+acceptance_threshold = "Asserted values equal the enumerated truth within the stated absolute tolerances in crates/antecedent-estimate/tests/counterfactual_transport_execution.rs; no sampling-coverage threshold is claimed."
+measurement_suite = "crates/antecedent-estimate/tests/counterfactual_transport_execution.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Exact finite-law arithmetic over supplied exact regime laws; the guarantee is soundness of the derivation, not completeness: a query that is not derived is not_certified unless a verified two-model witness proves an obstruction. No sample interval, posterior or coverage statement exists: counted or empirical laws are refused, the sampled route is a separate record and the interval route is closed with cell_not_licensed."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The declared point checks are the oracle tests in crates/antecedent-estimate/tests/counterfactual_transport_execution.rs."
 
 [[record]]
 id = "counterfactual.transport_sampled"
 capability = "counterfactual.transport_sampled"
-status = "in_progress"
+status = "promoted"
 consumer_question = "What is the estimated value of a nested or conditional counterfactual probability in a target population when the observational and interventional laws of the target and of the sources are known only through sampled counts, and what does the sample license about it?"
 theorem = "Plug-in estimation of an identified functional. The stored identification of counterfactual.transport_general expresses the target probability as a continuous function (sums of products and ratios of conditional probabilities read from the regime laws) of the finite regime laws wherever every conditioning event it divides by has positive mass. This route evaluates that stored function on laws estimated from counts, so the estimate converges to the identified value as every cited table's sample grows when the declared sampling design holds and the identification premises hold; that is an engineering claim checked by finite-SCM simulation, not a theorem of the counterfactual transportability papers, which assume exact distributions. The standard error is the first-order delta method of the multinomial cell proportions of each independent dataset (van der Vaart, Asymptotic Statistics, ch. 3): the variance of the gradient of the whole functional under the table's multinomial covariance, with the gradient taken by a central difference at relative step 1e-5. It is reported only as uncalibrated_standard_error. Unseen cells are refused, smoothed under a declared additive pseudo-count (the posterior mean of a symmetric Dirichlet, labelled smoothed), or reported as a structural envelope over a finite family of fillings of a declared unseen mass; none is zero-filled. A factor that reads fewer coordinates than the table supplying it is evaluated as its mass-weighted average over the unread coordinates. No coverage statement, interval or posterior is derived."
 reference = "provenance/counterfactual.transport_sampled.toml"
@@ -10884,7 +11022,7 @@ fixtures = [
   { id = "counterfactual.transport_sampled.python_roundtrip.artifact", role = "artifact", intent = "Python surface: a fresh consumer recomputes the plug-in and standard error from the counts bit for bit; edited bytes are refused.", evidence_test = "python/tests/test_transport_counterfactual.py", evidence_assertion = "test_sampled_artifact_round_trips_and_a_fresh_consumer_recomputes_from_the_counts" },
 ]
 inference_outputs = [
-  { fields = ["standard_error"], method = "delta method for the multinomial cell proportions of each independent dataset through the whole plug-in functional, central-difference gradient at relative step 1e-5; a nominal Wald candidate exists only behind the calibration-internal feature", implementation_status = "implemented_unmeasured", boundary = "Defined at tables whose every cited conditioning event has positive estimated mass. At smoothed tables it is the delta standard error at the smoothed table and omits the smoothing bias; an envelope request has no standard error. Unseen cells and small conditioning mass are named boundary probes, not licensed coordinates.", truth_design = "Known finite structural models enumerated by the independent oracle (nonlinear mediation with a covariate shift, two-source confounded model with source experiments and a target marginal, front-door latent district); units drawn multinomially from the enumerated observed regime laws; truth is the enumerated target probability.", method_source = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs", nominal_level = "0.95", measurement_suite = "unallocated", id = "counterfactual_transport_sampled.1", owner = "antecedent-estimate", operation_or_object = "sampled_counterfactual_transport", public_producers = [], closed_producers = ["antecedent_estimate.estimate_sampled_counterfactual_transport"], independent_consumers = ["counterfactual.transport_sampled.artifact_roundtrip.artifact"], truth_fixtures = ["crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::reported_standard_error_matches_the_empirical_standard_deviation_of_the_estimator"], acceptance_threshold = "Nominal 0.95 within 3 MCSE at each point of a three-point sample-size grid (units per table 250, 1000, 4000) with a 2000-replicate recheck; refusals of an outer replicate count as misses with at most 1 percent skips. Boundary probes (a cited table with an unseen cell under smoothing, conditioning mass below 0.02, a stratified design) are recorded and never gated. Nothing has been measured.", activation_disposition = "retain_closed_cell_not_licensed_until_measured", allocation_status = "coverage_ids_allocated_harness_not_written", role_allocation_note = "The estimator is a closed producer; the artifact consumer is the independent consumer. The calibration-internal Wald candidate is method_source, not a public route.", measurement_design_status = "design_named_harness_not_written", truth_grid_allocation = "Three designs: sampled_mediation_covariate_shift (target Y_{x1,M_{x0}}), sampled_two_source_joint (P*(Y_{x=1}=1, X=0)), sampled_latent_district (Y_{x=1}); units per table 250 / 1000 / 4000; whole method includes identification replay, table estimation, the unread-coordinate pooling and the delta standard error.", allocated_coverage_records = ["cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_mediation_covariate_shift", "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_two_source_joint", "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_latent_district"], inherited_coverage_records = [] },
+  { fields = ["standard_error"], method = "delta method for the multinomial cell proportions of each independent dataset through the whole plug-in functional, central-difference gradient at relative step 1e-5; a nominal Wald candidate exists only behind the calibration-internal feature", implementation_status = "implemented_unmeasured", boundary = "Defined at tables whose every cited conditioning event has positive estimated mass. At smoothed tables it is the delta standard error at the smoothed table and omits the smoothing bias; an envelope request has no standard error. Unseen cells and small conditioning mass are named boundary probes, not licensed coordinates.", truth_design = "Known finite structural models enumerated by the independent oracle (nonlinear mediation with a covariate shift, two-source confounded model with source experiments and a target marginal, front-door latent district); units drawn multinomially from the enumerated observed regime laws; truth is the enumerated target probability.", method_source = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs", nominal_level = "0.95", measurement_suite = "unallocated", id = "counterfactual_transport_sampled.1", owner = "antecedent-estimate", operation_or_object = "sampled_counterfactual_transport", public_producers = [], closed_producers = ["antecedent_estimate.counterfactual_transport_sampled.interval"], independent_consumers = ["counterfactual.transport_sampled.artifact_roundtrip.artifact"], truth_fixtures = ["crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::reported_standard_error_matches_the_empirical_standard_deviation_of_the_estimator"], acceptance_threshold = "Nominal 0.95 within 3 MCSE at each point of a three-point sample-size grid (units per table 250, 1000, 4000) with a 2000-replicate recheck; refusals of an outer replicate count as misses with at most 1 percent skips. Boundary probes (a cited table with an unseen cell under smoothing, conditioning mass below 0.02, a stratified design) are recorded and never gated. Nothing has been measured.", activation_disposition = "retain_closed_cell_not_licensed_until_measured", allocation_status = "coverage_ids_allocated_harness_not_written", role_allocation_note = "The point estimate is a licensed public route of this record, with its standard error published labelled uncalibrated; no interval or coverage use of that standard error is licensed. The calibrated interval is the closed route of counterfactual.transport_sampled_interval, the producer named here; the artifact consumer is the independent consumer. The calibration-internal Wald candidate is method_source, not a public route.", measurement_design_status = "design_named_harness_not_written", truth_grid_allocation = "Three designs: sampled_mediation_covariate_shift (target Y_{x1,M_{x0}}), sampled_two_source_joint (P*(Y_{x=1}=1, X=0)), sampled_latent_district (Y_{x=1}); units per table 250 / 1000 / 4000; whole method includes identification replay, table estimation, the unread-coordinate pooling and the delta standard error.", allocated_coverage_records = ["cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_mediation_covariate_shift", "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_two_source_joint", "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_latent_district"], inherited_coverage_records = [] },
 ]
 
 [[record]]
