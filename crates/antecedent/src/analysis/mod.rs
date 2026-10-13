@@ -46,6 +46,7 @@ pub mod closed_pilots;
 pub mod cohort_decision;
 pub mod compact_export;
 pub mod composition;
+pub mod composition_verification;
 pub mod conditional_study_ranking;
 mod contract;
 mod contract_identity;
@@ -63,8 +64,10 @@ pub mod effect_constancy_consumers;
 pub mod evidence_ledger;
 mod exact;
 mod execute;
+pub mod interface_contract;
 mod inverse_outcome;
 pub mod inverse_query;
+pub mod joint_law_propagation;
 mod joint_sensitivity;
 mod joint_sensitivity_uncertainty;
 pub mod latent_class_effects;
@@ -156,6 +159,10 @@ pub(crate) use checked_temporal_graph_posterior_response::{
     CheckedTemporalGraphPosteriorResponse, CheckedTemporalGraphPosteriorResponsePremises,
     TemporalPosteriorResponseProof,
 };
+pub use composition_verification::{
+    CompositionVerification, CompositionVerificationRefusal, ConsumedCompositionVerification,
+    consume_composition_verification_artifact,
+};
 pub use cost::{
     BatchCostEstimate, CostEstimate, InferenceDefault, JointCellCostEstimate, RetargetCostEstimate,
     estimate_joint_cell_cost,
@@ -190,11 +197,23 @@ pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
     ExactStudyResult,
 };
+pub use interface_contract::{
+    ConsumedInterfaceContract, InterfaceContractExport, InterfaceContractRefusal,
+    check_interface_composition, check_interface_connection, consume_interface_contract_artifact,
+    export_interface_contract, inspect_interface_contract_artifact,
+};
 pub use inverse_outcome::{
     ActionConstraint, ActionOutcome, ActionSpec, ActionStatus, EnumeratedStatus, ForwardEvaluation,
     ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope, InverseOutcomeError,
     InverseOutcomeReport, InverseQuery, MAX_INVERSE_ACTIONS, MAX_INVERSE_FORWARD_POINTS,
     SupportBasis, TargetDirection, classify_inverse_outcome,
+};
+pub use joint_law_propagation::{
+    CorrelationRangeSummary, JointLawPropagationRefusal, LinearDependence, MixtureComponent,
+    MomentInput, PropagationClaim, PropagationDraws, alignment_identity,
+    consume_joint_law_propagation_artifact, propagate_aligned_functional, propagate_aligned_linear,
+    propagate_correlation_range, propagate_dependence_envelope, propagate_linear_moments,
+    propagate_mixture,
 };
 pub use joint_sensitivity::{
     JOINT_SENSITIVITY_ARTIFACT_VERSION, JointFactorWire, JointOutcomeWire, JointPerturbationWire,

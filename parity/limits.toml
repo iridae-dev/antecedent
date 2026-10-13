@@ -1837,3 +1837,75 @@ documentation = [{ path = "crates/antecedent-validate/src/predictive_assessment/
 guard = { path = "crates/antecedent-validate/src/predictive_assessment/law.rs", pattern = "dimension\\ >\\ MAX_JOINT_DIMENSION" }
 refusal = { path = "crates/antecedent-validate/src/predictive_assessment/law.rs", pattern = "dimension\\ >\\ MAX_JOINT_DIMENSION[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent-validate/tests/predictive_assessment.rs", pattern = "\\bdeclared_bounds_on_predictors_atoms_and_joint_dimension_are_refused\\b" }
+
+[[bound]]
+record = "composition_verification.claim_revalidation"
+key = "max_nodes"
+implementation = [{ path = "crates/antecedent-contract/src/composition_verification/graph.rs", constant = "MAX_NODES" }]
+documentation = [{ path = "crates/antecedent-contract/src/composition_verification/graph.rs", constant = "MAX_NODES" }]
+guard = { path = "crates/antecedent-contract/src/composition_verification/graph.rs", pattern = 'self\.nodes\.len\(\) >= MAX_NODES' }
+refusal = { path = "crates/antecedent-contract/src/composition_verification/graph.rs", pattern = 'self\.nodes\.len\(\) >= MAX_NODES \{\s+return Err\(GraphError::LimitExceeded\("nodes"\)\)' }
+
+[[bound]]
+record = "composition_verification.claim_revalidation"
+key = "max_edges"
+implementation = [{ path = "crates/antecedent-contract/src/composition_verification/graph.rs", constant = "MAX_EDGES" }]
+documentation = [{ path = "crates/antecedent-contract/src/composition_verification/graph.rs", constant = "MAX_EDGES" }]
+guard = { path = "crates/antecedent-contract/src/composition_verification/graph.rs", pattern = 'self\.edges\.len\(\) >= MAX_EDGES' }
+refusal = { path = "crates/antecedent-contract/src/composition_verification/graph.rs", pattern = 'self\.edges\.len\(\) >= MAX_EDGES \{\s+return Err\(GraphError::LimitExceeded\("edges"\)\)' }
+
+[[bound]]
+record = "composition_verification.claim_revalidation"
+key = "max_overlap_checks"
+implementation = [{ path = "crates/antecedent-contract/src/composition_verification/view.rs", constant = "MAX_OVERLAP_CHECKS" }]
+documentation = [{ path = "crates/antecedent-contract/src/composition_verification/view.rs", constant = "MAX_OVERLAP_CHECKS" }]
+guard = { path = "crates/antecedent-contract/src/composition_verification/view.rs", pattern = 'checks > MAX_OVERLAP_CHECKS' }
+refusal = { path = "crates/antecedent-contract/src/composition_verification/view.rs", pattern = 'checks > MAX_OVERLAP_CHECKS \{\s+return Err\(ViewError::LimitExceeded\)' }
+
+[[bound]]
+record = "interface_contract.scientific_interface"
+key = "max_ports"
+implementation = [{ path = "crates/antecedent-contract/src/interface_contract/declaration.rs", constant = "MAX_INTERFACE_PORTS" }]
+documentation = [{ path = "crates/antecedent-contract/src/interface_contract/declaration.rs", constant = "MAX_INTERFACE_PORTS" }]
+guard = { path = "crates/antecedent-contract/src/interface_contract/declaration.rs", pattern = 'self\.consumes\.len\(\) > MAX_INTERFACE_PORTS' }
+refusal = { path = "crates/antecedent-contract/src/interface_contract/declaration.rs", pattern = 'self\.consumes\.len\(\) > MAX_INTERFACE_PORTS \{\s+return Err\(too_many_items' }
+
+[[bound]]
+record = "interface_contract.scientific_interface"
+key = "max_port_set_items"
+implementation = [{ path = "crates/antecedent-contract/src/interface_contract/declaration.rs", constant = "MAX_PORT_SET_ITEMS" }]
+documentation = [{ path = "crates/antecedent-contract/src/interface_contract/declaration.rs", constant = "MAX_PORT_SET_ITEMS" }]
+guard = { path = "crates/antecedent-contract/src/interface_contract/declaration.rs", pattern = 'models\.len\(\) > MAX_PORT_SET_ITEMS' }
+refusal = { path = "crates/antecedent-contract/src/interface_contract/declaration.rs", pattern = 'models\.len\(\) > MAX_PORT_SET_ITEMS \{\s+return Err\(too_many_items' }
+
+[[bound]]
+record = "interface_contract.scientific_interface"
+key = "max_components"
+implementation = [{ path = "crates/antecedent-contract/src/interface_contract/composition.rs", constant = "MAX_COMPOSITION_COMPONENTS" }]
+documentation = [{ path = "crates/antecedent-contract/src/interface_contract/composition.rs", constant = "MAX_COMPOSITION_COMPONENTS" }]
+guard = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'components\.len\(\) > MAX_COMPOSITION_COMPONENTS' }
+refusal = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'components\.len\(\) > MAX_COMPOSITION_COMPONENTS \{\s+return Err\(vec!\[composition_too_large' }
+
+[[bound]]
+record = "interface_contract.scientific_interface"
+key = "max_connections"
+implementation = [{ path = "crates/antecedent-contract/src/interface_contract/composition.rs", constant = "MAX_COMPOSITION_CONNECTIONS" }]
+documentation = [{ path = "crates/antecedent-contract/src/interface_contract/composition.rs", constant = "MAX_COMPOSITION_CONNECTIONS" }]
+guard = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'connections\.len\(\) > MAX_COMPOSITION_CONNECTIONS' }
+refusal = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'connections\.len\(\) > MAX_COMPOSITION_CONNECTIONS \{\s+return Err\(vec!\[composition_too_large' }
+
+[[bound]]
+record = "interface_contract.cyclic_composition"
+key = "max_components"
+implementation = [{ path = "crates/antecedent-contract/src/interface_contract/composition.rs", constant = "MAX_COMPOSITION_COMPONENTS" }]
+documentation = [{ path = "crates/antecedent-contract/src/interface_contract/composition.rs", constant = "MAX_COMPOSITION_COMPONENTS" }]
+guard = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'components\.len\(\) > MAX_COMPOSITION_COMPONENTS' }
+refusal = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'components\.len\(\) > MAX_COMPOSITION_COMPONENTS \{\s+return Err\(vec!\[composition_too_large' }
+
+[[bound]]
+record = "interface_contract.cyclic_composition"
+key = "max_connections"
+implementation = [{ path = "crates/antecedent-contract/src/interface_contract/composition.rs", constant = "MAX_COMPOSITION_CONNECTIONS" }]
+documentation = [{ path = "crates/antecedent-contract/src/interface_contract/composition.rs", constant = "MAX_COMPOSITION_CONNECTIONS" }]
+guard = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'connections\.len\(\) > MAX_COMPOSITION_CONNECTIONS' }
+refusal = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'connections\.len\(\) > MAX_COMPOSITION_CONNECTIONS \{\s+return Err\(vec!\[composition_too_large' }

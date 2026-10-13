@@ -550,3 +550,50 @@ meaning = "An analysis that presumes a design fixed in advance (fixed sample siz
 id = "adaptive_assumption_violated"
 applies_to = ["runtime_refusal"]
 meaning = "An assumption an adaptive-experiment route rests on fails in the retained history: units received an arm other than the one assigned, outcome availability depends on the outcome, or an estimand arm had assignment probability below the declared floor. Nothing is clipped, dropped or imputed; the refusal names the declaration or model that would license the request."
+
+# Scientific interface contracts (promotion records: interface_contract.* in parity/promotion.toml).
+[[code]]
+id = "interface_contract_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "An interface contract, or a composition of components, is not well formed: a blank or oversized identity, a quantity with an incomplete coordinate, a support domain with unordered bounds or unsorted levels, a port with no operation, an uncertainty meaning missing where an interval, law, draws, covariance or posterior is declared (or stated where none is), a point-only label beside an uncertainty statement, a measured calibration label with no record, a calibration declared inherited from an input the component does not consume, a measurement-model or evidence-source identity that is not a 64-character hex digest, an unknown provenance stage, a duplicated port or component, a connection naming an unknown component or port, a consumed port fed twice, or a composition over the declared bound. The refusal names the field and the declaration that would make the contract well formed."
+
+[[code]]
+id = "interface_contract_quantity_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "A produced quantity is not the quantity the consumer declares, although a name, shape or dtype may agree: the variable or role, units, population, intervention regime, causal horizon, functional, conditioning events, transform, semantic identity or support domain differs. Nothing is converted or reinterpreted; the refusal names the dimension, what the consumer expects and what the producer declares, and the declaration (a checked conversion, a transport of evidence, a bridge) that would license the connection."
+
+[[code]]
+id = "interface_contract_assumption_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "A connection's declared assumptions disagree: the producer's measurement models are not the ones the consumer requires, the dependence of the producer's evidence is undeclared where the consumer needs it declared, two inputs the consumer requires to be disjoint share an evidence source, or a provenance stage the consumer requires is not supplied. The refusal names the identities involved and the declaration that would license the connection."
+
+[[code]]
+id = "interface_contract_operation_unavailable"
+applies_to = ["runtime_refusal"]
+meaning = "A consumer requires an operation the producer does not offer: a mean where a law is required, a law where draws are required, marginal draws where aligned joint draws are required, an interval where a posterior is required. No operation is derived from another. The refusal names the operation, what the producer offers and what would supply it."
+
+[[code]]
+id = "interface_contract_uncertainty_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "The producer's interval, posterior, law or draws does not mean what the consumer requires: no uncertainty meaning is declared, the paradigm differs (a posterior is not a sampling distribution, and neither is a bootstrap or an empirical distribution), or the object differs within a paradigm (a posterior over parameters is not a posterior over a causal functional or an outcome). The refusal names the required and declared meanings."
+
+[[code]]
+id = "interface_contract_calibration_not_held"
+applies_to = ["runtime_refusal"]
+meaning = "A consumer relies on measured calibration of its input, or a producer declares its output's calibration inherited from an input, and the calibration is not held: the producer's label is none, point-only or unmeasured, an inherited calibration cannot be resolved from the pair alone, the input it is inherited from is not connected, or the upstream producer does not hold a measured record. Calibration of a component is not calibration of a composition; the refusal names what holds and what would license the reliance."
+
+[[code]]
+id = "interface_contract_cyclic_composition"
+applies_to = ["runtime_refusal"]
+meaning = "The connections of a composition form a cycle: feedback between one component's output and another's input. Cyclic scientific composition is not supported; the loop is refused before any component runs and the refusal names the cycle path. Compose the components feed-forward, or model the loop inside one component's own declared contract."
+
+# Composition verification (promotion record: composition_verification.claim_revalidation in parity/promotion.toml).
+[[code]]
+id = "claim_revalidation_required"
+applies_to = ["runtime_refusal"]
+meaning = "A claim rests on an upstream object (data, evidence, a model or representation version, or a structural derivation) that changed after the claim was produced, so its numbers, fit and uncertainty carry no authority until it is recomputed. The refusal names the changed origin; the license for the claim is not withdrawn."
+
+[[code]]
+id = "claim_license_withdrawn"
+applies_to = ["runtime_refusal"]
+meaning = "A claim rests on an upstream object whose license no longer holds: an input that was retired, replaced or removed, coordinates outside the support, a provider whose trust was withdrawn, or a stage that cannot be executed. This is distinct from stale numbers: recomputation alone does not restore the license. The refusal names the origin and the declaration that would restore it."

@@ -26,6 +26,7 @@ pub mod causal_artifact;
 mod claim_identity;
 pub mod cohort_decision;
 pub mod compact_export;
+pub mod composition_verification_artifact;
 pub mod container;
 mod contract_reason;
 pub mod contract_section;
@@ -56,6 +57,8 @@ pub mod graph_mixed;
 pub mod graph_networkx;
 pub mod graphless_support;
 pub mod identity;
+pub mod interface_contract_artifact;
+pub mod joint_law_propagation_artifact;
 pub mod measurement_model_wire;
 pub mod mechanism_composition_artifact;
 pub mod mechanism_wire;
@@ -197,6 +200,13 @@ pub use identity::{
     prior_set_identity, program_digest, score_reuse_digest, target_weights_digest,
     temporal_admg_identity, temporal_cpdag_identity, temporal_dag_identity, temporal_pag_identity,
     transport_identity,
+};
+pub use joint_law_propagation_artifact::{
+    ConsumedJointLawPropagation, EnvelopeQueryWire, JOINT_LAW_PROPAGATION_ARTIFACT_FEATURE,
+    JOINT_LAW_PROPAGATION_ARTIFACT_VERSION, JOINT_LAW_PROPAGATION_MAX_INPUTS,
+    JointLawPropagationArtifactError, JointLawPropagationArtifactWire, MarginalWire,
+    PropagationInputWire, PropagationRequestWire, PropagationRuleWire, float_bits,
+    joint_law_propagation_identity,
 };
 pub use mechanism_composition_artifact::{
     CompositionQueryWire, CompositionResultWire, ConsumedMechanismComposition,

@@ -19,11 +19,14 @@ pub mod bridge;
 pub mod capability;
 pub mod claim;
 pub mod composition_provenance;
+pub mod composition_verification;
 pub mod evidence_ledger;
 pub mod evidence_obligation;
 pub mod external;
 pub mod external_binding;
 pub mod external_refusal;
+pub mod interface_contract;
+pub mod joint_law_rule;
 pub mod measurement;
 pub mod mechanism_composition;
 pub mod obligation;
@@ -74,6 +77,12 @@ pub use external_binding::{
 pub use external_refusal::{
     ExternalRefusal, StructuredRefusal, capability_from_name, capability_name, probe_from_name,
     probe_name,
+};
+pub use joint_law_rule::{
+    ASSUMPTION_RANGE_LABEL, InputAlignment, InputRole, JOINT_LAW_STAGE, POINT_ONLY_LABEL,
+    PropagationClass, PropagationDependence, PropagationInput, PropagationOperation,
+    PropagationPlan, PropagationRequest, PropagationRoute, RequestedReading,
+    STRUCTURAL_ENVELOPE_LABEL, check_propagation, check_rows_pairable,
 };
 pub use mechanism_composition::{
     AdmissionBasis, AdmissionCoordinate, DependenceDeclaration, LatentCauseDeclaration,

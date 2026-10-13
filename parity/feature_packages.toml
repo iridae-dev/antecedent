@@ -554,3 +554,87 @@ purpose = "Can an interval, credible interval, error rate or coverage statement 
 depends_on = ["adaptive_inference.bayesian_posterior", "adaptive_inference.adaptive_weighting", "adaptive_inference.anytime_valid_sequence", "adaptive_inference.group_sequential"]
 record = "adaptive_inference.guarantees_closed"
 record_state = "frozen"
+
+[[feature]]
+id = "composition_verification.claim_revalidation"
+purpose = "Which downstream claims are still valid, must be recomputed or are no longer licensed when an upstream object changes, with a per-claim lineage report"
+depends_on = ["evidence_ledger.overlap_accounting"]
+record = "composition_verification.claim_revalidation"
+record_state = "frozen"
+
+[[feature]]
+id = "composition_verification.revalidated_interval"
+purpose = "closed: an interval, posterior or calibration record for a revalidated or composed claim, or one inherited across targets"
+depends_on = ["composition_verification.claim_revalidation"]
+record = "composition_verification.revalidated_interval"
+record_state = "frozen"
+
+[[feature]]
+id = "joint_law.linear_moment_propagation"
+purpose = "What are the mean and variance of a linear transform, contrast, sum or weighted sum of uncertain inputs, and which dependence information must be supplied before they are formed?"
+depends_on = ["distribution.joint_alignment", "evidence_ledger.overlap_accounting"]
+record = "joint_law.linear_moment_propagation"
+record_state = "frozen"
+
+[[feature]]
+id = "joint_law.aligned_nonlinear_functional"
+purpose = "What is the expectation of a product or other nonlinear functional of two uncertain inputs, and when may their draws be paired?"
+depends_on = ["distribution.joint_alignment"]
+record = "joint_law.aligned_nonlinear_functional"
+record_state = "frozen"
+
+[[feature]]
+id = "joint_law.known_weight_mixture"
+purpose = "What are the mean and variance of a finite mixture of uncertain components when the weights are known?"
+depends_on = []
+record = "joint_law.known_weight_mixture"
+record_state = "frozen"
+
+[[feature]]
+id = "joint_law.dependence_envelope"
+purpose = "What values can a functional of two marginals take when nothing is known about their dependence, or when only a correlation range is declared?"
+depends_on = ["evidence_ledger.dependence_range"]
+record = "joint_law.dependence_envelope"
+record_state = "frozen"
+
+[[feature]]
+id = "joint_law.transported_composition"
+purpose = "May a transported interval, or the source-sampling, target-sampling and transport-functional pieces of one transported claim, be composed with another claim?"
+depends_on = ["joint_law.linear_moment_propagation", "joint_law.aligned_nonlinear_functional", "counterfactual.transport_general"]
+record = "joint_law.transported_composition"
+record_state = "frozen"
+
+[[feature]]
+id = "joint_law.composed_interval"
+purpose = "Can an interval or posterior statement be reported for a quantity composed from several uncertain inputs?"
+depends_on = ["joint_law.linear_moment_propagation", "joint_law.aligned_nonlinear_functional", "joint_law.known_weight_mixture", "joint_law.dependence_envelope"]
+record = "joint_law.composed_interval"
+record_state = "frozen"
+
+[[feature]]
+id = "interface_contract.scientific_interface"
+purpose = "May the quantity one component produces feed the input another consumes, decided from the two declared contracts before any number is computed?"
+depends_on = ["measurement.model_contract", "evidence_ledger.overlap_accounting"]
+record = "interface_contract.scientific_interface"
+record_state = "frozen"
+
+[[feature]]
+id = "interface_contract.cyclic_composition"
+purpose = "closed: composition of components with feedback between one component's output and another's input"
+depends_on = ["interface_contract.scientific_interface"]
+record = "interface_contract.cyclic_composition"
+record_state = "frozen"
+
+[[feature]]
+id = "interface_contract.calibration_inheritance"
+purpose = "closed: reliance on, or inheritance of, measured calibration the upstream producer does not hold"
+depends_on = ["interface_contract.scientific_interface"]
+record = "interface_contract.calibration_inheritance"
+record_state = "frozen"
+
+[[feature]]
+id = "interface_contract.portable_specification"
+purpose = "Can a party that does not use Antecedent read and check the interface contract, evidence ledger and composition bundle artifacts?"
+depends_on = ["interface_contract.scientific_interface", "evidence_ledger.overlap_accounting"]
+record = "interface_contract.portable_specification"
+record_state = "frozen"

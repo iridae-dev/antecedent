@@ -11,12 +11,14 @@ pub(crate) const ANALYSIS_RESULT: &str = "analysis_result";
 pub(crate) const CAUSAL_PAYLOAD: &str = "causal_payload";
 pub(crate) const COHORT_DECISION_SOURCE: &str = "cohort_decision_source_v1";
 pub(crate) const COMPACT_RUNTIME_EXPORT: &str = "compact_runtime_export_v1";
+pub(crate) const COMPOSITION_VERIFICATION: &str = "composition_verification_v1";
 pub(crate) const COUNTERFACTUAL_TRANSPORT: &str = "counterfactual_transport_v1";
 pub(crate) const EVIDENCE_LEDGER: &str = "evidence_ledger_v1";
 pub(crate) const EXTERNAL_CALLBACK: &str = "external_callback_v1";
 pub(crate) const EXTERNAL_COLUMN_CLAIM: &str = "external_column_claim_v1";
 pub(crate) const EXTERNAL_RESPONSE_CLAIM: &str = "external_response_claim_v1";
 pub(crate) const FROZEN_SCORES: &str = "frozen_scores_v1";
+pub(crate) const INTERFACE_CONTRACT: &str = "interface_contract_v1";
 pub(crate) const JOINT_DISTRIBUTION: &str = "joint_distribution_v1";
 pub(crate) const JOINT_MECHANISM_SENSITIVITY: &str = "joint_mechanism_sensitivity";
 pub(crate) const MEASUREMENT_MODEL: &str = "measurement_model_v1";
@@ -33,11 +35,12 @@ pub(crate) const TRANSPORTED_COUNTERFACTUAL: &str = "transported_counterfactual_
 mod tests {
     use super::{
         ADAPTIVE_MONITORING_CONTRACT, ANALYSIS_RESULT, CAUSAL_PAYLOAD, COHORT_DECISION_SOURCE,
-        COMPACT_RUNTIME_EXPORT, COUNTERFACTUAL_TRANSPORT, EVIDENCE_LEDGER, EXTERNAL_CALLBACK,
-        EXTERNAL_COLUMN_CLAIM, EXTERNAL_RESPONSE_CLAIM, FROZEN_SCORES, JOINT_DISTRIBUTION,
-        JOINT_MECHANISM_SENSITIVITY, MEASUREMENT_MODEL, PROVIDER_RESULT,
-        PROVIDER_VERIFICATION_RECEIPT, RECALC_RECEIPT, SCIENTIFIC_BRIDGE, SENSITIVITY_DECISION,
-        TEMPORAL_COUNTERFACTUAL, TRANSPORT_CERTIFICATE, TRANSPORTED_COUNTERFACTUAL,
+        COMPACT_RUNTIME_EXPORT, COMPOSITION_VERIFICATION, COUNTERFACTUAL_TRANSPORT,
+        EVIDENCE_LEDGER, EXTERNAL_CALLBACK, EXTERNAL_COLUMN_CLAIM, EXTERNAL_RESPONSE_CLAIM,
+        FROZEN_SCORES, INTERFACE_CONTRACT, JOINT_DISTRIBUTION, JOINT_MECHANISM_SENSITIVITY,
+        MEASUREMENT_MODEL, PROVIDER_RESULT, PROVIDER_VERIFICATION_RECEIPT, RECALC_RECEIPT,
+        SCIENTIFIC_BRIDGE, SENSITIVITY_DECISION, TEMPORAL_COUNTERFACTUAL, TRANSPORT_CERTIFICATE,
+        TRANSPORTED_COUNTERFACTUAL,
     };
 
     #[test]
@@ -48,12 +51,14 @@ mod tests {
             CAUSAL_PAYLOAD,
             COHORT_DECISION_SOURCE,
             COMPACT_RUNTIME_EXPORT,
+            COMPOSITION_VERIFICATION,
             COUNTERFACTUAL_TRANSPORT,
             EVIDENCE_LEDGER,
             EXTERNAL_CALLBACK,
             EXTERNAL_COLUMN_CLAIM,
             EXTERNAL_RESPONSE_CLAIM,
             FROZEN_SCORES,
+            INTERFACE_CONTRACT,
             JOINT_DISTRIBUTION,
             JOINT_MECHANISM_SENSITIVITY,
             MEASUREMENT_MODEL,
@@ -68,6 +73,7 @@ mod tests {
             "adaptive_inference_result_v1",
             "categorical_treatment_v1",
             "effect_constancy_v1",
+            "joint_law_propagation_v1",
             "latent_class_effects_v1",
             "learned_trial",
             "marginal_sensitivity_model",

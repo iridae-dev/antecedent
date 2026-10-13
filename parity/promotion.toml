@@ -13440,3 +13440,726 @@ fixtures = [
   { id = "adaptive_inference.guarantees_closed.python_interval_closed.negative", role = "negative", intent = "Python surface: no interval is licensed for any route.", evidence_test = "python/tests/test_adaptive_inference.py", evidence_assertion = "test_no_interval_is_licensed_for_any_route" },
 ]
 inference_outputs = []
+
+[[record]]
+id = "composition_verification.claim_revalidation"
+capability = "composition_verification.claim_revalidation"
+status = "in_progress"
+consumer_question = "When an upstream object of a composed analysis changes (data, evidence, a model or representation version, a structural derivation, a target population, a selection diagram, support, provider trust or calibration), which downstream claims are still valid, which must be recomputed and which are no longer licensed, and which upstream claims, bridges, shared data, versions, unsupported coordinates, assumptions and calibration stand behind one claim?"
+theorem = "Let G be a finite directed acyclic graph whose nodes are claims and objects with a content identity, an optional structural identity, a version label, an evaluation coordinate, a support standing, a provider-trust standing and a calibration declaration, and whose edges carry a dependency kind (data, evidence, model_version, support, provider_trust, calibration, structural_derivation). For an earlier snapshot G0 and a current snapshot G1 and a set of observed effects (a recomputed stage, a stale, withdrawn or replaced ledger result, a withdrawn or superseded claim), visit nodes in topological order. A node has a numerical reason when it is new, when its identity, structure, version, coordinate or dependency set differs, or when an effect reports it stale; numerical reasons reach every dependent along every edge. A node has a withdrawal when its support does not cover its coordinates, its provider trust no longer holds, an effect withdraws or refuses it, or an input it had is gone from G1; support, provider-trust, retirement and unexecutable withdrawals reach every dependent along every edge, and a calibration withdrawal reaches a dependent along a calibration edge only. A node that states a calibration record held at coordinate c is licensed for it only when c is the node's own coordinate; a node that states a record inherited from an upstream node u is licensed for it only when u currently holds the same record at the same coordinate (u not retired, unsupported or untrusted). The class is withdrawn when any withdrawal stands, recompute when only numerical reasons stand, and still_valid otherwise; only a still_valid claim retains the earlier fit and uncertainty authority, so reusing a structural derivation after the data were replaced is a recomputation and never retains the old fit. The class of a node is a deterministic function of the two canonical graphs and the effects: it is invariant to node and edge declaration order. NOT inherited: any property of the declared identities, coordinates, supports, trust standings or calibration records (they are declarations, not checked), detection of a dependence that is not declared as an edge, and any interval, posterior or coverage statement."
+reference = "docs/composition-verification.md"
+guarantee = "claim_level_revalidation_relative_to_declared_dependencies_no_interval_or_calibration"
+graph_class = "Not applicable. The claim-level dependency graph is a declared acyclic bookkeeping graph; it does not identify and is not a causal graph."
+population_semantics = "A calibration record holds at one evaluation coordinate (method, target population, regime, quantity). A claim about another target never inherits it; a changed target is a changed coordinate."
+evidence_family = "Declared node identities and typed dependencies, recalculation-plan stage statuses, evidence-ledger result standings, invalidation-log entries and claim freshness."
+provider = "antecedent_contract::composition_verification (graph, classification, lineage); antecedent_io_core::composition_verification_artifact (artifact); antecedent::analysis::composition_verification (facade)."
+estimand = "none: a classification of claims, not a statistical estimand."
+inference_claim = "none"
+owners = ["antecedent-contract", "antecedent-io-core", "antecedent"]
+identity_inputs = [
+  "node key, kind, content identity, structural identity, representation version, evaluation coordinate",
+  "support standing with the unsupported coordinates, provider-trust standing",
+  "calibration declaration (kind, record identity, coordinate, source node)",
+  "assumptions, transformation name and ledger sources of each node",
+  "typed dependencies (downstream, upstream, kind) in canonical order",
+  "observed effects by node key",
+  "declared shared-data relations and the ledger state digest",
+]
+wire_changes = [
+  "Additive: composition_verification_v1 (new artifact kind) holding the earlier and current graphs, the observed effects, the declared shared-data relations, the classification of every claim and the identity of each lineage report.",
+]
+compatibility = "Additive. No existing stage, artifact, claim or reason code changes; two registered reason codes are added."
+search = false
+prerequisite_records = ["evidence_ledger.overlap_accounting"]
+prerequisite_reason = "Shared-data relationships and result standings come from the evidence ledger's row-level overlap and operation history; the verification adds no overlap model of its own and inherits no coverage."
+bounds = { cancellation = true, max_nodes = 512, max_edges = 4096, max_overlap_checks = 250000 }
+refusals = [
+  { code = "claim_revalidation_required", detail = "composition_verification.recompute_required", when = "A claim rests on data, evidence, a model or representation version or a structural derivation that changed; its earlier fit and uncertainty carry no authority.", remedy = "Recompute the claim from the changed upstream objects; its license is not withdrawn." },
+  { code = "claim_license_withdrawn", detail = "composition_verification.support_withdrawn", when = "A claim answers coordinates outside the support of an object it rests on.", remedy = "Restrict the claim to supported coordinates or supply evidence that extends the support." },
+  { code = "claim_license_withdrawn", detail = "composition_verification.provider_trust_withdrawn", when = "A claim rests on a provider whose trust no longer holds at its current identity.", remedy = "Re-verify the provider at its current identity or use a native route." },
+  { code = "claim_license_withdrawn", detail = "composition_verification.input_retired", when = "A claim rests on an input that was retired, replaced or removed from the composition.", remedy = "Recompute from the successor of the retired input or declare a replacement." },
+  { code = "claim_license_withdrawn", detail = "composition_verification.stage_unexecutable", when = "A claim rests on a stage the planner refused (missing fit, data or provider in this process).", remedy = "Supply the data, fit or provider the stage needs or recompute it." },
+  { code = "cell_not_licensed", detail = "composition_verification.calibration_not_held", when = "A claim states a calibration record that was inherited from an upstream object that no longer holds it, or that was established at another coordinate.", remedy = "Establish a calibration record at this claim's coordinate, or report the point value without an interval or posterior." },
+  { code = "invalid_argument", detail = "composition_verification.graph_invalid", when = "The graph has a duplicate node, an unknown dependency, a cycle, or inherits calibration without a calibration dependency.", remedy = "Declare unique nodes, dependencies between declared nodes without a cycle and a calibration dependency for every inherited calibration." },
+  { code = "invalid_argument", detail = "composition_verification.unknown_claim", when = "The named claim is not in the current graph.", remedy = "Name a claim declared in the current composition graph." },
+  { code = "invalid_argument", detail = "composition_verification.replay_mismatch", when = "A stored classification, report identity or relation of an artifact does not replay.", remedy = "Regenerate the artifact from the graphs and observed effects." },
+  { code = "invalid_argument", detail = "composition_verification.ledger_mismatch", when = "The consumer's evidence ledger is at another state or its overlap differs from the declared relations.", remedy = "Verify against the ledger the relations were read from, or regenerate the verification." },
+  { code = "route_not_supported", detail = "composition_verification.identity_mismatch", when = "The artifact's identity differs from the identity the consumer retained.", remedy = "Supply the artifact whose recomputed identity equals the retained identity." },
+]
+routes = [
+  { name = "antecedent.composition_verification.verify", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.composition_verification.lineage", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.composition_verification.consume_composition_verification_artifact", stage = "consume", status = "licensed", claim = "none" },
+]
+fixtures = [
+  { id = "composition_verification.claim_revalidation.sibling_stays_valid.truth", role = "truth", intent = "Replacing the cohort data of a hand-built eleven-node graph recomputes exactly the seven nodes that read it and leaves the sibling claim, the provider and the target valid, with no license withdrawn.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "a_change_leaves_the_sibling_valid_and_recomputes_every_dependent" },
+  { id = "composition_verification.claim_revalidation.structure_reused.truth", role = "truth", intent = "A structural derivation reused after the data were replaced recomputes the fit and retains no earlier fit or uncertainty authority.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "reusing_a_structural_derivation_after_data_replacement_keeps_no_fit_authority" },
+  { id = "composition_verification.claim_revalidation.license_withdrawal.negative", role = "negative", intent = "A withdrawn provider trust withdraws every dependent with no numerical reason; an unsupported target withdraws only the claims that rest on its support.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "a_withdrawn_provider_trust_withdraws_dependents_without_stale_numbers" },
+  { id = "composition_verification.claim_revalidation.inherited_calibration.negative", role = "negative", intent = "A claim whose calibration was inherited from an upstream object that no longer holds it is refused as cell_not_licensed with its point value untouched.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "calibration_inherited_from_an_object_that_no_longer_holds_it_is_refused" },
+  { id = "composition_verification.claim_revalidation.target_calibration.negative", role = "negative", intent = "A calibration record established at one target population is never inherited by a claim about another, and a changed target loses the record.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "transported_calibration_is_never_inherited_by_a_different_target" },
+  { id = "composition_verification.claim_revalidation.ledger_standing.truth", role = "truth", intent = "A ledger withdrawal classifies the pooled result of two studies withdrawn, the pool of three recompute and the untouched pool valid, agreeing with the ledger's own classification.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "ledger_standings_drive_the_graph_classification" },
+  { id = "composition_verification.claim_revalidation.declaration_order.invariance", role = "invariance", intent = "All 720 declaration orders of a six-node graph, with the edge list forward and reversed, give one graph identity, one topological order and one classification.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "declaration_order_never_changes_identity_order_or_classification" },
+  { id = "composition_verification.claim_revalidation.lineage.truth", role = "truth", intent = "The lineage of a transported claim lists its upstream objects, boundary transformations, assumptions in dependency order, versions and unsupported coordinates.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "the_view_reports_lineage_boundaries_versions_and_unsupported_coordinates" },
+  { id = "composition_verification.claim_revalidation.shared_data.truth", role = "truth", intent = "Rows 50..100 shared by two cohorts are reported as shared data with fifty observations, a disjoint cohort is not listed and an undeclared source is an unknown dependence, never independent.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "shared_data_comes_from_the_ledger_overlap_and_unknown_is_never_independent" },
+  { id = "composition_verification.claim_revalidation.planner_integration.truth", role = "truth", intent = "A data-snapshot change in the recalculation plan recomputes the score artifact, law and decision and leaves identification valid; a target change recomputes the law and withdraws a calibration held at the old target.", evidence_test = "crates/antecedent/tests/composition_verification_facade.rs", evidence_assertion = "a_target_change_recomputes_the_law_and_never_inherits_its_calibration" },
+  { id = "composition_verification.claim_revalidation.fresh_consumer.artifact", role = "artifact", intent = "A fresh consumer replays the classification and lineage of the sealed verification and refuses a flipped byte and a wrong retained identity.", evidence_test = "crates/antecedent-io-core/tests/composition_verification_artifact.rs", evidence_assertion = "a_fresh_consumer_sees_the_classification_and_the_lineage" },
+  { id = "composition_verification.claim_revalidation.semantic_mutation.artifact", role = "artifact", intent = "A resealed edit of a stored class, authority, reason, calibration state or lineage identity, and a resealed edit of a node, dependency or effect, does not replay or is refused.", evidence_test = "crates/antecedent-io-core/tests/composition_verification_artifact.rs", evidence_assertion = "a_resealed_edit_of_a_stored_classification_does_not_replay" },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "composition_verification.revalidated_interval"
+capability = "composition_verification.revalidated_interval"
+status = "in_progress"
+consumer_question = "Can an interval, posterior or coverage statement be reported for a revalidated or composed claim, or can a calibration record established for one claim, target population or composition be carried to another?"
+theorem = "Closed adjacent variant of the claim revalidation record. Revalidation classifies claims and checks that a stated calibration record holds at the claim's own coordinate; it measures no coverage. A component interval does not cover a composition, a record established at one target population does not hold at another, and no whole-method coverage has been measured at a composed coordinate, so the request is refused with a typed reason. The calibration design (whole-method design, data-generating process, nominal level, support range, probes) is recorded as a design decision only."
+reference = "provenance/composition_verification.revalidated_interval.toml"
+guarantee = "interval_route_closed_pending_measurement"
+graph_class = "No graph."
+population_semantics = "Not applicable."
+evidence_family = "A recomputed claim, a claim whose calibration was inherited from an upstream object, and a transported claim retargeted to another population, each asked for an interval or a calibration record."
+provider = "antecedent_contract::composition_verification::ClaimRevalidation::refusal"
+estimand = "none: the request is refused"
+inference_claim = "none"
+owners = ["antecedent-contract", "antecedent"]
+identity_inputs = ["claim key and coordinate"]
+wire_changes = ["None."]
+compatibility = "Additive; opening the route later is its own record with whole-method coverage measured at the composed coordinate."
+search = false
+prerequisite_records = ["composition_verification.claim_revalidation"]
+prerequisite_reason = "Closed route: the request is refused with a typed reason; no component interval, calibration record or posterior is carried to the composition and no coverage is inherited."
+bounds = { cancellation = true }
+refusals = [
+  { code = "cell_not_licensed", detail = "composition_verification.calibration_not_held", when = "An interval, posterior or coverage statement is requested for a claim whose calibration record does not hold at its coordinate, or is inherited from an upstream object that does not hold it.", remedy = "None available yet: the verification reports the point value; an uncertainty statement needs a calibration measured at the claim's own coordinate." },
+]
+routes = [
+  { name = "antecedent.composition_verification.revalidated_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent-contract/tests/composition_verification.rs", refusal_assertion = "calibration_inherited_from_an_object_that_no_longer_holds_it_is_refused" },
+  { name = "antecedent.composition_verification.calibration_across_targets", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent-contract/tests/composition_verification.rs", refusal_assertion = "transported_calibration_is_never_inherited_by_a_different_target" },
+]
+fixtures = [
+  { id = "composition_verification.revalidated_interval.inherited_record.negative", role = "negative", intent = "A claim that inherits a calibration record from an upstream object that dropped it is refused as cell_not_licensed.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "calibration_inherited_from_an_object_that_no_longer_holds_it_is_refused" },
+  { id = "composition_verification.revalidated_interval.other_target.negative", role = "negative", intent = "A record established for one target population is refused for a claim about another, and a different record is not inherited.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "transported_calibration_is_never_inherited_by_a_different_target" },
+  { id = "composition_verification.revalidated_interval.retargeted_law.negative", role = "negative", intent = "Through the facade, a recalculation plan that changes the target population withdraws the calibration the law held at the old target.", evidence_test = "crates/antecedent/tests/composition_verification_facade.rs", evidence_assertion = "a_target_change_recomputes_the_law_and_never_inherits_its_calibration" },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "joint_law.linear_moment_propagation"
+capability = "joint_law.linear_moment_propagation"
+status = "in_progress"
+consumer_question = "What are the mean and variance of a linear transform, contrast, sum or weighted sum of uncertain inputs, and which dependence information must be supplied before they are formed?"
+theorem = "Delta method for a linear map: for Y = sum a_i X_i, E[Y] = a'mu and Var(Y) = a' Sigma a, exact with no approximation; Var(X - Y) = Var X + Var Y - 2 Cov(X, Y). The covariance Sigma is supplied (shared evidence, or an explicit joint moment), computed from aligned draws of one joint law, or is diagonal only for inputs with distinct evidence declared independent. A covariance that is not symmetric positive semidefinite is refused, never repaired. No dependence is assumed when none is declared."
+reference = "docs/joint-law-propagation.md"
+guarantee = "exact_given_supplied_moments_point_only_no_interval"
+graph_class = "Not applicable: summaries or aligned draws of declared scientific quantities."
+population_semantics = "Every input names the evidence it rests on; inputs are combined within one population and regime and no transport is performed."
+evidence_family = "Means with a covariance matrix, or two aligned draw columns of one joint law."
+provider = "antecedent_stats::joint_law (linear_combination_moments, paired_moments); antecedent_contract::joint_law_rule (check_propagation); antecedent_io_core::joint_law_propagation_artifact (replay); antecedent::analysis::joint_law_propagation (facade)."
+estimand = "Mean and variance of sum a_i X_i under the supplied or aligned covariance."
+inference_claim = "point_only"
+owners = ["antecedent-stats", "antecedent-contract", "antecedent-io-core", "antecedent"]
+identity_inputs = ["the operation, dependence declaration (covariance identity, or correlation range as IEEE bits) and reading", "every input: identity, evidence identity, role and alignment (aligned with its alignment identity, independent marginals, or moments only)", "the numbers consumed, as IEEE bit patterns (coefficients, means, covariance, weights, draws or marginal atoms)", "the route and result label (point_only, structural_envelope or assumption_range), the alignment identity and the shared-evidence list"]
+wire_changes = ["Additive: joint_law_propagation_v1 artifact v1 (new kind) holding the declaration, inputs, numbers, plan and result bits; the identity excludes the stored result, which is replayed."]
+compatibility = "Additive. No existing claim, artifact, route or reason code changes; a composed quantity is a new claim with its own identity and its inputs are not modified."
+search = false
+prerequisite_records = ["distribution.joint_alignment", "evidence_ledger.overlap_accounting"]
+prerequisite_reason = "Uses the distribution artifact's alignment declaration and the evidence ledger's shared-evidence accounting for who shares evidence; no interval or coverage statement is inherited."
+bounds = { cancellation = true }
+inference_inventory_disposition = "point_output_listed_unmeasured"
+surface_rust = ["crates/antecedent/src/analysis/joint_law_propagation.rs"]
+surface_values = ["JointLawPropagationRefusal", "PropagationDraws", "MomentInput", "MixtureComponent", "LinearDependence", "CorrelationRangeSummary", "PropagationClaim", "EnvelopeQueryWire", "MarginalWire", "ValueFunctional"]
+refusals = [
+  { code = "invalid_argument", detail = "joint_law_propagation.invalid_request", when = "A request names too few inputs, a blank or repeated input, a blank covariance declaration, an envelope reading without a declared range, or numbers that do not fit the licensed route.", remedy = "Name every input once with its evidence identity, declare the dependence, and supply the numbers the licensed route consumes." },
+  { code = "sampling_dependence_unknown", detail = "joint_law_propagation.dependence_unknown", when = "A linear or nonlinear operation is requested with no dependence information; independence is never assumed.", remedy = "Declare a covariance when the inputs share evidence, an aligned joint law (draws with one alignment identity), or distinct evidence with a declared independence." },
+  { code = "evidence_double_counted", detail = "joint_law_propagation.shared_evidence_declared_independent", when = "Inputs that rest on the same evidence are declared independent.", remedy = "Supply the covariance between them (the shared evidence supplies it) or an aligned joint law." },
+  { code = "invalid_argument", detail = "joint_law_propagation.artifact_refused", when = "An artifact's identity differs from the retained one, its stored plan is not what the rule yields, or its stored result does not replay.", remedy = "Supply the artifact whose identity equals the retained one and whose result recomputes from its stored inputs and rule." },
+  { code = "invalid_argument", detail = "joint_law_propagation.artifact_invalid", when = "An artifact's bytes are corrupt, truncated, oversized, of another version or of another layout.", remedy = "Supply an intact joint_law_propagation_v1 artifact of the supported layout." },
+  { code = "cancelled_no_claim", detail = "joint_law_propagation.cancelled", when = "Cancelled before a value was formed.", remedy = "Rerun without cancellation; the cancellation is not a verdict on the composition." },
+]
+routes = [
+  { name = "antecedent_contract.joint_law_rule.check_propagation", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent_stats.joint_law.linear_combination_moments", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_stats.joint_law.paired_moments", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.joint_law_propagation.alignment_identity", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent.joint_law_propagation.propagate", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.joint_law_propagation.propagate_linear_moments", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.joint_law_propagation.propagate_aligned_linear", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.joint_law_propagation.consume_joint_law_propagation_artifact", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent.joint_law_propagation.PropagationClaim.export", stage = "representation", status = "licensed", claim = "point_only" },
+  { name = "antecedent_contract.joint_law_rule.dependence_unknown", stage = "prepare", status = "closed", reason_code = "sampling_dependence_unknown", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "linear_operations_take_a_covariance_or_distinct_evidence" },
+  { name = "antecedent_contract.joint_law_rule.shared_evidence_declared_independent", stage = "prepare", status = "closed", reason_code = "evidence_double_counted", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "linear_operations_take_a_covariance_or_distinct_evidence" },
+  { name = "antecedent_io_core.joint_law_propagation_artifact.cancelled", stage = "consume", status = "closed", reason_code = "cancelled_no_claim", permanent_in_release = true, refusal_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", refusal_assertion = "a_cancelled_context_produces_no_claim" },
+]
+fixtures = [
+  { id = "joint_law.linear_moment_propagation.covariance_contrast.positive", role = "positive", intent = "Var(X-Y)=4+9-6=7 and mean 3 replay from a sealed artifact.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_covariance_aware_contrast_replays_to_the_closed_form", shared_evidence = true },
+  { id = "joint_law.linear_moment_propagation.contrast_closed_form.truth", role = "truth", intent = "The delta-method variance of a contrast and a weighted sum equal the closed forms.", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "linear_variance_of_a_contrast_is_the_closed_form", shared_evidence = true },
+  { id = "joint_law.linear_moment_propagation.moments_equal_aligned_draws.truth", role = "truth", intent = "The covariance route and the aligned-draw route give Var(X-Y)=1.61 on an enumerated joint law.", evidence_test = "crates/antecedent/tests/joint_law_propagation_facade.rs", evidence_assertion = "a_covariance_aware_contrast_agrees_between_moments_and_aligned_draws", shared_evidence = true },
+  { id = "joint_law.linear_moment_propagation.undeclared_dependence.negative", role = "negative", intent = "Unknown dependence and shared evidence declared independent are refused with registered codes.", evidence_test = "crates/antecedent-contract/src/joint_law_rule.rs", evidence_assertion = "linear_operations_take_a_covariance_or_distinct_evidence", shared_evidence = true },
+  { id = "joint_law.linear_moment_propagation.covariance_not_psd.negative", role = "negative", intent = "A covariance that is not positive semidefinite is refused, not repaired.", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "a_covariance_that_is_not_positive_semidefinite_is_refused", shared_evidence = true },
+  { id = "joint_law.linear_moment_propagation.cancelled.negative", role = "negative", intent = "A cancelled context produces no claim.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_cancelled_context_produces_no_claim", shared_evidence = true },
+  { id = "joint_law.linear_moment_propagation.semantic_mutation.artifact", role = "artifact", intent = "Unresealed and resealed edits of numbers, rule, label, alignment and version are refused.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "semantic_mutations_are_refused", shared_evidence = true },
+  { id = "joint_law.linear_moment_propagation.contrast_replay.artifact", role = "artifact", intent = "A consumer replays the contrast artifact against the retained identity.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_covariance_aware_contrast_replays_to_the_closed_form", shared_evidence = true },
+  { id = "joint_law.linear_moment_propagation.input_order.invariance", role = "invariance", intent = "Input order and relabelling do not change the numbers.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "values_are_invariant_to_input_order_and_relabelling", shared_evidence = true },
+]
+[[record.inference_outputs]]
+id = "joint_law.linear_moment_propagation.values.1"
+fields = ["mean", "variance", "covariance (aligned draws)"]
+method = "Delta method for a linear map under a supplied or aligned covariance; no estimation."
+implementation_status = "implemented_exact_conditional"
+owner = "antecedent-stats"
+operation_or_object = "crates/antecedent-stats/src/joint_law.rs"
+public_producers = ["antecedent_stats.joint_law.linear_combination_moments", "antecedent.joint_law_propagation.propagate_linear_moments", "antecedent.joint_law_propagation.propagate_aligned_linear"]
+closed_producers = []
+independent_consumers = ["joint_law.linear_moment_propagation.contrast_replay.artifact", "joint_law.linear_moment_propagation.semantic_mutation.artifact"]
+method_source = "crates/antecedent-stats/src/joint_law.rs"
+truth_design = "Closed-form Var(X-Y)=sx^2+sy^2-2cov and an enumerated finite joint law; finite fixtures, not a repeated-sampling study."
+truth_fixtures = ["joint_law.linear_moment_propagation.covariance_contrast.positive", "joint_law.linear_moment_propagation.contrast_closed_form.truth"]
+nominal_level = "not_applicable"
+acceptance_threshold = "Asserted values within the stated absolute tolerances (1e-12 for closed-form and enumerated values; a predeclared five-sigma band for the seeded aligned-draw product moment); no coverage or calibration threshold is claimed."
+measurement_suite = "crates/antecedent-stats/src/joint_law.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Exact given the supplied moments; a variance from fitted or sampled moments is a labelled point value and no interval is licensed (see joint_law.composed_interval)."
+activation_disposition = "retain_current_point_or_model_conditional_standing_no_new_guarantee"
+allocation_status = "numeric_or_inherited_scope_requires_no_new_interval_license"
+measurement_design_status = "not_a_new_statistical_coverage_target"
+truth_grid_allocation = "Closed-form Var(X-Y)=sx^2+sy^2-2cov and an enumerated finite joint law; finite fixtures, not a repeated-sampling study."
+
+[[record]]
+id = "joint_law.aligned_nonlinear_functional"
+capability = "joint_law.aligned_nonlinear_functional"
+status = "in_progress"
+consumer_question = "What is the expectation of a product or other nonlinear functional of two uncertain inputs, and when may their draws be paired?"
+theorem = "E[g(X, Y)] is an expectation under the joint law of (X, Y). Rows of draws are realizations of one joint law only when every input carries the same alignment identity; then the row mean of g converges to the joint expectation (for a product, E[XY] = rho s_x s_y + mu_x mu_y). Pairing the rows of independently sampled marginals by index is the product law and is a different claim; it is refused, as is pairing rows of two different joint laws. A covariance does not determine a nonlinear functional."
+reference = "docs/joint-law-propagation.md"
+guarantee = "aligned_draw_expectation_point_only_no_interval"
+graph_class = "Not applicable: aligned draws of declared scientific quantities."
+population_semantics = "Columns of one distribution artifact (one study, provider, stream and snapshot) in one population and regime."
+evidence_family = "Two aligned columns of a joint distribution artifact; a closed functional (product, ratio, minimum, maximum, squared difference)."
+provider = "antecedent_stats::joint_law::aligned_functional_mean; antecedent_contract::joint_law_rule; antecedent::analysis::joint_law_propagation::propagate_aligned_functional."
+estimand = "E[g(X, Y)] over the aligned rows."
+inference_claim = "point_only"
+owners = ["antecedent-stats", "antecedent-contract", "antecedent-io-core", "antecedent"]
+identity_inputs = ["the operation, dependence declaration (covariance identity, or correlation range as IEEE bits) and reading", "every input: identity, evidence identity, role and alignment (aligned with its alignment identity, independent marginals, or moments only)", "the numbers consumed, as IEEE bit patterns (coefficients, means, covariance, weights, draws or marginal atoms)", "the route and result label (point_only, structural_envelope or assumption_range), the alignment identity and the shared-evidence list"]
+wire_changes = ["Additive: joint_law_propagation_v1 artifact v1 (new kind) holding the declaration, inputs, numbers, plan and result bits; the identity excludes the stored result, which is replayed."]
+compatibility = "Additive. No existing claim, artifact, route or reason code changes; a composed quantity is a new claim with its own identity and its inputs are not modified."
+search = false
+prerequisite_records = ["distribution.joint_alignment"]
+prerequisite_reason = "Reads the alignment declaration of the distribution artifact; an artifact of independent marginals has no alignment identity and is refused. No interval is inherited."
+bounds = { cancellation = true }
+inference_inventory_disposition = "point_output_listed_unmeasured"
+refusals = [
+  { code = "joint_law_required", detail = "joint_law_propagation.nonlinear_needs_aligned_joint_law", when = "A product, nonlinear functional or chained transformation is requested over inputs declared independent.", remedy = "Supply the draws of one joint law (one alignment identity for every input); independent marginals are never paired by index." },
+  { code = "joint_law_required", detail = "joint_law_propagation.covariance_insufficient_for_nonlinear", when = "A nonlinear operation is requested with only a covariance.", remedy = "Supply the aligned draws of one joint law, or ask for the dependence envelope." },
+  { code = "joint_law_required", detail = "joint_law_propagation.index_pairing_refused", when = "Draws of unrelated or independently sampled marginals are asked to be paired by index.", remedy = "Supply the draws of one joint law with a shared alignment identity, a covariance for a linear operation, or ask for the dependence envelope." },
+  { code = "joint_law_required", detail = "joint_law_propagation.alignment_mismatch", when = "Inputs are aligned joint laws with different alignment identities.", remedy = "Supply columns of one joint law; rows of different joint laws are not paired." },
+]
+routes = [
+  { name = "antecedent_stats.joint_law.aligned_functional_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.joint_law_propagation.propagate_aligned_functional", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_contract.joint_law_rule.index_pairing", stage = "prepare", status = "closed", reason_code = "joint_law_required", permanent_in_release = true, refusal_test = "crates/antecedent/tests/joint_law_propagation_facade.rs", refusal_assertion = "index_pairing_of_unrelated_marginal_artifacts_is_refused" },
+  { name = "antecedent_contract.joint_law_rule.nonlinear_without_aligned_law", stage = "prepare", status = "closed", reason_code = "joint_law_required", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "nonlinear_operations_need_one_alignment_identity" },
+]
+fixtures = [
+  { id = "joint_law.aligned_nonlinear_functional.finite_enumeration.positive", role = "positive", intent = "E[XY]=0.4 and E[min]=0.2 on an enumerated joint law replay from a sealed artifact.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "an_aligned_nonlinear_functional_matches_the_finite_joint_law_enumeration", shared_evidence = true },
+  { id = "joint_law.aligned_nonlinear_functional.enumerated_law.truth", role = "truth", intent = "Exact finite joint law enumeration of product, minimum and squared difference.", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "exact_finite_joint_law_enumeration_of_a_nonlinear_functional", shared_evidence = true },
+  { id = "joint_law.aligned_nonlinear_functional.correlated_gaussian.truth", role = "truth", intent = "Seeded aligned draws recover rho s_x s_y + mu_x mu_y inside a predeclared band that unpaired draws miss.", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "aligned_draws_recover_the_product_moment_and_unpaired_draws_do_not", shared_evidence = true },
+  { id = "joint_law.aligned_nonlinear_functional.facade_correlated_gaussian.truth", role = "truth", intent = "Through the facade 100000 aligned draws recover the joint moment inside the predeclared band.", evidence_test = "crates/antecedent/tests/joint_law_propagation_facade.rs", evidence_assertion = "an_aligned_nonlinear_functional_matches_the_joint_moment_truth", shared_evidence = true },
+  { id = "joint_law.aligned_nonlinear_functional.index_pairing.negative", role = "negative", intent = "Unrelated joint laws and independent marginals are refused, never paired by index.", evidence_test = "crates/antecedent/tests/joint_law_propagation_facade.rs", evidence_assertion = "index_pairing_of_unrelated_marginal_artifacts_is_refused", shared_evidence = true },
+  { id = "joint_law.aligned_nonlinear_functional.index_pairing_artifact.negative", role = "negative", intent = "Sealing an index-paired request is refused with joint_law_required.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "unrelated_marginals_are_never_paired_by_index", shared_evidence = true },
+  { id = "joint_law.aligned_nonlinear_functional.needs_joint_law.negative", role = "negative", intent = "Covariance-only and independence declarations are refused for a nonlinear operation.", evidence_test = "crates/antecedent-contract/src/joint_law_rule.rs", evidence_assertion = "nonlinear_operations_need_one_alignment_identity", shared_evidence = true },
+  { id = "joint_law.aligned_nonlinear_functional.semantic_mutation.artifact", role = "artifact", intent = "A resealed alignment identity or operation edit is refused.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "semantic_mutations_are_refused", shared_evidence = true },
+  { id = "joint_law.aligned_nonlinear_functional.fresh_consumer.artifact", role = "artifact", intent = "A consumer replays the artifact and sampled byte changes are refused.", evidence_test = "crates/antecedent/tests/joint_law_propagation_facade.rs", evidence_assertion = "the_artifact_replays_in_a_fresh_consumer_and_every_mutation_is_refused", shared_evidence = true },
+  { id = "joint_law.aligned_nonlinear_functional.relabelling.invariance", role = "invariance", intent = "Swapping the two columns of a symmetric functional leaves the result.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "values_are_invariant_to_input_order_and_relabelling", shared_evidence = true },
+]
+[[record.inference_outputs]]
+id = "joint_law.aligned_nonlinear_functional.values.1"
+fields = ["mean of g(X, Y) over aligned rows", "row count"]
+method = "Row mean of a closed functional over draws of one joint law; no sampling interval is computed."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-stats"
+operation_or_object = "crates/antecedent-stats/src/joint_law.rs"
+public_producers = ["antecedent_stats.joint_law.aligned_functional_mean", "antecedent.joint_law_propagation.propagate_aligned_functional"]
+closed_producers = []
+independent_consumers = ["joint_law.aligned_nonlinear_functional.semantic_mutation.artifact", "joint_law.aligned_nonlinear_functional.fresh_consumer.artifact"]
+method_source = "crates/antecedent-stats/src/joint_law.rs"
+truth_design = "Closed-form E[XY] = rho s_x s_y + mu_x mu_y for a correlated normal pair inside a predeclared five-sigma band, and exact finite joint law enumerations."
+truth_fixtures = ["joint_law.aligned_nonlinear_functional.finite_enumeration.positive", "joint_law.aligned_nonlinear_functional.correlated_gaussian.truth"]
+nominal_level = "not_applicable"
+acceptance_threshold = "Asserted values within the stated absolute tolerances (1e-12 for closed-form and enumerated values; a predeclared five-sigma band for the seeded aligned-draw product moment); no coverage or calibration threshold is claimed."
+measurement_suite = "crates/antecedent-stats/src/joint_law.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "A labelled point value of the draws supplied; Monte Carlo error is not reported as an interval. Design decision for the later measurement (recorded, not measured): whole method is draw the joint law, form the functional mean; DGP a correlated Gaussian pair with skewed and heavy-tailed variants; nominal target coverage of a stated interval for E[g] at 0.95; support range a grid of draw counts and correlations including near +-1; probes autocorrelated draws and a near-zero denominator for the ratio."
+activation_disposition = "retain_current_point_or_model_conditional_standing_no_new_guarantee"
+allocation_status = "numeric_or_inherited_scope_requires_no_new_interval_license"
+measurement_design_status = "not_a_new_statistical_coverage_target"
+truth_grid_allocation = "Closed-form E[XY] = rho s_x s_y + mu_x mu_y for a correlated normal pair inside a predeclared five-sigma band, and exact finite joint law enumerations."
+
+[[record]]
+id = "joint_law.known_weight_mixture"
+capability = "joint_law.known_weight_mixture"
+status = "in_progress"
+consumer_question = "What are the mean and variance of a finite mixture of uncertain components when the weights are known?"
+theorem = "Law of total variance: for a mixture with known weights w_i, E = sum w_i mu_i and Var = sum w_i v_i + sum w_i (mu_i - E)^2. No joint law of the components is needed because a mixture selects one component; unknown weights are refused."
+reference = "docs/joint-law-propagation.md"
+guarantee = "exact_given_supplied_weights_and_moments_point_only_no_interval"
+graph_class = "Not applicable."
+population_semantics = "Components are alternative sources of one quantity in one population and regime."
+evidence_family = "Known weights with component means and variances."
+provider = "antecedent_stats::joint_law::mixture_moments; antecedent::analysis::joint_law_propagation::propagate_mixture."
+estimand = "Mean and variance of the mixture, with within- and between-component parts."
+inference_claim = "point_only"
+owners = ["antecedent-stats", "antecedent-contract", "antecedent-io-core", "antecedent"]
+identity_inputs = ["the operation, dependence declaration (covariance identity, or correlation range as IEEE bits) and reading", "every input: identity, evidence identity, role and alignment (aligned with its alignment identity, independent marginals, or moments only)", "the numbers consumed, as IEEE bit patterns (coefficients, means, covariance, weights, draws or marginal atoms)", "the route and result label (point_only, structural_envelope or assumption_range), the alignment identity and the shared-evidence list"]
+wire_changes = ["Additive: joint_law_propagation_v1 artifact v1 (new kind) holding the declaration, inputs, numbers, plan and result bits; the identity excludes the stored result, which is replayed."]
+compatibility = "Additive. No existing claim, artifact, route or reason code changes; a composed quantity is a new claim with its own identity and its inputs are not modified."
+search = false
+bounds = { cancellation = true }
+inference_inventory_disposition = "point_output_listed_unmeasured"
+refusals = [
+  { code = "invalid_argument", detail = "joint_law_propagation.mixture_weights_unknown", when = "A mixture is requested without declared weights.", remedy = "Declare the mixture weights; a mixture needs known weights and component moments, and no joint law." },
+]
+routes = [
+  { name = "antecedent_stats.joint_law.mixture_moments", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.joint_law_propagation.propagate_mixture", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_contract.joint_law_rule.mixture_weights_unknown", stage = "prepare", status = "closed", reason_code = "invalid_argument", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "mixtures_need_known_weights_and_no_joint_law" },
+]
+fixtures = [
+  { id = "joint_law.known_weight_mixture.closed_form.positive", role = "positive", intent = "Weights (0.25, 0.75), means (0, 4), variances (1, 4) give mean 3 and variance 6.25.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_known_weight_mixture_replays_to_the_closed_form", shared_evidence = true },
+  { id = "joint_law.known_weight_mixture.total_variance.truth", role = "truth", intent = "The law of total variance equals the second-moment route.", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "known_weight_mixture_matches_the_closed_form", shared_evidence = true },
+  { id = "joint_law.known_weight_mixture.missing_weights.negative", role = "negative", intent = "A mixture without declared weights is refused.", evidence_test = "crates/antecedent/tests/joint_law_propagation_facade.rs", evidence_assertion = "known_weight_mixture_and_missing_weights", shared_evidence = true },
+  { id = "joint_law.known_weight_mixture.rule.negative", role = "negative", intent = "The rule refuses a mixture without known weights and accepts one with.", evidence_test = "crates/antecedent-contract/src/joint_law_rule.rs", evidence_assertion = "mixtures_need_known_weights_and_no_joint_law", shared_evidence = true },
+  { id = "joint_law.known_weight_mixture.replay.artifact", role = "artifact", intent = "A consumer replays the mixture artifact.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_known_weight_mixture_replays_to_the_closed_form", shared_evidence = true },
+]
+[[record.inference_outputs]]
+id = "joint_law.known_weight_mixture.values.1"
+fields = ["mean", "variance", "within", "between"]
+method = "Law of total variance over known weights; no estimation."
+implementation_status = "implemented_exact_conditional"
+owner = "antecedent-stats"
+operation_or_object = "crates/antecedent-stats/src/joint_law.rs"
+public_producers = ["antecedent_stats.joint_law.mixture_moments", "antecedent.joint_law_propagation.propagate_mixture"]
+closed_producers = []
+independent_consumers = ["joint_law.known_weight_mixture.replay.artifact"]
+method_source = "crates/antecedent-stats/src/joint_law.rs"
+truth_design = "Hand-computed mixture of two components with known weights."
+truth_fixtures = ["joint_law.known_weight_mixture.closed_form.positive"]
+nominal_level = "not_applicable"
+acceptance_threshold = "Asserted values within the stated absolute tolerances (1e-12 for closed-form and enumerated values; a predeclared five-sigma band for the seeded aligned-draw product moment); no coverage or calibration threshold is claimed."
+measurement_suite = "crates/antecedent-stats/src/joint_law.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Exact given the supplied weights and component moments; no interval is licensed."
+activation_disposition = "retain_current_point_or_model_conditional_standing_no_new_guarantee"
+allocation_status = "numeric_or_inherited_scope_requires_no_new_interval_license"
+measurement_design_status = "not_a_new_statistical_coverage_target"
+truth_grid_allocation = "Hand-computed mixture of two components with known weights."
+
+[[record]]
+id = "joint_law.dependence_envelope"
+capability = "joint_law.dependence_envelope"
+status = "in_progress"
+consumer_question = "What values can a functional of two marginals take when nothing is known about their dependence, or when only a correlation range is declared?"
+theorem = "Over every coupling of two marginals: P(X+Y<=t) lies between sup_x max(F(x)+G(t-x)-1, 0) and inf_x min(F(x)+G(t-x), 1) and both bounds are attained (Makarov 1982; Rueschendorf 1982); for a function with a nonnegative (nonpositive) mixed second difference the extremes of E[g(X,Y)] are at the comonotone and countermonotone couplings of the marginals' quantile functions (Lorentz 1953; Tchen 1980; Hoeffding 1940; Frechet 1951), so Cov, E[XY] and Var(aX+bY) have exact extremes. The sign structure is verified on the whole atom lattice before a coupling extreme is reported as a bound. A declared correlation range gives the endpoints of quantities linear in rho. The result is an envelope, never a point, interval or posterior, and never a substitute for an aligned joint law."
+reference = "provenance/joint_law.dependence_envelope.toml"
+guarantee = "exact_structural_envelope_or_assumption_range_no_point_no_interval"
+graph_class = "Not applicable."
+population_semantics = "Two marginals of one population and regime; no dependence between them is asserted."
+evidence_family = "Two finite marginals (draws or weighted atoms), or moment summaries with a declared correlation range."
+provider = "antecedent_stats::joint_law (envelopes), antecedent_stats::synthesis::pooled_dependence_envelope; antecedent::analysis::joint_law_propagation."
+estimand = "Extreme values of P(X+Y<=t), P(X-Y<=t), E[XY], Cov and Var(aX+bY) over couplings; extremes over a declared correlation range."
+inference_claim = "none"
+owners = ["antecedent-stats", "antecedent-contract", "antecedent-io-core", "antecedent"]
+identity_inputs = ["the operation, dependence declaration (covariance identity, or correlation range as IEEE bits) and reading", "every input: identity, evidence identity, role and alignment (aligned with its alignment identity, independent marginals, or moments only)", "the numbers consumed, as IEEE bit patterns (coefficients, means, covariance, weights, draws or marginal atoms)", "the route and result label (point_only, structural_envelope or assumption_range), the alignment identity and the shared-evidence list"]
+wire_changes = ["Additive: joint_law_propagation_v1 artifact v1 (new kind) holding the declaration, inputs, numbers, plan and result bits; the identity excludes the stored result, which is replayed."]
+compatibility = "Additive. No existing claim, artifact, route or reason code changes; a composed quantity is a new claim with its own identity and its inputs are not modified."
+search = false
+prerequisite_records = ["evidence_ledger.dependence_range"]
+prerequisite_reason = "Extends the ledger's equicorrelated pooled envelope (an assumption range) with Frechet-Hoeffding bounds of unpaired marginals; both are ranges and neither is an interval."
+bounds = { cancellation = true }
+inference_inventory_disposition = "point_output_listed_unmeasured"
+refusals = [
+  { code = "cell_not_licensed", detail = "joint_law_propagation.envelope_is_not_a_point", when = "A dependence envelope is read as a point.", remedy = "Request the envelope reading, or supply the aligned joint law for a point value." },
+  { code = "route_not_supported", detail = "joint_law_propagation.envelope_not_available", when = "A dependence envelope is requested for an operation or input count outside the bounded family.", remedy = "Use a sum, contrast, weighted sum, product or monotone functional of exactly two marginals." },
+  { code = "route_not_supported", detail = "joint_law_propagation.structure_not_verified", when = "A value function does not have the declared mixed-difference sign on the marginals' support.", remedy = "Use a closed functional on a support where its sign structure holds, or supply the aligned joint law." },
+  { code = "route_not_supported", detail = "joint_law_propagation.bounds_exceeded", when = "The marginals or the draw set exceed the declared bounds of the route.", remedy = "Coarsen the marginals or the draw set to within the declared bounds." },
+]
+routes = [
+  { name = "antecedent_stats.joint_law.sum_cdf_envelope", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent_stats.joint_law.difference_cdf_envelope", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent_stats.joint_law.product_moment_envelope", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent_stats.joint_law.covariance_envelope", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent_stats.joint_law.linear_variance_envelope", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent_stats.joint_law.frechet_expectation_envelope", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent_stats.joint_law.functional_envelope", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent_stats.joint_law.correlation_range_envelope", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.joint_law_propagation.propagate_dependence_envelope", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.joint_law_propagation.propagate_correlation_range", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent_contract.joint_law_rule.envelope_is_not_a_point", stage = "prepare", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "the_envelope_is_labelled_and_never_a_point" },
+  { name = "antecedent_contract.joint_law_rule.envelope_not_available", stage = "prepare", status = "closed", reason_code = "route_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "the_envelope_is_labelled_and_never_a_point" },
+  { name = "antecedent_io_core.joint_law_propagation_artifact.structure_not_verified", stage = "evaluate", status = "closed", reason_code = "route_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent/tests/joint_law_propagation_facade.rs", refusal_assertion = "the_dependence_envelope_is_labelled_and_never_a_point_or_an_interval" },
+]
+fixtures = [
+  { id = "joint_law.dependence_envelope.bernoulli_closed_form.positive", role = "positive", intent = "Bernoulli(0.3), Bernoulli(0.6): E[XY] in [0, 0.3], P(X+Y<=0) in [0.1, 0.4], Var(X+Y) in [0.09, 0.69].", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "bernoulli_envelopes_equal_the_closed_form_endpoints", shared_evidence = true },
+  { id = "joint_law.dependence_envelope.sealed_endpoints.positive", role = "positive", intent = "The sealed artifact replays the closed-form endpoints and the structural label.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "the_dependence_envelope_endpoints_are_the_closed_form_and_the_label_is_structural", shared_evidence = true },
+  { id = "joint_law.dependence_envelope.permutation_enumeration.truth", role = "truth", intent = "Equal-mass marginals: the envelope equals enumeration over all permutations.", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "equal_mass_marginals_envelopes_equal_permutation_enumeration", shared_evidence = true },
+  { id = "joint_law.dependence_envelope.uniform_makarov.truth", role = "truth", intent = "Two uniform marginals: Makarov bounds and comonotone/countermonotone E[XY] match the continuous closed form.", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "uniform_marginals_makarov_bounds_match_the_continuous_closed_form", shared_evidence = true },
+  { id = "joint_law.dependence_envelope.correlation_range.truth", role = "truth", intent = "Endpoints of a declared correlation range equal the closed form.", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "correlation_range_endpoints_are_the_closed_form", shared_evidence = true },
+  { id = "joint_law.dependence_envelope.envelope_as_point.negative", role = "negative", intent = "An envelope read as a point, or requested outside the bounded family, is refused.", evidence_test = "crates/antecedent-contract/src/joint_law_rule.rs", evidence_assertion = "the_envelope_is_labelled_and_never_a_point", shared_evidence = true },
+  { id = "joint_law.dependence_envelope.facade_closed_readings.negative", role = "negative", intent = "Interval and posterior readings of an envelope and an unverified sign structure are refused.", evidence_test = "crates/antecedent/tests/joint_law_propagation_facade.rs", evidence_assertion = "the_dependence_envelope_is_labelled_and_never_a_point_or_an_interval", shared_evidence = true },
+  { id = "joint_law.dependence_envelope.structure_refusal.negative", role = "negative", intent = "A value function without the declared sign structure is refused.", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "a_value_function_without_the_declared_structure_is_refused", shared_evidence = true },
+  { id = "joint_law.dependence_envelope.assumption_range_replay.artifact", role = "artifact", intent = "A declared correlation range replays labelled assumption_range.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_declared_correlation_range_is_an_assumption_range", shared_evidence = true },
+  { id = "joint_law.dependence_envelope.facade_assumption_range.artifact", role = "artifact", intent = "Through the facade the range carries the assumption_range label.", evidence_test = "crates/antecedent/tests/joint_law_propagation_facade.rs", evidence_assertion = "a_declared_correlation_range_is_an_assumption_range", shared_evidence = true },
+  { id = "joint_law.dependence_envelope.listing_order.invariance", role = "invariance", intent = "Listing order, relabelling and swapping the variables leave the envelope.", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "envelopes_are_invariant_to_listing_order_and_relabelling", shared_evidence = true },
+  { id = "joint_law.dependence_envelope.cancellation.negative", role = "negative", intent = "Cancellation is observed in the coupling walk.", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "cancellation_is_observed_in_the_coupling_walk", shared_evidence = true },
+]
+[[record.inference_outputs]]
+id = "joint_law.dependence_envelope.values.1"
+fields = ["lower and upper envelope endpoints", "assumption-range endpoints"]
+method = "Exact comonotone/countermonotone couplings and the Makarov bound evaluated on finite atoms; closed-form endpoints for a declared correlation range."
+implementation_status = "implemented_exact_conditional"
+owner = "antecedent-stats"
+operation_or_object = "crates/antecedent-stats/src/joint_law.rs"
+public_producers = ["antecedent_stats.joint_law.sum_cdf_envelope", "antecedent_stats.joint_law.product_moment_envelope", "antecedent.joint_law_propagation.propagate_dependence_envelope", "antecedent.joint_law_propagation.propagate_correlation_range"]
+closed_producers = []
+independent_consumers = ["joint_law.dependence_envelope.sealed_endpoints.positive", "joint_law.dependence_envelope.assumption_range_replay.artifact"]
+method_source = "crates/antecedent-stats/src/joint_law.rs"
+truth_design = "Closed-form Bernoulli and uniform endpoints and enumeration over permutations for equal-mass marginals."
+truth_fixtures = ["joint_law.dependence_envelope.bernoulli_closed_form.positive", "joint_law.dependence_envelope.permutation_enumeration.truth"]
+nominal_level = "not_applicable"
+acceptance_threshold = "Asserted values within the stated absolute tolerances (1e-12 for closed-form and enumerated values; a predeclared five-sigma band for the seeded aligned-draw product moment); no coverage or calibration threshold is claimed."
+measurement_suite = "crates/antecedent-stats/src/joint_law.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "A structural envelope of the supplied marginals (finite atoms): not a point, interval or posterior, never a substitute for an aligned joint law."
+activation_disposition = "retain_current_point_or_model_conditional_standing_no_new_guarantee"
+allocation_status = "numeric_or_inherited_scope_requires_no_new_interval_license"
+measurement_design_status = "not_a_new_statistical_coverage_target"
+truth_grid_allocation = "Closed-form Bernoulli and uniform endpoints and enumeration over permutations for equal-mass marginals."
+
+[[record]]
+id = "joint_law.transported_composition"
+capability = "joint_law.transported_composition"
+status = "in_progress"
+consumer_question = "May a transported interval, or the source-sampling, target-sampling and transport-functional pieces of one transported claim, be composed with another claim?"
+theorem = "A transported interval depends on source sampling, target sampling and the transport functional, and the pieces are dependent when evidence is shared; independence is never assumed for them. The composition needs the aligned draws of one joint law (one alignment identity for every piece) or a supplied covariance between the pieces; a transported interval composed with another claim without either is refused. A component interval does not cover the composition."
+reference = "docs/joint-law-propagation.md"
+guarantee = "composition_refused_without_aligned_law_or_covariance_point_only_otherwise"
+graph_class = "As the transported claim's selection diagram; this route does not examine it."
+population_semantics = "The transported claim's target population and the other claim's population are named by their inputs; calibration is not inherited across targets."
+evidence_family = "Transported claim pieces (source sampling, target sampling, transport functional) with an aligned law or a covariance."
+provider = "antecedent_contract::joint_law_rule::check_propagation; the routes of joint_law.linear_moment_propagation and joint_law.aligned_nonlinear_functional execute an accepted composition."
+estimand = "none: this record is the rule for the transported case; values come from the linear or aligned routes."
+inference_claim = "none"
+owners = ["antecedent-stats", "antecedent-contract", "antecedent-io-core", "antecedent"]
+identity_inputs = ["the operation, dependence declaration (covariance identity, or correlation range as IEEE bits) and reading", "every input: identity, evidence identity, role and alignment (aligned with its alignment identity, independent marginals, or moments only)", "the numbers consumed, as IEEE bit patterns (coefficients, means, covariance, weights, draws or marginal atoms)", "the route and result label (point_only, structural_envelope or assumption_range), the alignment identity and the shared-evidence list"]
+wire_changes = ["Additive: joint_law_propagation_v1 artifact v1 (new kind) holding the declaration, inputs, numbers, plan and result bits; the identity excludes the stored result, which is replayed."]
+compatibility = "Additive. No existing claim, artifact, route or reason code changes; a composed quantity is a new claim with its own identity and its inputs are not modified."
+search = false
+prerequisite_records = ["joint_law.linear_moment_propagation", "joint_law.aligned_nonlinear_functional", "counterfactual.transport_general"]
+prerequisite_reason = "Executes only through the linear and aligned routes; takes the transported claim's identity from counterfactual transport. No transported interval or coverage is inherited."
+bounds = { cancellation = true }
+inference_inventory_disposition = "no_new_inference_outputs"
+refusals = [
+  { code = "joint_law_required", detail = "joint_law_propagation.transported_dependence_required", when = "A transported interval, or a source- or target-sampling piece of one, is composed without an aligned law or a covariance.", remedy = "Supply the aligned draws of one joint law or the covariance between the pieces before composing a transported interval with another claim." },
+]
+routes = [
+  { name = "antecedent_contract.joint_law_rule.transported_dependence_required", stage = "prepare", status = "closed", reason_code = "joint_law_required", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "a_transported_interval_needs_an_aligned_law_or_a_covariance" },
+]
+fixtures = [
+  { id = "joint_law.transported_composition.covariance_licenses.positive", role = "positive", intent = "A transported piece composes with another claim under a supplied covariance (variance 2.5).", evidence_test = "crates/antecedent/tests/joint_law_propagation_facade.rs", evidence_assertion = "a_transported_interval_needs_an_aligned_law_or_a_covariance", shared_evidence = true },
+  { id = "joint_law.transported_composition.without_dependence.negative", role = "negative", intent = "Unknown, independent and marginals-only declarations are refused with transported_dependence_required.", evidence_test = "crates/antecedent-contract/src/joint_law_rule.rs", evidence_assertion = "a_transported_interval_needs_an_aligned_law_or_a_covariance", shared_evidence = true },
+  { id = "joint_law.transported_composition.sealed_refusal.negative", role = "negative", intent = "Sealing a transported composition without dependence is refused.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_transported_interval_is_composed_only_under_a_covariance_or_an_aligned_law", shared_evidence = true },
+  { id = "joint_law.transported_composition.sealed_composition.artifact", role = "artifact", intent = "A transported composition under a covariance seals and replays.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_transported_interval_is_composed_only_under_a_covariance_or_an_aligned_law", shared_evidence = true },
+]
+inference_outputs = []
+
+[[record]]
+id = "joint_law.composed_interval"
+capability = "joint_law.composed_interval"
+status = "in_progress"
+consumer_question = "Can an interval or posterior statement be reported for a quantity composed from several uncertain inputs?"
+theorem = "Closed adjacent variant of the joint_law.* records. No interval or posterior is licensed: none has measured whole-method coverage at a composed coordinate, and a component interval does not cover the composition. The labelled point value under a licensed dependence route, or the dependence envelope, is the result."
+reference = "docs/joint-law-propagation.md"
+guarantee = "interval_and_posterior_routes_closed_pending_measurement"
+graph_class = "As the joint_law.* records."
+population_semantics = "As the joint_law.* records."
+evidence_family = "A composed claim asked for an interval or posterior."
+provider = "antecedent_contract::joint_law_rule (closed refusals)"
+estimand = "none: the request is refused"
+inference_claim = "none"
+owners = ["antecedent-stats", "antecedent-contract", "antecedent-io-core", "antecedent"]
+identity_inputs = ["the operation, dependence declaration (covariance identity, or correlation range as IEEE bits) and reading", "every input: identity, evidence identity, role and alignment (aligned with its alignment identity, independent marginals, or moments only)", "the numbers consumed, as IEEE bit patterns (coefficients, means, covariance, weights, draws or marginal atoms)", "the route and result label (point_only, structural_envelope or assumption_range), the alignment identity and the shared-evidence list"]
+wire_changes = ["Additive: joint_law_propagation_v1 artifact v1 (new kind) holding the declaration, inputs, numbers, plan and result bits; the identity excludes the stored result, which is replayed."]
+compatibility = "Additive. No existing claim, artifact, route or reason code changes; a composed quantity is a new claim with its own identity and its inputs are not modified."
+search = false
+prerequisite_records = ["joint_law.linear_moment_propagation", "joint_law.aligned_nonlinear_functional", "joint_law.known_weight_mixture", "joint_law.dependence_envelope"]
+prerequisite_reason = "Closed adjacent variant: it refuses the interval and posterior requests of the point values it is adjacent to and inherits no coverage from them."
+bounds = { cancellation = true }
+inference_inventory_disposition = "point_output_listed_unmeasured"
+refusals = [
+  { code = "cell_not_licensed", detail = "joint_law_propagation.interval_route_closed", when = "An interval is requested for a composed quantity.", remedy = "None available yet: the labelled point value under a licensed dependence route, or the dependence envelope, is the result; an interval needs a measured whole-method coverage record at the composed coordinate." },
+  { code = "cell_not_licensed", detail = "joint_law_propagation.posterior_route_closed", when = "A posterior or posterior-probability statement is requested for a composed quantity.", remedy = "None available yet: a posterior needs a measured calibration at the composed coordinate." },
+]
+routes = [
+  { name = "antecedent.joint_law_propagation.PropagationClaim.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "interval_and_posterior_readings_are_closed" },
+  { name = "antecedent.joint_law_propagation.PropagationClaim.posterior", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "interval_and_posterior_readings_are_closed" },
+]
+fixtures = [
+  { id = "joint_law.composed_interval.point_value_is_the_result.positive", role = "positive", intent = "The labelled point value under a licensed route is what a composed claim reports.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_covariance_aware_contrast_replays_to_the_closed_form", shared_evidence = true },
+  { id = "joint_law.composed_interval.interval_and_posterior.negative", role = "negative", intent = "Interval and posterior readings are refused with cell_not_licensed and their details.", evidence_test = "crates/antecedent-contract/src/joint_law_rule.rs", evidence_assertion = "interval_and_posterior_readings_are_closed", shared_evidence = true },
+  { id = "joint_law.composed_interval.facade_closed.negative", role = "negative", intent = "Through the facade the claim's interval and posterior refuse.", evidence_test = "crates/antecedent/tests/joint_law_propagation_facade.rs", evidence_assertion = "the_dependence_envelope_is_labelled_and_never_a_point_or_an_interval", shared_evidence = true },
+  { id = "joint_law.composed_interval.no_interval_in_artifact.artifact", role = "artifact", intent = "The artifact carries no interval or posterior field and replays.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_covariance_aware_contrast_replays_to_the_closed_form", shared_evidence = true },
+]
+[[record.inference_outputs]]
+id = "joint_law.composed_interval.values.1"
+fields = ["interval and posterior of a composed quantity (closed)"]
+method = "None: refused with cell_not_licensed."
+implementation_status = "unimplemented_closed"
+owner = "antecedent-contract"
+operation_or_object = "crates/antecedent-contract/src/joint_law_rule.rs"
+public_producers = []
+closed_producers = ["antecedent.joint_law_propagation.PropagationClaim.interval", "antecedent.joint_law_propagation.PropagationClaim.posterior"]
+independent_consumers = ["joint_law.composed_interval.no_interval_in_artifact.artifact"]
+method_source = "crates/antecedent-contract/src/joint_law_rule.rs"
+truth_design = "No truth is claimed; design decision recorded below."
+truth_fixtures = []
+nominal_level = "not_applicable"
+acceptance_threshold = "Asserted values within the stated absolute tolerances (1e-12 for closed-form and enumerated values; a predeclared five-sigma band for the seeded aligned-draw product moment); no coverage or calibration threshold is claimed."
+measurement_suite = "unallocated"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Design decision for the later measurement (recorded, not measured): the whole method is the composition of component estimators and their uncertainty through the licensed route and the interval built on the composed value; DGPs are correlated and independent Gaussian pairs and a skewed pair with shared evidence between components; the nominal target is coverage of a stated interval for the composed quantity at 0.95 at the composed coordinate (a component interval does not cover the composition); the support range is a grid of sample sizes and correlations including near +-1; the probes are a covariance estimated from the same draws and a dependence declared but violated."
+activation_disposition = "retain_current_point_or_model_conditional_standing_no_new_guarantee"
+allocation_status = "numeric_or_inherited_scope_requires_no_new_interval_license"
+measurement_design_status = "not_a_new_statistical_coverage_target"
+truth_grid_allocation = "No truth is claimed; design decision recorded below."
+
+[[record]]
+id = "interface_contract.scientific_interface"
+capability = "interface_contract.scientific_interface"
+status = "in_progress"
+consumer_question = "May the quantity one component produces feed the input another consumes, decided from the two declared contracts before any number is computed: do the variable, units, population, regime, support, measurement assumptions, available operations, uncertainty meaning, calibration and provenance agree, and is the evidence of the inputs known?"
+theorem = "A connection is accepted exactly when, for the produced port P and the consumed port C: P and C have the same variable, role, units, population, regime, horizon, functional, conditioning, transform and semantic identity; the support of P lies inside the support C accepts (containment of the declared domains: a binary quantity lies in the non-negative reals and in an interval holding zero and one, an interval in an interval holding it, a level set in a level set listing it); the measurement-model identities of P equal those C names; every operation C requires is offered by P (no operation implies another: a mean does not determine a law, draws do not determine a covariance, a posterior is not an interval); when C requires an uncertainty meaning, P states the same meaning (the same paradigm and the same object); when C requires declared evidence, P declares its evidence sources; every provenance stage C requires is supplied; and when C relies on measured calibration, P holds a measured record. Each is a predicate on the two declarations, so the decision is exact and independent of any number; shape and dtype enter nowhere. NOT inherited: any property of the declarations (a declared population, a declared calibration record or a declared evidence set is a statement the producing artifact owns), any interval, posterior or coverage statement, and the equivalence of two quantities under a conversion, bridge or transport that is not declared."
+reference = "docs/interface-contracts.md"
+guarantee = "decision_from_declarations_alone_no_numerical_execution_no_calibration_upgrade"
+graph_class = "Not applicable. A composition is a declared directed graph of components; it is not a causal graph and the check does not identify."
+population_semantics = "Each port names the population and regime of its quantity. A connection requires the same population and regime at both ends; carrying a quantity to another population is a declared transport, never an implicit conversion."
+evidence_family = "Declared interface contracts: quantity coordinates, support domains, operations, uncertainty meanings, calibration labels, measurement-model identities, evidence-ledger source identities and provenance stages."
+provider = "antecedent_contract::interface_contract (declaration, connection, composition, refusals); antecedent_io_core::interface_contract_artifact (artifact); antecedent::analysis::interface_contract (facade)."
+estimand = "none: a decision about declarations, not a statistical estimand."
+inference_claim = "none"
+owners = ["antecedent-contract", "antecedent-io-core", "antecedent"]
+identity_inputs = [
+  "component identity",
+  "per port sorted by name: name, quantity coordinate (every identity field including the display label), semantic identity, support domain with interval bounds as bit patterns",
+  "operations by tag, uncertainty meaning and paradigm, calibration label with its record or input",
+  "measurement-model identities and evidence sources sorted, provenance stages sorted",
+  "consumed ports: calibration requirement and dependence requirement",
+]
+wire_changes = [
+  "Additive: interface_contract_v1 (new artifact kind) holding the contract with its contract identity and artifact identity; floats as bit patterns; version, feature marker and required features gate every reader.",
+]
+compatibility = "Additive. No existing claim, artifact or provider contract changes; seven reason codes are added."
+search = false
+prerequisite_records = ["measurement.model_contract", "evidence_ledger.overlap_accounting"]
+prerequisite_reason = "A measurement assumption is named by the identity of a typed measurement model and a declared evidence basis by evidence-ledger source identities; the contract recomputes neither and inherits no coverage from them."
+bounds = { cancellation = true, max_ports = 256, max_components = 1024, max_connections = 8192, max_port_set_items = 1024 }
+refusals = [
+  { code = "interface_contract_invalid", detail = "interface_contract.blank_field", when = "An identity or name is blank or over the byte bound.", remedy = "Name every identity in at most the declared number of bytes." },
+  { code = "interface_contract_invalid", detail = "interface_contract.invalid_quantity", when = "A port's quantity has an incomplete coordinate or ambiguous conditioning.", remedy = "Name the variable, units, population, regime, functional and transform with canonical conditioning." },
+  { code = "interface_contract_invalid", detail = "interface_contract.duplicate_port", when = "Two produced ports, or two consumed ports, share a name.", remedy = "Give every port its own name." },
+  { code = "interface_contract_invalid", detail = "interface_contract.too_many_items", when = "More ports, measurement models, evidence sources, levels or provenance stages than the bound.", remedy = "Declare at most the bounded number." },
+  { code = "interface_contract_invalid", detail = "interface_contract.invalid_support", when = "A support domain has unordered or non-finite interval bounds, or unsorted, repeated or blank levels.", remedy = "Declare finite ordered bounds or sorted distinct non-blank levels." },
+  { code = "interface_contract_invalid", detail = "interface_contract.missing_operations", when = "A port declares no operation.", remedy = "Declare at least one operation the port offers or requires." },
+  { code = "interface_contract_invalid", detail = "interface_contract.uncertainty_meaning_required", when = "A covariance, law, draws, interval or posterior is declared with no stated meaning.", remedy = "State what the uncertainty means." },
+  { code = "interface_contract_invalid", detail = "interface_contract.uncertainty_meaning_unused", when = "An uncertainty meaning is stated where no uncertainty-bearing operation is declared.", remedy = "Declare the operation or remove the meaning." },
+  { code = "interface_contract_invalid", detail = "interface_contract.posterior_without_posterior_meaning", when = "A posterior operation carries a sampling, resampling or empirical meaning.", remedy = "Declare a posterior meaning, or declare draws or an interval of that paradigm." },
+  { code = "interface_contract_invalid", detail = "interface_contract.point_only_with_uncertainty", when = "A point-only label accompanies an uncertainty-bearing operation.", remedy = "Use another calibration label or drop the operation." },
+  { code = "interface_contract_invalid", detail = "interface_contract.calibration_record_blank", when = "A measured calibration label names no record.", remedy = "Name the identity of the measured record." },
+  { code = "interface_contract_invalid", detail = "interface_contract.calibration_without_interval", when = "Measured calibration is declared or required without an interval or posterior operation.", remedy = "Declare the interval or posterior the calibration is about." },
+  { code = "interface_contract_invalid", detail = "interface_contract.inherited_input_unknown", when = "Calibration is declared inherited from a port the component does not consume.", remedy = "Inherit from a consumed port of the same contract." },
+  { code = "interface_contract_invalid", detail = "interface_contract.invalid_digest", when = "A measurement-model or evidence-source identity is not 64 lowercase hex digits.", remedy = "Name it by its digest identity." },
+  { code = "interface_contract_invalid", detail = "interface_contract.unknown_provenance_stage", when = "A provenance stage is not in the composition stage vocabulary.", remedy = "Name provenance stages by the composition stage vocabulary." },
+  { code = "interface_contract_invalid", detail = "interface_contract.unknown_component", when = "A connection names a component the composition does not declare.", remedy = "Connect declared components." },
+  { code = "interface_contract_invalid", detail = "interface_contract.unknown_port", when = "A connection names a port the component's contract does not declare.", remedy = "Connect a declared produced port to a declared consumed port." },
+  { code = "interface_contract_invalid", detail = "interface_contract.duplicate_component", when = "Two components of a composition share an identity.", remedy = "Give every component its own identity." },
+  { code = "interface_contract_invalid", detail = "interface_contract.port_multiply_fed", when = "A consumed port is fed by more than one produced port.", remedy = "Feed a consumed port from one produced port; combine evidence in a component that declares the combination." },
+  { code = "interface_contract_invalid", detail = "interface_contract.composition_too_large", when = "More components or connections than the bound.", remedy = "Check a composition within the bounded sizes." },
+  { code = "interface_contract_quantity_mismatch", detail = "interface_contract.variable_mismatch", when = "The producer's variable or role is not the consumer's.", remedy = "Connect a producer of the variable, or declare a typed bridge." },
+  { code = "interface_contract_quantity_mismatch", detail = "interface_contract.units_mismatch", when = "The units differ.", remedy = "Produce the quantity in the consumer's units through a declared, checked conversion." },
+  { code = "interface_contract_quantity_mismatch", detail = "interface_contract.population_mismatch", when = "The populations differ.", remedy = "Produce the quantity for the consumer's population or declare a transport of evidence." },
+  { code = "interface_contract_quantity_mismatch", detail = "interface_contract.regime_mismatch", when = "The intervention regimes differ.", remedy = "Produce the quantity under the consumer's regime." },
+  { code = "interface_contract_quantity_mismatch", detail = "interface_contract.horizon_mismatch", when = "The causal horizons differ.", remedy = "Produce the quantity at the consumer's horizon." },
+  { code = "interface_contract_quantity_mismatch", detail = "interface_contract.functional_mismatch", when = "The functionals differ.", remedy = "Produce the functional the consumer names." },
+  { code = "interface_contract_quantity_mismatch", detail = "interface_contract.conditioning_mismatch", when = "The conditioning events differ.", remedy = "Produce the quantity under exactly the consumer's conditioning." },
+  { code = "interface_contract_quantity_mismatch", detail = "interface_contract.transform_mismatch", when = "The scales or transforms differ.", remedy = "Produce the quantity on the consumer's scale or declare the transform." },
+  { code = "interface_contract_quantity_mismatch", detail = "interface_contract.semantic_identity_mismatch", when = "The estimand or semantic identities differ although names, units or shapes may agree.", remedy = "Connect a producer of the same estimand." },
+  { code = "interface_contract_quantity_mismatch", detail = "interface_contract.support_mismatch", when = "The producer's support is not inside the support the consumer accepts.", remedy = "Produce values inside the consumer's declared domain, or widen it with evidence." },
+  { code = "interface_contract_assumption_mismatch", detail = "interface_contract.measurement_assumption_mismatch", when = "The measurement models the quantity is established under are not the set the consumer names.", remedy = "Produce under the consumer's models or declare the consumer under the producer's." },
+  { code = "interface_contract_assumption_mismatch", detail = "interface_contract.dependence_unknown", when = "The producer declares no evidence sources where the consumer requires them declared.", remedy = "Declare the evidence sources (their evidence-ledger identities)." },
+  { code = "interface_contract_assumption_mismatch", detail = "interface_contract.shared_evidence", when = "Two inputs the consumer requires to be disjoint share an evidence source.", remedy = "Feed disjoint evidence or declare the dependence the combination uses." },
+  { code = "interface_contract_assumption_mismatch", detail = "interface_contract.provenance_missing", when = "A provenance stage the consumer requires is not supplied.", remedy = "Supply the stage or remove the requirement." },
+  { code = "interface_contract_operation_unavailable", detail = "interface_contract.operation_unavailable", when = "The consumer requires an operation (point, mean, law, draws, joint draws, covariance, interval, posterior) the producer does not offer; no operation implies another.", remedy = "Supply a producer that offers the operation, or lower the consumer's requirement to what it uses." },
+  { code = "interface_contract_uncertainty_mismatch", detail = "interface_contract.uncertainty_meaning_missing", when = "The consumer requires an uncertainty meaning and the producer states none.", remedy = "State what the producer's uncertainty means." },
+  { code = "interface_contract_uncertainty_mismatch", detail = "interface_contract.uncertainty_paradigm_mismatch", when = "The producer's uncertainty is of another paradigm (posterior, sampling, resampling, empirical) than the consumer requires.", remedy = "Produce uncertainty of the required paradigm." },
+  { code = "interface_contract_uncertainty_mismatch", detail = "interface_contract.uncertainty_meaning_mismatch", when = "The producer's uncertainty is of the required paradigm but means another object (parameters, causal functional, outcome).", remedy = "Produce the object the consumer requires." },
+  { code = "route_not_supported", detail = "interface_contract.identity_mismatch", when = "An artifact's stored or retained identity differs from the recomputed one.", remedy = "Supply the artifact whose recomputed identity equals the retained identity, or regenerate it from the intended contract." },
+  { code = "invalid_argument", detail = "interface_contract.artifact_invalid", when = "The bytes are corrupt, truncated or of another layout.", remedy = "Supply an intact interface_contract_v1 artifact." },
+]
+routes = [
+  { name = "antecedent.interface_contract.check_connection", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent.interface_contract.check_composition", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent.interface_contract.export_interface_contract", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent.interface_contract.consume_interface_contract_artifact", stage = "consume", status = "licensed", claim = "none" },
+]
+fixtures = [
+  { id = "interface_contract.scientific_interface.compatible_pair.positive", role = "positive", intent = "A producer and a consumer that agree on every dimension connect, carry the producer's measured label and operations, and the same declarations decide the same connection identity.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "compatible_pair_connects_and_carries_what_the_producer_holds" },
+  { id = "interface_contract.scientific_interface.syntactic_match_scientific_failure.negative", role = "negative", intent = "Same variable name, units and shape but another population and a mean offered for a required law are refused with their own codes, details, expected and supplied values.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "matching_names_units_and_shape_but_another_population_and_a_mean_for_a_law_refuse" },
+  { id = "interface_contract.scientific_interface.quantity_dimensions.negative", role = "negative", intent = "Variable, units, population, regime, horizon, functional, transform, semantic identity and support are each reported separately when all differ.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "every_quantity_dimension_is_reported_separately" },
+  { id = "interface_contract.scientific_interface.support_containment.truth", role = "truth", intent = "Containment of declared domains by enumeration: a binary quantity is in the unit interval and the non-negative reals, the unit interval is not in the binary domain, level sets are subsets.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "support_containment_is_decided_by_declared_domains" },
+  { id = "interface_contract.scientific_interface.measurement_assumptions.negative", role = "negative", intent = "Measurement models must agree as sets of identities; an uncorrected producer does not satisfy a consumer that needs the model.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "measurement_assumptions_must_agree_as_sets_of_model_identities" },
+  { id = "interface_contract.scientific_interface.dependence_unknown.negative", role = "negative", intent = "Undeclared evidence is refused where the consumer needs it declared and accepted once declared.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "undeclared_dependence_is_refused_where_the_consumer_needs_it_declared" },
+  { id = "interface_contract.scientific_interface.posterior_vs_sampling.negative", role = "negative", intent = "A sampling interval is not a posterior and a posterior over parameters is not one over the causal functional.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "posterior_and_sampling_uncertainty_are_not_interchangeable" },
+  { id = "interface_contract.scientific_interface.point_only_label.positive", role = "positive", intent = "A point-only producer connects to a mean consumer and stays point-only with no uncertainty carried.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "point_only_stays_point_only_across_a_connection" },
+  { id = "interface_contract.scientific_interface.malformed_declarations.negative", role = "negative", intent = "Missing meanings, point-only beside intervals, blank records, unknown inheritance, bad digests, unknown stages, invalid quantities and supports, empty operations and duplicate ports are each refused alone.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "malformed_declarations_are_refused_with_their_own_detail" },
+  { id = "interface_contract.scientific_interface.identity_binding.invariance", role = "invariance", intent = "Port declaration order is not identity; every semantic edit, including a display label, moves it.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "identity_ignores_port_order_and_binds_every_declared_field" },
+  { id = "interface_contract.scientific_interface.composition_order.positive", role = "positive", intent = "A feed-forward composition is ordered producers first and its identity is invariant to declaration order.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "a_feed_forward_composition_is_ordered_producers_first" },
+  { id = "interface_contract.scientific_interface.composition_defect.negative", role = "negative", intent = "A pairwise defect inside a composition is refused with its detail.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "a_composition_with_a_pairwise_defect_is_refused_with_the_defect" },
+  { id = "interface_contract.scientific_interface.unknown_names.negative", role = "negative", intent = "Unknown components and ports, a doubly fed port and duplicate components are refused.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "unknown_names_and_a_doubly_fed_port_are_refused" },
+  { id = "interface_contract.scientific_interface.disjoint_evidence.negative", role = "negative", intent = "Two inputs required disjoint that share one evidence source are refused with the shared count; distinct sources are accepted.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "inputs_that_must_be_disjoint_cannot_share_an_evidence_source" },
+  { id = "interface_contract.scientific_interface.provider_capabilities.truth", role = "truth", intent = "Provider capabilities disclose operations one to one: a mean does not disclose a law and a distribution function does not disclose draws.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "provider_capabilities_disclose_operations_one_to_one" },
+  { id = "interface_contract.scientific_interface.facade_pair.positive", role = "positive", intent = "Rust facade: a compatible pair connects and keeps the producer's unmeasured label.", evidence_test = "crates/antecedent/tests/interface_contract_facade.rs", evidence_assertion = "a_compatible_pair_is_connected_and_keeps_the_producers_label" },
+  { id = "interface_contract.scientific_interface.facade_syntactic_match.negative", role = "negative", intent = "Rust facade: a pair that matches syntactically fails scientifically with coded, remedied refusals.", evidence_test = "crates/antecedent/tests/interface_contract_facade.rs", evidence_assertion = "a_pair_that_matches_syntactically_fails_scientifically" },
+  { id = "interface_contract.scientific_interface.round_trip.artifact", role = "artifact", intent = "A fresh consumer rebuilds the contract and recomputes both identities; a retained identity binds the artifact; the encoding is deterministic.", evidence_test = "crates/antecedent-io-core/tests/interface_contract_artifact.rs", evidence_assertion = "a_sealed_contract_round_trips_with_stable_identities" },
+  { id = "interface_contract.scientific_interface.independent_inspection.artifact", role = "artifact", intent = "The metadata is plain CBOR whose fields are readable without the library types, with ports in name order.", evidence_test = "crates/antecedent-io-core/tests/interface_contract_artifact.rs", evidence_assertion = "the_metadata_is_inspectable_as_plain_cbor_without_the_library_types" },
+  { id = "interface_contract.scientific_interface.unsealed_edit.artifact", role = "artifact", intent = "An unsealed edit is an identity mismatch.", evidence_test = "crates/antecedent-io-core/tests/interface_contract_artifact.rs", evidence_assertion = "an_unsealed_edit_is_an_identity_mismatch" },
+  { id = "interface_contract.scientific_interface.retained_identity.artifact", role = "artifact", intent = "A consistently resealed artifact of another contract is refused by a retained identity.", evidence_test = "crates/antecedent-io-core/tests/interface_contract_artifact.rs", evidence_assertion = "a_resealed_edit_is_caught_by_a_retained_identity" },
+  { id = "interface_contract.scientific_interface.versions_features.artifact", role = "artifact", intent = "A newer version, an unknown feature marker and a required feature are refused.", evidence_test = "crates/antecedent-io-core/tests/interface_contract_artifact.rs", evidence_assertion = "newer_versions_unknown_features_and_required_features_are_refused" },
+  { id = "interface_contract.scientific_interface.semantic_mutation.artifact", role = "artifact", intent = "A resealed declaration the library refuses, a wrong paradigm and unsorted ports are refused.", evidence_test = "crates/antecedent-io-core/tests/interface_contract_artifact.rs", evidence_assertion = "a_resealed_declaration_the_library_refuses_is_refused_with_its_detail" },
+  { id = "interface_contract.scientific_interface.container.artifact", role = "artifact", intent = "An unknown field and a corrupted byte do not decode.", evidence_test = "crates/antecedent-io-core/tests/interface_contract_artifact.rs", evidence_assertion = "an_unknown_field_and_a_corrupted_byte_do_not_decode" },
+  { id = "interface_contract.scientific_interface.facade_export_consume.artifact", role = "artifact", intent = "Rust facade: export, independent inspection and consumption against a retained identity.", evidence_test = "crates/antecedent/tests/interface_contract_facade.rs", evidence_assertion = "an_exported_contract_is_inspected_and_consumed_against_a_retained_identity" },
+] 
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "interface_contract.cyclic_composition"
+capability = "interface_contract.cyclic_composition"
+status = "in_progress"
+consumer_question = "Can components be composed when one component's output feeds back into another's input, directly or through a chain?"
+theorem = "Closed adjacent variant of interface_contract.scientific_interface. A composition is checked as a directed graph; Kahn's algorithm removes components with no remaining predecessor, and a non-empty remainder is exactly the set of components on or downstream of a directed cycle. The check refuses with the cycle path (found by walking predecessors within the remainder, then rotated to start at the smallest component name) before any component runs. Cyclic scientific composition is outside the supported surface: a feedback loop is never unrolled, iterated to a fixed point or treated as feed-forward."
+reference = "docs/interface-contracts.md"
+guarantee = "cyclic_composition_refused_before_execution_with_the_cycle_path"
+graph_class = "Not applicable. The graph is the declared connection graph of components."
+population_semantics = "Not applicable."
+evidence_family = "A set of declared component contracts and connections."
+provider = "antecedent_contract::interface_contract::check_composition"
+estimand = "none: the request is refused"
+inference_claim = "none"
+owners = ["antecedent-contract", "antecedent"]
+identity_inputs = ["component identities and connections"]
+wire_changes = ["None."]
+compatibility = "Additive; a loop model would be its own record."
+search = false
+prerequisite_records = ["interface_contract.scientific_interface"]
+prerequisite_reason = "Closed adjacent route: the cycle is refused with a typed reason; no loop semantics are defined."
+bounds = { cancellation = true, max_components = 1024, max_connections = 8192 }
+refusals = [
+  { code = "interface_contract_cyclic_composition", detail = "interface_contract.cyclic_composition", when = "The connections of a composition form a cycle (feedback between one component's output and another's input).", remedy = "Remove the feedback; compose feed-forward or model the loop inside one component's contract. Cyclic scientific composition is not supported." },
+]
+routes = [
+  { name = "antecedent.interface_contract.cyclic_composition", stage = "prepare", status = "closed", reason_code = "interface_contract_cyclic_composition", permanent_in_release = true, refusal_test = "crates/antecedent-contract/tests/interface_contract.rs", refusal_assertion = "a_cycle_is_refused_before_execution_with_its_path_named" },
+]
+fixtures = [
+  { id = "interface_contract.cyclic_composition.cycle_path.negative", role = "negative", intent = "A three-component cycle, a self-connection and a component downstream of a cycle are refused alone with the path a -> b -> c -> a, a -> a and a -> b -> a.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "a_cycle_is_refused_before_execution_with_its_path_named" },
+  { id = "interface_contract.cyclic_composition.facade_loop.negative", role = "negative", intent = "Rust facade: a feedback loop is refused before execution with its path, and the same components compose feed-forward without the closing edge.", evidence_test = "crates/antecedent/tests/interface_contract_facade.rs", evidence_assertion = "a_feedback_loop_is_refused_before_execution_with_the_path" },
+  { id = "interface_contract.cyclic_composition.feed_forward.positive", role = "positive", intent = "The adjacent feed-forward composition is accepted and ordered producers first.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "a_feed_forward_composition_is_ordered_producers_first" },
+  { id = "interface_contract.cyclic_composition.no_loop_in_artifact.artifact", role = "artifact", intent = "A per-component contract artifact carries no composition: cyclic composition is a property of a set of components checked before execution and is not carried by the artifact.", evidence_test = "crates/antecedent-io-core/tests/interface_contract_artifact.rs", evidence_assertion = "a_sealed_contract_round_trips_with_stable_identities" },
+] 
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "interface_contract.calibration_inheritance"
+capability = "interface_contract.calibration_inheritance"
+status = "in_progress"
+consumer_question = "Can a consumer rely on measured calibration of an input, or a component declare its output's calibration inherited from an input, when the upstream producer does not hold a measured record?"
+theorem = "Closed adjacent variant of interface_contract.scientific_interface. A connection carries the producer's calibration label unchanged and never raises it; calibration of a component is not calibration of a composition, because coverage is a property of a whole method at a coordinate. A label declared inherited resolves against the upstream producer in feed-forward order and is held only when the upstream label is measured; a consumer that relies on measured calibration is refused when the resolved label is none, point-only or unmeasured. No coverage is measured here: the calibration design for any composed interval (whole-method design, data-generating process, nominal level, support range, probes) is a recorded decision only."
+reference = "docs/interface-contracts.md"
+guarantee = "calibration_labels_carried_never_raised_inherited_calibration_resolved_or_refused"
+graph_class = "Not applicable."
+population_semantics = "A calibration record holds at the coordinate it was measured at; a label carried across a connection names the record, not coverage at the consumer's coordinate."
+evidence_family = "Declared calibration labels (none, point-only, unmeasured, measured with a record identity, inherited from a consumed port) and calibration requirements."
+provider = "antecedent_contract::interface_contract::check_connection and check_composition"
+estimand = "none: the request is refused"
+inference_claim = "none"
+owners = ["antecedent-contract", "antecedent"]
+identity_inputs = ["calibration labels with their record or input, calibration requirements, connections"]
+wire_changes = ["None."]
+compatibility = "Additive; opening composed-interval routes later is its own record with whole-method coverage measured at the composed coordinate."
+search = false
+prerequisite_records = ["interface_contract.scientific_interface"]
+prerequisite_reason = "Closed adjacent route: the request is refused with a typed reason; no component calibration is carried to the composition and no coverage is inherited."
+bounds = { cancellation = true }
+refusals = [
+  { code = "interface_contract_calibration_not_held", detail = "interface_contract.calibration_not_held", when = "A consumer relies on measured calibration and the producer's label is none, point-only or unmeasured.", remedy = "Connect a producer that holds a measured calibration record for the composed quantity, or drop the requirement; the connection never raises the label." },
+  { code = "interface_contract_calibration_not_held", detail = "interface_contract.calibration_inherited_not_held", when = "An output is declared to inherit calibration from an input whose producer does not hold a measured record.", remedy = "Inherit calibration only from an input whose producer holds a measured record; otherwise declare the output unmeasured or point-only." },
+  { code = "interface_contract_calibration_not_held", detail = "interface_contract.calibration_inherited_unfed", when = "An output inherits calibration from an input that is not connected.", remedy = "Connect the input the output inherits from, or declare the output unmeasured." },
+  { code = "interface_contract_calibration_not_held", detail = "interface_contract.calibration_inherited_unresolved", when = "A consumer relies on measured calibration of an output declared inherited, decided from a pair alone.", remedy = "Check the whole composition so the inherited calibration resolves against its upstream record." },
+]
+routes = [
+  { name = "antecedent.interface_contract.calibration_not_held", stage = "uncertainty", status = "closed", reason_code = "interface_contract_calibration_not_held", permanent_in_release = true, refusal_test = "crates/antecedent-contract/tests/interface_contract.rs", refusal_assertion = "measured_calibration_is_required_not_assumed" },
+  { name = "antecedent.interface_contract.calibration_inherited", stage = "uncertainty", status = "closed", reason_code = "interface_contract_calibration_not_held", permanent_in_release = true, refusal_test = "crates/antecedent-contract/tests/interface_contract.rs", refusal_assertion = "inherited_calibration_resolves_against_the_upstream_that_holds_it" },
+]
+fixtures = [
+  { id = "interface_contract.calibration_inheritance.not_measured.negative", role = "negative", intent = "A consumer that relies on measured calibration is refused for none and unmeasured labels, and for an inherited label decided from a pair.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "measured_calibration_is_required_not_assumed" },
+  { id = "interface_contract.calibration_inheritance.upstream_not_held.negative", role = "negative", intent = "An output inheriting calibration from an upstream that no longer holds a measured record is refused, and so is the downstream that relies on it; a measured upstream resolves the same record through.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "inherited_calibration_resolves_against_the_upstream_that_holds_it" },
+  { id = "interface_contract.calibration_inheritance.label_carried.positive", role = "positive", intent = "A point-only producer stays point-only across a connection; the label is carried, never raised.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "point_only_stays_point_only_across_a_connection" },
+  { id = "interface_contract.calibration_inheritance.label_in_artifact.artifact", role = "artifact", intent = "The calibration label travels in the artifact as declared, with its record identity, and is recomputed into the identity.", evidence_test = "crates/antecedent-io-core/tests/interface_contract_artifact.rs", evidence_assertion = "a_sealed_contract_round_trips_with_stable_identities" },
+] 
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "interface_contract.portable_specification"
+capability = "interface_contract.portable_specification"
+status = "in_progress"
+consumer_question = "Can a party that does not use Antecedent read and check the interface contract, evidence ledger and composition bundle artifacts: are their layouts, canonicalization and identity rules written down precisely enough that an independent implementation recomputes the same identities and rejects the same mutations?"
+theorem = "The artifact container, the CBOR profile, the canonical identity stream (u64 little-endian words, length-framed text, bit-pattern reals, a domain tag first, BLAKE3 over the stream) and the identity definitions of the three formats are specified in spec/canonicalization-and-identity.md with JSON Schemas for the three layouts. An independent consumer written from the text alone with the Python standard library (a reference BLAKE3 checked against published vectors, a minimal CBOR decoder, a schema validator) recomputes the contract and artifact identities of the interface contract, the artifact identity of the evidence ledger and the Merkle digests and identity of the composition bundle, bit for bit, and rejects every mutation of an identity, a semantic field, a version, a feature marker or the field set. NOT inherited: any property of the declarations in an artifact, the per-operation replay identities of the evidence ledger (the clean-room consumer checks the artifact identity that binds them and the structural facts, and states that it did not replay the ledger) and the interpretation of embedded bundle nodes."
+reference = "spec/README.md"
+guarantee = "formats_specified_independently_consumed_identities_recomputed_no_numerical_claim"
+graph_class = "Not applicable."
+population_semantics = "Not applicable."
+evidence_family = "Conformance fixtures generated by the Rust implementation from real contracts, ledgers and bundles, positive and negative."
+provider = "spec/ (schemas, canonicalization and identity rules, conformance fixtures, spec/consumer/validate.py); crates/antecedent/tests/specification_conformance.rs (gate)."
+estimand = "none: a format specification and its conformance evidence."
+inference_claim = "none"
+owners = ["antecedent-io-core", "antecedent"]
+identity_inputs = ["specification version, container layout, canonical stream definitions and domain tags of the three formats"]
+wire_changes = ["Additive: the specification documents existing formats and the new interface_contract_v1; no format changes."]
+compatibility = "Additive. A change to any rule in the specification is a change to the implementation and fails the conformance gate until both move."
+search = false
+prerequisite_records = ["interface_contract.scientific_interface", "evidence_ledger.overlap_accounting"]
+prerequisite_reason = "The specification describes the interface contract artifact and the evidence ledger artifact; it adds no semantics of its own."
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "interface_contract.artifact_invalid", when = "An artifact of the specification's formats is corrupt, of another version, of an unknown feature or carries an unknown field.", remedy = "Supply an intact artifact of a version, feature and field set the specification defines." },
+]
+routes = [
+  { name = "antecedent.interface_contract.specification_conformance", stage = "consume", status = "licensed", claim = "none" },
+]
+fixtures = [
+  { id = "interface_contract.portable_specification.clean_room_consumer.positive", role = "positive", intent = "The clean-room consumer, run as a subprocess, accepts every positive fixture with the recorded identity and rejects every negative fixture with the recorded class.", evidence_test = "crates/antecedent/tests/specification_conformance.rs", evidence_assertion = "the_clean_room_consumer_accepts_and_rejects_the_committed_fixtures" },
+  { id = "interface_contract.portable_specification.mutated_copies.negative", role = "negative", intent = "Mutations of identity, population, regime, component, calibration record, version, feature, field set and support kind of every accepted fixture are rejected by the clean-room consumer with the expected class.", evidence_test = "crates/antecedent/tests/specification_conformance.rs", evidence_assertion = "the_clean_room_consumer_rejects_mutated_copies_of_every_accepted_fixture" },
+  { id = "interface_contract.portable_specification.regenerates.artifact", role = "artifact", intent = "The committed fixtures regenerate bit for bit from real contracts, ledgers and bundles.", evidence_test = "crates/antecedent/tests/specification_conformance.rs", evidence_assertion = "committed_fixtures_regenerate_bit_for_bit" },
+  { id = "interface_contract.portable_specification.identity_agreement.truth", role = "truth", intent = "The independent consumer's recomputed contract and artifact identities equal the implementation's for a contract with every role, support, operation and calibration label.", evidence_test = "crates/antecedent/tests/specification_conformance.rs", evidence_assertion = "the_clean_room_consumer_agrees_with_the_implementation_on_every_distinct_identity" },
+  { id = "interface_contract.portable_specification.schema_vocabularies.invariance", role = "invariance", intent = "The vocabularies written in the schemas equal the implementation's enumerations.", evidence_test = "crates/antecedent/tests/specification_conformance.rs", evidence_assertion = "schema_vocabularies_equal_the_implementations" },
+  { id = "interface_contract.portable_specification.specification_text.invariance", role = "invariance", intent = "The tables and domain tags written in the specification text equal the implementation's.", evidence_test = "crates/antecedent/tests/specification_conformance.rs", evidence_assertion = "the_specification_text_states_the_implementations_tables_and_tags" },
+  { id = "interface_contract.portable_specification.consumer_tables.invariance", role = "invariance", intent = "The clean-room consumer's vocabulary tables equal the implementation's.", evidence_test = "crates/antecedent/tests/specification_conformance.rs", evidence_assertion = "the_clean_room_consumers_vocabulary_tables_equal_the_implementations" },
+] 
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []

@@ -23,6 +23,7 @@ pub mod glm;
 pub mod gram;
 pub mod identified_set;
 pub mod interference;
+pub mod joint_law;
 pub mod linalg;
 pub mod longitudinal_regime;
 pub mod m_estimate;
@@ -97,6 +98,14 @@ pub use identified_set::{
 pub use interference::{
     ExposureProbabilities, ExposureProbabilityMethod, RandomizationContrast, RandomizationMean,
     exposure_probabilities, exposures, randomization_contrast, randomization_mean,
+};
+pub use joint_law::{
+    CORRELATION_RANGE_LABEL, CorrelationRangeEnvelope, JointLawError, LinearMoments, Marginal,
+    MixtureMoments, MomentSummary, PairStructure, PairedMoments, STRUCTURAL_ENVELOPE_LABEL,
+    ValueBounds, ValueFunctional, aligned_functional_mean, correlation_range_envelope,
+    covariance_envelope, difference_cdf_envelope, frechet_expectation_envelope,
+    functional_envelope, linear_combination_moments, linear_variance_envelope, mixture_moments,
+    paired_moments, product_moment_envelope, sum_cdf_envelope,
 };
 pub use linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
 pub use m_estimate::{MEstimateFit, MEstimateOptions, fit_huber_m};
