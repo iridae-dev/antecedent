@@ -1,4 +1,11 @@
-"""Data constructors and conversion probes (Arrow / float64 columns)."""
+"""Data constructors and Arrow / float64 conversion probes.
+
+Analysis and prepared-study calls may borrow Arrow C Data Interface buffers
+without copying. Keep exported buffers unchanged while their data or prepared
+handles retain them, including writable NumPy aliases backing Arrow arrays.
+Use new backing arrays and ``result.refresh(new_data)`` to replace data.
+Ordinary mappings of NumPy columns are copied during native ingest.
+"""
 
 from __future__ import annotations
 

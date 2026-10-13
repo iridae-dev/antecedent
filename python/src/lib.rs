@@ -2518,7 +2518,10 @@ fn load_float64_columns(
 
 /// Load float64 columns from Arrow C Data Interface exporters (PyArrow / `__arrow_c_array__`).
 ///
-/// Prefers zero-copy borrow of contiguous float64 value buffers.
+/// Prefers zero-copy borrow of contiguous float64 value buffers. Borrowed buffers must remain
+/// unchanged, with no writes through writable aliases, during this call. This conversion probe
+/// returns only metadata and retains no data; analysis and prepared-study calls can retain the
+/// same kind of borrow for as long as their native data handles live.
 #[pyfunction]
 fn load_float64_arrow_c_columns(
     names: Vec<String>,

@@ -2,10 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[cfg(feature = "arrow")]
 use antecedent_core::{Diagnostic, DiagnosticKind, DiagnosticSeverity};
 
 /// Why a buffer was materialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[cfg(feature = "arrow")]
 pub(crate) enum MaterializationReason {
     /// Arrow / foreign buffer could not be borrowed zero-copy.
     ForeignBufferIncompatible,
@@ -15,6 +17,7 @@ pub(crate) enum MaterializationReason {
 
 /// Record a materialization as an execution diagnostic.
 #[must_use]
+#[cfg(feature = "arrow")]
 pub(crate) fn materialization_diagnostic(reason: MaterializationReason, bytes: u64) -> Diagnostic {
     let code = match reason {
         MaterializationReason::ForeignBufferIncompatible => "exec.materialize.foreign",

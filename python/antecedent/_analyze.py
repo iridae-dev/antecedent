@@ -164,6 +164,11 @@ def analyze(
         or an ``antecedent.data`` frame (``EventFrame`` / ``PanelFrame`` /
         ``MultiEnvFrame``). The library does not take a Polars or pandas
         dependency on the way out; tabular results speak Arrow.
+        Arrow CDI / stream inputs may be borrowed without copying. Keep their
+        exported buffers unchanged while a data or prepared handle retains them,
+        including any writable NumPy aliases backing an Arrow array. Supply new
+        buffers and call ``result.refresh(new_data)`` to replace observations;
+        ordinary mappings of NumPy columns are copied during ingest.
         For ``discovery=JPCMCIPlus(...)``, pass a sequence of environment frames
         or a ``MultiEnvFrame``.
     query:

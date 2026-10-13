@@ -54,6 +54,10 @@ impl ArrowCColumn {
     /// `array` and `schema` must form a valid Arrow C Data Interface pair.
     /// The wrapper assumes those layouts agree; later type checks cannot
     /// establish the original allocation's validity.
+    /// Exported buffers must remain immutable until the imported storage and
+    /// all its clones release them. No mutable alias may write to retained
+    /// buffers. Cached content identities and fitted preparations rely on this
+    /// lifetime premise.
     #[must_use]
     pub unsafe fn from_ffi(
         name: impl Into<String>,
@@ -132,7 +136,8 @@ pub(crate) fn float64_column_from_array(
 
     if can_borrow {
         let ptr = values_slice.as_ptr();
-        // SAFETY: `array` owns the buffer for the lifetime of ForeignF64Buffer.
+        // SAFETY: `array` owns the buffer for the lifetime of ForeignF64Buffer;
+        // the exporter contract keeps those buffers immutable until release.
         let foreign = unsafe { ForeignF64Buffer::new(Arc::new(ArrayOwner(array)), ptr, n) };
         // Ensure owner holds the array (read through for dead_code).
         debug_assert!(!foreign.as_slice().is_empty() || n == 0);
@@ -151,9 +156,9 @@ pub(crate) fn float64_column_from_array(
         // logical column; a non-zero offset or a longer buffer goes through `value`.
         let values = if floats.offset() == 0 && raw.len() == n {
             let mut values = raw.to_vec();
-            for i in 0..n {
+            for (i, value) in values.iter_mut().enumerate() {
                 if floats.is_null(i) {
-                    values[i] = f64::NAN;
+                    *value = f64::NAN;
                 }
             }
             values

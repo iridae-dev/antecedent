@@ -879,6 +879,12 @@ class PreparedAnalysis(Generic[ResultT]):
 
     **Re-prepare required:** any frozen field change, including schema mismatch.
 
+    Arrow CDI / stream inputs may be borrowed without copying. Keep their
+    exported buffers unchanged while this handle retains them, including any
+    writable NumPy aliases backing Arrow arrays. To replace observations, use
+    new backing buffers and call :meth:`refresh`; ordinary mappings of NumPy
+    columns are copied during ingest.
+
     ``analyze`` is ``prepare(...).estimate()``; its result retains this handle
     as ``result.study``. For streaming append + incremental OLS, use
     :class:`antecedent.CausalState`.
@@ -2012,7 +2018,12 @@ class PreparedAnalysis(Generic[ResultT]):
         on_progress: Any = _UNSET,
         on_stage: Any = _UNSET,
     ) -> ResultT:
-        """Replace retained data and re-estimate (controls as in :meth:`estimate`)."""
+        """Replace retained data and re-estimate (controls as in :meth:`estimate`).
+
+        Arrow inputs may be borrowed. Supply new backing buffers for changed
+        observations and keep those buffers, including writable NumPy aliases,
+        unchanged while the refreshed handle retains them.
+        """
         if isinstance(self._query, Transport):
             from .transport._day1 import catalog_from_evidence
 
