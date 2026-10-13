@@ -135,3 +135,34 @@ measured, so every probability and interval route is closed.
 | `sampling_dependence_unknown` | candidate coupling or serial dependence undeclared |
 | `cell_not_licensed` | a published probability or interval requested |
 | `route_not_supported` | weighted quantile or `CVaR`, or weights on dependent or independent-candidate draws |
+
+## Python
+
+`antecedent.decision_reliability` builds the carrier from numpy arrays and
+reports the same three components:
+
+```python
+from antecedent import decision_reliability as dr
+
+stream = dr.StreamId(run_seed=1, purpose="selection", replicate=0, label="posterior")
+draws = dr.DecisionDraws.from_arrays(
+    {"a": a, "b": b}, stream=stream, source="posterior",
+    coupling="shared_simulation", within_stream="independent",
+)
+result = dr.assess(draws, dr.ReliabilityRequest(ranking=dr.RankingRequest(baseline="b")))
+result.report.monte_carlo_error
+result.publish("ranking_probability")   # raises cell_not_licensed
+```
+
+`coupling` and `within_stream` default to `"unknown"` and are refused until
+declared. `dr.rank`, `dr.publish`, `DecisionReliability.export` and
+`dr.consume_decision_reliability_artifact` mirror the Rust routes.
+
+## Bounds
+
+A carrier holds at most these numbers; each is enforced with a typed refusal and
+cancellation is observed at bounded work boundaries.
+
+* max_candidates: 65536
+* max_cells: 67108864 (candidates times draws)
+* max_ranking_cells: 16777216 (ranking holds two `u32` ranks per cell)

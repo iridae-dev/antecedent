@@ -315,6 +315,10 @@ _SECTIONED_ARTIFACTS = {
         "mechanism_discrepancy",
         False,
     ),
+    "crates/antecedent-io/src/predictive_assessment_artifact.rs": (
+        "predictive_assessment",
+        True,
+    ),
 }
 
 

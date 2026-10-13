@@ -85,3 +85,14 @@ and boundary probes) are frozen in
 `crates/antecedent-estimate/tests/adaptive_inference_calibration.rs` and are
 unmeasured. Coverage of a fixed-sample interval at the final sample size, or of
 a component estimator, does not substitute.
+
+## Python
+
+`antecedent.adaptive_inference` exposes the facade: `AdaptiveDesign` (the retained
+contract; any element may be `None` and is then refused by name),
+`AdaptiveInferenceSession.prepare`, `analyse` with one request class per paradigm
+(`BayesianPosterior`, `PosteriorStopping`, `AdaptiveWeighting`, `ConfidenceSequence`,
+`GroupSequential`), `fixed_sample` (always refused for adaptive data), `interval`
+(always `cell_not_licensed`), `interim_evidence`, `export_contract`, `export_result`,
+`consume_adaptive_monitoring_contract_artifact`,
+`consume_adaptive_inference_result_artifact` and `procedure_matrix()`.

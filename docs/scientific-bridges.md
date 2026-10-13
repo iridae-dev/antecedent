@@ -109,6 +109,28 @@ Replay protects against corruption, unsealed edits and resealed edits that
 change the answer. It does not protect against a producer that seals a bridge
 whose declared assumptions are false: those are declarations.
 
+## Python
+
+`antecedent.scientific_bridge` builds the contract and presents the result; every check,
+mapping, identity and refusal is Rust's.
+
+```python
+from antecedent import scientific_bridge as sb
+
+bridge = sb.prepare_scientific_bridge(contract)      # checks before any number is formed
+claim = bridge.derive(sb.SourceClaim.declared("biomarker-effect", 0.8, surrogate))
+claim.value, claim.fit.r_squared, claim.unresolved   # 0.796, 529/535, ("assumption:validation",)
+exported = claim.export("surrogate-bridge")
+again = sb.consume_scientific_bridge_artifact(exported.artifact, exported.identity)
+claim.require_value_kind("predictive_law")            # refused: value_kind_substitution
+claim.interval()                                      # refused: cell_not_licensed
+```
+
+Refusals are `ScientificBridgeRefusal` (a `CausalUnsupportedError`) with `reason_code`, `detail`
+and `remedy`. A bridged claim reaches `Contract.evaluate` and `InverseQuery.evaluate` only through
+the caller-declared `MeanSource` / `MeanClaim` adapter; see
+[producer-consumer-matrix.md](producer-consumer-matrix.md).
+
 ## What is not licensed
 
 No interval or posterior for a bridged value (whole-method coverage is not

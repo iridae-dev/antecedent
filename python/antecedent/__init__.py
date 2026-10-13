@@ -87,6 +87,19 @@ a latent construct measured with error under a declared model (point and uncalib
 error, never an interval); ``mechanism_composition`` composes independently fitted mechanisms into
 one executable joint model with declared dependence; ``evidence_ledger`` accounts the overlap of
 evidence sources before any pooling, borrowing or reuse and reclassifies stale results.
+``scientific_bridge`` states the assumptions under which a claim about one quantity answers a
+question about another (surrogate to terminal outcome, measured to latent, predictive to causal)
+as a new, separately identified, point-only claim.
+
+``observation_query`` asks what an observation says: the outcome probability given a recorded
+signal kept distinct from the probability under an intervention on the same model, a measured
+signal inverted through its measurement model, posteriors after new evidence and the evidence
+required to reach a level (exact given a declared model, never an interval).
+
+``predictive_assessment`` scores predictive laws against realized observations under a declared
+validation design: proper scores, paired differences with declared dependence, labelled
+diagnostics and a held-out check from row identities (point-only; a good score is not causal
+validity and no interval is reported).
 
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the
 JSON / GML / NetworkX peers, likewise on ``Cpdag`` / ``Pag`` / ``Admg``.
@@ -341,12 +354,15 @@ except ImportError:  # pragma: no cover - extension not built
 # caches it on the package, ``__dir__`` lists them so tab completion finds them, and neither
 # adds a name to ``__all__``. ``identify`` is absent on purpose: the root name is the function.
 _LAZY_MODULES: tuple[str, ...] = (
+    "adaptive_inference",
     "categorical_treatment",
+    "cohort_decision",
     "compact_export",
     "composition",
     "composition_bundle",
     "counterfactual_id",
     "cross_world",
+    "decision_reliability",
     "decision_robust",
     "descriptive",
     "dose_grid",
@@ -363,6 +379,8 @@ _LAZY_MODULES: tuple[str, ...] = (
     "mechanism_discrepancy",
     "msm_sensitivity",
     "nonlinear_mediation",
+    "observation_query",
+    "predictive_assessment",
     "preflight",
     "program_claims",
     "proposal_arrival",
@@ -382,7 +400,9 @@ _LAZY_MODULES: tuple[str, ...] = (
     "repair",
     "scenario_decision",
     "scenario_invariance",
+    "scientific_bridge",
     "sensitivity_decision",
+    "sequential_evaluation",
     "source_evidence",
     "source_projection",
     "temporal",

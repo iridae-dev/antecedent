@@ -160,3 +160,24 @@ also refuses a consistently resealed artifact of another evaluation.
 `SequentialEvaluationError` with its registered `code`, the
 `sequential_evaluation.*` `detail`, a message and a remedy;
 `to_refusal` gives the shared structured shape.
+
+## Python surface
+
+`antecedent.sequential_evaluation` builds the declarations as frozen dataclasses
+(`FiniteModel`, `Action`, `Delayed`, `StoppingBoundary`, `SupportOverride`,
+`Policy`, `LoggedTrajectory`) and calls the native layer. `evaluate` returns a
+`PolicyEvaluation` with its `HistoryReceipt` and `DecisionReceipt` tuples,
+`evaluate_off_policy` an `OffPolicyEstimate`, `rollout` a `RolloutEstimate`
+(`stream_uniform` exposes one stream identity), `compare` a `ComparisonReport`
+and `value_of_collecting_evidence` a `ValueOfEvidence`. `BeliefSession`
+follows one realized history, `seal` and `consume_artifact` export and
+re-evaluate the artifact, and `ReweightedStaticScores` and
+`LearnedFromEvaluationData` are the declarations that are refused by name.
+Every refusal is a `SequentialEvaluationRefusal` with its registered
+`reason_code` and the `sequential_evaluation.*` `detail`.
+
+## Bounds
+
+At most 32 latent states, 16 actions, 12 decision times, 65536 policy entries,
+150000 logged trajectories and 10000000 rollouts. A declaration beyond a bound
+is refused, never truncated.

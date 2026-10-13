@@ -61,13 +61,19 @@ from antecedent import (
     repair,
     scenario_decision,
 )
+from antecedent import adaptive_inference as ai
 from antecedent import composition as comp
+from antecedent import cohort_decision as cd
 from antecedent import composition_bundle as cb
+from antecedent import decision_reliability as dreliab
 from antecedent import design as dr
 from antecedent import evidence_ledger as el
+from antecedent import sequential_evaluation as seqeval
 from antecedent import inverse_query as iq
 from antecedent import measurement_models as mm
 from antecedent import mechanism_composition as mc
+from antecedent import observation_query as oq
+from antecedent import predictive_assessment as pa
 from antecedent import sensitivity_decision as sd
 from antecedent.compact_export import CompactExport, Intercept, Linear, Numeric, Power, Quantity
 from antecedent.errors import (
@@ -115,6 +121,14 @@ PRODUCERS: tuple[str, ...] = (
     "composed_model",
     "evidence_ledger",
     "counterfactual_transport_result",
+    "cohort_decision_source",
+    "decision_reliability_report",
+    "adaptive_monitoring_contract",
+    "adaptive_inference_result",
+    "observation_query_claim",
+    "predictive_assessment",
+    "scientific_bridge_claim",
+    "sequential_policy_evaluation",
 )
 CONSUMERS: tuple[str, ...] = (
     "decision",
@@ -698,6 +712,56 @@ def _ledgered() -> Ledgered:
 
 
 @dataclass(frozen=True)
+class Adaptive:
+    """One adaptive experiment: its session, contract artifact, result and their consumed forms."""
+
+    session: ai.AdaptiveInferenceSession
+    contract_bytes: bytes
+    contract: ai.ConsumedMonitoringContract
+    request: ai.AdaptiveWeighting
+    result: ai.AdaptiveResult
+    result_bytes: bytes
+    consumed: ai.ConsumedAdaptiveResult
+
+
+def _adaptive() -> Adaptive:
+    """Four epsilon-greedy units (arms 0, 1, 1, 0; outcomes 1, 0, 1, 0), looks at 2 and 4 units."""
+    arms = [0, 1, 1, 0]
+    design = ai.AdaptiveDesign(
+        label="matrix_trial",
+        assignment="epsilon_greedy",
+        outcome="single_outcome",
+        monitoring="fixed_interim_looks",
+        stopping="efficacy",
+        arm_labels=("control", "treatment"),
+        assigned_arm=arms,
+        outcomes=[[1.0], [0.0], [1.0], [0.0]],
+        policy_history=[ai.PolicyEpoch(0, ai.policy_identity("epsilon_greedy"))],
+        assignment_probabilities=[[0.5, 0.5], [0.5, 0.5], [0.3, 0.7], [0.2, 0.8]],
+        exposure=arms,
+        availability=ai.Availability([0, 0, 1, 1], "immediate"),
+        interim_analyses=[ai.InterimAnalysis(2, 0.5), ai.InterimAnalysis(4, 1.0)],
+        stopping_rule=ai.StoppingRule.posterior_probability_best(0.95),
+        probability_floor=0.05,
+    )
+    session = ai.AdaptiveInferenceSession.prepare(design)
+    request = ai.AdaptiveWeighting(
+        look=1, plus_arm=1, minus_arm=None, scheme="uniform", prior_mean=0.5, prior_strength=1.0
+    )
+    contract_bytes = session.export_contract("frequentist_adaptive_weighting")
+    result_bytes = session.export_result(request)
+    return Adaptive(
+        session,
+        contract_bytes,
+        ai.consume_adaptive_monitoring_contract_artifact(contract_bytes),
+        request,
+        session.analyse(request),
+        result_bytes,
+        ai.consume_adaptive_inference_result_artifact(result_bytes),
+    )
+
+
+@dataclass(frozen=True)
 class Transported:
     """The exact results and the sampled plug-ins of ``P(Y_{x=1} = 1)`` and ``P(Y_{x=0} = 1)``."""
 
@@ -774,7 +838,25 @@ class Objs:
     composition: mc.PreparedMechanismComposition
     composition_export: mc.CompositionExport
     ledgered: Ledgered
+    adaptive: Adaptive
     transported: Transported
+    cohort: cd.CohortDecisionSource
+    reliability: dreliab.DecisionReliability
+    observation: oq.ObservationClaim
+    observation_pair: oq.ObservationClaim
+
+
+def _reliability() -> dreliab.DecisionReliability:
+    """Four equally likely states, three candidates (hand oracle: E U = 5/2, 2, 3/2)."""
+    stream = dreliab.StreamId(run_seed=1, purpose="selection", replicate=0, label="states")
+    draws = dreliab.DecisionDraws.from_arrays(
+        {"A": [3.0, 3.0, 2.0, 2.0], "B": [2.0, 1.0, 3.0, 2.0], "C": [1.0, 2.0, 1.0, 2.0]},
+        stream=stream,
+        source="known_law",
+        coupling="shared_simulation",
+        within_stream="independent",
+    )
+    return dreliab.assess(draws, dreliab.ReliabilityRequest())
 
 
 def _build_objects() -> Objs:
@@ -815,13 +897,92 @@ def _build_objects() -> Objs:
         composition=composition,
         composition_export=composition.export({"X": 1.0}, outcome="Y"),
         ledgered=_ledgered(),
+        adaptive=_adaptive(),
         transported=_transported(),
+        cohort=_cohort_source(),
+        reliability=_reliability(),
+        observation=_observation(),
+        observation_pair=_observation_pair(),
     )
 
 
 @pytest.fixture(scope="module")
 def objs() -> Objs:
     return _build_objects()
+
+
+@lru_cache(maxsize=1)
+def _assessed() -> pa.PredictiveAssessment:
+    """A predictive assessment of two Gaussian laws of four held-out outcomes (0, 1, 0, 1)."""
+    target = pa.Target("outcome", "cohort", "units")
+    observed = pa.Observations(target, pa.keys("cohort", range(4)), "real", [0.0, 1.0, 0.0, 1.0])
+    fit = pa.FitDeclaration.not_fitted()
+    return pa.assess(
+        observed,
+        [
+            pa.Predictor("standard", [pa.Gaussian(0.0, 1.0)] * 4, target, fit=fit),
+            pa.Predictor("wide", [pa.Gaussian(0.0, 2.0)] * 4, target, fit=fit),
+        ],
+        pa.ValidationDesign.simulation_stream("hand-written outcomes"),
+        scores=("crps", "log_score"),
+        dependence=pa.Dependence.iid(),
+    )
+
+
+@dataclass(frozen=True)
+class Sequential:
+    """A sealed sequential evaluation of a fixed policy over a two-state inspection problem."""
+
+    model: seqeval.FiniteModel
+    policy: seqeval.Policy
+    evaluation: seqeval.PolicyEvaluation
+    artifact: seqeval.EvaluationArtifact
+
+
+@lru_cache(maxsize=1)
+def _sequential() -> Sequential:
+    """Inspect (cost 1/4, alarm 3/4 if faulty, 1/4 if sound), then repair after an alarm and
+    ship after none: ``-1/4 + 1/2 * (-3/2) + 1/2 * 5 = 3/2`` (ship +10/-10, repair +6/-4)."""
+    identity = ((1.0, 0.0), (0.0, 1.0))
+    alarm = mm.MeasurementModel(
+        indicator=mm.MeasurementVariable("alarm", "noisy_misclassified", "category"),
+        construct=mm.MeasurementVariable("unit_condition", "latent_scientific", "category"),
+        parameters=mm.BinaryParameters(
+            rates=(mm.BinaryRates(sensitivity=0.75, specificity=0.75),), min_youden=0.1
+        ),
+        population_id="plant_a",
+        regime_id="operations",
+        evidence=mm.ParameterEvidence.declared("engineering"),
+    )
+    model = seqeval.FiniteModel(
+        population="plant_a",
+        regime="operations",
+        period="2026",
+        state_variable="unit_condition",
+        states=("sound", "faulty"),
+        initial=(0.5, 0.5),
+        horizon=2,
+        actions=(
+            seqeval.Action(
+                "inspect", "continue", transition=identity, utility_cost=0.25, channel=alarm
+            ),
+            seqeval.Action(
+                "ship", "commit", transition=identity, immediate_utility=(10.0, -10.0)
+            ),
+            seqeval.Action(
+                "repair", "commit", transition=identity, immediate_utility=(6.0, -4.0)
+            ),
+        ),
+        terminal_utility=(0.0, 0.0),
+    )
+    policy = seqeval.Policy.deterministic(
+        "inspect_then_act_v1",
+        {(): "inspect", ((0, 1),): "repair", ((0, 0),): "ship"},
+        model,
+    )
+    return Sequential(
+        model, policy, seqeval.evaluate(model, policy), seqeval.seal(model, policy)
+    )
 
 
 def _object(producer: str, o: Objs) -> object:
@@ -840,7 +1001,15 @@ def _object(producer: str, o: Objs) -> object:
         "measurement_result": o.measurement,
         "composed_model": o.composition,
         "evidence_ledger": o.ledgered.ledger,
+        "scientific_bridge_claim": _bridged().claim,
         "counterfactual_transport_result": o.transported.treated,
+        "cohort_decision_source": o.cohort,
+        "decision_reliability_report": o.reliability,
+        "observation_query_claim": o.observation,
+        "adaptive_monitoring_contract": o.adaptive.contract,
+        "adaptive_inference_result": o.adaptive.result,
+        "predictive_assessment": _assessed(),
+        "sequential_policy_evaluation": _sequential().artifact,
     }[producer]
 
 
@@ -849,7 +1018,21 @@ def _companions(producer: str, o: Objs) -> tuple[object, ...]:
     return {
         "measurement_result": (o.measurement_prepared,),
         "composed_model": (o.composition_export,),
+        "observation_query_claim": (o.observation_pair,),
         "evidence_ledger": (o.ledgered.pooled, o.ledgered.envelope, o.ledgered.export),
+        "scientific_bridge_claim": (
+            _bridged().prepared,
+            _bridged().exported,
+            _bridged().consumed,
+        ),
+        "adaptive_monitoring_contract": (o.adaptive.session,),
+        "adaptive_inference_result": (o.adaptive.consumed, o.adaptive.session),
+        "predictive_assessment": (_assessed().report, _assessed().identity),
+        "sequential_policy_evaluation": (
+            _sequential().evaluation,
+            _sequential().model,
+            _sequential().policy,
+        ),
         "counterfactual_transport_result": (
             o.transported.control,
             o.transported.sampled_treated,
@@ -872,8 +1055,24 @@ def _bundle_payload(producer: str, o: Objs) -> object:
         return o.composition_export.artifact
     if producer == "evidence_ledger":
         return o.ledgered.export.artifact
+    if producer == "scientific_bridge_claim":
+        return _bridged().exported.artifact
     if producer == "counterfactual_transport_result":
         return o.transported.treated.export()
+    if producer == "cohort_decision_source":
+        return o.cohort.export()
+    if producer == "decision_reliability_report":
+        return o.reliability.export()
+    if producer == "observation_query_claim":
+        return o.observation.artifact
+    if producer == "adaptive_monitoring_contract":
+        return o.adaptive.contract_bytes
+    if producer == "adaptive_inference_result":
+        return o.adaptive.result_bytes
+    if producer == "predictive_assessment":
+        return _assessed().export()
+    if producer == "sequential_policy_evaluation":
+        return _sequential().artifact.export()
     return _object(producer, o)
 
 
@@ -1490,9 +1689,20 @@ def _recalc_stage(producer: str, o: Objs) -> tuple[Stage, str]:
         ),
         "composed_model": (Stage.SCORE_ARTIFACT, o.composition.plan_identity),
         "evidence_ledger": (Stage.EVIDENCE, o.ledgered.export.identity),
+        "scientific_bridge_claim": (Stage.EVIDENCE, _bridged().exported.identity),
         "counterfactual_transport_result": (
             Stage.IDENTIFICATION,
             str(o.transported.treated.premises_digest) + str(o.transported.treated.data_digest),
+        ),
+        "cohort_decision_source": (Stage.EVIDENCE, o.cohort.identity),
+        "decision_reliability_report": (Stage.EVIDENCE, "".join(o.reliability.digests())),
+        "observation_query_claim": (Stage.EVIDENCE, o.observation.identity),
+        "adaptive_monitoring_contract": (Stage.EVIDENCE, o.adaptive.contract.identity),
+        "adaptive_inference_result": (Stage.EVIDENCE, o.adaptive.consumed.identity),
+        "predictive_assessment": (Stage.EVIDENCE, _assessed().identity.digest),
+        "sequential_policy_evaluation": (
+            Stage.EVIDENCE,
+            _sequential().artifact.identities["evaluation"],
         ),
     }[producer]
 
@@ -1898,6 +2108,111 @@ def _check_transport_inverse(o: Objs) -> None:
     _check_raw_rejected(*_transport_objects(o), feeders=_INVERSE_FEEDERS)
 
 
+# ------------------------------------------------------------ fitted effect cohort decision source
+
+
+def _cohort_source() -> cd.CohortDecisionSource:
+    """``tau(z) = 2 + 0.5 z`` declared as a compact contrast model; cohort ``z = (-1, 0.5, 1)``
+    with weights ``(0.2, 0.3, 0.5)``, so the weighted cohort mean is ``2.225`` by hand."""
+    export = CompactExport.build(
+        response=Quantity(
+            "y",
+            units="mmHg",
+            role="outcome",
+            regime="contrast:do(t=1)-do(t=0)",
+            functional="conditional_mean_difference",
+        ),
+        inputs=[Numeric("z", -1.0, 1.0, units="1")],
+        terms=[Intercept(), Linear("z")],
+        coefficients=[2.0, 0.5],
+        covariance=[[0.04, -0.01], [-0.01, 0.09]],
+    )
+    cohort = cd.CohortBinding(
+        snapshot_id="clinic-2026-q1",
+        population="target",
+        columns={"z": [-1.0, 0.5, 1.0]},
+        weights=[0.2, 0.3, 0.5],
+    )
+    return cd.decision_source_from_compact_export(export, cohort=cohort, outcome_units="mmHg")
+
+
+def _cohort_contract(source: cd.CohortDecisionSource) -> decision.Contract:
+    return decision.Contract(
+        actions=(
+            decision.Action(
+                "treat", inputs=(source.quantity,), utility=decision.x(0) * 4.0 - 1.5
+            ),
+            decision.Action("wait", inputs=(source.quantity,), utility=decision.x(0) * 0.0),
+        ),
+        utility_units="utility",
+        criterion=decision.Criterion.expected_utility(),
+        target_population="target",
+    )
+
+
+def _check_cohort_decision(o: Objs) -> None:
+    source = o.cohort
+    # Oracle: 0.2 * 1.5 + 0.3 * 2.25 + 0.5 * 2.5 = 2.225; 4 * 2.225 - 1.5 = 7.4.
+    assert source.mean_contrast == pytest.approx(2.225, abs=1e-12)
+    assert not source.is_native
+    contract = _cohort_contract(source)
+    for evaluated in (contract.evaluate(source), contract.evaluate(source.mean_source)):
+        by_id = {a.id: a for a in evaluated.actions}
+        assert by_id["treat"].expected_utility == pytest.approx(7.4, abs=1e-12)
+        assert by_id["wait"].expected_utility == pytest.approx(0.0, abs=1e-12)
+        assert evaluated.selected == ("treat",)
+        assert by_id["treat"].standard_error is None and evaluated.evpi is None
+    # No law: a nonlinear utility and a probability criterion are refused, never approximated.
+    squared = replace(
+        contract,
+        actions=(
+            decision.Action(
+                "treat", inputs=(source.quantity,), utility=decision.x(0) * decision.x(0)
+            ),
+            contract.actions[1],
+        ),
+    )
+    with pytest.raises(decision.DecisionRefusal) as nonlinear:
+        squared.evaluate(source)
+    assert nonlinear.value.reason_code == "decision_contract_unsatisfied"
+    # The model-based variance is labelled, off the decision, and the interval is closed.
+    diagnostic = source.uncalibrated_standard_error
+    assert diagnostic is not None
+    assert diagnostic.value == pytest.approx(0.049225**0.5, abs=1e-12)
+    assert diagnostic.calibration == "calibration unmeasured"
+    with pytest.raises(cd.CohortDecisionRefusal) as closed:
+        source.interval()
+    assert closed.value.reason_code == "cell_not_licensed"
+    assert closed.value.detail == "cohort_decision.interval_not_licensed"
+    # The support-aware evaluator does not take the raw source.
+    with pytest.raises(CausalTypeError):
+        _feed_support(source)
+    # An independent consumer replays every number under the retained identity.
+    replayed = cd.consume_cohort_decision_source(
+        source.export(), expected_identity=source.identity, cohort_digest=source.cohort_digest
+    )
+    assert replayed.mean_contrast == source.mean_contrast
+
+
+def _check_cohort_inverse(o: Objs) -> None:
+    source = o.cohort
+    contract = _cohort_contract(source)
+    answered = iq.InverseQuery(contract, ("wait", "treat"), (iq.target_mean(5.0),)).evaluate(
+        source.forward_claim()
+    )
+    assert answered.feasible_actions == ("treat",)
+    for constraint in (
+        iq.probability_threshold(0.5, 0.5, tail="lower", direction="at_most"),
+        iq.target_quantile(0.5, 0.5),
+    ):
+        with pytest.raises(iq.InverseQueryRefusal) as refused:
+            iq.InverseQuery(contract, ("wait", "treat"), (constraint,)).evaluate(
+                source.forward_claim()
+            )
+        assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
+    _check_raw_rejected(source, feeders=_INVERSE_FEEDERS)
+
+
 # -------------------------------------------------------------- bundle boundary (new rows)
 
 
@@ -1912,9 +2227,378 @@ def _check_no_bundle_node_kind(producer: str, o: Objs) -> None:
         assert_registered_refusal(wrong.value)
 
 
+# ---------------------------------------------------------------- decision reliability report
+
+
+def _declared_reliability(o: Objs) -> Declared:
+    result = o.reliability
+    report = result.report
+    # Oracle by hand: E[U] = (3 + 3 + 2 + 2) / 4 = 5/2 for A, the largest of (5/2, 2, 3/2).
+    assert report.decided_id == "A"
+    assert report.monte_carlo_error["decision"]["value"] == pytest.approx(2.5, abs=1e-12)
+    assert report.label["calibration"] == "uncalibrated"
+    consumed = dreliab.consume_decision_reliability_artifact(
+        result.export(), draws_digest=result.digests()[0], decided_id="A"
+    )
+    assert consumed.report.raw == report.raw
+    with pytest.raises(dreliab.DecisionReliabilityRefusal) as closed:
+        result.publish("ranking_probability")
+    assert closed.value.reason_code == "cell_not_licensed"
+    assert closed.value.detail == "decision_reliability.cell_not_licensed"
+    with pytest.raises(dreliab.DecisionReliabilityRefusal) as combined:
+        result.combined_uncertainty()
+    assert combined.value.reason_code == "uncertainty_components_not_combined"
+    quantity = _declared_quantity("utility", "decided", units="utility", population="cohort")
+    draws_digest, set_digest = result.digests()
+    return Declared(
+        (quantity,),
+        (report.monte_carlo_error["decision"]["value"],),
+        f"decision_reliability:{set_digest}",
+        f"draws:{draws_digest}",
+        "declared:decision_reliability",
+    )
+
+
+def _check_reliability_decision(o: Objs) -> None:
+    declared = _declared_reliability(o)
+    _check_declared_decision(declared, act=9.0, hold=5.0, selected="act")
+    _check_raw_rejected(o.reliability, o.reliability.report, feeders=_DECISION_FEEDERS)
+
+
+def _check_reliability_inverse(o: Objs) -> None:
+    declared = _declared_reliability(o)
+    _check_declared_inverse(declared, target=6.0, feasible=("act",))
+    _check_raw_rejected(o.reliability, o.reliability.report, feeders=_INVERSE_FEEDERS)
+
+
+# ------------------------------------------------------------------ adaptive inference
+
+
+def _declared_adaptive(o: Objs) -> Declared:
+    a = o.adaptive
+    # Oracle by hand (exact fractions, prior mean 1/2, strength 1, uniform weights): the arm-1
+    # scores are (1/2, -1/2, 37/28, 1/2), whose mean is 51/112 = 0.455357142857...
+    assert a.result.paradigm == "frequentist_adaptive_weighting"
+    assert a.result.claim == "point_only"
+    assert a.result.values[0] == pytest.approx(51.0 / 112.0, abs=1e-12)
+    # An independent consumer recomputes the value from the retained history.
+    assert a.consumed.values[0] == pytest.approx(51.0 / 112.0, abs=1e-12)
+    assert a.consumed.paradigm == "frequentist_adaptive_weighting"
+    assert a.consumed.stopping_rule["spec"] == "posterior_probability_best"
+    # The contract artifact names the procedure, the rule and the paradigm.
+    assert a.contract.paradigm == "frequentist_adaptive_weighting"
+    assert a.contract.procedure == "epsilon_greedy/single_outcome/fixed_interim_looks/efficacy"
+    # No interval, and fixed-sample inference of the same data is refused.
+    for ask in (a.session.interval, a.session.fixed_sample):
+        with pytest.raises(ai.AdaptiveInferenceRefusal) as closed:
+            ask()
+        assert closed.value.reason_code in {"cell_not_licensed", "adaptive_design_ignored"}
+        assert_registered_refusal(closed.value)
+    quantity = _declared_quantity(
+        "arm_mean",
+        "do(arm=treatment)",
+        units="unit",
+        population="target",
+        functional="adaptive_weighted_mean",
+    )
+    return Declared(
+        (quantity,),
+        (a.result.values[0],),
+        f"adaptive_inference_result:{a.consumed.identity}",
+        f"adaptive_contract:{a.contract.contract_identity}",
+        "declared:adaptive_arm_mean",
+    )
+
+
+def _adaptive_objects(o: Objs) -> tuple[object, ...]:
+    a = o.adaptive
+    return (a.session, a.result, a.consumed, a.contract)
+
+
+def _check_adaptive_decision(o: Objs) -> None:
+    declared = _declared_adaptive(o)
+    # act = 4 m - 1 = 0.8214..., hold = 2 m = 0.9107...: hold is selected.
+    m = 51.0 / 112.0
+    _check_declared_decision(declared, act=4 * m - 1.0, hold=2 * m, selected="hold")
+    _check_raw_rejected(*_adaptive_objects(o), feeders=_DECISION_FEEDERS)
+
+
+def _check_adaptive_inverse(o: Objs) -> None:
+    declared = _declared_adaptive(o)
+    _check_declared_inverse(declared, target=0.9, feasible=("hold",))
+    _check_raw_rejected(*_adaptive_objects(o), feeders=_INVERSE_FEEDERS)
+
+
+# ------------------------------------------------------------- observation query claim
+
+
+def _observation_model() -> mc.PreparedMechanismComposition:
+    """Binary confounded ``Z -> S``, ``Z -> Y``, ``S -> Y``: ``P(Y=1 | S=1) = 0.78`` and
+    ``P(Y=1 | do(S=1)) = 0.6`` by hand (``P(Z=1) = 1/2``, ``P(S=1 | Z) = 0.2, 0.8``,
+    ``P(Y=1 | S, Z) = 0.1, 0.5, 0.3, 0.9``)."""
+
+    def table(variable, parents, rows):
+        names = [variable, *parents]
+        quantities = [
+            mc.Quantity(
+                v,
+                units="category",
+                population_id="pop",
+                role="outcome" if v == "Y" else "covariate",
+            )
+            for v in names
+        ]
+        declaration = mc.MechanismDeclaration(
+            output=quantities[0],
+            parents=tuple(quantities[1:]),
+            artifact_id=f"declared:{variable}",
+            evidence_id=f"assumed:{variable}",
+        )
+        return mc.Mechanism.declared_table(
+            declaration,
+            levels=["0", "1"],
+            rows=[
+                (dict(zip(parents, config, strict=True)), {"0": 1 - p1, "1": p1})
+                for config, p1 in rows
+            ],
+        )
+
+    return mc.compose_mechanisms(
+        [
+            table("Z", [], [((), 0.5)]),
+            table("S", ["Z"], [(("0",), 0.2), (("1",), 0.8)]),
+            table(
+                "Y",
+                ["S", "Z"],
+                [(("0", "0"), 0.1), (("0", "1"), 0.5), (("1", "0"), 0.3), (("1", "1"), 0.9)],
+            ),
+        ],
+        target_population_id="pop",
+        admit_declared_mechanisms=True,
+    )
+
+
+def _observation() -> oq.ObservationClaim:
+    return oq.condition_on(_observation_model(), "Y", {"S": "1"})
+
+
+def _observation_pair() -> oq.ObservationClaim:
+    return oq.condition_versus_intervene(_observation_model(), "Y", {"S": "1"})
+
+
+def _declared_observation(o: Objs) -> Declared:
+    claim, pair = o.observation, o.observation_pair
+    # Oracle by hand: P(Y=1, S=1) = 0.5 (0.2 * 0.3 + 0.8 * 0.9) = 0.39 and P(S=1) = 0.5, so the
+    # conditional is 0.78; the truncated factorization gives 0.5 (0.3 + 0.9) = 0.6.
+    assert claim.distribution["1"] == pytest.approx(0.78, abs=1e-12)
+    assert claim.evidence_probability == pytest.approx(0.5, abs=1e-12)
+    assert pair.paired.intervention["1"] == pytest.approx(0.6, abs=1e-12)
+    assert claim.identity != pair.identity
+    assert claim.inference_basis == "exact_given_declared_model"
+    # The independent consumer replays the premises and the stored query to the same law.
+    replayed = oq.consume_observation_query_artifact(claim.artifact, claim.identity)
+    assert replayed.claim.distribution["1"] == pytest.approx(0.78, abs=1e-12)
+    with pytest.raises(oq.ObservationQueryRefusal) as closed:
+        claim.interval()
+    assert closed.value.reason_code == "cell_not_licensed"
+    assert closed.value.detail == "observation_query.interval_route_closed"
+    with pytest.raises(oq.ObservationQueryRefusal) as calibrated:
+        claim.calibrated_probability()
+    assert calibrated.value.detail == "observation_query.calibrated_probability_closed"
+    observed_q = _declared_quantity("Y", "observed(S=1)", units="probability", population="pop")
+    set_q = _declared_quantity("Y", "do(S=1)", units="probability", population="pop")
+    return Declared(
+        (observed_q, set_q),
+        (claim.distribution["1"], pair.paired.intervention["1"]),
+        f"observation_query:{pair.identity}",
+        f"claim:{claim.identity}",
+        "declared:observation_query",
+    )
+
+
+def _check_observation_decision(o: Objs) -> None:
+    declared = _declared_observation(o)
+    # act = 4 * 0.78 - 1 = 2.12 reads the conditional probability; hold = 2 * 0.6 = 1.2.
+    _check_declared_decision(declared, act=2.12, hold=1.2, selected="act")
+    _check_raw_rejected(o.observation, o.observation_pair, feeders=_DECISION_FEEDERS)
+
+
+def _check_observation_inverse(o: Objs) -> None:
+    declared = _declared_observation(o)
+    _check_declared_inverse(declared, target=1.5, feasible=("act",))
+    _check_raw_rejected(o.observation, o.observation_pair, feeders=_INVERSE_FEEDERS)
+
+
+# --------------------------------------------------------------------- scientific bridge
+
+
+@lru_cache(maxsize=1)
+def _bridged() -> Any:
+    """One bridged claim (validated surrogate effect 0.8, trial-level line 0.06 + 0.92 s)."""
+    from types import SimpleNamespace
+
+    from antecedent import scientific_bridge as sb
+
+    def quantity(variable: str, units: str) -> ScientificQuantity:
+        return ScientificQuantity(
+            variable_id=variable,
+            variable_name=variable,
+            role="outcome",
+            units=units,
+            population_id="adults",
+            regime_id="do(t=1)",
+            horizon=0,
+            functional_id="average_effect",
+        )
+
+    surrogate = quantity("trial:biomarker", "mmol_per_l")
+    contract = sb.BridgeContract(
+        kind="surrogate_terminal_outcome",
+        source=surrogate,
+        source_class="surrogate_endpoint",
+        target=quantity("trial:survival", "log_hazard"),
+        target_class="terminal_outcome",
+        evidence_scope=sb.Scope("adults", "do(t=1)"),
+        mapping=sb.TrialLevelMapping(
+            trials=[(0.0, 0.1), (0.5, 0.5), (1.0, 0.9), (1.5, 1.5)],
+            min_trials=4,
+            min_r_squared=0.9,
+        ),
+        assumptions=(
+            sb.Assumption(
+                "validation",
+                "surrogate_validation",
+                "the surrogate is validated at the trial level",
+                evidence="meta-analysis:ckd-2024",
+            ),
+        ),
+    )
+    prepared = sb.prepare_scientific_bridge(contract)
+    claim = prepared.derive(sb.SourceClaim.declared("biomarker-effect", 0.8, surrogate))
+    exported = claim.export("matrix-bridge")
+    consumed = sb.consume_scientific_bridge_artifact(exported.artifact, exported.identity)
+    return SimpleNamespace(
+        sb=sb, prepared=prepared, claim=claim, exported=exported, consumed=consumed
+    )
+
+
+def _declared_bridge() -> Declared:
+    bridged = _bridged()
+    sb, claim = bridged.sb, bridged.claim
+    # Oracle by hand: slope Sxy/Sxx = 1.15/1.25 = 0.92, intercept 3/4 - 0.92 * 3/4 = 0.06.
+    assert claim.value == pytest.approx(0.06 + 0.92 * 0.8, abs=1e-12)
+    assert claim.value_kind == "mean" and not claim.transported
+    # An independent consumer replays the contract and the source to the same value.
+    assert bridged.consumed.claim.value == claim.value
+    assert bridged.consumed.claim.claim_id == claim.claim_id
+    # The bridge states a mean: a law, a posterior, a set and a joint law are refused.
+    for needed in ("predictive_law", "posterior", "identified_set", "joint_outcome_law"):
+        with pytest.raises(sb.ScientificBridgeRefusal) as wrong:
+            claim.require_value_kind(needed)
+        assert wrong.value.reason_code == "bridge_substitution_refused"
+        assert wrong.value.detail == "scientific_bridge.value_kind_substitution"
+    with pytest.raises(sb.ScientificBridgeRefusal) as closed:
+        claim.interval()
+    assert closed.value.reason_code == "cell_not_licensed"
+    assert closed.value.detail == "scientific_bridge.interval_not_licensed"
+    assert_registered_refusal(closed.value)
+    # The bridge carries no estimand for a decision: the caller declares the quantity.
+    quantity = _declared_quantity(
+        "trial:survival", "do(t=1)", units="log_hazard", population="adults",
+        functional="average_effect",
+    )
+    return Declared(
+        (quantity,),
+        (claim.value,),
+        f"scientific_bridge_claim:{claim.claim_id}",
+        f"scientific_bridge_contract:{claim.contract_identity}",
+        "declared:scientific_bridge",
+    )
+
+
+def _bridge_objects() -> tuple[object, ...]:
+    bridged = _bridged()
+    return (bridged.claim, bridged.prepared, bridged.exported, bridged.consumed)
+
+
+def _check_bridge_decision(o: Objs) -> None:
+    declared = _declared_bridge()
+    value = declared.means[0]
+    _check_declared_decision(declared, act=4 * value - 1.0, hold=2 * value, selected="act")
+    _check_raw_rejected(*_bridge_objects(), feeders=_DECISION_FEEDERS)
+
+
+def _check_bridge_inverse(o: Objs) -> None:
+    declared = _declared_bridge()
+    _check_declared_inverse(declared, target=2.0, feasible=("act",))
+    _check_raw_rejected(*_bridge_objects(), feeders=_INVERSE_FEEDERS)
+
+
 # ------------------------------------------------------------------------- the check registry
 
 Check = Callable[[Objs], None]
+# ------------------------------------------------------- sequential policy evaluation
+
+
+def _declared_sequential(o: Objs) -> Declared:
+    sequential = _sequential()
+    evaluation = sequential.evaluation
+    # Oracle: -1/4 + 1/2 * (-3/2) + 1/2 * 5 = 3/2, exact given the declared model.
+    assert evaluation.value == pytest.approx(1.5, abs=1e-12)
+    assert evaluation.inference == "point_only"
+    assert sequential.artifact.value == evaluation.value
+    # An independent consumer re-evaluates and finds the stored value bit for bit.
+    identities = sequential.artifact.identities
+    consumed = seqeval.consume_artifact(
+        sequential.artifact.export(),
+        model=identities["model"],
+        policy=identities["policy"],
+        evaluation=identities["evaluation"],
+    )
+    assert consumed.value == evaluation.value
+    # The interval and a static score table are typed refusals.
+    with pytest.raises(seqeval.SequentialEvaluationRefusal) as closed:
+        seqeval.request_interval()
+    assert closed.value.reason_code == "cell_not_licensed"
+    assert closed.value.detail == "sequential_evaluation.interval_not_licensed"
+    with pytest.raises(seqeval.SequentialEvaluationRefusal) as table:
+        seqeval.evaluate(
+            sequential.model, seqeval.ReweightedStaticScores((1.0, 0.0), (0.5, 0.5))
+        )
+    assert table.value.reason_code == "route_not_supported"
+    assert table.value.detail == "sequential_evaluation.static_score_table"
+    quantity = _declared_quantity(
+        "policy_value",
+        f"policy:{sequential.policy.version}",
+        units="utility",
+        population="plant_a",
+    )
+    return Declared(
+        (quantity,),
+        (consumed.value,),
+        f"sequential_evaluation:{identities['evaluation']}",
+        f"model:{identities['model']}",
+        "declared:policy_value",
+    )
+
+
+def _sequential_objects(o: Objs) -> tuple[object, ...]:
+    sequential = _sequential()
+    return (sequential.artifact, sequential.evaluation, sequential.model, sequential.policy)
+
+
+def _check_sequential_decision(o: Objs) -> None:
+    declared = _declared_sequential(o)
+    _check_declared_decision(declared, act=5.0, hold=3.0, selected="act")
+    _check_raw_rejected(*_sequential_objects(o), feeders=_DECISION_FEEDERS)
+
+
+def _check_sequential_inverse(o: Objs) -> None:
+    declared = _declared_sequential(o)
+    _check_declared_inverse(declared, target=4.0, feasible=("act",))
+    _check_raw_rejected(*_sequential_objects(o), feeders=_INVERSE_FEEDERS)
+
+
 CHECKS: dict[tuple[str, str], Check] = {
     ("native_response", "decision"): _check_native_decision,
     ("native_response", "inverse_query"): _check_native_inverse,
@@ -1942,8 +2626,20 @@ CHECKS: dict[tuple[str, str], Check] = {
     ("composed_model", "inverse_query"): _check_composition_inverse,
     ("evidence_ledger", "decision"): _check_ledger_decision,
     ("evidence_ledger", "inverse_query"): _check_ledger_inverse,
+    ("scientific_bridge_claim", "decision"): _check_bridge_decision,
+    ("scientific_bridge_claim", "inverse_query"): _check_bridge_inverse,
     ("counterfactual_transport_result", "decision"): _check_transport_decision,
     ("counterfactual_transport_result", "inverse_query"): _check_transport_inverse,
+    ("cohort_decision_source", "decision"): _check_cohort_decision,
+    ("cohort_decision_source", "inverse_query"): _check_cohort_inverse,
+    ("decision_reliability_report", "decision"): _check_reliability_decision,
+    ("decision_reliability_report", "inverse_query"): _check_reliability_inverse,
+    ("observation_query_claim", "decision"): _check_observation_decision,
+    ("observation_query_claim", "inverse_query"): _check_observation_inverse,
+    ("adaptive_inference_result", "decision"): _check_adaptive_decision,
+    ("adaptive_inference_result", "inverse_query"): _check_adaptive_inverse,
+    ("sequential_policy_evaluation", "decision"): _check_sequential_decision,
+    ("sequential_policy_evaluation", "inverse_query"): _check_sequential_inverse,
 }
 #: Further checks of a REFUSED cell, beyond feeding every entry point of the consumer.
 REFUSED_EXTRAS: dict[tuple[str, str], Check] = {
@@ -1955,6 +2651,14 @@ REFUSED_EXTRAS: dict[tuple[str, str], Check] = {
         "composed_model",
         "evidence_ledger",
         "counterfactual_transport_result",
+        "cohort_decision_source",
+        "decision_reliability_report",
+        "observation_query_claim",
+        "adaptive_monitoring_contract",
+        "adaptive_inference_result",
+        "predictive_assessment",
+        "scientific_bridge_claim",
+        "sequential_policy_evaluation",
     )
 }
 
@@ -1980,10 +2684,10 @@ def test_producer_consumer_matrix_declares_every_cell_once_and_counts_them() -> 
     assert set(STATUS) == set(PRODUCERS)
     assert all(len(row) == len(CONSUMERS) for row in STATUS.values())
     cells = [status for row in STATUS.values() for status in row]
-    assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 120
-    assert cells.count("DIRECT") == 15
-    assert cells.count("ADAPTER") == 27
-    assert cells.count("REFUSED") == 78
+    assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 184
+    assert cells.count("DIRECT") == 16
+    assert cells.count("ADAPTER") == 46
+    assert cells.count("REFUSED") == 122
     assert set(cells) == {"DIRECT", "ADAPTER", "REFUSED"}
     # Every non-refused cell has a check; the only shared one is the recalc adapter.
     for producer in PRODUCERS:
@@ -2079,6 +2783,75 @@ def test_producer_consumer_matrix_counterfactual_transport_result_row(
     _run_cell("counterfactual_transport_result", consumer, objs)
 
 
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_cohort_decision_source_row(consumer: str, objs: Objs) -> None:
+    _run_cell("cohort_decision_source", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_decision_reliability_report_row(
+    consumer: str, objs: Objs
+) -> None:
+    _run_cell("decision_reliability_report", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_observation_query_claim_row(consumer: str, objs: Objs) -> None:
+    _run_cell("observation_query_claim", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_adaptive_monitoring_contract_row(
+    consumer: str, objs: Objs
+) -> None:
+    _run_cell("adaptive_monitoring_contract", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_adaptive_inference_result_row(consumer: str, objs: Objs) -> None:
+    _run_cell("adaptive_inference_result", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_predictive_assessment_row(consumer: str, objs: Objs) -> None:
+    _run_cell("predictive_assessment", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_scientific_bridge_claim_row(consumer: str, objs: Objs) -> None:
+    _run_cell("scientific_bridge_claim", consumer, objs)
+
+
+def test_producer_consumer_matrix_a_good_score_is_not_a_decision_source() -> None:
+    """The assessment is point-only and replayable, and no consumer reads it as an outcome law.
+
+    Hand oracle: ``N(0, 1)`` at outcomes 0 and 1 has CRPS ``(sqrt 2 - 1)/sqrt(pi)`` and
+    ``0.6024413576``, mean ``0.4180681674``; ``N(0, 2^2)`` scales the same distance function, 2 times
+    the first value at 0 and ``2 (0.5 (2 Phi(1/2) - 1) + 2 phi(1/2) - 1/sqrt(pi))`` at 1.
+    """
+    result = _assessed()
+    standard = result.report.predictor("standard").score("crps").mean
+    assert standard == pytest.approx(
+        0.5 * ((2.0**0.5 - 1.0) / np.pi**0.5 + 0.602_441_357_627_616_3), abs=1e-12
+    )
+    assert result.report.predictor("wide").score("crps").mean > standard
+    assert result.report.inference_claim == "point_only"
+    assert result.report.causal_validity == "not_established"
+    replayed = pa.consume_predictive_assessment_artifact(result.export(), result.identity)
+    assert replayed.report == result.report
+    for detail, call in (
+        ("predictive_assessment.interval_not_licensed", result.score_interval),
+        ("predictive_assessment.not_a_causal_claim", result.causal_validity),
+        ("predictive_assessment.score_not_probability", result.score_as_probability),
+    ):
+        with pytest.raises(pa.PredictiveAssessmentRefusal) as closed:
+            call()
+        assert closed.value.detail == detail
+        assert_registered_refusal(closed.value)
+    with pytest.raises(CausalTypeError):
+        gen.decision_contract().evaluate(result)  # type: ignore[arg-type]
+
+
 # ------------------------------------------------------------------------ cross-cutting rules
 
 
@@ -2149,3 +2922,10 @@ def test_producer_consumer_matrix_a_mean_never_answers_a_probability_a_quantile_
     )
     with pytest.raises(cb.UnsupportedLawRefusal):
         cb.mean_decision(squared, objs.claim)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_sequential_policy_evaluation_row(
+    consumer: str, objs: Objs
+) -> None:
+    _run_cell("sequential_policy_evaluation", consumer, objs)

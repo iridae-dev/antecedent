@@ -5,6 +5,7 @@
 
 use pyo3::prelude::*;
 
+use super::sequential_evaluation_api;
 use super::{
     AnalysisResult, ArrowLoadInfo, AteAnalysisResult, BayesianConfig, CandidateSelectionSection,
     CausalAttributionError, CausalCancelledError, CausalCompileError, CausalCounterfactualError,
@@ -16,10 +17,11 @@ use super::{
     MediationEffectsSummary, PcmciDiscoveryResult, PerformanceSection, PosteriorArtifact,
     PosteriorSection, PredictSummary, ProbabilityIntervalSection, PyCancellationToken, PyDict,
     RefutationReportView, RefuteSuite, RpcmciDiscoverySummary, ScoreInferenceSection,
-    ScoreTableSection, ValidationFailureSection, ValidationSection, artifact_api, ate_api,
-    attribution_api, bayesian, bounds_api, candidate_screen_api, categorical_treatment_api,
-    closed_pilot_api, compact_export_api, composition_api, composition_bundle_api,
-    counterfactual_id_api, cpdag_scenario_api, cross_world_api, decision_api, default_user_threads,
+    ScoreTableSection, ValidationFailureSection, ValidationSection, adaptive_inference_api,
+    artifact_api, ate_api, attribution_api, bayesian, bounds_api, candidate_screen_api,
+    categorical_treatment_api, closed_pilot_api, cohort_decision_api, compact_export_api,
+    composition_api, composition_bundle_api, counterfactual_id_api, cpdag_scenario_api,
+    cross_world_api, decision_api, decision_reliability_api, default_user_threads,
     derived_treatment_api, descriptive_api, design_api, design_ranking_api, discovery_api,
     distribution_api, dose_grid_api, effect_constancy_api, effect_constancy_review_api,
     evidence_ledger_api, execution_attempt_api, experiment_api, external_api, factorial_api,
@@ -28,12 +30,13 @@ use super::{
     learned_trial_api, load_float64_arrow_c_columns, load_float64_columns,
     matched_case_control_api, measured_inference_api, measurement_model_api,
     mechanism_composition_api, mechanism_discrepancy_api, msm_sensitivity_api, nested_bayesian_api,
-    nested_fisher_api, nonlinear_mediation_api, observation_api, observational_interference_api,
-    policy_api, preflight_api, prepared_api, prior_bank, prior_signal_api, program_claims_api,
-    proposal_arrival_api, provider_api, quasi_api, recalc_adjusted_api, recalc_api,
-    recalc_bayesian_api, recalc_cell_api, recalc_composite_api, recalc_design_api, recalc_dr_api,
-    recalc_external_api, recalc_static_api, recalc_temporal_api, recovery_api, recovery_chain_api,
-    regimes_api, repair_api, response_api, scenario_invariance_api, sensitivity_decision_api,
+    nested_fisher_api, nonlinear_mediation_api, observation_api, observation_query_api,
+    observational_interference_api, policy_api, predictive_assessment_api, preflight_api,
+    prepared_api, prior_bank, prior_signal_api, program_claims_api, proposal_arrival_api,
+    provider_api, quasi_api, recalc_adjusted_api, recalc_api, recalc_bayesian_api, recalc_cell_api,
+    recalc_composite_api, recalc_design_api, recalc_dr_api, recalc_external_api, recalc_static_api,
+    recalc_temporal_api, recovery_api, recovery_chain_api, regimes_api, repair_api, response_api,
+    scenario_invariance_api, scientific_bridge_api, sensitivity_decision_api,
     sensitivity_source_api, set_not_identified_error_class, set_review_error_class,
     set_unsupported_error_class, set_value_error_class, smoothed_dose_api, source_evidence_api,
     source_projection_api, stability, state_api, study_planning_api, survival_api, temporal_api,
@@ -125,6 +128,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     vector_treatment_api::register(m)?;
     categorical_treatment_api::register(m)?;
     compact_export_api::register(m)?;
+    cohort_decision_api::register(m)?;
     nonlinear_mediation_api::register(m)?;
     latent_class_api::register(m)?;
     temporal_counterfactual_api::register(m)?;
@@ -135,7 +139,13 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     composition_bundle_api::register(m)?;
     measurement_model_api::register(m)?;
     mechanism_composition_api::register(m)?;
+    observation_query_api::register(m)?;
     evidence_ledger_api::register(m)?;
+    sequential_evaluation_api::register(m)?;
+    scientific_bridge_api::register(m)?;
+    predictive_assessment_api::register(m)?;
+    adaptive_inference_api::register(m)?;
+    decision_reliability_api::register(m)?;
     program_claims_api::register(m)?;
     m.add("__version__", antecedent_core::VERSION)?;
     // Surfaced so the Python package can refuse to stay silent when an

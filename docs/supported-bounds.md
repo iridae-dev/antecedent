@@ -219,6 +219,21 @@ markers below and compares it. Prose outside those markers is not read.
 | measurement.probabilistic_categorical | max_categories | 16 | `crates/antecedent-stats/src/measurement_error.rs` |
 | measurement.external_latent_posterior | max_imputations | 10000 | `crates/antecedent-io-core/src/measurement_model_wire.rs` |
 | measurement.model_contract | max_artifact_bytes | 8388608 | `crates/antecedent-io-core/src/measurement_model_wire.rs` |
+| scientific_bridge.typed_bridges | max_assumptions | 64 | `crates/antecedent-contract/src/bridge/contract.rs` |
+| scientific_bridge.typed_bridges | max_validation_trials | 4096 | `crates/antecedent-contract/src/bridge/mapping.rs` |
+| decision_reliability.sampled_decision | max_candidates | 65536 | `crates/antecedent-design/src/decision_reliability.rs` |
+| decision_reliability.sampled_decision | max_cells | 67108864 | `crates/antecedent-design/src/decision_reliability.rs` |
+| decision_reliability.ranking_statement | max_ranking_cells | 16777216 | `crates/antecedent-design/src/decision_reliability/ranking.rs` |
+| sequential_evaluation.policy_evaluation | max_states | 32 | `crates/antecedent-design/src/sequential_evaluation.rs` |
+| sequential_evaluation.policy_evaluation | max_actions | 16 | `crates/antecedent-design/src/sequential_evaluation.rs` |
+| sequential_evaluation.policy_evaluation | max_horizon | 12 | `crates/antecedent-design/src/sequential_evaluation.rs` |
+| sequential_evaluation.policy_evaluation | max_policy_entries | 65536 | `crates/antecedent-design/src/sequential_evaluation.rs` |
+| sequential_evaluation.policy_evaluation | max_logged_trajectories | 150000 | `crates/antecedent-design/src/sequential_evaluation.rs` |
+| sequential_evaluation.policy_evaluation | max_rollouts | 10000000 | `crates/antecedent-design/src/sequential_evaluation.rs` |
+| predictive_assessment.proper_scores | max_cases | 1000000 | `crates/antecedent-validate/src/predictive_assessment/law.rs` |
+| predictive_assessment.proper_scores | max_predictors | 32 | `crates/antecedent-validate/src/predictive_assessment/law.rs` |
+| predictive_assessment.proper_scores | max_law_atoms | 65536 | `crates/antecedent-validate/src/predictive_assessment/law.rs` |
+| predictive_assessment.proper_scores | max_joint_dimension | 64 | `crates/antecedent-validate/src/predictive_assessment/law.rs` |
 <!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.

@@ -78,6 +78,114 @@ key = "counterfactual_transport_result"
 object = "a counterfactual transport result (exact or sampled plug-in point)"
 built_from = "`transport.advanced.CounterfactualTransportDerivation.evaluate(...)` (`CounterfactualTransportResult`); `estimate_sampled(...)` (`SampledCounterfactualTransportEstimate`)"
 
+[[producer]]
+key = "cohort_decision_source"
+object = "a fitted effect cohort decision source (point-only weighted cohort-mean contrast; native from a verified analysis result, declared from a compact export)"
+built_from = "`prediction.FittedEffectModel.decision_source(cohort=, outcome_units=)` and `cohort_decision.decision_source_from_compact_export(...)` (`CohortDecisionSource`) and its `export`"
+
+[[producer]]
+key = "decision_reliability_report"
+object = "a decision-reliability report (three separate uncertainty components, point diagnostics, uncalibrated)"
+built_from = "`decision_reliability.assess(...)` (`DecisionReliability`, `ReliabilityReport`) and its `decision_reliability_v1` export"
+
+[[cell]]
+producer = "decision_reliability_report"
+consumer = "decision"
+status = "ADAPTER"
+detail = "the caller declares one `MeanSource` coordinate for the decided candidate's expected utility, carrying the report's Monte Carlo value, with the artifact's draws digest as snapshot and the candidate-set digest as provider; `Contract.evaluate` and `evaluate_with_support` then answer an affine utility only (expected utility 5/2: act 9, hold 5), mean-only with no standard error, ranking probability or selection correction and no export; a quantile contract REFUSED `decision_evaluation.mean_source_insufficient`; the assessment and its report themselves raise `CausalTypeError`"
+
+[[cell]]
+producer = "decision_reliability_report"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "the same declared mean as a `MeanClaim` into `InverseQuery.evaluate` (target mean 6 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the assessment itself raises `CausalTypeError`"
+
+[[cell]]
+producer = "decision_reliability_report"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`); a reliability report is neither a prior nor a signal"
+
+[[cell]]
+producer = "decision_reliability_report"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "decision_reliability_report"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "decision_reliability_report"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`"
+
+[[cell]]
+producer = "decision_reliability_report"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no node kind: the `decision_reliability_v1` container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the assessment raises `CausalTypeError` or `CompositionBundleRefusal`"
+
+[[cell]]
+producer = "decision_reliability_report"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, draws digest plus candidate-set digest)` declared by the caller"
+
+[[refusal]]
+code = "`cell_not_licensed`"
+detail = "`decision_reliability.cell_not_licensed`"
+where = "`DecisionReliability.publish` and `decision_reliability.publish` for a ranking probability, confidence set or interval"
+
+[[refusal]]
+code = "`uncertainty_components_not_combined`"
+detail = "`decision_reliability.combined_uncertainty`"
+where = "`DecisionReliability.combined_uncertainty` and a `reporting=\"combined\"` request"
+
+[[refusal]]
+code = "`candidate_search_record_required`"
+detail = "`decision_reliability.search_record_required`"
+where = "`decision_reliability.assess` and `decision_reliability.rank` over adaptively generated candidates without a `CandidateSearchRecord`"
+
+[[refusal]]
+code = "`cell_not_licensed`"
+detail = "`cohort_decision.interval_not_licensed`"
+where = "`CohortDecisionSource.interval` (an interval, band or posterior for the cohort mean)"
+
+[[refusal]]
+code = "`cell_not_licensed`"
+detail = "`cohort_decision.support_contract_absent`"
+where = "`FittedEffectModel.decision_source` for a model that retains no fitted-row support contract"
+
+[[refusal]]
+code = "`cell_not_licensed`"
+detail = "`cohort_decision.outside_support`"
+where = "`FittedEffectModel.decision_source` for a cohort row outside the retained support contract"
+
+[[refusal]]
+code = "`transport_missing_evidence`"
+detail = "`cohort_decision.shift_declaration_required`"
+where = "`FittedEffectModel.decision_source` for a cohort of another population without a `CovariateShift`"
+
+[[refusal]]
+code = "`decision_contract_unsatisfied`"
+detail = "`cohort_decision.law_not_supplied`"
+where = "`CohortDecisionSource.refuse` for a probability, quantile or nonlinear utility"
+
+[[producer]]
+key = "adaptive_monitoring_contract"
+object = "an adaptive monitoring contract (the retained assignment, exposure, availability, interim-analysis and stopping-rule record of one experiment, with its paradigm; no value)"
+built_from = "`adaptive_inference.AdaptiveInferenceSession.export_contract(...)` and `consume_adaptive_monitoring_contract_artifact` (`ConsumedMonitoringContract`)"
+
+[[producer]]
+key = "adaptive_inference_result"
+object = "an adaptive-experiment inference result (point-only; one paradigm, its procedure and stopping rule named)"
+built_from = "`adaptive_inference.AdaptiveInferenceSession.analyse(...)` (`AdaptiveResult`), its `export_result` and `consume_adaptive_inference_result_artifact`"
+
 [[consumer]]
 key = "decision"
 python = "`Contract.evaluate`, `composition.evaluate_with_support`, `decision_robust.finite_scenarios`, `decision_robust.identified_sets`"
@@ -838,6 +946,150 @@ consumer = "recalc_plan"
 status = "ADAPTER"
 detail = "`stage_identity(Stage.IDENTIFICATION, premises digest plus data digest)` declared by the caller"
 
+[[cell]]
+producer = "cohort_decision_source"
+consumer = "decision"
+status = "DIRECT"
+detail = "`Contract.evaluate(source)` (or `source.mean_source`): one `mean_difference` coordinate conditioned on the cohort snapshot digest, replayed natively before use; an affine utility only (treat `4x - 1.5` is 7.4 at the weighted cohort mean 2.225; wait 0), no standard error, regret or EVPI; a nonlinear utility, probability or quantile contract REFUSED `decision_contract_unsatisfied`; the raw source is not a `composition.evaluate_with_support` input (`CausalTypeError`); Rust `cohort_decision_input` into `evaluate_with_support`"
+
+[[cell]]
+producer = "cohort_decision_source"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "`source.forward_claim()` (a `MeanClaim`) into `InverseQuery.evaluate` (target mean 5 keeps `treat`); the source itself is rejected (`CausalTypeError`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; a source built under a declared covariate shift REFUSED `cohort_decision.inverse_shift_not_licensed`"
+
+[[cell]]
+producer = "cohort_decision_source"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`); a cohort mean is neither a prior nor a signal"
+
+[[cell]]
+producer = "cohort_decision_source"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "cohort_decision_source"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "cohort_decision_source"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`"
+
+[[cell]]
+producer = "cohort_decision_source"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no node kind: the `cohort_decision_source_v1` container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the source, whose `export` takes no artifact id, raises `CausalTypeError`"
+
+[[cell]]
+producer = "cohort_decision_source"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, source identity)` declared by the caller"
+
+[[cell]]
+producer = "adaptive_monitoring_contract"
+consumer = "decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; a monitoring contract carries no estimand value, so there is nothing to declare as a source (recorded exception in `parity/carryover_disposition.md`)"
+
+[[cell]]
+producer = "adaptive_monitoring_contract"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "`CausalTypeError`; no value to declare as a mean claim (recorded exception in `parity/carryover_disposition.md`)"
+
+[[cell]]
+producer = "adaptive_monitoring_contract"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`); a design record is neither a prior nor a signal"
+
+[[cell]]
+producer = "adaptive_monitoring_contract"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "adaptive_monitoring_contract"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "adaptive_monitoring_contract"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`"
+
+[[cell]]
+producer = "adaptive_monitoring_contract"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no node kind: the `adaptive_monitoring_contract_v1` container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the session, which has no bundle `export`, raises `CausalTypeError`"
+
+[[cell]]
+producer = "adaptive_monitoring_contract"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, contract artifact identity)` declared by the caller"
+
+[[cell]]
+producer = "adaptive_inference_result"
+consumer = "decision"
+status = "ADAPTER"
+detail = "the caller declares the adaptively weighted arm mean (the result carries no units or population) as one `MeanSource` coordinate carrying the `point_only` value 51/112 of a four-unit epsilon-greedy history, with the result identity as provider and the contract identity as snapshot; an affine utility only (`act = 4 m - 1`, `hold = 2 m`: hold is selected); a quantile or probability criterion REFUSED `decision_evaluation.mean_source_insufficient`; the session, the result and the consumed objects themselves raise `CausalTypeError`"
+
+[[cell]]
+producer = "adaptive_inference_result"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "the same declared mean as a `MeanClaim` into `InverseQuery.evaluate` (target mean 0.9 keeps `hold`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the session, the result and the consumed objects raise `CausalTypeError`"
+
+[[cell]]
+producer = "adaptive_inference_result"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`); a point is neither a prior nor a signal"
+
+[[cell]]
+producer = "adaptive_inference_result"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "adaptive_inference_result"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "adaptive_inference_result"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`"
+
+[[cell]]
+producer = "adaptive_inference_result"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no node kind: the `adaptive_inference_result_v1` container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the session and the result raise `CausalTypeError`"
+
+[[cell]]
+producer = "adaptive_inference_result"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, result artifact identity)` declared by the caller"
+
 [[refusal]]
 code = "`decision_contract_unsatisfied`"
 detail = "`native_claims.source_not_supplied` (expected `joint_draws,marginal_draws`, supplied `mean`)"
@@ -922,3 +1174,290 @@ where = "`EvidenceLedger.pooled_interval`"
 code = "`cell_not_licensed`"
 detail = "`counterfactual_transport_sampled.interval_not_licensed`"
 where = "the interval of a sampled counterfactual transport estimate"
+
+[[producer]]
+key = "observation_query_claim"
+object = "an observation-conditioned query claim (exact given a declared model, or a labelled point value of a fitted one; conditioning and intervention are separate claims)"
+built_from = "`observation_query.condition_on`, `intervene_on`, `condition_versus_intervene`, `threshold_crossing`, `finite_posterior`, `conjugate_posterior`, `required_*` (`ObservationClaim`) and its `observation_query_v1` artifact"
+
+[[cell]]
+producer = "observation_query_claim"
+consumer = "decision"
+status = "ADAPTER"
+detail = "the caller declares two `MeanSource` coordinates, the probability of the outcome event given the recorded signal (`P(Y=1 given S=1) = 0.78`) and under the intervention (`P(Y=1 given do(S=1)) = 0.6`), read from the paired claim, with the claim identity as provider; an affine utility only (act 2.12, hold 1.2), mean-only with no standard error and no export; a probability is not a law, so a quantile contract is REFUSED `decision_evaluation.mean_source_insufficient`; the claim and its artifact themselves raise `CausalTypeError`"
+
+[[cell]]
+producer = "observation_query_claim"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "the same declared means as a `MeanClaim` into `InverseQuery.evaluate` (target mean 1.5 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the claim itself raises `CausalTypeError`"
+
+[[cell]]
+producer = "observation_query_claim"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`); a conditional probability is neither a prior nor a signal"
+
+[[cell]]
+producer = "observation_query_claim"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "observation_query_claim"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "observation_query_claim"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`"
+
+[[cell]]
+producer = "observation_query_claim"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no node kind: the `observation_query_v1` artifact is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the claim has no bundle exporter and raises `CausalTypeError`"
+
+[[cell]]
+producer = "observation_query_claim"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, claim identity)` declared by the caller"
+
+[[refusal]]
+code = "`cell_not_licensed`"
+detail = "`observation_query.interval_route_closed`"
+where = "`ObservationClaim.interval` (an interval for an observation-conditioned value)"
+
+[[refusal]]
+code = "`cell_not_licensed`"
+detail = "`observation_query.calibrated_probability_closed`"
+where = "`ObservationClaim.calibrated_probability` (a calibration claim for a posterior or decision probability)"
+
+[[refusal]]
+code = "`quantity_semantics_mismatch`"
+detail = "`observation_query.intervention_in_conditioning_slot`"
+where = "`observation_query.condition_on` with an assigned or hypothetical value in a conditioning slot"
+
+[[refusal]]
+code = "`proxy_offered_as_construct`"
+detail = "`observation_query.measured_as_construct`"
+where = "`observation_query.condition_on` with a recorded indicator value and no measurement model"
+
+[[refusal]]
+code = "`evidence_cannot_reach_level`"
+detail = "`observation_query.level_unreachable`"
+where = "`observation_query.threshold_crossing` and `required_observations_*` for a level no admissible evidence reaches (the reachable extremum is stated)"
+
+[[producer]]
+key = "predictive_assessment"
+object = "a predictive assessment (proper scores, paired differences and labelled diagnostics of a predictive law on realized observations; point-only, uncalibrated)"
+built_from = "`predictive_assessment.assess(...)` (`PredictiveAssessment`, `PredictiveReport`) and its `predictive_assessment_v1` export"
+
+[[cell]]
+producer = "predictive_assessment"
+consumer = "decision"
+status = "REFUSED"
+detail = "`CausalTypeError` from `Contract.evaluate` and `evaluate_with_support`; a good score is not a decision source: a score of a law on observations is neither a response, a law of an outcome under an action, nor a utility"
+
+[[cell]]
+producer = "predictive_assessment"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a forward claim)"
+
+[[cell]]
+producer = "predictive_assessment"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`); a score is neither a prior nor a signal"
+
+[[cell]]
+producer = "predictive_assessment"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "predictive_assessment"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "predictive_assessment"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`"
+
+[[cell]]
+producer = "predictive_assessment"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no node kind: the `predictive_assessment_v1` container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the assessment raises `CausalTypeError`"
+
+[[cell]]
+producer = "predictive_assessment"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, assessment identity digest)` declared by the caller; the plan reads the digest only"
+
+[[refusal]]
+code = "`cell_not_licensed`"
+detail = "`predictive_assessment.interval_not_licensed`"
+where = "`PredictiveAssessment.score_interval` and an `assess(..., score_interval=)` request for an interval on a score or a score difference"
+
+[[refusal]]
+code = "`route_not_supported`"
+detail = "`predictive_assessment.not_a_causal_claim`"
+where = "`PredictiveAssessment.causal_validity` for a predictive score offered as causal validity"
+
+[[refusal]]
+code = "`route_not_supported`"
+detail = "`predictive_assessment.score_not_probability`"
+where = "`PredictiveAssessment.score_as_probability` for a model score offered as the probability of a claim"
+
+[[producer]]
+key = "scientific_bridge_claim"
+object = "a bridged claim (point-only mean of another scientific quantity, under declared assumptions)"
+built_from = "`scientific_bridge.prepare_scientific_bridge(contract).derive(source)` (`BridgedClaim`) and its `export` artifact"
+
+[[cell]]
+producer = "scientific_bridge_claim"
+consumer = "decision"
+status = "ADAPTER"
+detail = "the caller declares the bridged quantity (the claim is a point mean, no law) as one `MeanSource` coordinate carrying the bridged value (0.796 from a validated surrogate effect 0.8), with the bridged claim identity as provider and the contract identity as snapshot; an affine utility only (act 2.184, hold 1.592), mean-only with no variance and no export; a quantile contract REFUSED `decision_evaluation.mean_source_insufficient`; a law, posterior, identified set or joint law REFUSED `scientific_bridge.value_kind_substitution`; the claim and its prepared bridge themselves raise `CausalTypeError`"
+
+[[cell]]
+producer = "scientific_bridge_claim"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "the same declared mean as a `MeanClaim` into `InverseQuery.evaluate` (target mean 2 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the claim and its prepared bridge raise `CausalTypeError`"
+
+[[cell]]
+producer = "scientific_bridge_claim"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`); a bridged point is neither a prior nor a signal"
+
+[[cell]]
+producer = "scientific_bridge_claim"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "scientific_bridge_claim"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "scientific_bridge_claim"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`"
+
+[[cell]]
+producer = "scientific_bridge_claim"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no node kind: `scientific_bridge_v1` is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the claim, prepared bridge and export raise `CausalTypeError`"
+
+[[cell]]
+producer = "scientific_bridge_claim"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, bridge artifact identity)` declared by the caller"
+
+[[refusal]]
+code = "`cell_not_licensed`"
+detail = "`scientific_bridge.interval_not_licensed`"
+where = "`BridgedClaim.interval` and `ConsumedBridge.interval`"
+
+[[refusal]]
+code = "`bridge_substitution_refused`"
+detail = "`scientific_bridge.value_kind_substitution`"
+where = "`BridgedClaim.require_value_kind` and a contract whose held and required value kinds differ"
+
+[[producer]]
+key = "sequential_policy_evaluation"
+object = "a sequential policy evaluation (exact enumeration, with logged-data and rollout diagnostics; point-only)"
+built_from = "`sequential_evaluation.seal(...)` (`EvaluationArtifact`), `evaluate(...)` (`PolicyEvaluation`) and `compare(...)` (`ComparisonReport`)"
+
+[[cell]]
+producer = "sequential_policy_evaluation"
+consumer = "decision"
+status = "ADAPTER"
+detail = "the caller declares the policy value (the artifact carries no estimand, units or population) as one `MeanSource` coordinate carrying the exact `point_only` value of the fixed policy (3/2 of inspect then act), with the artifact's evaluation identity as provider and the model identity as snapshot; an affine utility only (act 5, hold 3), mean-only with no variance and no export; a quantile contract REFUSED `decision_evaluation.mean_source_insufficient`; the result, artifact, model and policy objects raise `CausalTypeError`"
+
+[[cell]]
+producer = "sequential_policy_evaluation"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "the same declared mean as a `MeanClaim` into `InverseQuery.evaluate` (target mean 4 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the artifact, evaluation, model and policy raise `CausalTypeError`"
+
+[[cell]]
+producer = "sequential_policy_evaluation"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`); a policy value is neither a prior nor a signal (the value of collecting evidence is produced here by the ranker, not consumed from it)"
+
+[[cell]]
+producer = "sequential_policy_evaluation"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "sequential_policy_evaluation"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "sequential_policy_evaluation"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`"
+
+[[cell]]
+producer = "sequential_policy_evaluation"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no node kind: `sequential_evaluation_v1` is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the artifact, evaluation, model and policy objects raise `CausalTypeError`"
+
+[[cell]]
+producer = "sequential_policy_evaluation"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, evaluation identity)` declared by the caller"
+
+[[refusal]]
+code = "`cell_not_licensed`"
+detail = "`sequential_evaluation.interval_not_licensed`"
+where = "`sequential_evaluation.request_interval`: any interval, posterior or coverage statement for a policy value"
+
+[[refusal]]
+code = "`route_not_supported`"
+detail = "`sequential_evaluation.static_score_table`"
+where = "`sequential_evaluation.evaluate` over `ReweightedStaticScores`: a static score table has no information sets or histories"
+
+[[refusal]]
+code = "`route_not_supported`"
+detail = "`sequential_evaluation.policy_change_refused`"
+where = "`sequential_evaluation.resolve_policy` over `LearnedFromEvaluationData`: a policy learned from the data under evaluation"
+
+[[refusal]]
+code = "`history_support_violated`"
+detail = "`sequential_evaluation.action_not_supported`"
+where = "`sequential_evaluation.evaluate` for a policy that takes an action in a reachable history without declared support (positivity)"
+
+[[refusal]]
+code = "`transport_missing_evidence`"
+detail = "`sequential_evaluation.transported_policy_contract_missing`"
+where = "`sequential_evaluation.check_request` and `compare` for another population than the model's"

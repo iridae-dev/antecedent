@@ -135,6 +135,36 @@ validity is `predictive_assessment.not_a_causal_claim`. Causal validity needs
 an identification argument and refutation; the probability of a claim needs a
 declared prior and likelihood.
 
+## Python
+
+`antecedent.predictive_assessment` builds the declarations and presents the
+results; every score, identity and refusal is Rust's.
+
+```python
+from antecedent import predictive_assessment as pa
+
+target = pa.Target("outcome", "cohort", "mmHg")
+observed = pa.Observations(target, pa.keys("cohort", range(4)), "real", [0.0, 1.0, 0.0, 1.0])
+result = pa.assess(
+    observed,
+    [pa.Predictor("standard_normal", [pa.Gaussian(0.0, 1.0)] * 4, target,
+                  fit=pa.FitDeclaration.not_fitted())],
+    pa.ValidationDesign.simulation_stream("seeded generator"),
+    scores=("crps", "log_score"),
+    dependence=pa.Dependence.iid(),
+)
+result.report.predictor("standard_normal").score("crps").mean   # 0.4180681674...
+artifact = result.export()
+pa.consume_predictive_assessment_artifact(artifact, result.identity)
+```
+
+`pa.keys(domain, rows)` returns the evidence ledger's observation identities, so
+`pa.FitDeclaration.from_ledger(ledger, sources)` and `pa.ledger_observations`
+decide held out from the same rows. `result.score_interval()`,
+`result.causal_validity()` and `result.score_as_probability()` raise the typed
+refusals of the closed routes. `pa.replicate_laws` turns posterior predictive
+replicates into sample laws for the same scoring surface.
+
 ## Closed routes
 
 | Route | Reason | What would license it |

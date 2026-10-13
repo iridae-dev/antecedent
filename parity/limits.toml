@@ -1724,3 +1724,116 @@ implementation = [{ path = "crates/antecedent-contract/src/bridge/mapping.rs", c
 documentation = [{ path = "crates/antecedent-contract/src/bridge/mapping.rs", constant = "MAX_VALIDATION_TRIALS" }]
 guard = { path = "crates/antecedent-contract/src/bridge/mapping.rs", pattern = 'validation\.trials\.len\(\) > MAX_VALIDATION_TRIALS' }
 refusal = { path = "crates/antecedent-contract/src/bridge/mapping.rs", pattern = 'validation\.trials\.len\(\) > MAX_VALIDATION_TRIALS \{[\s\S]{0,100}malformed_mapping' }
+
+[[bound]]
+record = "decision_reliability.sampled_decision"
+key = "max_candidates"
+implementation = [{ path = "crates/antecedent-design/src/decision_reliability.rs", constant = "MAX_CANDIDATES" }]
+documentation = [{ path = "docs/decision-reliability.md", pattern = "max_candidates: (\\d+)" }]
+guard = { path = "crates/antecedent-design/src/decision_reliability/draws.rs", pattern = "self\\.candidates\\.len\\(\\) > MAX_CANDIDATES" }
+refusal = { path = "crates/antecedent-design/src/decision_reliability/draws.rs", pattern = "self\\.candidates\\.len\\(\\) > MAX_CANDIDATES \\{\\s*return Err\\(" }
+
+[[bound]]
+record = "decision_reliability.sampled_decision"
+key = "max_cells"
+implementation = [{ path = "crates/antecedent-design/src/decision_reliability.rs", constant = "MAX_CELLS" }]
+documentation = [{ path = "docs/decision-reliability.md", pattern = "max_cells: (\\d+)" }]
+guard = { path = "crates/antecedent-design/src/decision_reliability/draws.rs", pattern = "c > MAX_CELLS" }
+refusal = { path = "crates/antecedent-design/src/decision_reliability/draws.rs", pattern = "c > MAX_CELLS\\) \\{\\s*return Err\\(" }
+
+[[bound]]
+record = "decision_reliability.ranking_statement"
+key = "max_ranking_cells"
+implementation = [{ path = "crates/antecedent-design/src/decision_reliability/ranking.rs", constant = "MAX_RANKING_CELLS" }]
+documentation = [{ path = "docs/decision-reliability.md", pattern = "max_ranking_cells: (\\d+)" }]
+guard = { path = "crates/antecedent-design/src/decision_reliability/ranking.rs", pattern = "c > MAX_RANKING_CELLS" }
+refusal = { path = "crates/antecedent-design/src/decision_reliability/ranking.rs", pattern = "c > MAX_RANKING_CELLS\\) \\{\\s*return Err\\(" }
+
+[[bound]]
+record = "sequential_evaluation.policy_evaluation"
+key = "max_states"
+implementation = [{ path = "crates/antecedent-design/src/sequential_evaluation.rs", constant = "MAX_STATES" }]
+documentation = [{ path = "crates/antecedent-design/src/sequential_evaluation.rs", constant = "MAX_STATES" }]
+guard = { path = "crates/antecedent-design/src/sequential_evaluation/model.rs", pattern = '!\(2\.\.=MAX_STATES\)\.contains\(&states\)' }
+refusal = { path = "crates/antecedent-design/src/sequential_evaluation/model.rs", pattern = '!\(2\.\.=MAX_STATES\)\.contains\(&states\)[\s\S]{0,400}?(?:\bErr\s*\(|\.map_err\s*\()' }
+scope_fixture = { path = "python/tests/test_sequential_evaluation.py", pattern = '\btest_declared_bounds_are_refused_not_truncated\b' }
+
+[[bound]]
+record = "sequential_evaluation.policy_evaluation"
+key = "max_actions"
+implementation = [{ path = "crates/antecedent-design/src/sequential_evaluation.rs", constant = "MAX_ACTIONS" }]
+documentation = [{ path = "crates/antecedent-design/src/sequential_evaluation.rs", constant = "MAX_ACTIONS" }]
+guard = { path = "crates/antecedent-design/src/sequential_evaluation/model.rs", pattern = 'self\.actions\.len\(\) > MAX_ACTIONS' }
+refusal = { path = "crates/antecedent-design/src/sequential_evaluation/model.rs", pattern = 'self\.actions\.len\(\) > MAX_ACTIONS[\s\S]{0,400}?(?:\bErr\s*\(|\.map_err\s*\()' }
+scope_fixture = { path = "python/tests/test_sequential_evaluation.py", pattern = '\btest_declared_bounds_are_refused_not_truncated\b' }
+
+[[bound]]
+record = "sequential_evaluation.policy_evaluation"
+key = "max_horizon"
+implementation = [{ path = "crates/antecedent-design/src/sequential_evaluation.rs", constant = "MAX_HORIZON" }]
+documentation = [{ path = "crates/antecedent-design/src/sequential_evaluation.rs", constant = "MAX_HORIZON" }]
+guard = { path = "crates/antecedent-design/src/sequential_evaluation/model.rs", pattern = '!\(1\.\.=MAX_HORIZON\)\.contains\(&self\.horizon\)' }
+refusal = { path = "crates/antecedent-design/src/sequential_evaluation/model.rs", pattern = '!\(1\.\.=MAX_HORIZON\)\.contains\(&self\.horizon\)[\s\S]{0,400}?(?:\bErr\s*\(|\.map_err\s*\()' }
+scope_fixture = { path = "python/tests/test_sequential_evaluation.py", pattern = '\btest_declared_bounds_are_refused_not_truncated\b' }
+
+[[bound]]
+record = "sequential_evaluation.policy_evaluation"
+key = "max_policy_entries"
+implementation = [{ path = "crates/antecedent-design/src/sequential_evaluation.rs", constant = "MAX_POLICY_ENTRIES" }]
+documentation = [{ path = "crates/antecedent-design/src/sequential_evaluation.rs", constant = "MAX_POLICY_ENTRIES" }]
+guard = { path = "crates/antecedent-design/src/sequential_evaluation/policy.rs", pattern = 'self\.decisions\.len\(\) > MAX_POLICY_ENTRIES' }
+refusal = { path = "crates/antecedent-design/src/sequential_evaluation/policy.rs", pattern = 'self\.decisions\.len\(\) > MAX_POLICY_ENTRIES[\s\S]{0,400}?(?:\bErr\s*\(|\.map_err\s*\()' }
+scope_fixture = { path = "python/tests/test_sequential_evaluation.py", pattern = '\btest_declared_bounds_are_refused_not_truncated\b' }
+
+[[bound]]
+record = "sequential_evaluation.policy_evaluation"
+key = "max_logged_trajectories"
+implementation = [{ path = "crates/antecedent-design/src/sequential_evaluation.rs", constant = "MAX_LOGGED_TRAJECTORIES" }]
+documentation = [{ path = "crates/antecedent-design/src/sequential_evaluation.rs", constant = "MAX_LOGGED_TRAJECTORIES" }]
+guard = { path = "crates/antecedent-design/src/sequential_evaluation/offpolicy.rs", pattern = 'log\.len\(\) > MAX_LOGGED_TRAJECTORIES' }
+refusal = { path = "crates/antecedent-design/src/sequential_evaluation/offpolicy.rs", pattern = 'log\.len\(\) > MAX_LOGGED_TRAJECTORIES[\s\S]{0,400}?(?:\bErr\s*\(|\.map_err\s*\()' }
+scope_fixture = { path = "python/tests/test_sequential_evaluation.py", pattern = '\btest_declared_bounds_are_refused_not_truncated\b' }
+
+[[bound]]
+record = "sequential_evaluation.policy_evaluation"
+key = "max_rollouts"
+implementation = [{ path = "crates/antecedent-design/src/sequential_evaluation.rs", constant = "MAX_ROLLOUTS" }]
+documentation = [{ path = "crates/antecedent-design/src/sequential_evaluation.rs", constant = "MAX_ROLLOUTS" }]
+guard = { path = "crates/antecedent-design/src/sequential_evaluation/rollout.rs", pattern = 'config\.rollouts > MAX_ROLLOUTS' }
+refusal = { path = "crates/antecedent-design/src/sequential_evaluation/rollout.rs", pattern = 'config\.rollouts > MAX_ROLLOUTS[\s\S]{0,400}?(?:\bErr\s*\(|\.map_err\s*\()' }
+scope_fixture = { path = "python/tests/test_sequential_evaluation.py", pattern = '\btest_declared_bounds_are_refused_not_truncated\b' }
+
+[[bound]]
+record = "predictive_assessment.proper_scores"
+key = "max_cases"
+implementation = [{ path = "crates/antecedent-validate/src/predictive_assessment/law.rs", constant = "MAX_CASES" }]
+documentation = [{ path = "crates/antecedent-validate/src/predictive_assessment/law.rs", constant = "MAX_CASES" }]
+guard = { path = "crates/antecedent-validate/src/predictive_assessment/law.rs", pattern = "n\\ ==\\ 0\\ \\|\\|\\ n\\ >\\ MAX_CASES" }
+refusal = { path = "crates/antecedent-validate/src/predictive_assessment/law.rs", pattern = "n\\ ==\\ 0\\ \\|\\|\\ n\\ >\\ MAX_CASES[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+
+[[bound]]
+record = "predictive_assessment.proper_scores"
+key = "max_predictors"
+implementation = [{ path = "crates/antecedent-validate/src/predictive_assessment/law.rs", constant = "MAX_PREDICTORS" }]
+documentation = [{ path = "crates/antecedent-validate/src/predictive_assessment/law.rs", constant = "MAX_PREDICTORS" }]
+guard = { path = "crates/antecedent-validate/src/predictive_assessment/assess.rs", pattern = "spec\\.predictors\\.len\\(\\)\\ >\\ MAX_PREDICTORS" }
+refusal = { path = "crates/antecedent-validate/src/predictive_assessment/assess.rs", pattern = "spec\\.predictors\\.len\\(\\)\\ >\\ MAX_PREDICTORS[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+scope_fixture = { path = "crates/antecedent-validate/tests/predictive_assessment.rs", pattern = "\\bdeclared_bounds_on_predictors_atoms_and_joint_dimension_are_refused\\b" }
+
+[[bound]]
+record = "predictive_assessment.proper_scores"
+key = "max_law_atoms"
+implementation = [{ path = "crates/antecedent-validate/src/predictive_assessment/law.rs", constant = "MAX_LAW_ATOMS" }]
+documentation = [{ path = "crates/antecedent-validate/src/predictive_assessment/law.rs", constant = "MAX_LAW_ATOMS" }]
+guard = { path = "crates/antecedent-validate/src/predictive_assessment/law.rs", pattern = "draws\\.len\\(\\)\\ >\\ MAX_LAW_ATOMS" }
+refusal = { path = "crates/antecedent-validate/src/predictive_assessment/law.rs", pattern = "draws\\.len\\(\\)\\ >\\ MAX_LAW_ATOMS[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+scope_fixture = { path = "crates/antecedent-validate/tests/predictive_assessment.rs", pattern = "\\bdeclared_bounds_on_predictors_atoms_and_joint_dimension_are_refused\\b" }
+
+[[bound]]
+record = "predictive_assessment.proper_scores"
+key = "max_joint_dimension"
+implementation = [{ path = "crates/antecedent-validate/src/predictive_assessment/law.rs", constant = "MAX_JOINT_DIMENSION" }]
+documentation = [{ path = "crates/antecedent-validate/src/predictive_assessment/law.rs", constant = "MAX_JOINT_DIMENSION" }]
+guard = { path = "crates/antecedent-validate/src/predictive_assessment/law.rs", pattern = "dimension\\ >\\ MAX_JOINT_DIMENSION" }
+refusal = { path = "crates/antecedent-validate/src/predictive_assessment/law.rs", pattern = "dimension\\ >\\ MAX_JOINT_DIMENSION[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+scope_fixture = { path = "crates/antecedent-validate/tests/predictive_assessment.rs", pattern = "\\bdeclared_bounds_on_predictors_atoms_and_joint_dimension_are_refused\\b" }

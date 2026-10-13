@@ -7137,7 +7137,7 @@ functional = "three_separate_uncertainty_components_and_monte_carlo_error_of_uti
 guarantee = "numerical_standard_error_and_effective_sample_size_uncalibrated_no_interval"
 evidence_test = "crates/antecedent-design/tests/decision_reliability.rs"
 evidence_assertion = "cvar_of_a_known_normal_has_the_influence_function_standard_error"
-notes = "Rust facade route; point-only diagnostic, no interval or calibration. Python surface not yet wired."
+notes = "Rust facade route; point-only diagnostic, no interval or calibration. The Python surface is wired in python/antecedent/decision_reliability.py."
 
 [[routes]]
 route = "antecedent.decision_reliability.export"
@@ -7149,7 +7149,7 @@ functional = "decision_reliability_v1_artifact"
 guarantee = "numerical_standard_error_and_effective_sample_size_uncalibrated_no_interval"
 evidence_test = "crates/antecedent-design/tests/decision_reliability.rs"
 evidence_assertion = "the_artifact_round_trips_and_is_recomputed_from_the_draws"
-notes = "Rust facade route; point-only diagnostic, no interval or calibration. Python surface not yet wired."
+notes = "Rust facade route; point-only diagnostic, no interval or calibration. The Python surface is wired in python/antecedent/decision_reliability.py."
 
 [[routes]]
 route = "antecedent.decision_reliability.consume_decision_reliability_artifact"
@@ -7161,7 +7161,7 @@ functional = "bit_for_bit_recomputation_of_the_report_from_the_draws"
 guarantee = "numerical_standard_error_and_effective_sample_size_uncalibrated_no_interval"
 evidence_test = "crates/antecedent-design/tests/decision_reliability.rs"
 evidence_assertion = "semantic_mutations_of_the_artifact_are_refused"
-notes = "Rust facade route; point-only diagnostic, no interval or calibration. Python surface not yet wired."
+notes = "Rust facade route; point-only diagnostic, no interval or calibration. The Python surface is wired in python/antecedent/decision_reliability.py."
 
 [[routes]]
 route = "antecedent.decision_reliability.ranking_statements"
@@ -7173,7 +7173,7 @@ functional = "best_top_k_and_better_than_baseline_monte_carlo_probability"
 guarantee = "monte_carlo_ranking_diagnostic_uncalibrated_no_interval"
 evidence_test = "crates/antecedent-design/tests/decision_reliability.rs"
 evidence_assertion = "enumerated_four_state_law_gives_exact_best_top_k_and_baseline_probabilities"
-notes = "Rust facade route; point-only diagnostic, no interval or calibration. Python surface not yet wired."
+notes = "Rust facade route; point-only diagnostic, no interval or calibration. The Python surface is wired in python/antecedent/decision_reliability.py."
 
 [[routes]]
 route = "antecedent.decision_reliability.selection_correction"
@@ -7185,7 +7185,7 @@ functional = "winners_curse_bound_and_held_out_value"
 guarantee = "winners_curse_bound_and_held_out_reevaluation_point_only_no_interval"
 evidence_test = "crates/antecedent-design/tests/decision_reliability.rs"
 evidence_assertion = "in_sample_maximum_is_biased_up_and_held_out_value_is_unbiased"
-notes = "Rust facade route; point-only diagnostic, no interval or calibration. Python surface not yet wired."
+notes = "Rust facade route; point-only diagnostic, no interval or calibration. The Python surface is wired in python/antecedent/decision_reliability.py."
 
 [[routes]]
 route = "antecedent.decision_reliability.publish"
@@ -7211,7 +7211,7 @@ functional = "mean_log_score,_CRPS,_Brier_score_and_energy_score_of_each_predict
 guarantee = "exact_closed_form_or_finite_law_scores_point_only_no_interval"
 evidence_test = "crates/antecedent-validate/tests/predictive_assessment.rs"
 evidence_assertion = "gaussian_crps_matches_the_closed_form_hand_values"
-notes = "Rust facade route; point-only or labelled diagnostic, no interval. The Python surface is not wired yet."
+notes = "Rust facade route; point-only or labelled diagnostic, no interval. The Python surface is wired in python/antecedent/predictive_assessment.py."
 
 [[routes]]
 route = "antecedent.predictive_assessment.consume_predictive_assessment_artifact"
@@ -7223,7 +7223,7 @@ functional = "independent_rescoring_and_recomputation"
 guarantee = "identity_and_values_must_replay"
 evidence_test = "crates/antecedent-io/tests/predictive_assessment_artifact.rs"
 evidence_assertion = "a_fresh_consumer_reproduces_every_score_and_the_identity"
-notes = "Rust facade route; point-only, no interval. The Python surface is not wired yet."
+notes = "Rust facade route; point-only, no interval. The Python surface is wired in python/antecedent/predictive_assessment.py."
 
 [[routes]]
 route = "antecedent.predictive_assessment.score_differences"
@@ -7235,7 +7235,7 @@ functional = "mean_paired_score_difference_between_named_predictors_and_its_depe
 guarantee = "paired_difference_with_declared_dependence_standard_error_diagnostic_no_interval"
 evidence_test = "crates/antecedent-validate/tests/predictive_assessment.rs"
 evidence_assertion = "the_variance_of_a_mean_difference_follows_the_declared_dependence"
-notes = "Rust facade route; point-only or labelled diagnostic, no interval. The Python surface is not wired yet."
+notes = "Rust facade route; point-only or labelled diagnostic, no interval. The Python surface is wired in python/antecedent/predictive_assessment.py."
 
 [[routes]]
 route = "antecedent.predictive_assessment.calibration_diagnostics"
@@ -7247,7 +7247,7 @@ functional = "PIT_histogram,_reliability_table,_empirical_interval_coverage_and_
 guarantee = "labelled_unmeasured_diagnostics_no_calibration_guarantee_no_interval"
 evidence_test = "crates/antecedent-validate/tests/predictive_assessment.rs"
 evidence_assertion = "a_calibrated_generator_has_a_uniform_pit_and_nominal_coverage"
-notes = "Rust facade route; point-only or labelled diagnostic, no interval. The Python surface is not wired yet."
+notes = "Rust facade route; point-only or labelled diagnostic, no interval. The Python surface is wired in python/antecedent/predictive_assessment.py."
 
 [[routes]]
 route = "antecedent.predictive_assessment.overlap_check"
@@ -7259,7 +7259,7 @@ functional = "overlap_status_of_each_predictor_against_the_assessed_observations
 guarantee = "exact_set_arithmetic_over_declared_observation_identities_no_inference"
 evidence_test = "crates/antecedent-validate/tests/predictive_assessment.rs"
 evidence_assertion = "overlap_is_detected_from_row_identities_and_labelled"
-notes = "Rust facade route; point-only or labelled diagnostic, no interval. The Python surface is not wired yet."
+notes = "Rust facade route; point-only or labelled diagnostic, no interval. The Python surface is wired in python/antecedent/predictive_assessment.py."
 
 [[routes]]
 route = "antecedent.predictive_assessment.distribution_drift"
@@ -7271,7 +7271,7 @@ functional = "KS_distance_and_population_stability_index_of_the_PIT_between_two_
 guarantee = "labelled_unmeasured_drift_diagnostic_no_significance_level"
 evidence_test = "crates/antecedent-validate/tests/predictive_assessment.rs"
 evidence_assertion = "rolling_origin_reports_a_score_per_origin_and_a_serial_standard_error"
-notes = "Rust facade route; point-only or labelled diagnostic, no interval. The Python surface is not wired yet."
+notes = "Rust facade route; point-only or labelled diagnostic, no interval. The Python surface is wired in python/antecedent/predictive_assessment.py."
 
 [[routes]]
 route = "antecedent.predictive_assessment.score_interval"
@@ -7655,7 +7655,7 @@ functional = "licensing_verdict_of_a_bridge_contract"
 guarantee = "checked_declaration_no_number_formed"
 evidence_test = "crates/antecedent/tests/scientific_bridge_facade.rs"
 evidence_assertion = "a_surrogate_bridge_is_prepared_derived_exported_and_consumed_independently"
-notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+notes = "Rust contract and facade route; point-only, no interval. The Python surface is wired in python/antecedent/scientific_bridge.py."
 
 [[routes]]
 route = "antecedent.scientific_bridge.derive.surrogate_terminal_outcome"
@@ -7667,7 +7667,7 @@ functional = "terminal_effect_from_the_trial_level_least_squares_line"
 guarantee = "least_squares_trial_level_point_inside_the_validated_range_no_interval"
 evidence_test = "crates/antecedent-contract/tests/scientific_bridge.rs"
 evidence_assertion = "surrogate_bridge_matches_the_hand_computed_trial_level_regression"
-notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+notes = "Rust contract and facade route; point-only, no interval. The Python surface is wired in python/antecedent/scientific_bridge.py."
 
 [[routes]]
 route = "antecedent.scientific_bridge.derive.latent_measured_outcome"
@@ -7679,7 +7679,7 @@ functional = "latent_prevalence_from_recorded_or_recorded_from_latent"
 guarantee = "rogan_gladen_inversion_and_forward_map_point_no_interval"
 evidence_test = "crates/antecedent-contract/tests/scientific_bridge.rs"
 evidence_assertion = "a_measured_prevalence_is_the_latent_prevalence_only_through_the_model"
-notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+notes = "Rust contract and facade route; point-only, no interval. The Python surface is wired in python/antecedent/scientific_bridge.py."
 
 [[routes]]
 route = "antecedent.scientific_bridge.derive.predictive_causal_quantity"
@@ -7691,7 +7691,7 @@ functional = "causal_quantity_equal_to_the_predictive_functional_under_identific
 guarantee = "identity_under_declared_identification_point_no_interval"
 evidence_test = "crates/antecedent-contract/tests/scientific_bridge.rs"
 evidence_assertion = "an_association_is_a_causal_quantity_only_under_a_named_identification"
-notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+notes = "Rust contract and facade route; point-only, no interval. The Python surface is wired in python/antecedent/scientific_bridge.py."
 
 [[routes]]
 route = "antecedent.scientific_bridge.derive.preference_realized_behavior"
@@ -7703,7 +7703,7 @@ functional = "realized_behavior_mean_from_the_stated_preference_mean"
 guarantee = "declared_linkage_identity_or_affine_calibration_point_no_interval"
 evidence_test = "crates/antecedent-contract/tests/scientific_bridge.rs"
 evidence_assertion = "a_stated_preference_is_realized_behavior_only_under_a_declared_linkage"
-notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+notes = "Rust contract and facade route; point-only, no interval. The Python surface is wired in python/antecedent/scientific_bridge.py."
 
 [[routes]]
 route = "antecedent.scientific_bridge.derive.parameter_intervention_response"
@@ -7715,7 +7715,7 @@ functional = "intervention_response_mean_from_the_parameter"
 guarantee = "declared_affine_contrast_point_no_interval"
 evidence_test = "crates/antecedent-contract/tests/scientific_bridge.rs"
 evidence_assertion = "a_model_parameter_is_an_intervention_response_only_through_its_declared_contrast"
-notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+notes = "Rust contract and facade route; point-only, no interval. The Python surface is wired in python/antecedent/scientific_bridge.py."
 
 [[routes]]
 route = "antecedent.scientific_bridge.derive.scientific_decision_utility"
@@ -7727,7 +7727,7 @@ functional = "expected_utility_of_an_affine_utility_of_the_endpoint"
 guarantee = "declared_affine_utility_of_a_mean_exact_for_the_expectation_point_no_interval"
 evidence_test = "crates/antecedent-contract/tests/scientific_bridge.rs"
 evidence_assertion = "a_scientific_endpoint_is_a_utility_only_through_a_declared_utility_function"
-notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+notes = "Rust contract and facade route; point-only, no interval. The Python surface is wired in python/antecedent/scientific_bridge.py."
 
 [[routes]]
 route = "antecedent.scientific_bridge.derive.transported_surrogate"
@@ -7739,7 +7739,7 @@ functional = "terminal_effect_in_the_claim_population_under_the_declared_premise
 guarantee = "trial_level_point_carried_under_a_declared_transportability_premise_no_interval"
 evidence_test = "crates/antecedent/tests/scientific_bridge_facade.rs"
 evidence_assertion = "a_transported_bridge_names_its_premise_or_is_refused"
-notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+notes = "Rust contract and facade route; point-only, no interval. The Python surface is wired in python/antecedent/scientific_bridge.py."
 
 [[routes]]
 route = "antecedent.scientific_bridge.consume_scientific_bridge_artifact"
@@ -7751,7 +7751,7 @@ functional = "replayed_bridged_claim_value_identity_and_fit"
 guarantee = "stored_contract_and_source_rederived_and_compared_bit_for_bit"
 evidence_test = "crates/antecedent-io-core/tests/scientific_bridge_artifact.rs"
 evidence_assertion = "a_fresh_consumer_replays_the_bridge_and_recomputes_its_values"
-notes = "Rust facade and contract route; point-only, no interval. The Python surface is a later delivery."
+notes = "Rust contract and facade route; point-only, no interval. The Python surface is wired in python/antecedent/scientific_bridge.py."
 
 [[routes]]
 route = "antecedent.scientific_bridge.predictive_importance_as_causal_effect"
@@ -8182,3 +8182,403 @@ stage = "evaluate"
 status = "closed"
 reason_code = "adaptive_design_ignored"
 notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent.decision_reliability.rank"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_to_supplied_utility_draws"
+evidence = "finite_candidate_utility_draws_with_declared_coupling"
+functional = "best_top_k_and_better_than_baseline_monte_carlo_probability"
+guarantee = "monte_carlo_ranking_diagnostic_uncalibrated_no_interval"
+evidence_test = "python/tests/test_decision_reliability.py"
+evidence_assertion = "test_enumerated_four_state_law_has_exact_ranking_probabilities"
+notes = "Python and Rust facade route; point-only diagnostic, no interval or calibration."
+
+[[routes]]
+route = "antecedent.cohort_decision.decision_source_from_model"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_to_retained_model_and_declared_cohort"
+evidence = "verified_retained_fitted_effect_model_and_declared_cohort"
+functional = "cohort_mean_of_retained_conditional_contrast_with_support_check"
+guarantee = "exact_weighted_mean_of_retained_predictions_affine_expectation_point_only"
+evidence_test = "python/tests/test_cohort_decision.py"
+evidence_assertion = "test_producer_to_cohort_to_affine_contract_matches_the_hand_calculation"
+notes = "Python entry over a verified analysis result; native numbers, replayed before every decision."
+
+[[routes]]
+route = "antecedent.cohort_decision.decision_source_from_compact_export"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_to_retained_model_and_declared_cohort"
+evidence = "verified_retained_fitted_effect_model_and_declared_cohort"
+functional = "cohort_mean_of_retained_conditional_contrast_with_support_check"
+guarantee = "exact_weighted_mean_of_retained_predictions_affine_expectation_point_only"
+evidence_test = "python/tests/test_cohort_decision.py"
+evidence_assertion = "test_a_declared_compact_model_carries_the_uncalibrated_variance_and_is_never_native"
+notes = "Python entry over a caller-built compact contrast model; a declared model, never native; carries the labelled variance diagnostic."
+
+[[routes]]
+route = "antecedent.python.observation_query.condition_on"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "prepared_finite_composition"
+functional = "conditional_distribution_of_an_outcome_given_recorded_values"
+guarantee = "exact_given_the_declared_model_or_labelled_point_value"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_conditioning_and_intervention_disagree_and_both_match_the_enumeration"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.python.observation_query.intervene_on"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "prepared_finite_composition"
+functional = "interventional_distribution_of_an_outcome"
+guarantee = "exact_given_the_declared_model_or_labelled_point_value"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_conditioning_intervention_and_the_pair_have_three_distinct_identities"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.python.observation_query.condition_versus_intervene"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "prepared_finite_composition"
+functional = "paired_conditioning_and_interventional_distributions"
+guarantee = "both_laws_from_one_model_never_substituted"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_conditioning_and_intervention_disagree_and_both_match_the_enumeration"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.python.observation_query.threshold_crossing"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "prepared_finite_composition"
+functional = "observed_signal_levels_that_move_an_outcome_probability_across_a_level"
+guarantee = "exact_enumeration_given_the_declared_tables"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_threshold_crossing_lists_the_crossing_observations"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.python.observation_query.consume_observation_query_artifact"
+stage = "consume"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "prepared_finite_composition"
+functional = "independent_replay_of_the_stored_query"
+guarantee = "bit_identity_of_the_replayed_result"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_the_artifact_round_trips_and_replays_against_the_retained_identity"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.python.observation_query.finite_posterior"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "declared_prior_and_likelihood"
+functional = "posterior_of_a_finite_hypothesis_space"
+guarantee = "exact_bayes_rule_given_the_declared_model"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_finite_posterior_matches_pure_python_bayes_and_ignores_order"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.python.observation_query.conjugate_posterior"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "declared_beta_prior_and_counts"
+functional = "beta_bernoulli_posterior_and_predictive_probability"
+guarantee = "exact_conjugate_update"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_conjugate_posterior_is_the_closed_form"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.python.observation_query.required_bayes_factor"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "declared_signal_or_beta_prior_and_level"
+functional = "minimal_evidence_that_reaches_a_level"
+guarantee = "exact_minimum_or_a_refusal_stating_the_reachable_extremum"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_required_evidence_matches_closed_forms"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.python.observation_query.required_observations_binary_signal"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "declared_signal_or_beta_prior_and_level"
+functional = "minimal_evidence_that_reaches_a_level"
+guarantee = "exact_minimum_or_a_refusal_stating_the_reachable_extremum"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_required_evidence_matches_closed_forms"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.python.observation_query.required_observations_conjugate"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "declared_signal_or_beta_prior_and_level"
+functional = "minimal_evidence_that_reaches_a_level"
+guarantee = "exact_minimum_or_a_refusal_stating_the_reachable_extremum"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_required_evidence_matches_closed_forms"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.observation_query_observe"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "declared_model_or_stored_artifact"
+functional = "observation_conditioned_query"
+guarantee = "exact_given_the_declared_model_or_labelled_point_value"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_conditioning_and_intervention_disagree_and_both_match_the_enumeration"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.observation_query_pair"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "declared_model_or_stored_artifact"
+functional = "observation_conditioned_query"
+guarantee = "exact_given_the_declared_model_or_labelled_point_value"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_conditioning_and_intervention_disagree_and_both_match_the_enumeration"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.observation_query_threshold"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "declared_model_or_stored_artifact"
+functional = "observation_conditioned_query"
+guarantee = "exact_given_the_declared_model_or_labelled_point_value"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_threshold_crossing_lists_the_crossing_observations"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.observation_query_finite_posterior"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "declared_model_or_stored_artifact"
+functional = "observation_conditioned_query"
+guarantee = "exact_given_the_declared_model_or_labelled_point_value"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_finite_posterior_matches_pure_python_bayes_and_ignores_order"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.observation_query_conjugate_posterior"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "declared_model_or_stored_artifact"
+functional = "observation_conditioned_query"
+guarantee = "exact_given_the_declared_model_or_labelled_point_value"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_conjugate_posterior_is_the_closed_form"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.observation_query_required_bayes_factor"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "declared_model_or_stored_artifact"
+functional = "observation_conditioned_query"
+guarantee = "exact_given_the_declared_model_or_labelled_point_value"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_required_evidence_matches_closed_forms"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.observation_query_required_observations_binary"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "declared_model_or_stored_artifact"
+functional = "observation_conditioned_query"
+guarantee = "exact_given_the_declared_model_or_labelled_point_value"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_required_evidence_matches_closed_forms"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.observation_query_required_observations_conjugate"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "declared_model_or_stored_artifact"
+functional = "observation_conditioned_query"
+guarantee = "exact_given_the_declared_model_or_labelled_point_value"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_required_evidence_matches_closed_forms"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.observation_query_consume"
+stage = "consume"
+status = "licensed"
+graph = "declared_finite_acyclic_composition"
+evidence = "declared_model_or_stored_artifact"
+functional = "observation_conditioned_query"
+guarantee = "exact_given_the_declared_model_or_labelled_point_value"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_the_artifact_round_trips_and_replays_against_the_retained_identity"
+notes = "Python surface route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.observation_query_closed"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "No interval or calibration statement is licensed for an observation-conditioned probability; the Python surface raises cell_not_licensed."
+
+[[routes]]
+route = "antecedent.python.observation_query.ObservationClaim.interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "No interval or calibration statement is licensed for an observation-conditioned probability; the Python surface raises cell_not_licensed."
+
+[[routes]]
+route = "antecedent.python.observation_query.ObservationClaim.calibrated_probability"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "No interval or calibration statement is licensed for an observation-conditioned probability; the Python surface raises cell_not_licensed."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.evaluate"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_dynamic_structural_model_no_causal_graph_search"
+evidence = "finite_dynamic_model_and_fixed_contingent_policy"
+functional = "policy_value_by_enumerated_histories"
+guarantee = "fixed_policy_value_exact_over_declared_finite_model_point_only"
+evidence_test = "python/tests/test_sequential_evaluation.py"
+evidence_assertion = "test_enumerated_values_match_the_hand_solution_and_the_independent_oracle"
+notes = "Python surface of sequential policy evaluation (python/antecedent/sequential_evaluation.py); point-only, no interval."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.rollout"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_dynamic_structural_model_no_causal_graph_search"
+evidence = "finite_dynamic_model_and_fixed_policy"
+functional = "monte_carlo_policy_value_diagnostic"
+guarantee = "seeded_rollout_mean_with_uncalibrated_monte_carlo_error_point_only"
+evidence_test = "python/tests/test_sequential_evaluation.py"
+evidence_assertion = "test_rollouts_on_common_random_streams_agree_with_the_enumeration"
+notes = "Python surface of sequential policy evaluation (python/antecedent/sequential_evaluation.py); point-only, no interval."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.compare"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_dynamic_structural_model_no_causal_graph_search"
+evidence = "finite_dynamic_model_and_named_policy_comparisons"
+functional = "act_now_wait_collect_or_choose_after_observation_values"
+guarantee = "fixed_policy_comparison_values_point_only_no_optimality_claim"
+evidence_test = "python/tests/test_sequential_evaluation.py"
+evidence_assertion = "test_comparisons_and_the_value_of_collecting_evidence_through_the_design_ranker"
+notes = "Python surface of sequential policy evaluation (python/antecedent/sequential_evaluation.py); point-only, no interval."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.BeliefSession.observe"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_dynamic_structural_model_no_causal_graph_search"
+evidence = "declared_finite_model_with_bound_measurement_models"
+functional = "bayes_belief_update_with_once_only_ledger_record"
+guarantee = "exact_bayes_update_each_record_counted_once_no_inference"
+evidence_test = "python/tests/test_sequential_evaluation.py"
+evidence_assertion = "test_a_belief_session_updates_by_bayes_and_records_each_observation_once"
+notes = "Python surface of sequential policy evaluation (python/antecedent/sequential_evaluation.py); point-only, no interval."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.resolve_policy"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_dynamic_structural_model_no_causal_graph_search"
+evidence = "a_supplied_policy_declaration"
+functional = "fixed_policy_or_typed_refusal"
+guarantee = "only_a_fixed_contingent_policy_is_evaluated"
+evidence_test = "python/tests/test_sequential_evaluation.py"
+evidence_assertion = "test_a_static_score_table_and_policy_learning_are_not_sequential_evaluation"
+notes = "Python surface of sequential policy evaluation (python/antecedent/sequential_evaluation.py); point-only, no interval."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.check_request"
+stage = "prepare"
+status = "licensed"
+graph = "finite_dynamic_structural_model_no_causal_graph_search"
+evidence = "a_request_population_and_period"
+functional = "own_population_and_period_check"
+guarantee = "values_are_for_the_models_own_population_and_period"
+evidence_test = "python/tests/test_sequential_evaluation.py"
+evidence_assertion = "test_another_population_or_period_and_any_interval_are_typed_refusals"
+notes = "Python surface of sequential policy evaluation (python/antecedent/sequential_evaluation.py); point-only, no interval."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.stream_uniform"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_dynamic_structural_model_no_causal_graph_search"
+evidence = "a_semantic_stream_identity"
+functional = "one_uniform_per_identity"
+guarantee = "pure_function_of_seed_rollout_time_role"
+evidence_test = "python/tests/test_sequential_evaluation.py"
+evidence_assertion = "test_a_stream_uniform_is_a_pure_function_of_its_semantic_identity"
+notes = "Python surface of sequential policy evaluation (python/antecedent/sequential_evaluation.py); point-only, no interval."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.seal"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_dynamic_structural_model_no_causal_graph_search"
+evidence = "finite_model_policy_and_optional_logged_data"
+functional = "sealed_evaluation_artifact"
+guarantee = "artifact_carries_value_receipts_and_identities_no_inference"
+evidence_test = "python/tests/test_sequential_evaluation.py"
+evidence_assertion = "test_the_artifact_replays_bit_for_bit_and_carries_receipts"
+notes = "Python surface of sequential policy evaluation (python/antecedent/sequential_evaluation.py); point-only, no interval."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.consume_artifact"
+stage = "consume"
+status = "licensed"
+graph = "finite_dynamic_structural_model_no_causal_graph_search"
+evidence = "sequential_evaluation_v1_bytes_and_retained_identities"
+functional = "replayed_value_receipts_and_identities"
+guarantee = "stored_numbers_equal_recomputation_bit_for_bit_no_new_inference"
+evidence_test = "python/tests/test_sequential_evaluation.py"
+evidence_assertion = "test_the_artifact_replays_bit_for_bit_and_carries_receipts"
+notes = "Python surface of sequential policy evaluation (python/antecedent/sequential_evaluation.py); point-only, no interval."
+
+[[routes]]
+route = "antecedent.sequential_evaluation.request_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Permanently closed adjacent route of sequential policy evaluation: the request is refused with a typed reason that names the evidence that would license it."

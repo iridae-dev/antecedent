@@ -554,6 +554,13 @@ pub(crate) struct ConsumedEvidenceLedgerHandle {
     inner: ConsumedEvidenceLedger,
 }
 
+impl EvidenceLedgerHandle {
+    /// The session's ledger, for bridges that resolve observation identities from it.
+    pub(crate) fn ledger(&self) -> &EvidenceLedger {
+        self.inner.ledger()
+    }
+}
+
 #[pymethods]
 impl EvidenceLedgerHandle {
     /// An empty session.

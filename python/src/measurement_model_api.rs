@@ -317,7 +317,7 @@ fn parse_evidence(value: &Json) -> PyResult<ParameterEvidence> {
     }
 }
 
-fn parse_model(value: &Json) -> PyResult<MeasurementModel> {
+pub(crate) fn parse_model(value: &Json) -> PyResult<MeasurementModel> {
     let map = object(value, "measurement model")?;
     let route_name = text(map, "route")?;
     let route = MeasurementRoute::from_name(&route_name)
@@ -428,7 +428,7 @@ fn evidence_json(evidence: &ParameterEvidence) -> Json {
     }
 }
 
-fn model_json(model: &MeasurementModel) -> Json {
+pub(crate) fn model_json(model: &MeasurementModel) -> Json {
     let arm = match &model.binding.arm {
         ArmBinding::Arm(arm) => Json::String(arm.clone()),
         _ => Json::Null,

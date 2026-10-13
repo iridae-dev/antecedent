@@ -172,6 +172,22 @@ Until that record exists both routes are closed with `cell_not_licensed`
   `observe`, `condition_on`, `intervene_on`, `condition_versus_intervene` and
   `threshold_crossing`; declared-model queries are free functions.
 
+## Python
+
+`antecedent.observation_query` exposes the facade: `condition_on`, `intervene_on`,
+`condition_versus_intervene` and `threshold_crossing` take a prepared
+`mechanism_composition.PreparedMechanismComposition`; `finite_posterior`,
+`conjugate_posterior`, `required_bayes_factor`, `required_observations_binary_signal` and
+`required_observations_conjugate` take a declared model; `consume_observation_query_artifact`
+replays an artifact against a retained identity. Slots are `Recorded`, `Assigned`,
+`Hypothetical` and `Measured` (a recorded indicator value with its
+`measurement_models.MeasurementModel`). Every claim is an `ObservationClaim` with its
+`identity`, `operation`, `inference_basis` and sealed `artifact`; `interval()` and
+`calibrated_probability()` raise `cell_not_licensed`. Every refusal is an
+`ObservationQueryRefusal` with a registered `reason_code`, an `observation_query.*` `detail`,
+`expected`/`supplied` (the requested level and the reachable extremum of an unreachable-level
+refusal) and a `remedy`.
+
 ## Artifact
 
 `observation_query_v1` keeps the composed premises (the mechanism-composition

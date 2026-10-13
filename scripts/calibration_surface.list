@@ -949,3 +949,8 @@ allow registry_mirror crates/antecedent-io-core/src/measurement_model_wire.rs ta
 allow registry_mirror crates/antecedent-io/src/sampled_counterfactual_transport_artifact.rs table
 allow registry_mirror crates/antecedent/src/analysis/evidence_ledger.rs records
 allow registry_mirror crates/antecedent/src/analysis/measurement_model.rs table
+suite.decision_reliability_oracle crates/antecedent-design/tests/decision_reliability.rs
+suite.decision_reliability_facade_oracle crates/antecedent/tests/decision_reliability_facade.rs
+suite.predictive_assessment_oracle crates/antecedent-validate/tests/predictive_assessment.rs
+suite.predictive_assessment_artifact_oracle crates/antecedent-io/tests/predictive_assessment_artifact.rs
+suite.predictive_assessment_facade_oracle crates/antecedent/tests/predictive_assessment_facade.rs

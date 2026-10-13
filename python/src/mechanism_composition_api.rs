@@ -456,7 +456,7 @@ fn consumed_json(consumed: &ConsumedComposition) -> Json {
 /// Every method that changes it returns a new handle.
 #[pyclass(name = "PreparedCompositionHandle", skip_from_py_object)]
 pub(crate) struct PreparedCompositionHandle {
-    inner: PreparedMechanismComposition,
+    pub(crate) inner: PreparedMechanismComposition,
 }
 
 type Refused<T> = (Option<T>, Option<String>);
