@@ -36,6 +36,7 @@ pub mod discovery_wire;
 pub mod distribution_artifact;
 pub mod distribution_replay;
 pub mod error;
+pub mod evidence_ledger_artifact;
 pub mod exact_law_wire;
 pub mod expr_wire;
 pub mod external_binding_wire;
@@ -51,7 +52,9 @@ pub mod graph_mixed;
 pub mod graph_networkx;
 pub mod graphless_support;
 pub mod identity;
+pub mod mechanism_composition_artifact;
 pub mod mechanism_wire;
+pub mod measurement_model_wire;
 pub mod migrate;
 /// `Mmap::map` lives here. [`crate::reader::MappedArtifactReader`] has the
 /// mapped constructors (`open_path_mapped`, `from_mmap`) under the same
@@ -189,6 +192,13 @@ pub use identity::{
     prior_set_identity, program_digest, score_reuse_digest, target_weights_digest,
     temporal_admg_identity, temporal_cpdag_identity, temporal_dag_identity, temporal_pag_identity,
     transport_identity,
+};
+pub use mechanism_composition_artifact::{
+    CompositionQueryWire, CompositionResultWire, ConsumedMechanismComposition,
+    MECHANISM_COMPOSITION_ARTIFACT_FEATURE, MECHANISM_COMPOSITION_ARTIFACT_VERSION,
+    MechanismCompositionArtifactError, MechanismCompositionArtifactWire,
+    MechanismCompositionPremisesWire, MechanismNumbers, evaluate_composition_query, lower_plan,
+    mechanism_composition_identity, refusals_for_findings,
 };
 pub use mechanism_wire::{
     MechanismSlotWire, MechanismStoreWire, ModelKindWire, mechanisms_from_wire, mechanisms_to_wire,

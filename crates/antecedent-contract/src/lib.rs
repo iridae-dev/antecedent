@@ -17,10 +17,13 @@
 pub mod capability;
 pub mod claim;
 pub mod composition_provenance;
+pub mod evidence_ledger;
 pub mod evidence_obligation;
 pub mod external;
 pub mod external_binding;
 pub mod external_refusal;
+pub mod mechanism_composition;
+pub mod measurement;
 pub mod obligation;
 pub mod plan;
 pub mod program_binding;
@@ -99,6 +102,13 @@ pub use support_labels::check_static_point_labels;
 pub use transform::{
     LayerEffect, SemanticLayer, TransformEffect, TransformIntent, TransformationReport,
     intent_effects,
+};
+pub use mechanism_composition::{
+    AdmissionBasis, AdmissionCoordinate, DependenceDeclaration, LatentCauseDeclaration,
+    MAX_DECLARED_MECHANISMS, MECHANISM_COMPOSITION_STAGE, MECHANISM_VALUE_FUNCTIONAL,
+    MechanismCompositionDeclaration, MechanismCompositionPlan, MechanismDeclaration,
+    MechanismOriginKind, PlannedMechanism, PlannedParent, TransportAdmission, UncertaintyRoute,
+    check_mechanism_composition, composition_refusal, reason_code_for_kind,
 };
 pub use transport_result::TransportGridFailure;
 

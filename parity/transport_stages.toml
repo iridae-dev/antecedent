@@ -6021,3 +6021,388 @@ guarantee = "smoothed_dose_score_posterior_mean_point_only"
 evidence_test = "crates/antecedent/tests/smoothed_dose_lifecycle.rs"
 evidence_assertion = "smoothed_dose_posterior_mean_stays_at_the_known_truth"
 notes = "Point-only posterior mean. No interval."
+
+[[routes]]
+route = "antecedent_contract.check_mechanism_composition"
+stage = "prepare"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen."
+
+[[routes]]
+route = "antecedent_model.compose_linear_gaussian"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen."
+
+[[routes]]
+route = "antecedent_model.compose_finite_tables"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen."
+
+[[routes]]
+route = "antecedent_io.consume_mechanism_composition_artifact"
+stage = "consume"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen."
+
+[[routes]]
+route = "antecedent_model.compose_parameter_uncertainty_delta"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen."
+
+[[routes]]
+route = "antecedent.evidence_ledger.account_observations"
+stage = "evaluate"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Rust producer and consumer exist; the public facade route is closed until the facade and Python surface are delivered."
+
+[[routes]]
+route = "antecedent.evidence_ledger.pool_summaries"
+stage = "evaluate"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Rust producer and consumer exist; the public facade route is closed until the facade and Python surface are delivered."
+
+[[routes]]
+route = "antecedent.evidence_ledger.random_effects"
+stage = "evaluate"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Rust producer and consumer exist; the public facade route is closed until the facade and Python surface are delivered."
+
+[[routes]]
+route = "antecedent.evidence_ledger.hierarchical_borrowing"
+stage = "evaluate"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Rust producer and consumer exist; the public facade route is closed until the facade and Python surface are delivered."
+
+[[routes]]
+route = "antecedent.evidence_ledger.transport_claim"
+stage = "consume"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Rust producer and consumer exist; the public facade route is closed until the facade and Python surface are delivered."
+
+[[routes]]
+route = "antecedent.evidence_ledger.reuse_result"
+stage = "consume"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Rust producer and consumer exist; the public facade route is closed until the facade and Python surface are delivered."
+
+[[routes]]
+route = "antecedent.evidence_ledger.repeat_observations"
+stage = "consume"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Rust producer and consumer exist; the public facade route is closed until the facade and Python surface are delivered."
+
+[[routes]]
+route = "antecedent.evidence_ledger.revise_source"
+stage = "consume"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Rust producer and consumer exist; the public facade route is closed until the facade and Python surface are delivered."
+
+[[routes]]
+route = "antecedent.evidence_ledger.dependence_range"
+stage = "evaluate"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Rust producer and consumer exist; the public facade route is closed until the facade and Python surface are delivered."
+
+[[routes]]
+route = "antecedent.evidence_ledger.pooled_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Rust producer and consumer exist; the public facade route is closed until the facade and Python surface are delivered."
+
+[[routes]]
+route = "antecedent_core.measurement_model.MeasurementModel.validate"
+stage = "prepare"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_contract.measurement.check_measurement_request"
+stage = "prepare"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_contract.measurement.check_representation_transfer"
+stage = "representation"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_contract.measurement.check_latent_posterior"
+stage = "prepare"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_io_core.measurement_model_wire.MeasurementModelArtifact.from_bytes"
+stage = "consume"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.interval_not_licensed"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.correct_classical_linear_effect"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.interval_not_licensed.classical_continuous_error"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.classical_continuous_error.nonlinear_outcome"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.classical_continuous_error.differential_by_population"
+stage = "evaluate"
+status = "closed"
+reason_code = "differential_error_not_pooled"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.classical_continuous_error.differential_by_time"
+stage = "evaluate"
+status = "closed"
+reason_code = "differential_error_not_pooled"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.classical_continuous_error.other_population"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.correct_repeated_linear_effect"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.interval_not_licensed.repeated_measurements"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.repeated_measurements.nonlinear_outcome"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.repeated_measurements.differential_by_population"
+stage = "evaluate"
+status = "closed"
+reason_code = "differential_error_not_pooled"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.repeated_measurements.differential_by_time"
+stage = "evaluate"
+status = "closed"
+reason_code = "differential_error_not_pooled"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.repeated_measurements.other_population"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.correct_binary_risk_difference"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.interval_not_licensed.binary_misclassification"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.correct_binary_prevalence"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.binary_misclassification.exposure_misclassification"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.binary_misclassification.differential_by_population"
+stage = "evaluate"
+status = "closed"
+reason_code = "differential_error_not_pooled"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.binary_misclassification.differential_by_time"
+stage = "evaluate"
+status = "closed"
+reason_code = "differential_error_not_pooled"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.binary_misclassification.other_population"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.correct_categorical"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.interval_not_licensed.probabilistic_categorical"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.probabilistic_categorical.per_unit_soft_assignment"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.probabilistic_categorical.differential_by_population"
+stage = "evaluate"
+status = "closed"
+reason_code = "differential_error_not_pooled"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.probabilistic_categorical.differential_by_time"
+stage = "evaluate"
+status = "closed"
+reason_code = "differential_error_not_pooled"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.probabilistic_categorical.other_population"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.correct_latent_posterior_linear_effect"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.interval_not_licensed.external_latent_posterior"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.external_latent_posterior.nonlinear_outcome"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.external_latent_posterior.differential_by_population"
+stage = "evaluate"
+status = "closed"
+reason_code = "differential_error_not_pooled"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.external_latent_posterior.differential_by_time"
+stage = "evaluate"
+status = "closed"
+reason_code = "differential_error_not_pooled"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_estimate.measurement.external_latent_posterior.other_population"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+
+[[routes]]
+route = "antecedent_identify.identify_counterfactual_transport"
+stage = "identify"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no artifact, facade or Python producer is wired, so the public route is closed. The record is frozen."
+
+[[routes]]
+route = "antecedent_estimate.evaluate_counterfactual_transport"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no artifact, facade or Python producer is wired, so the public route is closed. The record is frozen. Exact finite laws only; no interval or posterior."
+
+[[routes]]
+route = "antecedent_identify.verify_counterfactual_transport_witness"
+stage = "consume"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Implemented and tested in the owning crates; no artifact, facade or Python producer is wired, so the public route is closed. The record is frozen."

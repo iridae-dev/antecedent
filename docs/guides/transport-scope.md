@@ -873,6 +873,57 @@ wrong graph, query or law, nor against a bug shared by the engine and the consum
 agrees on the verdict on 237 of 257 graphs, and on the 171 both identify y0's recorded
 expression evaluates to the same numerator.
 
+## General finite counterfactual transport
+
+One contract (`static_finite_semi_markovian_counterfactual_transport_v1`), separate from the
+effect-on-the-treated route above and from the interventional transport routes: a nested or
+conditional counterfactual probability `P*(event | conditioning)` of a target population, from
+population- and regime-labelled exact finite laws of the target and of source populations whose
+mechanisms may differ at declared variables. The theorem family is Correa, Lee and Bareinboim
+(ICML 2022, PMLR 162); the module is a sound, bounded decision procedure of that shape, not the
+paper's algorithm transcribed, and completeness is not claimed. Rust producers only for now:
+`antecedent_identify::identify_counterfactual_transport` and
+`antecedent_estimate::evaluate_counterfactual_transport`; the public route is closed until an
+artifact and a facade producer exist (provenance record `counterfactual.transport_general`).
+
+The query is a `CounterfactualEventQuery`: worlds with hard interventions and edge routes (so
+`Y_{x, M_{x'}}`, natural direct and indirect effects and the effect of treatment on the treated
+are one shape), an event conjunction and an optional conditioning conjunction, under the shared
+latent exogenous coupling. Bounds: at most 8 observed variables with 4 declared levels each, 6
+worlds, 16 atoms, 24 network nodes, 4 sources with at most 4 controllable variables each and 64
+catalog regimes; larger requests are `route_not_supported`
+(`counterfactual_transport.bounds_exceeded`), not silently truncated.
+
+What the decision does, in order. The worlds are unnested into a potential-outcome network whose
+nodes merge when one mechanism reads one input, with event-fixed nodes read as constants
+(consistency); unread nodes are pruned; the nodes split into districts. A district is a
+single-world factor `Q[S] = P(S | do(parents))` only when it has one node per variable and one
+reading of each outside parent: two readings of one parent (a recanting-type structure) make
+the district a cross-world law that no regime contains, and it is never replaced by pairing
+marginals. Each single-world factor is derived from a supplied regime law by marginalization to
+an ancestral set and district extraction, and a source's factor transfers to the target only when
+no selection target lies in its variables. A conditioning atom the event is separated from moves
+into an intervention; the original conditioning mass stays a positivity guard when it is itself
+derivable. For a two-level variable `P(E, X = x) = P(E) - P(E, X = x')` answers where the direct
+factorization conflicts.
+
+Outcomes are kept apart. *Identified* carries the derivation, the cited regimes and a replayable
+search receipt. *Missing evidence* names the declared regimes (every population's observational
+law, every source's experiments on subsets of its controllable set) whose laws would license a
+derivation. A *proven obstruction* is only ever a two-model witness, re-verified by exact
+rational enumeration: two finite models of the declared class with identical laws on every
+declared regime and different query values. *Not certified* means the bounded search found
+neither: it is not an impossibility claim, and a query that is non-transportable only through a
+witness outside the searched family stays here. A budget or cancellation stop is a receipt with
+no verdict, and an out-of-contract request is a typed `route_not_supported`.
+
+Evaluation reads exact laws only. A factor undefined because a law gives its conditioning event
+zero mass, or because no law was supplied at a needed intervention level, is never given a value
+(`transport_support_failure`, `transport_missing_provider`); a conditioning event of zero mass in
+the target is `counterfactual_transport.zero_conditioning_mass`. Counted, empirical or posterior
+laws are refused (`cell_not_licensed`): sampled counterfactual transport, and any interval or
+posterior, is a separate route and is not licensed here.
+
 ## Estimation assumptions
 
 `EmpiricalTable` is the conservative default. `LearnedCategorical` and

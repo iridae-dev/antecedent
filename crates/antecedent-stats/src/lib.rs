@@ -26,6 +26,7 @@ pub mod linalg;
 pub mod longitudinal_regime;
 pub mod m_estimate;
 pub mod matching;
+pub mod measurement_error;
 pub mod observation;
 pub use cox_ipcw::{CoxIpcwFit, cox_ipcw};
 pub mod propensity;
@@ -33,6 +34,7 @@ pub mod quantile;
 pub mod regularized;
 pub mod response;
 pub mod special;
+pub mod synthesis;
 #[cfg(test)]
 mod test_util;
 pub mod twosls;
@@ -126,6 +128,13 @@ pub use response::{
 pub use special::{
     NORMAL_Q975, chi_square_sf, gamma_q, gauss_hermite_standard_normal, ln_gamma, normal_ppf,
     student_t_ppf, student_t_sf,
+};
+pub use synthesis::{
+    BetweenStudyMethod, CovarianceCheck, DEPENDENCE_ENVELOPE_LABEL, DependenceEnvelope,
+    HierarchicalPosterior, MeanPrior, PooledEstimate, RandomEffectsEstimate, SynthesisError,
+    TauPrior, check_covariance, equicorrelated_gls, fixed_effect_gls,
+    fixed_effect_inverse_variance, hierarchical_normal_borrowing, pooled_dependence_envelope,
+    random_effects_dersimonian_laird, random_effects_reml,
 };
 pub use twosls::{
     FirstStageDiagnostics, IvBlocks, TwoSlsFit, anderson_rubin_confidence_set,

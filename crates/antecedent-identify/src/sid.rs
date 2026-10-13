@@ -24,6 +24,7 @@ use std::sync::Arc;
 
 mod conditional;
 mod conditional_witness;
+mod counterfactual_transport;
 pub mod cpdag_completion;
 mod meta;
 mod mixed_source;
@@ -44,6 +45,26 @@ pub use conditional::{
     ConditionalTransportRecord, admg_conditional_refusal, decide_admg_conditional_transport,
 };
 pub use conditional::{ConditionalNonTransportabilityProof, ConditionalNonTransportabilityRecord};
+pub use counterfactual_transport::{
+    COUNTERFACTUAL_TRANSPORT_CONTRACT, COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS,
+    COUNTERFACTUAL_TRANSPORT_MAX_ATOMS, COUNTERFACTUAL_TRANSPORT_MAX_CELLS,
+    COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE, COUNTERFACTUAL_TRANSPORT_MAX_LEVELS,
+    COUNTERFACTUAL_TRANSPORT_MAX_LIMITS, COUNTERFACTUAL_TRANSPORT_MAX_NODES,
+    COUNTERFACTUAL_TRANSPORT_MAX_REGIMES, COUNTERFACTUAL_TRANSPORT_MAX_SOURCES,
+    COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS, COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES,
+    COUNTERFACTUAL_TRANSPORT_MAX_WORLDS, COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES,
+    CounterfactualCitedRegime, CounterfactualFactor, CounterfactualFunctional,
+    CounterfactualItem, CounterfactualItemSource, CounterfactualLevel,
+    CounterfactualMissingRegime, CounterfactualMovedAtom, CounterfactualSum,
+    CounterfactualSymbol, CounterfactualTransportDecision, CounterfactualTransportDerivation,
+    CounterfactualTransportInspection, CounterfactualTransportMissing,
+    CounterfactualTransportObstruction, CounterfactualTransportProblem,
+    CounterfactualTransportQuery, CounterfactualTransportSearchRecord,
+    CounterfactualTransportSource, CounterfactualTransportUnsupported,
+    CounterfactualTransportWitness, CounterfactualTransportWitnessCheck,
+    counterfactual_transport_refusal, identify_counterfactual_transport,
+    verify_counterfactual_transport_witness,
+};
 pub use conditional_witness::{
     CONDITIONAL_WITNESS_MAX_LATENT_LEVELS, ConditionalWitnessCheck, ConditionalWitnessRecord,
     WitnessKernelRecord, WitnessLatentRecord, WitnessModelRecord, WitnessSearch,

@@ -176,3 +176,129 @@ depends_on = ["decision.contract", "decision.functionals", "decision.structural_
 record = "decision.functional_inverse"
 record_state = "frozen"
 
+
+[[feature]]
+id = "mechanism_composition.acyclic_joint_model"
+purpose = "coherence-checked composition of independently fitted mechanisms into an executable joint model"
+depends_on = ["distribution.joint_alignment", "composition.provenance"]
+record = "mechanism_composition.acyclic_joint_model"
+record_state = "frozen"
+
+[[feature]]
+id = "evidence_ledger.overlap_accounting"
+purpose = "overlap relation and once-counted observation mass of a set of sources"
+depends_on = []
+record = "evidence_ledger.overlap_accounting"
+record_state = "frozen"
+
+[[feature]]
+id = "evidence_ledger.statistical_pooling"
+purpose = "pooled study effect (fixed effect) and its model-based variance"
+depends_on = ["evidence_ledger.overlap_accounting"]
+record = "evidence_ledger.statistical_pooling"
+record_state = "frozen"
+
+[[feature]]
+id = "evidence_ledger.random_effects"
+purpose = "between-study variance and random-effects pooled mean with variance conditional on tau^2"
+depends_on = ["evidence_ledger.overlap_accounting"]
+record = "evidence_ledger.random_effects"
+record_state = "frozen"
+
+[[feature]]
+id = "evidence_ledger.hierarchical_borrowing"
+purpose = "posterior mean and variance of the common mean and of each study effect under the declared prior"
+depends_on = ["evidence_ledger.overlap_accounting"]
+record = "evidence_ledger.hierarchical_borrowing"
+record_state = "frozen"
+
+[[feature]]
+id = "evidence_ledger.transport_provenance"
+purpose = "registration of a transported claim beside native target evidence with its identity retained"
+depends_on = ["evidence_ledger.overlap_accounting"]
+record = "evidence_ledger.transport_provenance"
+record_state = "frozen"
+
+[[feature]]
+id = "evidence_ledger.evidence_reuse"
+purpose = "mass accounting of a citation of an existing result"
+depends_on = ["evidence_ledger.overlap_accounting"]
+record = "evidence_ledger.evidence_reuse"
+record_state = "frozen"
+
+[[feature]]
+id = "evidence_ledger.repeated_observation_use"
+purpose = "declaration that observations are used again, with once-counted mass"
+depends_on = ["evidence_ledger.overlap_accounting"]
+record = "evidence_ledger.repeated_observation_use"
+record_state = "frozen"
+
+[[feature]]
+id = "evidence_ledger.revision"
+purpose = "downstream classification of results after a source operation"
+depends_on = ["evidence_ledger.overlap_accounting"]
+record = "evidence_ledger.revision"
+record_state = "frozen"
+
+[[feature]]
+id = "evidence_ledger.dependence_range"
+purpose = "minimum and maximum pooled estimate and variance over the declared correlation interval"
+depends_on = ["evidence_ledger.overlap_accounting", "evidence_ledger.statistical_pooling"]
+record = "evidence_ledger.dependence_range"
+record_state = "frozen"
+
+[[feature]]
+id = "evidence_ledger.pooled_interval"
+purpose = "none: the request is refused"
+depends_on = ["evidence_ledger.statistical_pooling", "evidence_ledger.random_effects", "evidence_ledger.hierarchical_borrowing", "evidence_ledger.dependence_range"]
+record = "evidence_ledger.pooled_interval"
+record_state = "frozen"
+
+[[feature]]
+id = "measurement.model_contract"
+purpose = "Can a measured column be related to the latent scientific quantity it is offered for"
+depends_on = []
+record = "measurement.model_contract"
+record_state = "frozen"
+
+[[feature]]
+id = "measurement.classical_continuous_error"
+purpose = "With additive classical measurement error of known or validated variance in a continuous regressor"
+depends_on = ["measurement.model_contract"]
+record = "measurement.classical_continuous_error"
+record_state = "frozen"
+
+[[feature]]
+id = "measurement.repeated_measurements"
+purpose = "With replicated error-prone measurements of a continuous regressor"
+depends_on = ["measurement.model_contract"]
+record = "measurement.repeated_measurements"
+record_state = "frozen"
+
+[[feature]]
+id = "measurement.binary_misclassification"
+purpose = "With a binary outcome misclassified at known or validated sensitivity and specificity"
+depends_on = ["measurement.model_contract"]
+record = "measurement.binary_misclassification"
+record_state = "frozen"
+
+[[feature]]
+id = "measurement.probabilistic_categorical"
+purpose = "With categorical labels assigned under a declared confusion matrix"
+depends_on = ["measurement.model_contract"]
+record = "measurement.probabilistic_categorical"
+record_state = "frozen"
+
+[[feature]]
+id = "measurement.external_latent_posterior"
+purpose = "Given a latent-variable posterior supplied by an external provider"
+depends_on = ["measurement.model_contract"]
+record = "measurement.external_latent_posterior"
+record_state = "frozen"
+
+[[feature]]
+id = "counterfactual.transport_general"
+purpose = "general finite counterfactual transport over selection diagrams"
+depends_on = []
+record = "counterfactual.transport_general"
+record_state = "frozen"

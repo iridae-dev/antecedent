@@ -191,6 +191,17 @@ markers below and compares it. Prose outside those markers is not read.
 | sensitivity.marginal_structural_model | max_outcomes_per_arm | 256 | `python/antecedent/msm_sensitivity.py` |
 | decision.contract | max_effect_unit_bytes | 256 | `python/src/scalar_decision_api.rs` |
 | inference.measured_scalar | max_bytes | 67108864 | `crates/antecedent-io/src/measured_inference.rs` |
+| counterfactual.transport_general | max_observed | 8 | `crates/antecedent-identify/src/sid/counterfactual_transport.rs` |
+| counterfactual.transport_general | max_levels | 4 | `crates/antecedent-identify/src/sid/counterfactual_transport.rs` |
+| counterfactual.transport_general | max_worlds | 6 | `crates/antecedent-identify/src/sid/counterfactual_transport.rs` |
+| counterfactual.transport_general | max_atoms | 16 | `crates/antecedent-identify/src/sid/counterfactual_transport.rs` |
+| counterfactual.transport_general | max_network_nodes | 24 | `crates/antecedent-identify/src/sid/counterfactual_transport.rs` |
+| counterfactual.transport_general | max_sources | 4 | `crates/antecedent-identify/src/sid/counterfactual_transport.rs` |
+| counterfactual.transport_general | max_controllable_per_source | 4 | `crates/antecedent-identify/src/sid/counterfactual_transport.rs` |
+| counterfactual.transport_general | max_regimes | 64 | `crates/antecedent-identify/src/sid/counterfactual_transport.rs` |
+| counterfactual.transport_general | max_sum_cells | 65536 | `crates/antecedent-identify/src/sid/counterfactual_transport.rs` |
+| counterfactual.transport_general | max_operations | 400000 | `crates/antecedent-identify/src/sid/counterfactual_transport.rs` |
+| counterfactual.transport_general | max_depth | 256 | `crates/antecedent-identify/src/sid/counterfactual_transport.rs` |
 <!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.

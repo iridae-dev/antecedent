@@ -2775,3 +2775,1012 @@ executing_gate = "scripts/gate_promotion.sh"
 artifact_consumer_fixture = "sensitivity.joint_uncertainty.interval_artifact.artifact"
 provider_trust = "native_computation_only"
 exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "mechanism_composition.acyclic_joint_model"
+route = "antecedent_contract.check_mechanism_composition"
+algorithm_provenance = ["provenance/mechanism_composition.acyclic_joint_model.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "mechanism_composition.acyclic_joint_model.hand_computed_gaussian_chain.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Declared semantic coordinates of a three-mechanism chain with one mismatching unit, population and parent set each."
+expected_values = "Plan with canonical order and stable identity for the coherent declaration; each mismatch is exactly one refusal with its registered code and namespaced detail."
+tolerance = "absolute 1e-12 for closed-form and enumerated values; bit equality for replayed results"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "mechanism_composition.acyclic_joint_model.replay_and_semantic_mutation.artifact"
+provider_trust = "native_computation_only; declared mechanisms carry their owner fit or binding identity, which this route does not verify"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "mechanism_composition.acyclic_joint_model"
+route = "antecedent_model.compose_linear_gaussian"
+algorithm_provenance = ["provenance/mechanism_composition.acyclic_joint_model.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "mechanism_composition.acyclic_joint_model.hand_computed_gaussian_chain.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "X=1+2e, M=0.5+2X+e, Y=-1+0.5X+3M+0.5e; do(X=2)."
+expected_values = "E[Y]=7, Var Y=178.25, Cov(X,Y)=26, Cov(M,Y)=55; under do(X=2): E[Y]=13.5, Var Y=9.25, Cov(M,Y)=3."
+tolerance = "absolute 1e-12 for closed-form and enumerated values; bit equality for replayed results"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "mechanism_composition.acyclic_joint_model.replay_and_semantic_mutation.artifact"
+provider_trust = "native_computation_only; declared mechanisms carry their owner fit or binding identity, which this route does not verify"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "mechanism_composition.acyclic_joint_model"
+route = "antecedent_model.compose_finite_tables"
+algorithm_provenance = ["provenance/mechanism_composition.acyclic_joint_model.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "mechanism_composition.acyclic_joint_model.enumerated_finite_scm.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Binary X->M->Y, X->Y with P(X=1)=0.4, P(M=1|X)=(0.2,0.7), P(Y=1|X,M)=(0.1,0.5,0.3,0.9)."
+expected_values = "P(Y=1)=0.396, P(Y=1|do(X=1))=0.72, P(Y=1|do(X=0))=0.18, P(Y=1|do(M=1))=0.66."
+tolerance = "absolute 1e-12 for closed-form and enumerated values; bit equality for replayed results"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "mechanism_composition.acyclic_joint_model.finite_artifact_replay.artifact"
+provider_trust = "native_computation_only; declared mechanisms carry their owner fit or binding identity, which this route does not verify"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "mechanism_composition.acyclic_joint_model"
+route = "antecedent_io.consume_mechanism_composition_artifact"
+algorithm_provenance = ["provenance/mechanism_composition.acyclic_joint_model.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "mechanism_composition.acyclic_joint_model.hand_computed_gaussian_chain.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The linear-Gaussian chain artifact for do(X=2) and the finite artifact for do(X=1)."
+expected_values = "Replay returns the stored result bits; an unresealed edit is a premises mismatch, a resealed edit changes the result or the coherence verdict."
+tolerance = "absolute 1e-12 for closed-form and enumerated values; bit equality for replayed results"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "mechanism_composition.acyclic_joint_model.replay_and_semantic_mutation.artifact"
+provider_trust = "native_computation_only; declared mechanisms carry their owner fit or binding identity, which this route does not verify"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "mechanism_composition.acyclic_joint_model"
+route = "antecedent_model.compose_parameter_uncertainty_delta"
+algorithm_provenance = ["provenance/mechanism_composition.acyclic_joint_model.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "mechanism_composition.acyclic_joint_model.declared_covariance_versus_independence.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Chain with declared marginal parameter covariances; gradient (3, 6, 0, 1, 2, 4.5) over (a_M, b_MX, a_X, a_Y, b_YX, b_YM) at do(X=2)."
+expected_values = "Variance 0.540625 under declared independence; 0.648625 with cov(b_MX,b_YM)=0.002; unknown dependence refuses with joint_law_required."
+tolerance = "absolute 1e-12 for closed-form and enumerated values; bit equality for replayed results"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "mechanism_composition.acyclic_joint_model.replay_and_semantic_mutation.artifact"
+provider_trust = "native_computation_only; declared mechanisms carry their owner fit or binding identity, which this route does not verify"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "evidence_ledger.overlap_accounting"
+route = "antecedent.evidence_ledger.account_observations"
+algorithm_provenance = ["provenance/evidence_ledger.overlap_accounting.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "evidence_ledger.overlap_accounting.mass_accounting.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Overlapping observation sets of 100, 100 and 10 rows sharing 50 (hand count: 210 declared slots, 160 distinct, 50 repeated); duplicates, transforms, power priors and external claims built from the same rows."
+expected_values = "exact_set_arithmetic_over_declared_observation_identities_no_inference: Overlapping 100/100/10-row sources: 210 slots, 160 distinct, 50 repeated; a duplicate adds slots, not observations."
+tolerance = "exact counts, identities, classifications and refusal codes"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "evidence_ledger.overlap_accounting.replay.artifact"
+provider_trust = "native_ledger_semantic_validation_only; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "evidence_ledger.statistical_pooling"
+route = "antecedent.evidence_ledger.pool_summaries"
+algorithm_provenance = ["provenance/evidence_ledger.statistical_pooling.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "evidence_ledger.statistical_pooling.gls_two_study.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Two studies y=(1,3), standard errors (1,2): rho=0 gives 7/5 and 4/5; rho=1/4 gives 5/4 and 15/16; rho=1/2 gives estimate 1, variance 1, weights (1,0). Hand-solved 2x2 systems."
+expected_values = "gls_point_estimate_under_declared_covariance_point_only_no_interval: Hand-solved two-study GLS at rho 0, 1/4, 1/2 equals the library, including a zero weight at rho = s_min/s_max."
+tolerance = "absolute 1e-9 for numeric values; exact counts, identities and refusal codes"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "evidence_ledger.statistical_pooling.resealed_value.artifact"
+provider_trust = "native_ledger_semantic_validation_only; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "evidence_ledger.random_effects"
+route = "antecedent.evidence_ledger.random_effects"
+algorithm_provenance = ["provenance/evidence_ledger.random_effects.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "evidence_ledger.random_effects.dersimonian_laird.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "y=(0,2,6), v=(1,2,4): Q=52/7, C=1, tau^2=38/7, mu=3330/1457, variance 25740/10199, I^2=19/26; REML tau^2 verified against a likelihood grid."
+expected_values = "random_effects_point_estimate_conditional_variance_no_interval: Hand derivation with exact fractions: tau^2 38/7, estimate 3330/1457."
+tolerance = "absolute 1e-9 for numeric values; exact counts, identities and refusal codes"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "evidence_ledger.random_effects.fresh_consumer.artifact"
+provider_trust = "native_ledger_semantic_validation_only; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "evidence_ledger.hierarchical_borrowing"
+route = "antecedent.evidence_ledger.hierarchical_borrowing"
+algorithm_provenance = ["provenance/evidence_ledger.hierarchical_borrowing.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "evidence_ledger.hierarchical_borrowing.single_tau.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "y=(0,2,6), v=(1,2,4) at tau=1: mean 56/31, variance 30/31; a three-point tau prior against Simpson integration of the marginal likelihood."
+expected_values = "hierarchical_normal_posterior_mean_variance_exact_for_declared_finite_prior_point_only: Single-tau closed form: mean 56/31, variance 30/31, shrunk study effects."
+tolerance = "absolute 1e-9 for numeric values; exact counts, identities and refusal codes"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "evidence_ledger.hierarchical_borrowing.unlicensed_method.artifact"
+provider_trust = "native_ledger_semantic_validation_only; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "evidence_ledger.transport_provenance"
+route = "antecedent.evidence_ledger.transport_claim"
+algorithm_provenance = ["provenance/evidence_ledger.transport_provenance.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "evidence_ledger.transport_provenance.transported_identity.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Native cohort of 30 rows and a claim transported from two trials built from 60 disjoint rows (licensed); the same rows as native and transported (refused)."
+expected_values = "transport_identity_bookkeeping_no_inference: A transported claim is registered with its identity and never as native data."
+tolerance = "exact counts, identities, classifications and refusal codes"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "evidence_ledger.transport_provenance.export.artifact"
+provider_trust = "native_ledger_semantic_validation_only; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "evidence_ledger.evidence_reuse"
+route = "antecedent.evidence_ledger.reuse_result"
+algorithm_provenance = ["provenance/evidence_ledger.evidence_reuse.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "evidence_ledger.evidence_reuse.cited_once.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A pooled result of 50 distinct observations cited twice: both citations report 50."
+expected_values = "reuse_counts_cited_result_once_no_inference: Two citations of a 50-observation result report 50 each."
+tolerance = "exact counts, identities, classifications and refusal codes"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "evidence_ledger.evidence_reuse.export.artifact"
+provider_trust = "native_ledger_semantic_validation_only; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "evidence_ledger.repeated_observation_use"
+route = "antecedent.evidence_ledger.repeat_observations"
+algorithm_provenance = ["provenance/evidence_ledger.repeated_observation_use.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "evidence_ledger.repeated_observation_use.flagged.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "One 30-row source used again at a confirmation stage: 30 distinct observations, data_reuse true; an undeclared-observation source is refused."
+expected_values = "repeated_use_declared_flagged_counted_once_no_inference: Repeated use is flagged, counts once and stays flagged when cited."
+tolerance = "exact counts, identities, classifications and refusal codes"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "evidence_ledger.repeated_observation_use.export.artifact"
+provider_trust = "native_ledger_semantic_validation_only; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "evidence_ledger.revision"
+route = "antecedent.evidence_ledger.revise_source"
+algorithm_provenance = ["provenance/evidence_ledger.revision.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "evidence_ledger.revision.withdrawal.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Three studies with pools, a citation and a model built from study 1: withdrawing study 1 withdraws the two-study pool and the model pool, marks the three-study pool for recompute and leaves the unaffected pool valid."
+expected_values = "revalidation_classification_exact_over_declared_lineage_no_inference: Withdrawal classifies dependents (withdrawn, recompute, still valid) and refuses new work on the source."
+tolerance = "exact counts, identities, classifications and refusal codes"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "evidence_ledger.revision.revalidation_export.artifact"
+provider_trust = "native_ledger_semantic_validation_only; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "evidence_ledger.dependence_range"
+route = "antecedent.evidence_ledger.dependence_range"
+algorithm_provenance = ["provenance/evidence_ledger.dependence_range.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "evidence_ledger.dependence_range.interior_extreme.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "y=(1,3), s=(1,2), rho in [0,0.9]: estimate in [-1/7, 7/5]; variance in [19/35, 1] with the maximum at rho=1/2 (interior)."
+expected_values = "exact_envelope_over_declared_correlation_range_assumption_range_only: Hand-solved envelope with an interior variance maximum at rho = 1/2 and monotone estimate."
+tolerance = "absolute 1e-9 for numeric values; exact counts, identities and refusal codes"
+calibration = "assumption_range_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "evidence_ledger.dependence_range.range_binding.artifact"
+provider_trust = "native_ledger_semantic_validation_only; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "evidence_ledger.pooled_interval"
+route = "antecedent.evidence_ledger.pooled_interval"
+algorithm_provenance = ["provenance/evidence_ledger.pooled_interval.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "evidence_ledger.pooled_interval.point_fallback.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "An independent pool, a covariance pool, a hierarchical borrowing and an assumption range, each asked for an interval."
+expected_values = "interval_route_closed_pending_measurement: The point-only claim class is what a licensed pooling reports."
+tolerance = "exact counts, identities, classifications and refusal codes"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "evidence_ledger.pooled_interval.exported_results.artifact"
+provider_trust = "native_ledger_semantic_validation_only; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.model_contract"
+route = "antecedent_core.measurement_model.MeasurementModel.validate"
+algorithm_provenance = [
+  "provenance/measurement.model_contract.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.model_contract.matching_request.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Requests differing from a model by construct, population, regime, arm, representation version, error structure or operation; swapped sens/spec and mutated identities."
+expected_values = "A distinct coded refusal for each; matching request accepted; independent consumer replays."
+tolerance = "exact code and detail match"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.model_contract.semantic_mutation.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.model_contract"
+route = "antecedent_contract.measurement.check_measurement_request"
+algorithm_provenance = [
+  "provenance/measurement.model_contract.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.model_contract.matching_request.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Requests differing from a model by construct, population, regime, arm, representation version, error structure or operation; swapped sens/spec and mutated identities."
+expected_values = "A distinct coded refusal for each; matching request accepted; independent consumer replays."
+tolerance = "exact code and detail match"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.model_contract.semantic_mutation.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.model_contract"
+route = "antecedent_contract.measurement.check_representation_transfer"
+algorithm_provenance = [
+  "provenance/measurement.model_contract.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.model_contract.matching_request.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Requests differing from a model by construct, population, regime, arm, representation version, error structure or operation; swapped sens/spec and mutated identities."
+expected_values = "A distinct coded refusal for each; matching request accepted; independent consumer replays."
+tolerance = "exact code and detail match"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.model_contract.semantic_mutation.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.model_contract"
+route = "antecedent_contract.measurement.check_latent_posterior"
+algorithm_provenance = [
+  "provenance/measurement.model_contract.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.model_contract.matching_request.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Requests differing from a model by construct, population, regime, arm, representation version, error structure or operation; swapped sens/spec and mutated identities."
+expected_values = "A distinct coded refusal for each; matching request accepted; independent consumer replays."
+tolerance = "exact code and detail match"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.model_contract.semantic_mutation.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.model_contract"
+route = "antecedent_io_core.measurement_model_wire.MeasurementModelArtifact.from_bytes"
+algorithm_provenance = [
+  "provenance/measurement.model_contract.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.model_contract.matching_request.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Requests differing from a model by construct, population, regime, arm, representation version, error structure or operation; swapped sens/spec and mutated identities."
+expected_values = "A distinct coded refusal for each; matching request accepted; independent consumer replays."
+tolerance = "exact code and detail match"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.model_contract.semantic_mutation.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.model_contract"
+route = "antecedent_estimate.measurement.interval_not_licensed"
+algorithm_provenance = [
+  "provenance/measurement.model_contract.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.model_contract.matching_request.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Requests differing from a model by construct, population, regime, arm, representation version, error structure or operation; swapped sens/spec and mutated identities."
+expected_values = "A distinct coded refusal for each; matching request accepted; independent consumer replays."
+tolerance = "exact code and detail match"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.model_contract.semantic_mutation.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.classical_continuous_error"
+route = "antecedent_estimate.measurement.correct_classical_linear_effect"
+algorithm_provenance = [
+  "provenance/measurement.classical_continuous_error.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.classical_continuous_error.closed_form_exact.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Simulated DGP X~N(0,1), Z=0.5X+N(0,1), W=X+N(0,0.6), Y=1+2X+0.5Z+N(0,1), n=20000, fixed seed; full-factorial exact design (n=8) with sigma_u^2 known."
+expected_values = "Corrected coefficient 2 (exact design: 3.0 vs naive 2.4 = 3*0.8); naive = 2*0.8/1.4 on the simulation."
+tolerance = "within 4 reported SE for the simulation; absolute 1e-12 on the exact design"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.classical_continuous_error.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.classical_continuous_error"
+route = "antecedent_estimate.measurement.interval_not_licensed.classical_continuous_error"
+algorithm_provenance = [
+  "provenance/measurement.classical_continuous_error.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.classical_continuous_error.closed_form_exact.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Simulated DGP X~N(0,1), Z=0.5X+N(0,1), W=X+N(0,0.6), Y=1+2X+0.5Z+N(0,1), n=20000, fixed seed; full-factorial exact design (n=8) with sigma_u^2 known."
+expected_values = "Corrected coefficient 2 (exact design: 3.0 vs naive 2.4 = 3*0.8); naive = 2*0.8/1.4 on the simulation."
+tolerance = "within 4 reported SE for the simulation; absolute 1e-12 on the exact design"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.classical_continuous_error.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.classical_continuous_error"
+route = "antecedent_estimate.measurement.classical_continuous_error.nonlinear_outcome"
+algorithm_provenance = [
+  "provenance/measurement.classical_continuous_error.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.classical_continuous_error.closed_form_exact.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Simulated DGP X~N(0,1), Z=0.5X+N(0,1), W=X+N(0,0.6), Y=1+2X+0.5Z+N(0,1), n=20000, fixed seed; full-factorial exact design (n=8) with sigma_u^2 known."
+expected_values = "Corrected coefficient 2 (exact design: 3.0 vs naive 2.4 = 3*0.8); naive = 2*0.8/1.4 on the simulation."
+tolerance = "within 4 reported SE for the simulation; absolute 1e-12 on the exact design"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.classical_continuous_error.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.classical_continuous_error"
+route = "antecedent_estimate.measurement.classical_continuous_error.differential_by_population"
+algorithm_provenance = [
+  "provenance/measurement.classical_continuous_error.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.classical_continuous_error.closed_form_exact.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Simulated DGP X~N(0,1), Z=0.5X+N(0,1), W=X+N(0,0.6), Y=1+2X+0.5Z+N(0,1), n=20000, fixed seed; full-factorial exact design (n=8) with sigma_u^2 known."
+expected_values = "Corrected coefficient 2 (exact design: 3.0 vs naive 2.4 = 3*0.8); naive = 2*0.8/1.4 on the simulation."
+tolerance = "within 4 reported SE for the simulation; absolute 1e-12 on the exact design"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.classical_continuous_error.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.classical_continuous_error"
+route = "antecedent_estimate.measurement.classical_continuous_error.differential_by_time"
+algorithm_provenance = [
+  "provenance/measurement.classical_continuous_error.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.classical_continuous_error.closed_form_exact.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Simulated DGP X~N(0,1), Z=0.5X+N(0,1), W=X+N(0,0.6), Y=1+2X+0.5Z+N(0,1), n=20000, fixed seed; full-factorial exact design (n=8) with sigma_u^2 known."
+expected_values = "Corrected coefficient 2 (exact design: 3.0 vs naive 2.4 = 3*0.8); naive = 2*0.8/1.4 on the simulation."
+tolerance = "within 4 reported SE for the simulation; absolute 1e-12 on the exact design"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.classical_continuous_error.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.classical_continuous_error"
+route = "antecedent_estimate.measurement.classical_continuous_error.other_population"
+algorithm_provenance = [
+  "provenance/measurement.classical_continuous_error.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.classical_continuous_error.closed_form_exact.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Simulated DGP X~N(0,1), Z=0.5X+N(0,1), W=X+N(0,0.6), Y=1+2X+0.5Z+N(0,1), n=20000, fixed seed; full-factorial exact design (n=8) with sigma_u^2 known."
+expected_values = "Corrected coefficient 2 (exact design: 3.0 vs naive 2.4 = 3*0.8); naive = 2*0.8/1.4 on the simulation."
+tolerance = "within 4 reported SE for the simulation; absolute 1e-12 on the exact design"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.classical_continuous_error.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.repeated_measurements"
+route = "antecedent_estimate.measurement.correct_repeated_linear_effect"
+algorithm_provenance = [
+  "provenance/measurement.repeated_measurements.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.repeated_measurements.anova_closed_form.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Unbalanced one-way ANOVA by hand on values (1,3),(5,9); simulated replicates X~N(0,1), U~N(0,0.5), 2-3 per unit, n=6000."
+expected_values = "within 5, between 10, ICC 2/3, n0 2; simulation ICC 2/3 and coefficient 1.5."
+tolerance = "absolute 1e-12 hand case; 0.03 ICC and 4 SE on the simulation"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.repeated_measurements.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.repeated_measurements"
+route = "antecedent_estimate.measurement.interval_not_licensed.repeated_measurements"
+algorithm_provenance = [
+  "provenance/measurement.repeated_measurements.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.repeated_measurements.anova_closed_form.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Unbalanced one-way ANOVA by hand on values (1,3),(5,9); simulated replicates X~N(0,1), U~N(0,0.5), 2-3 per unit, n=6000."
+expected_values = "within 5, between 10, ICC 2/3, n0 2; simulation ICC 2/3 and coefficient 1.5."
+tolerance = "absolute 1e-12 hand case; 0.03 ICC and 4 SE on the simulation"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.repeated_measurements.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.repeated_measurements"
+route = "antecedent_estimate.measurement.repeated_measurements.nonlinear_outcome"
+algorithm_provenance = [
+  "provenance/measurement.repeated_measurements.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.repeated_measurements.anova_closed_form.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Unbalanced one-way ANOVA by hand on values (1,3),(5,9); simulated replicates X~N(0,1), U~N(0,0.5), 2-3 per unit, n=6000."
+expected_values = "within 5, between 10, ICC 2/3, n0 2; simulation ICC 2/3 and coefficient 1.5."
+tolerance = "absolute 1e-12 hand case; 0.03 ICC and 4 SE on the simulation"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.repeated_measurements.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.repeated_measurements"
+route = "antecedent_estimate.measurement.repeated_measurements.differential_by_population"
+algorithm_provenance = [
+  "provenance/measurement.repeated_measurements.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.repeated_measurements.anova_closed_form.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Unbalanced one-way ANOVA by hand on values (1,3),(5,9); simulated replicates X~N(0,1), U~N(0,0.5), 2-3 per unit, n=6000."
+expected_values = "within 5, between 10, ICC 2/3, n0 2; simulation ICC 2/3 and coefficient 1.5."
+tolerance = "absolute 1e-12 hand case; 0.03 ICC and 4 SE on the simulation"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.repeated_measurements.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.repeated_measurements"
+route = "antecedent_estimate.measurement.repeated_measurements.differential_by_time"
+algorithm_provenance = [
+  "provenance/measurement.repeated_measurements.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.repeated_measurements.anova_closed_form.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Unbalanced one-way ANOVA by hand on values (1,3),(5,9); simulated replicates X~N(0,1), U~N(0,0.5), 2-3 per unit, n=6000."
+expected_values = "within 5, between 10, ICC 2/3, n0 2; simulation ICC 2/3 and coefficient 1.5."
+tolerance = "absolute 1e-12 hand case; 0.03 ICC and 4 SE on the simulation"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.repeated_measurements.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.repeated_measurements"
+route = "antecedent_estimate.measurement.repeated_measurements.other_population"
+algorithm_provenance = [
+  "provenance/measurement.repeated_measurements.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.repeated_measurements.anova_closed_form.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Unbalanced one-way ANOVA by hand on values (1,3),(5,9); simulated replicates X~N(0,1), U~N(0,0.5), 2-3 per unit, n=6000."
+expected_values = "within 5, between 10, ICC 2/3, n0 2; simulation ICC 2/3 and coefficient 1.5."
+tolerance = "absolute 1e-12 hand case; 0.03 ICC and 4 SE on the simulation"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.repeated_measurements.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.binary_misclassification"
+route = "antecedent_estimate.measurement.correct_binary_risk_difference"
+algorithm_provenance = [
+  "provenance/measurement.binary_misclassification.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.binary_misclassification.shared_rate_covariance.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "pi=0.3, Se=0.9, Sp=0.8, n=1000 gives p*=0.41; arms 0.4/0.2 give p*=0.48/0.34; differential arm 0.7/0.95 gives 0.18."
+expected_values = "prevalence 0.3, risk difference 0.2 with hand-computed variance; pooled rates give 0.3/0.7."
+tolerance = "absolute 1e-12"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.binary_misclassification.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.binary_misclassification"
+route = "antecedent_estimate.measurement.interval_not_licensed.binary_misclassification"
+algorithm_provenance = [
+  "provenance/measurement.binary_misclassification.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.binary_misclassification.shared_rate_covariance.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "pi=0.3, Se=0.9, Sp=0.8, n=1000 gives p*=0.41; arms 0.4/0.2 give p*=0.48/0.34; differential arm 0.7/0.95 gives 0.18."
+expected_values = "prevalence 0.3, risk difference 0.2 with hand-computed variance; pooled rates give 0.3/0.7."
+tolerance = "absolute 1e-12"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.binary_misclassification.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.binary_misclassification"
+route = "antecedent_estimate.measurement.correct_binary_prevalence"
+algorithm_provenance = [
+  "provenance/measurement.binary_misclassification.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.binary_misclassification.shared_rate_covariance.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "pi=0.3, Se=0.9, Sp=0.8, n=1000 gives p*=0.41; arms 0.4/0.2 give p*=0.48/0.34; differential arm 0.7/0.95 gives 0.18."
+expected_values = "prevalence 0.3, risk difference 0.2 with hand-computed variance; pooled rates give 0.3/0.7."
+tolerance = "absolute 1e-12"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.binary_misclassification.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.binary_misclassification"
+route = "antecedent_estimate.measurement.binary_misclassification.exposure_misclassification"
+algorithm_provenance = [
+  "provenance/measurement.binary_misclassification.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.binary_misclassification.shared_rate_covariance.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "pi=0.3, Se=0.9, Sp=0.8, n=1000 gives p*=0.41; arms 0.4/0.2 give p*=0.48/0.34; differential arm 0.7/0.95 gives 0.18."
+expected_values = "prevalence 0.3, risk difference 0.2 with hand-computed variance; pooled rates give 0.3/0.7."
+tolerance = "absolute 1e-12"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.binary_misclassification.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.binary_misclassification"
+route = "antecedent_estimate.measurement.binary_misclassification.differential_by_population"
+algorithm_provenance = [
+  "provenance/measurement.binary_misclassification.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.binary_misclassification.shared_rate_covariance.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "pi=0.3, Se=0.9, Sp=0.8, n=1000 gives p*=0.41; arms 0.4/0.2 give p*=0.48/0.34; differential arm 0.7/0.95 gives 0.18."
+expected_values = "prevalence 0.3, risk difference 0.2 with hand-computed variance; pooled rates give 0.3/0.7."
+tolerance = "absolute 1e-12"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.binary_misclassification.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.binary_misclassification"
+route = "antecedent_estimate.measurement.binary_misclassification.differential_by_time"
+algorithm_provenance = [
+  "provenance/measurement.binary_misclassification.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.binary_misclassification.shared_rate_covariance.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "pi=0.3, Se=0.9, Sp=0.8, n=1000 gives p*=0.41; arms 0.4/0.2 give p*=0.48/0.34; differential arm 0.7/0.95 gives 0.18."
+expected_values = "prevalence 0.3, risk difference 0.2 with hand-computed variance; pooled rates give 0.3/0.7."
+tolerance = "absolute 1e-12"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.binary_misclassification.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.binary_misclassification"
+route = "antecedent_estimate.measurement.binary_misclassification.other_population"
+algorithm_provenance = [
+  "provenance/measurement.binary_misclassification.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.binary_misclassification.shared_rate_covariance.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "pi=0.3, Se=0.9, Sp=0.8, n=1000 gives p*=0.41; arms 0.4/0.2 give p*=0.48/0.34; differential arm 0.7/0.95 gives 0.18."
+expected_values = "prevalence 0.3, risk difference 0.2 with hand-computed variance; pooled rates give 0.3/0.7."
+tolerance = "absolute 1e-12"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.binary_misclassification.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.probabilistic_categorical"
+route = "antecedent_estimate.measurement.correct_categorical"
+algorithm_provenance = [
+  "provenance/measurement.probabilistic_categorical.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.probabilistic_categorical.binary_special_case.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Confusion C with pi=(0.5,0.3,0.2), mu=(1,2,4); class summaries from sum_t C[j,t] pi_t (mu_t)."
+expected_values = "proportions (0.5,0.3,0.2), means (1,2,4), contrast high-low 3; K=2 equals Rogan-Gladen."
+tolerance = "absolute 1e-9 proportions, 1e-6 means"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.probabilistic_categorical.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.probabilistic_categorical"
+route = "antecedent_estimate.measurement.interval_not_licensed.probabilistic_categorical"
+algorithm_provenance = [
+  "provenance/measurement.probabilistic_categorical.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.probabilistic_categorical.binary_special_case.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Confusion C with pi=(0.5,0.3,0.2), mu=(1,2,4); class summaries from sum_t C[j,t] pi_t (mu_t)."
+expected_values = "proportions (0.5,0.3,0.2), means (1,2,4), contrast high-low 3; K=2 equals Rogan-Gladen."
+tolerance = "absolute 1e-9 proportions, 1e-6 means"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.probabilistic_categorical.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.probabilistic_categorical"
+route = "antecedent_estimate.measurement.probabilistic_categorical.per_unit_soft_assignment"
+algorithm_provenance = [
+  "provenance/measurement.probabilistic_categorical.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.probabilistic_categorical.binary_special_case.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Confusion C with pi=(0.5,0.3,0.2), mu=(1,2,4); class summaries from sum_t C[j,t] pi_t (mu_t)."
+expected_values = "proportions (0.5,0.3,0.2), means (1,2,4), contrast high-low 3; K=2 equals Rogan-Gladen."
+tolerance = "absolute 1e-9 proportions, 1e-6 means"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.probabilistic_categorical.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.probabilistic_categorical"
+route = "antecedent_estimate.measurement.probabilistic_categorical.differential_by_population"
+algorithm_provenance = [
+  "provenance/measurement.probabilistic_categorical.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.probabilistic_categorical.binary_special_case.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Confusion C with pi=(0.5,0.3,0.2), mu=(1,2,4); class summaries from sum_t C[j,t] pi_t (mu_t)."
+expected_values = "proportions (0.5,0.3,0.2), means (1,2,4), contrast high-low 3; K=2 equals Rogan-Gladen."
+tolerance = "absolute 1e-9 proportions, 1e-6 means"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.probabilistic_categorical.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.probabilistic_categorical"
+route = "antecedent_estimate.measurement.probabilistic_categorical.differential_by_time"
+algorithm_provenance = [
+  "provenance/measurement.probabilistic_categorical.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.probabilistic_categorical.binary_special_case.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Confusion C with pi=(0.5,0.3,0.2), mu=(1,2,4); class summaries from sum_t C[j,t] pi_t (mu_t)."
+expected_values = "proportions (0.5,0.3,0.2), means (1,2,4), contrast high-low 3; K=2 equals Rogan-Gladen."
+tolerance = "absolute 1e-9 proportions, 1e-6 means"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.probabilistic_categorical.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.probabilistic_categorical"
+route = "antecedent_estimate.measurement.probabilistic_categorical.other_population"
+algorithm_provenance = [
+  "provenance/measurement.probabilistic_categorical.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.probabilistic_categorical.binary_special_case.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Confusion C with pi=(0.5,0.3,0.2), mu=(1,2,4); class summaries from sum_t C[j,t] pi_t (mu_t)."
+expected_values = "proportions (0.5,0.3,0.2), means (1,2,4), contrast high-low 3; K=2 equals Rogan-Gladen."
+tolerance = "absolute 1e-9 proportions, 1e-6 means"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.probabilistic_categorical.artifact_replay.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.external_latent_posterior"
+route = "antecedent_estimate.measurement.correct_latent_posterior_linear_effect"
+algorithm_provenance = [
+  "provenance/measurement.external_latent_posterior.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.external_latent_posterior.berkson_noise.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Conjugate normal world X~N(0,1), W=X+N(0,1), Y=1+2X+N(0,1); posterior given W (mean W/2, var 1/2) and given (W,Y) (precision 6); n=4000 draws=100 / n=3000 draws=30."
+expected_values = "slope 2 by posterior mean (single draw about 1) and by Rubin combination."
+tolerance = "4 reported SE plus 0.03 finite-draw allowance"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.external_latent_posterior.artifact_replay.artifact"
+provider_trust = "external_provider_posterior; attested or exact-request verified, never native"
+exact_request_verification = "object_level_verification_or_labelled_attestation_required"
+
+[[cell]]
+id = "measurement.external_latent_posterior"
+route = "antecedent_estimate.measurement.interval_not_licensed.external_latent_posterior"
+algorithm_provenance = [
+  "provenance/measurement.external_latent_posterior.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.external_latent_posterior.berkson_noise.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Conjugate normal world X~N(0,1), W=X+N(0,1), Y=1+2X+N(0,1); posterior given W (mean W/2, var 1/2) and given (W,Y) (precision 6); n=4000 draws=100 / n=3000 draws=30."
+expected_values = "slope 2 by posterior mean (single draw about 1) and by Rubin combination."
+tolerance = "4 reported SE plus 0.03 finite-draw allowance"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.external_latent_posterior.artifact_replay.artifact"
+provider_trust = "external_provider_posterior; attested or exact-request verified, never native"
+exact_request_verification = "object_level_verification_or_labelled_attestation_required"
+
+[[cell]]
+id = "measurement.external_latent_posterior"
+route = "antecedent_estimate.measurement.external_latent_posterior.nonlinear_outcome"
+algorithm_provenance = [
+  "provenance/measurement.external_latent_posterior.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.external_latent_posterior.berkson_noise.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Conjugate normal world X~N(0,1), W=X+N(0,1), Y=1+2X+N(0,1); posterior given W (mean W/2, var 1/2) and given (W,Y) (precision 6); n=4000 draws=100 / n=3000 draws=30."
+expected_values = "slope 2 by posterior mean (single draw about 1) and by Rubin combination."
+tolerance = "4 reported SE plus 0.03 finite-draw allowance"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.external_latent_posterior.artifact_replay.artifact"
+provider_trust = "external_provider_posterior; attested or exact-request verified, never native"
+exact_request_verification = "object_level_verification_or_labelled_attestation_required"
+
+[[cell]]
+id = "measurement.external_latent_posterior"
+route = "antecedent_estimate.measurement.external_latent_posterior.differential_by_population"
+algorithm_provenance = [
+  "provenance/measurement.external_latent_posterior.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.external_latent_posterior.berkson_noise.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Conjugate normal world X~N(0,1), W=X+N(0,1), Y=1+2X+N(0,1); posterior given W (mean W/2, var 1/2) and given (W,Y) (precision 6); n=4000 draws=100 / n=3000 draws=30."
+expected_values = "slope 2 by posterior mean (single draw about 1) and by Rubin combination."
+tolerance = "4 reported SE plus 0.03 finite-draw allowance"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.external_latent_posterior.artifact_replay.artifact"
+provider_trust = "external_provider_posterior; attested or exact-request verified, never native"
+exact_request_verification = "object_level_verification_or_labelled_attestation_required"
+
+[[cell]]
+id = "measurement.external_latent_posterior"
+route = "antecedent_estimate.measurement.external_latent_posterior.differential_by_time"
+algorithm_provenance = [
+  "provenance/measurement.external_latent_posterior.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.external_latent_posterior.berkson_noise.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Conjugate normal world X~N(0,1), W=X+N(0,1), Y=1+2X+N(0,1); posterior given W (mean W/2, var 1/2) and given (W,Y) (precision 6); n=4000 draws=100 / n=3000 draws=30."
+expected_values = "slope 2 by posterior mean (single draw about 1) and by Rubin combination."
+tolerance = "4 reported SE plus 0.03 finite-draw allowance"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.external_latent_posterior.artifact_replay.artifact"
+provider_trust = "external_provider_posterior; attested or exact-request verified, never native"
+exact_request_verification = "object_level_verification_or_labelled_attestation_required"
+
+[[cell]]
+id = "measurement.external_latent_posterior"
+route = "antecedent_estimate.measurement.external_latent_posterior.other_population"
+algorithm_provenance = [
+  "provenance/measurement.external_latent_posterior.toml",
+]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "measurement.external_latent_posterior.berkson_noise.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Conjugate normal world X~N(0,1), W=X+N(0,1), Y=1+2X+N(0,1); posterior given W (mean W/2, var 1/2) and given (W,Y) (precision 6); n=4000 draws=100 / n=3000 draws=30."
+expected_values = "slope 2 by posterior mean (single draw about 1) and by Rubin combination."
+tolerance = "4 reported SE plus 0.03 finite-draw allowance"
+calibration = "exact_or_point_only_no_interval; interval route closed pending measurement of the whole measurement-plus-estimation method"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "measurement.external_latent_posterior.artifact_replay.artifact"
+provider_trust = "external_provider_posterior; attested or exact-request verified, never native"
+exact_request_verification = "object_level_verification_or_labelled_attestation_required"
+
+[[cell]]
+id = "counterfactual.transport_general"
+route = "antecedent_identify.identify_counterfactual_transport"
+algorithm_provenance = ["provenance/counterfactual.transport_general.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "counterfactual.transport_general.named_cases.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Finite structural models enumerated by an independent oracle with no dependence on the identifier: ternary-mediator nonlinear mediation with a shifted covariate law, a confounded two-source model with source observational and do(X) laws and a target marginal, a front-door model with a latent district, a recanting-witness model with its alternative family, and selection on the outcome with its alternative family."
+expected_values = "Exact enumerated probabilities of nested and conditional counterfactual events in the target population (dyadic, so exact in f64); identification classes identified, proven obstruction, missing evidence and undefined zero support as stated in each fixture's derivation."
+tolerance = "absolute 1e-12 on probabilities; exact classes and rational witness values"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "counterfactual.transport_general.artifact_roundtrip.artifact"
+provider_trust = "native_exact_finite_laws_with_population_regime_snapshot_binding; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "counterfactual.transport_general"
+route = "antecedent_estimate.evaluate_counterfactual_transport"
+algorithm_provenance = ["provenance/counterfactual.transport_general.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "counterfactual.transport_general.named_cases.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Finite structural models enumerated by an independent oracle with no dependence on the identifier: ternary-mediator nonlinear mediation with a shifted covariate law, a confounded two-source model with source observational and do(X) laws and a target marginal, a front-door model with a latent district, a recanting-witness model with its alternative family, and selection on the outcome with its alternative family."
+expected_values = "Exact enumerated probabilities of nested and conditional counterfactual events in the target population (dyadic, so exact in f64); identification classes identified, proven obstruction, missing evidence and undefined zero support as stated in each fixture's derivation."
+tolerance = "absolute 1e-12 on probabilities; exact classes and rational witness values"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "counterfactual.transport_general.artifact_roundtrip.artifact"
+provider_trust = "native_exact_finite_laws_with_population_regime_snapshot_binding; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "counterfactual.transport_general"
+route = "antecedent_identify.verify_counterfactual_transport_witness"
+algorithm_provenance = ["provenance/counterfactual.transport_general.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "counterfactual.transport_general.named_cases.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Finite structural models enumerated by an independent oracle with no dependence on the identifier: ternary-mediator nonlinear mediation with a shifted covariate law, a confounded two-source model with source observational and do(X) laws and a target marginal, a front-door model with a latent district, a recanting-witness model with its alternative family, and selection on the outcome with its alternative family."
+expected_values = "Exact enumerated probabilities of nested and conditional counterfactual events in the target population (dyadic, so exact in f64); identification classes identified, proven obstruction, missing evidence and undefined zero support as stated in each fixture's derivation."
+tolerance = "absolute 1e-12 on probabilities; exact classes and rational witness values"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "counterfactual.transport_general.artifact_roundtrip.artifact"
+provider_trust = "native_exact_finite_laws_with_population_regime_snapshot_binding; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"

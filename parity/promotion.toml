@@ -9468,3 +9468,1079 @@ activation_disposition = "retain_existing_point_only_route_no_inferential_guaran
 allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
 measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
 truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent/tests/smoothed_dose_lifecycle.rs::smoothed_dose_posterior_mean_stays_at_the_known_truth; it covers the named fixture in that test, not a population-level calibration grid."
+
+[[record]]
+id = "mechanism_composition.acyclic_joint_model"
+capability = "mechanism_composition.acyclic_joint_model"
+status = "frozen"
+consumer_question = "Do independently fitted conditional mechanisms establish one coherent acyclic joint law, and what does that law say under intervention, with parameter uncertainty propagated only under a declared dependence?"
+theorem = "Pearl (2009) ch. 1 and 7: an acyclic structural model composes mechanisms into one joint law (Markov factorization; truncated factorization under do). Bollen (1989) ch. 2: the implied mean and covariance of a linear structural system are path sums of the structural coefficients. Pearl and Bareinboim (2014): a mechanism of a variable with no selection arrow into it is invariant across the populations of the selection diagram. Composition is exact given the declared mechanisms; nothing is inferred about units, populations, shared causes or dependence. The first-order delta method propagates a declared parameter covariance to a linear contrast of interventional means and omits second-order terms. NOT inherited: any coverage or interval guarantee."
+reference = "provenance/mechanism_composition.acyclic_joint_model.toml"
+guarantee = "exact_given_declared_mechanisms_point_only"
+graph_class = "Static acyclic directed graph over named variables; linear-Gaussian additive-noise mechanisms with declared unit-variance Gaussian shared latents and loadings, or finite-discrete conditional tables; one family per composition."
+population_semantics = "One target population and regime. A mechanism fitted in another population or regime is admitted only through a declared selection diagram with no arrow into its variable or an explicit invariance assumption; otherwise refused."
+evidence_family = "Independently fitted conditional mechanisms with owning fit or binding identity, evidence identity, fitted parent domains, units and transforms, and optional marginal parameter covariance. Cross-mechanism posterior dependence is a separate declaration."
+provider = "antecedent_model::compose (executable joint model); antecedent_contract::mechanism_composition (semantic coordinates and refusals); antecedent_io_core::mechanism_composition_artifact (replay)."
+estimand = "Joint law of all variables, interventional mean/covariance (linear-Gaussian) or interventional distribution (finite), and a first-order parameter-covariance variance of a linear contrast of interventional means."
+inference_claim = "point_only"
+owners = ["antecedent-model", "antecedent-contract", "antecedent-io-core"]
+identity_inputs = ["canonical (listing-order independent) mechanisms with numbers as IEEE bit patterns", "parent bindings: variable, units, transform, fitted domain", "population, regime, origin, fit and evidence identities", "declared graph, selection diagrams, invariance assumptions", "declared shared latents and loadings", "declared posterior dependence", "the query"]
+wire_changes = ["Additive: mechanism_composition_v1 artifact v1 reusing the mechanism slot wire for linear-Gaussian mechanisms; premises digest over premises and query; result stored as bit patterns and replayed."]
+compatibility = "Additive. No existing artifact, model or route changes."
+search = false
+bounds = { max_mechanisms = 64, max_parents_per_mechanism = 16, max_latents = 32, max_finite_states = 1048576, max_sample_cells = 67108864, cancellation = true }
+inference_inventory_disposition = "point_output_listed_unmeasured"
+refusals = [
+  { code = "invalid_argument", detail = "mechanism_composition.shape_invalid_table", when = "A declared table or numeric field is malformed." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.units_mismatch", when = "A producer's units differ from the units its consumer was fitted in." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_composition.population_undeclared_transport", when = "A mechanism fitted in another population has no declared selection diagram or invariance." },
+  { code = "graph_invalid", detail = "mechanism_composition.cycle_directed_cycle", when = "The declared composition has a directed cycle." },
+  { code = "graph_invalid", detail = "mechanism_composition.parents_declared_graph_mismatch", when = "A mechanism's parent set differs from the declared graph." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.support_not_contained", when = "A producer's output support is not inside the consumer's fitted domain." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.latent_shared_with_absent_mechanism", when = "A shared latent cause is shared with a mechanism that is not in the composition." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.uncertainty_meaning_mismatch", when = "Mechanism uncertainty laws do not share one meaning." },
+  { code = "mechanism_composition_incoherent", detail = "mechanism_composition.provenance_missing_artifact", when = "A mechanism has no bound fit or binding identity." },
+  { code = "joint_law_required", detail = "mechanism_composition.posterior_dependence_unknown", when = "An uncertainty claim over several mechanisms has no declared dependence." },
+  { code = "cell_not_licensed", detail = "mechanism_composition.interval_route_closed", when = "An interval or posterior for a composed functional is requested; only a parameter-covariance variance exists and no coverage is measured." },
+]
+routes = [
+  { name = "antecedent_contract.check_mechanism_composition", stage = "prepare", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_model.compose_linear_gaussian", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_model.compose_finite_tables", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_io.consume_mechanism_composition_artifact", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_model.compose_parameter_uncertainty_delta", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true },
+]
+fixtures = [
+  { id = "mechanism_composition.acyclic_joint_model.hand_computed_gaussian_chain.positive", role = "positive", intent = "Total covariance and interventional laws of a three-variable linear-Gaussian chain equal the hand-computed path algebra.", evidence_test = "crates/antecedent-model/tests/mechanism_composition.rs", evidence_assertion = "composition_matches_the_hand_computed_gaussian_scm" },
+  { id = "mechanism_composition.acyclic_joint_model.enumerated_finite_scm.positive", role = "positive", intent = "A composition of finite tables equals an independent brute-force enumeration and the hand-computed interventional probabilities.", evidence_test = "crates/antecedent-model/tests/mechanism_composition.rs", evidence_assertion = "composition_matches_the_enumerated_finite_scm" },
+  { id = "mechanism_composition.acyclic_joint_model.declared_covariance_versus_independence.positive", role = "positive", intent = "The delta-method variance under independence and under a declared cross-mechanism or joint covariance differ by the hand-computed amount.", evidence_test = "crates/antecedent-model/tests/mechanism_composition.rs", evidence_assertion = "independent_assumption_and_declared_covariance_give_different_checked_variances" },
+  { id = "mechanism_composition.acyclic_joint_model.incompatible_valid_mechanisms.negative", role = "negative", intent = "Individually valid mechanisms with conflicting parent sets, units, transform, support, population, regime, cycle, duplicate or provenance defects are refused.", evidence_test = "crates/antecedent-model/tests/mechanism_composition.rs", evidence_assertion = "individually_valid_mechanisms_that_cannot_compose_are_refused" },
+  { id = "mechanism_composition.acyclic_joint_model.dropped_shared_latent.negative", role = "negative", intent = "A shared latent that is dropped, unreciprocated, unloaded or undeclared is refused instead of treated as independent.", evidence_test = "crates/antecedent-model/tests/mechanism_composition.rs", evidence_assertion = "shared_latent_covariance_is_exact_and_a_dropped_latent_is_refused" },
+  { id = "mechanism_composition.acyclic_joint_model.unknown_posterior_dependence.negative", role = "negative", intent = "Unknown posterior dependence refuses an uncertainty claim and a missing cross-covariance pair stays unknown.", evidence_test = "crates/antecedent-model/tests/mechanism_composition.rs", evidence_assertion = "unknown_posterior_dependence_stays_unknown_and_refuses_the_uncertainty_claim" },
+  { id = "mechanism_composition.acyclic_joint_model.misaligned_uncertainty.negative", role = "negative", intent = "Mixed uncertainty meanings, wrong parameter sets, non-PSD laws and shared evidence declared independent are refused.", evidence_test = "crates/antecedent-model/tests/mechanism_composition.rs", evidence_assertion = "misaligned_or_contradicted_uncertainty_is_refused_at_composition" },
+  { id = "mechanism_composition.acyclic_joint_model.finite_incompatible_tables.negative", role = "negative", intent = "Finite tables with a support gap, a missing parent configuration, a non-distribution row or a mixed family are refused.", evidence_test = "crates/antecedent-model/tests/mechanism_composition.rs", evidence_assertion = "finite_tables_that_cannot_compose_are_refused" },
+  { id = "mechanism_composition.acyclic_joint_model.semantic_population_admission.negative", role = "negative", intent = "A mechanism from another population needs a declared admission and a selection arrow into it refuses.", evidence_test = "crates/antecedent-contract/src/mechanism_composition.rs", evidence_assertion = "population_and_regime_differences_need_a_declared_admission" },
+  { id = "mechanism_composition.acyclic_joint_model.replay_and_semantic_mutation.artifact", role = "artifact", intent = "An independent consumer replays the artifact and refuses unresealed, resealed and forged edits.", evidence_test = "crates/antecedent-io-core/tests/mechanism_composition_artifact.rs", evidence_assertion = "semantic_mutations_are_refused" },
+  { id = "mechanism_composition.acyclic_joint_model.finite_artifact_replay.artifact", role = "artifact", intent = "The finite-composition artifact replays to the enumerated truth from bytes.", evidence_test = "crates/antecedent-io-core/tests/mechanism_composition_artifact.rs", evidence_assertion = "finite_composition_artifact_matches_the_enumerated_truth" },
+]
+[[record.inference_outputs]]
+id = "mechanism_composition.acyclic_joint_model.point.1"
+fields = ["joint law of the composed variables", "interventional mean and covariance or distribution"]
+method = "Closed-form path algebra (linear-Gaussian) or exact enumeration (finite); no estimation."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-model"
+operation_or_object = "antecedent_model::compose"
+public_producers = ["antecedent_model.compose_linear_gaussian", "antecedent_model.compose_finite_tables"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-model/src/compose.rs; crates/antecedent-model/tests/mechanism_composition.rs"
+truth_design = "Hand-computed closed form and independent enumeration in crates/antecedent-model/tests/mechanism_composition.rs; a finite fixture check, not a repeated-sampling study."
+truth_fixtures = ["mechanism_composition.acyclic_joint_model.hand_computed_gaussian_chain.positive"]
+nominal_level = "none; no interval or coverage target"
+acceptance_threshold = "Only the asserted value comparisons in crates/antecedent-model/tests/mechanism_composition.rs; no sampling-coverage threshold is claimed."
+measurement_suite = "crates/antecedent-model/tests/mechanism_composition.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Parameter-covariance variance only; it is not an interval, a posterior, or a sampling guarantee. Whole-method coverage is unmeasured and the interval route is closed with cell_not_licensed."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated; the declared point checks are the cited fixtures."
+[[record.inference_outputs]]
+id = "mechanism_composition.acyclic_joint_model.delta_variance.1"
+fields = ["parameter-covariance variance of a linear contrast of interventional means"]
+method = "First-order delta method over a declared aligned joint parameter law; no interval."
+implementation_status = "candidate_public_closed"
+owner = "antecedent-model"
+operation_or_object = "antecedent_model::compose"
+public_producers = []
+closed_producers = ["antecedent_model.compose_parameter_uncertainty_delta"]
+independent_consumers = []
+method_source = "crates/antecedent-model/src/compose/gaussian.rs"
+truth_design = "Hand-computed closed form and independent enumeration in crates/antecedent-model/tests/mechanism_composition.rs; a finite fixture check, not a repeated-sampling study."
+truth_fixtures = ["mechanism_composition.acyclic_joint_model.declared_covariance_versus_independence.positive"]
+nominal_level = "none; no interval or coverage target"
+acceptance_threshold = "Only the asserted value comparisons in crates/antecedent-model/tests/mechanism_composition.rs; no sampling-coverage threshold is claimed."
+measurement_suite = "unallocated"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Parameter-covariance variance only; it is not an interval, a posterior, or a sampling guarantee. Whole-method coverage is unmeasured and the interval route is closed with cell_not_licensed."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated; the declared point checks are the cited fixtures."
+
+[[record]]
+id = "evidence_ledger.overlap_accounting"
+capability = "evidence_ledger.overlap_accounting"
+status = "frozen"
+consumer_question = "Which observations do two pieces of evidence share, and how many does a combined result count once?"
+theorem = "Overlap is set arithmetic over declared row-level observation identities: two sources are independent when both observation sets are known and disjoint, shared when they intersect, and unknown when either set is undeclared (an empty declared set overlaps nothing). A result counts the union of its sources' observations once; the slots a naive count would add beyond the union are reported as repeated. Lineage (duplicate, transform, subset, prior plus likelihood, derived from used data) is checked against the declared rows and resolves undeclared rows from parents. Unknown overlap is never promoted to independent."
+reference = "provenance/evidence_ledger.overlap_accounting.toml"
+guarantee = "exact_set_arithmetic_over_declared_observation_identities_no_inference"
+graph_class = "No graph. Evidence sources are observation sets, experiments, priors, fitted models and external claims with declared row identities and lineage."
+population_semantics = "Whatever population the declared observations were drawn from; the ledger compares identities and does not reason about populations except through a transport identity."
+evidence_family = "Overlapping observation sets of 100, 100 and 10 rows sharing 50 (hand count: 210 declared slots, 160 distinct, 50 repeated); duplicates, transforms, power priors and external claims built from the same rows."
+provider = "antecedent_contract::evidence_ledger::EvidenceLedger"
+estimand = "overlap relation and once-counted observation mass of a set of sources"
+inference_claim = "none"
+owners = ["antecedent-contract", "antecedent-io-core"]
+identity_inputs = ["source kind, label, sorted observation identities, lineage and transport identity", "operation identity chained to the previous operation"]
+wire_changes = ["New artifact kind evidence_ledger_v1 (operations with chained identities, effects and optional syntheses)."]
+compatibility = "Additive. No existing claim, composition or artifact identity changes; the ledger is a new runtime object."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "evidence_double_counted", detail = "evidence_ledger.duplicate_source", when = "The same source (same content identity) is added to the ledger a second time." },
+  { code = "evidence_double_counted", detail = "evidence_ledger.duplicate_row", when = "One observation appears more than once inside a single declared source." },
+  { code = "evidence_double_counted", detail = "evidence_ledger.repeated_source", when = "A source is listed more than once in one combination or among a derived source's inputs." },
+  { code = "evidence_double_counted", detail = "evidence_ledger.reentry_duplicate", when = "Two sources combined as independent evidence are an exact copy of one another." },
+  { code = "evidence_double_counted", detail = "evidence_ledger.reentry_transform", when = "Two sources combined as independent evidence rest on the same observations through a declared transform." },
+  { code = "evidence_double_counted", detail = "evidence_ledger.reentry_prior_plus_likelihood", when = "A prior (or posterior) carries observations that also enter as the likelihood." },
+  { code = "evidence_double_counted", detail = "evidence_ledger.reentry_derived_from_used_data", when = "An external claim or fitted model built from data already used is combined with that data as independent evidence." },
+  { code = "evidence_double_counted", detail = "evidence_ledger.shared_observations", when = "Sources whose declared observations overlap are pooled or borrowed as independent evidence." },
+  { code = "evidence_overlap_unknown", detail = "evidence_ledger.overlap_unknown", when = "The observations behind two sources are undeclared and independence would be assumed." },
+  { code = "invalid_argument", detail = "evidence_ledger.unknown_source", when = "A referenced source is not in the ledger." },
+  { code = "invalid_argument", detail = "evidence_ledger.lineage_rows_mismatch", when = "Declared observations contradict the declared lineage." },
+  { code = "invalid_argument", detail = "evidence_ledger.invalid_declaration", when = "A label, lineage, transport identity or assumption range is malformed." },
+  { code = "invalid_argument", detail = "evidence_ledger.limit_exceeded", when = "A ledger or combination bound is exceeded." },
+  { code = "route_not_supported", detail = "evidence_ledger.identity_mismatch", when = "An artifact's stored or retained identity differs from the recomputed one." },
+  { code = "invalid_argument", detail = "evidence_ledger.replay_mismatch", when = "A stored operation identity, effect, head or state digest does not replay." },
+  { code = "invalid_argument", detail = "evidence_ledger.synthesis_mismatch", when = "A stored synthesis does not match its ledger result or does not recompute." },
+]
+routes = [
+  { name = "antecedent.evidence_ledger.account_observations", stage = "evaluate", status = "closed", reason_code = "route_not_supported" },
+]
+fixtures = [
+  { id = "evidence_ledger.overlap_accounting.mass_accounting.positive", role = "positive", intent = "Overlapping 100/100/10-row sources: 210 slots, 160 distinct, 50 repeated; a duplicate adds slots, not observations.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "mass_accounting_counts_each_observation_once" },
+  { id = "evidence_ledger.overlap_accounting.duplicate_reentry.negative", role = "negative", intent = "A copy of a source pooled with it as independent evidence is refused as a duplicate re-entry.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "a_duplicate_re_entering_is_refused" },
+  { id = "evidence_ledger.overlap_accounting.transform_reentry.negative", role = "negative", intent = "A transform of the same observations is refused as a transform re-entry.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "a_transform_re_entering_is_refused" },
+  { id = "evidence_ledger.overlap_accounting.prior_plus_likelihood_reentry.negative", role = "negative", intent = "A power prior built from the likelihood's data, and a posterior beside its own likelihood, are refused.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "prior_plus_likelihood_re_entry_is_refused", shared_evidence = true },
+  { id = "evidence_ledger.overlap_accounting.external_claim_from_used_data.negative", role = "negative", intent = "A claim built from already-used data (by lineage and by declared rows) is refused.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "an_external_claim_built_from_used_data_is_refused" },
+  { id = "evidence_ledger.overlap_accounting.unknown_overlap.negative", role = "negative", intent = "Undeclared observations stay unknown: independent pooling and a diagonal covariance refuse; a range is labelled.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "unknown_overlap_is_never_promoted_to_independent" },
+  { id = "evidence_ledger.overlap_accounting.same_evidence_twice.negative", role = "negative", intent = "The same source identity and a repeated row are refused.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "the_same_evidence_is_not_added_twice_and_rows_are_not_repeated_in_a_source" },
+  { id = "evidence_ledger.overlap_accounting.lineage_rows.negative", role = "negative", intent = "Rows that contradict a declared duplicate or subset lineage are refused.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "lineage_must_agree_with_declared_rows" },
+  { id = "evidence_ledger.overlap_accounting.result_identity.invariance", role = "invariance", intent = "Permuting the sources of a combination leaves the result identity unchanged.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "a_result_identity_ignores_the_order_of_its_sources" },
+  { id = "evidence_ledger.overlap_accounting.replay.artifact", role = "artifact", intent = "An edited stored value changes the identity or fails the consumer's replay.", evidence_test = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs", evidence_assertion = "an_unresealed_edit_changes_the_identity_or_fails_replay" },
+  { id = "evidence_ledger.overlap_accounting.resealed_declaration.artifact", role = "artifact", intent = "A resealed edit of a source's observations no longer replays.", evidence_test = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs", evidence_assertion = "a_resealed_declaration_edit_is_refused_on_replay" },
+  { id = "evidence_ledger.overlap_accounting.retained_identity.artifact", role = "artifact", intent = "A consistent artifact of another history fails the independently retained identity.", evidence_test = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs", evidence_assertion = "a_consistently_resealed_artifact_of_another_history_fails_the_retained_identity" },
+  { id = "evidence_ledger.overlap_accounting.versions.artifact", role = "artifact", intent = "Another version, feature marker, corruption and truncation are refused.", evidence_test = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs", evidence_assertion = "versions_markers_and_corruption_are_refused" },
+  { id = "evidence_ledger.overlap_accounting.smuggled_operation.artifact", role = "artifact", intent = "A combination the ledger refuses is refused again on replay even when resealed.", evidence_test = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs", evidence_assertion = "an_operation_the_ledger_refuses_cannot_be_smuggled_through_a_resealed_artifact" },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "evidence_ledger.statistical_pooling"
+capability = "evidence_ledger.statistical_pooling"
+status = "frozen"
+consumer_question = "What is the minimum-variance linear pooled estimate of study summaries with a stated covariance, and may these sources be pooled at all?"
+theorem = "Generalized least squares pooling (Aitken 1935) of study estimates y with sampling covariance S: the pooled estimate is 1'S^-1 y / 1'S^-1 1 with variance 1 / 1'S^-1 1; with a diagonal S this is inverse-variance fixed-effect pooling (Borenstein et al. 2009, ch. 11). The covariance is validated symmetric positive semidefinite and refused otherwise; a singular covariance has no weights and is refused. Weights may be negative under strong positive correlation and are reported. The ledger licenses the pooling only when its sources are pairwise independent (known, disjoint observations) or when a declared covariance with cross terms preserves their dependence; unknown overlap and shared rows declared independent are refused. The result is a point with its model-based variance; no interval or coverage is claimed."
+reference = "provenance/evidence_ledger.statistical_pooling.toml"
+guarantee = "gls_point_estimate_under_declared_covariance_point_only_no_interval"
+graph_class = "No graph. Summary data: one estimate per source and a covariance."
+population_semantics = "Studies assumed to estimate one common effect (fixed effect); heterogeneity is reported as Q and handled by the random-effects record."
+evidence_family = "Two studies y=(1,3), standard errors (1,2): rho=0 gives 7/5 and 4/5; rho=1/4 gives 5/4 and 15/16; rho=1/2 gives estimate 1, variance 1, weights (1,0). Hand-solved 2x2 systems."
+provider = "antecedent_stats::synthesis::fixed_effect_gls"
+estimand = "pooled study effect (fixed effect) and its model-based variance"
+inference_claim = "point_only"
+owners = ["antecedent-stats", "antecedent-contract", "antecedent-io-core"]
+identity_inputs = ["estimates", "covariance bits (digest bound into the ledger pooling declaration)", "ordered source identities"]
+wire_changes = ["None to existing artifacts. The evidence_ledger_v1 synthesis section binds estimates, covariance and values to a ledger result."]
+compatibility = "Additive."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "evidence_double_counted", detail = "evidence_ledger.repeated_source", when = "A source is listed more than once in one combination or among a derived source's inputs." },
+  { code = "evidence_double_counted", detail = "evidence_ledger.shared_observations", when = "Sources whose declared observations overlap are pooled or borrowed as independent evidence." },
+  { code = "evidence_double_counted", detail = "evidence_ledger.diagonal_covariance_shared_rows", when = "A covariance with no cross terms is declared for sources that share observations." },
+  { code = "evidence_overlap_unknown", detail = "evidence_ledger.overlap_unknown", when = "The observations behind two sources are undeclared and independence would be assumed." },
+  { code = "invalid_argument", detail = "evidence_ledger.invalid_declaration", when = "A label, lineage, transport identity or assumption range is malformed." },
+  { code = "invalid_argument", detail = "evidence_ledger.operation_arity", when = "A combination names too few sources, or a repeated use names no stage." },
+  { code = "evidence_source_withdrawn", detail = "evidence_ledger.result_not_valid", when = "A result that is stale, withdrawn or replaced is cited or used." },
+  { code = "route_not_supported", detail = "evidence_ledger.identity_mismatch", when = "An artifact's stored or retained identity differs from the recomputed one." },
+  { code = "invalid_argument", detail = "evidence_ledger.replay_mismatch", when = "A stored operation identity, effect, head or state digest does not replay." },
+  { code = "invalid_argument", detail = "evidence_ledger.synthesis_mismatch", when = "A stored synthesis does not match its ledger result or does not recompute." },
+]
+routes = [
+  { name = "antecedent.evidence_ledger.pool_summaries", stage = "evaluate", status = "closed", reason_code = "route_not_supported" },
+]
+fixtures = [
+  { id = "evidence_ledger.statistical_pooling.gls_two_study.positive", role = "positive", intent = "Hand-solved two-study GLS at rho 0, 1/4, 1/2 equals the library, including a zero weight at rho = s_min/s_max.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "generalized_least_squares_matches_the_two_study_closed_form" },
+  { id = "evidence_ledger.statistical_pooling.inverse_variance.truth", role = "truth", intent = "Inverse-variance pooling: estimate 7/5, variance 4/5, Q 4/5.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "inverse_variance_pooling_and_q_match_hand_values" },
+  { id = "evidence_ledger.statistical_pooling.shared_rows_as_independent.negative", role = "negative", intent = "Pooling sources that share rows as independent evidence is refused.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "undeclared_lineage_with_shared_rows_and_repeated_sources_are_refused" },
+  { id = "evidence_ledger.statistical_pooling.non_psd_covariance.negative", role = "negative", intent = "Non-PSD, singular, asymmetric and non-finite covariances are refused.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "covariance_must_be_positive_semidefinite_and_definite" },
+  { id = "evidence_ledger.statistical_pooling.covariance_with_cross_terms.positive", role = "positive", intent = "Pooling with a declared covariance carrying cross terms is licensed and counts shared rows once.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "a_registered_result_records_the_once_counted_mass", shared_evidence = true },
+  { id = "evidence_ledger.statistical_pooling.study_order.invariance", role = "invariance", intent = "Permuting studies and the covariance leaves the pooled estimate, variance and Q unchanged.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "pooling_is_invariant_to_study_order" },
+  { id = "evidence_ledger.statistical_pooling.resealed_value.artifact", role = "artifact", intent = "A resealed edit of a stored pooled value is refused by recomputation.", evidence_test = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs", evidence_assertion = "a_resealed_synthesis_value_edit_is_refused" },
+]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "evidence_ledger.statistical_pooling.point.1"
+fields = ["pooled study effect (fixed effect) and its model-based variance"]
+method = "Generalized least squares pooling by Cholesky solve of the validated covariance; inverse-variance pooling for a diagonal one."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-stats"
+operation_or_object = "antecedent_stats::synthesis::fixed_effect_gls"
+public_producers = []
+closed_producers = ["antecedent.evidence_ledger.pool_summaries"]
+independent_consumers = []
+method_source = "crates/antecedent-stats/src/synthesis.rs; crates/antecedent-contract/src/evidence_ledger.rs"
+truth_design = "Hand-solved closed forms and brute-force or numerical-integration oracles in crates/antecedent-stats/tests/synthesis_oracle.rs; finite fixture checks, not a repeated-sampling study."
+truth_fixtures = ["evidence_ledger.statistical_pooling.gls_two_study.positive", "evidence_ledger.statistical_pooling.inverse_variance.truth", "evidence_ledger.statistical_pooling.covariance_with_cross_terms.positive"]
+nominal_level = "none; point-only value with no interval or coverage target"
+acceptance_threshold = "Asserted values within the stated absolute tolerances in crates/antecedent-stats/tests/synthesis_oracle.rs; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-stats/tests/synthesis_oracle.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes a point value (or an assumption range) only. No interval, posterior or coverage statement is licensed: the interval route is closed under evidence_ledger.pooled_interval until whole-method coverage is measured. The public facade route is not opened by this record."
+activation_disposition = "frozen_record_rust_producer_implemented_public_route_closed"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The declared point checks are the oracle tests in crates/antecedent-stats/tests/synthesis_oracle.rs."
+
+[[record]]
+id = "evidence_ledger.random_effects"
+capability = "evidence_ledger.random_effects"
+status = "frozen"
+consumer_question = "What is the between-study variance and the random-effects pooled mean of independent study summaries?"
+theorem = "DerSimonian-Laird moment estimator tau^2 = max(0, (Q - (k-1)) / C) with Q = sum w (y - mu_FE)^2, w = 1/v and C = W - sum w^2 / W, and restricted maximum likelihood tau^2 from the first stationary point of the restricted likelihood above zero (score 1/2 [sum w^2 (y-mu)^2 - sum w + sum w^2 / W], bisected on a doubling bracket). The pooled mean uses weights 1/(v + tau^2); its variance is conditional on the estimated tau^2 and does not carry the uncertainty of tau^2. I^2 = max(0, (Q - df)/Q). For two studies both estimators equal (d^2 - (v1+v2))/2. Independent sources only; the ledger refuses overlapping or unknown sources. Point values only: no interval is claimed."
+reference = "provenance/evidence_ledger.random_effects.toml"
+guarantee = "random_effects_point_estimate_conditional_variance_no_interval"
+graph_class = "No graph. Summary data: one estimate and variance per source."
+population_semantics = "Study-specific true effects drawn from one normal distribution (random-effects model)."
+evidence_family = "y=(0,2,6), v=(1,2,4): Q=52/7, C=1, tau^2=38/7, mu=3330/1457, variance 25740/10199, I^2=19/26; REML tau^2 verified against a likelihood grid."
+provider = "antecedent_stats::synthesis::random_effects_dersimonian_laird"
+estimand = "between-study variance and random-effects pooled mean with variance conditional on tau^2"
+inference_claim = "point_only"
+owners = ["antecedent-stats", "antecedent-contract", "antecedent-io-core"]
+identity_inputs = ["estimates", "variances", "estimator name"]
+wire_changes = ["Synthesis section of evidence_ledger_v1."]
+compatibility = "Additive."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "evidence_double_counted", detail = "evidence_ledger.shared_observations", when = "Sources whose declared observations overlap are pooled or borrowed as independent evidence." },
+  { code = "evidence_overlap_unknown", detail = "evidence_ledger.overlap_unknown", when = "The observations behind two sources are undeclared and independence would be assumed." },
+  { code = "invalid_argument", detail = "evidence_ledger.operation_arity", when = "A combination names too few sources, or a repeated use names no stage." },
+  { code = "route_not_supported", detail = "evidence_ledger.identity_mismatch", when = "An artifact's stored or retained identity differs from the recomputed one." },
+  { code = "invalid_argument", detail = "evidence_ledger.replay_mismatch", when = "A stored operation identity, effect, head or state digest does not replay." },
+  { code = "invalid_argument", detail = "evidence_ledger.synthesis_mismatch", when = "A stored synthesis does not match its ledger result or does not recompute." },
+]
+routes = [
+  { name = "antecedent.evidence_ledger.random_effects", stage = "evaluate", status = "closed", reason_code = "route_not_supported" },
+]
+fixtures = [
+  { id = "evidence_ledger.random_effects.dersimonian_laird.positive", role = "positive", intent = "Hand derivation with exact fractions: tau^2 38/7, estimate 3330/1457.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "dersimonian_laird_matches_the_hand_derivation" },
+  { id = "evidence_ledger.random_effects.reml_grid.truth", role = "truth", intent = "REML tau^2 equals the maximiser of the restricted log-likelihood on a 1e-4 grid and an independent bisection.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "reml_matches_a_likelihood_grid" },
+  { id = "evidence_ledger.random_effects.two_study_closed_form.truth", role = "truth", intent = "Two-study REML and DL both equal (d^2 - (v1+v2))/2.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "two_study_reml_and_moments_agree_with_the_closed_form" },
+  { id = "evidence_ledger.random_effects.single_study.negative", role = "negative", intent = "One study cannot estimate between-study variance.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "random_effects_need_two_studies" },
+  { id = "evidence_ledger.random_effects.truncation.invariance", role = "invariance", intent = "Q below its degrees of freedom truncates tau^2 at zero and equals the fixed-effect result.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "homogeneous_studies_truncate_tau_squared_at_zero" },
+  { id = "evidence_ledger.random_effects.fresh_consumer.artifact", role = "artifact", intent = "A fresh consumer replays the ledger and recomputes the random-effects values.", evidence_test = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs", evidence_assertion = "a_fresh_consumer_replays_the_ledger_and_recomputes_the_syntheses" },
+]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "evidence_ledger.random_effects.point.1"
+fields = ["between-study variance and random-effects pooled mean with variance conditional on tau^2"]
+method = "Moment (DerSimonian-Laird) and restricted-likelihood (bisection of the score) estimators of tau^2 with random-effects weights."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-stats"
+operation_or_object = "antecedent_stats::synthesis::random_effects_dersimonian_laird"
+public_producers = []
+closed_producers = ["antecedent.evidence_ledger.random_effects"]
+independent_consumers = []
+method_source = "crates/antecedent-stats/src/synthesis.rs; crates/antecedent-contract/src/evidence_ledger.rs"
+truth_design = "Hand-solved closed forms and brute-force or numerical-integration oracles in crates/antecedent-stats/tests/synthesis_oracle.rs; finite fixture checks, not a repeated-sampling study."
+truth_fixtures = ["evidence_ledger.random_effects.dersimonian_laird.positive", "evidence_ledger.random_effects.reml_grid.truth", "evidence_ledger.random_effects.two_study_closed_form.truth"]
+nominal_level = "none; point-only value with no interval or coverage target"
+acceptance_threshold = "Asserted values within the stated absolute tolerances in crates/antecedent-stats/tests/synthesis_oracle.rs; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-stats/tests/synthesis_oracle.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes a point value (or an assumption range) only. No interval, posterior or coverage statement is licensed: the interval route is closed under evidence_ledger.pooled_interval until whole-method coverage is measured. The public facade route is not opened by this record."
+activation_disposition = "frozen_record_rust_producer_implemented_public_route_closed"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The declared point checks are the oracle tests in crates/antecedent-stats/tests/synthesis_oracle.rs."
+
+[[record]]
+id = "evidence_ledger.hierarchical_borrowing"
+capability = "evidence_ledger.hierarchical_borrowing"
+status = "frozen"
+consumer_question = "What do the studies' partially pooled effects and the common mean look like under a normal-normal hierarchical model with a declared prior on the between-study standard deviation?"
+theorem = "y_i | theta_i ~ N(theta_i, v_i), theta_i | mu, tau ~ N(mu, tau^2), mu flat or normal, tau from a declared finite prior. Given tau the posteriors of mu and theta_i are normal in closed form (mu: precision sum 1/(v_i+tau^2) plus the prior precision; theta_i: shrinkage factor B_i = tau^2/(tau^2+v_i), mean B_i y_i + (1-B_i) mu_hat, variance B_i v_i + (1-B_i)^2 Var(mu)); the marginal likelihood of tau is the product of normal densities with mu integrated out. The reported posterior mean and variance are the exact finite mixture over the declared support (Rubin 1981; prior on tau as discussed in Gelman 2006). A continuous prior is an approximation by its support. The ledger requires the likelihood sources pairwise independent and any prior's data origin disjoint from them. The output is a posterior mean and variance: point-only, no credible interval or calibration claim."
+reference = "provenance/evidence_ledger.hierarchical_borrowing.toml"
+guarantee = "hierarchical_normal_posterior_mean_variance_exact_for_declared_finite_prior_point_only"
+graph_class = "No graph. Summary data with a declared exchangeable-study model."
+population_semantics = "Study effects exchangeable draws from one normal population distribution."
+evidence_family = "y=(0,2,6), v=(1,2,4) at tau=1: mean 56/31, variance 30/31; a three-point tau prior against Simpson integration of the marginal likelihood."
+provider = "antecedent_stats::synthesis::hierarchical_normal_borrowing"
+estimand = "posterior mean and variance of the common mean and of each study effect under the declared prior"
+inference_claim = "point_only"
+owners = ["antecedent-stats", "antecedent-contract", "antecedent-io-core"]
+identity_inputs = ["estimates", "variances", "mean prior", "tau support and probabilities"]
+wire_changes = ["Synthesis section of evidence_ledger_v1."]
+compatibility = "Additive."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "evidence_double_counted", detail = "evidence_ledger.reentry_prior_plus_likelihood", when = "A prior (or posterior) carries observations that also enter as the likelihood." },
+  { code = "evidence_double_counted", detail = "evidence_ledger.shared_observations", when = "Sources whose declared observations overlap are pooled or borrowed as independent evidence." },
+  { code = "evidence_overlap_unknown", detail = "evidence_ledger.overlap_unknown", when = "The observations behind two sources are undeclared and independence would be assumed." },
+  { code = "invalid_argument", detail = "evidence_ledger.operation_arity", when = "A combination names too few sources, or a repeated use names no stage." },
+  { code = "invalid_argument", detail = "evidence_ledger.invalid_declaration", when = "A label, lineage, transport identity or assumption range is malformed." },
+  { code = "route_not_supported", detail = "evidence_ledger.identity_mismatch", when = "An artifact's stored or retained identity differs from the recomputed one." },
+  { code = "invalid_argument", detail = "evidence_ledger.replay_mismatch", when = "A stored operation identity, effect, head or state digest does not replay." },
+  { code = "invalid_argument", detail = "evidence_ledger.synthesis_mismatch", when = "A stored synthesis does not match its ledger result or does not recompute." },
+]
+routes = [
+  { name = "antecedent.evidence_ledger.hierarchical_borrowing", stage = "evaluate", status = "closed", reason_code = "route_not_supported" },
+]
+fixtures = [
+  { id = "evidence_ledger.hierarchical_borrowing.single_tau.positive", role = "positive", intent = "Single-tau closed form: mean 56/31, variance 30/31, shrunk study effects.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "hierarchical_borrowing_at_a_single_tau_matches_the_closed_form" },
+  { id = "evidence_ledger.hierarchical_borrowing.mixture.truth", role = "truth", intent = "Three-point tau prior equals Simpson integration of the marginal likelihood, flat and normal mean prior.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "hierarchical_mixture_matches_numerical_integration" },
+  { id = "evidence_ledger.hierarchical_borrowing.prior_declaration.negative", role = "negative", intent = "Empty, mismatched, negative, unnormalised and non-positive prior declarations are refused.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "hierarchical_prior_declarations_are_validated" },
+  { id = "evidence_ledger.hierarchical_borrowing.power_prior_reentry.negative", role = "negative", intent = "A power prior built from the likelihood's data is refused as double counting.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "prior_plus_likelihood_re_entry_is_refused", shared_evidence = true },
+  { id = "evidence_ledger.hierarchical_borrowing.unlicensed_method.artifact", role = "artifact", intent = "A synthesis whose method the ledger operation does not license is refused.", evidence_test = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs", evidence_assertion = "a_synthesis_method_that_the_ledger_operation_does_not_license_is_refused" },
+]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "evidence_ledger.hierarchical_borrowing.point.1"
+fields = ["posterior mean and variance of the common mean and of each study effect under the declared prior"]
+method = "Exact finite mixture over the declared tau support of closed-form normal conditionals."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-stats"
+operation_or_object = "antecedent_stats::synthesis::hierarchical_normal_borrowing"
+public_producers = []
+closed_producers = ["antecedent.evidence_ledger.hierarchical_borrowing"]
+independent_consumers = []
+method_source = "crates/antecedent-stats/src/synthesis.rs; crates/antecedent-contract/src/evidence_ledger.rs"
+truth_design = "Hand-solved closed forms and brute-force or numerical-integration oracles in crates/antecedent-stats/tests/synthesis_oracle.rs; finite fixture checks, not a repeated-sampling study."
+truth_fixtures = ["evidence_ledger.hierarchical_borrowing.single_tau.positive", "evidence_ledger.hierarchical_borrowing.mixture.truth"]
+nominal_level = "none; point-only value with no interval or coverage target"
+acceptance_threshold = "Asserted values within the stated absolute tolerances in crates/antecedent-stats/tests/synthesis_oracle.rs; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-stats/tests/synthesis_oracle.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes a point value (or an assumption range) only. No interval, posterior or coverage statement is licensed: the interval route is closed under evidence_ledger.pooled_interval until whole-method coverage is measured. The public facade route is not opened by this record."
+activation_disposition = "frozen_record_rust_producer_implemented_public_route_closed"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The declared point checks are the oracle tests in crates/antecedent-stats/tests/synthesis_oracle.rs."
+
+[[record]]
+id = "evidence_ledger.transport_provenance"
+capability = "evidence_ledger.transport_provenance"
+status = "frozen"
+consumer_question = "Does a claim carry its transport identity so that it is never counted as native target data?"
+theorem = "A ledger source may carry a transport identity: source populations, target population, selection-diagram digest and declared assumptions. A source with a transport identity cannot fill a native slot, a source without one cannot fill a transported slot, and a native source and a transported claim that share observations (or are the same source) are refused as counting one source twice, even when a covariance is declared. A result that contains transported sources reports their transport identities; it is not native target evidence. The ledger records and checks identity only: it does not identify or estimate a transported effect (selection diagrams in the sense of Pearl and Bareinboim 2014 belong to the transport routes)."
+reference = "provenance/evidence_ledger.transport_provenance.toml"
+guarantee = "transport_identity_bookkeeping_no_inference"
+graph_class = "The selection diagram is carried as a digest; no graph is interpreted by the ledger."
+population_semantics = "Declared source populations and one declared target population."
+evidence_family = "Native cohort of 30 rows and a claim transported from two trials built from 60 disjoint rows (licensed); the same rows as native and transported (refused)."
+provider = "antecedent_contract::evidence_ledger::EvidenceLedger::combine"
+estimand = "registration of a transported claim beside native target evidence with its identity retained"
+inference_claim = "none"
+owners = ["antecedent-contract", "antecedent-io-core"]
+identity_inputs = ["transport identity digest (sorted populations, target, selection diagram digest, sorted assumptions)"]
+wire_changes = ["Transport section of a source declaration in evidence_ledger_v1."]
+compatibility = "Additive."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "evidence_double_counted", detail = "evidence_ledger.native_and_transported", when = "The same source, or sources sharing observations, would count both as native target data and as a transported claim." },
+  { code = "invalid_argument", detail = "evidence_ledger.transport_identity_missing", when = "A claim offered as transported carries no transport identity." },
+  { code = "invalid_argument", detail = "evidence_ledger.transported_as_native", when = "A claim carrying a transport identity is offered as native target data." },
+  { code = "evidence_overlap_unknown", detail = "evidence_ledger.overlap_unknown", when = "The observations behind two sources are undeclared and independence would be assumed." },
+  { code = "invalid_argument", detail = "evidence_ledger.invalid_declaration", when = "A label, lineage, transport identity or assumption range is malformed." },
+  { code = "route_not_supported", detail = "evidence_ledger.identity_mismatch", when = "An artifact's stored or retained identity differs from the recomputed one." },
+  { code = "invalid_argument", detail = "evidence_ledger.replay_mismatch", when = "A stored operation identity, effect, head or state digest does not replay." },
+  { code = "invalid_argument", detail = "evidence_ledger.synthesis_mismatch", when = "A stored synthesis does not match its ledger result or does not recompute." },
+]
+routes = [
+  { name = "antecedent.evidence_ledger.transport_claim", stage = "consume", status = "closed", reason_code = "route_not_supported" },
+]
+fixtures = [
+  { id = "evidence_ledger.transport_provenance.transported_identity.positive", role = "positive", intent = "A transported claim is registered with its identity and never as native data.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "a_transported_claim_never_counts_as_native_target_data" },
+  { id = "evidence_ledger.transport_provenance.native_and_transported.negative", role = "negative", intent = "The same source counted as native and transported is refused even with a declared covariance.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "the_same_source_native_and_transported_is_refused_even_with_a_covariance" },
+  { id = "evidence_ledger.transport_provenance.export.artifact", role = "artifact", intent = "The transport identity survives export; dropping it and resealing is refused.", evidence_test = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs", evidence_assertion = "a_transported_claim_keeps_its_transport_identity_through_export" },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "evidence_ledger.evidence_reuse"
+capability = "evidence_ledger.evidence_reuse"
+status = "frozen"
+consumer_question = "May a result be cited again in a second analysis without its observations being counted twice?"
+theorem = "A reuse names an existing valid result and reports exactly that result's once-counted mass; citing it n times never multiplies its observations. A stale, withdrawn or replaced result is refused until it is recomputed. Reuse is a distinct operation from pooling and from repeated use of the same observations: it adds no new evidence."
+reference = "provenance/evidence_ledger.evidence_reuse.toml"
+guarantee = "reuse_counts_cited_result_once_no_inference"
+graph_class = "No graph."
+population_semantics = "That of the cited result."
+evidence_family = "A pooled result of 50 distinct observations cited twice: both citations report 50."
+provider = "antecedent_contract::evidence_ledger::EvidenceLedger::combine"
+estimand = "mass accounting of a citation of an existing result"
+inference_claim = "none"
+owners = ["antecedent-contract", "antecedent-io-core"]
+identity_inputs = ["cited result identity", "citation label"]
+wire_changes = ["Combination section of evidence_ledger_v1."]
+compatibility = "Additive."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "evidence_source_withdrawn", detail = "evidence_ledger.result_not_valid", when = "A result that is stale, withdrawn or replaced is cited or used." },
+  { code = "invalid_argument", detail = "evidence_ledger.unknown_result", when = "A referenced result is not in the ledger, or was already replaced." },
+  { code = "invalid_argument", detail = "evidence_ledger.duplicate_result", when = "The same combination is registered twice." },
+  { code = "route_not_supported", detail = "evidence_ledger.identity_mismatch", when = "An artifact's stored or retained identity differs from the recomputed one." },
+  { code = "invalid_argument", detail = "evidence_ledger.replay_mismatch", when = "A stored operation identity, effect, head or state digest does not replay." },
+  { code = "invalid_argument", detail = "evidence_ledger.synthesis_mismatch", when = "A stored synthesis does not match its ledger result or does not recompute." },
+]
+routes = [
+  { name = "antecedent.evidence_ledger.reuse_result", stage = "consume", status = "closed", reason_code = "route_not_supported" },
+]
+fixtures = [
+  { id = "evidence_ledger.evidence_reuse.cited_once.positive", role = "positive", intent = "Two citations of a 50-observation result report 50 each.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "evidence_reuse_counts_the_cited_result_once" },
+  { id = "evidence_ledger.evidence_reuse.stale_result.negative", role = "negative", intent = "A result made stale by an update is refused until recomputed.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "a_reuse_of_a_stale_result_is_refused" },
+  { id = "evidence_ledger.evidence_reuse.export.artifact", role = "artifact", intent = "A fresh consumer reproduces the citation's once-counted mass.", evidence_test = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs", evidence_assertion = "evidence_reuse_survives_export_with_mass_counted_once" },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "evidence_ledger.repeated_observation_use"
+capability = "evidence_ledger.repeated_observation_use"
+status = "frozen"
+consumer_question = "May the same observations serve a later stage of one workflow, and is the later result independent confirmation?"
+theorem = "A repeated-use result is licensed only as a declaration: the named sources must have known observations (so their repeated use can be accounted), the result counts each observation once, and it is flagged data_reuse. The flag is inherited by every citation. It is never independent confirmation and is not a pooling of the stages."
+reference = "provenance/evidence_ledger.repeated_observation_use.toml"
+guarantee = "repeated_use_declared_flagged_counted_once_no_inference"
+graph_class = "No graph."
+population_semantics = "That of the sources."
+evidence_family = "One 30-row source used again at a confirmation stage: 30 distinct observations, data_reuse true; an undeclared-observation source is refused."
+provider = "antecedent_contract::evidence_ledger::EvidenceLedger::combine"
+estimand = "declaration that observations are used again, with once-counted mass"
+inference_claim = "none"
+owners = ["antecedent-contract", "antecedent-io-core"]
+identity_inputs = ["sorted source identities", "stage name"]
+wire_changes = ["Combination section of evidence_ledger_v1."]
+compatibility = "Additive."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "evidence_overlap_unknown", detail = "evidence_ledger.overlap_unknown", when = "The observations behind two sources are undeclared and independence would be assumed." },
+  { code = "invalid_argument", detail = "evidence_ledger.operation_arity", when = "A combination names too few sources, or a repeated use names no stage." },
+  { code = "evidence_source_withdrawn", detail = "evidence_ledger.source_withdrawn", when = "A request rests on a source that is withdrawn, directly or through its lineage." },
+  { code = "route_not_supported", detail = "evidence_ledger.identity_mismatch", when = "An artifact's stored or retained identity differs from the recomputed one." },
+  { code = "invalid_argument", detail = "evidence_ledger.replay_mismatch", when = "A stored operation identity, effect, head or state digest does not replay." },
+  { code = "invalid_argument", detail = "evidence_ledger.synthesis_mismatch", when = "A stored synthesis does not match its ledger result or does not recompute." },
+]
+routes = [
+  { name = "antecedent.evidence_ledger.repeat_observations", stage = "consume", status = "closed", reason_code = "route_not_supported" },
+]
+fixtures = [
+  { id = "evidence_ledger.repeated_observation_use.flagged.positive", role = "positive", intent = "Repeated use is flagged, counts once and stays flagged when cited.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "repeated_observation_use_is_flagged_and_stays_flagged_when_cited" },
+  { id = "evidence_ledger.repeated_observation_use.unknown_observations.negative", role = "negative", intent = "Sources with undeclared observations cannot be repeatedly used; borrowing and transport refuse too.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "unknown_dependence_is_refused_by_every_operation_that_needs_it_known" },
+  { id = "evidence_ledger.repeated_observation_use.export.artifact", role = "artifact", intent = "The data_reuse flag survives export and replay.", evidence_test = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs", evidence_assertion = "repeated_observation_use_survives_export_flagged" },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "evidence_ledger.revision"
+capability = "evidence_ledger.revision"
+status = "frozen"
+consumer_question = "What happens to dependent claims when a source is updated, replaced, withdrawn or superseded?"
+theorem = "Each ledger operation (add, update, replace, withdraw, supersede, revalidate-downstream) is applied atomically, has an identity chained to the previous operation, and reports its downstream effect as a classification of every result: still_valid (nothing it rests on changed), recompute (an input changed and a successor exists) or withdrawn (an input it cannot do without is gone). Dependence flows through source lineage. Update only grows a source, replace corrects it, supersede replaces a model or claim; a retired source cannot enter new results, a stale result cannot be cited, and a recomputation retires the result it replaces while preserving it. The classification enum is claim-agnostic so later invalidation graphs can reuse it."
+reference = "provenance/evidence_ledger.revision.toml"
+guarantee = "revalidation_classification_exact_over_declared_lineage_no_inference"
+graph_class = "No causal graph; a lineage and result dependence structure only."
+population_semantics = "Not applicable."
+evidence_family = "Three studies with pools, a citation and a model built from study 1: withdrawing study 1 withdraws the two-study pool and the model pool, marks the three-study pool for recompute and leaves the unaffected pool valid."
+provider = "antecedent_contract::evidence_ledger::EvidenceLedger::apply"
+estimand = "downstream classification of results after a source operation"
+inference_claim = "none"
+owners = ["antecedent-contract", "antecedent-io-core"]
+identity_inputs = ["operation kind and target", "replacement source identity", "withdrawal reason", "previous operation identity"]
+wire_changes = ["Operations and effects of evidence_ledger_v1."]
+compatibility = "Additive."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "evidence_source_withdrawn", detail = "evidence_ledger.source_withdrawn", when = "A request rests on a source that is withdrawn, directly or through its lineage." },
+  { code = "evidence_source_withdrawn", detail = "evidence_ledger.source_superseded", when = "A request rests on a source that was superseded, replaced or updated; its successor must be used." },
+  { code = "evidence_source_withdrawn", detail = "evidence_ledger.result_not_valid", when = "A result that is stale, withdrawn or replaced is cited or used." },
+  { code = "invalid_argument", detail = "evidence_ledger.update_drops_rows", when = "An update removes observations the earlier source held." },
+  { code = "invalid_argument", detail = "evidence_ledger.supersede_kind_mismatch", when = "A supersession replaces something that is not a model or claim, or a different kind." },
+  { code = "invalid_argument", detail = "evidence_ledger.kind_mismatch", when = "An update or replacement changes the kind of a source." },
+  { code = "invalid_argument", detail = "evidence_ledger.unknown_source", when = "A referenced source is not in the ledger." },
+  { code = "invalid_argument", detail = "evidence_ledger.invalid_declaration", when = "A label, lineage, transport identity or assumption range is malformed." },
+  { code = "evidence_overlap_unknown", detail = "evidence_ledger.overlap_unknown", when = "The observations behind two sources are undeclared and independence would be assumed." },
+  { code = "evidence_double_counted", detail = "evidence_ledger.duplicate_source", when = "The same source (same content identity) is added to the ledger a second time." },
+  { code = "route_not_supported", detail = "evidence_ledger.identity_mismatch", when = "An artifact's stored or retained identity differs from the recomputed one." },
+  { code = "invalid_argument", detail = "evidence_ledger.replay_mismatch", when = "A stored operation identity, effect, head or state digest does not replay." },
+  { code = "invalid_argument", detail = "evidence_ledger.synthesis_mismatch", when = "A stored synthesis does not match its ledger result or does not recompute." },
+]
+routes = [
+  { name = "antecedent.evidence_ledger.revise_source", stage = "consume", status = "closed", reason_code = "route_not_supported" },
+]
+fixtures = [
+  { id = "evidence_ledger.revision.withdrawal.positive", role = "positive", intent = "Withdrawal classifies dependents (withdrawn, recompute, still valid) and refuses new work on the source.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "withdrawing_a_source_classifies_and_refuses_dependents" },
+  { id = "evidence_ledger.revision.supersession.lifecycle", role = "lifecycle", intent = "Supersession marks dependents for recompute; the recomputation replaces and preserves the old result.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "superseding_a_model_marks_dependents_for_recompute_and_a_recompute_replaces_them" },
+  { id = "evidence_ledger.revision.update.lifecycle", role = "lifecycle", intent = "An update marks every dependent for recompute.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "updating_a_source_marks_dependents_for_recompute" },
+  { id = "evidence_ledger.revision.operation_rules.negative", role = "negative", intent = "Update only grows; supersede is for models and claims; kinds must match.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "update_replace_and_supersede_have_distinct_rules" },
+  { id = "evidence_ledger.revision.unverifiable_update.negative", role = "negative", intent = "Monotone growth cannot be shown for undeclared observations.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "an_update_of_unknown_observations_is_not_verifiable" },
+  { id = "evidence_ledger.revision.atomic_refusal.invariance", role = "invariance", intent = "A refused operation leaves the state digest and log unchanged.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "a_refused_operation_leaves_the_ledger_unchanged" },
+  { id = "evidence_ledger.revision.operation_identity.invariance", role = "invariance", intent = "Operation identities are distinct, chained and replay to the same head and state.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "operation_identities_chain_and_replay_identically" },
+  { id = "evidence_ledger.revision.revalidation_export.artifact", role = "artifact", intent = "Standings after a withdrawal survive export and a consumer refuses to build on the withdrawn source.", evidence_test = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs", evidence_assertion = "withdrawal_and_supersession_survive_export_and_revalidate_dependents" },
+  { id = "evidence_ledger.revision.tampered_classification.artifact", role = "artifact", intent = "A resealed edit of a stored classification is refused.", evidence_test = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs", evidence_assertion = "a_resealed_classification_edit_after_a_withdrawal_is_refused" },
+  { id = "evidence_ledger.revision.reordered_operations.artifact", role = "artifact", intent = "Reordered operations or an edited withdrawal reason are refused.", evidence_test = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs", evidence_assertion = "a_resealed_operation_reorder_or_reason_edit_is_refused" },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "evidence_ledger.dependence_range"
+capability = "evidence_ledger.dependence_range"
+status = "frozen"
+consumer_question = "How far can the pooled estimate and its variance move when the studies' sampling correlation is unknown but lies in a declared interval?"
+theorem = "Studies with standard errors s_i and one common pairwise correlation rho have covariance D R(rho) D. With A = sum 1/s, B = sum 1/s^2, P = sum y/s^2, Q = sum y/s, m = (k-1)B - A^2 and m_P = (k-1)P - AQ, GLS gives mu(rho) = (P + m_P rho)/(B + m rho) and V(rho) = (1-rho)(1+(k-1)rho)/(B + m rho). mu is a Moebius function of rho, monotone on the range, so its extremes are at the endpoints; dV/drho has the sign of -(k-1) m rho^2 - 2(k-1) B rho + ((k-2) B - m), whose real roots inside the range are evaluated beside the endpoints, so the extremes of V are exact (an interior maximum equal to the smaller variance occurs for two studies at rho = s_min/s_max). The range must lie strictly inside the positive definite interval (-1/(k-1), 1) and have lo < hi. The result is a structural envelope labelled assumption_range: never a point, interval or posterior, and it does not turn unknown dependence into independence."
+reference = "provenance/evidence_ledger.dependence_range.toml"
+guarantee = "exact_envelope_over_declared_correlation_range_assumption_range_only"
+graph_class = "No graph. Summary data with one declared common correlation interval."
+population_semantics = "Studies estimating one common effect with unknown, equicorrelated sampling error."
+evidence_family = "y=(1,3), s=(1,2), rho in [0,0.9]: estimate in [-1/7, 7/5]; variance in [19/35, 1] with the maximum at rho=1/2 (interior)."
+provider = "antecedent_stats::synthesis::pooled_dependence_envelope"
+estimand = "minimum and maximum pooled estimate and variance over the declared correlation interval"
+inference_claim = "assumption_range"
+owners = ["antecedent-stats", "antecedent-contract", "antecedent-io-core"]
+identity_inputs = ["estimates", "standard errors", "range bounds (bit patterns)"]
+wire_changes = ["Synthesis section of evidence_ledger_v1; the ledger result is labelled assumption_range."]
+compatibility = "Additive."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "evidence_ledger.invalid_declaration", when = "A label, lineage, transport identity or assumption range is malformed." },
+  { code = "evidence_overlap_unknown", detail = "evidence_ledger.overlap_unknown", when = "The observations behind two sources are undeclared and independence would be assumed." },
+  { code = "invalid_argument", detail = "evidence_ledger.operation_arity", when = "A combination names too few sources, or a repeated use names no stage." },
+  { code = "route_not_supported", detail = "evidence_ledger.identity_mismatch", when = "An artifact's stored or retained identity differs from the recomputed one." },
+  { code = "invalid_argument", detail = "evidence_ledger.replay_mismatch", when = "A stored operation identity, effect, head or state digest does not replay." },
+  { code = "invalid_argument", detail = "evidence_ledger.synthesis_mismatch", when = "A stored synthesis does not match its ledger result or does not recompute." },
+]
+routes = [
+  { name = "antecedent.evidence_ledger.dependence_range", stage = "evaluate", status = "closed", reason_code = "route_not_supported" },
+]
+fixtures = [
+  { id = "evidence_ledger.dependence_range.interior_extreme.positive", role = "positive", intent = "Hand-solved envelope with an interior variance maximum at rho = 1/2 and monotone estimate.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "the_envelope_finds_an_interior_variance_extreme" },
+  { id = "evidence_ledger.dependence_range.brute_force.truth", role = "truth", intent = "Exact extremes agree with a 20001-point full-matrix GLS grid for k = 2, 3, 4.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "the_envelope_agrees_with_brute_force_grids" },
+  { id = "evidence_ledger.dependence_range.study_order.invariance", role = "invariance", intent = "Permuting studies leaves the envelope unchanged.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "the_envelope_is_invariant_to_study_order" },
+  { id = "evidence_ledger.dependence_range.degenerate_range.negative", role = "negative", intent = "lo >= hi, rho = 1, ranges outside the definite interval and non-finite bounds are refused.", evidence_test = "crates/antecedent-stats/tests/synthesis_oracle.rs", evidence_assertion = "the_envelope_refuses_degenerate_and_non_definite_ranges" },
+  { id = "evidence_ledger.dependence_range.ledger_range.negative", role = "negative", intent = "The ledger refuses an assumption range outside the definite interval.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "assumption_ranges_must_stay_inside_the_definite_interval" },
+  { id = "evidence_ledger.dependence_range.range_binding.artifact", role = "artifact", intent = "An edited range or covariance no longer binds to the ledger result.", evidence_test = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs", evidence_assertion = "a_resealed_covariance_or_range_edit_no_longer_binds_to_the_ledger_result" },
+]
+inference_inventory_disposition = "point_output_listed_unmeasured"
+[[record.inference_outputs]]
+id = "evidence_ledger.dependence_range.point.1"
+fields = ["minimum and maximum pooled estimate and variance over the declared correlation interval"]
+method = "Closed-form GLS under equicorrelation; extremes at the endpoints and the real roots of the variance stationarity quadratic inside the range."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-stats"
+operation_or_object = "antecedent_stats::synthesis::pooled_dependence_envelope"
+public_producers = []
+closed_producers = ["antecedent.evidence_ledger.dependence_range"]
+independent_consumers = []
+method_source = "crates/antecedent-stats/src/synthesis.rs; crates/antecedent-contract/src/evidence_ledger.rs"
+truth_design = "Hand-solved closed forms and brute-force or numerical-integration oracles in crates/antecedent-stats/tests/synthesis_oracle.rs; finite fixture checks, not a repeated-sampling study."
+truth_fixtures = ["evidence_ledger.dependence_range.interior_extreme.positive", "evidence_ledger.dependence_range.brute_force.truth"]
+nominal_level = "none; point-only value with no interval or coverage target"
+acceptance_threshold = "Asserted values within the stated absolute tolerances in crates/antecedent-stats/tests/synthesis_oracle.rs; no sampling-coverage or posterior-calibration threshold is claimed."
+measurement_suite = "crates/antecedent-stats/tests/synthesis_oracle.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes a point value (or an assumption range) only. No interval, posterior or coverage statement is licensed: the interval route is closed under evidence_ledger.pooled_interval until whole-method coverage is measured. The public facade route is not opened by this record."
+activation_disposition = "frozen_record_rust_producer_implemented_public_route_closed"
+allocation_status = "no_coverage_ids_allocated_point_only_unmeasured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated. The declared point checks are the oracle tests in crates/antecedent-stats/tests/synthesis_oracle.rs."
+
+[[record]]
+id = "evidence_ledger.pooled_interval"
+capability = "evidence_ledger.pooled_interval"
+status = "frozen"
+consumer_question = "Can an interval, posterior or coverage statement be reported for pooled or borrowed evidence?"
+theorem = "Closed adjacent variant of the pooling, random-effects, borrowing and dependence-range records. The ledger licenses a point statement (or an assumption range) for pooled evidence and no interval, posterior or coverage statement: none has measured whole-method coverage, including the effect of estimated between-study variance and of declared dependence. The request is refused with a typed reason that names the point-only claim class."
+reference = "provenance/evidence_ledger.pooled_interval.toml"
+guarantee = "interval_route_closed_pending_measurement"
+graph_class = "No graph."
+population_semantics = "Not applicable."
+evidence_family = "An independent pool, a covariance pool, a hierarchical borrowing and an assumption range, each asked for an interval."
+provider = "antecedent_contract::evidence_ledger::EvidenceLedger::request_interval"
+estimand = "none: the request is refused"
+inference_claim = "none"
+owners = ["antecedent-contract", "antecedent-io-core"]
+identity_inputs = ["result identity"]
+wire_changes = ["None."]
+compatibility = "Additive; opening the route later is its own record with whole-method coverage measurement."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "cell_not_licensed", detail = "evidence_ledger.interval_not_licensed", when = "An interval, posterior or coverage statement is requested from pooled or ledger evidence." },
+  { code = "invalid_argument", detail = "evidence_ledger.unknown_result", when = "A referenced result is not in the ledger, or was already replaced." },
+]
+routes = [
+  { name = "antecedent.evidence_ledger.pooled_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "evidence_ledger.pooled_interval.point_fallback.positive", role = "positive", intent = "The point-only claim class is what a licensed pooling reports.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "a_registered_result_records_the_once_counted_mass", shared_evidence = true },
+  { id = "evidence_ledger.pooled_interval.interval_request.negative", role = "negative", intent = "An interval request on pooled evidence is refused as cell_not_licensed naming the point-only class.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "no_interval_or_posterior_is_licensed_from_pooled_evidence" },
+  { id = "evidence_ledger.pooled_interval.exported_results.artifact", role = "artifact", intent = "Every exported result refuses an interval request in a fresh consumer.", evidence_test = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs", evidence_assertion = "an_exported_result_carries_no_interval_license" },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "measurement.model_contract"
+capability = "measurement.model_contract"
+status = "frozen"
+consumer_question = "Can a measured column be related to the latent scientific quantity it is offered for, bound to a population, regime, arm and representation version, with differential error declared and proxy-as-construct refused?"
+theorem = "Semantic contract; no identification or coverage claim. Measurement-error models relate an indicator W to a latent X by a stated error structure (Carroll, Ruppert, Stefanski and Crainiceanu 2006, ch. 1-2); a result for X is conditional on that structure, and non-differential error means W is independent of the outcome given X. Nothing here inherits a theorem: it freezes which request may use a model."
+reference = "docs/measurement-models.md"
+guarantee = "typed_measurement_semantics_only_no_identification_or_coverage"
+graph_class = "Not applicable: the contract binds a measured column to a construct and imposes no graph class; identification of any downstream estimand belongs to the identification layer."
+population_semantics = "Each model names its population, regime and arm; error that differs by arm is an explicit declared case; a representation changes version only through an explicit mapping that carries values and not intervention meaning unless declared."
+evidence_family = "A declared or validation-sample-estimated measurement model, with parameter provenance recorded as declared, validation, replicate or external provider evidence."
+provider = "antecedent_core::measurement_model (typed kinds, model, identities); antecedent_contract::measurement (request checks, route cards, posterior binding); antecedent_io_core::measurement_model_wire (artifact)."
+estimand = "Not an estimand: the contract licenses or refuses a downstream corrected functional."
+inference_claim = "point_only"
+owners = [
+  "antecedent-core",
+  "antecedent-contract",
+  "antecedent-stats",
+  "antecedent-estimate",
+  "antecedent-io-core",
+]
+identity_inputs = [
+  "route, indicator and construct identities and kinds, error structure and parameter bit patterns (measurement identity)",
+  "population, regime and arm (binding identity)",
+  "representation coordinate system and version (representation identity)",
+  "parameter provenance (evidence identity)",
+]
+wire_changes = [
+  "Additive: measurement_model_v1 artifact v1 carrying the model, its four separately frozen identities and an optional replayable corrected-functional result; no interval field.",
+]
+compatibility = "Additive. A typed measurement model is kept separate from the schema's MeasurementSpec flag, so no schema digest or existing artifact changes; the measurement_model_v1 artifact is new."
+search = false
+bounds = { cancellation = true }
+inference_inventory_disposition = "point_output_listed_unmeasured"
+refusals = [
+  { code = "measurement_model_invalid", detail = "measurement_model.indicator_observed", when = "An observed column is given an error model." },
+  { code = "differential_error_not_pooled", detail = "measurement_model.structure_parameters", when = "The declared error structure disagrees with the parameter layout." },
+  { code = "differential_error_not_pooled", detail = "measurement_model.differential_axis_unsupported", when = "Error differing by population or time has no bounded route." },
+  { code = "representation_mapping_required", detail = "measurement_model.mapping_endpoints", when = "A mapping does not run between the two versions." },
+  { code = "representation_mapping_required", detail = "measurement_model.intervention_meaning_not_carried", when = "Intervention meaning requested through a values-only mapping." },
+  { code = "measurement_posterior_not_trusted", detail = "measurement_model.posterior_native_trust", when = "A provider posterior claims native trust." },
+  { code = "cell_not_licensed", detail = "measurement_model.operation_not_licensed", when = "An operation outside the route's allowed set is requested." },
+]
+routes = [
+  { name = "antecedent_core.measurement_model.MeasurementModel.validate", stage = "prepare", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_contract.measurement.check_measurement_request", stage = "prepare", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_contract.measurement.check_representation_transfer", stage = "representation", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_contract.measurement.check_latent_posterior", stage = "prepare", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_io_core.measurement_model_wire.MeasurementModelArtifact.from_bytes", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_estimate.measurement.interval_not_licensed", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "estimator_and_contract_refuse_the_same_requests_with_the_same_details" },
+]
+fixtures = [
+  { id = "measurement.model_contract.matching_request.positive", role = "positive", intent = "A request matching the model's construct, population, regime, arm, representation and structure is accepted and each route card lists assumptions, allowed and refused operations.", evidence_test = "crates/antecedent-contract/src/measurement.rs", evidence_assertion = "matching_request_is_accepted" },
+  { id = "measurement.model_contract.proxy_as_construct.negative", role = "negative", intent = "A proxy, learned representation or derived column offered as the construct, and the indicator named as the construct, are distinct refusals.", evidence_test = "crates/antecedent-contract/src/measurement.rs", evidence_assertion = "proxy_offered_as_construct_is_its_own_refusal" },
+  { id = "measurement.model_contract.representation_version.negative", role = "negative", intent = "A representation version change needs an explicit mapping; intervention meaning does not cross a relabeling and learned coordinates are not intervenable.", evidence_test = "crates/antecedent-contract/src/measurement.rs", evidence_assertion = "representation_version_change_needs_an_explicit_mapping" },
+  { id = "measurement.model_contract.differential_pooling.negative", role = "negative", intent = "A differential model is never analysed as non-differential and the reverse.", evidence_test = "crates/antecedent-contract/src/measurement.rs", evidence_assertion = "differential_and_non_differential_are_never_silently_pooled" },
+  { id = "measurement.model_contract.semantic_mutation.artifact", role = "artifact", intent = "A swapped sensitivity/specificity, population, regime or representation version is a different identity and an independent consumer refuses it.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "artifact_replays_independently_and_refuses_semantic_mutation" },
+  { id = "measurement.model_contract.posterior_binding.negative", role = "negative", intent = "A provider posterior needs an exactly matching object, the construct in the model's population and regime, and never native trust.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "a_latent_posterior_needs_an_exactly_matching_provider_object" },
+]
+
+[[record]]
+id = "measurement.classical_continuous_error"
+capability = "measurement.classical_continuous_error"
+status = "frozen"
+consumer_question = "With additive classical measurement error of known or validated variance in a continuous regressor, what is the corrected linear adjusted effect and its standard error including the error-variance uncertainty?"
+theorem = "Carroll, Ruppert, Stefanski and Crainiceanu (2006) ch. 3-4: with W = X + U, U independent of (X, Z, Y) with mean zero and variance sigma_u^2, the naive least-squares slope is attenuated by lambda = Var(X|Z)/(Var(X|Z)+sigma_u^2); the corrected score V(Y - V'b) + S b (S = diag(0, sigma_u^2/k, 0)) has root (M - mean S)^-1 r, which equals regression calibration for a linear outcome model. The standard error is the first-order delta method over the stacked corrected score and the error-variance estimate. Inherited: consistency for a linear model with error-free covariates. NOT inherited: any finite-sample or coverage guarantee, nonlinear outcome models."
+reference = "docs/measurement-models.md"
+guarantee = "corrected_linear_coefficient_point_with_uncalibrated_delta_method_se"
+graph_class = "Not applicable to the correction; the corrected coefficient is a causal effect only where the identification layer licenses the adjustment set and the linear model."
+population_semantics = "One population, regime and arm per model; a reliability measured elsewhere applies only under a declared invariance premise (refused here)."
+evidence_family = "Outcome, error-prone regressor (row means when replicated), error-free covariates, and a declared or validation-sample error variance with its standard error."
+provider = "antecedent_stats::measurement_error::LinearMoments; antecedent_estimate::measurement::correct_classical_linear_effect."
+estimand = "Coefficient of the latent regressor in E[Y | X, Z] = a + b X + g'Z, and linear functionals of the coefficient vector."
+inference_claim = "point_only"
+owners = [
+  "antecedent-core",
+  "antecedent-contract",
+  "antecedent-stats",
+  "antecedent-estimate",
+  "antecedent-io-core",
+]
+identity_inputs = [
+  "error variance and its standard error as bit patterns",
+  "reliability floor",
+  "model identity",
+  "outcome, regressor, covariates and replicate-count digest",
+]
+wire_changes = [
+  "Additive: the corrected functional is stored in measurement_model_v1 with its sufficient inputs for estimator-free replay; floats as bit patterns.",
+]
+compatibility = "Additive. A typed measurement model is kept separate from the schema's MeasurementSpec flag, so no schema digest or existing artifact changes; the measurement_model_v1 artifact is new."
+search = false
+bounds = { cancellation = true }
+inference_inventory_disposition = "point_output_listed_unmeasured"
+refusals = [
+  { code = "measurement_model_invalid", detail = "measurement_model.invalid_model", when = "A model is malformed: blank identity, parameters of another route or out of range." },
+  { code = "proxy_offered_as_construct", detail = "measurement_model.proxy_as_construct", when = "A proxy, learned representation or derived column is offered as the latent construct." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.population_mismatch", when = "The data population differs from the model's." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.regime_mismatch", when = "The data regime differs from the model's." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.arm_mismatch", when = "The data arm differs from the model's arm binding." },
+  { code = "representation_mapping_required", detail = "measurement_model.representation_unmapped", when = "The indicator representation version differs and no explicit mapping is supplied." },
+  { code = "route_not_supported", detail = "measurement_model.route_mismatch", when = "The model's route is not the entry point's route." },
+  { code = "differential_error_not_pooled", detail = "measurement_model.differential_declared", when = "A model declared differential is sent through the non-differential route." },
+  { code = "cancelled_no_claim", detail = "measurement_model.cancelled", when = "Cancelled before a corrected functional was formed." },
+  { code = "cell_not_licensed", detail = "measurement_model.interval_closed", when = "An interval is requested; no coverage record measures the whole method." },
+  { code = "measurement_not_identified", detail = "measurement_model.reliability_too_small", when = "Implied reliability is at or below the declared floor." },
+  { code = "design_rank_deficient", detail = "measurement_model.design_singular", when = "The observed design is rank deficient." },
+]
+routes = [
+  { name = "antecedent_estimate.measurement.correct_classical_linear_effect", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_estimate.measurement.interval_not_licensed.classical_continuous_error", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "estimator_and_contract_refuse_the_same_requests_with_the_same_details" },
+  { name = "antecedent_estimate.measurement.classical_continuous_error.nonlinear_outcome", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_license_them" },
+  { name = "antecedent_estimate.measurement.classical_continuous_error.differential_by_population", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
+  { name = "antecedent_estimate.measurement.classical_continuous_error.differential_by_time", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
+  { name = "antecedent_estimate.measurement.classical_continuous_error.other_population", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_license_them" },
+]
+fixtures = [
+  { id = "measurement.classical_continuous_error.attenuation_truth.truth", role = "truth", intent = "Simulated DGP with beta=2 and closed-form attenuation lambda: corrected coefficient within 4 reported SE of truth; the naive coefficient matches beta*lambda and is far from truth.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "classical_error_recovers_the_coefficient_and_the_naive_fit_is_attenuated" },
+  { id = "measurement.classical_continuous_error.closed_form_exact.positive", role = "positive", intent = "On an exact full-factorial design the corrected coefficient equals the truth to rounding.", evidence_test = "crates/antecedent-stats/src/measurement_error.rs", evidence_assertion = "closed_form_attenuation_is_removed_exactly" },
+  { id = "measurement.classical_continuous_error.regression_calibration_identity.truth", role = "truth", intent = "The corrected normal equations equal least squares on the calibrated regressor.", evidence_test = "crates/antecedent-stats/src/measurement_error.rs", evidence_assertion = "corrected_normal_equations_equal_regression_calibration" },
+  { id = "measurement.classical_continuous_error.variance_includes_parameters.positive", role = "positive", intent = "The added variance equals (d beta/d sigma^2)^2 Var(sigma^2), and a downstream linear functional uses the joint covariance.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "variance_includes_the_uncertainty_of_the_error_variance" },
+  { id = "measurement.classical_continuous_error.se_tracks_spread.truth", role = "truth", intent = "Over 300 seeded replications the mean reported SE is within 0.8-1.25 of the empirical spread of the estimates.", evidence_test = "crates/antecedent-stats/src/measurement_error.rs", evidence_assertion = "simulated_replicates_recover_truth_and_the_reported_se_matches_the_spread" },
+  { id = "measurement.classical_continuous_error.row_order.invariance", role = "invariance", intent = "Reversing row order leaves the estimate unchanged to rounding and the same inputs give identical bits.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "row_order_does_not_change_the_correction" },
+  { id = "measurement.classical_continuous_error.reliability_floor.negative", role = "negative", intent = "An error variance leaving no latent variance refuses with measurement_not_identified.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "reliability_at_or_below_the_floor_refuses_with_a_registered_code" },
+  { id = "measurement.classical_continuous_error.binding_mismatch.negative", role = "negative", intent = "Population, regime, arm and representation mismatches each refuse with their own detail.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "population_regime_arm_and_representation_must_match_the_data" },
+  { id = "measurement.classical_continuous_error.artifact_replay.artifact", role = "artifact", intent = "An independent consumer recomputes the point and SE from the stored moments and refuses a mutated model.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "artifact_replays_independently_and_refuses_semantic_mutation" },
+]
+
+[[record]]
+id = "measurement.repeated_measurements"
+capability = "measurement.repeated_measurements"
+status = "frozen"
+consumer_question = "With replicated error-prone measurements of a continuous regressor, what are the within/between variance components and ICC, and what is the corrected linear adjusted effect with the replicate-variance uncertainty propagated?"
+theorem = "Searle, Casella and McCulloch (1992) ch. 3: one-way random-effects ANOVA estimators MSW and (MSB-MSW)/n0 for unbalanced designs. Carroll et al. (2006) ch. 4: with replicates averaged, the row error variance is sigma_u^2/k_i and the same corrected score applies. The within variance is estimated from the analysis sample's own replicates and its influence function is retained in the covariance (a ratio-of-means linearization, distribution free). NOT inherited: normality-based F intervals for variance components or any coverage guarantee."
+reference = "docs/measurement-models.md"
+guarantee = "replicate_variance_components_and_corrected_linear_coefficient_point_with_uncalibrated_se"
+graph_class = "Not applicable to the correction; causal reading requires identification of the adjustment set."
+population_semantics = "One population, regime and arm per model; replicates must share the latent value and have independent equal-variance errors."
+evidence_family = "Outcome, flattened replicate values with per-unit counts, error-free covariates."
+provider = "antecedent_stats::measurement_error::replicate_variance_components; antecedent_estimate::measurement::correct_repeated_linear_effect."
+estimand = "Within variance, between variance and ICC; coefficient of the latent regressor in a linear outcome model."
+inference_claim = "point_only"
+owners = [
+  "antecedent-core",
+  "antecedent-contract",
+  "antecedent-stats",
+  "antecedent-estimate",
+  "antecedent-io-core",
+]
+identity_inputs = [
+  "replicated-unit minimum and reliability floor",
+  "model identity",
+  "replicate values, counts, outcome and covariates digest",
+]
+wire_changes = [
+  "Additive: the corrected functional is stored in measurement_model_v1 with its sufficient inputs for estimator-free replay; floats as bit patterns.",
+]
+compatibility = "Additive. A typed measurement model is kept separate from the schema's MeasurementSpec flag, so no schema digest or existing artifact changes; the measurement_model_v1 artifact is new."
+search = false
+bounds = { cancellation = true }
+inference_inventory_disposition = "point_output_listed_unmeasured"
+refusals = [
+  { code = "measurement_model_invalid", detail = "measurement_model.invalid_model", when = "A model is malformed: blank identity, parameters of another route or out of range." },
+  { code = "proxy_offered_as_construct", detail = "measurement_model.proxy_as_construct", when = "A proxy, learned representation or derived column is offered as the latent construct." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.population_mismatch", when = "The data population differs from the model's." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.regime_mismatch", when = "The data regime differs from the model's." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.arm_mismatch", when = "The data arm differs from the model's arm binding." },
+  { code = "representation_mapping_required", detail = "measurement_model.representation_unmapped", when = "The indicator representation version differs and no explicit mapping is supplied." },
+  { code = "route_not_supported", detail = "measurement_model.route_mismatch", when = "The model's route is not the entry point's route." },
+  { code = "differential_error_not_pooled", detail = "measurement_model.differential_declared", when = "A model declared differential is sent through the non-differential route." },
+  { code = "cancelled_no_claim", detail = "measurement_model.cancelled", when = "Cancelled before a corrected functional was formed." },
+  { code = "cell_not_licensed", detail = "measurement_model.interval_closed", when = "An interval is requested; no coverage record measures the whole method." },
+  { code = "measurement_not_identified", detail = "measurement_model.insufficient_replicates", when = "Fewer units with two or more replicates than declared, or no within-unit variance." },
+]
+routes = [
+  { name = "antecedent_estimate.measurement.correct_repeated_linear_effect", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_estimate.measurement.interval_not_licensed.repeated_measurements", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "estimator_and_contract_refuse_the_same_requests_with_the_same_details" },
+  { name = "antecedent_estimate.measurement.repeated_measurements.nonlinear_outcome", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_license_them" },
+  { name = "antecedent_estimate.measurement.repeated_measurements.differential_by_population", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
+  { name = "antecedent_estimate.measurement.repeated_measurements.differential_by_time", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
+  { name = "antecedent_estimate.measurement.repeated_measurements.other_population", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_license_them" },
+]
+fixtures = [
+  { id = "measurement.repeated_measurements.anova_closed_form.positive", role = "positive", intent = "Hand-computed unbalanced one-way ANOVA components, ICC and influence values match.", evidence_test = "crates/antecedent-stats/src/measurement_error.rs", evidence_assertion = "replicate_components_match_the_balanced_anova_closed_form" },
+  { id = "measurement.repeated_measurements.icc_and_recovery.truth", role = "truth", intent = "Simulated replicates recover ICC 2/3, within variance 0.5 and the coefficient within 4 SE; the naive slope is attenuated.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "repeated_measurements_estimate_the_icc_and_recover_the_coefficient" },
+  { id = "measurement.repeated_measurements.too_few_replicated.negative", role = "negative", intent = "Fewer replicated units than declared refuse with measurement_not_identified.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "too_few_replicated_units_refuse_with_measurement_not_identified" },
+  { id = "measurement.repeated_measurements.artifact_replay.artifact", role = "artifact", intent = "An independent consumer recomputes the stored moments and refuses a mutated model.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "artifact_replays_independently_and_refuses_semantic_mutation" },
+]
+
+[[record]]
+id = "measurement.binary_misclassification"
+capability = "measurement.binary_misclassification"
+status = "frozen"
+consumer_question = "With a binary outcome misclassified at known or validated sensitivity and specificity, what are the corrected prevalence and risk difference, with the sensitivity/specificity uncertainty propagated and arm-specific error kept separate?"
+theorem = "Rogan and Gladen (1978): pi = (p* + Sp - 1)/(Se + Sp - 1). For two exposure arms under non-differential error RD = (p1* - p0*)/J with J = Se + Sp - 1 (Youden's index); the delta-method variance adds RD^2 (Var Se + Var Sp)/J^2 to the binomial sampling variance and keeps the covariance shared rates induce between arms. Differential error uses arm-specific rates from independent validation samples. Refused when J is at or below the declared minimum. NOT inherited: any interval guarantee; corrected proportions are reported unclipped."
+reference = "docs/measurement-models.md"
+guarantee = "corrected_prevalence_and_risk_difference_point_with_uncalibrated_delta_method_se"
+graph_class = "Not applicable; the risk difference is a causal contrast only where exposure assignment is identified."
+population_semantics = "Rates are bound to a population, regime and arm; differential-by-arm is an explicit per-arm declaration, other axes refused."
+evidence_family = "Observed event counts per arm and sensitivity/specificity with their estimate variances (validation counts or declared)."
+provider = "antecedent_stats::measurement_error::corrected_prevalence and corrected_risk_difference_*; antecedent_estimate::measurement::correct_binary_*."
+estimand = "Latent prevalence and the two-arm risk difference of the latent condition."
+inference_claim = "point_only"
+owners = [
+  "antecedent-core",
+  "antecedent-contract",
+  "antecedent-stats",
+  "antecedent-estimate",
+  "antecedent-io-core",
+]
+identity_inputs = [
+  "sensitivity, specificity and their variances as bit patterns, per arm when differential",
+  "minimum Youden index",
+  "model identity",
+  "observed counts",
+]
+wire_changes = [
+  "Additive: the corrected functional is stored in measurement_model_v1 with its sufficient inputs for estimator-free replay; floats as bit patterns.",
+]
+compatibility = "Additive. A typed measurement model is kept separate from the schema's MeasurementSpec flag, so no schema digest or existing artifact changes; the measurement_model_v1 artifact is new."
+search = false
+bounds = { cancellation = true }
+inference_inventory_disposition = "point_output_listed_unmeasured"
+refusals = [
+  { code = "measurement_model_invalid", detail = "measurement_model.invalid_model", when = "A model is malformed: blank identity, parameters of another route or out of range." },
+  { code = "proxy_offered_as_construct", detail = "measurement_model.proxy_as_construct", when = "A proxy, learned representation or derived column is offered as the latent construct." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.population_mismatch", when = "The data population differs from the model's." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.regime_mismatch", when = "The data regime differs from the model's." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.arm_mismatch", when = "The data arm differs from the model's arm binding." },
+  { code = "representation_mapping_required", detail = "measurement_model.representation_unmapped", when = "The indicator representation version differs and no explicit mapping is supplied." },
+  { code = "route_not_supported", detail = "measurement_model.route_mismatch", when = "The model's route is not the entry point's route." },
+  { code = "differential_error_not_pooled", detail = "measurement_model.differential_declared", when = "A model declared differential is sent through the non-differential route." },
+  { code = "cancelled_no_claim", detail = "measurement_model.cancelled", when = "Cancelled before a corrected functional was formed." },
+  { code = "cell_not_licensed", detail = "measurement_model.interval_closed", when = "An interval is requested; no coverage record measures the whole method." },
+  { code = "measurement_not_identified", detail = "measurement_model.youden_too_small", when = "Youden index at or below the declared minimum." },
+  { code = "differential_error_not_pooled", detail = "measurement_model.differential_axis_unsupported", when = "Error differing by population or time has no bounded route." },
+]
+routes = [
+  { name = "antecedent_estimate.measurement.correct_binary_risk_difference", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_estimate.measurement.interval_not_licensed.binary_misclassification", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "estimator_and_contract_refuse_the_same_requests_with_the_same_details" },
+  { name = "antecedent_estimate.measurement.correct_binary_prevalence", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_estimate.measurement.binary_misclassification.exposure_misclassification", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_license_them" },
+  { name = "antecedent_estimate.measurement.binary_misclassification.differential_by_population", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
+  { name = "antecedent_estimate.measurement.binary_misclassification.differential_by_time", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
+  { name = "antecedent_estimate.measurement.binary_misclassification.other_population", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_license_them" },
+]
+fixtures = [
+  { id = "measurement.binary_misclassification.rogan_gladen_algebra.truth", role = "truth", intent = "Prevalence 0.3 under Se 0.9 / Sp 0.8 is recovered from p*=0.41 with the hand-computed variance including rate uncertainty.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "binary_prevalence_inverts_the_misclassification_algebra" },
+  { id = "measurement.binary_misclassification.differential_truth.truth", role = "truth", intent = "Per-arm rates recover RD 0.2 exactly while pooled rates miss it by more than 0.2.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "binary_risk_difference_recovers_truth_and_pooling_differential_error_fails" },
+  { id = "measurement.binary_misclassification.shared_rate_covariance.positive", role = "positive", intent = "Shared rates keep the arm covariance; the variance equals the hand calculation.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "shared_rates_keep_the_arm_covariance_that_split_rates_miss" },
+  { id = "measurement.binary_misclassification.youden.negative", role = "negative", intent = "Youden index at or below the declared minimum refuses with measurement_not_identified.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "youden_index_at_or_below_the_minimum_refuses" },
+  { id = "measurement.binary_misclassification.artifact_replay.artifact", role = "artifact", intent = "An independent consumer recomputes from counts and refuses swapped sensitivity and specificity.", evidence_test = "crates/antecedent-io-core/src/measurement_model_wire.rs", evidence_assertion = "a_swapped_sensitivity_and_specificity_is_refused" },
+]
+
+[[record]]
+id = "measurement.probabilistic_categorical"
+capability = "measurement.probabilistic_categorical"
+status = "frozen"
+consumer_question = "With categorical labels assigned under a declared confusion matrix, what are the corrected category proportions, expected counts and category outcome means, with confusion-matrix uncertainty propagated?"
+theorem = "pi = C^-1 p* for a column-stochastic confusion matrix C[observed, true] (the K-category extension of Rogan and Gladen 1978; its K=2 case is the Youden inversion, checked in tests). Observed-class outcome means obey ybar = Q mu with Q[j,k] = C[j,k] pi_k / p*_j. Variance is delta-method over multinomial observed proportions, independent class means and independent confusion columns; the outcome-mean Jacobian is a central finite difference of the exact map. Refused when the 1-norm condition number exceeds the declared bound. NOT inherited: coverage; per-unit calibrated probabilities are not consumed."
+reference = "docs/measurement-models.md"
+guarantee = "corrected_category_summaries_point_with_uncalibrated_delta_method_se"
+graph_class = "Not applicable; category outcome contrasts are associations unless identification licenses a causal reading."
+population_semantics = "One population, regime and arm per confusion matrix; non-differential only."
+evidence_family = "Observed-label counts with per-class outcome mean and variance, a declared or validation-count confusion matrix."
+provider = "antecedent_stats::measurement_error::corrected_categories; antecedent_estimate::measurement::correct_categorical."
+estimand = "True-category proportions, expected counts, outcome means and contrasts."
+inference_claim = "point_only"
+owners = [
+  "antecedent-core",
+  "antecedent-contract",
+  "antecedent-stats",
+  "antecedent-estimate",
+  "antecedent-io-core",
+]
+identity_inputs = [
+  "levels and confusion matrix bit patterns",
+  "validation column counts",
+  "condition bound",
+  "model identity",
+  "observed class summaries",
+]
+wire_changes = [
+  "Additive: the corrected functional is stored in measurement_model_v1 with its sufficient inputs for estimator-free replay; floats as bit patterns.",
+]
+compatibility = "Additive. A typed measurement model is kept separate from the schema's MeasurementSpec flag, so no schema digest or existing artifact changes; the measurement_model_v1 artifact is new."
+search = false
+bounds = { cancellation = true }
+inference_inventory_disposition = "point_output_listed_unmeasured"
+refusals = [
+  { code = "measurement_model_invalid", detail = "measurement_model.invalid_model", when = "A model is malformed: blank identity, parameters of another route or out of range." },
+  { code = "proxy_offered_as_construct", detail = "measurement_model.proxy_as_construct", when = "A proxy, learned representation or derived column is offered as the latent construct." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.population_mismatch", when = "The data population differs from the model's." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.regime_mismatch", when = "The data regime differs from the model's." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.arm_mismatch", when = "The data arm differs from the model's arm binding." },
+  { code = "representation_mapping_required", detail = "measurement_model.representation_unmapped", when = "The indicator representation version differs and no explicit mapping is supplied." },
+  { code = "route_not_supported", detail = "measurement_model.route_mismatch", when = "The model's route is not the entry point's route." },
+  { code = "differential_error_not_pooled", detail = "measurement_model.differential_declared", when = "A model declared differential is sent through the non-differential route." },
+  { code = "cancelled_no_claim", detail = "measurement_model.cancelled", when = "Cancelled before a corrected functional was formed." },
+  { code = "cell_not_licensed", detail = "measurement_model.interval_closed", when = "An interval is requested; no coverage record measures the whole method." },
+  { code = "measurement_not_identified", detail = "measurement_model.confusion_ill_conditioned", when = "The confusion matrix is singular, ill conditioned or leaves a latent category empty." },
+]
+routes = [
+  { name = "antecedent_estimate.measurement.correct_categorical", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_estimate.measurement.interval_not_licensed.probabilistic_categorical", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "estimator_and_contract_refuse_the_same_requests_with_the_same_details" },
+  { name = "antecedent_estimate.measurement.probabilistic_categorical.per_unit_soft_assignment", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_license_them" },
+  { name = "antecedent_estimate.measurement.probabilistic_categorical.differential_by_population", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
+  { name = "antecedent_estimate.measurement.probabilistic_categorical.differential_by_time", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
+  { name = "antecedent_estimate.measurement.probabilistic_categorical.other_population", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_license_them" },
+]
+fixtures = [
+  { id = "measurement.probabilistic_categorical.matrix_inversion_truth.truth", role = "truth", intent = "Exact class summaries from the algebra recover proportions (0.5, 0.3, 0.2) and outcome means (1, 2, 4).", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "categorical_inversion_recovers_proportions_and_outcome_means" },
+  { id = "measurement.probabilistic_categorical.binary_special_case.positive", role = "positive", intent = "K=2 reproduces the Rogan-Gladen value and variance.", evidence_test = "crates/antecedent-stats/src/measurement_error.rs", evidence_assertion = "binary_case_of_the_categorical_route_matches_rogan_gladen" },
+  { id = "measurement.probabilistic_categorical.ill_conditioned.negative", role = "negative", intent = "A singular or ill-conditioned confusion matrix refuses.", evidence_test = "crates/antecedent-stats/src/measurement_error.rs", evidence_assertion = "ill_conditioned_confusion_refuses" },
+  { id = "measurement.probabilistic_categorical.artifact_replay.artifact", role = "artifact", intent = "The consumer recomputes from class summaries under the stored model.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "artifact_replays_independently_and_refuses_semantic_mutation" },
+]
+
+[[record]]
+id = "measurement.external_latent_posterior"
+capability = "measurement.external_latent_posterior"
+status = "frozen"
+consumer_question = "Given a latent-variable posterior supplied by an external provider, what is the linear outcome effect of the latent regressor, how far is the provider trusted, and is the provider's own uncertainty propagated?"
+theorem = "Regression calibration (Carroll et al. 2006 ch. 4): for a linear outcome model E[Y|W] = a + b E[X|W], so the posterior mean substitutes exactly when the posterior does not condition on Y; a single draw adds Berkson noise and attenuates the slope. When the posterior conditions on Y its joint draws are proper imputations and Rubin (1987) combination applies: T = W + (1+1/S) B. NOT inherited: any property of the provider's posterior (it is attested or exact-request verified, never native); the substitution route cannot represent the provider's hyperparameter uncertainty and says so."
+reference = "docs/measurement-models.md"
+guarantee = "externally_supplied_posterior_linear_coefficient_point_with_conditional_se"
+graph_class = "Not applicable; identification of the outcome model is separate."
+population_semantics = "The posterior is bound to the model's population and regime through the provider contract's quantity coordinates."
+evidence_family = "Joint posterior draws per unit from a provider object with exact identity, outcome, covariates; trust attested or verified."
+provider = "antecedent_contract::measurement::check_latent_posterior; antecedent_estimate::measurement::correct_latent_posterior_linear_effect."
+estimand = "Coefficient of the latent regressor in a linear outcome model."
+inference_claim = "point_only"
+owners = [
+  "antecedent-core",
+  "antecedent-contract",
+  "antecedent-stats",
+  "antecedent-estimate",
+  "antecedent-io-core",
+]
+identity_inputs = [
+  "provider, object, version, snapshot and request identities",
+  "whether the posterior conditions on the outcome",
+  "minimum draws",
+  "model identity",
+  "outcome, draws and covariate digest",
+  "provider trust label",
+]
+wire_changes = [
+  "Additive: the corrected functional is stored in measurement_model_v1 with its sufficient inputs for estimator-free replay; floats as bit patterns.",
+]
+compatibility = "Additive. A typed measurement model is kept separate from the schema's MeasurementSpec flag, so no schema digest or existing artifact changes; the measurement_model_v1 artifact is new."
+search = false
+bounds = { cancellation = true }
+inference_inventory_disposition = "point_output_listed_unmeasured"
+refusals = [
+  { code = "measurement_model_invalid", detail = "measurement_model.invalid_model", when = "A model is malformed: blank identity, parameters of another route or out of range." },
+  { code = "proxy_offered_as_construct", detail = "measurement_model.proxy_as_construct", when = "A proxy, learned representation or derived column is offered as the latent construct." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.population_mismatch", when = "The data population differs from the model's." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.regime_mismatch", when = "The data regime differs from the model's." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.arm_mismatch", when = "The data arm differs from the model's arm binding." },
+  { code = "representation_mapping_required", detail = "measurement_model.representation_unmapped", when = "The indicator representation version differs and no explicit mapping is supplied." },
+  { code = "route_not_supported", detail = "measurement_model.route_mismatch", when = "The model's route is not the entry point's route." },
+  { code = "differential_error_not_pooled", detail = "measurement_model.differential_declared", when = "A model declared differential is sent through the non-differential route." },
+  { code = "cancelled_no_claim", detail = "measurement_model.cancelled", when = "Cancelled before a corrected functional was formed." },
+  { code = "cell_not_licensed", detail = "measurement_model.interval_closed", when = "An interval is requested; no coverage record measures the whole method." },
+  { code = "measurement_posterior_not_trusted", detail = "measurement_model.posterior_identity", when = "The provider object or request differs from the model's reference." },
+  { code = "measurement_not_identified", detail = "measurement_model.insufficient_draws", when = "Fewer joint draws than the model declares." },
+]
+routes = [
+  { name = "antecedent_estimate.measurement.correct_latent_posterior_linear_effect", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_estimate.measurement.interval_not_licensed.external_latent_posterior", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "estimator_and_contract_refuse_the_same_requests_with_the_same_details" },
+  { name = "antecedent_estimate.measurement.external_latent_posterior.nonlinear_outcome", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_license_them" },
+  { name = "antecedent_estimate.measurement.external_latent_posterior.differential_by_population", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
+  { name = "antecedent_estimate.measurement.external_latent_posterior.differential_by_time", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
+  { name = "antecedent_estimate.measurement.external_latent_posterior.other_population", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_license_them" },
+]
+fixtures = [
+  { id = "measurement.external_latent_posterior.posterior_mean_truth.truth", role = "truth", intent = "The posterior mean recovers slope 2 within 4 SE plus the finite-draw allowance while one draw is attenuated to about 1.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "posterior_mean_substitution_recovers_the_slope_that_a_single_draw_attenuates" },
+  { id = "measurement.external_latent_posterior.berkson_noise.positive", role = "positive", intent = "Regressing on one posterior draw attenuates the slope while the posterior mean does not (stats-level oracle).", evidence_test = "crates/antecedent-stats/src/measurement_error.rs", evidence_assertion = "posterior_mean_route_removes_berkson_noise_that_raw_draws_would_add" },
+  { id = "measurement.external_latent_posterior.rubin_truth.truth", role = "truth", intent = "Outcome-conditioned draws combine by Rubin's rules and recover slope 2 with a positive between-imputation component.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "outcome_conditioned_draws_combine_by_rubins_rules" },
+  { id = "measurement.external_latent_posterior.provider_binding.negative", role = "negative", intent = "A mismatched request, wrong population or native trust is refused.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "a_latent_posterior_needs_an_exactly_matching_provider_object" },
+  { id = "measurement.external_latent_posterior.artifact_replay.artifact", role = "artifact", intent = "The consumer recomputes from moments or per-imputation fits and requires a trust label.", evidence_test = "crates/antecedent-estimate/tests/measurement_models.rs", evidence_assertion = "artifact_replays_independently_and_refuses_semantic_mutation" },
+]
+
+[[record]]
+id = "counterfactual.transport_general"
+capability = "counterfactual.transport_general"
+status = "frozen"
+consumer_question = "What is a nested or conditional counterfactual probability in a target population, given labelled observational and interventional laws from the target and from source populations whose mechanisms may differ at declared variables?"
+theorem = "Counterfactual transportability (Correa, Lee and Bareinboim, ICML 2022, PMLR 162): a counterfactual distribution of the target is expressed through counterfactual factors that are single-world interventional laws, each either invariant across populations (no selection node into its variables) or identified from target evidence. Implemented as a sound, bounded decision procedure of that shape, not the published algorithm: ID* counterfactual graph and district decomposition (Shpitser and Pearl 2007, 2008); closure of single-world c-factors under ancestral marginalization and c-component extraction (Tian and Pearl 2002, Lemma 1 and the product formula) with transfer of a source factor when no selection target lies in it (Bareinboim and Pearl 2013); the IDC* reduction of a conditioning atom separated from the event; a binary consistency complement. Soundness holds in the finite-discrete induced-diagram class in which selection flags mechanisms and exogenous laws are shared; completeness is NOT claimed. A refusal to derive is not an obstruction. Non-transportability is claimed only through a two-model witness (response-function mixtures over a bidirected clique, identical laws on every declared regime, different query value) re-verified by exact rational enumeration; the witness search is a bounded heuristic, so a non-transportable query it does not find is not_certified."
+reference = "provenance/counterfactual.transport_general.toml"
+guarantee = "sound_incomplete"
+graph_class = "Static finite-discrete acyclic semi-Markovian ADMG over at most 8 observed variables with at most 4 declared levels each; one selection diagram per source over the shared graph."
+population_semantics = "One target population and up to 4 source populations; each source declares the variables whose mechanism may differ from the target and the variables it can experiment on. Regimes are labelled by population and intervention set; evidence of one population never stands in for another."
+evidence_family = "Joint laws P(M | do(Z)) of a population over a variable set M closed under ancestors of the non-intervened variables, one law per intervention level; observational laws are the case Z empty. Marginals over measured subsets are admitted only where they are single-world c-factors. Separate marginals never create a cross-world law."
+provider = "Exact finite laws through the existing exact transport provider contract (population, regime, snapshot identity); counted, empirical or posterior laws are refused."
+estimand = "P*(event | conditioning) for a conjunction of events over worlds with hard interventions and edge routes (nested counterfactuals, natural direct and indirect effects, effect of treatment on the treated), as an exact finite probability of the target population."
+inference_claim = "point_only"
+inference_notes = "Exact finite-law arithmetic. No sample interval, posterior or calibration is licensed; sampled counterfactual transport is a separate route that evaluates this derivation on estimated tables."
+inference_inventory_disposition = "point_output_listed_unmeasured"
+owners = ["antecedent-identify", "antecedent-estimate"]
+identity_inputs = ["graph, declared levels and selection targets (canonical)", "world specifications (interventions as IEEE bits, edge routes) and event and conditioning conjunctions", "target and source population identities with controllable sets", "the evidence catalog: regimes, intervention sets, measured sets, population and regime identities", "search limits and memory cap stored in the derivation's search receipt", "each supplied law's snapshot and content identity at evaluation"]
+wire_changes = ["Not yet: no artifact, facade or Python wire exists. The derivation is an in-process value whose canonical text and search receipt are replayed by the identifier."]
+compatibility = "Additive. The effect-on-the-treated identification contract effect_on_treated_admg_v1 and every interventional transport route are unchanged; this is a separate contract id."
+search = true
+bounds = { max_observed = 8, max_levels = 4, max_worlds = 6, max_atoms = 16, max_network_nodes = 24, max_sources = 4, max_controllable_per_source = 4, max_regimes = 64, max_sum_cells = 65536, max_operations = 400000, max_depth = 256, cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "SearchLimits.operations", depth_limit = "SearchLimits.depth", memory_limit = "SearchBudget memory cap, never absent: the smaller of ExecutionContext.memory.hard_limit_bytes and the default search budget cap, live-state bytes cumulative across the stages of one decision" }
+refusals = [
+  { code = "route_not_supported", detail = "counterfactual_transport.bounds_exceeded", when = "More than 8 variables, 4 levels, 6 worlds, 16 atoms, 4 sources, 4 controllables per source or 64 regimes, a kept network or summation above its cell bound, or search limits above the contract's maxima." },
+  { code = "route_not_supported", detail = "counterfactual_transport.graph_outside_contract", when = "The directed edges contain a cycle." },
+  { code = "route_not_supported", detail = "counterfactual_transport.coupling_unsupported", when = "The query's exogenous coupling is not the shared latent exogenous coupling." },
+  { code = "route_not_supported", detail = "counterfactual_transport.selected_sample_law", when = "The catalog holds the law of a selected subpopulation; this contract has no sampling-selection model." },
+  { code = "invalid_argument", detail = "counterfactual_transport.invalid_query", when = "A malformed graph, world, route, level, event, selection diagram or controllable set, or a conditioning event that has probability zero in every model." },
+  { code = "invalid_argument", detail = "counterfactual_transport.invalid_catalog", when = "The catalog fails validation or a regime belongs to neither the target nor a declared source, or names a variable outside the problem." },
+  { code = "invalid_argument", detail = "counterfactual_transport.invalid_evidence", when = "A supplied law's axes, levels, intervention set or world do not match the regime the derivation cites." },
+  { code = "transport_proven_non_transportable", detail = "counterfactual_transport.checked_obstruction", when = "A two-model witness agrees on every regime law of the declared family and differs on the query, and re-verifies by exact enumeration." },
+  { code = "transport_missing_evidence", detail = "counterfactual_transport.missing_regime", when = "The query is derivable if declared regimes the catalog lacks were supplied; they are named." },
+  { code = "transport_not_certified", detail = "counterfactual_transport.factor_not_derivable", when = "The bounded search found neither a derivation nor a verified witness." },
+  { code = "transport_not_certified", detail = "counterfactual_transport.invalid_derivation", when = "A stored derivation or its search receipt is not reproduced by replay under the stored limits." },
+  { code = "transport_not_certified", detail = "counterfactual_transport.invalid_witness", when = "A stored witness does not verify by exact enumeration." },
+  { code = "transport_budget_cancel", detail = "counterfactual_transport.budget", when = "Operations, depth, memory or cancellation stopped the one budget shared by every stage, or the exact evaluation exhausted its operation budget." },
+  { code = "transport_support_failure", detail = "counterfactual_transport.support_failure", when = "A factor of the identified formula conditions on an event of zero mass in a supplied law and no zero factor dominates its summand." },
+  { code = "transport_support_failure", detail = "counterfactual_transport.zero_conditioning_mass", when = "The conditioning event, original or reduced, has zero mass in the target population." },
+  { code = "transport_missing_provider", detail = "counterfactual_transport.missing_law", when = "A cited regime has no supplied law at a needed intervention level." },
+  { code = "transport_numerical_failure", detail = "counterfactual_transport.evidence_incompatible", when = "A factor takes different values at settings it does not depend on, a complement is negative, or the probability is outside [0, 1]: the supplied laws contradict the declared graph." },
+  { code = "cell_not_licensed", detail = "counterfactual_transport.sampled_inference_closed", when = "A counted, empirical or posterior law is supplied; sampled counterfactual transport is a separate route." },
+]
+routes = [
+  { name = "antecedent_identify.identify_counterfactual_transport", stage = "identify", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_estimate.evaluate_counterfactual_transport", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_identify.verify_counterfactual_transport_witness", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "counterfactual.transport_general.named_cases.positive", role = "positive", intent = "Nonlinear mediation (ternary mediator), joint and conditional counterfactuals with two source regimes, and a transportable latent district decide as identified, with replay.", evidence_test = "crates/antecedent-identify/tests/counterfactual_transport_decisions.rs", evidence_assertion = "named_cases_decide_as_the_theory_says" },
+  { id = "counterfactual.transport_general.enumerated_scm.truth", role = "truth", intent = "Every identified target equals its independently enumerated finite-SCM probability.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_execution.rs", evidence_assertion = "identified_targets_equal_the_enumerated_truth" },
+  { id = "counterfactual.transport_general.natural_effects.truth", role = "truth", intent = "Natural direct and indirect effect contrasts of a nonlinear mediator equal the enumerated contrasts.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_execution.rs", evidence_assertion = "natural_direct_and_indirect_effects_match_the_enumerated_contrasts" },
+  { id = "counterfactual.transport_general.changed_evidence.truth", role = "truth", intent = "A changed target covariate law moves the number to the new enumerated truth with the same derivation.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_execution.rs", evidence_assertion = "changed_evidence_moves_the_number_to_the_new_enumerated_truth" },
+  { id = "counterfactual.transport_general.obstructions.negative", role = "negative", intent = "Recanting witness and selection on the outcome are proven obstructions that agree with the fixtures' own alternative model families; evidence-insufficient is missing evidence, not an obstruction.", evidence_test = "crates/antecedent-identify/tests/counterfactual_transport_decisions.rs", evidence_assertion = "obstructions_agree_with_the_fixtures_own_alternative_models" },
+  { id = "counterfactual.transport_general.selection_and_labels.negative", role = "negative", intent = "Selection on the outcome, a withheld regime, a wrong population label and an unsupported coupling never identify.", evidence_test = "crates/antecedent-identify/tests/counterfactual_transport_decisions.rs", evidence_assertion = "selection_missing_factors_and_wrong_labels_never_identify" },
+  { id = "counterfactual.transport_general.zero_support.negative", role = "negative", intent = "A conditioning event of probability zero in the target is a typed support failure, not a number.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_execution.rs", evidence_assertion = "zero_support_conditioning_is_a_typed_refusal_not_a_number" },
+  { id = "counterfactual.transport_general.evidence_mutation.negative", role = "negative", intent = "An absent, mislabelled or counted law is refused before any number.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_execution.rs", evidence_assertion = "absent_mislabelled_and_counted_laws_are_refused_before_a_number" },
+  { id = "counterfactual.transport_general.derivation_mutation.negative", role = "negative", intent = "A mutated derivation or a tampered witness does not replay or verify.", evidence_test = "crates/antecedent-identify/tests/counterfactual_transport_decisions.rs", evidence_assertion = "a_mutated_derivation_or_witness_does_not_replay" },
+  { id = "counterfactual.transport_general.budget_and_bounds.budget", role = "budget", intent = "An exhausted or cancelled search is a receipt, never a verdict; limits and graph bounds refuse by name.", evidence_test = "crates/antecedent-identify/tests/counterfactual_transport_decisions.rs", evidence_assertion = "budget_cancellation_and_bounds_are_typed_stops_not_verdicts" },
+  { id = "counterfactual.transport_general.declaration_order.invariance", role = "invariance", intent = "Variable, edge, regime and source declaration order does not change the derivation.", evidence_test = "crates/antecedent-identify/tests/counterfactual_transport_decisions.rs", evidence_assertion = "decisions_are_invariant_to_declaration_order" },
+  { id = "counterfactual.transport_general.provider_order.invariance", role = "invariance", intent = "Evaluation is deterministic and invariant to the order of supplied laws.", evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_execution.rs", evidence_assertion = "evaluation_is_deterministic_and_invariant_to_provider_order" },
+  { id = "counterfactual.transport_general.artifact_roundtrip.artifact", role = "artifact", intent = "A fresh consumer with the expected identity reruns identification and evaluation (artifact and consumer not yet built)." },
+]

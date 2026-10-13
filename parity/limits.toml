@@ -1481,3 +1481,93 @@ documentation = [{ path = "crates/antecedent-io/src/measured_inference.rs", cons
 guard = { path = "crates/antecedent-io/src/measured_inference.rs", pattern = "if bytes\\.len\\(\\) > MAX_MEASURED_ARTIFACT_BYTES" }
 refusal = { path = "crates/antecedent-io/src/measured_inference.rs", pattern = "if bytes\\.len\\(\\) > MAX_MEASURED_ARTIFACT_BYTES[\\s\\S]{0,300}return Err\\(refusal" }
 scope_fixture = { path = "python/tests/test_measured_inference.py", pattern = "\\btest_bounds_and_missing_native_cannot_be_overridden_by_basis\\b" }
+
+[[bound]]
+record = "counterfactual.transport_general"
+key = "max_observed"
+implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES" }]
+documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES" }]
+guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'if n > COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES \{' }
+refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'if n > COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES \{[\s\S]{0,300}return Err\(bounds_exceeded' }
+scope_fixture = { path = "crates/antecedent-identify/tests/counterfactual_transport_decisions.rs", pattern = '\bbudget_cancellation_and_bounds_are_typed_stops_not_verdicts\b' }
+
+[[bound]]
+record = "counterfactual.transport_general"
+key = "max_levels"
+implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_LEVELS" }]
+documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_LEVELS" }]
+guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'list\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_LEVELS \{' }
+refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'list\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_LEVELS \{[\s\S]{0,300}return Err\(bounds_exceeded' }
+
+[[bound]]
+record = "counterfactual.transport_general"
+key = "max_worlds"
+implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_WORLDS" }]
+documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_WORLDS" }]
+guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'event\.worlds\(\)\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_WORLDS' }
+refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'event\.worlds\(\)\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_WORLDS[\s\S]{0,1200}return Err\(Rejection::Unsupported' }
+
+[[bound]]
+record = "counterfactual.transport_general"
+key = "max_atoms"
+implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_ATOMS" }]
+documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_ATOMS" }]
+guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'event\.given\(\)\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_ATOMS' }
+refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'event\.given\(\)\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_ATOMS[\s\S]{0,1200}return Err\(Rejection::Unsupported' }
+
+[[bound]]
+record = "counterfactual.transport_general"
+key = "max_network_nodes"
+implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_NODES" }]
+documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_NODES" }]
+guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport/network.rs", pattern = '\.count\(\) > COUNTERFACTUAL_TRANSPORT_MAX_NODES \{' }
+refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport/network.rs", pattern = '\.count\(\) > COUNTERFACTUAL_TRANSPORT_MAX_NODES \{[\s\S]{0,300}return Err\(' }
+
+[[bound]]
+record = "counterfactual.transport_general"
+key = "max_sources"
+implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_SOURCES" }]
+documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_SOURCES" }]
+guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'query\.sources\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_SOURCES' }
+refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'query\.sources\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_SOURCES[\s\S]{0,1200}return Err\(Rejection::Unsupported' }
+
+[[bound]]
+record = "counterfactual.transport_general"
+key = "max_controllable_per_source"
+implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE" }]
+documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE" }]
+guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = '\.controllable\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE' }
+refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = '\.controllable\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE[\s\S]{0,1200}return Err\(Rejection::Unsupported' }
+
+[[bound]]
+record = "counterfactual.transport_general"
+key = "max_regimes"
+implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_REGIMES" }]
+documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_REGIMES" }]
+guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'catalog\.regimes\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_REGIMES' }
+refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'catalog\.regimes\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_REGIMES[\s\S]{0,1200}return Err\(Rejection::Unsupported' }
+
+[[bound]]
+record = "counterfactual.transport_general"
+key = "max_sum_cells"
+implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS" }]
+documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS" }]
+guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'c > COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS\)' }
+refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'c > COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS\)[\s\S]{0,300}return Err\(Abort::Error\(bounds_exceeded' }
+
+[[bound]]
+record = "counterfactual.transport_general"
+key = "max_operations"
+implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'COUNTERFACTUAL_TRANSPORT_MAX_LIMITS: SearchLimits =\s*SearchLimits \{ operations: ([0-9_]+),' }]
+documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'COUNTERFACTUAL_TRANSPORT_MAX_LIMITS: SearchLimits =\s*SearchLimits \{ operations: ([0-9_]+),' }]
+guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'limits\.operations > COUNTERFACTUAL_TRANSPORT_MAX_LIMITS\.operations' }
+refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'limits\.operations > COUNTERFACTUAL_TRANSPORT_MAX_LIMITS\.operations[\s\S]{0,400}return Err\(bounds_exceeded' }
+scope_fixture = { path = "crates/antecedent-identify/tests/counterfactual_transport_decisions.rs", pattern = '\bbudget_cancellation_and_bounds_are_typed_stops_not_verdicts\b' }
+
+[[bound]]
+record = "counterfactual.transport_general"
+key = "max_depth"
+implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'COUNTERFACTUAL_TRANSPORT_MAX_LIMITS: SearchLimits =\s*SearchLimits \{ operations: [0-9_]+, depth: ([0-9_]+) \}' }]
+documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'COUNTERFACTUAL_TRANSPORT_MAX_LIMITS: SearchLimits =\s*SearchLimits \{ operations: [0-9_]+, depth: ([0-9_]+) \}' }]
+guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'limits\.depth > COUNTERFACTUAL_TRANSPORT_MAX_LIMITS\.depth' }
+refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'limits\.depth > COUNTERFACTUAL_TRANSPORT_MAX_LIMITS\.depth[\s\S]{0,400}return Err\(bounds_exceeded' }

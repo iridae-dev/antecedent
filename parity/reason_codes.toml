@@ -423,3 +423,61 @@ meaning = "Rows share endpoints (dyads) in a structure the two-way cluster-DML c
 id = "diagnostic_not_available"
 applies_to = ["runtime_refusal"]
 meaning = "A diagnostic is requested that the executed route's own design does not carry (no propensity score, an E-value that embeds an interval endpoint, a result with no single effect); it is reported absent with this code and a detail, never fabricated and never refit from a different design."
+
+# Mechanism composition (promotion record: mechanism_composition in parity/promotion.toml).
+[[code]]
+id = "mechanism_composition_incoherent"
+applies_to = ["runtime_refusal"]
+meaning = "Independently fitted mechanisms do not establish one coherent joint law: a support gap between a producer and its consumer, a conditioning set that is not the parent set, a dropped or unloaded shared latent cause, misaligned or contradicted parameter uncertainty, missing mechanism provenance, mixed families, or a mechanism outside the bounded composition family. The detail names the defect and the refusal states the declaration that would license the composition."
+
+# Evidence ledger (promotion records: evidence_ledger.* in parity/promotion.toml).
+[[code]]
+id = "evidence_double_counted"
+applies_to = ["runtime_refusal"]
+meaning = "A combination of evidence would count the same observations more than once: a duplicate, a transform, a prior built from the likelihood's data, an external claim built from data already used, shared rows declared independent, a source listed twice, or one source counted both as native target data and as transported evidence. The refusal names the sources and the covariance, assumption range or dropped source that would license the request."
+
+[[code]]
+id = "evidence_overlap_unknown"
+applies_to = ["runtime_refusal"]
+meaning = "The observations behind two pieces of evidence are not declared, so their overlap is unknown; independence is never assumed. The refusal states the row-level declaration, covariance with cross terms or assumption range that would license the request."
+
+[[code]]
+id = "evidence_source_withdrawn"
+applies_to = ["runtime_refusal"]
+meaning = "A request rests on an evidence source, or on a result, that was withdrawn, superseded, replaced or updated after it was registered. The original is preserved; the refusal names the retired source and its successor where one exists."
+
+# Measurement models (promotion records: measurement.* in parity/promotion.toml).
+[[code]]
+id = "measurement_model_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "A measurement model is not well formed: a blank identity, an observed column given an error model, parameters of another route, or a parameter outside its range. The refusal names the field and the declaration that would make the model well formed."
+
+[[code]]
+id = "proxy_offered_as_construct"
+applies_to = ["runtime_refusal"]
+meaning = "A noisy or misclassified indicator, a probabilistic feature assignment, a learned vector representation or a derived column was offered as the latent scientific construct, or the measured column was named as the construct without a measurement model. The refusal states the measurement model that would relate the proxy to the construct."
+
+[[code]]
+id = "measurement_binding_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "A measurement model, or an artifact built from one, is applied outside the population, regime or arm it was established for, names a different construct, or differs from the model identity the consumer retained. Nothing is carried across: the refusal names the expected and supplied binding and the invariance premise or re-established model that would license the request."
+
+[[code]]
+id = "representation_mapping_required"
+applies_to = ["runtime_refusal"]
+meaning = "A representation changed coordinate system or version without an explicit mapping, a mapping does not run between the two versions, or causal or intervention meaning was requested through a mapping that carries values only (or for the coordinates of a learned vector representation). The refusal names the mapping or intervention-preservation evidence that would license it."
+
+[[code]]
+id = "differential_error_not_pooled"
+applies_to = ["runtime_refusal"]
+meaning = "Measurement error declared to differ by arm, population or time was sent through the non-differential route, a non-differential model was analysed as differential, a declared structure disagrees with its parameter layout, or the declared axis has no bounded route. The two cases are never pooled; the refusal states the structure declaration and per-arm parameters that would license the request."
+
+[[code]]
+id = "measurement_not_identified"
+applies_to = ["runtime_refusal"]
+meaning = "The measurement correction is not identified at the declared bound: Youden's index at or below its minimum, implied reliability at or below its floor, a confusion matrix singular or worse conditioned than declared, too few replicated units or posterior draws, or a corrected variance that is not positive. The refusal states the bound and the evidence (a more accurate indicator, replicates, a larger validation sample) that would identify it."
+
+[[code]]
+id = "measurement_posterior_not_trusted"
+applies_to = ["runtime_refusal"]
+meaning = "A latent-variable posterior supplied by an external provider cannot be consumed: its object or request identity differs from the model's reference, it is not a parameter posterior over the construct in the model's population and regime, it declares no sampling operation, or it claims native trust. Trust is never inferred from metadata; the refusal states the verification or attestation that would license consumption."

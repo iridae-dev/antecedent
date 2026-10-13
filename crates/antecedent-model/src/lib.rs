@@ -11,6 +11,7 @@
 pub mod basis;
 pub mod batch;
 pub mod compile;
+pub mod compose;
 pub mod do_sampler;
 pub mod error;
 pub mod evaluate;

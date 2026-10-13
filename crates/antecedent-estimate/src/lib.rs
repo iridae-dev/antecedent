@@ -30,6 +30,7 @@ pub mod causal_forest;
 pub mod cell_aipw;
 pub mod conditional;
 pub mod continuous_dose;
+pub mod counterfactual_transport;
 pub mod cpdag_scenarios;
 pub mod crossfit_aipw;
 pub mod crossfit_cache;
@@ -133,6 +134,7 @@ pub mod learned_trial;
 pub use antecedent_stats::longitudinal_regime;
 pub mod marginal_structural_model;
 pub mod matched_case_control;
+pub mod measurement;
 pub mod smoothed_dose;
 pub use antecedent_learn::{FittedEffect, FittedEffectError};
 pub use estimator_menu::{
@@ -159,6 +161,10 @@ pub use smoothed_dose::{
 #[cfg(feature = "calibration-internal")]
 pub use smoothed_dose::{SmoothedDoseIntervalRun, smoothed_dose_interval_internal};
 
+pub use counterfactual_transport::{
+    CounterfactualTransportEvidence, CounterfactualTransportPoint, LoweredCounterfactualItem,
+    evaluate_counterfactual_transport, lower_counterfactual_transport_items,
+};
 pub use admg_conditional_transport::{
     AdmgConditionalExactPlan, prepare_exact_admg_conditional_transport,
 };

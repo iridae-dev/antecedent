@@ -44,6 +44,7 @@ pub mod identity;
 pub mod ids;
 pub mod interval;
 pub mod intervention;
+pub mod measurement_model;
 pub mod node;
 pub mod query;
 pub mod reason_code;
