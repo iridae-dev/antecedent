@@ -70,7 +70,6 @@ dependencies = [
  "antecedent-kernels",
  "arrow-array",
  "arrow-buffer",
- "arrow-data",
  "arrow-schema",
  "blake3",
  "realfft",
