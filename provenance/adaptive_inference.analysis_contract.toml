@@ -1,0 +1,21 @@
+# Algorithm provenance for adaptive_inference.analysis_contract (see docs/adaptive-inference.md).
+
+feature_id = "adaptive_inference.analysis_contract"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: a semantic contract over retained design records, with the interim-analysis accounting delegated to the evidence ledger; original engineering.
+papers = [
+]
+implementation_deviations = [
+ "The contract cannot verify that recorded assignment probabilities are the ones the policy used; it checks that they are distributions, that the assigned arm had positive probability and that a fixed-randomization declaration has constant probabilities.",
+ "Noncompliance and outcome-dependent delay are recorded and refused, not modelled.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-contract/tests/adaptive_design.rs",
+ "crates/antecedent-io-core/tests/adaptive_monitoring_contract_artifact.rs",
+]

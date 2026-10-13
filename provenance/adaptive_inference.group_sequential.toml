@@ -1,0 +1,28 @@
+# Algorithm provenance for adaptive_inference.group_sequential (see docs/adaptive-inference.md).
+
+feature_id = "adaptive_inference.group_sequential"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Discrete sequential boundaries for clinical trials (Lan, DeMets, Biometrika 70:659-663)", doi = "10.1093/biomet/70.3.659", sections = ["Alpha spending function", "O'Brien-Fleming-type and Pocock-type spending"] },
+ { title = "Repeated significance tests on accumulating data (Armitage, McPherson, Rowe, J R Stat Soc A 132:235-244)", doi = "10.2307/2343787", sections = ["Recursive numerical integration of boundary crossing probabilities"] },
+ { title = "A multiple testing procedure for clinical trials (O'Brien, Fleming, Biometrics 35:549-556)", doi = "10.2307/2530245", sections = ["Boundary shape"] },
+ { title = "Group sequential methods in the design and analysis of clinical trials (Pocock, Biometrika 64:191-199)", doi = "10.1093/biomet/64.2.191", sections = ["Constant boundaries over repeated looks"] },
+]
+implementation_deviations = [
+ "Only O'Brien-Fleming-type and Pocock-type spending, efficacy boundaries only, equally or unequally spaced pre-specified information fractions.",
+ "The independent-increment model is assumed; the route is licensed for fixed randomization only.",
+ "The naive estimate at stopping is biased and no adjusted estimate or interval is offered.",
+ "Numerical integration on composite Gauss-Legendre panels; accuracy about 1e-8, checked against an independent grid recursion.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-stats/tests/adaptive_inference_oracle.rs",
+ "crates/antecedent-estimate/tests/adaptive_inference.rs",
+ "crates/antecedent/tests/adaptive_inference_facade.rs",
+ "crates/antecedent-io-core/tests/adaptive_monitoring_contract_artifact.rs",
+]

@@ -1,0 +1,19 @@
+# Algorithm provenance for adaptive_inference.guarantees_closed (see docs/adaptive-inference.md).
+
+feature_id = "adaptive_inference.guarantees_closed"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: closed adjacent variant; refuses a guarantee no record has measured.
+papers = [
+]
+implementation_deviations = [
+ "Whole-procedure calibration designs (data-generating process, nominal level, support range, boundary probes) are frozen in crates/antecedent-estimate/tests/adaptive_inference_calibration.rs and are unmeasured.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent/tests/adaptive_inference_facade.rs",
+]

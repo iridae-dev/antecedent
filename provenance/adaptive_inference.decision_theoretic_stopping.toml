@@ -1,0 +1,22 @@
+# Algorithm provenance for adaptive_inference.decision_theoretic_stopping (see docs/adaptive-inference.md).
+
+feature_id = "adaptive_inference.decision_theoretic_stopping"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "On the likelihood that one unknown probability exceeds another in view of the evidence of two samples (Thompson, Biometrika 25:285-294)", doi = "10.1093/biomet/25.3-4.285", sections = ["Posterior probability that one arm exceeds another"] },
+]
+implementation_deviations = [
+ "The loss is the regret of choosing an arm in success probability; other losses are not offered.",
+ "The rule's reliability (probability of a wrong stop, regret over the procedure) is not derived or measured and is closed.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-stats/tests/adaptive_inference_oracle.rs",
+ "crates/antecedent-estimate/tests/adaptive_inference.rs",
+ "crates/antecedent/tests/adaptive_inference_facade.rs",
+]
