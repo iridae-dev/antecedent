@@ -10,6 +10,36 @@ import _py_closure
 import _rust_source as rust
 
 
+def test_lint_attributes_accept_reasons_and_multiple_lints() -> None:
+    assert rust.has_lint_attribute(
+        '#![allow(\n unused_imports, unsafe_code, reason = "scoped FFI (owner)"\n)]',
+        "allow",
+        "unsafe_code",
+        inner=True,
+    )
+    assert rust.has_lint_attribute(
+        "#[allow(unsafe_code)]", "allow", "unsafe_code", inner=False
+    )
+    assert rust.has_lint_attribute(
+        "#![forbid ( unsafe_code )]", "forbid", "unsafe_code", inner=True
+    )
+
+
+def test_lint_attributes_reject_inactive_or_different_policy() -> None:
+    for text in (
+        "// #![forbid(unsafe_code)]",
+        "/* #![forbid(unsafe_code)] */",
+        'const S: &str = r#"#![forbid(unsafe_code)]"#;',
+        '#![allow(unused_imports, reason = "forbid(unsafe_code)")]',
+        "#![forbid(unsafe_code_extra)]",
+        "#[forbid(unsafe_code)]",
+        '#![cfg_attr(feature = "strict", forbid(unsafe_code))]',
+    ):
+        assert not rust.has_lint_attribute(text, "forbid", "unsafe_code", inner=True), (
+            text
+        )
+
+
 def test_lifetime_is_not_a_character() -> None:
     text = "fn f<'a>(x: &'a u8) -> &'a u8 { x }\n"
     parsed = rust.lex(text)
@@ -110,6 +140,8 @@ def test_python_closure_follows_calls_not_strings() -> None:
 
 
 if __name__ == "__main__":
+    test_lint_attributes_accept_reasons_and_multiple_lints()
+    test_lint_attributes_reject_inactive_or_different_policy()
     test_lifetime_is_not_a_character()
     test_character_literal_is_blanked()
     test_byte_raw_string_and_nested_braces()

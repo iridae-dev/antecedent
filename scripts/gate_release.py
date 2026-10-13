@@ -4,6 +4,7 @@ from pathlib import Path
 
 import gate_hot_path_baselines as hp
 import parity_rows as pr
+from _rust_source import has_lint_attribute
 
 root = Path(".")
 missing = []
@@ -24,7 +25,9 @@ for manifest in [
 ]:
     for c in pr.rows(manifest):
         if c.get("status") == "intentional_deviation":
-            missing.append(f"{manifest}: {c.get('id')} still intentional_deviation (retired)")
+            missing.append(
+                f"{manifest}: {c.get('id')} still intentional_deviation (retired)"
+            )
         if c.get("status") in ("planned", "blocked"):
             missing.append(f"{manifest}: {c.get('id')} still {c.get('status')}")
 
@@ -95,15 +98,19 @@ deny_escape_crates = {
 for crate in forbid_crates:
     lib = root / crate / "src" / "lib.rs"
     text = lib.read_text(encoding="utf-8")
-    if "#![forbid(unsafe_code)]" not in text:
+    if not has_lint_attribute(text, "forbid", "unsafe_code", inner=True):
         missing.append(f"{crate} missing #![forbid(unsafe_code)]")
 for crate, allow_mods in deny_escape_crates.items():
     lib = root / crate / "src" / "lib.rs"
     text = lib.read_text(encoding="utf-8")
-    if "#![deny(unsafe_code)]" not in text:
+    if not has_lint_attribute(text, "deny", "unsafe_code", inner=True):
         missing.append(f"{crate} missing #![deny(unsafe_code)] (scoped unsafe escape)")
-    if "allow(unsafe_code)" not in text and not any(
-        "allow(unsafe_code)" in (root / crate / "src" / m).read_text(encoding="utf-8")
+    if not has_lint_attribute(text, "allow", "unsafe_code") and not any(
+        has_lint_attribute(
+            (root / crate / "src" / m).read_text(encoding="utf-8"),
+            "allow",
+            "unsafe_code",
+        )
         for m in allow_mods
         if (root / crate / "src" / m).exists()
     ):

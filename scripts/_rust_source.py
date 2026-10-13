@@ -147,6 +147,23 @@ def rust_code(text: str) -> str:
     return lex(text).code
 
 
+def has_lint_attribute(
+    text: str, level: str, lint: str, *, inner: bool | None = None
+) -> bool:
+    """Find a direct lint attribute, ignoring comments, literals and reason text.
+
+    Conditional ``cfg_attr`` attributes do not establish an unconditional lint
+    policy. ``inner=True`` requires a crate/module attribute; ``False`` requires
+    an item attribute, and ``None`` accepts either.
+    """
+    marker = "!" if inner is True else "" if inner is False else "!?"
+    pattern = rf"#\s*{marker}\s*\[\s*{re.escape(level)}\s*\(([^()]*)\)\s*\]"
+    item = re.compile(rf"(?:^|,)\s*{re.escape(lint)}\s*(?:,|$)")
+    return any(
+        item.search(match.group(1)) for match in re.finditer(pattern, rust_code(text))
+    )
+
+
 def rust_mask(text: str, line_docs: list[tuple[int, int]] | None = None) -> str:
     """Comments and literals blanked to spaces. Offsets and newlines stay."""
     parsed = lex(text)
