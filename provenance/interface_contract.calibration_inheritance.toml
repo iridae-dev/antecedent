@@ -1,0 +1,23 @@
+# Algorithm provenance for interface_contract.calibration_inheritance (see docs/interface-contracts.md).
+
+feature_id = "interface_contract.calibration_inheritance"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: label propagation along a feed-forward graph. No coverage is measured here.
+papers = [
+]
+
+implementation_deviations = [
+  "A calibration label is a declaration naming a record; the contract layer does not verify that the record exists or covers at the consumer's coordinate.",
+  "No calibration design is executed; the whole-method design for any composed interval is a recorded decision only and is never measured by this record.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "hand-enumerated compositions: a measured upstream whose record resolves through an inheriting component, and an unmeasured upstream that refuses the inheritance and the consumer relying on it",
+]

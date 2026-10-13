@@ -1,0 +1,649 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "evidence-ledger.schema.json",
+  "title": "evidence_ledger_v1 metadata",
+  "description": "Wire layout of the metadata section (`evidence_ledger_meta`) of an `evidence_ledger_v1` artifact, as decoded from CBOR to the JSON data model. Every real is an IEEE-754 binary64 bit pattern in a u64 field.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "feature",
+    "operations",
+    "syntheses",
+    "head",
+    "state_digest",
+    "identity"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "feature": {
+      "const": "evidence_ledger_v1"
+    },
+    "operations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/operation"
+      },
+      "maxItems": 1048576
+    },
+    "syntheses": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/synthesis"
+      },
+      "maxItems": 1024
+    },
+    "head": {
+      "$ref": "#/$defs/digest"
+    },
+    "state_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "identity": {
+      "$ref": "#/$defs/digest"
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "bits": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 18446744073709551615
+    },
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_populations",
+        "target_population",
+        "selection_diagram",
+        "assumptions"
+      ],
+      "properties": {
+        "source_populations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "target_population": {
+          "type": "string"
+        },
+        "selection_diagram": {
+          "$ref": "#/$defs/digest"
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "of",
+        "transform",
+        "prior",
+        "likelihood",
+        "inputs"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "original",
+            "duplicate",
+            "transform",
+            "subset",
+            "prior_plus_likelihood",
+            "derived_from_used_data"
+          ]
+        },
+        "of": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/digest"
+            }
+          ]
+        },
+        "transform": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/digest"
+            }
+          ]
+        },
+        "prior": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/digest"
+            }
+          ]
+        },
+        "likelihood": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/digest"
+            }
+          ]
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/digest"
+          }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "kind",
+        "observations",
+        "lineage",
+        "transport"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "observation_set",
+            "experiment",
+            "prior",
+            "fitted_model",
+            "external_claim"
+          ]
+        },
+        "observations": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/digest"
+              }
+            }
+          ]
+        },
+        "lineage": {
+          "$ref": "#/$defs/lineage"
+        },
+        "transport": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/transport"
+            }
+          ]
+        }
+      }
+    },
+    "dependence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "covariance",
+        "has_cross_covariance",
+        "rho_lo_bits",
+        "rho_hi_bits"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "independent",
+            "declared_covariance",
+            "assumption_range"
+          ]
+        },
+        "covariance": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/digest"
+            }
+          ]
+        },
+        "has_cross_covariance": {
+          "type": "boolean"
+        },
+        "rho_lo_bits": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/bits"
+            }
+          ]
+        },
+        "rho_hi_bits": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/bits"
+            }
+          ]
+        }
+      }
+    },
+    "combination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "kind",
+        "sources",
+        "priors",
+        "likelihood",
+        "transported",
+        "native",
+        "of",
+        "stage",
+        "dependence",
+        "replaces"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "statistical_pooling",
+            "bayesian_borrowing",
+            "causal_transport",
+            "evidence_reuse",
+            "repeated_observation_use"
+          ]
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/digest"
+          }
+        },
+        "priors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/digest"
+          }
+        },
+        "likelihood": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/digest"
+          }
+        },
+        "transported": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/digest"
+          }
+        },
+        "native": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/digest"
+          }
+        },
+        "of": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/digest"
+            }
+          ]
+        },
+        "stage": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "dependence": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/dependence"
+            }
+          ]
+        },
+        "replaces": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/digest"
+            }
+          ]
+        }
+      }
+    },
+    "effect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "created_source",
+        "retired_source",
+        "created_result",
+        "replaced_result",
+        "detected_overlaps",
+        "revalidation"
+      ],
+      "properties": {
+        "created_source": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/digest"
+            }
+          ]
+        },
+        "retired_source": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/digest"
+            }
+          ]
+        },
+        "created_result": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/digest"
+            }
+          ]
+        },
+        "replaced_result": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/digest"
+            }
+          ]
+        },
+        "detected_overlaps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "existing",
+              "shared"
+            ],
+            "properties": {
+              "existing": {
+                "$ref": "#/$defs/digest"
+              },
+              "shared": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "revalidation": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "result",
+              "class"
+            ],
+            "properties": {
+              "result": {
+                "$ref": "#/$defs/digest"
+              },
+              "class": {
+                "enum": [
+                  "still_valid",
+                  "recompute",
+                  "withdrawn"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "target",
+        "source",
+        "reason",
+        "request",
+        "effect"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "add",
+            "update",
+            "replace",
+            "withdraw",
+            "supersede",
+            "revalidate_downstream",
+            "combine"
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/digest"
+        },
+        "target": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/digest"
+            }
+          ]
+        },
+        "source": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/source"
+            }
+          ]
+        },
+        "reason": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "request": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/combination"
+            }
+          ]
+        },
+        "effect": {
+          "$ref": "#/$defs/effect"
+        }
+      }
+    },
+    "synthesis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result",
+        "method",
+        "sources",
+        "estimates",
+        "variances",
+        "covariance",
+        "rho_lo",
+        "rho_hi",
+        "prior_mean",
+        "prior_variance",
+        "tau_support",
+        "tau_probabilities",
+        "values"
+      ],
+      "properties": {
+        "result": {
+          "$ref": "#/$defs/digest"
+        },
+        "method": {
+          "enum": [
+            "fixed_effect_inverse_variance",
+            "fixed_effect_gls",
+            "random_effects_dersimonian_laird",
+            "random_effects_reml",
+            "hierarchical_normal_borrowing",
+            "dependence_envelope"
+          ]
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/digest"
+          }
+        },
+        "estimates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bits"
+          }
+        },
+        "variances": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bits"
+          }
+        },
+        "covariance": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bits"
+          }
+        },
+        "rho_lo": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/bits"
+            }
+          ]
+        },
+        "rho_hi": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/bits"
+            }
+          ]
+        },
+        "prior_mean": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/bits"
+            }
+          ]
+        },
+        "prior_variance": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/bits"
+            }
+          ]
+        },
+        "tau_support": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bits"
+          }
+        },
+        "tau_probabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bits"
+          }
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bits"
+          }
+        }
+      }
+    }
+  }
+}

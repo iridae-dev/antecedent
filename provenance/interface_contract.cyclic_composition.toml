@@ -1,0 +1,24 @@
+# Algorithm provenance for interface_contract.cyclic_composition (see docs/interface-contracts.md).
+
+feature_id = "interface_contract.cyclic_composition"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Cycle detection by Kahn's topological sort; the cycle path is read by walking predecessors
+# within the unsorted remainder.
+papers = [
+  { title = "Topological sorting of large networks", doi = "10.1145/368996.369025", sections = ["Algorithm"] },
+]
+
+implementation_deviations = [
+  "Kahn's procedure is used for detection only: the refusal reports one cycle (rotated to start at the smallest component name), not every cycle, and no order is produced for a cyclic graph.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "hand-enumerated graphs: a three-component cycle, a self-connection, a component downstream of a cycle, and the same components feed-forward",
+]

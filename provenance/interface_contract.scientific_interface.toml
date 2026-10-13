@@ -1,0 +1,29 @@
+# Algorithm provenance for interface_contract.scientific_interface (see docs/interface-contracts.md).
+
+feature_id = "interface_contract.scientific_interface"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: the check is predicate evaluation over declared records (equality of
+# identities, containment of declared domains, set inclusion of operations). It is not a
+# statistical method and implements no published estimator, so there is nothing to cite.
+papers = [
+]
+
+implementation_deviations = [
+  "The decision is relative to the declarations: a declared population, calibration record, measurement model or evidence source is a statement the producing artifact owns, and the contract does not verify it.",
+  "Support containment is decided on declared domains only (real, non-negative, binary, closed interval, finite level set); no equivalence of two supports under a transformation is inferred.",
+  "No unit conversion, bridge or transport is inferred: a difference in units, population or regime is a refusal, and the remedy names the declared route that would license it.",
+  "No interval, posterior or calibration record is produced or measured; a connection carries the producer's label unchanged.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "hand-enumerated declarations: a pair that differs only in population and offers a mean for a law; nine quantity dimensions differing at once; the containment relation of declared supports enumerated",
+  "disjoint-evidence and inherited-calibration compositions with hand-counted shared sources and resolved records",
+  "semantic mutation of stored declarations, identities, versions and feature markers by an independent artifact consumer",
+]

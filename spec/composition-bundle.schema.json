@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "composition-bundle.schema.json",
+  "title": "composition_bundle_v1 body",
+  "description": "Wire layout of the body section (`bundle.body`) of a `composition_bundle_v1` artifact, as decoded from CBOR to the JSON data model. Embedded node bytes are separate container sections named `embedded.<node id>`. A reference node's `requires` is an externally tagged object with exactly one of `provider` or `data`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "nodes",
+    "edges",
+    "identity"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node"
+      },
+      "maxItems": 1024
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/edge"
+      },
+      "maxItems": 8192
+    },
+    "identity": {
+      "$ref": "#/$defs/digest"
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "identity",
+        "embedded",
+        "requires",
+        "facts",
+        "inspected"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "kind": {
+          "enum": [
+            "causal_contract",
+            "execution_or_fit",
+            "external_claim",
+            "attestation",
+            "evidence_relationship",
+            "quantity_coordinates",
+            "support_trust_calibration",
+            "distribution",
+            "transformation",
+            "decision_contract",
+            "decision_result",
+            "sensitivity",
+            "study_ranking",
+            "rollout",
+            "inverse_query",
+            "repair_report",
+            "recalculation_receipt",
+            "frozen_scores"
+          ]
+        },
+        "identity": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "embedded": {
+          "type": "boolean"
+        },
+        "requires": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "provider"
+              ],
+              "properties": {
+                "provider": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "provider_id",
+                    "snapshot_id",
+                    "request_fingerprint"
+                  ],
+                  "properties": {
+                    "provider_id": {
+                      "type": "string"
+                    },
+                    "snapshot_id": {
+                      "type": "string"
+                    },
+                    "request_fingerprint": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "data"
+              ],
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "snapshot_id",
+                    "digest"
+                  ],
+                  "properties": {
+                    "snapshot_id": {
+                      "type": "string"
+                    },
+                    "digest": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "facts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "inspected": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          }
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to",
+        "upstream_digest"
+      ],
+      "properties": {
+        "from": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "to": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "upstream_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    }
+  }
+}

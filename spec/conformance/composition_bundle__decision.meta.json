@@ -1,0 +1,107 @@
+{
+  "edges": [
+    {
+      "from": "claim_a",
+      "to": "decision",
+      "upstream_digest": "0973596ebc5dbfe189cc6f0ed2749bf9cfe19707e6fb48cf4b45fac08b2e0917"
+    },
+    {
+      "from": "claim_a",
+      "to": "relationship",
+      "upstream_digest": "0973596ebc5dbfe189cc6f0ed2749bf9cfe19707e6fb48cf4b45fac08b2e0917"
+    },
+    {
+      "from": "claim_b",
+      "to": "decision",
+      "upstream_digest": "035b6d073bc96c5c7c2cf9ef1fb73a13a455ad17ff35ec180c5abb069e5c66b8"
+    },
+    {
+      "from": "claim_b",
+      "to": "relationship",
+      "upstream_digest": "035b6d073bc96c5c7c2cf9ef1fb73a13a455ad17ff35ec180c5abb069e5c66b8"
+    },
+    {
+      "from": "relationship",
+      "to": "decision",
+      "upstream_digest": "3a6761ea5ef41c27c59888f3fe3209464d3de7a260e7dbe233ff176f986597d1"
+    }
+  ],
+  "identity": "d9d1e00af942d10192f5c1f3e3c595cf5c58043bd1334166a42d6ef29566877b",
+  "nodes": [
+    {
+      "embedded": false,
+      "facts": {
+        "law": "mean_only",
+        "trust": "externally_attested"
+      },
+      "id": "claim_a",
+      "identity": "claim-a-identity",
+      "inspected": [
+        [
+          "mean",
+          4.25
+        ]
+      ],
+      "kind": "external_claim",
+      "requires": {
+        "provider": {
+          "provider_id": "reference_lab",
+          "request_fingerprint": "fingerprint-1",
+          "snapshot_id": "snapshot-9"
+        }
+      }
+    },
+    {
+      "embedded": false,
+      "facts": {
+        "law": "joint_draw"
+      },
+      "id": "claim_b",
+      "identity": "claim-b-identity",
+      "inspected": [
+        [
+          "mean",
+          -0.0
+        ]
+      ],
+      "kind": "external_claim",
+      "requires": {
+        "data": {
+          "digest": "digest-b",
+          "snapshot_id": "cohort-b"
+        }
+      }
+    },
+    {
+      "embedded": false,
+      "facts": {
+        "requires_law": "joint_draw"
+      },
+      "id": "decision",
+      "identity": "decision-identity",
+      "inspected": [
+        [
+          "expected_utility",
+          3.0
+        ]
+      ],
+      "kind": "decision_result",
+      "requires": {
+        "data": {
+          "digest": "decision-digest",
+          "snapshot_id": "decision-snapshot"
+        }
+      }
+    },
+    {
+      "embedded": true,
+      "facts": {},
+      "id": "relationship",
+      "identity": "relationship-identity",
+      "inspected": [],
+      "kind": "evidence_relationship",
+      "requires": null
+    }
+  ],
+  "version": 1
+}

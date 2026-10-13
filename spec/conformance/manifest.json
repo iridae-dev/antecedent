@@ -1,0 +1,207 @@
+{
+  "blake3_vectors": "blake3_vectors.json",
+  "fixtures": [
+    {
+      "description": "two external claims, an embedded evidence relationship and a decision depending on all three",
+      "expect": "accept",
+      "file": "composition_bundle__decision.artifact",
+      "identity": "d9d1e00af942d10192f5c1f3e3c595cf5c58043bd1334166a42d6ef29566877b",
+      "kind": "composition_bundle_v1",
+      "meta_json": "composition_bundle__decision.meta.json"
+    },
+    {
+      "description": "an edge carries a digest that is not its upstream node's Merkle digest",
+      "expect": "reject",
+      "file": "composition_bundle__edge_digest_edited.artifact",
+      "kind": "composition_bundle_v1",
+      "reject_class": "identity"
+    },
+    {
+      "description": "the embedded evidence relationship was replaced by an independence declaration under a valid checksum",
+      "expect": "reject",
+      "file": "composition_bundle__embedded_bytes_swapped.artifact",
+      "kind": "composition_bundle_v1",
+      "reject_class": "identity"
+    },
+    {
+      "description": "a reference node declares an aligned joint law where the sealed bundle declared a mean only",
+      "expect": "reject",
+      "file": "composition_bundle__fact_edited.artifact",
+      "kind": "composition_bundle_v1",
+      "reject_class": "identity"
+    },
+    {
+      "description": "the bundle identity differs in its last hex digit",
+      "expect": "reject",
+      "file": "composition_bundle__identity_flipped.artifact",
+      "kind": "composition_bundle_v1",
+      "reject_class": "identity"
+    },
+    {
+      "description": "a body version this specification does not define",
+      "expect": "reject",
+      "file": "composition_bundle__newer_version.artifact",
+      "kind": "composition_bundle_v1",
+      "reject_class": "version"
+    },
+    {
+      "description": "a node kind this specification does not define",
+      "expect": "reject",
+      "file": "composition_bundle__node_kind_unknown.artifact",
+      "kind": "composition_bundle_v1",
+      "reject_class": "schema"
+    },
+    {
+      "description": "a field the schema does not list",
+      "expect": "reject",
+      "file": "composition_bundle__unknown_field.artifact",
+      "kind": "composition_bundle_v1",
+      "reject_class": "schema"
+    },
+    {
+      "description": "the head is not the identity of the last operation",
+      "expect": "reject",
+      "file": "evidence_ledger__head_edited.artifact",
+      "kind": "evidence_ledger_v1",
+      "reject_class": "structure"
+    },
+    {
+      "description": "the artifact identity differs in its last hex digit",
+      "expect": "reject",
+      "file": "evidence_ledger__identity_flipped.artifact",
+      "kind": "evidence_ledger_v1",
+      "reject_class": "identity"
+    },
+    {
+      "description": "a metadata version this specification does not define",
+      "expect": "reject",
+      "file": "evidence_ledger__newer_version.artifact",
+      "kind": "evidence_ledger_v1",
+      "reject_class": "version"
+    },
+    {
+      "description": "an operation identity was edited; the artifact identity binds it",
+      "expect": "reject",
+      "file": "evidence_ledger__operation_identity_edited.artifact",
+      "kind": "evidence_ledger_v1",
+      "reject_class": "identity"
+    },
+    {
+      "description": "three pooled studies, a covariance pool, an assumption-range envelope and a vendor claim with undeclared observations",
+      "expect": "accept",
+      "file": "evidence_ledger__pooled.artifact",
+      "identity": "b36d763a3eb209258f2c4fe925b31cbbf0dc65f028aa0a58b75cf2173e19c3c2",
+      "kind": "evidence_ledger_v1",
+      "meta_json": "evidence_ledger__pooled.meta.json"
+    },
+    {
+      "description": "the pooled estimate was edited to 1.5; the stored value is not the recomputed 10/7",
+      "expect": "reject",
+      "file": "evidence_ledger__synthesis_value_edited.artifact",
+      "kind": "evidence_ledger_v1",
+      "reject_class": "semantic"
+    },
+    {
+      "description": "a field the schema does not list",
+      "expect": "reject",
+      "file": "evidence_ledger__unknown_field.artifact",
+      "kind": "evidence_ledger_v1",
+      "reject_class": "schema"
+    },
+    {
+      "description": "one payload byte differs from the section checksum",
+      "expect": "reject",
+      "file": "interface_contract__checksum_corrupted.artifact",
+      "kind": "interface_contract_v1",
+      "reject_class": "checksum"
+    },
+    {
+      "description": "a consumer with one port and nothing produced",
+      "expect": "accept",
+      "file": "interface_contract__consumer_only.artifact",
+      "identity": "9ed876dc770d28f4a83b1909403324c5db6139711fa71285b1df0233e0f9bb79",
+      "kind": "interface_contract_v1",
+      "meta_json": "interface_contract__consumer_only.meta.json"
+    },
+    {
+      "description": "the units of a produced quantity were edited and no identity was recomputed",
+      "expect": "reject",
+      "file": "interface_contract__contract_edited_unsealed.artifact",
+      "kind": "interface_contract_v1",
+      "reject_class": "identity"
+    },
+    {
+      "description": "an estimator contract with every role, support kind, operation and calibration label",
+      "expect": "accept",
+      "file": "interface_contract__estimator.artifact",
+      "identity": "2626d530ea6cb37fc505707eedb8059a94f64bde261e4b670b596c58ef516fa1",
+      "kind": "interface_contract_v1",
+      "meta_json": "interface_contract__estimator.meta.json"
+    },
+    {
+      "description": "the artifact identity differs in its last hex digit",
+      "expect": "reject",
+      "file": "interface_contract__identity_flipped.artifact",
+      "kind": "interface_contract_v1",
+      "reject_class": "identity"
+    },
+    {
+      "description": "a required field is absent",
+      "expect": "reject",
+      "file": "interface_contract__missing_field.artifact",
+      "kind": "interface_contract_v1",
+      "reject_class": "schema"
+    },
+    {
+      "description": "a metadata version this specification does not define",
+      "expect": "reject",
+      "file": "interface_contract__newer_version.artifact",
+      "kind": "interface_contract_v1",
+      "reject_class": "version"
+    },
+    {
+      "description": "a required feature that version 1 does not define",
+      "expect": "reject",
+      "file": "interface_contract__required_feature.artifact",
+      "kind": "interface_contract_v1",
+      "reject_class": "required_feature"
+    },
+    {
+      "description": "an interval or posterior is declared without saying what it means; the artifact identity was resealed",
+      "expect": "reject",
+      "file": "interface_contract__resealed_interval_without_meaning.artifact",
+      "kind": "interface_contract_v1",
+      "reject_class": "semantic"
+    },
+    {
+      "description": "ports are not in name order; the artifact identity was resealed",
+      "expect": "reject",
+      "file": "interface_contract__resealed_ports_unsorted.artifact",
+      "kind": "interface_contract_v1",
+      "reject_class": "structure"
+    },
+    {
+      "description": "a feature marker this specification does not define",
+      "expect": "reject",
+      "file": "interface_contract__unknown_feature_marker.artifact",
+      "kind": "interface_contract_v1",
+      "reject_class": "feature"
+    },
+    {
+      "description": "a field the schema does not list",
+      "expect": "reject",
+      "file": "interface_contract__unknown_field.artifact",
+      "kind": "interface_contract_v1",
+      "reject_class": "schema"
+    },
+    {
+      "description": "the manifest declares another artifact kind",
+      "expect": "reject",
+      "file": "interface_contract__wrong_kind.artifact",
+      "kind": "interface_contract_v1",
+      "reject_class": "kind"
+    }
+  ],
+  "format": "antecedent-conformance",
+  "specification_version": 1
+}
