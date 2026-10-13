@@ -112,5 +112,7 @@ declared and need `admit_declared_mechanisms=True`), `Dependence` and
 is a `MechanismCompositionRefusal` listing every defect (`refusals`,
 `details`); `interval()` raises `cell_not_licensed`.
 
-Not wired: the producer/consumer matrix row and the design composition-bundle
-node kind.
+The `composed_model` producer is a row of
+[the producer and consumer matrix](producer-consumer-matrix.md): a composed model
+is a point mean source for the declared-adapter consumers and is refused by the
+rest with typed errors. The design composition-bundle node kind is not wired.

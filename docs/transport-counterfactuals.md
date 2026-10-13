@@ -32,7 +32,11 @@ The class is narrow and declared:
 This is the **affine-additive class**. Nonparametric mechanisms, recanting
 witnesses and nonlinear additive noise are outside it. The general route
 (`antecedent.temporal_counterfactual.transported_path_specific`) stays closed: it
-never evaluates and always raises a typed refusal.
+never evaluates and always raises a typed refusal. That refusal names the
+successor route for the finite discrete, static, acyclic semi-Markovian scope,
+`antecedent.transport.advanced.identify_counterfactual` (nested counterfactual
+and edge-route queries over a selection diagram); the closed function is not a
+delegation and answers nothing itself.
 
 The snippet is the tested fixture of `python/tests/test_transported_counterfactual.py`:
 `M = 0.5 Z + (2 - 0.5 Z) A + U_M`, `Y = (3 + 0.75 Z) A + 4 M + 1.5 Z + U_Y`, with
@@ -286,8 +290,10 @@ interval is scheduled with the inverse-query and decision-consumption work.
 
 The producer row `counterfactual_transport_result` (a `CounterfactualTransportResult`
 or its exported artifact) joins [the producer and consumer matrix](producer-consumer-matrix.md)
-with the Python producer; until then its consumer cells are the REFUSED-by-absence
-state described above, not an unconsidered one, and nothing there executes it.
+with the Python producer. Its row exists and every consumer cell is executed: the
+decision, inverse-query and recalculation consumers take a caller-declared point
+mean as an adapter, and the remaining consumers refuse it with a typed error. The
+point is never promoted to a law, an interval or a replayable decision source.
 
 ## Scenario invariance report
 

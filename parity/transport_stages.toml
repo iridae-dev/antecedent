@@ -4063,7 +4063,7 @@ route = "antecedent.cross_world.transported_path_specific"
 stage = "identify"
 status = "closed"
 reason_code = "cell_not_licensed"
-notes = "Static transported path-specific counterfactual is carried forward closed: the joint cross-world transport theorem is not derived and the prerequisite gates (transport license, fixed-population cross-world license, cross-population assumptions) are not met. The route evaluates nothing and reports the exact missing gates (route_frozen, offending = first missing gate), factor_missing only when all gates pass. Evidence: python/tests/test_temporal_counterfactual.py::test_transported_route_is_closed_with_every_missing_gate."
+notes = "Transported path-specific counterfactual in the temporal, continuous and non-finite scope is carried forward closed: the joint cross-world transport theorem is not derived and the prerequisite gates (transport license, fixed-population cross-world license, cross-population assumptions) are not met. The route evaluates nothing and reports the exact missing gates (route_frozen, offending = first missing gate), factor_missing only when all gates pass; its refusal remedy names antecedent.transport.advanced.identify_counterfactual, the promoted route for the finite discrete, static, acyclic semi-Markovian scope (counterfactual.transport_general), and never delegates to it. Evidence: python/tests/test_temporal_counterfactual.py::test_transported_route_is_closed_with_every_missing_gate."
 
 [[routes]]
 route = "antecedent.transport.sampled_observation_recovery"
@@ -6176,9 +6176,14 @@ notes = "Rust facade route; point-only or accounting, no interval. The Python su
 [[routes]]
 route = "antecedent.evidence_ledger.dependence_range"
 stage = "evaluate"
-status = "closed"
-reason_code = "route_not_supported"
-notes = "Rust producer and consumer exist; the public facade route is closed until the facade and Python surface are delivered."
+status = "licensed"
+graph = "not_applicable_to_summary_data"
+evidence = "study_summaries_with_a_declared_common_correlation_interval"
+functional = "pooled_estimate_and_variance_envelope_over_declared_correlation_range"
+guarantee = "exact_envelope_over_declared_correlation_range_assumption_range_only_no_interval"
+evidence_test = "crates/antecedent/tests/evidence_ledger_facade.rs"
+evidence_assertion = "the_dependence_range_is_an_exact_labelled_envelope"
+notes = "Rust facade route labelled assumption_range: the extremes over the declared range, never a point, interval or posterior. The Python surface is wired in python/antecedent/evidence_ledger.py."
 
 [[routes]]
 route = "antecedent.evidence_ledger.pooled_interval"
