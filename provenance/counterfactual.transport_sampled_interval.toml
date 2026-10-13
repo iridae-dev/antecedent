@@ -1,0 +1,19 @@
+feature_id = "counterfactual.transport_sampled_interval"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: a closed variant. No interval method is published, so there
+# is nothing to cite; the delta method of the open record is cited there.
+papers = [
+]
+implementation_deviations = [
+  "Intentionally publishes nothing: the interval route stays closed with cell_not_licensed until whole-method coverage of the sampled counterfactual transport estimator (identification, table estimation including unseen and sparse cells, and the delta standard error) is measured. A nominal normal interval exists only under the calibration-internal feature for the calibration harness.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs",
+  "crates/antecedent-io/tests/sampled_counterfactual_transport_artifact.rs",
+]

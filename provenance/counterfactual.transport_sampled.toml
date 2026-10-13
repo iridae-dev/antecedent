@@ -1,0 +1,34 @@
+feature_id = "counterfactual.transport_sampled"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The identification theorem family is the one the exact route cites. What this
+# record adds is the sampling layer: a plug-in of the stored derivation on tables
+# estimated from counts, and a delta-method standard error. Neither is a result
+# of the counterfactual transportability papers.
+papers = [
+ { title = "Counterfactual Transportability: A Formal Approach", sections = ["Proceedings of the 39th International Conference on Machine Learning (PMLR 162, 2022): the identification this route evaluates; the paper assumes exact distributions and says nothing about estimation from samples (section numbers not independently verified)"] },
+ { title = "Asymptotic Statistics", doi = "10.1017/CBO9780511802256", sections = ["Chapter 3, the delta method: a smooth function of asymptotically normal multinomial proportions is asymptotically normal with variance equal to the quadratic form of its gradient (section numbers not independently verified)"] },
+]
+
+implementation_deviations = [
+ "No published algorithm is reproduced. The route evaluates the stored identification (counterfactual.transport_general) on finite laws estimated from counts and applies the first-order delta method to the whole functional. The identification theorem is stated for exact laws; its consistency under sampling is an engineering claim that is checked by finite-SCM simulation, not a theorem inherited from the paper.",
+ "Uncertainty method chosen: the delta method for multinomial cell proportions, not the nonparametric bootstrap. Reasons: the functional is a rational function of cell proportions of finitely many independent datasets, so its gradient exists away from zero conditioning mass and is computed by a central difference at the stated relative step 1e-5 of each positive cell; the result is deterministic and needs no resampling stream, so it can be measured on a grid of designs at bounded cost and replayed bit for bit by a consumer; failures are explicit (a perturbed evaluation that is undefined withholds the standard error and says so). The bootstrap would need one stream per (population, regime, replicate), would re-evaluate the derivation per replicate, and would have to decide, per replicate, what an empty stratum or a zero-mass conditioning event means; that rule is not needed here because no replicate exists. The cost of the choice is the linearization: near a boundary (cells with few counts, conditioning events with little mass) the first-order variance can be far from the sampling variance, which is exactly what whole-method calibration must measure before any interval is published.",
+ "The standard error is labelled uncalibrated_standard_error. No interval, posterior or coverage statement is produced by the public result; the interval route is closed with cell_not_licensed and a separate promotion record (counterfactual.transport_sampled_interval). A nominal normal interval around the plug-in exists only behind the calibration-internal feature of antecedent-estimate so a harness can measure its whole-method coverage.",
+ "Factors that read fewer coordinates than the table that supplies them are evaluated as the mass-weighted average over the unread coordinates under the table's own mass given the factor's parents (the exact route requires agreement and refuses disagreement). When the tables satisfy the declared graph the two routes agree; under sampling the estimator is a pooled conditional. The number of averaged factors and any tolerance repair (a negative consistency complement set to zero, a probability clamped into [0, 1]) are reported with the result and bound by the artifact.",
+ "Unseen cells are never zero-filled silently. A refuse rule refuses any table with an unseen non-structural cell. Additive smoothing p = (n + a) / (N + K a) over the K non-structural cells is the posterior mean under a symmetric Dirichlet(a) prior; the resulting law is labelled smoothed and a is recorded. The unseen-mass envelope is the range over a finite family of fillings (each table keeps its observed shares or moves the declared mass onto one unseen cell); because the functional is a ratio of sums of products the extremes over the whole polytope of fillings need not lie in the family, so the envelope is a range over that family, labelled structural, and is not a proven outer bound.",
+ "Dependence is declared, never inferred. Tables are independent samples unless declared to share units; shared units are modelled only when the tables are the same observations (one multinomial), because overlapping but different tables have a covariance the counts do not contain. An undeclared or unknown relation is refused (sampling_dependence_unknown) and independent tables with identical observations are refused as double counting (evidence_double_counted). A declaration may be derived from the runtime evidence ledger.",
+ "Stratified designs (strata totals fixed by design) use the block-diagonal covariance of fixed-total multinomial strata. Clustered or weighted designs, continuous variables, temporal dependence and selection into the sample are outside the contract.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-identify/tests/support/finite_scm_oracle.rs",
+ "crates/antecedent-identify/tests/support/counterfactual_transport_cases.rs",
+ "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs",
+ "crates/antecedent-io/tests/sampled_counterfactual_transport_artifact.rs",
+]
