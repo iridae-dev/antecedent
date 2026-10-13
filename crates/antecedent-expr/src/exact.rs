@@ -1143,6 +1143,53 @@ mod tests {
         let missing_regime = FactorSpec { regime: None, ..spec };
         assert!(data.require_factor(&missing_regime).is_err());
     }
+
+    #[test]
+    fn shared_factor_cache_is_content_bound_across_rebinds() {
+        let axis =
+            DiscreteAxis { variable: v(0), values: Arc::from([Value::Int64(0), Value::Int64(1)]) };
+        let make_law = |probabilities| {
+            ExactDiscreteLaw::try_new(
+                "target",
+                RegimeId::from_raw(0),
+                [],
+                [axis.clone()],
+                probabilities,
+                // Deliberately keep caller-supplied snapshot metadata the same.
+                "same-snapshot-label",
+                LawTolerance::default(),
+            )
+            .unwrap()
+        };
+        let old = ExactTransportData::try_new([make_law([0.25, 0.75])], 4)
+            .unwrap()
+            .with_shared_factor_cache(4);
+        let replacement = ExactTransportData::try_new([make_law([0.75, 0.25])], 4).unwrap();
+        let outputs = [v(0)];
+        let spec = FactorSpec {
+            population: "target",
+            regime: Some(RegimeId::from_raw(0)),
+            ..FactorSpec::new(&outputs, &[], &[], DomainRef::Observational)
+        };
+        let assignment = Assignment::from_pairs([(v(0), Value::Int64(1))]);
+
+        // Warm the shared cache with the first law, then rebind a different immutable
+        // probability table that deliberately reuses its external snapshot label.
+        assert_eq!(
+            old.probability_checked(&spec, &assignment).unwrap().to_bits(),
+            0.75_f64.to_bits()
+        );
+        let rebound = replacement.rebind_reusing_factor_cache(Some(&old), 4).unwrap();
+        let warm_rebind_value = rebound.probability_checked(&spec, &assignment).unwrap();
+        let fresh_value = replacement.probability_checked(&spec, &assignment).unwrap();
+        assert_eq!(warm_rebind_value.to_bits(), 0.25_f64.to_bits());
+        assert_eq!(warm_rebind_value.to_bits(), fresh_value.to_bits());
+        assert_eq!(
+            old.probability_checked(&spec, &assignment).unwrap().to_bits(),
+            0.75_f64.to_bits()
+        );
+    }
+
     #[test]
     fn empirical_empty_conditioner_is_sampling_zero_not_structural() {
         let table = ExactDiscreteLaw::try_empirical(
