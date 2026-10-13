@@ -126,7 +126,7 @@ fn diagram_fields(diagram: &SelectionDiagram) -> Fields {
     let graph = diagram.causal_graph();
     let selections: Vec<u32> = diagram.selection_targets().iter().map(|v| v.raw()).collect();
     Fields::new()
-        .nodes(&graph.nodes().iter().copied().collect::<Vec<_>>())
+        .nodes(graph.nodes())
         .wire(&antecedent_io::admg_to_wire(graph).ok())
         .ids(&selections)
 }
