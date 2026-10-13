@@ -1,0 +1,28 @@
+feature_id = "observation_query.posterior_update"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Bayesian Data Analysis (3rd ed.)", doi = "10.1201/b16018", sections = ["Chapter 1: Bayes' rule for a finite hypothesis space and the posterior predictive distribution", "Chapter 2: the Beta-Binomial model and its conjugate update"] },
+  { title = "Bayesian Theory", doi = "10.1002/9780470316870", sections = ["Chapter 5: conjugate families and exchangeable observations"] },
+]
+
+implementation_deviations = [
+  "Both updates are textbook identities evaluated exactly given a declared prior and likelihood; there is no estimation, sampling or approximation step.",
+  "The finite update is computed in log space with the evidence by log-sum-exp, from the counts of each observation level. Observations are declared exchangeable and conditionally independent given the hypothesis, so the posterior does not depend on their order; sequential dependence is not represented.",
+  "The conjugate model is Beta-Bernoulli only, reporting the posterior shapes and the predictive probability of the next success (the posterior mean). The posterior tail probability of the parameter needs a regularised incomplete beta that is not a public primitive of this library; it is not offered.",
+  "A posterior or decision probability is exact given the declared model. When the prior or likelihood was fitted to a sample the caller labels it so, and the claim carries point_only_sample_fitted: no interval or calibration is made and both routes are closed with cell_not_licensed.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "hand-computed screening-test posterior: prior 0.01, likelihood 0.9 / 0.05, one positive gives 2/13 with evidence 0.0585",
+  "closed-form Beta-Bernoulli update: Beta(1,1) with 7 successes and 3 failures gives Beta(8,4), mean 2/3",
+  "crates/antecedent-model/tests/observation_query.rs",
+  "crates/antecedent-io-core/tests/observation_query_artifact.rs",
+  "crates/antecedent/tests/observation_query_facade.rs",
+]

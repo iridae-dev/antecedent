@@ -1,0 +1,20 @@
+feature_id = "observation_query.calibrated_probability"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: a closed variant. No interval or calibration method is
+# published for a posterior or decision probability read from a fitted model at
+# this query's coordinate, so there is nothing to cite.
+papers = [
+]
+implementation_deviations = [
+  "Intentionally publishes nothing: an interval, and a statement that a posterior or decision probability is calibrated, stay closed with cell_not_licensed until a whole-method measurement exists at the query's coordinate (the fitted model, the conditioning step and the query together). The exact value under a declared model and the labelled point value of a fitted model are the results.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-contract/src/observation_query.rs",
+  "crates/antecedent/tests/observation_query_facade.rs",
+]
