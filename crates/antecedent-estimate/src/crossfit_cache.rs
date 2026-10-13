@@ -130,6 +130,7 @@ pub struct CrossfitNuisanceCache {
     propensity_reuses: AtomicUsize,
     outcome_fits: AtomicUsize,
     outcome_reuses: AtomicUsize,
+    completed_fold_fits: AtomicUsize,
 }
 
 impl std::fmt::Debug for CrossfitNuisanceCache {
@@ -235,6 +236,16 @@ impl CrossfitNuisanceCache {
         }
     }
 
+    /// Completed outer-fold nuisance model fits observed in active cache scopes.
+    ///
+    /// This counts fitted propensity models and fitted outcome-model pairs whether they used
+    /// a cache lease or ran unshared. Cache hits and failed fit attempts are not counted.
+    /// Penalized propensity inner-fold model fits are a separate operation and are not included.
+    #[must_use]
+    pub fn completed_fold_fits(&self) -> usize {
+        self.completed_fold_fits.load(Ordering::Acquire)
+    }
+
     fn propensity_entry(&self, key: PropensityKey) -> Option<Arc<PropensityEntry>> {
         let mut entries = self.entries.lock().ok()?;
         if let Some(entry) = entries.propensity.iter().find(|e| e.key.matches(&key)) {
@@ -308,6 +319,14 @@ fn note_use(propensity: Option<usize>, outcome: Option<usize>, cache: &CrossfitN
 
 fn active_cache() -> Option<Arc<CrossfitNuisanceCache>> {
     ACTIVE.with(|slot| slot.borrow().as_ref().map(|scope| Arc::clone(&scope.cache)))
+}
+
+/// Record one completed outer-fold nuisance model fit in the active scope, if any.
+pub(crate) fn record_completed_fold_fit() {
+    let Some(cache) = active_cache() else {
+        return;
+    };
+    cache.completed_fold_fits.fetch_add(1, Ordering::AcqRel);
 }
 
 fn poisoned() -> EstimationError {

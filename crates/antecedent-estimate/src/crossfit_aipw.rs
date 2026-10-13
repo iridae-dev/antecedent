@@ -331,6 +331,7 @@ fn build_scores_pass(
                     },
                     ridge_ctx,
                 )?;
+                crate::crossfit_cache::record_completed_fold_fit();
                 selections.push(selection);
                 predicted
             } else {
@@ -349,6 +350,7 @@ fn build_scores_pass(
                     Ok(fit)
                 })
                 .inspect_err(|error| *failed = Some(FailedFit::from_error(fold, error)))?;
+                crate::crossfit_cache::record_completed_fold_fit();
                 let mut e_valid = vec![0.0; valid.len()];
                 predict_propensity(
                     &design_valid,
@@ -394,6 +396,7 @@ fn build_scores_pass(
                         backend,
                         &mut out_ws,
                     )?;
+                    crate::crossfit_cache::record_completed_fold_fit();
                     predict_colmajor(&design_valid, valid.len(), ncols, &beta0, &mut out_ws.mu0);
                     predict_colmajor(&design_valid, valid.len(), ncols, &beta1, &mut out_ws.mu1);
                     if let Some((mu0, mu1)) = fitted_mu[t_idx].as_mut() {
@@ -686,10 +689,15 @@ mod tests {
 
         let cache = CrossfitNuisanceCache::new();
         let (first, a) = cache.scope(|| build(&base, &est.glm_options));
+        assert_eq!(cache.completed_fold_fits(), 10);
         let (again, b) = cache.scope(|| build(&base, &est.glm_options));
+        assert_eq!(cache.completed_fold_fits(), 10, "cache hits do no fold-fit work");
         let (outcome, c) = cache.scope(|| build(&other_outcome, &est.glm_options));
+        assert_eq!(cache.completed_fold_fits(), 15);
         let (seeded, d) = cache.scope(|| build(&other_seed, &est.glm_options));
+        assert_eq!(cache.completed_fold_fits(), 25);
         let (glm, e) = cache.scope(|| build(&base, &other_glm));
+        assert_eq!(cache.completed_fold_fits(), 35);
         assert_eq!(table_bits(&first), table_bits(&solo));
         assert_eq!(table_bits(&again), table_bits(&solo));
         assert_eq!(table_bits(&outcome), table_bits(&solo_other));
@@ -711,6 +719,74 @@ mod tests {
         let unscoped = build(&base, &est.glm_options);
         assert_eq!(table_bits(&unscoped), table_bits(&solo));
         assert_eq!(cache.stats(), stats);
+    }
+
+    #[test]
+    fn unshared_penalized_folds_are_counted_in_the_active_scope() {
+        use crate::crossfit_cache::CrossfitNuisanceCache;
+        use crate::propensity::{PropensityNuisance, RidgeTuning};
+
+        let (data, estimand) = confounded(400, 62);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = AipwAte::new();
+        let mut problem = est.prepare(&data, &estimand, &query).unwrap();
+        problem.propensity =
+            PropensityNuisance::ridge_logistic(RidgeTuning::new(&[0.1, 1.0], 3).unwrap());
+
+        let cache = CrossfitNuisanceCache::new();
+        let (table, _) = cache.scope(|| {
+            crossfit_binary_scores(&problem, &query, 5, &est.glm_options, est.backend).unwrap()
+        });
+        assert_eq!(table.n_folds, 5);
+        assert_eq!(cache.completed_fold_fits(), 10);
+        assert_eq!(cache.stats(), crate::crossfit_cache::CrossfitCacheStats::default());
+    }
+
+    #[test]
+    fn fallback_counts_completed_prefix_and_successful_destination_fits() {
+        use crate::crossfit_cache::CrossfitNuisanceCache;
+        use crate::propensity::{NuisanceFallback, PropensityNuisance, RidgeTuning};
+
+        let (data, estimand) = confounded(400, 63);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = AipwAte::new();
+        let mut problem = est.prepare(&data, &estimand, &query).unwrap();
+        let n = problem.nrows;
+        let mut treatment: Vec<_> =
+            (0..n).map(|row| f64::from(u8::from(problem.design_matrix[n + row] > 0.0))).collect();
+        // The intentionally discordant fold makes fold zero's training fit finite. It is
+        // excluded from fold one's training rows, where the remaining data are separated.
+        for row in (1..n).step_by(5) {
+            treatment[row] = 1.0 - treatment[row];
+        }
+        problem.treatment = Arc::from(treatment);
+        problem.fold_assignment =
+            Some(Arc::from((0..n).map(|row| u32::try_from(row % 5).unwrap()).collect::<Vec<_>>()));
+        problem.propensity = PropensityNuisance::default().with_fallback(
+            NuisanceFallback::RidgeLogistic(RidgeTuning::new(&[1.0, 10.0, 100.0], 3).unwrap()),
+        );
+
+        let build = ScoreBuild {
+            treatment: query.treatment,
+            thresholds: &[None],
+            folds: 5,
+            glm_options: &est.glm_options,
+            backend: est.backend,
+            share: true,
+            ctx: None,
+            fold_seed: None,
+        };
+        let cache = CrossfitNuisanceCache::new();
+        let (result, _) = cache.scope(|| build_binary_scores_in(&problem, &build));
+        let (table, fitted) = result.unwrap();
+        assert_eq!(table.n_folds, 5);
+        assert_eq!(fitted.fallback.as_ref().unwrap().failed_fit.fold, 1);
+        // The fold-zero GLM propensity and outcome pair completed before fold one's
+        // failed GLM fit; the successful ridge fallback then refit both nuisances in all
+        // five folds. The failed GLM attempt itself is not counted.
+        assert_eq!(cache.completed_fold_fits(), 12);
     }
 
     #[test]

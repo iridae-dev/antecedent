@@ -5,9 +5,13 @@ use antecedent::analysis::recalc_adjusted::{
     execute_adjusted_with_receipt,
 };
 use antecedent::analysis::recalc_attempt::{Operation, execute_with_attempt};
-use antecedent::analysis::recalc_receipt::UtilitySpec;
+use antecedent::analysis::recalc_receipt::{
+    RecalcRequest, RecalcSession, UtilitySpec, execute_with_receipt,
+};
+use antecedent_core::recalc::{Stage, StageStatus};
 use antecedent_core::{CancellationToken, ExecutionContext, VariableId};
 use antecedent_estimate::vector_treatment::VectorCovariance;
+use antecedent_estimate::{AipwAte, OverlapPolicy, PropensityNuisance, RidgeTuning};
 use antecedent_stats::{GlmFamily, GlmOptions};
 
 fn utility() -> UtilitySpec {
@@ -401,4 +405,108 @@ fn original_score_retarget_summary_reuses_fits_but_records_actual_law_work() {
     let reused = execute_with_attempt(|| execute_with_receipt(&mut session, &request, &ctx));
     reused.result.unwrap();
     assert!(reused.report.is_empty());
+}
+
+fn configurable_aipw_request() -> RecalcRequest {
+    let (mut treatment, mut outcome, mut confounder) = (Vec::new(), Vec::new(), Vec::new());
+    for group in 0..3 {
+        for within in 0..200 {
+            let z = group as f64 - 1.0;
+            // Keep all declared propensities inside the changed 0.2 clip so this fixture
+            // tests configuration refresh rather than the intended overlap refusal.
+            let treated = within < [80, 100, 120][group];
+            let t = f64::from(treated);
+            let noise = if within % 2 == 0 { 0.2 } else { -0.2 };
+            treatment.push(t);
+            confounder.push(z);
+            outcome.push(1.0 + 2.0 * t + 0.6 * z + 0.5 * t * z + 0.3 * z * z + noise);
+        }
+    }
+    RecalcRequest {
+        columns: vec![("t".into(), treatment), ("y".into(), outcome), ("z".into(), confounder)],
+        edges: vec![(2, 0), (2, 1), (0, 1)],
+        treatment: 0,
+        outcome: 1,
+        estimator: AipwAte::new().with_bootstrap_replicates(0),
+        target: None,
+        utility: utility(),
+    }
+}
+
+#[test]
+fn recalc_warm_aipw_configuration_refresh_matches_fresh_fit() {
+    let ctx = ExecutionContext::for_tests(184);
+    let original = configurable_aipw_request();
+    let mut warm_session = RecalcSession::new();
+    execute_with_receipt(&mut warm_session, &original, &ctx).unwrap();
+    let original_scores = warm_session.score_table().unwrap().clone();
+
+    let mut changed = original.clone();
+    changed.estimator.propensity =
+        PropensityNuisance::ridge_logistic(RidgeTuning::new(&[10.0, 100.0], 3).unwrap());
+    changed.estimator.glm_options.tol = 0.25;
+    changed.estimator.overlap = OverlapPolicy::RequireDiagnostics { clip: Some(0.2), trim: None };
+    let warm = execute_with_receipt(&mut warm_session, &changed, &ctx).unwrap();
+    let mut fresh_session = RecalcSession::new();
+    let fresh = execute_with_receipt(&mut fresh_session, &changed, &ctx).unwrap();
+
+    assert_ne!(original_scores, *warm_session.score_table().unwrap());
+    assert!(matches!(warm.plan.status(Stage::Identification), Some(StageStatus::Reused { .. })));
+    assert!(matches!(warm.plan.status(Stage::ScoreArtifact), Some(StageStatus::Recomputed { .. })));
+    let identification = warm.receipt.entry(Stage::Identification).unwrap();
+    assert_eq!(identification.counts.identifications, 0);
+    let score_work = warm.receipt.entry(Stage::ScoreArtifact).unwrap();
+    assert_eq!(score_work.counts.score_computations, 1);
+    assert!(score_work.counts.fold_fits > 0);
+    assert_eq!(warm.law, fresh.law);
+    assert_eq!(warm_session.score_table(), fresh_session.score_table());
+    assert_eq!(warm_session.identities(), fresh_session.identities());
+}
+
+#[test]
+fn recalc_rejects_unrepresentable_aipw_uncertainty_and_preserves_live_state() {
+    use antecedent_estimate::AnalyticSeKind;
+
+    let ctx = ExecutionContext::for_tests(185);
+    let request = configurable_aipw_request();
+    let mut session = RecalcSession::new();
+    let first = execute_with_receipt(&mut session, &request, &ctx).unwrap();
+    let original_ids = session.identities().clone();
+    let original_scores = session.score_table().unwrap().clone();
+
+    let mut robust = request.clone();
+    robust.estimator.se_kind = AnalyticSeKind::Hc3;
+    let warm_error = execute_with_receipt(&mut session, &robust, &ctx).unwrap_err();
+    let fresh_error = execute_with_receipt(&mut RecalcSession::new(), &robust, &ctx).unwrap_err();
+    assert!(warm_error.to_string().contains("recalc.unsupported_aipw_score_configuration"));
+    assert_eq!(warm_error.to_string(), fresh_error.to_string());
+
+    let mut explicit_overlap = request.clone();
+    explicit_overlap.estimator.overlap = OverlapPolicy::ExplicitOverride;
+    let warm_error = execute_with_receipt(&mut session, &explicit_overlap, &ctx).unwrap_err();
+    let fresh_error =
+        execute_with_receipt(&mut RecalcSession::new(), &explicit_overlap, &ctx).unwrap_err();
+    assert!(warm_error.to_string().contains("recalc.aipw_requires_overlap_diagnostics"));
+    assert_eq!(warm_error.to_string(), fresh_error.to_string());
+
+    let mut trimmed = request.clone();
+    trimmed.estimator.overlap =
+        OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(0.1) };
+    let warm_error = execute_with_receipt(&mut session, &trimmed, &ctx).unwrap_err();
+    let fresh_error = execute_with_receipt(&mut RecalcSession::new(), &trimmed, &ctx).unwrap_err();
+    assert!(warm_error.to_string().contains("recalc.unsupported_aipw_score_configuration"));
+    assert_eq!(warm_error.to_string(), fresh_error.to_string());
+
+    let mut bootstrapped = request.clone();
+    bootstrapped.estimator.bootstrap_replicates = 10;
+    let bootstrap_error = execute_with_receipt(&mut session, &bootstrapped, &ctx).unwrap_err();
+    assert!(bootstrap_error.to_string().contains("recalc.bootstrap_replicates_unsupported"));
+
+    let mut invalid = request.clone();
+    invalid.estimator.glm_options.max_iter = 0;
+    assert!(execute_with_receipt(&mut session, &invalid, &ctx).is_err());
+    let unchanged = execute_with_receipt(&mut session, &request, &ctx).unwrap();
+    assert_eq!(unchanged.law, first.law);
+    assert_eq!(session.identities(), &original_ids);
+    assert_eq!(session.score_table().unwrap(), &original_scores);
 }

@@ -18,11 +18,77 @@ use crate::planner::RouteDefaults;
 use crate::result::StudyResult;
 use antecedent_core::{AverageEffectQuery, CausalQuery, ExecutionContext};
 use antecedent_data::{PanelData, TableView, TabularData, TimeSeriesData};
-use antecedent_estimate::EstimationWorkspace;
+use antecedent_estimate::{AipwAte, EstimationWorkspace};
 use std::sync::Arc;
 use std::time::Instant;
 
 impl PreparedStudy {
+    /// Refresh a retained AIPW study after changing only its numerical estimator options.
+    ///
+    /// The checked graph/query and cached identification are immutable inputs to this
+    /// operation. The numerical problem, checked AIPW receipt and score table are rebuilt
+    /// from `estimator` and `data`; the identification cache itself remains retained.
+    /// Updates are transactional: a failed preparation or refresh leaves `self` unchanged.
+    ///
+    /// # Errors
+    ///
+    /// The handle is not a checked AIPW average-effect study, the schema/configuration is
+    /// incompatible, or the refreshed estimate cannot be computed.
+    pub(crate) fn refresh_aipw_configuration(
+        &mut self,
+        data: TabularData,
+        estimator: AipwAte,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        use crate::estimator_spec::EstimatorSpec;
+        use crate::strategy_table::EstimatorId;
+
+        if self.analysis.estimator != Some(EstimatorId::Aipw)
+            || !matches!(self.analysis.query, CausalQuery::AverageEffect(_))
+            || self.analysis.identification_cache.is_none()
+            || !matches!(
+                self.execution,
+                PreparedExecution::OrdinaryDispatch | PreparedExecution::CheckedAipw(_)
+            )
+        {
+            return Err(CausalError::Unsupported {
+                message: "AIPW configuration refresh requires the same checked average-effect study",
+            });
+        }
+
+        self.transform_capability(antecedent_contract::TransformIntent::CompatibleDataReplace)?;
+        self.ensure_schema_compatible(&data)?;
+
+        // Work on a candidate so config installation, score rebuilding and execution fail
+        // atomically from the session's point of view.
+        let mut candidate = self.clone();
+        let spec = EstimatorSpec::Aipw(Box::new(estimator.clone()));
+        Arc::make_mut(&mut candidate.analysis.config).estimator_spec_identity =
+            Some(crate::analysis::contract_identity::estimator_spec_identity(&spec));
+        candidate.analysis.estimator_spec = Some(Arc::new(spec));
+        candidate.program_cache = std::sync::OnceLock::new();
+
+        if let PreparedExecution::CheckedAipw(operation) = &mut candidate.execution {
+            let identification = &operation.cache.identification;
+            let estimand_index = identification
+                .estimands
+                .iter()
+                .position(|estimand| estimand == &operation.cache.estimand)
+                .ok_or(CausalError::Unsupported {
+                    message: "retained AIPW estimand is absent from cached identification",
+                })?;
+            let preparation = estimator
+                .prepare_checked(&data, identification, estimand_index)
+                .map_err(CausalError::from)?;
+            operation.fitter = estimator;
+            operation.preparation = preparation;
+        }
+
+        let result = candidate.refresh(data, ctx)?;
+        *self = candidate;
+        Ok(result)
+    }
+
     /// Replace retained data and re-estimate (same semantics as [`Self::estimate`]).
     ///
     /// Everything the click derives from the new rows is handed to the

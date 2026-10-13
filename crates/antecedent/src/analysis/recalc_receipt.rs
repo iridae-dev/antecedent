@@ -18,17 +18,17 @@
 //!
 //! - **Fold fits.** Each prepare or refresh runs inside one
 //!   [`antecedent_estimate::CrossfitNuisanceCache`] scope owned by the [`ReceiptRecorder`].
-//!   The cache counts every cross-fitted nuisance set it actually fit (`propensity_fits`,
-//!   `outcome_fits`; reuse inside the call is counted separately and not as a fit). One fit
-//!   set is `DEFAULT_AIPW_FOLDS` fold fits, so a first run records `5 folds x 2 nuisance
-//!   sets = 10` fold fits. The cache lives only as long as the recorder (one call) and is
-//!   not a persistent fit cache; reuse across calls is the retained [`PreparedStudy`] and its
-//!   frozen score table, and nothing else.
+//!   Its completed-fold counter observes each fitted outer-fold propensity model and outcome
+//!   model pair, including unshared penalized fits and completed folds before a successful
+//!   fallback rerun. Cache hits and failed model-fit attempts do not count; inner penalty
+//!   selection fits are not this counter's unit. A first run records `5 propensity folds + 5
+//!   outcome folds = 10` fold fits. The scope lives only for one call; across calls, reuse is
+//!   the retained [`PreparedStudy`] and frozen score table.
 //! - **Identifications, score computations, reweights, decisions.** Counted at the call sites
 //!   of `Study::prepare` (identification), the score-table build (`prepare` or `refresh`),
 //!   `PreparedStudy::retarget`, and the decision rule. These are call-level counts: they say
-//!   the wrapper invoked the operation, and the fold-fit counter, which is read from the
-//!   estimator's own cache, independently confirms that a refit really happened.
+//!   the wrapper invoked the operation, while the fold-fit counter records completed nuisance
+//!   model fits observed inside the estimator's scope.
 //!
 //! [`RecalcReceipt`] refuses to build when a count contradicts a status: a reused stage that
 //! did work, or a recomputed computation that did none.
@@ -282,18 +282,13 @@ impl ReceiptRecorder {
         self.counts.get(&stage).copied().unwrap_or_default()
     }
 
-    /// Run `work` with this recorder's nuisance cache active on the calling thread and record
-    /// every nuisance fit set the cache actually fit as `DEFAULT_AIPW_FOLDS` fold fits.
+    /// Run `work` with this recorder's nuisance cache active and record completed outer-fold
+    /// propensity and outcome model fits observed by the AIPW score builder.
     pub fn measured<R>(&mut self, work: impl FnOnce() -> R) -> R {
-        let before = self.nuisances.stats();
+        let before = self.nuisances.completed_fold_fits();
         let (out, _used) = self.nuisances.scope(work);
-        let after = self.nuisances.stats();
-        let sets = after
-            .propensity_fits
-            .saturating_sub(before.propensity_fits)
-            .saturating_add(after.outcome_fits.saturating_sub(before.outcome_fits));
-        let folds = to_u64(DEFAULT_AIPW_FOLDS);
-        self.record(Counter::FoldFit, to_u64(sets).saturating_mul(folds));
+        let after = self.nuisances.completed_fold_fits();
+        self.record(Counter::FoldFit, to_u64(after.saturating_sub(before)));
         out
     }
 
@@ -608,7 +603,11 @@ pub struct RecalcRequest {
     pub treatment: u32,
     /// Outcome column position.
     pub outcome: u32,
-    /// Estimator configuration. Bootstrap replicates should be zero.
+    /// Estimator configuration. This score-retarget route requires zero bootstrap replicates,
+    /// homoskedastic analytic SEs, and
+    /// [`OverlapPolicy::RequireDiagnostics`](antecedent_estimate::OverlapPolicy::RequireDiagnostics)
+    /// with `trim: None`; the optional clip and other AIPW nuisance and GLM options are fit
+    /// and keyed normally.
     pub estimator: AipwAte,
     /// Target population weights; `None` is the observed population.
     pub target: Option<TargetWeights>,
@@ -766,6 +765,25 @@ fn push_f64s(out: &mut Vec<u8>, values: &[f64]) {
 }
 
 impl RecalcRequest {
+    fn validate(&self) -> Result<(), RecalcRunError> {
+        self.utility.validate()?;
+        if self.estimator.bootstrap_replicates != 0 {
+            return Err(RecalcRunError::Request("recalc.bootstrap_replicates_unsupported"));
+        }
+        if self.estimator.overlap == antecedent_estimate::OverlapPolicy::ExplicitOverride {
+            return Err(RecalcRunError::Request("recalc.aipw_requires_overlap_diagnostics"));
+        }
+        if self.estimator.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
+            || matches!(
+                self.estimator.overlap,
+                antecedent_estimate::OverlapPolicy::RequireDiagnostics { trim: Some(_), .. }
+            )
+        {
+            return Err(RecalcRunError::Request("recalc.unsupported_aipw_score_configuration"));
+        }
+        Ok(())
+    }
+
     /// Declared own-input identity of every stage of this request under `ctx`.
     #[must_use]
     pub fn identities(&self, ctx: &ExecutionContext) -> StageIdentities {
@@ -1046,7 +1064,9 @@ fn score_stages(
         let mut prepared = live.prepared.as_ref().clone();
         let data = request.data()?;
         recorder.record(Counter::ScoreComputation, 1);
-        recorder.measured(|| prepared.refresh(data, ctx))?;
+        recorder.measured(|| {
+            prepared.refresh_aipw_configuration(data, request.estimator.clone(), ctx)
+        })?;
         return Ok((Arc::new(prepared), None));
     }
     Ok((Arc::clone(&live.prepared), Some((live.law, live.decision))))
@@ -1133,7 +1153,7 @@ pub fn execute_with_receipt(
     request: &RecalcRequest,
     ctx: &ExecutionContext,
 ) -> Result<RecalcOutcome, RecalcRunError> {
-    request.utility.validate()?;
+    request.validate()?;
     let plan = session.plan(request, ctx);
     if !plan.is_executable() {
         return Err(RecalcRunError::Refused(Box::new(plan)));
