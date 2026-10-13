@@ -18,8 +18,9 @@
 //!   coefficient of determination are met.
 //! * [`BridgeMapping::MeasurementCorrection`] is the closed-form inversion (or
 //!   forward map) of a binary-misclassification measurement model on a
-//!   prevalence or risk: `latent = (observed + specificity - 1) / (sensitivity
-//!   + specificity - 1)` and its forward map, for the model's declared rates.
+//!   prevalence or risk:
+//!   `latent = (observed + specificity - 1) / (sensitivity + specificity - 1)`
+//!   and its forward map, for the model's declared rates.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -520,6 +520,10 @@ impl FiniteSequentialModel {
         Ok(())
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one flat compilation of an action over every declared state and observation, sharing the bound counters"
+    )]
     fn compile_action(
         &self,
         action: &ActionSpec,
@@ -637,6 +641,10 @@ impl FiniteSequentialModel {
     /// update is a Bayes update on a declared finite model with the confusion
     /// law as its likelihood, and the parameters are used as declared, without
     /// propagating their estimation uncertainty.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one flat construction of the channel matrix with its normalisation and support refusals"
+    )]
     fn channel_matrix(
         &self,
         action: &ActionSpec,

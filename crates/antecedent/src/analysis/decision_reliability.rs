@@ -56,6 +56,8 @@ pub struct DecisionReliabilityRefusal {
     pub detail: String,
     /// What was refused and what would license it.
     pub message: String,
+    /// What the caller can change to proceed, when the refusal names it.
+    pub remedy: Option<&'static str>,
 }
 
 impl DecisionReliabilityRefusal {
@@ -71,7 +73,7 @@ impl DecisionReliabilityRefusal {
         if let Some(remedy) = refusal.remedy {
             message.push_str(&format!("; {remedy}"));
         }
-        Self { code: refusal.code, detail: refusal.detail, message }
+        Self { code: refusal.code, detail: refusal.detail, message, remedy: refusal.remedy }
     }
 
     fn from_io(error: &IoError) -> Self {
@@ -79,6 +81,7 @@ impl DecisionReliabilityRefusal {
             code: error.reason_code().unwrap_or(antecedent_core::reason_code!("invalid_argument")),
             detail: "decision_reliability.artifact".to_owned(),
             message: error.to_string(),
+            remedy: None,
         }
     }
 }

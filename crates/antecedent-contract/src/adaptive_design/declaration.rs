@@ -616,6 +616,10 @@ impl AdaptiveDesignContract {
     /// # Panics
     /// Never for a contract built by [`Self::new`], which guarantees the
     /// elements this reads.
+    #[allow(
+        clippy::result_large_err,
+        reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+    )]
     pub fn authorize(
         &self,
         paradigm: InferenceParadigm,
@@ -701,6 +705,10 @@ fn declare_bind(code: &'static str, detail: &'static str, remedy: &'static str) 
     ExternalRefusal::new(code, STAGE_BIND, detail).with_remedy(remedy)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one canonical-encoding pass over every declared field, in declaration order"
+)]
 fn identity_of(declaration: &AdaptiveDesignDeclaration) -> SemanticDigest {
     let mut writer = CanonicalWriter::new("antecedent.adaptive_design.contract");
     writer.word(ADAPTIVE_DESIGN_VERSION);

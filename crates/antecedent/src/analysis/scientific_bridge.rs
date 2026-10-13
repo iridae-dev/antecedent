@@ -141,12 +141,27 @@ impl ScientificBridgeRefusal {
 
     fn from_artifact(error: &ScientificBridgeArtifactError) -> Self {
         match error.refusal() {
-            Some((code, detail, message)) => Self { code, detail, message, remedy: None },
+            Some((code, detail, message)) => {
+                // Every refusal states what would license the request: the artifact's own
+                // refusals name theirs; a library refusal on replay carries it as its message.
+                let remedy = match detail.as_str() {
+                    "scientific_bridge.identity_mismatch" => {
+                        "supply the artifact whose recomputed identity equals the retained identity, or regenerate it from the intended bridge"
+                            .to_owned()
+                    }
+                    "scientific_bridge.replay_mismatch" => {
+                        "regenerate the artifact from the contract and the source claim; the stored identity, value, fit and flag must replay"
+                            .to_owned()
+                    }
+                    _ => message.clone(),
+                };
+                Self { code, detail, message, remedy: Some(remedy) }
+            }
             None => Self {
                 code: antecedent_core::reason_code!("invalid_argument"),
                 detail: "scientific_bridge.artifact_invalid".to_owned(),
                 message: error.to_string(),
-                remedy: None,
+                remedy: Some("supply an intact scientific_bridge_v1 artifact".to_owned()),
             },
         }
     }

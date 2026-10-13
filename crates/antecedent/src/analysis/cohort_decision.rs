@@ -28,7 +28,7 @@
 
 use antecedent_core::ExecutionContext;
 pub use antecedent_design::cohort_decision_input::{
-    cohort_decision_input, cohort_mean_source, cohort_trust_evidence,
+    cohort_decision_input, cohort_forward_claim, cohort_mean_source, cohort_trust_evidence,
 };
 use antecedent_design::composition_boundary::{
     BoundaryError, SupportPolicy, SupportedDecision, TrustRequirement, evaluate_with_support,

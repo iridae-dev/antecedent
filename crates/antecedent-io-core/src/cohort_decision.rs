@@ -612,6 +612,10 @@ impl RetainedEffectModel {
     /// # Errors
     /// An unreadable, unverified or attested parent, a missing portable model, a
     /// non-identity link, a query that is not one declared contrast, and a wrong claim.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one flat lowering of an analysis result into the wire record, field by field"
+    )]
     pub fn from_analysis_result(
         bytes: &[u8],
         expected_claim: Option<&str>,

@@ -3,7 +3,7 @@
 //! Every asserted value has an oracle that is not the code under test:
 //! closed forms (incomplete beta of integer shapes, the integer-shape sum for
 //! the probability that one Beta variable exceeds another, the uniform-Beta
-//! integrals), values integrated with SciPy's adaptive quadrature and written
+//! integrals), values integrated with `SciPy`'s adaptive quadrature and written
 //! down here as constants, published boundaries (O'Brien-Fleming-type
 //! alpha-spending boundaries of Lan and `DeMets`, as in the `gsDesign`
 //! vignette; the Armitage, `McPherson` and Rowe five-look inflation), exact
@@ -198,7 +198,7 @@ fn expected_loss_matches_the_uniform_integrals_and_scipy() {
     let l = expected_losses(&[post(8.0, 4.0), post(5.0, 7.0), post(3.0, 3.0)], &never).unwrap();
     close(l[0], 0.037_731_723_564_271_79, 1e-9, "arm 0");
     close(l[1], 0.287_731_723_564_271_74, 1e-9, "arm 1");
-    close(l[2], 0.204_398_390_230_927_01, 1e-9, "arm 2");
+    close(l[2], 0.204_398_390_230_927, 1e-9, "arm 2");
 }
 
 /// All histories of `steps` Thompson-sampling pulls of two Bernoulli arms
@@ -295,7 +295,7 @@ fn scores_and_weighted_estimates_match_the_hand_calculation() {
     };
     let uniform0 = go(Estimand::ArmMean(0), WeightScheme::Uniform);
     close(uniform0.estimate, 0.0, 1e-14, "uniform arm 0");
-    close(uniform0.variance, 0.7734375, 1e-14, "uniform arm 0 variance");
+    close(uniform0.variance, 0.773_437_5, 1e-14, "uniform arm 0 variance");
     let uniform1 = go(Estimand::ArmMean(1), WeightScheme::Uniform);
     close(uniform1.estimate, 0.455_357_142_857_142_85, 1e-14, "uniform arm 1");
     close(uniform1.variance, 0.104_173_309_948_979_58, 1e-14, "uniform arm 1 variance");
@@ -333,6 +333,12 @@ fn a_low_probability_arm_is_refused_not_clipped() {
     );
 }
 
+/// One enumerated step: `(arm, reward, running scores)`.
+type HistoryStep = (usize, f64, [f64; 2]);
+
+/// Callback receiving a history's probability and its steps.
+type Visitor<'a> = dyn FnMut(f64, &[HistoryStep]) + 'a;
+
 /// Exact expectation, over every history of an adaptive epsilon-greedy policy
 /// with Bernoulli arms of known means, of the sum of per-unit scores and of
 /// `sum h (score - truth)` for variance-stabilizing weights.
@@ -340,9 +346,9 @@ fn enumerate_policy(
     steps: usize,
     truth: [f64; 2],
     epsilon: f64,
-    history: &mut Vec<(usize, f64, [f64; 2])>,
+    history: &mut Vec<HistoryStep>,
     probability: f64,
-    visit: &mut dyn FnMut(f64, &[(usize, f64, [f64; 2])]),
+    visit: &mut Visitor<'_>,
 ) {
     if steps == 0 {
         visit(probability, history);
@@ -669,7 +675,7 @@ fn simulated_random_walks_cross_at_the_spent_rates() {
     )
     .unwrap();
     let replicates = 40_000_u64;
-    let mut rng = CausalRng::from_seed(0x65_5E_0000);
+    let mut rng = CausalRng::from_seed(0x655E_0000);
     let mut stopped = [0_u64; 3];
     for _ in 0..replicates {
         let mut s = 0.0;

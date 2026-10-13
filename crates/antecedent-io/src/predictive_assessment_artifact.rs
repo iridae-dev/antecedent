@@ -26,6 +26,9 @@
 //! retained the identity independently refuses a consistently resealed
 //! assessment of other laws or observations.
 //!
+//! Refusals carry the `predictive_assessment.wrong_contract` detail for a changed identity and
+//! `predictive_assessment.report_replay_mismatch` for a stored value that does not recompute.
+//!
 //! What this does **not** say: no interval or significance level for a score or
 //! a score difference (closed: `cell_not_licensed`), no calibration guarantee
 //! (diagnostics are labelled and `unmeasured`), no causal validity (a score is

@@ -24,13 +24,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::float_cmp,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    reason = "exact tie and degenerate-variance tests on finite draws; counts are bounded by the carrier limits"
-)]
-
 use antecedent_kernels::kish_ess;
 use antecedent_stats::ln_gamma;
 use serde::{Deserialize, Serialize};
@@ -49,6 +42,11 @@ pub enum BatchPlan {
 }
 
 impl BatchPlan {
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "exact tie and degenerate-variance tests on finite draws; counts are bounded by the carrier limits"
+    )]
     pub(crate) fn batches(self, n: usize) -> Result<usize, ReliabilityError> {
         let b = match self {
             Self::SquareRoot => ((n as f64).sqrt().floor() as usize).max(2),
@@ -276,6 +274,10 @@ fn finite_checked(stats: SeriesStats) -> Result<SeriesStats, ReliabilityError> {
 }
 
 /// Mean and standard error of a series under the declared dependence.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact tie and degenerate-variance tests on finite draws; counts are bounded by the carrier limits"
+)]
 pub(crate) fn series_stats(
     values: &[f64],
     weights: Option<&[f64]>,
@@ -320,6 +322,11 @@ pub(crate) fn series_stats(
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "exact tie and degenerate-variance tests on finite draws; counts are bounded by the carrier limits"
+)]
 fn batch_means(values: &[f64], plan: BatchPlan) -> Result<SeriesStats, ReliabilityError> {
     let n = values.len();
     let b = plan.batches(n)?;
@@ -344,6 +351,11 @@ fn batch_means(values: &[f64], plan: BatchPlan) -> Result<SeriesStats, Reliabili
 
 /// One-based order index `ceil(p n)` clamped to `1..=n`, robust to `p n` landing a few
 /// ulps above an integer.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "exact tie and degenerate-variance tests on finite draws; counts are bounded by the carrier limits"
+)]
 fn order_index(p: f64, n: usize) -> usize {
     let target = p * n as f64;
     let k = (target - 1e-9 * target.max(1.0)).ceil();
@@ -409,6 +421,11 @@ fn regularized_beta(x: f64, a: f64, b: f64) -> f64 {
 ///
 /// Mass further than twelve standard deviations of the index from `r` is dropped and
 /// the remaining weights renormalized.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "exact tie and degenerate-variance tests on finite draws; counts are bounded by the carrier limits"
+)]
 pub(crate) fn maritz_jarrett_se(sorted: &[f64], r: usize) -> f64 {
     let n = sorted.len();
     let nf = n as f64;
@@ -436,6 +453,11 @@ pub(crate) fn maritz_jarrett_se(sorted: &[f64], r: usize) -> f64 {
     (m2 / total - mean * mean).max(0.0).sqrt()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "exact tie and degenerate-variance tests on finite draws; counts are bounded by the carrier limits"
+)]
 fn quantile_estimate(
     values: &[f64],
     weights: Option<&[f64]>,
@@ -570,6 +592,11 @@ fn influence_method(functional: &Functional, method: StandardErrorMethod) -> Sta
 /// # Errors
 /// An invalid functional, too few draws, undeclared dependence, or a weighted
 /// quantile/`CVaR` request (no weighted standard error is licensed).
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "exact tie and degenerate-variance tests on finite draws; counts are bounded by the carrier limits"
+)]
 pub fn estimate(
     values: &[f64],
     weights: Option<&[f64]>,
@@ -615,6 +642,12 @@ pub fn estimate(
 #[allow(
     clippy::too_many_lines,
     reason = "one coupling dispatch whose arms share the result constructor"
+)]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::float_cmp,
+    reason = "exact tie and degenerate-variance tests on finite draws; counts are bounded by the carrier limits"
 )]
 pub fn estimate_difference(
     a: &[f64],
@@ -699,6 +732,12 @@ pub fn estimate_difference(
     Ok(finish(se, ess, method, ratio, correlation))
 }
 
+#[allow(
+    clippy::float_cmp,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "exact tie and degenerate-variance tests on finite draws; counts are bounded by the carrier limits"
+)]
 #[cfg(test)]
 mod tests {
     use super::*;

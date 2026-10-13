@@ -222,6 +222,10 @@ impl BeliefTracker {
     /// support in this history; a resource budget exceeded; a symbol outside
     /// the channel or one the model gives zero probability; and a record
     /// already held by the ledger or by this session (double counting).
+    #[allow(
+        clippy::too_many_lines,
+        reason = "a single belief update: normalisation, likelihood weighting and the support checks share one pass"
+    )]
     pub fn observe(
         &mut self,
         ledger: &mut EvidenceLedger,

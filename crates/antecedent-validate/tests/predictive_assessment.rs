@@ -921,3 +921,40 @@ fn a_malformed_diagnostic_configuration_is_refused() {
     let report = assess_predictive_laws(&build(4, vec![]), &ctx()).unwrap();
     assert!(report.predictors[0].diagnostics.coverage.is_none());
 }
+
+#[test]
+fn declared_bounds_on_predictors_atoms_and_joint_dimension_are_refused() {
+    let one = |name: String| predictor(&name, gaussian_laws(1, 0.0, 1.0), Horizon::Contemporaneous);
+    let spec = PredictiveAssessmentSpec::new(
+        observations(gaussian_outcomes(1, 31), Horizon::Contemporaneous),
+        (0..33).map(|i| one(format!("p{i}"))).collect(),
+        ValidationDesign::HeldOutSplit,
+        vec![ScoreKind::Crps],
+    );
+    let (code, slot) = refusal(assess_predictive_laws(&spec, &ctx()));
+    assert_eq!((code.as_str(), slot.as_str()), ("route_not_supported", detail::BOUNDS_EXCEEDED));
+
+    let too_many_draws = ForecastLaw::EmpiricalSample { draws: vec![0.0; 65_537] };
+    let spec = PredictiveAssessmentSpec::new(
+        observations(gaussian_outcomes(1, 32), Horizon::Contemporaneous),
+        vec![predictor("big", vec![too_many_draws], Horizon::Contemporaneous)],
+        ValidationDesign::HeldOutSplit,
+        vec![ScoreKind::Crps],
+    );
+    let (code, slot) = refusal(assess_predictive_laws(&spec, &ctx()));
+    assert_eq!((code.as_str(), slot.as_str()), ("invalid_argument", detail::INVALID_LAW));
+
+    let wide = ForecastLaw::JointSample { dimension: 65, draws: vec![0.0; 65] };
+    let spec = PredictiveAssessmentSpec::new(
+        RealizedObservations {
+            target: target(Horizon::Contemporaneous),
+            ids: vec![key(0)],
+            outcomes: vec![Outcome::Vector(vec![0.0; 65])],
+        },
+        vec![predictor("wide", vec![wide], Horizon::Contemporaneous)],
+        ValidationDesign::HeldOutSplit,
+        vec![ScoreKind::Energy],
+    );
+    let (code, slot) = refusal(assess_predictive_laws(&spec, &ctx()));
+    assert_eq!((code.as_str(), slot.as_str()), ("invalid_argument", detail::INVALID_LAW));
+}

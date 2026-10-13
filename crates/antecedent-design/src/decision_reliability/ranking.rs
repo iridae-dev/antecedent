@@ -14,12 +14,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::float_cmp,
-    reason = "candidate counts are bounded by the carrier limits; ties are exact equality of finite draws"
-)]
-
 use antecedent_core::ExecutionContext;
 use serde::{Deserialize, Serialize};
 
@@ -149,6 +143,11 @@ pub fn rank(
 #[allow(
     clippy::too_many_lines,
     reason = "one pass over candidates assembling the per-candidate statements"
+)]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::float_cmp,
+    reason = "candidate counts are bounded by the carrier limits; ties are exact equality of finite draws"
 )]
 pub(crate) fn rank_validated(
     draws: &DecisionDraws,
@@ -282,6 +281,11 @@ fn top_share(greater: u32, equal: u32, k: u32) -> f64 {
 
 /// Per candidate and draw: how many candidates are strictly greater, and how many are
 /// equal (itself included). Tables are candidate-major.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::float_cmp,
+    reason = "candidate counts are bounded by the carrier limits; ties are exact equality of finite draws"
+)]
 fn rank_tables(
     columns: &[&[f64]],
     n: usize,

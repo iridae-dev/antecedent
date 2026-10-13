@@ -102,6 +102,10 @@ pub struct MeasuredIndicator {
 
 /// What a slot's value is a value of.
 #[derive(Clone, Debug, PartialEq)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "a slot is declared once per request and boxing the indicator would change the public variant shape"
+)]
 pub enum SlotValue {
     /// The model variable itself, recorded without error.
     Direct,
@@ -163,6 +167,10 @@ fn blank(text: &str) -> bool {
 #[allow(
     clippy::result_large_err,
     reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "a flat sequence of independent slot checks, each with its own coded refusal"
 )]
 pub fn check_observation_slots(
     request: &ObservationSlotsRequest<'_>,

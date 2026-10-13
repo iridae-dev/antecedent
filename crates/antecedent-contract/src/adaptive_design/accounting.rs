@@ -59,6 +59,10 @@ impl AdaptiveDesignContract {
     ///
     /// # Errors
     /// A ledger bound exceeded (too many units or looks).
+    #[allow(
+        clippy::result_large_err,
+        reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+    )]
     pub fn interim_evidence(&self) -> Result<InterimEvidence, ExternalRefusal> {
         let looks = self.looks();
         let mut ledger = EvidenceLedger::new();
@@ -106,6 +110,10 @@ impl AdaptiveDesignContract {
     /// # Errors
     /// The refusal that a pooling of the looks as independent would double
     /// count their observations.
+    #[allow(
+        clippy::result_large_err,
+        reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+    )]
     pub fn refuse_independent_pooling_of_looks(
         &self,
         evidence: &InterimEvidence,

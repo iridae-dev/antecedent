@@ -21,12 +21,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    reason = "split sizes are derived from bounded draw counts"
-)]
-
 use std::collections::BTreeMap;
 
 use antecedent_kernels::log_norm_cdf;
@@ -296,6 +290,11 @@ fn expected_maximum_independent(groups: &[(f64, u64)]) -> f64 {
 /// # Errors
 /// No supplied candidate, a negative or non-finite standard error, or fewer considered
 /// than supplied candidates.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "split sizes are derived from bounded draw counts"
+)]
 pub fn winners_curse_bound(
     estimates: &[McEstimate],
     n_considered: u64,
@@ -511,6 +510,11 @@ pub fn held_out_evaluation(
 /// # Errors
 /// A fraction outside `(0, 1)`, either part with fewer than the minimum draws, or a
 /// zero gap on an autocorrelated stream.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "split sizes are derived from bounded draw counts"
+)]
 pub fn split_draws(
     draws: &DecisionDraws,
     selection_fraction: f64,
@@ -562,6 +566,11 @@ pub fn split_draws(
     Ok((part(0, n_sel, true), part(start_val, n_val, false)))
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "split sizes are derived from bounded draw counts"
+)]
 #[cfg(test)]
 mod tests {
     use super::*;
