@@ -8,7 +8,16 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import recover_v2_3_crate as recovery
+import recover_published_crate as recovery
+
+# A synthetic release: the tests pin the refusal boundaries, not any real tag.
+RELEASE = recovery.Release(
+    tag="v9.8.7",
+    source_sha="a" * 40,
+    release_run="1001",
+    ci_run="1002",
+)
+OLD_DEPENDENCY = recovery.old_dependency(RELEASE.version)
 
 
 class RecoveryTests(unittest.TestCase):
@@ -19,13 +28,13 @@ class RecoveryTests(unittest.TestCase):
         self.manifest = self.source / "crates/antecedent/Cargo.toml"
         self.manifest.parent.mkdir(parents=True)
         self.original = (
-            '[package]\nname = "antecedent"\nversion = "2.3.0"\n'
-            '[dependencies]\nantecedent-core = "2.3.0"\n'
-            "[dev-dependencies]\n" + recovery.OLD_DEPENDENCY + "\n"
+            f'[package]\nname = "antecedent"\nversion = "{RELEASE.version}"\n'
+            f'[dependencies]\nantecedent-core = "{RELEASE.version}"\n'
+            "[dev-dependencies]\n" + OLD_DEPENDENCY + "\n"
         ).encode()
         self.manifest.write_bytes(self.original)
         self.dirty = ""
-        self.sha = recovery.SOURCE_SHA
+        self.sha = RELEASE.source_sha
         self.jobs = {
             "Prepare version": "success",
             "crates.io dry-run": "success",
@@ -42,11 +51,11 @@ class RecoveryTests(unittest.TestCase):
         if command[:2] == ("git", "rev-parse"):
             return self.sha
         if command[:3] == ("gh", "release", "view"):
-            return json.dumps({"tagName": recovery.TAG, "isDraft": False})
+            return json.dumps({"tagName": RELEASE.tag, "isDraft": False})
         if command[:3] == ("gh", "run", "view"):
             return json.dumps(
                 {
-                    "headSha": recovery.SOURCE_SHA,
+                    "headSha": RELEASE.source_sha,
                     "workflowName": "publish-release",
                     "jobs": [
                         {"name": name, "conclusion": status}
@@ -62,7 +71,7 @@ class RecoveryTests(unittest.TestCase):
             self.assertEqual(
                 self.manifest.read_bytes().decode(),
                 self.original.decode().replace(
-                    recovery.OLD_DEPENDENCY, recovery.NEW_DEPENDENCY
+                    OLD_DEPENDENCY, recovery.NEW_DEPENDENCY
                 ),
             )
             if "--dry-run" in command and self.fail_dry_run:
@@ -75,7 +84,7 @@ class RecoveryTests(unittest.TestCase):
             patch.object(recovery, "run", side_effect=self.external),
             patch.dict(os.environ, {"CARGO_REGISTRY_TOKEN": "test-token"}),
         ):
-            recovery.recover(self.source, execute=True)
+            recovery.recover(self.source, RELEASE, execute=True)
 
     def assert_no_package(self):
         self.assertFalse(
@@ -121,12 +130,14 @@ class RecoveryTests(unittest.TestCase):
 
     def test_changed_self_dependency_is_not_a_packaging_only_repair(self):
         for before, after in (
-            ("2.3.0", "2.4.0"),
+            (RELEASE.version, "9.8.8"),
             ('path = "."', 'path = "../foreign"'),
             ("calibration-internal", "ml-neural"),
         ):
             with self.subTest(change=after), self.assertRaises(ValueError):
-                recovery.repair_manifest(self.original.decode().replace(before, after))
+                recovery.repair_manifest(
+                    self.original.decode().replace(before, after), RELEASE.version
+                )
 
 
 if __name__ == "__main__":

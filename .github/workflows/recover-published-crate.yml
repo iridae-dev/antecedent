@@ -1,19 +1,32 @@
-# Recovery of the final crate from the already published, immutable 2.3.0 release.
-name: recover-v2-3-crate
+# Recovery of the final crate from an already published, immutable release.
+name: recover-published-crate
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release tag to complete
+        required: true
+      source_sha:
+        description: Commit the release tag points at
+        required: true
+      release_run:
+        description: publish-release workflow run id of the original release
+        required: true
+      ci_run:
+        description: CI run id of the tagged commit
+        required: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: recover-v2-3-crate
+  group: recover-published-crate
   cancel-in-progress: false
 
 jobs:
   publish:
-    name: Complete antecedent 2.3.0 on crates.io
+    name: Complete the published antecedent release on crates.io
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: release
@@ -29,7 +42,7 @@ jobs:
       - name: Check out the original release source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: v2.3.0
+          ref: ${{ inputs.tag }}
           fetch-depth: 0
           path: release-source
 
@@ -47,7 +60,7 @@ jobs:
           workspaces: release-source -> target
 
       - name: Test recovery refusal boundaries
-        run: python3 tooling/scripts/test_recover_v2_3_crate.py
+        run: python3 tooling/scripts/test_recover_published_crate.py
 
       - name: Verify original evidence, repair packaging and publish the final crate
         env:
@@ -55,4 +68,11 @@ jobs:
           GH_REPO: iridae-dev/antecedent
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
           RUSTFLAGS: -D warnings
-        run: python3 tooling/scripts/recover_v2_3_crate.py release-source --execute
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_RUN: ${{ inputs.release_run }}
+          RELEASE_CI_RUN: ${{ inputs.ci_run }}
+        run: >-
+          python3 tooling/scripts/recover_published_crate.py release-source --execute
+          --tag "$RELEASE_TAG" --source-sha "$RELEASE_SOURCE_SHA"
+          --release-run "$RELEASE_RUN" --ci-run "$RELEASE_CI_RUN"
