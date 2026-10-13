@@ -108,6 +108,27 @@ def surface_interval_findings(rel: str) -> list[tuple[int, str]]:
     return found
 
 
+def has_hidden_calibration_interval(path: Path, line: int, name: str) -> bool:
+    """Check the actual Rust attributes on this public interval item.
+
+    The attribute parser strips comments before returning each item's attributes,
+    so commented-out lookalikes cannot attest a production feature gate.
+    """
+    masked, items = rust_items(path.resolve())
+    for item in items:
+        if item.kind != "fn" or item.name != name:
+            continue
+        item_line = masked.code.count("\n", 0, item.start) + 1
+        if item_line != line:
+            continue
+        attrs = {re.sub(r"\s+", "", attribute) for attribute in item.attrs}
+        return (
+            '#[cfg(feature="calibration-internal")]' in attrs
+            and "#[doc(hidden)]" in attrs
+        )
+    return False
+
+
 def surfaces_of(record: dict) -> list[str]:
     skip = set(record.get("search_impl") or [])
     files = [
@@ -766,10 +787,7 @@ def check() -> dict:
         for name in record.get("internal_interval_fields") or []:
             matches = [
                 row for row in findings if row[2] == name and row[0].endswith(".rs")
-                and re.search(
-                    rf'#\[cfg\(feature = "calibration-internal"\)\]\s*#\[doc\(hidden\)\]\s*pub fn {re.escape(name)}\b',
-                    (ROOT / row[0]).read_text(encoding="utf-8"),
-                )
+                and has_hidden_calibration_interval(ROOT / row[0], row[1], name)
             ]
             if not matches:
                 errors.append(f"{rid}: internal interval {name!r} lacks its explicit hidden calibration-only gate")
@@ -887,7 +905,15 @@ def self_test() -> int:
     try:
         synth = base / SYNTH_SURFACE
         synth.parent.mkdir(parents=True, exist_ok=True)
-        synth.write_text("pub struct R {\n    pub interval: f64,\n}\n", encoding="utf-8", newline="\n")
+        synth.write_text(
+            "pub struct R {\n    pub interval: f64,\n}\n"
+            '#[cfg(feature = "calibration-internal")]\n'
+            "// doc(hidden): internal calibration candidate\n"
+            "#[doc(hidden)]\n"
+            "pub fn candidate_interval_internal() {}\n",
+            encoding="utf-8",
+            newline="\n",
+        )
         t = base / SYNTH_TEST
         t.parent.mkdir(parents=True, exist_ok=True)
         t.write_text(
@@ -909,6 +935,7 @@ status = "in_progress"
 inference_claim = "calibrated"
 coverage_records = ["cov.synth.b.l95.synth_alpha", "cov.synth.b.l95.synth_beta"]
 surface = ["crates/synth/src/lib.rs"]
+internal_interval_fields = ["candidate_interval_internal"]
 routes = [
   { name = "synth.prepare", stage = "prepare", status = "licensed", claim = "point_only" },
   { name = "synth.uncertainty", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/synth/tests/refusal.rs", refusal_assertion = "refuses" },
@@ -988,6 +1015,20 @@ inherited_interval_fields = ["interval"]
 
         promo_rel = "parity/promotion.toml"
         expect("baseline synthetic records", run(), None)
+        expect(
+            "commented cfg cannot attest internal interval gate",
+            run(edit(
+                "crates/synth/src/lib.rs",
+                '#[cfg(feature = "calibration-internal")]\n',
+                '// #[cfg(feature = "calibration-internal")]\n',
+            )),
+            "internal interval 'candidate_interval_internal' lacks its explicit hidden calibration-only gate",
+        )
+        expect(
+            "internal interval without doc hidden",
+            run(edit("crates/synth/src/lib.rs", "#[doc(hidden)]\n", "")),
+            "internal interval 'candidate_interval_internal' lacks its explicit hidden calibration-only gate",
+        )
         state = run()["calibration"].get("synth.uncertainty_cell", {}).get("status")
         if state != "PENDING_CALIBRATION":
             failures.append(
