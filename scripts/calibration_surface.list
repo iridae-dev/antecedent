@@ -427,7 +427,7 @@ allow design crates/antecedent/src/analysis/execute/temporal_effect_core.rs name
 allow design crates/antecedent/src/analysis/execute/temporal_path.rs finish names prepare
 allow design crates/antecedent/src/analysis/execute/temporal_posterior_response.rs names prepare
 allow design crates/antecedent/src/analysis/helpers.rs antecedent_contract prepare
-allow design crates/antecedent/src/analysis/identification_cache.rs prepare
+allow design crates/antecedent/src/analysis/identification_cache/dbn.rs prepare
 allow design crates/antecedent/src/analysis/inverse_outcome.rs InverseQuery invalid names refusal
 allow design crates/antecedent/src/analysis/joint_sensitivity.rs antecedent_io consume consume_with_limits export
 allow design crates/antecedent/src/analysis/joint_sensitivity_uncertainty.rs antecedent_io
