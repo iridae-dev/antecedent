@@ -312,11 +312,26 @@ impl DrLearner {
         effect.crossfit.learner_provenance.push(fitted.provenance());
         match fitted.portable() {
             Ok(predictor) => {
+                let features: Vec<u32> = problem.adjustment_set.iter().map(|v| v.raw()).collect();
+                // The support contract is the box of the rows the final model was fitted on
+                // (the common-support rows when trimming applies), so a consumer can refuse
+                // rows the model never saw. It is retained only when it can be computed.
+                let covariate_columns: Vec<&[f64]> =
+                    problem.covariates.iter().map(|column| &column[..]).collect();
+                let support = if covariate_columns.len() == features.len() {
+                    antecedent_learn::EffectSupport::from_rows(
+                        &covariate_columns,
+                        retained.as_deref(),
+                    )
+                } else {
+                    None
+                };
                 let model = crate::FittedEffect {
                     version: 1,
-                    features: problem.adjustment_set.iter().map(|v| v.raw()).collect(),
+                    features,
                     intercept: view.ncols() == problem.design_ncols,
                     predictor,
+                    support,
                 };
                 model.validate()?;
                 effect.heterogeneity.fitted_effect = Some(Arc::new(model));

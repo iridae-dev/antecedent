@@ -216,9 +216,17 @@ fn portable_forest(
             nodes
         })
         .collect();
+    let features: Vec<u32> = problem.adjustment_set.iter().map(|v| v.raw()).collect();
+    let covariate_columns: Vec<&[f64]> = problem.covariates.iter().map(|c| &c[..]).collect();
+    let support = if covariate_columns.len() == features.len() {
+        antecedent_learn::EffectSupport::from_rows(&covariate_columns, None)
+    } else {
+        None
+    };
     crate::FittedEffect {
         version: 1,
-        features: problem.adjustment_set.iter().map(|v| v.raw()).collect(),
+        features,
+        support,
         intercept: false,
         predictor: antecedent_learn::PortablePredictor {
             version: 1,

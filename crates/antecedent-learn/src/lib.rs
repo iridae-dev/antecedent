@@ -23,7 +23,9 @@ pub mod elastic_net;
 pub mod error;
 pub mod fit_counts;
 mod fitted_effect;
-pub use fitted_effect::{FittedEffect, FittedEffectError};
+pub use fitted_effect::{
+    EffectSupport, FeatureRange, FittedEffect, FittedEffectError, SupportReport,
+};
 #[cfg(feature = "ml-forest")]
 pub mod forest;
 #[cfg(feature = "ml-gbdt")]

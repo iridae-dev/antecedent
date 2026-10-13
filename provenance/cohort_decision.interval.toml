@@ -1,0 +1,18 @@
+feature_id = "cohort_decision.interval"
+implementation_crate = "antecedent-io-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# papers = [] is an explicit judgment: the construction is original engineering over standard identities.
+papers = []
+implementation_deviations = [
+  "Closed variant: the model-based standard error sqrt(phibar' V phibar) is the textbook variance of a linear combination and is reported only as an uncalibrated diagnostic; no interval method is implemented.",
+  "It conditions on the declared cohort rows and weights and the fitted structure and excludes cohort sampling variation, support selection, misspecification and extrapolation; calibration is unmeasured.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-io-core/src/cohort_decision/tests.rs",
+  "crates/antecedent/tests/cohort_decision.rs",
+]

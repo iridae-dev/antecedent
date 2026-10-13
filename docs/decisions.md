@@ -203,3 +203,64 @@ remainder is counted as unevaluated mass. Unknown payoffs can reverse a partial
 ranking, so it produces `InsufficientScience`. A zero-probability atom cannot
 exclude a Bayes action. Bayesian averaging of component quantiles or maximum
 regrets is refused: neither is the corresponding functional of a mixture law.
+
+## Cohort-mean treatment contrast of a fitted effect model
+
+A fitted effect model predicts conditional treatment contrasts `tau(x)` (a CATE map). Those
+points are differences: they do not give two absolute potential-outcome means and they do not
+give a law of the contrast across units. The one decision a cohort of them supports is the
+expectation of an affine utility of the cohort's weighted mean contrast `sum_i w_i tau(x_i)`.
+
+`antecedent::analysis::cohort_decision` binds that quantity natively:
+
+1. `FittedEffectModel::load` verifies an exported analysis result (contract section, executed
+   claim, no attested evidence) and retains its portable fitted payload, the original
+   contrast, the producer's fitted-row support box and the original diagnostics and
+   assumptions. A result with no support contract is refused for row-level support; it is
+   never assumed supported. `FittedEffectModel::from_compact_export` retains a caller-built
+   linear compact model that declares a conditional contrast; such a model is a declaration,
+   so its sources are attested and never native.
+2. `CohortBinding` declares the cohort: strict named feature rows (none missing, none extra),
+   unique row identities, a target population, finite normalized weights and a snapshot
+   digest that names every field. `FittedEffectModel::decision_source(cohort, outcome_units,
+   options, ctx)` requires explicit outcome units (never inferred, never converted), checks
+   every row against the support contract and issues one `CohortDecisionSource`.
+3. The source's coordinate is the declared outcome under the model's contrast regime,
+   functional `mean_difference`, population of the cohort and the cohort snapshot digest as
+   conditioning, so a decision contract names exactly the cohort it decides for.
+   `cohort_decision_input` and `evaluate_cohort_decision` hand it to the support-aware
+   evaluator; `cohort_forward_claim` offers it as a mean forward source of an inverse query.
+
+The value is point-only. No utility standard error, regret, value of perfect information or
+interval is inherited. A probability, quantile, tail expectation, nonlinear utility, hard
+constraint or joint law is refused (`decision_contract_unsatisfied` /
+`joint_law_required`, `cohort_decision.law_not_supplied` / `cohort_decision.joint_law_required`)
+and names the producer of aligned outcome draws that would license it.
+
+Export and load. `CohortDecisionSource::to_bytes` writes `cohort_decision_source_v1`, embedding
+the model payload, the cohort rows and the result. `consume_cohort_decision_source` recomputes
+every number under an independently retained `CohortExpectation` (identity, and optionally
+parent claim, population, units, contrast regime and cohort digest), so a changed row, weight,
+coefficient, unit, population or parent is refused with its own detail even when the container
+was resealed with recomputed checksums.
+
+A cohort from another population is accepted only under a `CovariateShiftDeclaration`: the
+conditional contrast is declared invariant given exactly the model's features, with every row
+inside the support contract. The result is labelled `Extrapolative`, so the default support
+policy evaluates no action on it and a weaker policy must be chosen explicitly. Without the
+declaration the refusal names the unmet premise (`transport_missing_evidence`,
+`cohort_decision.shift_declaration_required`). The support box is a necessary condition for
+overlap, not a density-ratio overlap diagnostic.
+
+Adjacent uncertainty route. For a linear compact model with a retained coefficient covariance
+`V`, the variance of the weighted cohort-mean contrast is `phibar' V phibar` with
+`phibar = sum_i w_i phi(x_i)`. It is reported as `uncalibrated_standard_error`
+(`model_based_sqrt_phibar_v_phibar`, calibration unmeasured) on the source only. It conditions
+on the declared cohort rows and weights and on the fitted structure and excludes cohort
+sampling variation, the support-selection step, misspecification and extrapolation. It is
+never an interval and is not passed to a decision input; every interval request is refused
+`cell_not_licensed` (`cohort_decision.interval_not_licensed`). The whole-method design that
+would open the route (a linear-CATE DGP with a declared cohort sampling plan, the whole method
+including cohort weighting and support-row selection, nominal level 0.95, cohort sizes 50 to
+5000 and fitted-box coverage fractions 0.5 to 1.0, boundary and misspecified-truth probes) is
+recorded in the `cohort_decision.interval` promotion record and is not measured.
