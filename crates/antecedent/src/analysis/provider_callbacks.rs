@@ -28,6 +28,16 @@
 //!    a fresh process needs a supplied compatible provider, or the stage is
 //!    recorded `unavailable` and the historical result stays inspectable.
 //!
+//! # Transported claims handed to a callback input
+//!
+//! A claim carried to a target population is handed to a callback input only
+//! under a policy that accepts transported claims. The one-call facade entry that
+//! seals the handoff and verifies it against the callback declaration is
+//! `transport_handoff::hand_to_callback` (with `consume_for_callback` for the
+//! consumer): library-level only; facade entry pending (the facade cannot name
+//! `TransportHandoffArtifact` until `antecedent-io` re-exports
+//! `transport_handoff_artifact`).
+//!
 //! # Limits, stated plainly
 //!
 //! * The wall-clock bound is enforced after the call returns: an in-process
@@ -382,10 +392,7 @@ impl CallbackSession {
                         ));
                     }
                     Ok(_) | Err(_) => {
-                        return Err(refusal::nested_input_overlap_unknown(
-                            first_name,
-                            second_name,
-                        ));
+                        return Err(refusal::nested_input_overlap_unknown(first_name, second_name));
                     }
                 }
             }

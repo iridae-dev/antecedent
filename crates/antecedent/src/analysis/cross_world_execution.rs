@@ -31,8 +31,33 @@
 //! prediction path has no measured coverage record, and the calibration design
 //! that would open it is recorded in `docs/cross-world-execution.md`.
 //!
+//! # Whole-path uncertainty
+//!
+//! [`CrossWorldExecution::whole_path_uncertainty`] derives, from the executed
+//! row, which uncertainty sources the abduction-action-prediction path has, which
+//! it propagates and how: the structural premise (declared, not propagated), the
+//! exogenous posterior (exact by enumeration; the predictive variance of each
+//! unit's quantity under it), the sampling of units (a declared
+//! [`UnitSampling`], refused when undeclared) and the enumeration arithmetic.
+//! The two spreads are for two estimands and are never added. The account is a
+//! sealed sibling of the execution artifact, not a field of its wire: it is a
+//! pure function of the execution's request and result and the declared unit
+//! sampling, so a fresh consumer consumes the execution artifact and derives it
+//! again ([`WholePathAccount::verify_against`]), refusing a stored account that
+//! does not match.
+//!
+//! **Refresh.** New factual evidence is new units: the execution is sealed
+//! again, and the account is **recomputed** (every unit's spread, the standard
+//! errors and the identity); the declared [`UnitSampling`] is **kept** by being
+//! passed again; an account is **refused** for a sampled or transported request
+//! and for units with shared evidence declared independent.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+pub use antecedent_counterfactual::selective::whole_path_uncertainty::{
+    SourceAccount, SourceTreatment, UncertaintySource, UnitSampling, UnitSpread,
+    WHOLE_PATH_UNCERTAINTY_VERSION, WholePathUncertainty, derive_whole_path_uncertainty,
+};
 pub use antecedent_counterfactual::selective::{
     CapabilityStatus, ConditioningKind, CouplingKind, CrossWorldExecutionError, CrossWorldRefusal,
     EvidenceKind, ExecutionReceipt, ExecutionStage, ExogenousInference, ExogenousVariable,
@@ -161,5 +186,129 @@ impl CrossWorldExecution {
     /// Always: `cell_not_licensed` (`cross_world_execution.posterior_route_closed`).
     pub fn posterior(&self) -> Result<(f64, f64), CrossWorldExecutionRefusalWire> {
         Err(closed_reading("posterior", "cross_world_execution.posterior_route_closed"))
+    }
+}
+
+/// What an inspection of a whole-path account shows.
+#[derive(Clone, Debug, PartialEq)]
+pub struct WholePathInspection {
+    /// Always `uncalibrated_spread`: no interval or posterior reading is licensed.
+    pub label: &'static str,
+    /// The declared unit sampling.
+    pub unit_sampling: &'static str,
+    /// Mean of the unit values.
+    pub value: f64,
+    /// `(source, treatment)` in the fixed source order.
+    pub sources: Vec<(&'static str, String)>,
+    /// Standard error of the realized-outcome mean about the mean of the unit
+    /// probabilities.
+    pub realized_mean_standard_error: f64,
+    /// Standard error of the mean unit probability as a population-mean
+    /// estimate, when determined.
+    pub unit_mean_standard_error: Option<f64>,
+    /// Identity of the account.
+    pub identity: String,
+}
+
+/// The whole-path uncertainty of an executed cross-world row, bound to the
+/// execution it was derived from.
+#[derive(Clone, Debug, PartialEq)]
+pub struct WholePathAccount {
+    uncertainty: WholePathUncertainty,
+    execution_receipt_digest: String,
+}
+
+impl WholePathAccount {
+    /// The derived account.
+    #[must_use]
+    pub const fn uncertainty(&self) -> &WholePathUncertainty {
+        &self.uncertainty
+    }
+
+    /// The receipt digest of the execution the account stands on.
+    #[must_use]
+    pub fn execution_receipt_digest(&self) -> &str {
+        &self.execution_receipt_digest
+    }
+
+    /// Derive the account again from `execution` and require it to equal this
+    /// one: a stored account of other units, mechanisms, quantity or unit
+    /// sampling is refused, never annotated.
+    ///
+    /// # Errors
+    /// Every refusal of [`CrossWorldExecution::whole_path_uncertainty`] and a
+    /// `cross_world_uncertainty.account_mismatch` refusal for an account that
+    /// differs from the derivation.
+    pub fn verify_against(
+        &self,
+        execution: &CrossWorldExecution,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CrossWorldExecutionError> {
+        let fresh = execution.whole_path_uncertainty(self.uncertainty.unit_sampling, ctx)?;
+        if fresh != *self {
+            return Err(CrossWorldExecutionError::Refused(Box::new(CrossWorldRefusal {
+                refusal: antecedent_contract::StructuredRefusal::new(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    "cross_world_uncertainty",
+                    "cross_world_uncertainty.account_mismatch",
+                )
+                .with_remedy(
+                    "derive the account from the consumed execution; a stored account is \
+                     never trusted",
+                ),
+                missing: Vec::new(),
+            })));
+        }
+        Ok(())
+    }
+
+    /// Plain-data summary for inspection.
+    #[must_use]
+    pub fn inspect(&self) -> WholePathInspection {
+        let u = &self.uncertainty;
+        WholePathInspection {
+            label: u.label,
+            unit_sampling: u.unit_sampling.name(),
+            value: u.value,
+            sources: u
+                .sources
+                .iter()
+                .map(|a| (a.source.name(), format!("{:?}", a.treatment)))
+                .collect(),
+            realized_mean_standard_error: u.realized_mean_standard_error(),
+            unit_mean_standard_error: u.unit_mean_standard_error(),
+            identity: u.identity.clone(),
+        }
+    }
+}
+
+impl CrossWorldExecution {
+    /// Derive the whole-path uncertainty of this execution under a declared unit
+    /// sampling.
+    ///
+    /// The derivation re-abduces and re-predicts every unit from the sealed
+    /// request and requires every unit value and the mean to equal the executed
+    /// result bit for bit. Every spread carries the label `uncalibrated_spread`;
+    /// [`Self::interval`] and [`Self::posterior`] stay closed.
+    ///
+    /// # Errors
+    /// Undeclared unit sampling, a sampled or transported request, a coupling the
+    /// joint-law rule does not license, units with shared evidence declared
+    /// independent, an exceeded bound, or cancellation.
+    pub fn whole_path_uncertainty(
+        &self,
+        unit_sampling: UnitSampling,
+        ctx: &ExecutionContext,
+    ) -> Result<WholePathAccount, CrossWorldExecutionError> {
+        let uncertainty = derive_whole_path_uncertainty(
+            self.artifact.request(),
+            self.artifact.result(),
+            unit_sampling,
+            ctx,
+        )?;
+        Ok(WholePathAccount {
+            uncertainty,
+            execution_receipt_digest: self.artifact.identity().receipt_digest.clone(),
+        })
     }
 }

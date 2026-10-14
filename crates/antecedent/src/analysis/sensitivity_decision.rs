@@ -13,6 +13,9 @@
 //!   container; consumption recomputes the identity digests and the decision outcome
 //!   and refuses a resealed mutation.
 //!
+//! A transported response's point value is shifted by a declared bound through
+//! [`super::transport_sensitivity`], which builds the same [`SensitivityArtifact`].
+//!
 //! An assumption range is never a probability and never a sampling interval. The
 //! sampling interval, when one exists, is reported next to the decision
 //! ([`SamplingReport`]); composing it with the range is refused with

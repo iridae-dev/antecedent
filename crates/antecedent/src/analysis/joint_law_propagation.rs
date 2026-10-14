@@ -273,7 +273,10 @@ impl PropagationDraws {
     /// overlap with other inputs from their observations rather than from the
     /// equality of snapshot identities.
     #[must_use]
-    pub fn with_evidence_source(mut self, source: antecedent_contract::evidence_ledger::SourceId) -> Self {
+    pub fn with_evidence_source(
+        mut self,
+        source: antecedent_contract::evidence_ledger::SourceId,
+    ) -> Self {
         self.evidence_id = source.to_hex();
         self
     }

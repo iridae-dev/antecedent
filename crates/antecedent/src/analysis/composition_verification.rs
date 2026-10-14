@@ -78,11 +78,11 @@ use antecedent_state::{InvalidationLog, InvalidationTarget};
 
 pub use antecedent_contract::composition_verification::{
     BoundaryAssumption, BoundaryTransformation, CalibrationDeclaration, CalibrationLineage,
-    CalibrationState, ClaimRevalidation, ClaimStanding, CompositionEdge, CompositionGraph, CompositionNode,
-    CompositionView, DependencyKind, GraphError, GraphRevalidation, LineageEdge, LineageEntry,
-    NodeKind, NumericalCause, NumericalReason, ObservedEffect, PriorAuthority, SharedDataRelation,
-    SupportStanding, TrustStanding, UnsupportedCoordinate, ViewError, Withdrawal, WithdrawalKind,
-    shared_data_relations,
+    CalibrationState, ClaimRevalidation, ClaimStanding, CompositionEdge, CompositionGraph,
+    CompositionNode, CompositionView, DependencyKind, GraphError, GraphRevalidation, LineageEdge,
+    LineageEntry, NodeKind, NumericalCause, NumericalReason, ObservedEffect, PriorAuthority,
+    SharedDataRelation, SupportStanding, TrustStanding, UnsupportedCoordinate, ViewError,
+    Withdrawal, WithdrawalKind, shared_data_relations,
 };
 pub use antecedent_contract::evidence_ledger::Revalidation;
 

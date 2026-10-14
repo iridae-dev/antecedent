@@ -59,6 +59,7 @@ mod decision_contract_facade;
 pub mod decision_reliability;
 mod derived_treatment;
 pub mod design_ranking;
+pub mod discretized_composition;
 pub mod dose_grid_functional;
 pub mod effect_constancy;
 pub mod effect_constancy_consumers;
@@ -68,6 +69,7 @@ mod execute;
 pub mod interface_contract;
 mod inverse_outcome;
 pub mod inverse_query;
+pub mod inverse_sources;
 pub mod joint_law_propagation;
 mod joint_sensitivity;
 mod joint_sensitivity_uncertainty;
@@ -115,7 +117,10 @@ pub use temporal_extensions::temporal_dependent_interval_candidate;
 mod temporal_transport;
 mod tier_diagnostics;
 mod transport_grid;
+pub mod transport_handoff;
+pub mod transport_revalidation;
 mod transport_scenarios;
+pub mod transport_sensitivity;
 pub mod transported_counterfactual;
 pub mod vector_treatment;
 mod z_transport;
@@ -202,9 +207,9 @@ pub use exact::{
 };
 pub use interface_contract::{
     ConsumedInterfaceContract, InterfaceContractExport, InterfaceContractRefusal,
-    check_interface_composition, check_interface_composition_with_ledger, check_interface_connection,
-    consume_interface_contract_artifact,
-    export_interface_contract, inspect_interface_contract_artifact,
+    check_interface_composition, check_interface_composition_with_ledger,
+    check_interface_connection, consume_interface_contract_artifact, export_interface_contract,
+    inspect_interface_contract_artifact,
 };
 pub use inverse_outcome::{
     ActionConstraint, ActionOutcome, ActionSpec, ActionStatus, EnumeratedStatus, ForwardEvaluation,
@@ -214,10 +219,10 @@ pub use inverse_outcome::{
 };
 pub use joint_law_propagation::{
     CorrelationRangeSummary, JointLawPropagationRefusal, LinearDependence, MixtureComponent,
-    MomentInput, PropagationClaim, PropagationDraws, alignment_identity, input_alignment,
-    consume_joint_law_propagation_artifact, propagate_aligned_functional, propagate_aligned_linear,
-    propagate_correlation_range, propagate_dependence_envelope, propagate_linear_moments,
-    propagate_mixture,
+    MomentInput, PropagationClaim, PropagationDraws, alignment_identity,
+    consume_joint_law_propagation_artifact, input_alignment, propagate_aligned_functional,
+    propagate_aligned_linear, propagate_correlation_range, propagate_dependence_envelope,
+    propagate_linear_moments, propagate_mixture,
 };
 pub use joint_sensitivity::{
     JOINT_SENSITIVITY_ARTIFACT_VERSION, JointFactorWire, JointOutcomeWire, JointPerturbationWire,
@@ -335,14 +340,18 @@ pub use contract::CausalContract;
 pub use decision_contract_facade::{
     ActionRobustness, AdaptedClaims, AdaptedDecision, AdapterError, AdmissibilityError,
     AdmissibilityRules, AdmissibleContractArtifact, AdmissibleDecisionContract, AtomSupport,
-    BoundDecisionContract, ClaimProbability, ClaimProfile, DecisionClaimKind,
-    DecisionDeclaredExclusion, DecisionFacadeRefusal, DecisionSupportRule, DecisionUncertaintyKind,
-    ExternalCallbackReceipt, ExternalTrustLimit, IdentifiedActionRange, IdentifiedSetDecision,
-    IdentifiedUtility, IdentifiedVerdict, InputSupport, ReplayReceipt, RobustDecisionResult,
-    RobustResultArtifact, RobustVerdict, RobustnessError, SuppliedClaim, SupportShortfall,
+    BoundDecisionContract, BoundTransportedDecision, ClaimProbability, ClaimProfile,
+    DecisionClaimKind, DecisionDeclaredExclusion, DecisionFacadeRefusal, DecisionSupportRule,
+    DecisionUncertaintyKind, ExternalCallbackReceipt, ExternalTrustLimit, IdentifiedActionRange,
+    IdentifiedSetDecision, IdentifiedUtility, IdentifiedVerdict, InputSupport, ReplayReceipt,
+    RobustDecisionResult, RobustResultArtifact, RobustVerdict, RobustnessError, SuppliedClaim,
+    SupportPolicy, SupportShortfall, TransportDeclaration, TransportReceipt, TransportedDecision,
+    TransportedDecisionInspection, TransportedDemand, TransportedRefusal,
+    TransportedRepresentation, TransportedResponse, TransportedRoute, TransportedValue,
     UncertaintyRequirement, adapt_finite_scenarios, adapt_graph_dependent_claims,
-    adapt_point_claim, adapt_weighted_graph_atoms, assess_robustness, evaluate_adapted,
-    evaluate_identified_sets, evaluate_robust, utility_interval,
+    adapt_point_claim, adapt_weighted_graph_atoms, assess_robustness, contract_needs_law,
+    evaluate_adapted, evaluate_identified_sets, evaluate_robust, evaluate_transported_decision,
+    utility_interval,
 };
 pub use execute::DagResponseOrigin;
 pub use execute::Study;

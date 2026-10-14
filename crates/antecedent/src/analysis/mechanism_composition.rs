@@ -645,7 +645,14 @@ impl PreparedMechanismComposition {
         ))
     }
 
-    fn gaussian(&self) -> Result<&ComposedLinearGaussian, MechanismCompositionRefusal> {
+    /// Variables whose mechanism was fitted in another population or regime and
+    /// admitted under a declared basis. Empty states that every mechanism is
+    /// native to the composition's target.
+    pub(super) fn admitted_variables(&self) -> Vec<&str> {
+        self.request.admissions.iter().map(|a| a.variable_id.as_str()).collect()
+    }
+
+    pub(super) fn gaussian(&self) -> Result<&ComposedLinearGaussian, MechanismCompositionRefusal> {
         match &self.executable {
             Executable::Gaussian(model) => Ok(model),
             Executable::Finite(_) => Err(MechanismCompositionRefusal::of(

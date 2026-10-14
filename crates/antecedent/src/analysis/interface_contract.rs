@@ -40,13 +40,13 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ExternalRefusal;
+use antecedent_contract::evidence_ledger::EvidenceLedger;
 pub use antecedent_contract::interface_contract::{
     CalibrationRequirement, CalibrationStatus, ComponentConnection, ComposedInterfaces, Connection,
     ConsumedPort, ContractOperation, DependenceRequirement, EvidenceBasis, InterfaceContract,
-    MAX_COMPOSITION_COMPONENTS, MAX_COMPOSITION_CONNECTIONS, PortFacts, ProducedPort, SupportDomain,
-    UncertaintyMeaning, UncertaintyParadigm, operations_of_capabilities,
+    MAX_COMPOSITION_COMPONENTS, MAX_COMPOSITION_CONNECTIONS, PortFacts, ProducedPort,
+    SupportDomain, UncertaintyMeaning, UncertaintyParadigm, operations_of_capabilities,
 };
-use antecedent_contract::evidence_ledger::EvidenceLedger;
 use antecedent_contract::interface_contract::{
     check_composition, check_composition_with_ledger, check_connection,
     disjoint_requirements_without_ledger,

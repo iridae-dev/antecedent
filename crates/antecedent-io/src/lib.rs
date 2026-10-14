@@ -175,6 +175,8 @@ pub mod transport_interference_wire;
 pub mod transport_scenario_artifact;
 pub mod z_transport_artifact;
 pub use antecedent_io_core::adaptive_monitoring_contract_artifact;
+pub use antecedent_io_core::transport_handoff_artifact;
+pub use antecedent_io_core::transport_revalidation_artifact;
 pub use antecedent_io_core::callback_result_artifact;
 pub use antecedent_io_core::cohort_decision;
 pub use antecedent_io_core::composition_verification_artifact;
