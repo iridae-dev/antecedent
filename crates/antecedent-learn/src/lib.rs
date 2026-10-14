@@ -43,6 +43,7 @@ pub mod ridge;
 pub mod spec;
 mod streams;
 pub mod transform;
+pub mod transported_effect;
 
 #[cfg(test)]
 pub(crate) use auto::resolve_auto;
