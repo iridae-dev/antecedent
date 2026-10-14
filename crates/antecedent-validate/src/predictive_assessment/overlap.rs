@@ -139,7 +139,14 @@ pub(crate) fn decide_overlap(
         FitDeclaration::FittedOn(keys) => {
             let fitted = sorted_distinct(keys);
             let shared = shared_count(&fitted, assessed);
-            if shared == 0 {
+            if shared == 0 && fitted.iter().chain(assessed).any(ObservationKey::is_caller_minted) {
+                OverlapStatus::Unverified {
+                    reason: "observation identities were minted from caller-chosen names, a \
+                             namespace disjoint from the evidence ledger, so disjointness from \
+                             ledger rows cannot be verified"
+                        .to_owned(),
+                }
+            } else if shared == 0 {
                 OverlapStatus::HeldOutVerified { fitted_on: fitted.len() as u64 }
             } else {
                 OverlapStatus::InSample { shared, assessed: assessed.len() as u64 }

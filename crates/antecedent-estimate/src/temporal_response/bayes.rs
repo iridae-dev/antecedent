@@ -207,8 +207,9 @@ impl TemporalResponseEstimator {
             }
         }
         // Horizons are separate conjugate fits with independent draws; pairing draw r
-        // across horizons samples their product, which is the joint law this estimator
-        // actually has. Within a horizon every dose shares one coefficient draw.
+        // across horizons samples a product of marginals, used only for the simultaneous
+        // band and never retained as an aligned joint posterior. Within a horizon every
+        // dose shares one coefficient draw.
         let n_joint = cell_draws.iter().map(|values| values.len()).min().unwrap_or(0);
         let cell_draws: Vec<&[f64]> = cell_draws.iter().map(|values| &values[..n_joint]).collect();
         let simultaneous = max_deviation_band_columns(&mean, &cell_draws, 0.95);
@@ -294,13 +295,8 @@ impl TemporalResponseEstimator {
             source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("response.temporal.bayesian") }, scope: AssumptionScope::Estimation, status: AssumptionStatus::Declared,
         });
         assumptions.push(temporal_bayesian_tempering_assumption(&temporal.horizons, &tempering));
-        // Only a single-coordinate `InterventionResponse` retains its draws (see
-        // `band_columns`); every horizon shares the conjugate draw count, so the
-        // columns are equal-length and reconstruct the published pointwise interval.
         let band_draws = if intervention.is_some() {
-            let n_draws = band_columns.first().map_or(0, Vec::len);
-            (n_draws >= 2 && band_columns.iter().all(|column| column.len() == n_draws))
-                .then(|| CredibleDraws::columns(n_draws, &band_columns))
+            retained_response_draws(&band_columns, temporal.horizons.len())
         } else {
             None
         };
@@ -326,4 +322,24 @@ impl TemporalResponseEstimator {
             interaction_structurally_zero: false,
         })
     }
+}
+
+/// Draws retained for a single-coordinate intervention response.
+///
+/// Horizons are separate conjugate fits on separately prepared designs, so
+/// their draws are independent marginals: index r of one horizon has no
+/// relation to index r of another. Only a response with exactly one horizon
+/// has a single coordinate whose retained draws are a posterior in their own
+/// right; several horizons retain nothing, so no consumer can read the
+/// index-paired product as an aligned joint posterior (a nonlinear functional
+/// across horizons has no draws to evaluate and falls to the refusal path).
+pub(super) fn retained_response_draws(
+    columns: &[Vec<f64>],
+    horizon_count: usize,
+) -> Option<CredibleDraws> {
+    if horizon_count != 1 || columns.len() != 1 {
+        return None;
+    }
+    let n_draws = columns[0].len();
+    (n_draws >= 2).then(|| CredibleDraws::columns(n_draws, columns))
 }

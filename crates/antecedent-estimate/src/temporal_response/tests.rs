@@ -1232,3 +1232,18 @@ fn bayesian_tempering_assumption_discloses_capped_and_inestimable_horizons() {
         "must not keep the wrong pre-REML formula text: {text}"
     );
 }
+
+#[test]
+fn bayesian_response_retains_draws_only_for_a_single_horizon() {
+    let column = vec![0.5, 1.5, 2.5];
+    let one = super::bayes::retained_response_draws(std::slice::from_ref(&column), 1)
+        .expect("one horizon retains its draws");
+    assert_eq!(one.n_coordinates(), 1);
+    assert_eq!(one.n_draws, 3);
+    // Independent per-horizon fits: index r across horizons is not a joint draw, so
+    // nothing is retained for a nonlinear functional to evaluate.
+    let columns = vec![column.clone(), vec![9.0, 8.0, 7.0]];
+    assert!(super::bayes::retained_response_draws(&columns, 2).is_none());
+    // Fewer than two draws is not a retained posterior.
+    assert!(super::bayes::retained_response_draws(&[vec![1.0]], 1).is_none());
+}

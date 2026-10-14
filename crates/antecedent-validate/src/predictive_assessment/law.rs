@@ -139,37 +139,84 @@ impl PredictiveTarget {
 /// The identity of one observation: a 32-byte digest.
 ///
 /// The same key in two places is the same observation. The facade maps an
-/// evidence-ledger observation identity onto this key without change.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub struct ObservationKey([u8; 32]);
+/// evidence-ledger observation identity onto this key without change
+/// ([`ObservationKey::from_bytes`]). A key minted here from a caller-chosen
+/// name ([`ObservationKey::from_key`]) lives in a namespace disjoint from the
+/// ledger: it compares equal only to keys minted the same way, so an overlap
+/// test against ledger-derived keys cannot see shared rows. Such keys are
+/// remembered as `caller_minted` and an assessment never reports a predictor
+/// that touches one as verified held out.
+///
+/// Equality, ordering and hashing are by digest only.
+#[derive(Clone, Copy, Debug)]
+pub struct ObservationKey {
+    digest: [u8; 32],
+    caller_minted: bool,
+}
+
+impl PartialEq for ObservationKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.digest == other.digest
+    }
+}
+impl Eq for ObservationKey {}
+impl std::hash::Hash for ObservationKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.digest.hash(state);
+    }
+}
+impl PartialOrd for ObservationKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for ObservationKey {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.digest.cmp(&other.digest)
+    }
+}
 
 impl ObservationKey {
-    /// Wrap a 32-byte digest.
+    /// Wrap a 32-byte digest, the identity of an evidence-ledger observation.
     #[must_use]
     pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
+        Self { digest: bytes, caller_minted: false }
     }
 
     /// The digest bytes.
     #[must_use]
     pub const fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
+        &self.digest
     }
 
     /// The key of an observation named by a stable key within a domain, for
     /// example a data snapshot digest and a row index.
+    ///
+    /// The key is in a namespace disjoint from evidence-ledger observation
+    /// identities and is marked caller-minted: it can show that two
+    /// caller-minted keys coincide (in-sample), but a predictor whose fit set
+    /// or whose assessed set holds such a key is labelled `unverified`, never
+    /// `held_out_verified`. Map ledger observation ids through
+    /// [`ObservationKey::from_bytes`] to verify held-out status.
     #[must_use]
     pub fn from_key(domain: &str, key: &[u8]) -> Self {
         let mut writer =
             antecedent_core::CanonicalWriter::new("antecedent.predictive_assessment.observation");
         writer.text(domain).bytes(key);
-        Self(writer.finish())
+        Self { digest: writer.finish(), caller_minted: true }
+    }
+
+    /// Whether the key was minted from a caller-chosen name rather than mapped
+    /// from an evidence-ledger observation identity.
+    #[must_use]
+    pub const fn is_caller_minted(&self) -> bool {
+        self.caller_minted
     }
 
     /// Lowercase hex spelling (64 characters).
     #[must_use]
     pub fn to_hex(&self) -> String {
-        antecedent_core::to_hex(&self.0)
+        antecedent_core::to_hex(&self.digest)
     }
 }
 

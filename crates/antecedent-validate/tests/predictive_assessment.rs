@@ -29,7 +29,13 @@ fn ctx() -> ExecutionContext {
     ExecutionContext::for_tests(7)
 }
 
+/// A key standing for a ledger-mapped observation identity.
 fn key(i: u64) -> ObservationKey {
+    let minted = ObservationKey::from_key("predictive-assessment-test", &i.to_le_bytes());
+    ObservationKey::from_bytes(*minted.as_bytes())
+}
+
+fn minted_key(i: u64) -> ObservationKey {
     ObservationKey::from_key("predictive-assessment-test", &i.to_le_bytes())
 }
 
@@ -661,6 +667,24 @@ fn overlap_spec(fit: FitDeclaration, policy: OverlapPolicy) -> PredictiveAssessm
     );
     spec.overlap_policy = policy;
     spec
+}
+
+#[test]
+fn caller_minted_keys_are_never_verified_held_out() {
+    // Disjoint digests, but minted outside the ledger namespace: shared ledger rows would be
+    // invisible, so the label is `unverified` and the held-out policy refuses.
+    let fit = FitDeclaration::FittedOn((100..110).map(minted_key).collect());
+    let report =
+        assess_predictive_laws(&overlap_spec(fit.clone(), OverlapPolicy::LabelOnly), &ctx())
+            .unwrap();
+    assert_eq!(report.predictors[0].overlap.label(), "unverified");
+    assert!(
+        assess_predictive_laws(&overlap_spec(fit, OverlapPolicy::RequireHeldOut), &ctx()).is_err()
+    );
+    assert!(minted_key(1).is_caller_minted());
+    assert!(!key(1).is_caller_minted());
+    // Digest equality is origin-independent.
+    assert_eq!(minted_key(1), key(1));
 }
 
 #[test]

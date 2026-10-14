@@ -43,11 +43,13 @@ use crate::{
         transport_identification_to_wire,
     },
 };
+use antecedent_contract::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
 use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_estimate::joint_bayesian_transport::{
     DataIdentity, GaussianPrior, JOINT_TRANSPORT_MAX_DRAWS, JOINT_TRANSPORT_MAX_PARAMETERS,
     JointPriors, JointTransportCalibration, JointTransportFit, JointTransportModel,
-    JointTransportOptions, JointTransportRefusal, PriorProvenance, SourceData, TargetData,
+    JointTransportOptions, JointTransportRefusal, PriorProvenance, SourceData, SourceDependence,
+    TargetData,
     fit_joint_bayesian_transport,
 };
 use antecedent_identify::TransportIdentification;
@@ -937,4 +939,89 @@ impl JointBayesianArtifactWire {
         crate::measured_inference::compare_replay(&envelope, &measured)?;
         Ok((wire, fit, measured))
     }
+}
+
+// ---------------------------------------------------------------------------
+// Source dependence from the evidence ledger.
+// ---------------------------------------------------------------------------
+
+/// Fold the pairwise ledger overlap of two groups of sources into one declaration.
+///
+/// `SharedObservations` anywhere wins (the likelihood would double count), then
+/// any pair the ledger cannot compute is `Unknown`; only when every pair is
+/// known disjoint is the result `IndependentSamples`. Independence is never
+/// inferred from absence.
+fn fold_pair_overlap(
+    ledger: &EvidenceLedger,
+    pairs: impl Iterator<Item = (SourceId, SourceId)>,
+) -> Result<SourceDependence, IoError> {
+    let mut result = SourceDependence::IndependentSamples;
+    for (a, b) in pairs {
+        match ledger.overlap(a, b).map_err(|error| IoError::Refused {
+            code: antecedent_core::reason_code!("invalid_argument"),
+            message: format!("joint_bayesian_transport.source_dependence: {error}"),
+        })? {
+            Overlap::Independent => {}
+            Overlap::SharedObservations { .. } => return Ok(SourceDependence::OverlappingUnits),
+            _ => result = SourceDependence::Unknown,
+        }
+    }
+    Ok(result)
+}
+
+/// Derive the dependence between the source trials (and the target sample)
+/// of a joint Bayesian transport model from an evidence ledger.
+///
+/// Pass the ledger source behind every source trial and the target sample.
+/// Every pair must be known disjoint for [`SourceDependence::IndependentSamples`];
+/// sources sharing observations give `OverlappingUnits`, and any pair whose
+/// observations the ledger cannot compute gives `Unknown`. The estimator
+/// refuses the latter two, so a hand-declared independence is not needed.
+///
+/// # Errors
+/// `invalid_argument` when no source is given or a source is not in the ledger.
+pub fn source_dependence_from_ledger(
+    ledger: &EvidenceLedger,
+    sources: &[SourceId],
+) -> Result<SourceDependence, IoError> {
+    if sources.is_empty() {
+        return Err(IoError::Refused {
+            code: antecedent_core::reason_code!("invalid_argument"),
+            message: "joint_bayesian_transport.source_dependence: no sources bound".to_owned(),
+        });
+    }
+    let pairs = sources
+        .iter()
+        .enumerate()
+        .flat_map(|(i, &a)| sources[i + 1..].iter().map(move |&b| (a, b)));
+    fold_pair_overlap(ledger, pairs)
+}
+
+/// Derive whether the observations a prior bank consumed overlap the
+/// observations of the likelihood sources, from an evidence ledger.
+///
+/// `IndependentSamples` means every prior-bank source is known disjoint from
+/// every likelihood source; otherwise `OverlappingUnits` or `Unknown`, exactly
+/// as [`source_dependence_from_ledger`]. A prior bank whose consumed data the
+/// ledger cannot compute is therefore never reported independent.
+///
+/// # Errors
+/// `invalid_argument` when either group is empty or a source is not in the ledger.
+pub fn prior_data_overlap_from_ledger(
+    ledger: &EvidenceLedger,
+    prior_sources: &[SourceId],
+    likelihood_sources: &[SourceId],
+) -> Result<SourceDependence, IoError> {
+    if prior_sources.is_empty() || likelihood_sources.is_empty() {
+        return Err(IoError::Refused {
+            code: antecedent_core::reason_code!("invalid_argument"),
+            message: "joint_bayesian_transport.source_dependence: prior and likelihood sources \
+                      must both be bound"
+                .to_owned(),
+        });
+    }
+    let pairs = prior_sources
+        .iter()
+        .flat_map(|&a| likelihood_sources.iter().map(move |&b| (a, b)));
+    fold_pair_overlap(ledger, pairs)
 }
