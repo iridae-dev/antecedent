@@ -168,6 +168,55 @@ fn a_covariance_aware_contrast_replays_to_the_closed_form() {
 }
 
 #[test]
+fn independent_claims_refuse_covariance_cross_terms_even_after_resealing() {
+    let independent = declared(
+        PropagationOperation::Sum,
+        vec![summary("x", "snapshot_x"), summary("y", "snapshot_y")],
+        PropagationDependence::DeclaredIndependent,
+        RequestedReading::Point,
+    );
+    let numbers = PropagationRequestWire::LinearCombination {
+        coefficients: float_bits(&[1.0, 1.0]),
+        means: float_bits(&[0.0, 0.0]),
+        covariance: float_bits(&[1.0, 0.5, 0.5, 1.0]),
+    };
+    assert!(JointLawPropagationArtifactWire::seal(&independent, numbers, &ctx()).is_err());
+
+    let mut wire = contrast();
+    wire.rule.dependence = "declared_independent".into();
+    wire.rule.covariance_id = None;
+    wire.inputs[1].evidence_id = "snapshot_2".into();
+    wire.covariance_id = None;
+    wire.shared_evidence.clear();
+    reseal(&mut wire);
+    let error =
+        wire.consume(None, &ctx()).expect_err("resealing cannot license inconsistent dependence");
+    assert_eq!(details(&error)[0].1, "joint_law_propagation.invalid_request");
+}
+
+#[test]
+fn aligned_linear_claims_refuse_nonfinite_coefficients_and_overflow() {
+    let request = declared(
+        PropagationOperation::Contrast,
+        vec![aligned("x", "snapshot", "joint"), aligned("y", "snapshot", "joint")],
+        PropagationDependence::AlignedJointLaw,
+        RequestedReading::Point,
+    );
+    for coefficient in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, f64::MAX] {
+        let numbers = PropagationRequestWire::AlignedLinearCombination {
+            a: bits(coefficient),
+            b: bits(-1.0),
+            x: float_bits(&[1.0, 3.0]),
+            y: float_bits(&[0.0, 1.0]),
+        };
+        assert!(
+            JointLawPropagationArtifactWire::seal(&request, numbers, &ctx()).is_err(),
+            "a non-finite result must never be sealed as a point claim"
+        );
+    }
+}
+
+#[test]
 fn an_aligned_nonlinear_functional_matches_the_finite_joint_law_enumeration() {
     let (xs, ys) = joint_rows();
     let product = aligned_product("product", ("x", "y"), &xs, &ys);

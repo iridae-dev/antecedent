@@ -794,6 +794,18 @@ fn evaluate(
     match request {
         PropagationRequestWire::LinearCombination { coefficients, means, covariance } => {
             require_len(coefficients.len(), n_inputs, "coefficient")?;
+            if rule.dependence == "declared_independent"
+                && covariance.len() == n_inputs * n_inputs
+                && (0..n_inputs).any(|i| {
+                    (0..n_inputs)
+                        .any(|j| i != j && f64::from_bits(covariance[i * n_inputs + j]).abs() > 0.0)
+                })
+            {
+                return Err(invalid_request(
+                    "covariance",
+                    "declared independent inputs require zero cross-covariances; declare the covariance dependence when cross terms are present",
+                ));
+            }
             let m = linear_combination_moments(
                 &floats(coefficients),
                 &floats(means),
@@ -808,10 +820,16 @@ fn evaluate(
         PropagationRequestWire::AlignedLinearCombination { a, b, x, y } => {
             require_len(2, n_inputs, "aligned column")?;
             let (a, b) = (f64::from_bits(*a), f64::from_bits(*b));
+            if !a.is_finite() || !b.is_finite() {
+                return Err(math_error(JointLawError::NonFinite("coefficient")));
+            }
             let pm = paired_moments(&floats(x), &floats(y)).map_err(math_error)?;
             let mean = a * pm.mean_x + b * pm.mean_y;
-            let variance =
-                (a * a * pm.var_x + b * b * pm.var_y + 2.0 * a * b * pm.covariance).max(0.0);
+            let variance = a * a * pm.var_x + b * b * pm.var_y + 2.0 * a * b * pm.covariance;
+            if !mean.is_finite() || !variance.is_finite() {
+                return Err(math_error(JointLawError::NonFinite("combination moment")));
+            }
+            let variance = variance.max(0.0);
             Ok(vec![
                 ("mean".to_owned(), mean.to_bits()),
                 ("variance".to_owned(), variance.to_bits()),
