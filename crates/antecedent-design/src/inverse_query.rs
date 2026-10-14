@@ -43,6 +43,13 @@
 //!   answer across scenarios is `StructurallyAmbiguous`; an unidentified
 //!   scenario is `Unidentified`; an unevaluated one is `Unevaluated`. Their
 //!   probability mass is retained and never renormalized away.
+//! - **Forward sources.** A claim may come from a composed mechanism model, a
+//!   cohort-mean contrast or a transported response; each is adapted, with its
+//!   own refusals and its source and transport identity, by
+//!   [`crate::inverse_forward_source`]. A source that answers each action by its
+//!   own execution is evaluated by [`evaluate_inverse_query_per_action`]. The
+//!   engine itself is unchanged: it still compares only the supplied claim's
+//!   value with the target.
 //! - **Continuous domains.** A grid sampled from a continuous action space can
 //!   find a feasible point, but that is never reported as a global feasibility
 //!   claim; continuous optimization is separately scoped.
@@ -1136,7 +1143,90 @@ pub fn evaluate_inverse_query(
     for (position, id) in query.grid_order.iter().enumerate() {
         actions.push(report_action(query, evidence, id, position, &mut meter)?);
     }
-    let has_point = evidence.point.is_some();
+    Ok(assemble_result(
+        query,
+        contract_identity,
+        actions,
+        &meter,
+        evidence.point.is_some(),
+        evidence.point.as_ref().map(ForwardClaim::receipt),
+    ))
+}
+
+/// Evaluate an inverse query whose point claim is given per action.
+///
+/// A forward source that answers each intervention by its own separate
+/// execution (one composed-model query per action, one exact finite law per
+/// action) has no single aligned law across the grid. Each grid action is
+/// evaluated on its own claim, exactly as [`evaluate_inverse_query`] evaluates
+/// it on a shared point claim, and the results are assembled in grid order
+/// with the same selection and existence rules. A grid action with no claim is
+/// `Unevaluated`, never interpolated and never excluded.
+///
+/// Claims for different actions are separate worlds: they carry no pairing,
+/// so only an action's own coordinates are ever read from its claim. The
+/// result's `point_source` is `None` because there is no single claim to cite;
+/// the lineage of each claim stays with the caller's per-action receipts.
+///
+/// # Errors
+/// An invalid grid, constraint or tolerance, a claim for an action that is
+/// not in the grid, a repeated claim for one action, no claim for any grid
+/// action, and any engine refusal on a claim.
+pub fn evaluate_inverse_query_per_action(
+    query: &InverseQuery,
+    claims: &[(String, ForwardClaim)],
+) -> Result<InverseResult, InverseQueryError> {
+    let mut seen = HashSet::new();
+    for (id, _) in claims {
+        if !query.grid_order.contains(id) {
+            return Err(InverseQueryError::InvalidGrid("a claim names an action outside the grid"));
+        }
+        if !seen.insert(id.as_str()) {
+            return Err(InverseQueryError::InvalidGrid("an action has more than one claim"));
+        }
+    }
+    let Some((_, first)) = claims.first() else {
+        return Err(InverseQueryError::NoForwardEvidence);
+    };
+    let probe = ForwardEvidence { point: Some(first.clone()), ..ForwardEvidence::default() };
+    let contract_identity = validate_query(query, &probe)?;
+    let mut meter = Meter { used: 0, limit: query.max_evaluations, exhausted: false };
+    let mut actions = Vec::with_capacity(query.grid_order.len());
+    for (position, id) in query.grid_order.iter().enumerate() {
+        let report = match claims.iter().find(|(claimed, _)| claimed == id) {
+            Some((_, claim)) => {
+                let evidence =
+                    ForwardEvidence { point: Some(claim.clone()), ..ForwardEvidence::default() };
+                report_action(query, &evidence, id, position, &mut meter)?
+            }
+            None => ActionReport {
+                id: id.clone(),
+                position,
+                point: Some(FeasibilityStatus::Unevaluated),
+                point_values: Vec::new(),
+                interval_region: None,
+                identified_set: None,
+                identified_set_members: Vec::new(),
+                all_scenario: None,
+                scenario_members: Vec::new(),
+                posterior_probability: None,
+            },
+        };
+        actions.push(report);
+    }
+    Ok(assemble_result(query, contract_identity, actions, &meter, true, None))
+}
+
+/// Existence, selection and flags over per-action reports. Shared by the single-claim
+/// and per-action routes so both apply one rule.
+fn assemble_result(
+    query: &InverseQuery,
+    contract_identity: String,
+    actions: Vec<ActionReport>,
+    meter: &Meter,
+    has_point: bool,
+    point_source: Option<SourceReceipt>,
+) -> InverseResult {
     let feasible_actions: Vec<String> = actions
         .iter()
         .filter(|a| a.point == Some(FeasibilityStatus::Feasible))
@@ -1155,7 +1245,7 @@ pub fn evaluate_inverse_query(
         ExistenceClaim::Undetermined
     };
     let selection = select(query.selection, &actions, has_point);
-    Ok(InverseResult {
+    InverseResult {
         contract_identity,
         grid_order: query.grid_order.clone(),
         grid_scope: query.grid_scope,
@@ -1168,9 +1258,9 @@ pub fn evaluate_inverse_query(
         exhaustive_over_declared_set: exhaustive,
         evaluations_used: meter.used,
         budget_exhausted: meter.exhausted,
-        point_source: evidence.point.as_ref().map(ForwardClaim::receipt),
+        point_source,
         feasible_actions,
         actions,
         scope_note: INVERSE_QUERY_SCOPE_NOTE,
-    })
+    }
 }

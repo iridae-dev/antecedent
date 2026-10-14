@@ -31,6 +31,13 @@
 //! stored `exhaustive_over_declared_set` or `no_feasible_action_in_declared_set` on a
 //! continuous sample is refused even before replay.
 //!
+//! A claim produced by a composed-mechanism model, a cohort-mean contrast or a transported
+//! response may carry its [`ForwardOrigin`] (source kind, source identity, representation,
+//! transport receipt, claim digest). The origin is bound into the premises digest, and a
+//! consumer re-derives the digest of the embedded point claim and refuses an origin that
+//! names another claim. Replaying the artifact checks that the embedded numbers are the
+//! numbers the origin names; it does not re-execute the route that produced them.
+//!
 //! The artifact makes no coverage or calibration claim (`point_only`). The mean of a
 //! posterior is never turned into a probability or quantile here: the shared engine
 //! refuses that when the query is evaluated.
@@ -51,6 +58,7 @@ use crate::decision_artifact::DecisionContractArtifact;
 use crate::decision_contract::{DecisionContract, Tail};
 use crate::decision_eval::{MeanSource, SourceReceipt};
 use crate::decision_structural::{AtomEvidence, StructuralAtom};
+use crate::inverse_forward_source::{ForwardOrigin, forward_claim_digest};
 use crate::inverse_query::{
     ActionReport, Comparison, ConstraintValue, ExistenceClaim, FeasibilityStatus, ForwardClaim,
     ForwardEvidence, GridScope, IdentifiedSet, IntervalRegion, InverseConstraint, InverseQuery,
@@ -77,6 +85,7 @@ const CONTRACT_ARTIFACT_ID: &str = "inverse-query-contract";
 const WRONG_CONTRACT: &str = "functional_inverse_query.wrong_contract";
 const GLOBAL_CLAIM: &str = "functional_inverse_query.global_feasibility_claim";
 const BOUNDS: &str = "functional_inverse_query.bounds_exceeded";
+const ORIGIN_INVALID: &str = "functional_inverse_query.forward_origin_invalid";
 
 fn refused(detail: &str, text: &str) -> IoError {
     IoError::Refused {
@@ -1050,6 +1059,9 @@ pub struct InverseQueryMeta {
     /// Independently consumed original source evidence; no executable-state authority.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub source_evidence: Vec<Vec<u8>>,
+    /// Where the point claim came from, when it came from a licensed forward source.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forward_origin: Option<ForwardOrigin>,
 }
 
 /// Encode the metadata, the nested contract artifact and the numbers as a
@@ -1145,6 +1157,7 @@ pub struct InverseQueryArtifact {
     result: InverseResult,
     identity: InverseQueryIdentity,
     source_evidence: Vec<crate::source_evidence::SourceEvidence>,
+    forward_origin: Option<ForwardOrigin>,
 }
 
 impl InverseQueryArtifact {
@@ -1165,7 +1178,58 @@ impl InverseQueryArtifact {
         let identity =
             identity_of(&result.contract_identity, &InverseQueryWire::from_query(&query), &encoded)
                 .map_err(|_| InverseQueryError::InvalidParameter("artifact_encoding"))?;
-        Ok(Self { query, evidence, result, identity, source_evidence: Vec::new() })
+        Ok(Self {
+            query,
+            evidence,
+            result,
+            identity,
+            source_evidence: Vec::new(),
+            forward_origin: None,
+        })
+    }
+
+    /// Where the point claim came from, when the artifact carries an origin.
+    #[must_use]
+    pub fn forward_origin(&self) -> Option<&ForwardOrigin> {
+        self.forward_origin.as_ref()
+    }
+
+    /// Bind the origin of the point claim into the artifact identity.
+    ///
+    /// The origin's claim digest is recomputed from the embedded point claim and
+    /// must equal the stored one, so an origin cannot be attached to numbers it
+    /// does not describe. The origin is a declaration of provenance: this does
+    /// not re-execute the producing route and grants no trust or calibration.
+    ///
+    /// # Errors
+    /// An origin that is malformed, an artifact with no point claim, a claim
+    /// digest that differs from the embedded claim's, or an origin already bound
+    /// (`functional_inverse_query.forward_origin_invalid`).
+    pub fn with_forward_origin(mut self, origin: ForwardOrigin) -> Result<Self, IoError> {
+        origin.validate().map_err(|why| refused(ORIGIN_INVALID, why))?;
+        if self.forward_origin.is_some() {
+            return Err(refused(ORIGIN_INVALID, "an origin is already bound"));
+        }
+        let Some(point) = self.evidence.point.as_ref() else {
+            return Err(refused(
+                ORIGIN_INVALID,
+                "an origin describes the point claim and none is embedded",
+            ));
+        };
+        if forward_claim_digest(point)? != origin.claim_digest {
+            return Err(refused(
+                ORIGIN_INVALID,
+                "the origin names a different claim than the one embedded",
+            ));
+        }
+        self.identity.premises_digest = tagged_digest(
+            "antecedent.inverse_query.forward_origin.v1",
+            &to_cbor(&(&self.identity.premises_digest, origin.canonical_identity()))?,
+        );
+        self.identity.digest =
+            whole_identity(&self.identity.premises_digest, &self.identity.data_digest);
+        self.forward_origin = Some(origin);
+        Ok(self)
     }
 
     /// Original diagnostic evidence retained alongside the actual inverse source.
@@ -1274,7 +1338,10 @@ impl InverseQueryArtifact {
                 whole_identity(&self.identity.premises_digest, &self.identity.data_digest);
         }
         self.source_evidence = sources;
-        Ok(self)
+        match self.forward_origin.take() {
+            Some(origin) => self.with_forward_origin(origin),
+            None => Ok(self),
+        }
     }
 
     /// The query.
@@ -1331,6 +1398,7 @@ impl InverseQueryArtifact {
                 .map(crate::source_evidence::SourceEvidence::export)
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|cause| IoError::Convert(cause.to_string()))?,
+            forward_origin: self.forward_origin.clone(),
         };
         encode_parts(&meta, &contract, &encoded.data, artifact_id)
     }
@@ -1385,9 +1453,12 @@ impl InverseQueryArtifact {
             .map(|bytes| crate::source_evidence::SourceEvidence::consume(bytes))
             .collect::<Result<Vec<_>, _>>()
             .map_err(source_refusal)?;
-        let artifact = Self::new(query, evidence)
+        let mut artifact = Self::new(query, evidence)
             .map_err(|error| query_refusal(&error))?
             .with_source_evidence(sources)?;
+        if let Some(origin) = meta.forward_origin.clone() {
+            artifact = artifact.with_forward_origin(origin)?;
+        }
         if let Some(field) = identity_diff(&meta.identity, &artifact.identity) {
             return Err(wrong_contract(&format!("stored {field} differs from the recomputed one")));
         }

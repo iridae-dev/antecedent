@@ -10,6 +10,13 @@
 //! identification), reporting dominance, possibly and necessarily optimal
 //! actions, and conflicting leaders.
 //!
+//! A transported response (a value carried to a target population under a declared
+//! transport) is a point claim whose evidence is a transported law
+//! ([`adapt_transported_claim`]); a transported mean is refused here with the
+//! structural evaluators' law requirement, and the transport identity stays on
+//! the [`crate::decision_transported_source::TransportedResponse`] the claim was
+//! built from. Support is never above `Extrapolative`.
+//!
 //! Completion counts are never probabilities: `BayesOverStructures` refuses
 //! them, and every other policy drops them from the weights. Unidentified and
 //! unevaluated mass is passed through and never renormalized. A hard
@@ -31,6 +38,9 @@ use crate::decision_robustness::{
     AtomSupport, ClaimProfile, RobustDecisionResult, RobustnessError, evaluate_robust,
 };
 use crate::decision_structural::{AtomEvidence, StructuralAtom, StructuralDecisionResult};
+use crate::decision_transported_source::{
+    TransportedRefusal, TransportedResponse, TransportedValue,
+};
 use crate::structure_aggregator::{AggregateKind, StructureAggregator};
 
 /// What a claim says about its own probability.
@@ -128,6 +138,8 @@ pub enum AdapterError {
     Admissibility(AdmissibilityError),
     /// The robustness assessment refused.
     Robustness(RobustnessError),
+    /// A transported response cannot be adapted to a structural claim.
+    Transported(TransportedRefusal),
 }
 
 impl AdapterError {
@@ -187,6 +199,7 @@ impl AdapterError {
             }
             Self::Admissibility(error) => at_stage(error.to_refusal(), "adapt"),
             Self::Robustness(error) => at_stage(error.to_refusal(), "adapt"),
+            Self::Transported(error) => at_stage(error.to_refusal(), "adapt"),
         }
     }
 }
@@ -276,6 +289,41 @@ pub fn adapt_point_claim(
         support,
     };
     adapt(ClaimKind::Point, vec![claim], policy)
+}
+
+/// Adapt a transported response as one point claim.
+///
+/// A structural decision evaluates a law under each structure, so only a
+/// transported law is adapted. The claim's support is the response's own label
+/// (never `Supported`), per input status is not refined by the caller, and the
+/// claim is a point claim: its transport identity is the response's receipt,
+/// which the caller keeps with the decision it makes from the adapted claims.
+///
+/// # Errors
+/// [`TransportedRefusal::LawNotSupplied`] for a transported mean (a mean is
+/// one expectation and a structural evaluation needs a law); and the refusals
+/// of [`adapt_point_claim`].
+pub fn adapt_transported_claim(
+    id: &str,
+    response: &TransportedResponse,
+    policy: StructuralPolicy,
+) -> Result<AdaptedClaims, AdapterError> {
+    let TransportedValue::Law(law) = response.value() else {
+        return Err(AdapterError::Transported(TransportedRefusal::LawNotSupplied {
+            needed: "structural_evaluation",
+        }));
+    };
+    let status = response.receipt().support_status().ok_or_else(|| {
+        AdapterError::Transported(TransportedRefusal::SupportLabelInflated(
+            response.receipt().support.clone(),
+        ))
+    })?;
+    adapt_point_claim(
+        id,
+        AtomEvidence::Evaluated(Box::new(law.clone())),
+        AtomSupport::uniform(status),
+        policy,
+    )
 }
 
 /// Adapt graph-dependent claims: one answer per graph, no probabilities.

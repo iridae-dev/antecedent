@@ -113,6 +113,9 @@ pub use z_transport_planner::{
 };
 
 pub mod adaptive_trial_transport;
+pub mod decision_transported_source;
+pub mod inverse_forward_source;
+pub mod inverse_observational_scenarios;
 /// Independently consumed original source diagnostics and semantic mappings.
 pub mod source_evidence;
 pub mod source_projection_artifact;
