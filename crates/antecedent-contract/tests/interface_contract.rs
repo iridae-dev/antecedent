@@ -114,7 +114,12 @@ fn compatible_pair_connects_and_carries_what_the_producer_holds() {
         connection.calibration,
         CalibrationStatus::Measured { record_id: "cal-0001".into() }
     );
-    assert_eq!(connection.uncertainty.map(|u| u.paradigm()), Some(UncertaintyParadigm::Posterior));
+    assert_eq!(
+        connection
+            .uncertainty
+            .map(antecedent_contract::interface_contract::UncertaintyMeaning::paradigm),
+        Some(UncertaintyParadigm::Posterior)
+    );
     // The same declarations decide the same connection, with the same identity.
     let again = check_connection(&producer, "effect", &consumer, "effect").expect("connects");
     assert_eq!(connection.identity, again.identity);
@@ -700,6 +705,7 @@ fn inherited_calibration_resolves_against_the_upstream_that_holds_it() {
         ]
     );
     assert_eq!(refusals[0].offending.as_deref(), Some("out <- in"));
+    assert!(refusals.iter().all(|r| r.code == "interface_contract_calibration_not_held"));
 }
 
 #[test]

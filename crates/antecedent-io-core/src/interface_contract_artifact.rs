@@ -288,7 +288,9 @@ fn calibration_to_wire(status: &CalibrationStatus) -> CalibrationWire {
     wire
 }
 
-fn contract_to_wire(contract: &InterfaceContract) -> ContractWire {
+/// The wire form of a contract: ports sorted by name.
+#[must_use]
+pub fn contract_to_wire(contract: &InterfaceContract) -> ContractWire {
     let mut produces: Vec<ProducedPortWire> = contract
         .produces
         .iter()
@@ -501,7 +503,13 @@ fn consumed_from_wire(wire: &ConsumedPortWire) -> Result<ConsumedPort, Failure> 
     })
 }
 
-fn contract_from_wire(wire: &ContractWire) -> Result<InterfaceContract, Failure> {
+/// Rebuild a contract from its wire form. The wire must be in canonical order
+/// (ports sorted by name, every set sorted and distinct); the declaration is
+/// not validated here.
+///
+/// # Errors
+/// A wire that is not canonical, names an unknown vocabulary word or exceeds a bound.
+pub fn contract_from_wire(wire: &ContractWire) -> Result<InterfaceContract, Failure> {
     if wire.produces.len() > MAX_INTERFACE_PORTS || wire.consumes.len() > MAX_INTERFACE_PORTS {
         return Err(Failure::LimitsExceeded("ports"));
     }

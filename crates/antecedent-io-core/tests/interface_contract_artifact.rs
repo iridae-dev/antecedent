@@ -113,8 +113,7 @@ fn the_metadata_is_inspectable_as_plain_cbor_without_the_library_types() {
     let get = |map: &[(ciborium::Value, ciborium::Value)], key: &str| {
         map.iter()
             .find(|(k, _)| k.as_text() == Some(key))
-            .map(|(_, v)| v.clone())
-            .unwrap_or_else(|| panic!("key {key}"))
+            .map_or_else(|| panic!("key {key}"), |(_, v)| v.clone())
     };
     assert_eq!(get(&entries, "version").as_integer().map(i128::from), Some(1));
     assert_eq!(get(&entries, "feature").as_text(), Some(INTERFACE_CONTRACT_ARTIFACT_FEATURE));

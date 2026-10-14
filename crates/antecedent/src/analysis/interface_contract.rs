@@ -216,6 +216,10 @@ pub struct InterfaceContractExport {
 /// # Errors
 /// A declaration that is not well formed, an empty artifact id or an encoding
 /// failure.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would change the public error type"
+)]
 pub fn export_interface_contract(
     contract: &InterfaceContract,
     artifact_id: &str,
@@ -252,6 +256,10 @@ pub struct ConsumedInterfaceContract {
 /// # Errors
 /// Corruption, another major version, an unknown feature or a required
 /// feature, a declaration the library refuses, or an identity that differs.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would change the public error type"
+)]
 pub fn consume_interface_contract_artifact(
     bytes: &[u8],
     expected_identity: Option<&str>,
@@ -270,6 +278,10 @@ pub fn consume_interface_contract_artifact(
 ///
 /// # Errors
 /// Corruption, another major version or a malformed container.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would change the public error type"
+)]
 pub fn inspect_interface_contract_artifact(
     bytes: &[u8],
 ) -> Result<InterfaceContractMeta, InterfaceContractRefusal> {

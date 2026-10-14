@@ -228,6 +228,10 @@ fn model_identity() -> String {
     "ab".repeat(32)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one declarative fixture contract: every declared operation, input and output listed in order"
+)]
 fn estimator_contract() -> InterfaceContract {
     use ContractOperation as Op;
     let mut effect_quantity = quantity("ldl_change", QuantityRole::Outcome, "mg/dL");
@@ -492,6 +496,10 @@ struct Fixture {
     bytes: Vec<u8>,
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "callers hand over the freshly built artifact bytes, which the fixture then owns after normalization"
+)]
 fn accepted(
     name: &str,
     kind: &'static str,
@@ -533,6 +541,10 @@ fn rejected(
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "a flat list of independent conformance fixtures, one block each"
+)]
 fn interface_contract_fixtures() -> Vec<Fixture> {
     let mut out = Vec::new();
     let artifact = |contract: &InterfaceContract| {
@@ -860,7 +872,8 @@ fn blake3_vectors() -> serde_json::Value {
     let vectors: Vec<serde_json::Value> = lengths
         .iter()
         .map(|&len| {
-            let input: Vec<u8> = (0..len).map(|i| (i % 251) as u8).collect();
+            let input: Vec<u8> =
+                (0..len).map(|i| u8::try_from(i % 251).expect("a residue below 251")).collect();
             json!({ "len": len, "hash": blake3::hash(&input).to_hex().to_string() })
         })
         .collect();
@@ -1254,7 +1267,7 @@ fn schema_vocabularies_equal_the_implementations() {
         .collect();
     assert_eq!(set(labels.iter().map(CalibrationStatus::label)), schema_labels);
     assert_eq!(
-        ic.pointer("/properties/version/const").and_then(|v| v.as_u64()),
+        ic.pointer("/properties/version/const").and_then(serde_json::Value::as_u64),
         Some(u64::from(INTERFACE_CONTRACT_ARTIFACT_VERSION))
     );
     assert_eq!(
