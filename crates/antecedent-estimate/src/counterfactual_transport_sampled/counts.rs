@@ -291,8 +291,9 @@ impl SampledRegimeCounts {
         }
     }
 
-    /// Whether two tables hold the same observations: equal axes, counts,
-    /// design and structural zeros (their labels may differ).
+    /// Whether two tables have identical summaries: equal axes, counts, design
+    /// and structural zeros (their labels and snapshot identities may differ).
+    /// This alone does not establish that they contain the same physical units.
     #[must_use]
     pub fn same_observations(&self, other: &Self) -> bool {
         self.axes == other.axes

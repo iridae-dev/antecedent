@@ -2,11 +2,12 @@
 //!
 //! Two count tables may rest on disjoint units (independent), on the same units
 //! (shared), or on units whose relation is not declared (unknown). Unknown is
-//! never read as independent, and a declaration that contradicts the counts
-//! (independent tables that hold identical observations) is refused as double
-//! counting. Shared units are modelled only where the shared observations are
-//! recoverable from the counts, i.e. the two tables are the same dataset
-//! registered under two labels: such tables are one multinomial sample, not two.
+//! never read as independent. The declared snapshot identity, rather than
+//! equality of aggregate counts, establishes whether tables refer to the same
+//! physical dataset. Shared units are modelled only where the shared
+//! observations are recoverable from the counts, i.e. the two tables are the
+//! same dataset and the same table registered under two labels: such tables
+//! are one multinomial sample, not two.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -213,6 +214,7 @@ pub(crate) fn resolve_overlap(
     for i in 0..n {
         for j in (i + 1)..n {
             let relation = declaration.relation(&keys[i], &keys[j]);
+            let same_snapshot = tables[i].snapshot_identity() == tables[j].snapshot_identity();
             let identical = tables[i].same_observations(&tables[j]);
             match relation {
                 DatasetOverlap::Unknown => {
@@ -232,15 +234,15 @@ pub(crate) fn resolve_overlap(
                     ));
                 }
                 DatasetOverlap::Independent => {
-                    if identical && tables[i].observed_cells() >= 2 {
+                    if same_snapshot {
                         return Err(refused(
                             antecedent_core::reason_code!("evidence_double_counted"),
                             DETAIL_OVERLAP_DOUBLE,
                             format!(
                                 "population {} regime {} and population {} regime {} are \
-                                 declared independent but hold identical observations; the same \
-                                 units would be counted twice. Declare them shared units (one \
-                                 dataset) or supply the disjoint samples",
+                                 declared independent but name the same physical snapshot; \
+                                 their units cannot be disjoint. Declare them shared units where \
+                                 the summaries are identical, or supply disjoint snapshots",
                                 tables[i].population(),
                                 tables[i].regime().raw(),
                                 tables[j].population(),
@@ -250,14 +252,13 @@ pub(crate) fn resolve_overlap(
                     }
                 }
                 DatasetOverlap::SharedUnits => {
-                    if !identical {
+                    if !same_snapshot || !identical {
                         return Err(refused(
                             antecedent_core::reason_code!("route_not_supported"),
                             DETAIL_OVERLAP_UNLINKED,
-                            "two tables are declared to share units but are not the same \
-                             observations; the covariance of overlapping but different tables is \
-                             not recoverable from counts, so only an identical dataset is \
-                             modelled as shared",
+                            "two tables are declared to share units but do not name the same \
+                             physical snapshot and identical count table; the covariance of \
+                             overlapping but different tables is not recoverable from counts",
                         ));
                     }
                     let (ri, rj) = (find(&mut parent, i), find(&mut parent, j));
@@ -295,6 +296,15 @@ mod tests {
     };
 
     fn table(population: &str, regime: u32, counts: Vec<u64>) -> SampledRegimeCounts {
+        table_with_snapshot(population, regime, counts, &format!("{population}:{regime}"))
+    }
+
+    fn table_with_snapshot(
+        population: &str,
+        regime: u32,
+        counts: Vec<u64>,
+        snapshot: &str,
+    ) -> SampledRegimeCounts {
         SampledRegimeCounts::try_new(SampledRegimeCountsParts {
             population: Arc::from(population),
             regime: RegimeId::from_raw(regime),
@@ -304,7 +314,7 @@ mod tests {
                 levels: vec![0.0, 1.0, 2.0],
             }],
             counts,
-            snapshot_identity: Arc::from(format!("{population}:{regime}")),
+            snapshot_identity: Arc::from(snapshot),
             design: SamplingDesign::IndependentUnits,
             structural_zeros: Vec::new(),
         })
@@ -328,15 +338,28 @@ mod tests {
     }
 
     #[test]
-    fn identical_observations_declared_independent_are_double_counting() {
+    fn identical_count_tables_from_distinct_snapshots_can_be_independent() {
         let tables = vec![table("a", 0, vec![5, 6, 7]), table("b", 1, vec![5, 6, 7])];
+        let groups = resolve_overlap(&tables, &OverlapDeclaration::all_independent()).unwrap();
+        assert_eq!(groups.groups, vec![vec![0], vec![1]]);
+    }
+
+    #[test]
+    fn one_snapshot_declared_independent_is_double_counting_even_if_counts_differ() {
+        let tables = vec![
+            table_with_snapshot("a", 0, vec![5, 6, 7], "snapshot-1"),
+            table_with_snapshot("b", 1, vec![4, 7, 7], "snapshot-1"),
+        ];
         let error = resolve_overlap(&tables, &OverlapDeclaration::all_independent()).unwrap_err();
         assert_eq!(code(&error), "evidence_double_counted");
     }
 
     #[test]
     fn shared_units_make_identical_tables_one_dataset_and_refuse_different_ones() {
-        let same = vec![table("a", 0, vec![5, 6, 7]), table("b", 1, vec![5, 6, 7])];
+        let same = vec![
+            table_with_snapshot("a", 0, vec![5, 6, 7], "snapshot-1"),
+            table_with_snapshot("b", 1, vec![5, 6, 7], "snapshot-1"),
+        ];
         let shared = OverlapDeclaration::all_independent()
             .with_pair(same[0].key(), same[1].key(), DatasetOverlap::SharedUnits)
             .unwrap();
@@ -353,6 +376,30 @@ mod tests {
             .with_pair(different[0].key(), different[1].key(), DatasetOverlap::SharedUnits)
             .unwrap();
         let error = resolve_overlap(&different, &declared).unwrap_err();
+        assert_eq!(code(&error), "route_not_supported");
+
+        let same_snapshot_different_tables = vec![
+            table_with_snapshot("a", 0, vec![5, 6, 7], "snapshot-2"),
+            table_with_snapshot("b", 1, vec![5, 7, 6], "snapshot-2"),
+        ];
+        let declared = OverlapDeclaration::all_independent()
+            .with_pair(
+                same_snapshot_different_tables[0].key(),
+                same_snapshot_different_tables[1].key(),
+                DatasetOverlap::SharedUnits,
+            )
+            .unwrap();
+        let error = resolve_overlap(&same_snapshot_different_tables, &declared).unwrap_err();
+        assert_eq!(code(&error), "route_not_supported");
+    }
+
+    #[test]
+    fn coincidentally_equal_margins_do_not_establish_shared_units() {
+        let tables = vec![table("a", 0, vec![5, 6, 7]), table("b", 1, vec![5, 6, 7])];
+        let shared = OverlapDeclaration::all_independent()
+            .with_pair(tables[0].key(), tables[1].key(), DatasetOverlap::SharedUnits)
+            .unwrap();
+        let error = resolve_overlap(&tables, &shared).unwrap_err();
         assert_eq!(code(&error), "route_not_supported");
     }
 
