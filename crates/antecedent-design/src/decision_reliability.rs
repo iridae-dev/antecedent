@@ -20,17 +20,28 @@
 //! * the stream identities (semantic coordinates) that selected and validated, and the
 //!   artifact `decision_reliability_v1` that a consumer recomputes from the draws.
 //!
+//! * a **derived** uncertainty method ([`interval`]): numerical intervals at the
+//!   effective sample size, a confidence set for the best candidate and a
+//!   selection-aware interval for the selected value, with the three components kept
+//!   separate and labelled derived-unmeasured;
+//! * the producer connection ([`producer`]): the cohort-decision and
+//!   sequential-evaluation outputs reach the carrier only as per-draw utilities from a
+//!   declared joint law, and refuse with a typed reason while they are point-only.
+//!
 //! No ranking probability or interval is published here. Every such route is closed
 //! with a typed `cell_not_licensed` refusal until it is measured at its coordinate
 //! (candidate-set size, Monte Carlo budget, selection rule); the simulation design
-//! that will measure it lives in [`calibration`].
+//! that will measure it lives in [`calibration`] and [`coverage_design`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub mod artifact;
 pub mod calibration;
+pub mod coverage_design;
 pub mod draws;
+pub mod interval;
 pub mod mc_error;
+pub mod producer;
 pub mod ranking;
 pub mod report;
 pub mod selection;
@@ -48,13 +59,25 @@ pub use calibration::{
     CalibrationCoordinate, ClosedRoute, KnownOptimumDesign, NoiseCoupling, PublishedRoute,
     ReplicateOutcome, closed_routes, license_route, simulate_replicate, simulate_selection_draws,
 };
+pub use coverage_design::{CoverageCell, TruthKind, coverage_design};
 pub use draws::{
     CandidateCoupling, CandidateDraws, CandidateOrigin, CandidateSearchRecord, DecisionDraws,
     SelectionRule, SourceParadigm, WithinStreamDependence,
 };
+pub use interval::{
+    ConfidenceSetBasis, DERIVED_UNCERTAINTY_VERSION, DerivedStanding, DerivedUncertainty,
+    IntervalMultiplicity, IntervalRequest, MIN_NORMAL_ESS, NumericalComponent, NumericalInterval,
+    NumericalIntervalMethod, OptimalityConfidenceSet, ProbabilityInterval, ProbabilityQuantity,
+    SelectionComponent, SelectionCorrectedInterval, UtilityInterval, derive_uncertainty,
+};
 pub use mc_error::{
     BatchPlan, DifferenceEstimate, Functional, FunctionalEstimate, McEstimate, PairCoupling,
     RiskTail, StandardErrorMethod, ThresholdSide, estimate, estimate_difference,
+};
+pub use producer::{
+    CohortUtilityDraws, JointLawDeclaration, JointLawStanding, OffPolicyReturnDraws,
+    PointOnlyOutput, ProducerCarrier, ProducerKind, ProducerOutput, RolloutNoise,
+    RolloutUtilityDraws, reach_carrier,
 };
 pub use ranking::{
     CalibrationStatus, CandidateRankStatement, CandidateScope, RankingReport, RankingRequest,
@@ -126,6 +149,33 @@ pub enum ReliabilityError {
         route: &'static str,
         /// Coordinate the route would be calibrated at.
         coordinate: String,
+    },
+    /// A producer handed over a point-only output: there is no law and no draws to take.
+    ProducerPointOnly {
+        /// The producing route.
+        producer: ProducerKind,
+        /// What the producer actually holds.
+        held: &'static str,
+    },
+    /// Per-draw utilities disagree with the point value the producer reported.
+    ProducerMeanDisagrees {
+        /// Action or policy identity.
+        id: String,
+        /// The producer's reported value.
+        reported: f64,
+        /// Mean of the supplied draws.
+        draws_mean: f64,
+        /// Standard error of that mean.
+        standard_error: f64,
+    },
+    /// The effective sample size is too small for the normal approximation.
+    EffectiveSampleSizeTooSmall {
+        /// Which estimate.
+        what: &'static str,
+        /// Its effective sample size.
+        effective_sample_size: f64,
+        /// The smallest the derivation accepts.
+        minimum: f64,
     },
     /// The combination of estimator and declarations has no route.
     RouteNotSupported {
@@ -235,6 +285,48 @@ impl ReliabilityError {
                 "the route is point-only until a coverage record measures it at this \
                  coordinate; use the diagnostic fields",
             )
+            .build(),
+            Self::ProducerPointOnly { producer, held } => match producer {
+                ProducerKind::CohortMeanDecision => builder(
+                    antecedent_core::reason_code!("joint_law_required"),
+                    "decision_reliability.producer_point_only",
+                )
+                .offending(format!("{}: holds {held}", producer.as_str()))
+                .remedy(
+                    "supply per-draw cohort utilities from one aligned joint law (for example \
+                     posterior draws of the effect model's coefficients mapped through the \
+                     cohort) with the stream they came from",
+                )
+                .build(),
+                ProducerKind::SequentialRollout | ProducerKind::SequentialOffPolicy => builder(
+                    antecedent_core::reason_code!("diagnostic_not_available"),
+                    "decision_reliability.producer_point_only",
+                )
+                .offending(format!("{}: holds {held}", producer.as_str()))
+                .remedy(
+                    "supply the per-rollout utilities or per-trajectory weighted returns the \
+                     estimate was computed from; a mean and its standard error carry neither \
+                     draws nor a stream",
+                )
+                .build(),
+            },
+            Self::ProducerMeanDisagrees { id, reported, draws_mean, standard_error } => builder(
+                antecedent_core::reason_code!("distribution_meaning_mismatch"),
+                "decision_reliability.producer_mean_disagrees",
+            )
+            .offending(format!(
+                "{id}: reported {reported} but the supplied draws average {draws_mean} \
+                 (standard error {standard_error})"
+            ))
+            .remedy("supply draws of the same quantity the producer reported, or drop the check")
+            .build(),
+            Self::EffectiveSampleSizeTooSmall { what, effective_sample_size, minimum } => builder(
+                antecedent_core::reason_code!("route_not_supported"),
+                "decision_reliability.effective_sample_size_too_small",
+            )
+            .offending(format!("{what}: effective sample size {effective_sample_size:.1}"))
+            .expected(format!("effective sample size of at least {minimum}"))
+            .remedy("draw more, or reduce serial dependence, before deriving intervals")
             .build(),
             Self::RouteNotSupported { message } => builder(
                 antecedent_core::reason_code!("route_not_supported"),
