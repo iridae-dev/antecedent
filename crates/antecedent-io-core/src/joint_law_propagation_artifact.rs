@@ -6,8 +6,8 @@
 //! alignment identity the rows share, the propagation rule that licensed the
 //! computation (operation, dependence declaration and reading), the numbers
 //! the computation consumed as IEEE bit patterns, the stored result and the
-//! label the result carries (`point_only`, `structural_envelope` or
-//! `assumption_range`).
+//! label the result carries (`point_only`, `uncalibrated_spread`,
+//! `structural_envelope` or `assumption_range`).
 //!
 //! # What a consumer does
 //!
@@ -29,7 +29,16 @@
 //! posterior and cannot be replayed into one: its label is part of the
 //! identity and a consumer refuses a point reading of it.
 //!
-//! No interval and no calibration is carried.
+//! # What a spread is
+//!
+//! A `uncalibrated_spread` result (a variance, a Monte Carlo standard error, an
+//! exceedance probability with its Monte Carlo band and a verdict against a
+//! cutoff) is computed at the composed coordinate under the licensed
+//! dependence route. The verdict is about the Monte Carlo band of the stated
+//! probability only. The artifact carries no interval and no coverage
+//! statement: an interval at a composed coordinate needs a measured coverage
+//! record, which the artifact does not hold and the rule's interval reading
+//! refuses without.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -40,10 +49,12 @@ use antecedent_contract::{
 };
 use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_stats::{
-    JointLawError, Marginal, MomentSummary, ValueBounds, ValueFunctional, aligned_functional_mean,
-    correlation_range_envelope, covariance_envelope, difference_cdf_envelope, functional_envelope,
-    linear_combination_moments, linear_variance_envelope, mixture_moments, paired_moments,
-    pooled_dependence_envelope, product_moment_envelope, sum_cdf_envelope,
+    DecisionVerdict, JointLawError, Marginal, MomentSummary, ValueBounds, ValueFunctional,
+    aligned_functional_draws, aligned_functional_mean, composed_exceedance_decision,
+    correlation_range_envelope, covariance_envelope, difference_cdf_envelope, draw_spread,
+    functional_envelope, linear_combination_moments, linear_variance_envelope, mixture_exceedance,
+    mixture_moments, paired_moments, pooled_dependence_envelope, product_moment_envelope,
+    sum_cdf_envelope,
 };
 use serde::{Deserialize, Serialize};
 
@@ -190,6 +201,10 @@ fn math_error(error: JointLawError) -> Error {
             what,
             "coarsen the marginals or the draw set to within the declared bounds",
         ),
+        JointLawError::InvalidLevel(what) => invalid_request(
+            what,
+            "give a level or cutoff strictly between zero and one, and rows at least as many as the effective size",
+        ),
         JointLawError::Cancelled => Error::Cancelled,
         other => Error::Malformed(other.to_string()),
     }
@@ -228,7 +243,7 @@ pub struct PropagationRuleWire {
     pub rho_lo: Option<u64>,
     /// Upper correlation bits, for `correlation_range`.
     pub rho_hi: Option<u64>,
-    /// The reading (`point` or `envelope`).
+    /// The reading (`point`, `spread` or `envelope`).
     pub reading: String,
 }
 
@@ -322,6 +337,41 @@ pub enum PropagationRequestWire {
         x: Vec<u64>,
         /// Draws of `Y`, bits, row-aligned with `x`.
         y: Vec<u64>,
+    },
+    /// The spread of the rows `g(x_i, y_i)` of aligned draws (spread reading).
+    AlignedFunctionalSpread {
+        /// The functional's stable name.
+        functional: String,
+        /// Draws of `X`, bits.
+        x: Vec<u64>,
+        /// Draws of `Y`, bits, row-aligned with `x`.
+        y: Vec<u64>,
+    },
+    /// `P(g(X, Y) > threshold)` from aligned draws with its Monte Carlo band
+    /// and a verdict against a probability cutoff (spread reading).
+    AlignedExceedance {
+        /// The functional's stable name.
+        functional: String,
+        /// Draws of `X`, bits.
+        x: Vec<u64>,
+        /// Draws of `Y`, bits, row-aligned with `x`.
+        y: Vec<u64>,
+        /// Threshold of the composed value, bits.
+        threshold: u64,
+        /// Probability cutoff of the verdict, bits.
+        cutoff: u64,
+        /// Level of the Monte Carlo band, bits.
+        band_level: u64,
+    },
+    /// `P(X > threshold)` of a finite mixture of draw sets with known weights
+    /// (spread reading).
+    MixtureExceedance {
+        /// Weight bits.
+        weights: Vec<u64>,
+        /// Draws of each component, bits.
+        components: Vec<Vec<u64>>,
+        /// Threshold, bits.
+        threshold: u64,
     },
     /// A finite mixture with known weights.
     Mixture {
@@ -417,7 +467,7 @@ impl ConsumedJointLawPropagation {
     /// A named float value.
     #[must_use]
     pub fn value(&self, name: &str) -> Option<f64> {
-        if name == "n_rows" {
+        if is_count(name) {
             return None;
         }
         self.result.iter().find(|(n, _)| n == name).map(|(_, bits)| f64::from_bits(*bits))
@@ -428,10 +478,27 @@ impl ConsumedJointLawPropagation {
     #[must_use]
     pub fn is_envelope(&self) -> bool {
         self.label != antecedent_contract::POINT_ONLY_LABEL
+            && self.label != antecedent_contract::UNCALIBRATED_SPREAD_LABEL
     }
 }
 
 // ----------------------------------------------------------- conversions
+
+/// Result names that hold an integer count or code, not float bits.
+fn is_count(name: &str) -> bool {
+    matches!(name, "n_rows" | "verdict_code")
+}
+
+/// Stable integer code of a decision verdict: `0` act, `1` withhold, `2`
+/// unresolved.
+#[must_use]
+pub fn verdict_code(verdict: DecisionVerdict) -> u64 {
+    match verdict {
+        DecisionVerdict::Act => 0,
+        DecisionVerdict::Withhold => 1,
+        DecisionVerdict::Unresolved => 2,
+    }
+}
 
 fn floats(bits: &[u64]) -> Vec<f64> {
     bits.iter().map(|b| f64::from_bits(*b)).collect()
@@ -559,6 +626,20 @@ fn check_bounds(wire: &JointLawPropagationArtifactWire) -> Result<(), Error> {
             draws(x.len())?;
             draws(y.len())?;
         }
+        PropagationRequestWire::AlignedFunctionalSpread { x, y, .. }
+        | PropagationRequestWire::AlignedExceedance { x, y, .. } => {
+            draws(x.len())?;
+            draws(y.len())?;
+        }
+        PropagationRequestWire::MixtureExceedance { weights, components, .. } => {
+            if weights.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
+                || components.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
+            {
+                return Err(too_large("mixture components"));
+            }
+            let total: usize = components.iter().map(Vec::len).sum();
+            draws(total)?;
+        }
         PropagationRequestWire::Mixture { weights, means, variances } => {
             if weights.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
                 || means.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
@@ -643,6 +724,7 @@ fn variant_fits(
     operation: PropagationOperation,
     route: PropagationRoute,
     request: &PropagationRequestWire,
+    spread: bool,
 ) -> bool {
     use PropagationOperation as Op;
     use PropagationRequestWire as W;
@@ -656,6 +738,15 @@ fn variant_fits(
         (PropagationRoute::LinearMoments, W::LinearCombination { .. })
         | (PropagationRoute::AlignedJointLaw, W::AlignedLinearCombination { .. }) => linear,
         (PropagationRoute::AlignedJointLaw, W::AlignedFunctional { .. }) => nonlinear,
+        // The draw-based spread and decision numbers are a spread reading's
+        // own: a point reading is not given a spread under its own label.
+        (
+            PropagationRoute::AlignedJointLaw,
+            W::AlignedFunctionalSpread { .. } | W::AlignedExceedance { .. },
+        ) => spread && nonlinear,
+        (PropagationRoute::KnownWeightMixture, W::MixtureExceedance { .. }) => {
+            spread && operation == Op::Mixture
+        }
         (PropagationRoute::KnownWeightMixture, W::Mixture { .. }) => operation == Op::Mixture,
         (PropagationRoute::FrechetEnvelope, W::FrechetEnvelope { query, .. }) => match query {
             EnvelopeQueryWire::SumCdf { .. }
@@ -846,6 +937,63 @@ fn evaluate(
                 .map_err(math_error)?;
             Ok(vec![("mean".to_owned(), mean.to_bits()), ("n_rows".to_owned(), xs.len() as u64)])
         }
+        PropagationRequestWire::AlignedFunctionalSpread { functional, x, y } => {
+            require_len(2, n_inputs, "aligned column")?;
+            let functional = ValueFunctional::from_name(functional)
+                .ok_or_else(|| Error::Malformed("unknown value functional".to_owned()))?;
+            let rows =
+                aligned_functional_draws(&floats(x), &floats(y), functional, &ctx.cancellation)
+                    .map_err(math_error)?;
+            let spread = draw_spread(&rows, None).map_err(math_error)?;
+            Ok(vec![
+                ("mean".to_owned(), spread.mean.to_bits()),
+                ("variance".to_owned(), spread.variance.to_bits()),
+                ("mean_standard_error".to_owned(), spread.mean_standard_error.to_bits()),
+                ("n_rows".to_owned(), spread.n as u64),
+            ])
+        }
+        PropagationRequestWire::AlignedExceedance {
+            functional,
+            x,
+            y,
+            threshold,
+            cutoff,
+            band_level,
+        } => {
+            require_len(2, n_inputs, "aligned column")?;
+            let functional = ValueFunctional::from_name(functional)
+                .ok_or_else(|| Error::Malformed("unknown value functional".to_owned()))?;
+            let rows =
+                aligned_functional_draws(&floats(x), &floats(y), functional, &ctx.cancellation)
+                    .map_err(math_error)?;
+            let decision = composed_exceedance_decision(
+                &rows,
+                f64::from_bits(*threshold),
+                f64::from_bits(*cutoff),
+                f64::from_bits(*band_level),
+                None,
+            )
+            .map_err(math_error)?;
+            Ok(vec![
+                ("probability".to_owned(), decision.probability.to_bits()),
+                ("standard_error".to_owned(), decision.standard_error.to_bits()),
+                ("band".to_owned(), decision.band.to_bits()),
+                ("verdict_code".to_owned(), verdict_code(decision.verdict)),
+                ("n_rows".to_owned(), decision.n as u64),
+            ])
+        }
+        PropagationRequestWire::MixtureExceedance { weights, components, threshold } => {
+            require_len(components.len(), n_inputs, "mixture component")?;
+            let columns: Vec<Vec<f64>> = components.iter().map(|c| floats(c)).collect();
+            let borrowed: Vec<&[f64]> = columns.iter().map(Vec::as_slice).collect();
+            let (probability, standard_error) =
+                mixture_exceedance(&floats(weights), &borrowed, f64::from_bits(*threshold))
+                    .map_err(math_error)?;
+            Ok(vec![
+                ("probability".to_owned(), probability.to_bits()),
+                ("standard_error".to_owned(), standard_error.to_bits()),
+            ])
+        }
         PropagationRequestWire::Mixture { weights, means, variances } => {
             require_len(weights.len(), n_inputs, "mixture component")?;
             let m = mixture_moments(&floats(weights), &floats(means), &floats(variances))
@@ -866,7 +1014,7 @@ fn evaluate(
             evaluate_correlation_range(rule, request, n_inputs)
         }
     }?;
-    if result.iter().any(|(name, bits)| name != "n_rows" && !f64::from_bits(*bits).is_finite()) {
+    if result.iter().any(|(name, bits)| !is_count(name) && !f64::from_bits(*bits).is_finite()) {
         return Err(math_error(JointLawError::NonFinite("propagation result")));
     }
     Ok(result)
@@ -880,7 +1028,8 @@ fn plan_for(
     let declared = request_from_wire(rule, inputs)?;
     let plan = check_propagation(&declared)
         .map_err(|refusal| Error::Refused { refusals: vec![refusal] })?;
-    if !variant_fits(plan.operation, plan.route, request) {
+    let spread = declared.reading == RequestedReading::Spread;
+    if !variant_fits(plan.operation, plan.route, request, spread) {
         return Err(invalid_request(
             plan.route.as_str(),
             "supply the numbers the licensed route consumes (a covariance for the linear route, aligned draws for the aligned route, weights for a mixture, two marginals for an envelope); a chained transformation is checked by the rule but its stages run in the caller",

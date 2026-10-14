@@ -532,3 +532,192 @@ fn a_cancelled_context_produces_no_claim() {
     assert_eq!(error, JointLawPropagationArtifactError::Cancelled);
     assert_eq!(details(&error)[0].0, "cancelled_no_claim");
 }
+
+fn aligned_spread(
+    numbers: PropagationRequestWire,
+    reading: RequestedReading,
+) -> Result<JointLawPropagationArtifactWire, JointLawPropagationArtifactError> {
+    JointLawPropagationArtifactWire::seal(
+        &declared(
+            PropagationOperation::Product,
+            vec![aligned("x", "snapshot_j", "joint_7"), aligned("y", "snapshot_j", "joint_7")],
+            PropagationDependence::AlignedJointLaw,
+            reading,
+        ),
+        numbers,
+        &ctx(),
+    )
+}
+
+#[test]
+fn an_aligned_spread_replays_to_the_enumerated_joint_law() {
+    // Rows of x * y are 2 (twice) and 0 (eight times): mean 0.4, population
+    // variance 0.64, sample variance 0.64 * 10 / 9, mean standard error 0.8 / 3.
+    let (xs, ys) = joint_rows();
+    let numbers = || PropagationRequestWire::AlignedFunctionalSpread {
+        functional: "product".to_owned(),
+        x: float_bits(&xs),
+        y: float_bits(&ys),
+    };
+    let wire = aligned_spread(numbers(), RequestedReading::Spread).expect("seal");
+    assert_eq!(wire.route, "aligned_joint_law");
+    assert_eq!(wire.label, "uncalibrated_spread");
+    assert!((value(&wire, "mean") - 0.4).abs() < 1e-15);
+    assert!((value(&wire, "variance") - 0.64 * 10.0 / 9.0).abs() < 1e-14);
+    assert!((value(&wire, "mean_standard_error") - 0.8 / 3.0).abs() < 1e-14);
+    let consumed = wire.consume(None, &ctx()).expect("replays");
+    assert!(!consumed.is_envelope());
+    assert_eq!(consumed.value("n_rows"), None);
+    let decoded =
+        JointLawPropagationArtifactWire::decode(&wire.export().expect("export")).expect("decode");
+    let fresh = decoded.consume(Some(&wire.identity), &ctx()).expect("fresh consumer");
+    assert_eq!(fresh.result, wire.result);
+
+    // The spread numbers belong to the spread reading: a point reading is not
+    // given a spread under its own label, even after resealing.
+    let mut as_point = wire.clone();
+    as_point.rule.reading = "point".to_owned();
+    reseal(&mut as_point);
+    let error = as_point.consume(None, &ctx()).expect_err("refused");
+    assert_eq!(details(&error)[0].1, "joint_law_propagation.invalid_request");
+    let direct = aligned_spread(numbers(), RequestedReading::Point).expect_err("refused");
+    assert_eq!(details(&direct)[0].1, "joint_law_propagation.invalid_request");
+
+    // A resealed relabel of the spread as a point label no longer matches.
+    let mut relabelled = wire.clone();
+    relabelled.label = "point_only".to_owned();
+    reseal(&mut relabelled);
+    assert_eq!(
+        relabelled.consume(None, &ctx()),
+        Err(JointLawPropagationArtifactError::IdentityMismatch)
+    );
+}
+
+#[test]
+fn an_exceedance_decision_reports_its_monte_carlo_band_and_verdict() {
+    // P(x * y > 0.5) = 0.2 over ten aligned rows; adjusted proportion
+    // (2 + z^2 / 2) / (10 + z^2) with z = 1.959964 gives se 0.12111.
+    let (xs, ys) = joint_rows();
+    let decide = |cutoff: f64| {
+        aligned_spread(
+            PropagationRequestWire::AlignedExceedance {
+                functional: "product".to_owned(),
+                x: float_bits(&xs),
+                y: float_bits(&ys),
+                threshold: bits(0.5),
+                cutoff: bits(cutoff),
+                band_level: bits(0.95),
+            },
+            RequestedReading::Spread,
+        )
+    };
+    let below = decide(0.5).expect("seal");
+    assert!((value(&below, "probability") - 0.2).abs() < 1e-15);
+    assert!((value(&below, "standard_error") - 0.121_11).abs() < 1e-4);
+    assert!((value(&below, "band") - 1.959_964 * value(&below, "standard_error")).abs() < 1e-8);
+    let code = |wire: &JointLawPropagationArtifactWire| {
+        wire.result.iter().find(|(n, _)| n == "verdict_code").map(|(_, v)| *v)
+    };
+    assert_eq!(code(&below), Some(1), "0.2 + 0.237 is below the 0.5 cutoff");
+    assert_eq!(code(&decide(0.1).expect("seal")), Some(2), "0.1 is inside the band");
+    assert_eq!(code(&decide(0.2).expect("seal")), Some(2));
+    below.consume(None, &ctx()).expect("replays");
+    // A cutoff outside (0, 1) is a refused request, not a verdict.
+    let error = decide(1.0).expect_err("refused");
+    assert_eq!(details(&error)[0].1, "joint_law_propagation.invalid_request");
+    // An edited verdict code does not replay.
+    let mut edited = below.clone();
+    for entry in &mut edited.result {
+        if entry.0 == "verdict_code" {
+            entry.1 = 0;
+        }
+    }
+    assert_eq!(
+        edited.consume(None, &ctx()),
+        Err(JointLawPropagationArtifactError::ResultMismatch)
+    );
+}
+
+#[test]
+fn spread_of_unpaired_marginals_or_an_envelope_dependence_is_refused() {
+    let (xs, ys) = joint_rows();
+    let numbers = PropagationRequestWire::AlignedFunctionalSpread {
+        functional: "product".to_owned(),
+        x: float_bits(&xs),
+        y: float_bits(&ys),
+    };
+    let unpaired = declared(
+        PropagationOperation::Product,
+        vec![
+            PropagationInput {
+                id: "x".into(),
+                evidence_id: "s1".into(),
+                role: InputRole::Estimate,
+                alignment: InputAlignment::IndependentMarginals,
+            },
+            PropagationInput {
+                id: "y".into(),
+                evidence_id: "s2".into(),
+                role: InputRole::Estimate,
+                alignment: InputAlignment::IndependentMarginals,
+            },
+        ],
+        PropagationDependence::AlignedJointLaw,
+        RequestedReading::Spread,
+    );
+    let error = JointLawPropagationArtifactWire::seal(&unpaired, numbers.clone(), &ctx())
+        .expect_err("refused");
+    assert_eq!(details(&error)[0].1, "joint_law_propagation.index_pairing_refused");
+    let envelope_dependence = declared(
+        PropagationOperation::Product,
+        vec![summary("x", "s1"), summary("y", "s2")],
+        PropagationDependence::MarginalsOnly,
+        RequestedReading::Spread,
+    );
+    let error =
+        JointLawPropagationArtifactWire::seal(&envelope_dependence, numbers, &ctx()).expect_err("no");
+    assert_eq!(
+        details(&error),
+        vec![(
+            "cell_not_licensed".to_owned(),
+            "joint_law_propagation.spread_needs_licensed_dependence".to_owned()
+        )]
+    );
+}
+
+#[test]
+fn a_mixture_exceedance_uses_the_known_weights_and_no_joint_law() {
+    // Components exceed 0.5 with probability 0.5 and 0.75 (four draws each):
+    // 0.25 * 0.5 + 0.75 * 0.75 = 0.6875 and variance
+    // 0.0625 * 0.25 / 4 + 0.5625 * 0.1875 / 4.
+    let component = |id: &str, evidence: &str| PropagationInput {
+        id: id.into(),
+        evidence_id: evidence.into(),
+        role: InputRole::Estimate,
+        alignment: InputAlignment::IndependentMarginals,
+    };
+    let wire = JointLawPropagationArtifactWire::seal(
+        &declared(
+            PropagationOperation::Mixture,
+            vec![component("a", "s1"), component("b", "s2")],
+            PropagationDependence::KnownWeights,
+            RequestedReading::Spread,
+        ),
+        PropagationRequestWire::MixtureExceedance {
+            weights: float_bits(&[0.25, 0.75]),
+            components: vec![
+                float_bits(&[0.0, 0.0, 1.0, 1.0]),
+                float_bits(&[1.0, 1.0, 1.0, 0.0]),
+            ],
+            threshold: bits(0.5),
+        },
+        &ctx(),
+    )
+    .expect("seal");
+    assert_eq!(wire.route, "known_weight_mixture");
+    assert_eq!(wire.label, "uncalibrated_spread");
+    assert!((value(&wire, "probability") - 0.6875).abs() < 1e-15);
+    let variance: f64 = 0.0625 * 0.25 / 4.0 + 0.5625 * 0.1875 / 4.0;
+    assert!((value(&wire, "standard_error") - variance.sqrt()).abs() < 1e-15);
+    wire.consume(None, &ctx()).expect("replays");
+}

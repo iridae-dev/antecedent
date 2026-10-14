@@ -33,6 +33,7 @@ pub mod finite_scm;
 pub mod matrix;
 pub mod refusal;
 pub mod stages;
+pub mod whole_path_uncertainty;
 
 pub use crate::temporal_cross_world::staged::{TemporalExecution, TemporalExecutor};
 pub use finite_executor::{

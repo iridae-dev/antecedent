@@ -32,15 +32,44 @@
 //! ([`correlation_range_envelope`]); it is an assumption range, labelled as
 //! such, and says nothing about what the data support.
 //!
-//! No interval, coverage statement or posterior is produced by anything here.
+//! # Composed spread, interval candidates and decisions
+//!
+//! A composed quantity's spread is read at its *composed coordinate*: the draws
+//! or moments of the composition, not of its components. [`aligned_linear_draws`],
+//! [`aligned_functional_draws`] and [`aligned_map_draws`] form the composed rows
+//! of columns the caller has proven to be one joint law (a linear transform, a
+//! contrast or weighted sum, a product, a nonlinear functional, or the last
+//! stage of a chain of Monte Carlo transformations); [`draw_spread`] summarises
+//! them, [`mixture_marginal`] and [`mixture_exceedance`] do the same for a
+//! mixture with known weights, and [`linear_combination_moments`] gives the
+//! delta-method variance of a linear map under a covariance.
+//!
+//! [`normal_interval_candidate`], [`draw_interval_candidate`] and
+//! [`marginal_interval_candidate`] are interval *constructions* at the composed
+//! coordinate and [`composed_exceedance_decision`] is a decision about a
+//! composed exceedance probability with its Monte Carlo band. Each carries the
+//! calibration status [`CALIBRATION_STATUS`] (`unmeasured`): a construction is
+//! not a coverage statement, and the joint-law rule keeps the interval reading
+//! closed until a record measured at that exact coordinate and construction
+//! exists.
+//!
+//! No coverage statement or posterior is produced by anything here.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CancellationToken;
 use thiserror::Error;
 
+use crate::quantile::{QuantileRule, equal_tail_interval_sorted};
+use crate::special::normal_ppf;
 use crate::synthesis::{SynthesisError, check_covariance};
 
+/// Label of a spread computed under a licensed dependence route.
+pub const UNCALIBRATED_SPREAD_LABEL: &str = "uncalibrated_spread";
+/// Calibration status of every interval candidate and decision verdict of this
+/// module: the construction is wired, and no coverage record of the composed
+/// coordinate exists until one is measured and attested.
+pub const CALIBRATION_STATUS: &str = "unmeasured";
 /// Label of a Fréchet-Hoeffding envelope over every coupling of the marginals.
 pub const STRUCTURAL_ENVELOPE_LABEL: &str = "structural_envelope";
 /// Label of the range implied by a declared correlation range.
@@ -89,6 +118,10 @@ pub enum JointLawError {
     /// The value function returned a non-finite value on the support.
     #[error("the value function is not finite on the marginals' support")]
     NonFiniteValue,
+    /// A level or probability is not strictly inside `(0, 1)`, or an effective
+    /// size is not in `(0, n]`.
+    #[error("invalid level: {0}")]
+    InvalidLevel(&'static str),
     /// A declared bound was exceeded.
     #[error("bound exceeded: {0}")]
     BudgetExceeded(&'static str),
@@ -518,6 +551,19 @@ impl Marginal {
         }
     }
 
+    /// The generalized inverse `inf { x : P(X <= x) >= p }` (Hyndman-Fan type
+    /// 1), for `p` in `(0, 1]`.
+    ///
+    /// # Errors
+    /// A `p` outside `(0, 1]`.
+    pub fn quantile(&self, p: f64) -> Result<f64, JointLawError> {
+        if !(p.is_finite() && p > 0.0 && p <= 1.0) {
+            return Err(JointLawError::InvalidLevel("a quantile level is in (0, 1]"));
+        }
+        let idx = self.cumulative.partition_point(|c| *c < p).min(self.atoms.len() - 1);
+        Ok(self.atoms[idx].0)
+    }
+
     /// The marginal of `-X`.
     #[must_use]
     pub fn negated(&self) -> Self {
@@ -815,6 +861,467 @@ pub fn difference_cdf_envelope(
     threshold: f64,
 ) -> Result<ValueBounds, JointLawError> {
     sum_cdf_envelope(x, &y.negated(), threshold)
+}
+
+// ------------------------------------------------- composed spread and draws
+
+/// Rows of `sum a_i X_i` for columns that are realizations of one joint law.
+///
+/// The caller proves alignment (one alignment identity for every column); this
+/// function only forms the composed draws.
+///
+/// # Errors
+/// No columns, more than [`MAX_COMPONENTS`], unequal or empty columns,
+/// non-finite coefficients or draws, or a non-finite composed row.
+pub fn aligned_linear_draws(
+    coefficients: &[f64],
+    columns: &[&[f64]],
+) -> Result<Vec<f64>, JointLawError> {
+    let k = coefficients.len();
+    if k == 0 || k > MAX_COMPONENTS {
+        return Err(JointLawError::Shape("terms outside 1..=MAX_COMPONENTS"));
+    }
+    if columns.len() != k {
+        return Err(JointLawError::Shape("coefficients and columns differ in count"));
+    }
+    require_finite(coefficients, "coefficient")?;
+    let n = columns[0].len();
+    if n == 0 {
+        return Err(JointLawError::Shape("a draw column needs at least one row"));
+    }
+    for column in columns {
+        if column.len() != n {
+            return Err(JointLawError::Shape("aligned columns differ in length"));
+        }
+        require_finite(column, "draw")?;
+    }
+    let mut rows = Vec::with_capacity(n);
+    for row in 0..n {
+        let value: f64 = coefficients.iter().zip(columns).map(|(a, c)| a * c[row]).sum();
+        if !value.is_finite() {
+            return Err(JointLawError::NonFiniteValue);
+        }
+        rows.push(value);
+    }
+    Ok(rows)
+}
+
+/// Rows of `functional(x_i, y_i)` for aligned columns.
+///
+/// # Errors
+/// Empty or unequal columns, non-finite draws or function values, or
+/// cancellation.
+pub fn aligned_functional_draws(
+    x: &[f64],
+    y: &[f64],
+    functional: ValueFunctional,
+    cancel: &CancellationToken,
+) -> Result<Vec<f64>, JointLawError> {
+    check_columns(x, y)?;
+    let mut rows = Vec::with_capacity(x.len());
+    for (row, (a, b)) in x.iter().zip(y).enumerate() {
+        if row % CANCEL_STRIDE == 0 {
+            check_cancel(cancel)?;
+        }
+        let value = functional.value(*a, *b);
+        if !value.is_finite() {
+            return Err(JointLawError::NonFiniteValue);
+        }
+        rows.push(value);
+    }
+    Ok(rows)
+}
+
+/// Rows of an arbitrary map of the aligned columns: a nonlinear functional of
+/// several inputs, or the last stage of a chain of Monte Carlo
+/// transformations whose earlier stages the caller already applied row by row.
+///
+/// The map receives the row's values in column order. A chain is aligned only
+/// when each stage consumed the rows of the stage before it; a stage that
+/// re-drew its inputs breaks the alignment and its rows must not be passed
+/// here.
+///
+/// # Errors
+/// No columns, more than [`MAX_COMPONENTS`], unequal or empty columns,
+/// non-finite draws or composed values, or cancellation.
+pub fn aligned_map_draws(
+    columns: &[&[f64]],
+    map: &dyn Fn(&[f64]) -> f64,
+    cancel: &CancellationToken,
+) -> Result<Vec<f64>, JointLawError> {
+    let k = columns.len();
+    if k == 0 || k > MAX_COMPONENTS {
+        return Err(JointLawError::Shape("columns outside 1..=MAX_COMPONENTS"));
+    }
+    let n = columns[0].len();
+    if n == 0 {
+        return Err(JointLawError::Shape("a draw column needs at least one row"));
+    }
+    for column in columns {
+        if column.len() != n {
+            return Err(JointLawError::Shape("aligned columns differ in length"));
+        }
+        require_finite(column, "draw")?;
+    }
+    let mut buffer = vec![0.0; k];
+    let mut rows = Vec::with_capacity(n);
+    for row in 0..n {
+        if row % CANCEL_STRIDE == 0 {
+            check_cancel(cancel)?;
+        }
+        for (slot, column) in buffer.iter_mut().zip(columns) {
+            *slot = column[row];
+        }
+        let value = map(&buffer);
+        if !value.is_finite() {
+            return Err(JointLawError::NonFiniteValue);
+        }
+        rows.push(value);
+    }
+    Ok(rows)
+}
+
+/// The spread of a column of composed draws.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DrawSpread {
+    /// Number of rows.
+    pub n: usize,
+    /// Mean.
+    pub mean: f64,
+    /// Sample variance (divisor `n - 1`).
+    pub variance: f64,
+    /// Square root of the variance.
+    pub standard_deviation: f64,
+    /// Monte Carlo standard error of the mean, `sd / sqrt(size)` with the
+    /// effective size given (the row count when none was).
+    pub mean_standard_error: f64,
+}
+
+/// Spread of composed draws.
+///
+/// `effective_size`, when given, is the effective number of independent rows
+/// (autocorrelated or weighted draws); the rows are treated as independent when
+/// it is `None`. The spread is the spread of the composed quantity's law
+/// represented by the draws; whether that law is a sampling distribution, a
+/// posterior or a bootstrap distribution is the producer's declaration and is
+/// not decided here.
+///
+/// # Errors
+/// Fewer than two rows, non-finite draws, or an effective size outside `(0, n]`.
+pub fn draw_spread(
+    draws: &[f64],
+    effective_size: Option<f64>,
+) -> Result<DrawSpread, JointLawError> {
+    let n = draws.len();
+    if n < 2 {
+        return Err(JointLawError::Shape("a spread needs at least two rows"));
+    }
+    require_finite(draws, "draw")?;
+    let nf = n as f64;
+    let size = match effective_size {
+        None => nf,
+        Some(s) if s.is_finite() && s > 0.0 && s <= nf => s,
+        Some(_) => return Err(JointLawError::InvalidLevel("effective size is in (0, n]")),
+    };
+    let mean = draws.iter().sum::<f64>() / nf;
+    let ss: f64 = draws.iter().map(|d| (d - mean) * (d - mean)).sum();
+    let variance = ss / (nf - 1.0);
+    let standard_deviation = variance.sqrt();
+    let mean_standard_error = (variance / size).sqrt();
+    if ![mean, variance, standard_deviation, mean_standard_error].into_iter().all(f64::is_finite) {
+        return Err(JointLawError::NonFiniteValue);
+    }
+    Ok(DrawSpread { n, mean, variance, standard_deviation, mean_standard_error })
+}
+
+fn check_level(level: f64) -> Result<(), JointLawError> {
+    if level.is_finite() && 0.0 < level && level < 1.0 {
+        Ok(())
+    } else {
+        Err(JointLawError::InvalidLevel("a level is strictly between zero and one"))
+    }
+}
+
+/// An interval built at a composed coordinate whose coverage is not measured.
+///
+/// This is a construction, not a coverage statement: it is reported with the
+/// calibration status `unmeasured` until a record for exactly this composed
+/// coordinate and construction is attested, and the joint-law rule closes the
+/// interval reading until then.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct IntervalCandidate {
+    /// Lower end.
+    pub lower: f64,
+    /// Upper end.
+    pub upper: f64,
+    /// The nominal level the construction was asked for.
+    pub level: f64,
+    /// The construction's stable name.
+    pub construction: &'static str,
+    /// Always [`CALIBRATION_STATUS`].
+    pub calibration: &'static str,
+}
+
+/// Construction name of [`normal_interval_candidate`].
+pub const NORMAL_APPROXIMATION_CONSTRUCTION: &str = "normal_approximation";
+/// Construction name of [`draw_interval_candidate`] under the exchangeable
+/// rank rule.
+pub const DRAW_EXCHANGEABLE_RANK_CONSTRUCTION: &str = "aligned_draw_equal_tail_exchangeable_rank";
+/// Construction name of [`draw_interval_candidate`] under the interpolated rule.
+pub const DRAW_INTERPOLATED_CONSTRUCTION: &str = "aligned_draw_equal_tail_interpolated";
+/// Construction name of [`marginal_interval_candidate`].
+pub const MIXTURE_EQUAL_TAIL_CONSTRUCTION: &str = "mixture_marginal_equal_tail";
+
+/// `mean +- z sqrt(variance)` at the composed coordinate, from the variance a
+/// licensed route determined (a delta-method variance of a linear map under a
+/// covariance, a mixture variance, or the variance of aligned composed draws).
+///
+/// # Errors
+/// A level outside `(0, 1)`, a non-finite mean or a negative or non-finite
+/// variance.
+pub fn normal_interval_candidate(
+    mean: f64,
+    variance: f64,
+    level: f64,
+) -> Result<IntervalCandidate, JointLawError> {
+    check_level(level)?;
+    require_finite(&[mean, variance], "interval input")?;
+    if variance < 0.0 {
+        return Err(JointLawError::InvalidVariance("variance is negative"));
+    }
+    let half = normal_ppf(0.5 + level / 2.0) * variance.sqrt();
+    if !half.is_finite() {
+        return Err(JointLawError::NonFiniteValue);
+    }
+    Ok(IntervalCandidate {
+        lower: mean - half,
+        upper: mean + half,
+        level,
+        construction: NORMAL_APPROXIMATION_CONSTRUCTION,
+        calibration: CALIBRATION_STATUS,
+    })
+}
+
+/// The equal-tailed interval of composed draws under a quantile rule.
+///
+/// The rows must be realizations of the composed quantity's law (aligned
+/// draws pushed through the composition); percentiles of the component draws
+/// are not the composition's.
+///
+/// # Errors
+/// A level outside `(0, 1)`, no rows or non-finite draws.
+pub fn draw_interval_candidate(
+    draws: &[f64],
+    level: f64,
+    rule: QuantileRule,
+) -> Result<IntervalCandidate, JointLawError> {
+    check_level(level)?;
+    if draws.is_empty() {
+        return Err(JointLawError::Shape("an interval needs at least one row"));
+    }
+    require_finite(draws, "draw")?;
+    let mut sorted = draws.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let (lower, upper) = equal_tail_interval_sorted(&sorted, level, rule);
+    let construction = match rule {
+        QuantileRule::ExchangeableRank => DRAW_EXCHANGEABLE_RANK_CONSTRUCTION,
+        QuantileRule::Interpolated => DRAW_INTERPOLATED_CONSTRUCTION,
+    };
+    Ok(IntervalCandidate { lower, upper, level, construction, calibration: CALIBRATION_STATUS })
+}
+
+/// The equal-tailed interval of a finite marginal (a mixture's law).
+///
+/// # Errors
+/// A level outside `(0, 1)`.
+pub fn marginal_interval_candidate(
+    marginal: &Marginal,
+    level: f64,
+) -> Result<IntervalCandidate, JointLawError> {
+    check_level(level)?;
+    Ok(IntervalCandidate {
+        lower: marginal.quantile((1.0 - level) / 2.0)?,
+        upper: marginal.quantile((1.0 + level) / 2.0)?,
+        level,
+        construction: MIXTURE_EQUAL_TAIL_CONSTRUCTION,
+        calibration: CALIBRATION_STATUS,
+    })
+}
+
+/// The marginal law of a finite mixture of draw sets with known weights.
+///
+/// Each component's draws carry mass `weight_i / n_i`. A mixture selects one
+/// component, so the components need no joint law and are never paired.
+///
+/// # Errors
+/// No components, a weight vector that is not a probability vector, an empty or
+/// non-finite component, or more atoms than [`MAX_MARGINAL_ATOMS`].
+pub fn mixture_marginal(weights: &[f64], components: &[&[f64]]) -> Result<Marginal, JointLawError> {
+    let k = weights.len();
+    if k == 0 || k > MAX_COMPONENTS {
+        return Err(JointLawError::Shape("components outside 1..=MAX_COMPONENTS"));
+    }
+    if components.len() != k {
+        return Err(JointLawError::Shape("weights and components differ in count"));
+    }
+    require_finite(weights, "weight")?;
+    if weights.iter().any(|&w| w < 0.0) {
+        return Err(JointLawError::InvalidWeights("weights must be non-negative"));
+    }
+    if (weights.iter().sum::<f64>() - 1.0).abs() > MASS_TOLERANCE {
+        return Err(JointLawError::InvalidWeights("weights must sum to one"));
+    }
+    let (mut values, mut masses) = (Vec::new(), Vec::new());
+    for (weight, component) in weights.iter().zip(components) {
+        if component.is_empty() {
+            return Err(JointLawError::Shape("a mixture component needs at least one draw"));
+        }
+        require_finite(component, "mixture draw")?;
+        let mass = weight / component.len() as f64;
+        values.extend_from_slice(component);
+        masses.resize(masses.len() + component.len(), mass);
+    }
+    Marginal::from_weighted(&values, &masses)
+}
+
+/// `P(composed > threshold)` read from composed draws, with its Monte Carlo
+/// error band and a decision verdict against a probability cutoff.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ExceedanceDecision {
+    /// Number of rows.
+    pub n: usize,
+    /// Rows strictly above the threshold, as a fraction.
+    pub probability: f64,
+    /// Monte Carlo standard error of the probability, from the
+    /// Agresti-Coull adjusted proportion so that a boundary fraction of zero
+    /// or one does not report zero error.
+    pub standard_error: f64,
+    /// The half-width of the Monte Carlo band, `z * standard_error`.
+    pub band: f64,
+    /// The cutoff the verdict compares against.
+    pub cutoff: f64,
+    /// The verdict.
+    pub verdict: DecisionVerdict,
+    /// Always [`CALIBRATION_STATUS`].
+    pub calibration: &'static str,
+}
+
+/// The decision about a composed exceedance probability.
+///
+/// The verdict is about the Monte Carlo error of the stated probability only:
+/// it says nothing about whether the draws' law is calibrated for the composed
+/// coordinate.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DecisionVerdict {
+    /// The probability exceeds the cutoff beyond the Monte Carlo band.
+    Act,
+    /// The probability is below the cutoff beyond the Monte Carlo band.
+    Withhold,
+    /// The cutoff is inside the Monte Carlo band: more draws, or no verdict.
+    Unresolved,
+}
+
+impl DecisionVerdict {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Act => "act",
+            Self::Withhold => "withhold",
+            Self::Unresolved => "unresolved",
+        }
+    }
+}
+
+fn exceedance_verdict(
+    n: usize,
+    hits: usize,
+    effective_size: Option<f64>,
+    cutoff: f64,
+    band_level: f64,
+) -> Result<ExceedanceDecision, JointLawError> {
+    check_level(cutoff)?;
+    check_level(band_level)?;
+    let nf = n as f64;
+    let size = match effective_size {
+        None => nf,
+        Some(s) if s.is_finite() && s > 0.0 && s <= nf => s,
+        Some(_) => return Err(JointLawError::InvalidLevel("effective size is in (0, n]")),
+    };
+    let z = normal_ppf(0.5 + band_level / 2.0);
+    let probability = hits as f64 / nf;
+    // Adjust with the same effective sample size the draws carry.
+    let hits_eff = probability * size;
+    let adjusted = (hits_eff + z * z / 2.0) / (size + z * z);
+    let standard_error = (adjusted * (1.0 - adjusted) / (size + z * z)).sqrt();
+    let band = z * standard_error;
+    if !(standard_error.is_finite() && band.is_finite()) {
+        return Err(JointLawError::NonFiniteValue);
+    }
+    let verdict = if probability - band > cutoff {
+        DecisionVerdict::Act
+    } else if probability + band < cutoff {
+        DecisionVerdict::Withhold
+    } else {
+        DecisionVerdict::Unresolved
+    };
+    Ok(ExceedanceDecision {
+        n,
+        probability,
+        standard_error,
+        band,
+        cutoff,
+        verdict,
+        calibration: CALIBRATION_STATUS,
+    })
+}
+
+/// A posterior-style decision at the composed coordinate: `P(composed >
+/// threshold)` from composed draws against a probability `cutoff`, with the
+/// Monte Carlo band at `band_level`.
+///
+/// # Errors
+/// No rows, non-finite draws or threshold, a cutoff or band level outside
+/// `(0, 1)`, or an effective size outside `(0, n]`.
+pub fn composed_exceedance_decision(
+    draws: &[f64],
+    threshold: f64,
+    cutoff: f64,
+    band_level: f64,
+    effective_size: Option<f64>,
+) -> Result<ExceedanceDecision, JointLawError> {
+    if draws.is_empty() {
+        return Err(JointLawError::Shape("a decision needs at least one row"));
+    }
+    require_finite(draws, "draw")?;
+    require_finite(&[threshold], "threshold")?;
+    let hits = draws.iter().filter(|d| **d > threshold).count();
+    exceedance_verdict(draws.len(), hits, effective_size, cutoff, band_level)
+}
+
+/// `P(X > threshold)` of a finite mixture of draw sets with known weights, as
+/// the weighted sum of the components' exceedance fractions, with a Monte
+/// Carlo standard error that treats the components' draws as independently
+/// produced (`sum w_i^2 p_i (1 - p_i) / n_i`).
+///
+/// # Errors
+/// As [`mixture_marginal`], plus a non-finite threshold.
+pub fn mixture_exceedance(
+    weights: &[f64],
+    components: &[&[f64]],
+    threshold: f64,
+) -> Result<(f64, f64), JointLawError> {
+    // Validates the weights and the components exactly as the mixture law.
+    mixture_marginal(weights, components)?;
+    require_finite(&[threshold], "threshold")?;
+    let (mut probability, mut variance) = (0.0, 0.0);
+    for (weight, component) in weights.iter().zip(components) {
+        let n = component.len() as f64;
+        let p = component.iter().filter(|d| **d > threshold).count() as f64 / n;
+        probability += weight * p;
+        variance += weight * weight * p * (1.0 - p) / n;
+    }
+    Ok((probability, variance.sqrt()))
 }
 
 // --------------------------------------------------- declared correlation
@@ -1219,6 +1726,196 @@ mod tests {
             linear_variance_envelope(1e308, 1.0, &x, &y, &token()),
             Err(JointLawError::NonFiniteValue)
         );
+    }
+
+    #[test]
+    fn composed_linear_draws_have_the_closed_form_spread() {
+        // 2 X - Y over aligned rows: (2 * 1 - 4, 2 * 2 - 6, 2 * 3 - 8) = -2 each.
+        let x = [1.0, 2.0, 3.0];
+        let y = [4.0, 6.0, 8.0];
+        let rows = aligned_linear_draws(&[2.0, -1.0], &[&x, &y]).expect("rows");
+        assert_eq!(rows, vec![-2.0, -2.0, -2.0]);
+        let spread = draw_spread(&rows, None).expect("spread");
+        assert_eq!((spread.mean, spread.variance), (-2.0, 0.0));
+        // X + Y rows 5, 8, 11: mean 8, sample variance 9, se 3 / sqrt(3).
+        let sum = aligned_linear_draws(&[1.0, 1.0], &[&x, &y]).expect("sum");
+        let spread = draw_spread(&sum, None).expect("spread");
+        assert!((spread.mean - 8.0).abs() < 1e-15 && (spread.variance - 9.0).abs() < 1e-14);
+        assert!((spread.mean_standard_error - 3.0 / 3.0_f64.sqrt()).abs() < 1e-14);
+        // An effective size below n widens the error: se = 3 / sqrt(1.5).
+        let thin = draw_spread(&sum, Some(1.5)).expect("spread");
+        assert!((thin.mean_standard_error - 3.0 / 1.5_f64.sqrt()).abs() < 1e-14);
+        // The aligned variance equals the delta-method variance under the
+        // columns' own covariance: Var X = 1, Var Y = 4, Cov = 2.
+        let moments = linear_combination_moments(&[1.0, 1.0], &[2.0, 6.0], &[1.0, 2.0, 2.0, 4.0])
+            .expect("moments");
+        assert!((moments.variance - 9.0).abs() < 1e-14);
+    }
+
+    #[test]
+    fn composed_draw_refusals_name_the_shape_problem() {
+        let x = [1.0, 2.0];
+        let y = [1.0, 2.0, 3.0];
+        let (xs, ys): (&[f64], &[f64]) = (&x, &y);
+        assert!(matches!(
+            aligned_linear_draws(&[1.0, 1.0], &[xs, ys]),
+            Err(JointLawError::Shape(_))
+        ));
+        assert!(matches!(aligned_linear_draws(&[1.0], &[xs, ys]), Err(JointLawError::Shape(_))));
+        assert!(matches!(
+            aligned_linear_draws(&[1.0, f64::NAN], &[xs, xs]),
+            Err(JointLawError::NonFinite(_))
+        ));
+        assert!(matches!(draw_spread(&[1.0], None), Err(JointLawError::Shape(_))));
+        assert!(matches!(draw_spread(&[1.0, 2.0], Some(3.0)), Err(JointLawError::InvalidLevel(_))));
+        let zeros = [0.0, 0.0];
+        assert_eq!(
+            aligned_functional_draws(&x, &zeros, ValueFunctional::Ratio, &token()),
+            Err(JointLawError::NonFiniteValue)
+        );
+        assert_eq!(
+            aligned_map_draws(&[xs, ys], &|r| r[0] * r[1], &token()),
+            Err(JointLawError::Shape("aligned columns differ in length"))
+        );
+    }
+
+    #[test]
+    fn composed_nonlinear_rows_match_the_enumerated_joint_law() {
+        // Same ten-row joint law as the functional mean test: the rows of the
+        // product average to E[XY] = 0.4, and the spread is the closed form.
+        let (mut xs, mut ys) = (Vec::new(), Vec::new());
+        for (x, y, count) in [(0.0, 0.0, 1), (0.0, 2.0, 4), (1.0, 0.0, 3), (1.0, 2.0, 2)] {
+            for _ in 0..count {
+                xs.push(x);
+                ys.push(y);
+            }
+        }
+        let rows =
+            aligned_functional_draws(&xs, &ys, ValueFunctional::Product, &token()).expect("rows");
+        let mapped =
+            aligned_map_draws(&[&xs, &ys], &|r| r[0] * r[1], &token()).expect("mapped rows");
+        assert_eq!(rows, mapped);
+        let spread = draw_spread(&rows, None).expect("spread");
+        // Rows are 2 twice and 0 eight times: mean 0.4, population variance
+        // 0.2 * 4 - 0.16 = 0.64, sample variance 0.64 * 10 / 9.
+        assert!((spread.mean - 0.4).abs() < 1e-15);
+        assert!((spread.variance - 0.64 * 10.0 / 9.0).abs() < 1e-14);
+        // The same columns paired apart by a rotation are another joint law
+        // (E[XY] = 0.6 here): the spread is a property of the aligned rows,
+        // not of the marginals.
+        let shifted: Vec<f64> = ys.iter().cycle().skip(3).take(ys.len()).copied().collect();
+        let unpaired = aligned_functional_draws(&xs, &shifted, ValueFunctional::Product, &token())
+            .expect("rows");
+        assert_ne!(draw_spread(&unpaired, None).expect("spread").mean, spread.mean);
+    }
+
+    #[test]
+    fn interval_candidates_are_the_closed_form_and_carry_no_coverage() {
+        let normal = normal_interval_candidate(10.0, 4.0, 0.95).expect("normal");
+        assert!((normal.lower - (10.0 - 2.0 * 1.959_963_984_540_054)).abs() < 1e-9);
+        assert!((normal.upper - (10.0 + 2.0 * 1.959_963_984_540_054)).abs() < 1e-9);
+        assert_eq!(normal.calibration, "unmeasured");
+        assert_eq!(normal.construction, NORMAL_APPROXIMATION_CONSTRUCTION);
+        // Draws 0..=100: type 7 ranks p (n - 1), type 6 ranks p (n + 1).
+        let draws: Vec<f64> = (0..=100).map(f64::from).collect();
+        let interpolated =
+            draw_interval_candidate(&draws, 0.9, QuantileRule::Interpolated).expect("type 7");
+        assert!(
+            (interpolated.lower - 5.0).abs() < 1e-12 && (interpolated.upper - 95.0).abs() < 1e-12
+        );
+        let exchangeable =
+            draw_interval_candidate(&draws, 0.9, QuantileRule::ExchangeableRank).expect("type 6");
+        // one-based rank 0.05 * 102 = 5.1 -> value 4.1; 0.95 * 102 = 96.9 -> 95.9.
+        assert!((exchangeable.lower - 4.1).abs() < 1e-12);
+        assert!((exchangeable.upper - 95.9).abs() < 1e-12);
+        assert_ne!(interpolated.construction, exchangeable.construction);
+        for level in [0.0, 1.0, f64::NAN, -0.1] {
+            assert!(matches!(
+                normal_interval_candidate(0.0, 1.0, level),
+                Err(JointLawError::InvalidLevel(_))
+            ));
+        }
+        assert!(matches!(
+            normal_interval_candidate(0.0, -1.0, 0.9),
+            Err(JointLawError::InvalidVariance(_))
+        ));
+    }
+
+    #[test]
+    fn mixture_law_quantiles_and_exceedance_use_the_weights_only() {
+        // 0.5 [0, 1] + 0.5 [1, 2]: atoms 0 (0.25), 1 (0.5), 2 (0.25).
+        let a = [0.0, 1.0];
+        let b = [1.0, 2.0];
+        let law = mixture_marginal(&[0.5, 0.5], &[&a, &b]).expect("law");
+        assert_eq!(law.atoms(), &[(0.0, 0.25), (1.0, 0.5), (2.0, 0.25)]);
+        assert_eq!(law.quantile(0.25).expect("q"), 0.0);
+        assert_eq!(law.quantile(0.26).expect("q"), 1.0);
+        assert_eq!(law.quantile(0.75).expect("q"), 1.0);
+        assert_eq!(law.quantile(0.76).expect("q"), 2.0);
+        assert_eq!(law.quantile(1.0).expect("q"), 2.0);
+        assert!(law.quantile(0.0).is_err());
+        let candidate = marginal_interval_candidate(&law, 0.5).expect("interval");
+        // Level 0.5: the 0.25 and 0.75 quantiles, 0 and 1.
+        assert_eq!((candidate.lower, candidate.upper), (0.0, 1.0));
+        // Unequal component sizes keep the declared weights, not the counts.
+        let heavy = [10.0; 6];
+        let skewed = mixture_marginal(&[0.25, 0.75], &[&a[..], &heavy[..]]).expect("law");
+        assert!((skewed.mean() - (0.25 * 0.5 + 0.75 * 10.0)).abs() < 1e-14);
+        // Exceedance: components exceed 0.5 with probability 0.5 and 0.75.
+        let c1 = [0.0, 0.0, 1.0, 1.0];
+        let c2 = [1.0, 1.0, 1.0, 0.0];
+        let (p, se) = mixture_exceedance(&[0.25, 0.75], &[&c1, &c2], 0.5).expect("p");
+        assert!((p - 0.6875).abs() < 1e-15);
+        let var: f64 = 0.0625 * 0.25 / 4.0 + 0.5625 * 0.1875 / 4.0;
+        assert!((se - var.sqrt()).abs() < 1e-15);
+        assert!(matches!(
+            mixture_exceedance(&[0.5, 0.4], &[&c1, &c2], 0.5),
+            Err(JointLawError::InvalidWeights(_))
+        ));
+    }
+
+    #[test]
+    fn exceedance_decisions_report_the_monte_carlo_band() {
+        // 90 of 100 rows above the threshold.
+        let mut draws = vec![1.0; 90];
+        draws.extend(vec![-1.0; 10]);
+        let d = composed_exceedance_decision(&draws, 0.0, 0.5, 0.95, None).expect("decision");
+        assert!((d.probability - 0.9).abs() < 1e-15);
+        // Adjusted proportion (90 + 1.9207) / (100 + 3.8415) -> se 0.031284.
+        assert!((d.standard_error - 0.031_284).abs() < 1e-5, "{d:?}");
+        assert!((d.band - 1.959_964 * d.standard_error).abs() < 1e-8);
+        assert_eq!(d.verdict, DecisionVerdict::Act);
+        assert_eq!(d.calibration, "unmeasured");
+        for (cutoff, expected) in [
+            (0.5, DecisionVerdict::Act),
+            (0.9, DecisionVerdict::Unresolved),
+            (0.99, DecisionVerdict::Withhold),
+        ] {
+            let at = composed_exceedance_decision(&draws, 0.0, cutoff, 0.95, None).expect("d");
+            assert_eq!(at.verdict, expected, "cutoff {cutoff}");
+        }
+        // Boundary: every row above the threshold still has a nonzero band, so
+        // a cutoff just under one is unresolved rather than act.
+        let all = vec![1.0; 100];
+        let at_one = composed_exceedance_decision(&all, 0.0, 0.99, 0.95, None).expect("d");
+        assert_eq!(at_one.probability, 1.0);
+        assert!(at_one.standard_error > 0.013 && at_one.standard_error < 0.0133);
+        assert_eq!(at_one.verdict, DecisionVerdict::Unresolved);
+        assert_eq!(
+            composed_exceedance_decision(&all, 0.0, 0.95, 0.95, None).expect("d").verdict,
+            DecisionVerdict::Act
+        );
+        // Fewer effective draws widen the band and can unresolve a decision.
+        let thin = composed_exceedance_decision(&draws, 0.0, 0.5, 0.95, Some(10.0)).expect("d");
+        assert!(thin.band > d.band);
+        assert!(matches!(
+            composed_exceedance_decision(&draws, 0.0, 1.0, 0.95, None),
+            Err(JointLawError::InvalidLevel(_))
+        ));
+        assert!(matches!(
+            composed_exceedance_decision(&[], 0.0, 0.5, 0.95, None),
+            Err(JointLawError::Shape(_))
+        ));
     }
 
     #[test]

@@ -100,11 +100,17 @@ pub use interference::{
     exposure_probabilities, exposures, randomization_contrast, randomization_mean,
 };
 pub use joint_law::{
-    CORRELATION_RANGE_LABEL, CorrelationRangeEnvelope, JointLawError, LinearMoments, Marginal,
-    MixtureMoments, MomentSummary, PairStructure, PairedMoments, STRUCTURAL_ENVELOPE_LABEL,
-    ValueBounds, ValueFunctional, aligned_functional_mean, correlation_range_envelope,
-    covariance_envelope, difference_cdf_envelope, frechet_expectation_envelope,
-    functional_envelope, linear_combination_moments, linear_variance_envelope, mixture_moments,
+    CALIBRATION_STATUS, CORRELATION_RANGE_LABEL, CorrelationRangeEnvelope,
+    DRAW_EXCHANGEABLE_RANK_CONSTRUCTION, DRAW_INTERPOLATED_CONSTRUCTION, DecisionVerdict,
+    DrawSpread, ExceedanceDecision, IntervalCandidate, JointLawError, LinearMoments,
+    MIXTURE_EQUAL_TAIL_CONSTRUCTION, Marginal, MixtureMoments, MomentSummary,
+    NORMAL_APPROXIMATION_CONSTRUCTION, PairStructure, PairedMoments, STRUCTURAL_ENVELOPE_LABEL,
+    UNCALIBRATED_SPREAD_LABEL, ValueBounds, ValueFunctional, aligned_functional_draws,
+    aligned_functional_mean, aligned_linear_draws, aligned_map_draws, composed_exceedance_decision,
+    correlation_range_envelope, covariance_envelope, difference_cdf_envelope,
+    draw_interval_candidate, draw_spread, frechet_expectation_envelope, functional_envelope,
+    linear_combination_moments, linear_variance_envelope, marginal_interval_candidate,
+    mixture_exceedance, mixture_marginal, mixture_moments, normal_interval_candidate,
     paired_moments, product_moment_envelope, sum_cdf_envelope,
 };
 pub use linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};

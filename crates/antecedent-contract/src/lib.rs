@@ -80,10 +80,12 @@ pub use external_refusal::{
     probe_name,
 };
 pub use joint_law_rule::{
-    ASSUMPTION_RANGE_LABEL, InputAlignment, InputRole, JOINT_LAW_STAGE, POINT_ONLY_LABEL,
+    ASSUMPTION_RANGE_LABEL, ComposedCoordinate, ComposedIntervalPlan, CoverageRecord,
+    InputAlignment, InputRole, JOINT_LAW_STAGE, MEASURED_INTERVAL_LABEL, POINT_ONLY_LABEL,
     PropagationClass, PropagationDependence, PropagationInput, PropagationOperation,
     PropagationPlan, PropagationRequest, PropagationRoute, RequestedReading,
-    STRUCTURAL_ENVELOPE_LABEL, check_propagation, check_rows_pairable,
+    STRUCTURAL_ENVELOPE_LABEL, UNCALIBRATED_SPREAD_LABEL, check_composed_interval,
+    check_propagation, check_rows_pairable,
 };
 pub use mechanism_composition::{
     AdmissionBasis, AdmissionCoordinate, DependenceDeclaration, LatentCauseDeclaration,
