@@ -204,3 +204,12 @@ interval, no posterior). Paradigm: neither Frequentist nor Bayesian output is pr
 | transport | REFUSED | decision recorded above; unresolved edges named |
 | temporal | DIRECT | the temporal adapter and contract |
 | composition | DIRECT | the claim-level invalidation graph and the evidence ledger |
+
+## Python surface
+
+`antecedent.selective_discovery`: `StaticContract`, `TemporalContract`, `SelectiveDiscovery`
+(`run`, `plan`, `outcome`, `export_state`, `resume`, `request_recovery_claim`,
+`request_downstream_interval`, `request_selection_diagram`), `Outcome` (structure with
+`unresolved_edges`, `directed_edges`, evidence, bounded-search receipts), `RunReport` and
+`WorkUnits`, `inspect_selective_discovery_artifact`, `consume_selective_discovery_artifact`,
+`request_score_search_reuse` and `SelectiveDiscoveryRefusal`. Contract seeds default to 0.
