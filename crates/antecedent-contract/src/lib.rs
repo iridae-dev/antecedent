@@ -44,6 +44,7 @@ pub mod response_coordinates;
 pub mod support_labels;
 pub mod transform;
 pub mod transport_result;
+pub mod transport_revalidation;
 
 pub use capability::{
     BlockedOperation, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
