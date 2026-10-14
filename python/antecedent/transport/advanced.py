@@ -13,6 +13,11 @@ from ._admg_conditional import (
     consume_admg_conditional_transport_artifact,
     identify_admg_conditional_transport,
 )
+from ._augmented_grid import (
+    AugmentedResponseGrid,
+    SelectionOverlap,
+    estimate_augmented_response_grid,
+)
 from ._closed_pilots import (
     NestedFisherCandidate,
     NestedMarkovPosteriorCandidate,
@@ -208,6 +213,9 @@ from ._temporal_extensions import (
 )
 
 __all__ = [
+    "AugmentedResponseGrid",
+    "SelectionOverlap",
+    "estimate_augmented_response_grid",
     "SampledRecoveryCandidate",
     "SampledRecoveryIdentity",
     "AdjustedContrast",

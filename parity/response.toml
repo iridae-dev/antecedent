@@ -66,9 +66,9 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-estimate/src/transport.rs"
 evidence_assertion = "transported_response_grid_evaluates_every_requested_intervention"
-limitations = "Rust-only algebraic evaluator; not a published joint estimator. Unit tests check the composition on hand-chosen inputs. No frozen fixture, no double-robustness/efficiency/curve-inference claim, and no external oracle."
-python_facade = "none"
-notes = "Public Rust primitive antecedent_estimate::transport_augmented_response_grid: evaluates a caller-supplied augmented transported response on a grid. Component equations are cited in provenance/estimate.transport_response_grid.toml; the composition itself is not a published estimator, so no external parity is claimed."
+limitations = "Rust and Python algebraic evaluator; not a published joint estimator. Unit tests check the composition on hand-chosen inputs. No frozen fixture, no double-robustness/efficiency/curve-inference claim, and no external oracle."
+python_facade = "thin"
+notes = "Public Rust primitive antecedent_estimate::transport_augmented_response_grid and Python transport.advanced.estimate_augmented_response_grid (test_augmented_transport_grid.py): evaluates a caller-supplied augmented transported response on a grid. Component equations are cited in provenance/estimate.transport_response_grid.toml; the composition itself is not a published estimator, so no external parity is claimed."
 
 [[capabilities]]
 id = "estimate.observation_km_ipcw"
