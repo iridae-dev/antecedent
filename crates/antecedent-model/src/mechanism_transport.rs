@@ -482,7 +482,7 @@ fn write_mechanism_body(w: &mut CanonicalWriter, m: &MechanismDescriptor) {
         }
     }
     w.text(&m.output_units).text(&m.output_transform);
-    write_domain(&mut w, &m.output_support);
+    write_domain(w, &m.output_support);
     w.texts(&m.conditioning_set);
     match &m.uncertainty {
         None => {
@@ -508,7 +508,7 @@ fn write_mechanism_body(w: &mut CanonicalWriter, m: &MechanismDescriptor) {
     w.word(m.parents.len() as u64);
     for p in &m.parents {
         w.text(&p.variable).text(&p.units).text(&p.transform);
-        write_domain(&mut w, &p.domain);
+        write_domain(w, &p.domain);
     }
     w.word(m.latents.len() as u64);
     for l in &m.latents {

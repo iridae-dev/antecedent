@@ -485,12 +485,12 @@ fn plan_operation(
             } else {
                 PoolingDependence::Independent
             };
-            (SynthesisOperation::StatisticalPooling { sources: ids.to_vec(), dependence }, None)
+            Ok((SynthesisOperation::StatisticalPooling { sources: ids.to_vec(), dependence }, None))
         }
-        TransportedSynthesisMethod::Borrow { .. } => (
+        TransportedSynthesisMethod::Borrow { .. } => Ok((
             SynthesisOperation::BayesianBorrowing { priors: Vec::new(), likelihood: ids.to_vec() },
             None,
-        ),
+        )),
         TransportedSynthesisMethod::TransportedPrior { prior } => {
             let Some(index) = ids.iter().position(|id| id == prior) else {
                 return Err(declaration(
@@ -519,10 +519,10 @@ fn plan_operation(
             }
             let likelihood: Vec<SourceId> =
                 ids.iter().enumerate().filter(|(i, _)| *i != index).map(|(_, id)| *id).collect();
-            (
+            Ok((
                 SynthesisOperation::BayesianBorrowing { priors: vec![*prior], likelihood },
                 Some(index),
-            )
+            ))
         }
     }
 }
@@ -537,12 +537,16 @@ fn combine_estimate(
         TransportedSynthesisMethod::Pool { sampling_covariance } => {
             let pooled = pool_transported(summaries, sampling_covariance.as_deref())
                 .map_err(TransportedSynthesisRefusal::Numeric)?;
-            (pooled.pooled.estimate, pooled.pooled.variance, Some(pooled.transport_variance_added))
+            Ok((
+                pooled.pooled.estimate,
+                pooled.pooled.variance,
+                Some(pooled.transport_variance_added),
+            ))
         }
         TransportedSynthesisMethod::Borrow { mean_prior, tau_prior } => {
             let borrowed = borrow_transported(summaries, *mean_prior, tau_prior)
                 .map_err(TransportedSynthesisRefusal::Numeric)?;
-            (borrowed.posterior.mean, borrowed.posterior.variance, None)
+            Ok((borrowed.posterior.mean, borrowed.posterior.variance, None))
         }
         TransportedSynthesisMethod::TransportedPrior { .. } => {
             let index = prior_index.unwrap_or(0);
@@ -552,9 +556,9 @@ fn combine_estimate(
                 .filter(|(i, _)| *i != index)
                 .map(|(_, s)| s.clone())
                 .collect();
-            let update = transported_prior_update(summaries[index], &likelihood)
+            let update = transported_prior_update(&summaries[index], &likelihood)
                 .map_err(TransportedSynthesisRefusal::Numeric)?;
-            (update.mean, update.variance, None)
+            Ok((update.mean, update.variance, None))
         }
     }
 }
