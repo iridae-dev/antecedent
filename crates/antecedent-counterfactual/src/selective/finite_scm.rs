@@ -575,7 +575,7 @@ pub fn abduct_unit(
             antecedent_core::reason_code!("route_not_supported"),
             "cross_world_execution.evidence_probability_underflow",
             Some(unit.unit.clone()),
-            "rescale the declared model or use a probability representation that can retain this positive evidence mass",
+            "use an executor with probability arithmetic that can retain this positive evidence mass; this f64 route cannot represent it",
         ));
     }
     if states.is_empty() {
@@ -597,7 +597,7 @@ pub fn abduct_unit(
             antecedent_core::reason_code!("route_not_supported"),
             "cross_world_execution.posterior_weight_underflow",
             Some(unit.unit.clone()),
-            "rescale the declared model or use a posterior representation that can retain this positive state mass",
+            "use an executor with probability arithmetic that can retain this positive posterior state mass; this f64 route cannot represent it",
         ));
     }
     for state in &mut states {
