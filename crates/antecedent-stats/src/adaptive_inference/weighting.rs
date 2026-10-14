@@ -179,7 +179,11 @@ pub fn adaptive_scores(
         for (a, (total, seen)) in sum.iter().zip(&count).enumerate() {
             let model = (prior.strength * prior.mean + total) / (prior.strength + seen);
             let correction = if a == arm { (y - model) / probabilities[row + a] } else { 0.0 };
-            scores[row + a] = model + correction;
+            let score = model + correction;
+            if !score.is_finite() {
+                return Err(Error::Numerical("an augmented inverse-probability score overflowed"));
+            }
+            scores[row + a] = score;
         }
         sum[arm] += y;
         count[arm] += 1.0;
@@ -201,7 +205,8 @@ pub fn adaptive_scores(
 /// unit ([`Error::Positivity`]), or a non-positive multiplier.
 #[allow(
     clippy::needless_range_loop,
-    reason = "the unit index addresses several parallel columns by computed offsets"
+    clippy::too_many_lines,
+    reason = "the unit index addresses parallel columns by computed offsets, and shape, assignment, and finite-output checks guard the single weighted-estimate calculation"
 )]
 pub fn weighted_estimate(
     arms: usize,
@@ -221,6 +226,20 @@ pub fn weighted_estimate(
     let n = scores.len() / arms;
     if n < 2 {
         return Err(Error::Shape("an adaptive analysis needs at least two units"));
+    }
+    if n > MAX_ADAPTIVE_UNITS {
+        return Err(Error::Limit("more than five million units"));
+    }
+    if scores.iter().any(|score| !score.is_finite()) {
+        return Err(Error::InvalidParameter("an augmented score is not finite"));
+    }
+    for row in probabilities.chunks_exact(arms) {
+        if row.iter().any(|p| !(p.is_finite() && (0.0..=1.0).contains(p))) {
+            return Err(Error::InvalidParameter("an assignment probability is outside [0, 1]"));
+        }
+        if (row.iter().sum::<f64>() - 1.0).abs() > PROBABILITY_ROW_TOLERANCE {
+            return Err(Error::InvalidParameter("assignment probabilities do not sum to one"));
+        }
     }
     if !(probability_floor.is_finite() && probability_floor > 0.0 && probability_floor <= 1.0) {
         return Err(Error::InvalidParameter("the probability floor must lie in (0, 1]"));
@@ -274,12 +293,22 @@ pub fn weighted_estimate(
             / (weight_sum * weight_sum);
     let square_sum: f64 = weights.iter().map(|h| h * h).sum();
     let largest = weights.iter().copied().fold(0.0_f64, f64::max);
+    let effective_units = weight_sum * weight_sum / square_sum;
+    if !(estimate.is_finite()
+        && variance.is_finite()
+        && weight_sum.is_finite()
+        && square_sum.is_finite()
+        && square_sum > 0.0
+        && effective_units.is_finite())
+    {
+        return Err(Error::Numerical("the weighted estimate or its variance overflowed"));
+    }
     Ok(AdaptiveEstimate {
         estimate,
         variance,
         units: n,
         weight_sum,
-        effective_units: weight_sum * weight_sum / square_sum,
+        effective_units,
         max_weight_share: largest / weight_sum,
     })
 }
@@ -315,5 +344,69 @@ mod tests {
             0.2,
         );
         assert!(matches!(outcome, Err(Error::Positivity { unit: 1, arm: 1, .. })));
+    }
+
+    #[test]
+    fn weighted_estimate_refuses_malformed_probability_rows_and_non_finite_scores() {
+        let scores = [0.0, 0.0, 0.0, 0.0];
+        let malformed_probabilities = [0.7, 0.7, 0.5, 0.5];
+        assert!(matches!(
+            weighted_estimate(
+                2,
+                &malformed_probabilities,
+                &scores,
+                Estimand::ArmMean(0),
+                WeightScheme::Uniform,
+                None,
+                0.1,
+            ),
+            Err(Error::InvalidParameter(_))
+        ));
+
+        let probabilities = [0.5, 0.5, 0.5, 0.5];
+        let mut non_finite_scores = scores;
+        non_finite_scores[0] = f64::NAN;
+        assert!(matches!(
+            weighted_estimate(
+                2,
+                &probabilities,
+                &non_finite_scores,
+                Estimand::ArmMean(0),
+                WeightScheme::Uniform,
+                None,
+                0.1,
+            ),
+            Err(Error::InvalidParameter(_))
+        ));
+    }
+
+    #[test]
+    fn adaptive_scores_refuse_overflowed_augmented_scores() {
+        let result = adaptive_scores(
+            2,
+            &[0, 1],
+            &[0.5, 0.5, 0.5, 0.5],
+            &[1e308, 0.0],
+            OutcomeModelPrior { mean: -1e308, strength: 1.0 },
+            &|| false,
+        );
+        assert!(matches!(result, Err(Error::Numerical(_))));
+    }
+
+    #[test]
+    fn weighted_estimate_refuses_overflowed_effective_unit_diagnostics() {
+        let probabilities = [0.5; 10];
+        let scores = [0.0; 10];
+        let unit_multiplier = [6e153; 5];
+        let result = weighted_estimate(
+            2,
+            &probabilities,
+            &scores,
+            Estimand::ArmMean(0),
+            WeightScheme::Uniform,
+            Some(&unit_multiplier),
+            0.1,
+        );
+        assert!(matches!(result, Err(Error::Numerical(_))));
     }
 }
