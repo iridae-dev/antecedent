@@ -149,6 +149,10 @@ pub struct CompiledScm<'a> {
     pub(crate) scm: &'a FiniteScm,
     pub(crate) n_cfg: Vec<usize>,
     radix: Vec<usize>,
+    /// Validated probability laws, normalized only when the declaration used
+    /// the accepted simplex tolerance. The source declaration remains the
+    /// input to `FiniteScm::digest`.
+    pmfs: Vec<Vec<f64>>,
     /// Joint exogenous states.
     pub joint_states: usize,
 }
@@ -195,6 +199,7 @@ impl FiniteScm {
         }
         unique_nonempty(self.variables.iter().map(|v| v.name.as_str()), "variable_names")?;
         unique_nonempty(self.exogenous.iter().map(|e| e.name.as_str()), "exogenous_names")?;
+        let mut pmfs = Vec::with_capacity(self.exogenous.len());
         for exo in &self.exogenous {
             let sum: f64 = exo.pmf.iter().sum();
             let ok = !exo.pmf.is_empty()
@@ -204,6 +209,14 @@ impl FiniteScm {
             if !ok {
                 return Err(invalid("cross_world_execution.invalid_scm", exo.name.clone()));
             }
+            // Tolerated floating-point simplex slack must not change the
+            // probability law used by abduction. Keep exactly normalized rows
+            // bit-for-bit so ordinary stored fixtures retain their arithmetic.
+            pmfs.push(if sum == 1.0 {
+                exo.pmf.clone()
+            } else {
+                exo.pmf.iter().map(|mass| mass / sum).collect()
+            });
         }
         let mut users = vec![0usize; self.exogenous.len()];
         let mut n_cfg = Vec::with_capacity(n);
@@ -254,7 +267,7 @@ impl FiniteScm {
         for k in (0..self.exogenous.len().saturating_sub(1)).rev() {
             radix[k] = radix[k + 1] * self.exogenous[k + 1].pmf.len();
         }
-        Ok(CompiledScm { scm: self, n_cfg, radix, joint_states: joint })
+        Ok(CompiledScm { scm: self, n_cfg, radix, pmfs, joint_states: joint })
     }
 
     /// Canonical digest of the mechanisms: population, history, structure,
@@ -295,6 +308,10 @@ impl CompiledScm<'_> {
 
     fn mechanism(&self, variable: usize, u_state: usize, cfg: usize) -> u8 {
         self.scm.variables[variable].table[u_state * self.n_cfg[variable] + cfg]
+    }
+
+    fn mass(&self, exogenous: usize, state: usize) -> f64 {
+        self.pmfs[exogenous][state]
     }
 }
 
@@ -492,11 +509,15 @@ pub struct Posterior {
 /// Exact abduction of one unit by enumerating the joint exogenous states.
 ///
 /// # Errors
-/// Cancellation, or evidence with zero probability under the mechanisms
-/// (`route_not_supported`, `cross_world_execution.evidence_outside_model_support`).
+/// Cancellation, evidence with zero probability under the mechanisms
+/// (`route_not_supported`, `cross_world_execution.evidence_outside_model_support`),
+/// or a positive mass that underflows the returned `f64`
+/// (`route_not_supported`, `cross_world_execution.evidence_probability_underflow`)
+/// or makes a matching posterior state unrepresentable
+/// (`route_not_supported`, `cross_world_execution.posterior_weight_underflow`).
 #[allow(
     clippy::float_cmp,
-    reason = "a product of declared point masses is exactly zero only when a declared mass is zero; zero-probability states are skipped"
+    reason = "positive PMF products that become exactly zero are tracked separately from declared zero masses"
 )]
 pub fn abduct_unit(
     compiled: &CompiledScm<'_>,
@@ -508,15 +529,24 @@ pub fn abduct_unit(
     let mut values = vec![0u8; n];
     let mut states: Vec<(u32, f64)> = Vec::new();
     let mut total = 0.0;
+    let mut matched_underflow = false;
     for joint in 0..compiled.joint_states {
         if joint % POLL_EVERY == 0 {
             poll(ctx)?;
         }
         let mut weight = 1.0;
-        for (k, exo) in scm.exogenous.iter().enumerate() {
-            weight *= exo.pmf[compiled.exogenous_state(joint, k)];
+        let mut zero_mass = false;
+        let mut underflowed = false;
+        for k in 0..scm.exogenous.len() {
+            let mass = compiled.mass(k, compiled.exogenous_state(joint, k));
+            if mass == 0.0 {
+                zero_mass = true;
+                break;
+            }
+            weight *= mass;
+            underflowed |= weight == 0.0;
         }
-        if weight == 0.0 {
+        if zero_mass {
             continue;
         }
         for (v, var) in scm.variables.iter().enumerate() {
@@ -527,14 +557,26 @@ pub fn abduct_unit(
             values[v] = compiled.mechanism(v, compiled.exogenous_state(joint, var.exogenous), cfg);
         }
         if unit.observed.iter().all(|(v, l)| values[*v] == *l) {
-            states.push((
-                u32::try_from(joint).map_err(|_| bounds("joint_exogenous_states"))?,
-                weight,
-            ));
-            total += weight;
+            if underflowed {
+                matched_underflow = true;
+            } else {
+                states.push((
+                    u32::try_from(joint).map_err(|_| bounds("joint_exogenous_states"))?,
+                    weight,
+                ));
+                total += weight;
+            }
         }
     }
-    if states.is_empty() || total <= 0.0 {
+    if states.is_empty() && matched_underflow {
+        return Err(refuse(
+            antecedent_core::reason_code!("route_not_supported"),
+            "cross_world_execution.evidence_probability_underflow",
+            Some(unit.unit.clone()),
+            "rescale the declared model or use a probability representation that can retain this positive evidence mass",
+        ));
+    }
+    if states.is_empty() {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
             "cross_world_execution.evidence_outside_model_support",
@@ -543,8 +585,30 @@ pub fn abduct_unit(
              the mechanisms or the evidence (a refuted model is not repaired by conditioning)",
         ));
     }
+    // Keep direct-product and direct-sum arithmetic for representable masses
+    // so ordinary stored results retain their historical IEEE-754 bits.
+    // Fail closed if a matching positive state was lost to underflow: without
+    // its mass, neither its evidence probability nor its posterior weight is
+    // an honest result.
+    if matched_underflow {
+        return Err(refuse(
+            antecedent_core::reason_code!("route_not_supported"),
+            "cross_world_execution.posterior_weight_underflow",
+            Some(unit.unit.clone()),
+            "rescale the declared model or use a posterior representation that can retain this positive state mass",
+        ));
+    }
     for state in &mut states {
         state.1 /= total;
+        let weight = state.1;
+        if weight == 0.0 {
+            return Err(refuse(
+                antecedent_core::reason_code!("route_not_supported"),
+                "cross_world_execution.posterior_weight_underflow",
+                Some(unit.unit.clone()),
+                "rescale the declared model or use a posterior representation that can retain this positive state mass",
+            ));
+        }
     }
     Ok(Posterior { states, evidence_probability: total })
 }

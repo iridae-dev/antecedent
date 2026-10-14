@@ -9,7 +9,7 @@
 
 use antecedent_contract::RequestedReading;
 use antecedent_core::ExecutionContext;
-use antecedent_counterfactual::selective::finite_scm::MAX_UNITS;
+use antecedent_counterfactual::selective::finite_scm::{MAX_UNITS, abduct_unit};
 use antecedent_counterfactual::selective::{
     ExogenousInference, ExogenousVariable, FactualUnit, FiniteExecutionRequest, FiniteQuantity,
     FiniteScm, FiniteScmExecutor, FiniteVariable, FiniteWorld, NoiseCoupling, StageStatus,
@@ -147,6 +147,63 @@ fn a_cross_world_joint_event_uses_the_coupled_worlds_only() {
     let (code, detail) = refusal_of(exec.execute(&undeclared, &ctx()));
     assert_eq!(code, "joint_law_required");
     assert_eq!(detail, "joint_law_propagation.index_pairing_refused");
+}
+
+#[test]
+fn rare_positive_factual_evidence_is_not_misreported_as_zero_probability() {
+    let scm = FiniteScm {
+        population: "pop-a".to_owned(),
+        history: "regime-1".to_owned(),
+        exogenous: vec![
+            ExogenousVariable { name: "u_x".to_owned(), pmf: vec![1e-200, 1.0] },
+            ExogenousVariable { name: "u_y".to_owned(), pmf: vec![1e-200, 1.0] },
+        ],
+        variables: vec![
+            FiniteVariable {
+                name: "x".to_owned(),
+                levels: 2,
+                parents: vec![],
+                exogenous: 0,
+                table: vec![1, 0],
+            },
+            FiniteVariable {
+                name: "y".to_owned(),
+                levels: 2,
+                parents: vec![],
+                exogenous: 1,
+                table: vec![1, 0],
+            },
+        ],
+    };
+    let compiled = scm.compile().unwrap();
+    let error = abduct_unit(&compiled, &unit("rare", &[(0, 1), (1, 1)]), &ctx())
+        .expect_err("positive evidence below f64 range must fail closed");
+    assert_eq!(
+        error.refusal().unwrap().detail,
+        "cross_world_execution.evidence_probability_underflow"
+    );
+}
+
+#[test]
+fn tolerated_exogenous_simplex_slack_is_normalized_for_abduction() {
+    let scm = FiniteScm {
+        population: "pop-a".to_owned(),
+        history: "regime-1".to_owned(),
+        exogenous: vec![ExogenousVariable { name: "u".to_owned(), pmf: vec![0.5, 0.5000000005] }],
+        variables: vec![FiniteVariable {
+            name: "x".to_owned(),
+            levels: 2,
+            parents: vec![],
+            exogenous: 0,
+            table: vec![0, 1],
+        }],
+    };
+    let source_digest = scm.digest();
+    let compiled = scm.compile().unwrap();
+    let posterior = abduct_unit(&compiled, &unit("observed", &[(0, 1)]), &ctx()).unwrap();
+    assert!((posterior.evidence_probability - (0.5000000005 / 1.0000000005)).abs() < 1e-15);
+    assert_eq!(posterior.states, vec![(1, 1.0)]);
+    assert_eq!(scm.digest(), source_digest, "normalization does not rewrite source identity");
 }
 
 // Marginal means need no coupling: E[Y_{x1}] - E[Y_{x0}] = (0.5+0.2) - (0.1+0.2)
