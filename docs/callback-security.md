@@ -111,3 +111,32 @@ item: trailing bytes are refused.
 * A seeded callback's reproducibility is a declared contract; a provider that
   ignores its stream cannot be detected here, only by replaying and comparing.
 * Stateful reuse is only as good as the state identity the provider reports.
+
+## Python surface
+
+`antecedent.provider_callbacks` (bridge: `python/src/provider_callbacks_api.rs`).
+
+* **A Python provider is a callable the caller passes in.** It runs only inside
+  `CallbackSession.execute` or `CallbackSession.resume`, in the caller's process
+  and with the caller's authority, and only after Rust has checked the
+  declaration, the policy phase, the negotiated operation, the provider's
+  identity, the inputs and the reuse plan. `plan`, `consume_callback_result`,
+  `inspect_callback_result`, `refuse_*` and `resume` without a provider never
+  call a callable (`test_untrusted_artifact_never_executes_code` passes a
+  sentinel callable and asserts it was never called).
+* **No pickle, no code in the format.** Declarations, requests and policies
+  cross as JSON (bounded at 64 MiB, `deny_unknown_fields`); a provider's answer
+  crosses as a JSON string of IEEE bit patterns (at most 64 MiB) and is
+  validated in Rust against the declared support before it is accepted. An
+  artifact field cannot name a callable.
+* **GIL.** The callable is called from the thread that holds the GIL, which the
+  bridge does not release; a callable that raises is a typed
+  `callback_provider_unavailable` refusal carrying the exception text and is
+  not retried.
+* **Cancellation** is a `CallbackToken` handed to the callable, which may poll
+  it; Rust observes it after the call. A hung callable is not interrupted: run
+  it in a process you can terminate.
+* **Deserialization added:** `callback_result_consume` and
+  `callback_result_inspect` call the same `CallbackResultArtifact` entry points
+  listed above; no new binary or text format is read. Python reads the returned
+  JSON with `json.loads` only.
