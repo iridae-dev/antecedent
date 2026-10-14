@@ -187,7 +187,11 @@ pub fn coverage_design() -> Vec<CoverageCell> {
                     utility functional of a pre-specified candidate",
             candidate_set_sizes: &[2],
             mc_budgets: BUDGETS,
-            selection_rules: &["maximize_expected_utility", "maximize_threshold_probability", "maximize_cvar"],
+            selection_rules: &[
+                "maximize_expected_utility",
+                "maximize_threshold_probability",
+                "maximize_cvar",
+            ],
             noise_correlations: &[0.0],
             truth: TruthKind::ClosedForm,
             truth_description: "known Gaussian: mean, threshold exceedance Phi, lower-tail \

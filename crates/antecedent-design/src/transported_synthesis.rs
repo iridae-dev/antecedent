@@ -40,8 +40,8 @@ use antecedent_contract::evidence_ledger::{
     ClaimClass, CombinationRequest, EvidenceLedger, LedgerError, MassAccount, Overlap,
     PoolingDependence, ResultId, SourceId, SynthesisOperation,
 };
-use antecedent_core::identity::CanonicalWriter;
 use antecedent_core::SemanticDigest;
+use antecedent_core::identity::CanonicalWriter;
 use antecedent_stats::synthesis::{MeanPrior, TauPrior};
 use antecedent_stats::synthesis_transport::{
     SummaryOrigin, TransportAwareSummary, TransportedSynthesisError, borrow_transported,
@@ -325,8 +325,9 @@ pub fn synthesize_transported(
             let covariance = transport_aware_covariance(&summaries, sampling_covariance.as_deref())
                 .map_err(TransportedSynthesisRefusal::Numeric)?;
             let k = summaries.len();
-            let has_cross_covariance = (0..k)
-                .any(|i| (0..k).any(|j| i != j && covariance[i * k + j].to_bits() != 0_f64.to_bits()));
+            let has_cross_covariance = (0..k).any(|i| {
+                (0..k).any(|j| i != j && covariance[i * k + j].to_bits() != 0_f64.to_bits())
+            });
             if has_cross_covariance && sampling_covariance.is_none() {
                 // The cross terms are the shared transport error only. They
                 // say nothing about shared data, so the data must be disjoint.
@@ -373,8 +374,10 @@ pub fn synthesize_transported(
                     "the prior of this route is a transported claim; a native prior is a native source",
                 ));
             }
-            if let Some(other) =
-                classified.iter().enumerate().find(|(i, c)| *i != index && c.transport_digest.is_some())
+            if let Some(other) = classified
+                .iter()
+                .enumerate()
+                .find(|(i, c)| *i != index && c.transport_digest.is_some())
             {
                 return Err(declaration(
                     DETAIL_PRIOR_ROLE,
@@ -398,11 +401,7 @@ pub fn synthesize_transported(
         TransportedSynthesisMethod::Pool { sampling_covariance } => {
             let pooled = pool_transported(&summaries, sampling_covariance.as_deref())
                 .map_err(TransportedSynthesisRefusal::Numeric)?;
-            (
-                pooled.pooled.estimate,
-                pooled.pooled.variance,
-                Some(pooled.transport_variance_added),
-            )
+            (pooled.pooled.estimate, pooled.pooled.variance, Some(pooled.transport_variance_added))
         }
         TransportedSynthesisMethod::Borrow { mean_prior, tau_prior } => {
             let borrowed = borrow_transported(&summaries, *mean_prior, tau_prior)

@@ -228,8 +228,7 @@ fn implementation_keyed_rollouts_report_functionals_but_refuse_ranking() {
     assert_eq!(carrier.draws().producer, "sequential_evaluation");
     assert!(carrier.draws().candidates[0].segment.stream.label.contains("model-1"));
     // Mean values and the shared-noise difference error are valid under any coupling.
-    let report =
-        carrier.assess(None, &ReliabilityRequest::expected_utility(), &ctx()).unwrap();
+    let report = carrier.assess(None, &ReliabilityRequest::expected_utility(), &ctx()).unwrap();
     assert_eq!(report.decided_id, "keep");
     assert!((report.monte_carlo_error.decision.value - 2.0).abs() < 1e-12);
     // Ranking is a statement about a joint law the implementation noise does not supply.
@@ -256,8 +255,7 @@ fn structurally_shared_rollout_noise_licenses_ranking_to_the_carrier() {
 fn off_policy_contributions_carry_the_expected_utility_only() {
     let carrier = reach_carrier(ProducerOutput::OffPolicy(off_policy_input())).unwrap();
     assert!(matches!(carrier.joint_law(), JointLawStanding::MarginalOnly { .. }));
-    let report =
-        carrier.assess(None, &ReliabilityRequest::expected_utility(), &ctx()).unwrap();
+    let report = carrier.assess(None, &ReliabilityRequest::expected_utility(), &ctx()).unwrap();
     assert_eq!(report.decided_id, "keep");
     assert!((report.monte_carlo_error.decision.value - 2.0).abs() < 1e-12);
     // Contributions are not outcomes: ranking and a quantile of them are refused.

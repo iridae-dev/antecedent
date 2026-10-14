@@ -225,9 +225,6 @@ impl TransportedSurrogateBridge {
     /// validated range.
     pub fn derive(&self, claim: &ClaimEnvelope) -> Result<BridgedClaim, BridgeRefusal> {
         let contract = self.contract()?;
-        derive_bridged_claim(
-            &contract,
-            &BridgeSource { claim, quantity: &self.surrogate },
-        )
+        derive_bridged_claim(&contract, &BridgeSource { claim, quantity: &self.surrogate })
     }
 }

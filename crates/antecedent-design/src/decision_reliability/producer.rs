@@ -328,11 +328,7 @@ fn point_only_held(producer: ProducerKind) -> &'static str {
 }
 
 fn require_named(slot: &'static str, value: &str) -> Result<(), ReliabilityError> {
-    if is_blank(value) {
-        Err(ReliabilityError::invalid(slot, "must be named"))
-    } else {
-        Ok(())
-    }
+    if is_blank(value) { Err(ReliabilityError::invalid(slot, "must be named")) } else { Ok(()) }
 }
 
 fn check_reported(
@@ -354,14 +350,9 @@ fn check_reported(
         let (_, utilities) = columns.iter().find(|(name, _)| name == id).ok_or_else(|| {
             ReliabilityError::invalid("reported_means", "a reported value names no supplied id")
         })?;
-        let mean = estimate(
-            utilities,
-            None,
-            within,
-            BatchPlan::SquareRoot,
-            &Functional::ExpectedUtility,
-        )?
-        .estimate;
+        let mean =
+            estimate(utilities, None, within, BatchPlan::SquareRoot, &Functional::ExpectedUtility)?
+                .estimate;
         let tolerance = max_standard_errors * mean.standard_error + 1e-9 * (1.0 + value.abs());
         if !value.is_finite() || (mean.value - value).abs() > tolerance {
             return Err(ReliabilityError::ProducerMeanDisagrees {

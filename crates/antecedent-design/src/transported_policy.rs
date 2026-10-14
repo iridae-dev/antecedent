@@ -243,7 +243,10 @@ pub(crate) fn shifted_initial_state(
             return Err(transport_refusal(
                 antecedent_core::reason_code!("invalid_argument"),
                 axis.detail("mechanism_unknown"),
-                format!("the declaration names `{}`, which the model does not have", mechanism.name()),
+                format!(
+                    "the declaration names `{}`, which the model does not have",
+                    mechanism.name()
+                ),
                 "declare the status of the model's own mechanisms only: the initial state, each action's transition, each channel's observation law and the utility",
             ));
         }
@@ -312,7 +315,9 @@ pub(crate) fn check_target_initial(
         return Err(transport_refusal(
             antecedent_core::reason_code!("invalid_argument"),
             axis.detail("target_initial_law"),
-            format!("the target initial law must be one probability per state ({states}) summing to one"),
+            format!(
+                "the target initial law must be one probability per state ({states}) summing to one"
+            ),
             "supply the target's initial-state law over the model's latent states",
         ));
     }
@@ -329,7 +334,8 @@ pub(crate) fn check_target_initial(
             ));
         }
     }
-    let differs = target.iter().zip(&model.initial).any(|(t, s)| (t - s).abs() > SAME_LAW_TOLERANCE);
+    let differs =
+        target.iter().zip(&model.initial).any(|(t, s)| (t - s).abs() > SAME_LAW_TOLERANCE);
     if differs && !initial_shifted {
         return Err(transport_refusal(
             antecedent_core::reason_code!("invalid_argument"),

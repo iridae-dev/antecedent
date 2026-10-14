@@ -188,7 +188,8 @@ fn the_same_observations_cannot_count_as_native_and_as_transported() {
     let cohort = native(&mut ledger, "registry cohort", 0, 100);
     // The transported claim was learned on rows 50..150: half of them are the
     // registry's own rows.
-    let overlapping = claim(&mut ledger, "overlapping claim", SourceKind::ExternalClaim, 50, 150, 1);
+    let overlapping =
+        claim(&mut ledger, "overlapping claim", SourceKind::ExternalClaim, 50, 150, 1);
     let before = ledger.state_digest();
 
     for method in [

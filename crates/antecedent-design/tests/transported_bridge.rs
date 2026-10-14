@@ -60,7 +60,11 @@ fn claim(value: f64) -> ClaimEnvelope {
             SlotAvailability::unavailable("fixture"),
             SlotAvailability::unavailable("fixture"),
         ),
-        ClaimDomains::new(DomainStatus::Identified, DomainStatus::Supported, DomainStatus::Evaluated),
+        ClaimDomains::new(
+            DomainStatus::Identified,
+            DomainStatus::Supported,
+            DomainStatus::Evaluated,
+        ),
         None,
         [Arc::<str>::from("prior:p0")],
     )
@@ -141,7 +145,10 @@ fn the_premise_is_stated_in_the_contract_and_bound_to_the_diagram() {
     assert_eq!(premise.established_in.population_id, "adults");
     assert_eq!(premise.applies_to.population_id, "children");
     let evidence = premise.evidence.as_deref().unwrap();
-    assert_eq!(evidence, format!("selection_diagram:{}", bridge("children", &[]).diagram.identity_hex()));
+    assert_eq!(
+        evidence,
+        format!("selection_diagram:{}", bridge("children", &[]).diagram.identity_hex())
+    );
 
     // A different diagram is a different contract identity at unchanged shape.
     let other = bridge("children", &["unrelated"]).contract().unwrap();

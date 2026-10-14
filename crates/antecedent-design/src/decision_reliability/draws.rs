@@ -12,6 +12,10 @@
 
 use std::collections::BTreeMap;
 
+use antecedent_contract::{
+    ExternalRefusal, InputAlignment, InputRole, PropagationDependence, PropagationInput,
+    PropagationOperation, PropagationRequest, RequestedReading, check_propagation,
+};
 use antecedent_core::{CanonicalWriter, is_blank};
 use serde::{Deserialize, Serialize};
 
@@ -402,16 +406,14 @@ impl DecisionDraws {
         }
         match self.coupling {
             CandidateCoupling::Unknown => {
-                Err(ReliabilityError::DependenceUnknown { what: "candidate_coupling" })
+                return Err(ReliabilityError::DependenceUnknown { what: "candidate_coupling" });
             }
             CandidateCoupling::SharedSimulation => {
                 let first = &self.candidates[0].segment;
-                if self.candidates.iter().all(|c| c.segment.same_draws(first)) {
-                    Ok(())
-                } else {
-                    Err(ReliabilityError::JointLawRequired {
+                if !self.candidates.iter().all(|c| c.segment.same_draws(first)) {
+                    return Err(ReliabilityError::JointLawRequired {
                         reason: "shared_simulation_declared_but_segments_differ",
-                    })
+                    });
                 }
             }
             CandidateCoupling::DeclaredIndependent => {
@@ -430,9 +432,65 @@ impl DecisionDraws {
                         });
                     }
                 }
-                Ok(())
             }
         }
+        // The stream identities are consistent with the declaration; whether the
+        // candidates may be compared on that dependence is the propagation rule's call.
+        self.license_comparison(PropagationOperation::Contrast).map(|_| ())
+    }
+
+    /// Whether candidates' draws may be paired by index for a rank, top-`k` or
+    /// better-than statement. These are nonlinear functionals of the candidates'
+    /// joint law, so the rule licenses them only on an aligned joint law (one shared
+    /// simulation): independently drawn candidates are refused, never paired by index.
+    ///
+    /// # Errors
+    /// The propagation rule's refusal, as a [`ReliabilityError`].
+    pub(crate) fn license_index_pairing(&self) -> Result<(), ReliabilityError> {
+        if self.candidates.len() < 2 {
+            return Ok(());
+        }
+        self.license_comparison(PropagationOperation::NonlinearFunctional).map(|_| ())
+    }
+
+    /// Run the propagation rule over the candidates as the inputs of `operation`.
+    ///
+    /// A shared simulation is one aligned joint law (the alignment identity is the
+    /// shared segment's digest). A declared-independent set is independent marginals
+    /// resting on distinct streams or disjoint ranges (the evidence identity of each
+    /// candidate is its segment's digest).
+    fn license_comparison(
+        &self,
+        operation: PropagationOperation,
+    ) -> Result<antecedent_contract::PropagationPlan, ReliabilityError> {
+        let (alignment, dependence) = match self.coupling {
+            CandidateCoupling::SharedSimulation => (
+                InputAlignment::Aligned { alignment_id: self.candidates[0].segment.digest_hex() },
+                PropagationDependence::AlignedJointLaw,
+            ),
+            CandidateCoupling::DeclaredIndependent => {
+                (InputAlignment::IndependentMarginals, PropagationDependence::DeclaredIndependent)
+            }
+            CandidateCoupling::Unknown => {
+                return Err(ReliabilityError::DependenceUnknown { what: "candidate_coupling" });
+            }
+        };
+        let request = PropagationRequest {
+            operation,
+            inputs: self
+                .candidates
+                .iter()
+                .map(|candidate| PropagationInput {
+                    id: candidate.id.clone(),
+                    evidence_id: candidate.segment.digest_hex(),
+                    role: InputRole::Estimate,
+                    alignment: alignment.clone(),
+                })
+                .collect(),
+            dependence,
+            reading: RequestedReading::Point,
+        };
+        check_propagation(&request).map_err(|refusal| rule_refusal(&refusal))
     }
 
     fn validate_search(&self) -> Result<(), ReliabilityError> {
@@ -444,4 +502,24 @@ impl DecisionDraws {
             (CandidateOrigin::Enumerated, None) => Ok(()),
         }
     }
+}
+
+/// The propagation rule's refusal as the carrier's typed error: undeclared dependence
+/// stays undeclared, and a pairing the rule does not license is a joint-law refusal.
+fn rule_refusal(refusal: &ExternalRefusal) -> ReliabilityError {
+    if refusal.code == antecedent_core::reason_code!("sampling_dependence_unknown") {
+        return ReliabilityError::DependenceUnknown { what: "candidate_coupling" };
+    }
+    let reason = match refusal.detail.as_str() {
+        "joint_law_propagation.nonlinear_needs_aligned_joint_law" => {
+            "nonlinear_needs_aligned_joint_law"
+        }
+        "joint_law_propagation.index_pairing_refused" => "index_pairing_refused",
+        "joint_law_propagation.alignment_mismatch" => "alignment_mismatch",
+        "joint_law_propagation.shared_evidence_declared_independent" => {
+            "shared_evidence_declared_independent"
+        }
+        _ => "propagation_rule_refused",
+    };
+    ReliabilityError::JointLawRequired { reason }
 }

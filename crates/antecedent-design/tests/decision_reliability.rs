@@ -1036,3 +1036,26 @@ fn a_validation_stream_already_used_is_not_a_clean_hold_out() {
     let err = assess(&selection, Some(&validation), &request, &ctx()).unwrap_err();
     assert_eq!(err.reason_code(), "validation_stream_not_independent");
 }
+
+#[test]
+fn rank_statements_on_independently_drawn_candidates_are_refused_by_the_propagation_rule() {
+    // Declared-independent candidates on separate streams have no joint law: a rank or
+    // better-than probability is a nonlinear functional of it, and the rule never pairs
+    // independent marginals by index.
+    let separate = gaussian_pair(0.0, 200, true);
+    assert_eq!(separate.coupling, CandidateCoupling::DeclaredIndependent);
+    let error = rank(&separate, &RankingRequest::default(), &ctx()).unwrap_err();
+    assert!(matches!(
+        error,
+        ReliabilityError::JointLawRequired { reason: "nonlinear_needs_aligned_joint_law" }
+    ));
+    assert_eq!(error.reason_code(), "joint_law_required");
+
+    // The mean difference of the same candidates is a linear contrast: independence of
+    // distinct streams licenses it (variances add), so the carrier still assesses.
+    assert!(assess(&separate, None, &ReliabilityRequest::expected_utility(), &ctx()).is_ok());
+
+    // One shared simulation is an aligned joint law and ranks.
+    let shared = gaussian_pair(0.5, 200, false);
+    assert!(rank(&shared, &RankingRequest::default(), &ctx()).is_ok());
+}

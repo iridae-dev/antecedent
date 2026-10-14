@@ -7,9 +7,10 @@
 //! uncalibrated diagnostic. It is not a confidence statement about the candidate set
 //! the search could have produced, and no interval is built from it.
 //!
-//! Draws are paired by index only when the carrier declared one shared simulation or
-//! declared the candidates independent; both are checked against the stream identities
-//! by [`DecisionDraws::validate`]. Ties split their probability equally, so the best
+//! Draws are paired by index only when the carrier declared one shared simulation; that
+//! is checked against the stream identities by [`DecisionDraws::validate`] and licensed
+//! by the propagation rule (a nonlinear functional of independently drawn candidates is
+//! refused, never paired by index). Ties split their probability equally, so the best
 //! probabilities of all candidates sum to one at every draw.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -161,6 +162,9 @@ pub(crate) fn rank_validated(
             "a ranking statement compares at least two candidates",
         ));
     }
+    // Rank statements pair the candidates' draws by index: the propagation rule decides
+    // whether the declared dependence licenses that.
+    draws.license_index_pairing()?;
     if n_candidates.checked_mul(n).is_none_or(|c| c > MAX_RANKING_CELLS) {
         return Err(ReliabilityError::RouteNotSupported {
             message: format!("ranking holds at most {MAX_RANKING_CELLS} candidate-draw cells"),

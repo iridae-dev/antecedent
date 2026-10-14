@@ -16,9 +16,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use antecedent_contract::ExternalRefusal;
+use antecedent_contract::evidence_ledger::{
+    EvidenceLedger, ObservationId, Overlap, SourceDeclaration, SourceId, SourceKind,
+};
 use antecedent_core::is_blank;
 use antecedent_io_core::{CompatibilityReport, PriorCatalog, TargetDesign};
 
+use crate::evsi::observation_id;
 use crate::preposterior::DecisionPrior;
 use crate::signal::{
     NativeBinomialSignal, NativeGaussianMeanSignal, RefusalBuilder, SignalProvider,
@@ -212,6 +216,9 @@ pub enum PriorSignalError {
     ObservationReuse(Vec<String>),
     /// Two prior sources share observations (the evidence would be counted twice).
     PriorSourcesOverlap(Vec<String>),
+    /// Whether sources and the study share observations is not computable.
+    /// Unknown dependence is never treated as independence.
+    ObservationOverlapUnknown(String),
     /// The requested resolution is zero or above [`MAX_PRIOR_RESOLUTION`].
     ResolutionInvalid,
 }
@@ -270,6 +277,13 @@ impl PriorSignalError {
             Self::PriorSourcesOverlap(ids) => {
                 at(signal, "prior_signal.prior_sources_overlap").offending(ids.join(",")).build()
             }
+            Self::ObservationOverlapUnknown(reason) => at(
+                antecedent_core::reason_code!("evidence_overlap_unknown"),
+                "prior_signal.observation_overlap_unknown",
+            )
+            .expected(reason.clone())
+            .remedy("declare each source's and the study's observations in the evidence ledger")
+            .build(),
             Self::ResolutionInvalid => at(
                 antecedent_core::reason_code!("invalid_argument"),
                 "prior_signal.resolution_invalid",
@@ -374,36 +388,64 @@ fn check_source(
     Ok(())
 }
 
-/// Observation identities shared with the candidate study, then between sources.
+/// Observation identities shared with the candidate study, then between sources,
+/// resolved through one evidence ledger holding every source and the study.
 fn check_overlap(
     sources: &[&PriorSourceInput],
     candidate_observations: &[String],
 ) -> Result<usize, PriorSignalError> {
-    let candidate: BTreeSet<&str> = candidate_observations.iter().map(String::as_str).collect();
-    let mut owners: BTreeMap<&str, usize> = BTreeMap::new();
-    let mut reused = BTreeSet::new();
-    let mut duplicated = BTreeSet::new();
-    for source in sources {
-        let own: BTreeSet<&str> = source.observation_ids.iter().map(String::as_str).collect();
-        for observation in own {
-            if candidate.contains(observation) {
-                reused.insert(observation.to_owned());
+    let unknown = |reason: String| PriorSignalError::ObservationOverlapUnknown(reason);
+    let mut ledger = EvidenceLedger::new();
+    let mut names: BTreeMap<ObservationId, String> = BTreeMap::new();
+    let mut declare =
+        |label: &str, kind: SourceKind, ids: &[String]| -> Result<SourceId, PriorSignalError> {
+            let unique: BTreeSet<&str> = ids.iter().map(String::as_str).collect();
+            for id in &unique {
+                names.insert(observation_id(id), (*id).to_owned());
             }
-            *owners.entry(observation).or_insert(0) += 1;
-        }
+            let declaration = SourceDeclaration::new(label, kind)
+                .with_observations(unique.iter().map(|id| observation_id(id)));
+            ledger.add_source(declaration).map_err(|error| unknown(error.message))
+        };
+    let study = declare("candidate study", SourceKind::ObservationSet, candidate_observations)?;
+    let mut ids: Vec<SourceId> = Vec::with_capacity(sources.len());
+    for source in sources {
+        ids.push(declare(&source.artifact_id, SourceKind::FittedModel, &source.observation_ids)?);
     }
-    for (observation, count) in &owners {
-        if *count > 1 {
-            duplicated.insert((*observation).to_owned());
+    let shared_names = |a: SourceId, b: SourceId| -> Result<Vec<String>, PriorSignalError> {
+        match ledger.overlap(a, b) {
+            Ok(Overlap::Independent) => Ok(Vec::new()),
+            Ok(Overlap::SharedObservations { .. }) => Ok(ledger
+                .shared_observations(a, b)
+                .unwrap_or_default()
+                .iter()
+                .map(|id| names.get(id).cloned().unwrap_or_else(|| id.to_hex()))
+                .collect()),
+            Ok(Overlap::Unknown { reason }) => Err(unknown(reason.to_owned())),
+            Ok(_) => Err(unknown("overlap_state_not_recognised".to_owned())),
+            Err(error) => Err(unknown(error.message)),
         }
+    };
+    let mut reused = BTreeSet::new();
+    for &source in &ids {
+        reused.extend(shared_names(source, study)?);
     }
     if !reused.is_empty() {
         return Err(PriorSignalError::ObservationReuse(reused.into_iter().collect()));
     }
+    let mut duplicated = BTreeSet::new();
+    for (i, &left) in ids.iter().enumerate() {
+        for &right in &ids[i + 1..] {
+            duplicated.extend(shared_names(left, right)?);
+        }
+    }
     if !duplicated.is_empty() {
         return Err(PriorSignalError::PriorSourcesOverlap(duplicated.into_iter().collect()));
     }
-    Ok(owners.len())
+    // Distinct observations across the sources (the study's reused ids are disjoint).
+    let distinct: BTreeSet<&str> =
+        sources.iter().flat_map(|s| s.observation_ids.iter().map(String::as_str)).collect();
+    Ok(distinct.len())
 }
 
 /// Largest-remainder allocation of `total` draws in proportion to `weights`

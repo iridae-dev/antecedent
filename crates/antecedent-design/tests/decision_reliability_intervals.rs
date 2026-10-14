@@ -8,6 +8,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
+use antecedent_design::decision_reliability::ProbabilityQuantity;
 use antecedent_design::decision_reliability::{
     BatchPlan, CandidateCoupling, CandidateDraws, CandidateOrigin, CandidateSearchRecord,
     ConfidenceSetBasis, DecisionDraws, DerivedStanding, DrawSegment, IntervalMultiplicity,
@@ -16,7 +17,6 @@ use antecedent_design::decision_reliability::{
     SourceUncertainty, StreamId, StreamPurpose, ValidationKind, ValidationPlan,
     WithinStreamDependence, coverage_design, derive_uncertainty, simulate_selection_draws,
 };
-use antecedent_design::decision_reliability::ProbabilityQuantity;
 use antecedent_kernels::{NORMAL_Q975, norm_inv};
 
 fn ctx() -> ExecutionContext {
@@ -161,9 +161,14 @@ fn wilson_interval_at_the_effective_sample_size_matches_hand_arithmetic() {
 #[test]
 fn simultaneous_multiplicity_widens_every_numerical_interval_by_bonferroni() {
     let draws = three(100);
-    let marginal =
-        derive_uncertainty(&draws, None, &expected_utility_request(), &IntervalRequest::marginal(0.95), &ctx())
-            .unwrap();
+    let marginal = derive_uncertainty(
+        &draws,
+        None,
+        &expected_utility_request(),
+        &IntervalRequest::marginal(0.95),
+        &ctx(),
+    )
+    .unwrap();
     let simultaneous = derive_uncertainty(
         &draws,
         None,
@@ -196,8 +201,11 @@ fn common_random_numbers_narrow_the_difference_interval() {
     let request = expected_utility_request();
     let interval = IntervalRequest::marginal(0.9);
     let shared = derive_uncertainty(
-        &simulate_selection_draws(&design(NoiseCoupling::SharedStream { correlation: 0.9 }), &stream)
-            .unwrap(),
+        &simulate_selection_draws(
+            &design(NoiseCoupling::SharedStream { correlation: 0.9 }),
+            &stream,
+        )
+        .unwrap(),
         None,
         &request,
         &interval,
@@ -295,9 +303,7 @@ fn selection_corrected_interval_reports_the_extra_width_the_selection_costs() {
     assert!((corrected.standard_error - se).abs() < 1e-12);
     let (ordinary, simultaneous) = (z(0.025), z(0.05 / 6.0));
     assert!((corrected.numerical_half_width - ordinary * se).abs() < 1e-9);
-    assert!(
-        (corrected.selection_extra_half_width - (simultaneous - ordinary) * se).abs() < 1e-9
-    );
+    assert!((corrected.selection_extra_half_width - (simultaneous - ordinary) * se).abs() < 1e-9);
     assert!(corrected.selection_extra_half_width > 0.0);
     assert!((corrected.lower - (10.0 - simultaneous * se)).abs() < 1e-9);
     assert!((corrected.upper - (10.0 + simultaneous * se)).abs() < 1e-9);
@@ -399,14 +405,9 @@ fn a_pre_specified_decision_has_no_selection_corrected_interval() {
         decision: antecedent_design::decision_reliability::DecisionChoice::PreSpecified("B".into()),
         ..expected_utility_request()
     };
-    let derived = derive_uncertainty(
-        &three(100),
-        None,
-        &request,
-        &IntervalRequest::marginal(0.95),
-        &ctx(),
-    )
-    .unwrap();
+    let derived =
+        derive_uncertainty(&three(100), None, &request, &IntervalRequest::marginal(0.95), &ctx())
+            .unwrap();
     assert_eq!(derived.decided_id, "B");
     assert!(derived.selection.corrected.is_none());
     // The numerical component still stands for the pre-specified decision.
@@ -491,14 +492,9 @@ fn a_derivation_is_unmeasured_so_every_route_and_the_combined_number_stay_closed
 fn a_fresh_consumer_rederives_and_refuses_edited_draws_or_edited_intervals() {
     let draws = three(100);
     let request = expected_utility_request();
-    let derived = derive_uncertainty(
-        &draws,
-        None,
-        &request,
-        &IntervalRequest::marginal(0.95),
-        &ctx(),
-    )
-    .unwrap();
+    let derived =
+        derive_uncertainty(&draws, None, &request, &IntervalRequest::marginal(0.95), &ctx())
+            .unwrap();
     derived.verify(&draws, None, &request, &ctx()).unwrap();
     // One utility changed at unchanged shape: the stored derivation no longer recomputes.
     let mut edited = draws.clone();

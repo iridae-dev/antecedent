@@ -29,8 +29,8 @@ use antecedent_contract::adaptive_design::{
     InterimAnalysis, MonitoringStrategy, OutcomeAvailability, OutcomeStructure, PolicyEpoch,
     ProcedureCell, StoppingRuleDeclaration, StoppingRuleKind, StoppingSpec,
 };
-use antecedent_core::SemanticDigest;
 use antecedent_core::ExecutionContext;
+use antecedent_core::SemanticDigest;
 use antecedent_core::measurement_model::{
     ArmBinding, BinaryArmRates, ErrorStructure, MeasurementBinding, MeasurementKind,
     MeasurementModel, MeasurementParameters, MeasurementRoute, MeasurementVariable,
@@ -149,16 +149,17 @@ fn model(initial: [f64; 2]) -> FiniteSequentialModel {
 }
 
 fn policy() -> ContingentPolicy {
-    let after = |observation: usize| {
-        HistoryKey::from_steps([HistoryStep { action: INSPECT, observation }])
-    };
+    let after =
+        |observation: usize| HistoryKey::from_steps([HistoryStep { action: INSPECT, observation }]);
     ContingentPolicy::new("inspect_then_ship_on_quiet")
         .decide(HistoryKey::root(), INSPECT)
         .decide(after(0), SHIP)
         .decide(after(1), HOLD)
 }
 
-fn all_invariant_but_initial(model: &FiniteSequentialModel) -> Vec<(ModelMechanism, MechanismStatus)> {
+fn all_invariant_but_initial(
+    model: &FiniteSequentialModel,
+) -> Vec<(ModelMechanism, MechanismStatus)> {
     let mut rows = vec![
         (ModelMechanism::InitialState, MechanismStatus::Shifted),
         (ModelMechanism::Utility, MechanismStatus::Invariant),
@@ -210,7 +211,11 @@ fn transported_value_matches_the_hand_value_across_target_laws() {
         assert_eq!(evaluation.inference, "point_only");
         assert_eq!(evaluation.shifted_mechanisms, vec![ModelMechanism::InitialState]);
         assert!(evaluation.nodes_visited > 0);
-        assert_eq!(evaluation.nodes_visited, 2 * 3, "root and two observed histories per enumeration");
+        assert_eq!(
+            evaluation.nodes_visited,
+            2 * 3,
+            "root and two observed histories per enumeration"
+        );
         verify_transported_policy(&evaluation, &request, &ctx()).unwrap();
     }
 }
@@ -229,11 +234,9 @@ fn missing_selection_contract_is_refused_by_name() {
         diagram: Some(&diagram),
         limits: EvaluationLimits::default(),
     };
-    let err = evaluate_transported_policy(
-        &TransportedPolicyRequest { diagram: None, ..base },
-        &ctx(),
-    )
-    .unwrap_err();
+    let err =
+        evaluate_transported_policy(&TransportedPolicyRequest { diagram: None, ..base }, &ctx())
+            .unwrap_err();
     assert_eq!(err.code, "transport_missing_evidence");
     assert_eq!(err.detail, "transported_policy.selection_diagram_missing");
     assert!(err.remedy.contains("selection diagram"));
@@ -371,7 +374,10 @@ fn the_evaluation_identity_follows_the_inputs_and_replays() {
             diagram: Some(&diagram),
             limits: EvaluationLimits::default(),
         };
-        (evaluate_transported_policy(&request, &ctx()).unwrap(), request.target_initial.unwrap().to_vec())
+        (
+            evaluate_transported_policy(&request, &ctx()).unwrap(),
+            request.target_initial.unwrap().to_vec(),
+        )
     };
     let (first, _) = run(&[0.2, 0.8]);
     let (again, _) = run(&[0.2, 0.8]);
@@ -470,9 +476,8 @@ fn time_varying_horizon_and_history_incompatibilities_are_refused() {
         limits: EvaluationLimits::default(),
     };
 
-    let err =
-        evaluate_temporal_policy(&TemporalPolicyRequest { invariance: None, ..base }, &ctx())
-            .unwrap_err();
+    let err = evaluate_temporal_policy(&TemporalPolicyRequest { invariance: None, ..base }, &ctx())
+        .unwrap_err();
     assert_eq!(err.code, "transport_missing_evidence");
     assert_eq!(err.detail, "temporal_policy_transport.time_invariance_missing");
 
@@ -495,28 +500,21 @@ fn time_varying_horizon_and_history_incompatibilities_are_refused() {
     // a different horizon in the target period
     let mut longer = target_ok.clone();
     longer.horizon = 3;
-    let err = evaluate_temporal_policy(
-        &TemporalPolicyRequest { target: &longer, ..base },
-        &ctx(),
-    )
-    .unwrap_err();
+    let err = evaluate_temporal_policy(&TemporalPolicyRequest { target: &longer, ..base }, &ctx())
+        .unwrap_err();
     assert_eq!(err.code, "route_not_supported");
     assert_eq!(err.detail, "temporal_policy_transport.horizon_mismatch");
 
     // histories over a different alphabet
     let mut renamed = target_ok.clone();
     renamed.alphabet.actions[INSPECT].symbols.push("fault_code".into());
-    let err = evaluate_temporal_policy(
-        &TemporalPolicyRequest { target: &renamed, ..base },
-        &ctx(),
-    )
-    .unwrap_err();
+    let err = evaluate_temporal_policy(&TemporalPolicyRequest { target: &renamed, ..base }, &ctx())
+        .unwrap_err();
     assert_eq!(err.detail, "temporal_policy_transport.history_alphabet_incompatible");
     let mut fewer = target_ok.clone();
     fewer.alphabet.actions.pop();
-    let err =
-        evaluate_temporal_policy(&TemporalPolicyRequest { target: &fewer, ..base }, &ctx())
-            .unwrap_err();
+    let err = evaluate_temporal_policy(&TemporalPolicyRequest { target: &fewer, ..base }, &ctx())
+        .unwrap_err();
     assert_eq!(err.detail, "temporal_policy_transport.history_alphabet_incompatible");
 
     // a declaration for other periods
@@ -532,11 +530,8 @@ fn time_varying_horizon_and_history_incompatibilities_are_refused() {
     // the model's own period
     let mut same = target_ok.clone();
     same.period = "2026".into();
-    let err = evaluate_temporal_policy(
-        &TemporalPolicyRequest { target: &same, ..base },
-        &ctx(),
-    )
-    .unwrap_err();
+    let err = evaluate_temporal_policy(&TemporalPolicyRequest { target: &same, ..base }, &ctx())
+        .unwrap_err();
     assert_eq!(err.detail, "temporal_policy_transport.target_is_source");
 
     // the existing request check still names the missing contract
@@ -558,13 +553,12 @@ fn digest(byte: u8) -> SemanticDigest {
     SemanticDigest::from_bytes([byte; 32])
 }
 
-fn cell(assignment: AssignmentFamily, monitoring: MonitoringStrategy, stopping: StoppingRuleKind) -> ProcedureCell {
-    ProcedureCell {
-        assignment,
-        outcome: OutcomeStructure::SingleOutcome,
-        monitoring,
-        stopping,
-    }
+fn cell(
+    assignment: AssignmentFamily,
+    monitoring: MonitoringStrategy,
+    stopping: StoppingRuleKind,
+) -> ProcedureCell {
+    ProcedureCell { assignment, outcome: OutcomeStructure::SingleOutcome, monitoring, stopping }
 }
 
 fn epsilon_greedy() -> ProcedureCell {
@@ -598,8 +592,7 @@ fn declaration(cell: ProcedureCell) -> AdaptiveDesignDeclaration {
         ]
     };
     let available_at_look = (0..8).map(|unit| Some(u32::from(!(final_only || unit < 4)))).collect();
-    let outcomes =
-        [1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0].iter().map(|&y| vec![y]).collect();
+    let outcomes = [1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0].iter().map(|&y| vec![y]).collect();
     let spec = match cell.stopping {
         StoppingRuleKind::Efficacy => StoppingSpec::PosteriorProbabilityBest { threshold: 0.95 },
         _ => StoppingSpec::NoStopping,
@@ -733,8 +726,8 @@ fn an_adaptive_source_without_its_contract_or_with_open_questions_is_refused() {
     assert_eq!(err.detail, "adaptive_transport.assignment_monitoring_contract_missing");
     assert!(err.remedy.contains("realized assignment probabilities"));
 
-    let err = transport_adaptive_trial(&AdaptiveTransportRequest { diagram: None, ..base })
-        .unwrap_err();
+    let err =
+        transport_adaptive_trial(&AdaptiveTransportRequest { diagram: None, ..base }).unwrap_err();
     assert_eq!(err.detail, "adaptive_transport.selection_diagram_missing");
     let err =
         transport_adaptive_trial(&AdaptiveTransportRequest { target_stratum_law: None, ..base })
@@ -765,11 +758,9 @@ fn an_adaptive_source_without_its_contract_or_with_open_questions_is_refused() {
         StoppingRuleKind::NoStopping,
     )))
     .unwrap();
-    let err = transport_adaptive_trial(&AdaptiveTransportRequest {
-        contract: Some(&fixed),
-        ..base
-    })
-    .unwrap_err();
+    let err =
+        transport_adaptive_trial(&AdaptiveTransportRequest { contract: Some(&fixed), ..base })
+            .unwrap_err();
     assert_eq!(err.code, "route_not_supported");
     assert_eq!(err.detail, "adaptive_transport.design_not_adaptive");
 
@@ -780,11 +771,9 @@ fn an_adaptive_source_without_its_contract_or_with_open_questions_is_refused() {
         StoppingRuleKind::Efficacy,
     )))
     .unwrap();
-    let err = transport_adaptive_trial(&AdaptiveTransportRequest {
-        contract: Some(&thompson),
-        ..base
-    })
-    .unwrap_err();
+    let err =
+        transport_adaptive_trial(&AdaptiveTransportRequest { contract: Some(&thompson), ..base })
+            .unwrap_err();
     assert_eq!(err.code, "cell_not_licensed");
 
     // exposure that differs from assignment
@@ -802,11 +791,8 @@ fn an_adaptive_source_without_its_contract_or_with_open_questions_is_refused() {
     let mut thin = declaration(epsilon_greedy());
     thin.probability_floor = 0.3;
     let thin = AdaptiveDesignContract::new(thin).unwrap();
-    let err = transport_adaptive_trial(&AdaptiveTransportRequest {
-        contract: Some(&thin),
-        ..base
-    })
-    .unwrap_err();
+    let err = transport_adaptive_trial(&AdaptiveTransportRequest { contract: Some(&thin), ..base })
+        .unwrap_err();
     assert_eq!(err.code, "adaptive_assumption_violated");
     assert_eq!(err.detail, "adaptive_transport.assignment_below_floor");
 }

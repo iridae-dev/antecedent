@@ -54,8 +54,8 @@ use serde::{Deserialize, Serialize};
 use crate::decision::{DecisionProblem, DecisionTable};
 use crate::error::DesignError;
 use crate::evsi::{
-    CostToUtilityMap, EvsiCandidate, EvsiCandidateRow, EvsiReport, EvsiRequest, IntegrationMethod,
-    SearchReceipt,
+    CostToUtilityMap, DeclaredObservations, EvsiCandidate, EvsiCandidateRow, EvsiReport,
+    EvsiRequest, IntegrationMethod, ObservationOverlap, SearchReceipt, declared_overlap,
 };
 use crate::preposterior::{DecisionPrior, DecisionSignal, expected_max_affine};
 use crate::rank_rows::{AdjacentRank, evsi_bound_ok, rank_rows};
@@ -483,6 +483,14 @@ pub enum DesignRankingArtifactError {
         /// Shared observation identities.
         ids: Vec<String>,
     },
+    /// Whether a study reuses the prior's observations is not computable; unknown
+    /// dependence is never independence.
+    SourceOverlapUnknown {
+        /// Candidate.
+        candidate: String,
+        /// Why.
+        reason: String,
+    },
     /// A cost unit is incompatible with the cost mapping or the mapping with the decision.
     CostUnitsMismatch(String),
     /// The stored order, tie or search receipt does not follow from the stored values.
@@ -567,6 +575,14 @@ impl DesignRankingArtifactError {
                 .expected(ids.join(","))
                 .remedy("use only data not already summarized by the prior")
                 .build(),
+            Self::SourceOverlapUnknown { candidate, reason } => at(
+                antecedent_core::reason_code!("evidence_overlap_unknown"),
+                "design_ranking.source_overlap_unknown",
+            )
+            .offending(candidate.clone())
+            .expected(reason.clone())
+            .remedy("declare the observations behind the prior and each study")
+            .build(),
             Self::CostUnitsMismatch(what) => at(
                 antecedent_core::reason_code!("design_cost_units_mismatch"),
                 "design_ranking.cost_units_mismatch",
@@ -1699,20 +1715,25 @@ fn verify_candidate(
         return Err(DesignRankingArtifactError::InvalidWire("blank candidate id"));
     }
     let (trust, mode) = check_signal(candidate)?;
-    // Source overlap: recomputed, never trusted from the stored diagnostic.
-    let prior: BTreeSet<&str> = wire.prior_observation_ids.iter().map(String::as_str).collect();
-    let reused: BTreeSet<&str> =
-        candidate.reused_observation_ids.iter().map(String::as_str).collect();
-    let overlapping: Vec<String> = prior.intersection(&reused).map(|s| (*s).to_owned()).collect();
-    if !overlapping.is_empty() {
-        return Err(DesignRankingArtifactError::SourceOverlap {
-            candidate: id.clone(),
-            ids: overlapping,
-        });
-    }
-    if !candidate.overlapping.is_empty()
-        || candidate.overlap_checked != prior.union(&reused).count() as u64
-    {
+    // Source overlap: re-queried through the evidence ledger, never trusted from the
+    // stored diagnostic. The wire carries declared identities only, so an undeclared
+    // side cannot occur here; any ledger refusal is unknown and refuses.
+    let checked = match declared_overlap(
+        DeclaredObservations::Declared(&wire.prior_observation_ids),
+        DeclaredObservations::Declared(&candidate.reused_observation_ids),
+    ) {
+        ObservationOverlap::Independent { checked } => checked,
+        ObservationOverlap::Shared { ids, .. } => {
+            return Err(DesignRankingArtifactError::SourceOverlap { candidate: id.clone(), ids });
+        }
+        ObservationOverlap::Unknown { reason } => {
+            return Err(DesignRankingArtifactError::SourceOverlapUnknown {
+                candidate: id.clone(),
+                reason,
+            });
+        }
+    };
+    if !candidate.overlapping.is_empty() || candidate.overlap_checked != checked as u64 {
         return Err(mismatch("source_overlap"));
     }
     let method = parse_method(&candidate.integration)

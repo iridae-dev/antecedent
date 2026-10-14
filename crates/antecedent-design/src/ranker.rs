@@ -488,6 +488,7 @@ impl DesignRanker {
     /// # Errors
     ///
     /// A failing signal likelihood.
+    #[cfg(test)]
     pub(crate) fn score_decision_candidate<O>(
         &self,
         analysis: &PreposteriorAnalysis<'_, O>,
@@ -1358,6 +1359,7 @@ fn unmapped_decision_candidate<O>(
 
 /// One candidate's decision-objective score (see
 /// [`DesignRanker::score_decision_candidate`]).
+#[cfg(test)]
 pub(crate) struct DecisionCandidateScore {
     pub score: f64,
     pub evaluation: ScoreEvaluation,

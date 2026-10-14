@@ -45,9 +45,7 @@ use antecedent_contract::adaptive_design::{AdaptiveDesignContract, InferencePara
 use antecedent_core::CanonicalWriter;
 
 use crate::sequential_evaluation::{SequentialEvaluationError, SequentialResult};
-use crate::transported_policy::{
-    MechanismStatus, TRANSPORTED_POLICY_INFERENCE, transport_refusal,
-};
+use crate::transported_policy::{MechanismStatus, TRANSPORTED_POLICY_INFERENCE, transport_refusal};
 
 /// Version word written into every adaptive-transport identity.
 pub const ADAPTIVE_TRANSPORT_IDENTITY_VERSION: u64 = 1;
@@ -266,7 +264,9 @@ fn check_shape(
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("invalid_argument"),
             "strata",
-            format!("a transport needs 1 to {MAX_TRANSPORT_STRATA} distinct non-blank stratum labels"),
+            format!(
+                "a transport needs 1 to {MAX_TRANSPORT_STRATA} distinct non-blank stratum labels"
+            ),
             "name the strata the target law is declared over",
         ));
     }
@@ -409,10 +409,7 @@ pub fn transport_adaptive_trial(
                 "retain the outcome of every unit whose availability is declared",
             ));
         }
-        #[allow(
-            clippy::cast_precision_loss,
-            reason = "a unit holds at most 1024 measurements"
-        )]
+        #[allow(clippy::cast_precision_loss, reason = "a unit holds at most 1024 measurements")]
         let outcome = measurements.iter().sum::<f64>() / measurements.len() as f64;
         let weight = 1.0 / probability;
         let cell = &mut sums[request.unit_strata[unit]][slot];

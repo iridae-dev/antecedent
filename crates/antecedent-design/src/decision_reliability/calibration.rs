@@ -336,7 +336,10 @@ pub fn simulate_replicate(
             kind: ValidationKind::IndependentSimulationStream,
             gap: 0,
         },
-        ranking: Some(RankingRequest::default()),
+        // Rank probabilities are nonlinear functionals of the candidates' joint law;
+        // independently drawn candidates have none to pair, so no rank statement is made.
+        ranking: matches!(design.coupling, NoiseCoupling::SharedStream { .. })
+            .then(RankingRequest::default),
         reporting: UncertaintyReporting::Separate,
         ..ReliabilityRequest::expected_utility()
     };

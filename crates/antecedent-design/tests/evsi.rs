@@ -32,12 +32,18 @@ use antecedent_contract::{
     ExternalCapability, ExternalScientificObject, ExternalTrustState, ProviderObjectIdentity,
     QuantityRole, ScientificQuantity, SignalProviderContract,
 };
+use std::collections::BTreeMap;
+
+use antecedent_contract::evidence_ledger::{
+    EvidenceLedger, Lineage, ObservationId, SourceDeclaration, SourceKind,
+};
 use antecedent_core::CancellationToken;
 use antecedent_core::CausalRng;
 use antecedent_design::evsi::{
     CostToUtilityMap, EvsiCandidate, EvsiError, EvsiRequest, IntegrationMethod, RankingBasis,
     StudyCostSpec, evaluate_evsi,
 };
+use antecedent_design::evsi::{EvsiEvidence, evaluate_evsi_with_evidence};
 use antecedent_design::preposterior::DecisionSignal;
 use antecedent_design::signal::{
     ExternalDecisionValues, ExternalLaw, ExternalSignal, ExternalSignalBody, NativeBinomialSignal,
@@ -768,4 +774,179 @@ fn candidates_rank_by_net_value_and_larger_samples_are_worth_more() {
     .unwrap();
     assert_eq!(report.candidates[0].semantic_id, "small");
     assert!(report.candidates[0].net_value.unwrap() > report.candidates[1].net_value.unwrap());
+}
+
+fn ledger_request(ids: Vec<&str>) -> EvsiRequest {
+    let provider: Arc<dyn SignalProvider> = Arc::new(NativeBinomialSignal);
+    let mut req = request(
+        &BET_ACTIONS,
+        ids.into_iter()
+            .map(|id| {
+                let mut c = candidate(id, 2, Arc::clone(&provider), 0.0, "utility");
+                c.reused_observation_ids = vec![];
+                c
+            })
+            .collect(),
+        None,
+    );
+    req.prior_observation_ids = vec![];
+    req
+}
+
+fn row(domain: &str, key: &str) -> ObservationId {
+    ObservationId::from_key(domain, key.as_bytes())
+}
+
+#[test]
+fn a_study_derived_from_the_priors_data_under_another_id_is_refused_as_shared() {
+    // The prior rests on rows {r1, r2}. The study is a duplicate of the prior's source and
+    // names no rows of its own, so a string-set comparison of declared ids sees nothing; the
+    // ledger resolves its rows through lineage and finds both shared.
+    let mut ledger = EvidenceLedger::new();
+    let prior_source = ledger
+        .add_source(
+            SourceDeclaration::new("historical prior", SourceKind::Prior)
+                .with_observations([row("t", "r1"), row("t", "r2")]),
+        )
+        .unwrap();
+    let derived = ledger
+        .add_source(
+            SourceDeclaration::new("re-encoded copy", SourceKind::ObservationSet)
+                .with_lineage(Lineage::Duplicate { of: prior_source }),
+        )
+        .unwrap();
+    let fresh =
+        ledger
+            .add_source(
+                SourceDeclaration::new("new trial", SourceKind::ObservationSet)
+                    .with_observations([row("t", "n1"), row("t", "n2"), row("t", "n3")]),
+            )
+            .unwrap();
+    let bound = BTreeMap::from([("derived".to_owned(), derived), ("fresh".to_owned(), fresh)]);
+    let evidence = EvsiEvidence::new(&ledger, prior_source, &bound);
+    let (problem, prior) = (bet_problem(1.0, 0.0), bet_prior());
+
+    let error = evaluate_evsi_with_evidence(
+        &problem,
+        &prior,
+        &ledger_request(vec!["derived"]),
+        &evidence,
+        &CancellationToken::new(),
+    )
+    .unwrap_err();
+    let EvsiError::SourceOverlap(ids) = &error else {
+        panic!("expected shared overlap: {error:?}")
+    };
+    assert_eq!(ids.len(), 2);
+    assert_eq!(error.to_refusal().detail, "evsi.source_overlap");
+
+    // Disjoint data passes and reports the two sources' observations it compared (2 + 3).
+    let report = evaluate_evsi_with_evidence(
+        &problem,
+        &prior,
+        &ledger_request(vec!["fresh"]),
+        &evidence,
+        &CancellationToken::new(),
+    )
+    .unwrap();
+    assert_eq!(report.candidates[0].source_overlap.observations_checked, 5);
+    assert!(report.candidates[0].source_overlap.overlapping.is_empty());
+    assert!(near(report.candidates[0].evsi, 1.0 / 16.0, 1e-12));
+}
+
+#[test]
+fn unknown_lineage_or_an_unbound_candidate_is_refused_never_independent() {
+    let mut ledger = EvidenceLedger::new();
+    let prior_source = ledger
+        .add_source(
+            SourceDeclaration::new("historical prior", SourceKind::Prior)
+                .with_observations([row("t", "r1")]),
+        )
+        .unwrap();
+    // First-hand source whose observations the producer did not declare.
+    let opaque = ledger
+        .add_source(SourceDeclaration::new("opaque study", SourceKind::ObservationSet))
+        .unwrap();
+    let bound = BTreeMap::from([("opaque".to_owned(), opaque)]);
+    let evidence = EvsiEvidence::new(&ledger, prior_source, &bound);
+    let (problem, prior) = (bet_problem(1.0, 0.0), bet_prior());
+    for id in ["opaque", "unbound"] {
+        let error = evaluate_evsi_with_evidence(
+            &problem,
+            &prior,
+            &ledger_request(vec![id]),
+            &evidence,
+            &CancellationToken::new(),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(&error, EvsiError::SourceOverlapUnknown { candidate, .. } if candidate == id),
+            "{id}: {error:?}"
+        );
+        let refusal = error.to_refusal();
+        assert_eq!(refusal.code, "evidence_overlap_unknown");
+        assert_eq!(refusal.detail, "evsi.source_overlap_unknown");
+    }
+
+    // The ledger is the only overlap model on this path: string lists are refused.
+    let mut with_strings = ledger_request(vec!["opaque"]);
+    with_strings.prior_observation_ids = vec!["obs-prior".into()];
+    let error = evaluate_evsi_with_evidence(
+        &problem,
+        &prior,
+        &with_strings,
+        &evidence,
+        &CancellationToken::new(),
+    )
+    .unwrap_err();
+    assert!(matches!(error, EvsiError::InvalidRequest(_)));
+}
+
+fn monte_carlo_problem() -> (DecisionProblem<usize, f64>, DecisionPrior<f64>) {
+    let utility = AffineUtility::new(vec![0.0, -0.45], vec![0.0, 1.0]).unwrap();
+    (
+        DecisionProblem::new(vec![0_usize, 1], Arc::new(utility), vec![]),
+        DecisionPrior::Draws(vec![0.2, 0.5, 0.8]),
+    )
+}
+
+#[test]
+fn monte_carlo_streams_are_keyed_by_candidate_and_replicate_not_by_draw_count() {
+    let (problem, prior) = monte_carlo_problem();
+    let make = |id: &str, n: u64| {
+        let provider: Arc<dyn SignalProvider> =
+            Arc::new(NativeGaussianMeanSignal::new(0.25).unwrap());
+        candidate(id, n, provider, 0.0, "utility")
+    };
+    let build = |candidates: Vec<EvsiCandidate>| {
+        let mut req = request(&BET_ACTIONS, candidates, None);
+        req.rank_config = DesignRankConfig {
+            min_batches: 4,
+            max_batches: 4,
+            batch_size: 16,
+            rank_uncertainty_threshold: 0.0,
+        };
+        req.mc_error_tolerance = 1.0;
+        req
+    };
+    let alone = run(&problem, &prior, &build(vec![make("mc", 4)])).unwrap();
+    let find = |report: &antecedent_design::evsi::EvsiReport, id: &str| {
+        report.candidates.iter().find(|c| c.semantic_id == id).unwrap().clone()
+    };
+    // Another candidate in the catalog (before it in canonical order, with a different
+    // sample size) leaves this candidate's replicates, hence its estimate, bit-identical.
+    let crowded = run(&problem, &prior, &build(vec![make("a-other", 8), make("mc", 4)])).unwrap();
+    let (x, y) = (find(&alone, "mc"), find(&crowded, "mc"));
+    assert_eq!(x.evsi.to_bits(), y.evsi.to_bits());
+    assert_eq!(x.integration.stderr.to_bits(), y.integration.stderr.to_bits());
+    assert_eq!(x.integration.replicates, 64);
+    // The stream coordinates are in the receipt, and another semantic id is another stream.
+    let stream = |row: &antecedent_design::evsi::EvsiCandidateRow| {
+        row.assumptions.iter().find(|a| a.starts_with("monte_carlo_streams:")).cloned()
+    };
+    assert!(stream(&x).is_some());
+    assert_eq!(stream(&x), stream(&y));
+    let renamed = run(&problem, &prior, &build(vec![make("mc2", 4)])).unwrap();
+    assert_ne!(stream(&x), stream(&find(&renamed, "mc2")));
+    assert_ne!(x.evsi.to_bits(), find(&renamed, "mc2").evsi.to_bits());
 }

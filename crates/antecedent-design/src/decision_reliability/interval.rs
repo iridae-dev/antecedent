@@ -44,8 +44,8 @@ use super::calibration::{CalibrationCoordinate, PublishedRoute, license_route};
 use super::draws::{CandidateCoupling, DecisionDraws};
 use super::mc_error::{McEstimate, PairCoupling, estimate_difference};
 use super::report::{
-    ReliabilityReport, ReliabilityRequest, SelectionUncertainty, SourceUncertainty,
-    ValidationPlan, assess,
+    ReliabilityReport, ReliabilityRequest, SelectionUncertainty, SourceUncertainty, ValidationPlan,
+    assess,
 };
 use super::selection::split_draws;
 
@@ -603,11 +603,7 @@ fn numerical_component(
             };
             push(ProbabilityQuantity::Best, &statement.probability_best, "probability_best")?;
             for top in &statement.probability_top_k {
-                push(
-                    ProbabilityQuantity::TopK { k: top.k },
-                    &top.estimate,
-                    "probability_top_k",
-                )?;
+                push(ProbabilityQuantity::TopK { k: top.k }, &top.estimate, "probability_top_k")?;
             }
             if let Some(versus) = &statement.probability_better_than_baseline {
                 push(
@@ -629,10 +625,7 @@ fn numerical_component(
     })
 }
 
-#[allow(
-    clippy::cast_precision_loss,
-    reason = "candidate counts are bounded by the carrier limits"
-)]
+#[allow(clippy::cast_precision_loss, reason = "candidate counts are bounded by the carrier limits")]
 fn corrected_interval(
     report: &ReliabilityReport,
     request: &IntervalRequest,
