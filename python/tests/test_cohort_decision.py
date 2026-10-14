@@ -116,9 +116,7 @@ def test_producer_to_cohort_to_affine_contract_matches_the_hand_calculation(mode
     contract = affine_contract(source, 5.0, -2.0)
     for evaluated in (contract.evaluate(source), contract.evaluate(source.mean_source)):
         by_id = {a.id: a for a in evaluated.actions}
-        assert by_id["treat"].expected_utility == pytest.approx(
-            5.0 * expected_mean - 2.0, abs=1e-8
-        )
+        assert by_id["treat"].expected_utility == pytest.approx(5.0 * expected_mean - 2.0, abs=1e-8)
         assert by_id["wait"].expected_utility == pytest.approx(0.0, abs=1e-12)
         assert by_id["treat"].standard_error is None and evaluated.evpi is None
         assert evaluated.selected == ("treat",)
@@ -184,9 +182,7 @@ def test_probability_quantile_nonlinear_and_joint_law_requests_are_refused(model
     assert interval.value.detail == "cohort_decision.interval_not_licensed"
 
 
-def test_the_source_replays_in_a_fresh_process_under_the_retained_identity(
-    model, tmp_path
-) -> None:
+def test_the_source_replays_in_a_fresh_process_under_the_retained_identity(model, tmp_path) -> None:
     source = model.decision_source(cohort=cohort(), outcome_units="mmHg")
     artifact = tmp_path / "cohort.ant"
     artifact.write_bytes(source.export())
@@ -304,9 +300,7 @@ def test_missing_or_outside_support_and_schema_unit_population_contrast_are_refu
     with pytest.raises(CausalTypeError, match="mixes levels and numbers"):
         cd.CohortBinding(snapshot_id="s", population="target", columns={"z": [1, "high"]})
     with pytest.raises(CausalTypeError, match="row_id"):
-        cd.CohortBinding(
-            snapshot_id="s", population="target", columns={"z": [1.0]}, row_ids=[17]
-        )
+        cd.CohortBinding(snapshot_id="s", population="target", columns={"z": [1.0]}, row_ids=[17])
 
 
 def test_a_declared_shift_is_extrapolative_and_must_be_accepted(model) -> None:
@@ -401,9 +395,7 @@ def test_changed_rows_weights_cohort_wrong_parent_and_resealed_artifacts_are_ref
 
 def test_a_declared_compact_model_carries_the_uncalibrated_variance_and_is_never_native() -> None:
     export = compact_model()
-    source = cd.decision_source_from_compact_export(
-        export, cohort=cohort(), outcome_units="mmHg"
-    )
+    source = cd.decision_source_from_compact_export(export, cohort=cohort(), outcome_units="mmHg")
     # Oracle: tau = 2 + 0.4 z; z_bar = 0.25 * -0.8 + 0.5 * 0.5 = 0.05; mean = 2.02.
     zbar = float(np.dot(W, Z))
     assert source.mean_contrast == pytest.approx(2.0 + 0.4 * zbar, abs=1e-12)
@@ -417,9 +409,7 @@ def test_a_declared_compact_model_carries_the_uncalibrated_variance_and_is_never
     # A double-sum oracle agrees.
     phi = np.array([[1.0, z] for z in Z])
     v = np.array([[0.04, -0.01], [-0.01, 0.09]])
-    total = sum(
-        W[i] * W[j] * phi[i] @ v @ phi[j] for i in range(len(Z)) for j in range(len(Z))
-    )
+    total = sum(W[i] * W[j] * phi[i] @ v @ phi[j] for i in range(len(Z)) for j in range(len(Z)))
     assert diagnostic.value == pytest.approx(float(total) ** 0.5, abs=1e-12)
     # It never reaches the decision, and the interval route is closed.
     decided = affine_contract(source, 5.0, -2.0).evaluate(source)

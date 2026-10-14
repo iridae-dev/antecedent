@@ -59,15 +59,14 @@ def _mediation_scm() -> cw.FiniteSCM:
 
 def _brute_force(scm: cw.FiniteSCM, evidence: dict[str, int], worlds, event) -> float:
     """Enumerate exogenous states: P(event | evidence) with every world on the same state."""
-    names = [v.name for v in scm.variables]
     pmfs = [e.pmf for e in scm.exogenous]
     total = hit = 0.0
     for states in itertools.product(*[range(len(p)) for p in pmfs]):
         weight = 1.0
-        for p, s in zip(pmfs, states):
+        for p, s in zip(pmfs, states, strict=True):
             weight *= p[s]
 
-        def run(interventions, routes, borrowed):
+        def run(interventions, routes, borrowed, states=states):
             vals: dict[str, int] = {}
             for var in scm.variables:
                 if var.name in interventions:

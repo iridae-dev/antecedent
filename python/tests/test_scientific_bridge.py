@@ -163,7 +163,11 @@ def test_the_surrogate_bridge_is_the_numpy_trial_level_regression():
     assert claim.fit.intercept == pytest.approx(intercept, abs=1e-12)
     assert claim.fit.r_squared == pytest.approx(r_squared, abs=1e-12)
     assert (claim.fit.trials, claim.fit.surrogate_min, claim.fit.surrogate_max) == (4, 0.0, 1.5)
-    assert (claim.value_kind, claim.mapping, claim.units) == ("mean", "trial_level_linear", "log_hazard")
+    assert (claim.value_kind, claim.mapping, claim.units) == (
+        "mean",
+        "trial_level_linear",
+        "log_hazard",
+    )
     assert not claim.transported
     # A different claim from its source, which stays inspectable and unchanged.
     assert claim.claim_id != source.claim_id
@@ -246,7 +250,8 @@ def enumerated_confounded_truth():
     association = p_xy[1] / p_x[1] - p_xy[0] / p_x[0]
     standardized = {
         x: sum(
-            0.5 * sum(p for (zz, xx, y), p in joint.items() if zz == z and xx == x and y == 1)
+            0.5
+            * sum(p for (zz, xx, y), p in joint.items() if zz == z and xx == x and y == 1)
             / sum(p for (zz, xx, y), p in joint.items() if zz == z and xx == x)
             for z in (0, 1)
         )
@@ -258,11 +263,21 @@ def enumerated_confounded_truth():
 def predictive_contract(assumptions=()):
     return sb.BridgeContract(
         kind="predictive_causal_quantity",
-        source=outcome("cohort:y", units="probability", population="registry",
-                       regime="observational", functional="contrast"),
+        source=outcome(
+            "cohort:y",
+            units="probability",
+            population="registry",
+            regime="observational",
+            functional="contrast",
+        ),
         source_class="predictive_quantity",
-        target=outcome("cohort:y", units="probability", population="registry",
-                       regime="do(x=1)", functional="contrast"),
+        target=outcome(
+            "cohort:y",
+            units="probability",
+            population="registry",
+            regime="do(x=1)",
+            functional="contrast",
+        ),
         target_class="causal_quantity",
         evidence_scope=sb.Scope("registry", "observational"),
         mapping=sb.IdentityMapping(),
@@ -285,7 +300,9 @@ def test_an_association_is_a_causal_quantity_only_under_a_named_identification()
 
     identified = (
         sb.Assumption(
-            "backdoor", "identification", "Z blocks every back-door path",
+            "backdoor",
+            "identification",
+            "Z blocks every back-door path",
             evidence="identification:backdoor-z",
         ),
     )
@@ -293,8 +310,13 @@ def test_an_association_is_a_causal_quantity_only_under_a_named_identification()
     source = sb.SourceClaim.declared(
         "standardized-contrast",
         effect,
-        outcome("cohort:y", units="probability", population="registry",
-                regime="observational", functional="contrast"),
+        outcome(
+            "cohort:y",
+            units="probability",
+            population="registry",
+            regime="observational",
+            functional="contrast",
+        ),
     )
     claim = bridge.derive(source)
     assert claim.value == pytest.approx(effect, abs=1e-12)
@@ -302,59 +324,108 @@ def test_an_association_is_a_causal_quantity_only_under_a_named_identification()
 
 
 def test_stated_parameter_and_utility_bridges_have_closed_form_values():
-    stated = outcome("survey:take_up", units="probability", population="panel",
-                     regime="observational", functional="mean")
-    realized = outcome("admin:take_up", units="probability", population="panel",
-                       regime="observational", functional="mean")
+    stated = outcome(
+        "survey:take_up",
+        units="probability",
+        population="panel",
+        regime="observational",
+        functional="mean",
+    )
+    realized = outcome(
+        "admin:take_up",
+        units="probability",
+        population="panel",
+        regime="observational",
+        functional="mean",
+    )
     preference = sb.BridgeContract(
         kind="preference_realized_behavior",
-        source=stated, source_class="stated_preference",
-        target=realized, target_class="realized_behavior",
+        source=stated,
+        source_class="stated_preference",
+        target=realized,
+        target_class="realized_behavior",
         evidence_scope=sb.Scope("panel", "observational"),
         mapping=sb.AffineMapping(0.0, 0.6),
-        assumptions=(sb.Assumption("hypothetical-bias", "behavioral_linkage",
-                                   "take-up is 0.6 of stated", evidence="panel-2023"),),
+        assumptions=(
+            sb.Assumption(
+                "hypothetical-bias",
+                "behavioral_linkage",
+                "take-up is 0.6 of stated",
+                evidence="panel-2023",
+            ),
+        ),
     )
-    value = sb.prepare_scientific_bridge(preference).derive(
-        sb.SourceClaim.declared("stated", 0.5, stated)
-    ).value
+    value = (
+        sb.prepare_scientific_bridge(preference)
+        .derive(sb.SourceClaim.declared("stated", 0.5, stated))
+        .value
+    )
     assert value == pytest.approx(0.6 * 0.5, abs=1e-12)
 
-    parameter = outcome("fit:dose", units="per_unit_dose", population="trial",
-                        regime="observational", functional="coefficient")
-    response = outcome("fit:dose", units="outcome_units", population="trial",
-                       regime="do(dose=+0.4)", functional="average_effect")
+    parameter = outcome(
+        "fit:dose",
+        units="per_unit_dose",
+        population="trial",
+        regime="observational",
+        functional="coefficient",
+    )
+    response = outcome(
+        "fit:dose",
+        units="outcome_units",
+        population="trial",
+        regime="do(dose=+0.4)",
+        functional="average_effect",
+    )
     contrast = sb.BridgeContract(
         kind="parameter_intervention_response",
-        source=parameter, source_class="model_parameter",
-        target=response, target_class="intervention_response",
+        source=parameter,
+        source_class="model_parameter",
+        target=response,
+        target_class="intervention_response",
         evidence_scope=sb.Scope("trial", "observational"),
         mapping=sb.AffineMapping(0.0, 0.4),
-        assumptions=(sb.Assumption("structural-linear", "parameter_interpretation",
-                                   "the coefficient is the response per unit dose"),),
+        assumptions=(
+            sb.Assumption(
+                "structural-linear",
+                "parameter_interpretation",
+                "the coefficient is the response per unit dose",
+            ),
+        ),
     )
-    value = sb.prepare_scientific_bridge(contrast).derive(
-        sb.SourceClaim.declared("coefficient", 2.5, parameter)
-    ).value
+    value = (
+        sb.prepare_scientific_bridge(contrast)
+        .derive(sb.SourceClaim.declared("coefficient", 2.5, parameter))
+        .value
+    )
     assert value == pytest.approx(2.5 * 0.4, abs=1e-12)
 
     endpoint = outcome("trial:qaly", units="qaly", population="adults", functional="average_effect")
     utility = ScientificQuantity.utility(
-        "payer:value", units="currency", population="adults", regime="do(t=1)",
+        "payer:value",
+        units="currency",
+        population="adults",
+        regime="do(t=1)",
         functional="expected_utility",
     )
     priced = sb.BridgeContract(
         kind="scientific_decision_utility",
-        source=endpoint, source_class="scientific_endpoint",
-        target=utility, target_class="decision_utility",
+        source=endpoint,
+        source_class="scientific_endpoint",
+        target=utility,
+        target_class="decision_utility",
         evidence_scope=sb.Scope("adults", "do(t=1)"),
         mapping=sb.AffineMapping(0.0, 30_000.0),
-        assumptions=(sb.Assumption("wtp", "utility_mapping", "30000 per QALY",
-                                   evidence="utility-function:wtp-30000"),),
+        assumptions=(
+            sb.Assumption(
+                "wtp", "utility_mapping", "30000 per QALY", evidence="utility-function:wtp-30000"
+            ),
+        ),
     )
-    value = sb.prepare_scientific_bridge(priced).derive(
-        sb.SourceClaim.declared("qaly-gain", 0.3, endpoint)
-    ).value
+    value = (
+        sb.prepare_scientific_bridge(priced)
+        .derive(sb.SourceClaim.declared("qaly-gain", 0.3, endpoint))
+        .value
+    )
     assert value == pytest.approx(0.3 * 30_000.0, rel=1e-12)
 
 
@@ -369,16 +440,28 @@ def test_the_six_named_substitutions_are_refused_with_registered_codes_and_remed
         "scientific_bridge.proxy_as_construct",
     )
     # stated preference as realized behavior
-    stated = outcome("survey:take_up", units="probability", population="panel",
-                     regime="observational", functional="mean")
-    realized = outcome("admin:take_up", units="probability", population="panel",
-                       regime="observational", functional="mean")
+    stated = outcome(
+        "survey:take_up",
+        units="probability",
+        population="panel",
+        regime="observational",
+        functional="mean",
+    )
+    realized = outcome(
+        "admin:take_up",
+        units="probability",
+        population="panel",
+        regime="observational",
+        functional="mean",
+    )
     refused(
         lambda: sb.prepare_scientific_bridge(
             sb.BridgeContract(
                 kind="preference_realized_behavior",
-                source=stated, source_class="stated_preference",
-                target=realized, target_class="realized_behavior",
+                source=stated,
+                source_class="stated_preference",
+                target=realized,
+                target_class="realized_behavior",
                 evidence_scope=sb.Scope("panel", "observational"),
                 mapping=sb.IdentityMapping(),
             )
@@ -389,15 +472,20 @@ def test_the_six_named_substitutions_are_refused_with_registered_codes_and_remed
     # scientific endpoint as utility
     endpoint = outcome("trial:qaly", units="qaly", population="adults", functional="average_effect")
     utility = ScientificQuantity.utility(
-        "payer:value", units="currency", population="adults", regime="do(t=1)",
+        "payer:value",
+        units="currency",
+        population="adults",
+        regime="do(t=1)",
         functional="expected_utility",
     )
     refused(
         lambda: sb.prepare_scientific_bridge(
             sb.BridgeContract(
                 kind="scientific_decision_utility",
-                source=endpoint, source_class="scientific_endpoint",
-                target=utility, target_class="decision_utility",
+                source=endpoint,
+                source_class="scientific_endpoint",
+                target=utility,
+                target_class="decision_utility",
                 evidence_scope=sb.Scope("adults", "do(t=1)"),
                 mapping=sb.AffineMapping(0.0, 30_000.0),
             )
@@ -411,16 +499,28 @@ def test_the_six_named_substitutions_are_refused_with_registered_codes_and_remed
         sb.Assumption("backdoor", "identification", "declared", evidence="identification:any"),
         sb.Assumption("note", "additional", "declared"),
     )
-    feature = outcome("m:feature", units="probability", population="registry",
-                      regime="observational", functional="importance")
-    effect = outcome("m:feature", units="probability", population="registry",
-                     regime="do(x=1)", functional="effect")
+    feature = outcome(
+        "m:feature",
+        units="probability",
+        population="registry",
+        regime="observational",
+        functional="importance",
+    )
+    effect = outcome(
+        "m:feature",
+        units="probability",
+        population="registry",
+        regime="do(x=1)",
+        functional="effect",
+    )
     refused(
         lambda: sb.prepare_scientific_bridge(
             sb.BridgeContract(
                 kind="predictive_causal_quantity",
-                source=feature, source_class="predictive_importance",
-                target=effect, target_class="causal_quantity",
+                source=feature,
+                source_class="predictive_importance",
+                target=effect,
+                target_class="causal_quantity",
                 evidence_scope=sb.Scope("registry", "observational"),
                 mapping=sb.IdentityMapping(),
                 assumptions=everything,
@@ -429,16 +529,24 @@ def test_the_six_named_substitutions_are_refused_with_registered_codes_and_remed
         "bridge_substitution_refused",
         "scientific_bridge.predictive_importance_as_causal_effect",
     )
-    score = outcome("m:score", units="score", population="registry",
-                    regime="observational", functional="mean")
-    probability = outcome("m:score", units="probability", population="registry",
-                          regime="observational", functional="mean")
+    score = outcome(
+        "m:score", units="score", population="registry", regime="observational", functional="mean"
+    )
+    probability = outcome(
+        "m:score",
+        units="probability",
+        population="registry",
+        regime="observational",
+        functional="mean",
+    )
     refused(
         lambda: sb.prepare_scientific_bridge(
             sb.BridgeContract(
                 kind="predictive_causal_quantity",
-                source=score, source_class="model_score",
-                target=probability, target_class="predictive_quantity",
+                source=score,
+                source_class="model_score",
+                target=probability,
+                target_class="predictive_quantity",
                 evidence_scope=sb.Scope("registry", "observational"),
                 mapping=sb.IdentityMapping(),
                 assumptions=everything,
@@ -467,9 +575,7 @@ def test_a_missing_assumption_and_an_assumption_naming_no_evidence_are_refused()
 
 
 def test_value_kinds_are_not_interchangeable():
-    held_and_requested = [
-        (a, b) for a in sb.VALUE_KINDS for b in sb.VALUE_KINDS if a != b
-    ]
+    held_and_requested = [(a, b) for a in sb.VALUE_KINDS for b in sb.VALUE_KINDS if a != b]
     assert len(held_and_requested) == 20
     for held, requested in held_and_requested:
         contract = surrogate_contract(source_value=held, target_value=requested)
@@ -569,7 +675,8 @@ def test_a_transported_bridge_names_its_premise_or_is_refused():
     assert "transportability:same-surrogate-relationship" in claim.unresolved
     # A premise for another transport is not this one.
     wrong = sb.TransportabilityPremise(
-        "other", "elsewhere",
+        "other",
+        "elsewhere",
         established_in=sb.Scope("adults", "do(t=1)"),
         applies_to=sb.Scope("infants", "do(t=1)"),
     )
@@ -596,7 +703,9 @@ def test_validation_minimums_and_the_validated_range_are_enforced():
     )
     bridge = sb.prepare_scientific_bridge(surrogate_contract())
     for inside, expected in ((0.0, 0.06), (1.5, 1.44)):
-        value = bridge.derive(sb.SourceClaim.declared(f"edge-{inside}", inside, source_quantity)).value
+        value = bridge.derive(
+            sb.SourceClaim.declared(f"edge-{inside}", inside, source_quantity)
+        ).value
         assert value == pytest.approx(expected, abs=1e-12)
     for beyond in (-0.01, 1.51, 3.0):
         refused(
@@ -628,9 +737,13 @@ def test_malformed_declarations_are_input_errors_before_native_code():
         sb.AffineMapping(float("nan"), 1.0)
     with pytest.raises(CausalValueError):
         sb.BridgeContract(
-            kind="not_a_bridge", source=None, source_class="surrogate_endpoint",
-            target=None, target_class="terminal_outcome",
-            evidence_scope=sb.Scope("a", "b"), mapping=sb.IdentityMapping(),
+            kind="not_a_bridge",
+            source=None,
+            source_class="surrogate_endpoint",
+            target=None,
+            target_class="terminal_outcome",
+            evidence_scope=sb.Scope("a", "b"),
+            mapping=sb.IdentityMapping(),
         )
     with pytest.raises(CausalTypeError):
         sb.prepare_scientific_bridge("not a contract")
@@ -727,8 +840,11 @@ def test_the_artifact_replays_independently_and_refuses_corruption_and_a_wrong_i
     assert other.export("another").identity != exported.identity
 
     # A flipped byte anywhere in the body, and truncation, are refused.
-    for position in (len(exported.artifact) // 3, len(exported.artifact) // 2,
-                     len(exported.artifact) - 8):
+    for position in (
+        len(exported.artifact) // 3,
+        len(exported.artifact) // 2,
+        len(exported.artifact) - 8,
+    ):
         damaged = bytearray(exported.artifact)
         damaged[position] ^= 0xFF
         with pytest.raises(ScientificBridgeRefusal) as caught:
@@ -766,7 +882,10 @@ def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp
     )
     done = subprocess.run(
         [sys.executable, "-c", script, str(path), exported.identity],
-        capture_output=True, text=True, cwd=tmp_path, check=True,
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        check=True,
     )
     wire = json.loads(done.stdout)
     assert wire["value"] == pytest.approx(0.796, abs=1e-12)
@@ -776,7 +895,9 @@ def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp
     assert wire["transported"] is False
     refused_run = subprocess.run(
         [sys.executable, "-c", script, str(path), "0" * 64],
-        capture_output=True, text=True, cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
     )
     assert refused_run.returncode != 0
     assert "scientific_bridge.identity_mismatch" in refused_run.stderr

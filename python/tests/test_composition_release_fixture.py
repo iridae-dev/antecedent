@@ -27,11 +27,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import _release_boundary as rb
 import numpy as np
 import pytest
-from _refusal import assert_registered_refusal
-from _release_boundary import DECISION, EXACT, FIXTURE, SCENARIO, World
 from antecedent import composition_verification as cv
 from antecedent import decision
 from antecedent import evidence_ledger as el
@@ -44,6 +41,10 @@ from antecedent.joint_distribution import (
     JointDistributionArtifact,
     ScientificQuantity,
 )
+
+import _release_boundary as rb
+from _refusal import assert_registered_refusal
+from _release_boundary import DECISION, EXACT, FIXTURE, SCENARIO, World
 
 VALUES = FIXTURE["values"]
 REVISED = FIXTURE["revised_values"]
@@ -94,8 +95,12 @@ def test_a_measured_exposure_enters_the_causal_model_through_the_declared_confus
 
     # The composed finite model reads the measured prevalence and the pooled effect.
     c = world.composition
-    assert rb.outcome_risk(c, {"X": "1"}) == pytest.approx(VALUES["outcome_risk_exposed"], abs=EXACT)
-    assert rb.outcome_risk(c, {"X": "0"}) == pytest.approx(VALUES["outcome_risk_unexposed"], abs=EXACT)
+    assert rb.outcome_risk(c, {"X": "1"}) == pytest.approx(
+        VALUES["outcome_risk_exposed"], abs=EXACT
+    )
+    assert rb.outcome_risk(c, {"X": "0"}) == pytest.approx(
+        VALUES["outcome_risk_unexposed"], abs=EXACT
+    )
     assert rb.outcome_risk(c) == pytest.approx(VALUES["outcome_risk"], abs=EXACT)
     assert rb.excess_risk(c) == pytest.approx(VALUES["excess_risk"], abs=EXACT)
     assert rb.excess_risk(c) == pytest.approx(pi * pooled.estimate, abs=EXACT)
@@ -165,7 +170,10 @@ def test_shared_evidence_is_counted_once_and_dependence_is_declared_or_refused()
     # squares of y = (0.10, 0.20), S = [[0.0004, 0.0002], [0.0002, 0.0004]]: weights (1/2, 1/2),
     # estimate 0.15, variance (0.0004 + 0.0002) / 2 = 0.0003.
     pooled = rb.pool(
-        ledger, "shared", [(a, est_a, var_a), (c, est_c, var_c)], covariance=[var_a, cov, cov, var_c]
+        ledger,
+        "shared",
+        [(a, est_a, var_a), (c, est_c, var_c)],
+        covariance=[var_a, cov, cov, var_c],
     )
     assert pooled.estimate == pytest.approx(VALUES["overlap_pooled_estimate"], abs=EXACT)
     assert pooled.variance == pytest.approx(VALUES["overlap_pooled_variance"], abs=EXACT)
@@ -194,7 +202,10 @@ def test_shared_evidence_is_counted_once_and_dependence_is_declared_or_refused()
     assert error.reason_code == VARIANTS["interval"]["code"]
 
     # Unknown dependence is a gap, not an independence.
-    distinct = [jl.MomentInput("study_a", "evidence-a", est_a), jl.MomentInput("study_b", "evidence-b", 0.20)]
+    distinct = [
+        jl.MomentInput("study_a", "evidence-a", est_a),
+        jl.MomentInput("study_b", "evidence-b", 0.20),
+    ]
     error = refused(
         lambda: jl.linear_moments(
             "weighted_sum", distinct, [0.5, 0.5], [[var_a, 0.0], [0.0, var_a]], dependence="unknown"
@@ -210,7 +221,10 @@ def test_shared_evidence_is_counted_once_and_dependence_is_declared_or_refused()
             cv.Node("study_c", "cohort_source", identity=cv.digest("study_c"), evidence=(c,)),
             cv.Node("overlap_check", "claim", identity=cv.digest("overlap_check")),
         ],
-        [cv.Edge("overlap_check", "study_a", "evidence"), cv.Edge("overlap_check", "study_c", "evidence")],
+        [
+            cv.Edge("overlap_check", "study_a", "evidence"),
+            cv.Edge("overlap_check", "study_c", "evidence"),
+        ],
     )
     relations = cv.shared_data_from_ledger(graph, ledger)
     assert [(r.first, r.second, r.relation, r.shared_observations) for r in relations] == [
@@ -245,7 +259,9 @@ def test_unpaired_marginals_are_never_paired_by_index_and_an_enumerated_joint_la
     assert claim.label == "point_only"
     # The aligned moment is the point claim of the composed model.
     assert claim.value("mean") == pytest.approx(World.build().excess_risk, abs=DECISION)
-    assert refused(claim.posterior, jl.JointLawPropagationRefusal).reason_code == "cell_not_licensed"
+    assert (
+        refused(claim.posterior, jl.JointLawPropagationRefusal).reason_code == "cell_not_licensed"
+    )
 
 
 # --------------------------------------------------------------------------- 4
@@ -401,7 +417,9 @@ def test_unsupported_semantic_conversions_fail_closed():
 
     # The value used without the model it was corrected under.
     components, connections = rb.interface_components(model, omit_measurement_model=True)
-    error = refused(lambda: ic.check_composition(components, connections), ic.InterfaceContractRefusal)
+    error = refused(
+        lambda: ic.check_composition(components, connections), ic.InterfaceContractRefusal
+    )
     assert (error.reason_code, error.detail) == (
         CONVERSIONS["measurement_model_missing"]["code"],
         CONVERSIONS["measurement_model_missing"]["detail"],
@@ -409,7 +427,9 @@ def test_unsupported_semantic_conversions_fail_closed():
 
     # A mean offered where the consumer requires a law.
     components, connections = rb.interface_components(model, decision_requires_law=True)
-    error = refused(lambda: ic.check_composition(components, connections), ic.InterfaceContractRefusal)
+    error = refused(
+        lambda: ic.check_composition(components, connections), ic.InterfaceContractRefusal
+    )
     assert_refusal(error, CONVERSIONS["mean_for_law"])
 
     # The honest declarations connect, producers first.
@@ -420,9 +440,7 @@ def test_unsupported_semantic_conversions_fail_closed():
 
     # A mean source never answers a criterion that needs a law.
     error = refused(
-        lambda: rb.decide(
-            rb.declaration(needs_law=True), world.excess_risk, "snapshot", "plan"
-        ),
+        lambda: rb.decide(rb.declaration(needs_law=True), world.excess_risk, "snapshot", "plan"),
         decision.DecisionRefusal,
     )
     assert_refusal(error, MUTATIONS["law"])
@@ -643,7 +661,9 @@ def test_every_stage_is_point_only_and_no_interval_or_posterior_decision_ships()
             regime_id="observational",
             representation=rb.SCALAR,
         ),
-        mm.BinaryPrevalenceData(SCENARIO["measurement"]["events"], SCENARIO["measurement"]["total"]),
+        mm.BinaryPrevalenceData(
+            SCENARIO["measurement"]["events"], SCENARIO["measurement"]["total"]
+        ),
     )
     error = refused(prepared.estimate().interval, mm.MeasurementModelRefusal)
     assert error.reason_code == VARIANTS["interval"]["code"]

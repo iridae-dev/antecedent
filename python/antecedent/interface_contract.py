@@ -241,8 +241,12 @@ class SupportDomain:
             raise CausalValueError(f"unknown support kind {self.kind!r}")
         return {
             "kind": self.kind,
-            "lower_bits": _bits(self.lower) if self.kind == "interval" and self.lower is not None else None,
-            "upper_bits": _bits(self.upper) if self.kind == "interval" and self.upper is not None else None,
+            "lower_bits": _bits(self.lower)
+            if self.kind == "interval" and self.lower is not None
+            else None,
+            "upper_bits": _bits(self.upper)
+            if self.kind == "interval" and self.upper is not None
+            else None,
             "levels": list(self.levels) if self.kind == "categorical" else None,
         }
 

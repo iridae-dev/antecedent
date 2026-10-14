@@ -34,16 +34,24 @@ def quantity(population="adults", units="mg/dL", regime="do(statin=1)"):
 
 def producer(population="adults", operations=("mean",), **kwargs):
     port = ic.ProducedPort(
-        "effect", quantity(population), "estimand:ate", ic.SupportDomain.real(),
-        operations=operations, **kwargs,
+        "effect",
+        quantity(population),
+        "estimand:ate",
+        ic.SupportDomain.real(),
+        operations=operations,
+        **kwargs,
     )
     return ic.InterfaceContract("estimator", produces=[port])
 
 
 def consumer(population="adults", operations=("mean",), **kwargs):
     port = ic.ConsumedPort(
-        "effect", quantity(population), "estimand:ate", ic.SupportDomain.real(),
-        operations=operations, **kwargs,
+        "effect",
+        quantity(population),
+        "estimand:ate",
+        ic.SupportDomain.real(),
+        operations=operations,
+        **kwargs,
     )
     return ic.InterfaceContract("decision", consumes=[port])
 
@@ -105,14 +113,17 @@ def test_a_pair_that_matches_syntactically_fails_scientifically():
 def test_a_mean_does_not_supply_a_law_and_a_sampling_interval_is_not_a_posterior():
     error = refusal_of(
         lambda: ic.check_connection(
-            producer(operations=("mean",)), "effect",
-            consumer(operations=("law",), uncertainty="interventional_predictive"), "effect",
+            producer(operations=("mean",)),
+            "effect",
+            consumer(operations=("law",), uncertainty="interventional_predictive"),
+            "effect",
         )
     )
     assert "interface_contract.operation_unavailable" in [r.detail for r in error.refusals]
     error = refusal_of(
         lambda: ic.check_connection(
-            producer(operations=("interval",), uncertainty="estimator_sampling"), "effect",
+            producer(operations=("interval",), uncertainty="estimator_sampling"),
+            "effect",
             consumer(operations=("posterior",), uncertainty="causal_functional_posterior"),
             "effect",
         )
@@ -128,9 +139,12 @@ def test_measured_calibration_is_required_not_assumed():
     for label in (ic.Calibration.none(), ic.Calibration.unmeasured()):
         error = refusal_of(
             lambda label=label: ic.check_connection(
-                producer(operations=("interval",), uncertainty="estimator_sampling",
-                         calibration=label),
-                "effect", wanted, "effect",
+                producer(
+                    operations=("interval",), uncertainty="estimator_sampling", calibration=label
+                ),
+                "effect",
+                wanted,
+                "effect",
             )
         )
         assert error.detail == "interface_contract.calibration_not_held"
@@ -155,10 +169,16 @@ def test_a_malformed_declaration_is_refused_alone():
 def stage(name):
     return ic.InterfaceContract(
         name,
-        produces=[ic.ProducedPort("out", quantity(), "estimand:ate", ic.SupportDomain.real(),
-                                  operations=("mean",))],
-        consumes=[ic.ConsumedPort("in", quantity(), "estimand:ate", ic.SupportDomain.real(),
-                                  operations=("mean",))],
+        produces=[
+            ic.ProducedPort(
+                "out", quantity(), "estimand:ate", ic.SupportDomain.real(), operations=("mean",)
+            )
+        ],
+        consumes=[
+            ic.ConsumedPort(
+                "in", quantity(), "estimand:ate", ic.SupportDomain.real(), operations=("mean",)
+            )
+        ],
     )
 
 
@@ -185,16 +205,29 @@ def test_inputs_required_disjoint_cannot_share_evidence():
     def source(name, evidence):
         return ic.InterfaceContract(
             name,
-            produces=[ic.ProducedPort("out", quantity(), "estimand:ate",
-                                      ic.SupportDomain.real(), operations=("mean",),
-                                      evidence=evidence)],
+            produces=[
+                ic.ProducedPort(
+                    "out",
+                    quantity(),
+                    "estimand:ate",
+                    ic.SupportDomain.real(),
+                    operations=("mean",),
+                    evidence=evidence,
+                )
+            ],
         )
 
     pool = ic.InterfaceContract(
         "pool",
         consumes=[
-            ic.ConsumedPort(side, quantity(), "estimand:ate", ic.SupportDomain.real(),
-                            operations=("mean",), dependence="disjoint_evidence")
+            ic.ConsumedPort(
+                side,
+                quantity(),
+                "estimand:ate",
+                ic.SupportDomain.real(),
+                operations=("mean",),
+                dependence="disjoint_evidence",
+            )
             for side in ("left", "right")
         ],
     )
@@ -216,22 +249,36 @@ def rich_contract():
         "estimator",
         produces=[
             ic.ProducedPort(
-                "effect", quantity(), "estimand:ate", ic.SupportDomain.interval(-0.0, 1.0),
+                "effect",
+                quantity(),
+                "estimand:ate",
+                ic.SupportDomain.interval(-0.0, 1.0),
                 operations=("mean", "draws", "interval", "posterior"),
                 uncertainty="causal_functional_posterior",
                 calibration=ic.Calibration.measured("cal-0001"),
-                measurement_models=(MODEL,), evidence=(SOURCE_A,),
+                measurement_models=(MODEL,),
+                evidence=(SOURCE_A,),
                 provenance=("causal_contract", "claim"),
             ),
             ic.ProducedPort(
-                "selection", quantity(), "estimand:enrolment",
-                ic.SupportDomain.categorical(["no", "yes"]), operations=("point",),
+                "selection",
+                quantity(),
+                "estimand:enrolment",
+                ic.SupportDomain.categorical(["no", "yes"]),
+                operations=("point",),
                 calibration=ic.Calibration.point_only(),
             ),
         ],
-        consumes=[ic.ConsumedPort("data", quantity(), "estimand:observed",
-                                  ic.SupportDomain.non_negative(), operations=("mean",),
-                                  dependence="declared_evidence")],
+        consumes=[
+            ic.ConsumedPort(
+                "data",
+                quantity(),
+                "estimand:observed",
+                ic.SupportDomain.non_negative(),
+                operations=("mean",),
+                dependence="declared_evidence",
+            )
+        ],
     )
 
 
@@ -243,14 +290,14 @@ def test_an_exported_contract_round_trips_and_is_inspectable():
     assert consumed.identity == exported.identity
     assert [p.name for p in consumed.contract.produces] == ["effect", "selection"]
     assert consumed.contract.produces[0].support == ic.SupportDomain.interval(-0.0, 1.0)
-    assert ic.export_interface_contract(contract, "estimator-contract").artifact == exported.artifact
+    assert (
+        ic.export_interface_contract(contract, "estimator-contract").artifact == exported.artifact
+    )
     meta = ic.inspect_interface_contract_artifact(exported.artifact)
     assert meta["feature"] == "interface_contract_v1"
     assert meta["identity"] == exported.identity
     assert meta["contract"]["produces"][0]["name"] == "effect"
-    error = refusal_of(
-        lambda: ic.consume_interface_contract_artifact(exported.artifact, "0" * 64)
-    )
+    error = refusal_of(lambda: ic.consume_interface_contract_artifact(exported.artifact, "0" * 64))
     assert error.detail == "interface_contract.identity_mismatch"
 
 
@@ -261,9 +308,17 @@ def test_the_clean_room_consumer_accepts_an_exported_artifact_and_rejects_mutati
 
     def run(file, *extra):
         return subprocess.run(
-            [sys.executable, "-I", str(VALIDATOR), "--kind", "interface_contract_v1", str(file),
-             *extra],
-            capture_output=True, text=True,
+            [
+                sys.executable,
+                "-I",
+                str(VALIDATOR),
+                "--kind",
+                "interface_contract_v1",
+                str(file),
+                *extra,
+            ],
+            capture_output=True,
+            text=True,
         )
 
     accepted = run(path, "--retained-identity", exported.identity)
@@ -294,13 +349,18 @@ def test_a_fresh_process_consumes_the_artifact_against_a_retained_identity(tmp_p
     )
     done = subprocess.run(
         [sys.executable, "-c", script, str(path), exported.identity],
-        capture_output=True, text=True, cwd=tmp_path, check=True,
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        check=True,
     )
     wire = json.loads(done.stdout)
     assert wire == {"identity": exported.identity, "ports": ["effect", "selection"]}
     refused = subprocess.run(
         [sys.executable, "-c", script, str(path), "0" * 64],
-        capture_output=True, text=True, cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
     )
     assert refused.returncode != 0
     assert "interface_contract.identity_mismatch" in refused.stderr

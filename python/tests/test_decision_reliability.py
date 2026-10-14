@@ -15,7 +15,7 @@ import textwrap
 import numpy as np
 import pytest
 from antecedent import decision_reliability as dr
-from antecedent.errors import CausalTypeError
+from antecedent.errors import CausalTypeError, CausalValueError
 
 DR = dr.DecisionReliabilityRefusal
 
@@ -319,7 +319,7 @@ def test_every_published_ranking_or_interval_route_is_closed() -> None:
         assert refused.value.detail == "decision_reliability.cell_not_licensed"
         with pytest.raises(DR):
             dr.publish(route, result.report.coordinate)
-    with pytest.raises(ValueError):
+    with pytest.raises(CausalValueError):
         dr.publish("not_a_route", result.report.coordinate)
 
 
@@ -395,9 +395,9 @@ def test_inputs_are_typed() -> None:
         dr.assess("not draws")  # type: ignore[arg-type]
     with pytest.raises(CausalTypeError):
         dr.DecisionDraws.from_arrays({}, stream=_stream())
-    with pytest.raises(ValueError):
+    with pytest.raises(CausalValueError):
         dr.Functional.quantile(1.5)
-    with pytest.raises(ValueError):
+    with pytest.raises(CausalValueError):
         dr.DecisionDraws.from_arrays(
             {"a": [1.0, float("nan"), 2.0, 3.0]}, stream=_stream(), coupling="shared_simulation"
         )

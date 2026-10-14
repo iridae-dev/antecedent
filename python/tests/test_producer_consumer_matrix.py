@@ -62,21 +62,21 @@ from antecedent import (
     scenario_decision,
 )
 from antecedent import adaptive_inference as ai
-from antecedent import composition as comp
 from antecedent import cohort_decision as cd
+from antecedent import composition as comp
 from antecedent import composition_bundle as cb
+from antecedent import cross_world_execution as cwx
 from antecedent import decision_reliability as dreliab
 from antecedent import design as dr
 from antecedent import evidence_ledger as el
-from antecedent import cross_world_execution as cwx
-from antecedent import joint_law_propagation as jlp
-from antecedent import sequential_evaluation as seqeval
 from antecedent import inverse_query as iq
+from antecedent import joint_law_propagation as jlp
 from antecedent import measurement_models as mm
 from antecedent import mechanism_composition as mc
 from antecedent import observation_query as oq
 from antecedent import predictive_assessment as pa
 from antecedent import sensitivity_decision as sd
+from antecedent import sequential_evaluation as seqeval
 from antecedent.compact_export import CompactExport, Intercept, Linear, Numeric, Power, Quantity
 from antecedent.errors import (
     CausalSerializationError,
@@ -975,12 +975,8 @@ def _sequential() -> Sequential:
             seqeval.Action(
                 "inspect", "continue", transition=identity, utility_cost=0.25, channel=alarm
             ),
-            seqeval.Action(
-                "ship", "commit", transition=identity, immediate_utility=(10.0, -10.0)
-            ),
-            seqeval.Action(
-                "repair", "commit", transition=identity, immediate_utility=(6.0, -4.0)
-            ),
+            seqeval.Action("ship", "commit", transition=identity, immediate_utility=(10.0, -10.0)),
+            seqeval.Action("repair", "commit", transition=identity, immediate_utility=(6.0, -4.0)),
         ),
         terminal_utility=(0.0, 0.0),
     )
@@ -989,9 +985,7 @@ def _sequential() -> Sequential:
         {(): "inspect", ((0, 1),): "repair", ((0, 0),): "ship"},
         model,
     )
-    return Sequential(
-        model, policy, seqeval.evaluate(model, policy), seqeval.seal(model, policy)
-    )
+    return Sequential(model, policy, seqeval.evaluate(model, policy), seqeval.seal(model, policy))
 
 
 def _object(producer: str, o: Objs) -> object:
@@ -2183,9 +2177,7 @@ def _cohort_source() -> cd.CohortDecisionSource:
 def _cohort_contract(source: cd.CohortDecisionSource) -> decision.Contract:
     return decision.Contract(
         actions=(
-            decision.Action(
-                "treat", inputs=(source.quantity,), utility=decision.x(0) * 4.0 - 1.5
-            ),
+            decision.Action("treat", inputs=(source.quantity,), utility=decision.x(0) * 4.0 - 1.5),
             decision.Action("wait", inputs=(source.quantity,), utility=decision.x(0) * 0.0),
         ),
         utility_units="utility",
@@ -2570,7 +2562,9 @@ def _discovered() -> Any:
     outcome = adapter.outcome
     assert outcome is not None
     return SimpleNamespace(
-        adapter=adapter, outcome=outcome, exported=adapter.export_state("matrix-selective-discovery")
+        adapter=adapter,
+        outcome=outcome,
+        exported=adapter.export_state("matrix-selective-discovery"),
     )
 
 
@@ -2681,7 +2675,10 @@ def _declared_bridge() -> Declared:
     assert_registered_refusal(closed.value)
     # The bridge carries no estimand for a decision: the caller declares the quantity.
     quantity = _declared_quantity(
-        "trial:survival", "do(t=1)", units="log_hazard", population="adults",
+        "trial:survival",
+        "do(t=1)",
+        units="log_hazard",
+        population="adults",
         functional="average_effect",
     )
     return Declared(
@@ -2739,9 +2736,7 @@ def _declared_sequential(o: Objs) -> Declared:
     assert closed.value.reason_code == "cell_not_licensed"
     assert closed.value.detail == "sequential_evaluation.interval_not_licensed"
     with pytest.raises(seqeval.SequentialEvaluationRefusal) as table:
-        seqeval.evaluate(
-            sequential.model, seqeval.ReweightedStaticScores((1.0, 0.0), (0.5, 0.5))
-        )
+        seqeval.evaluate(sequential.model, seqeval.ReweightedStaticScores((1.0, 0.0), (0.5, 0.5)))
     assert table.value.reason_code == "route_not_supported"
     assert table.value.detail == "sequential_evaluation.static_score_table"
     quantity = _declared_quantity(
@@ -3171,9 +3166,7 @@ def test_producer_consumer_matrix_dependence_envelope_row(consumer: str, objs: O
 
 
 @pytest.mark.parametrize("consumer", CONSUMERS)
-def test_producer_consumer_matrix_selective_discovery_result_row(
-    consumer: str, objs: Objs
-) -> None:
+def test_producer_consumer_matrix_selective_discovery_result_row(consumer: str, objs: Objs) -> None:
     _run_cell("selective_discovery_result", consumer, objs)
 
 

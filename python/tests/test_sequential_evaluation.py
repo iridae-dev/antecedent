@@ -34,7 +34,6 @@ import sys
 from dataclasses import replace
 
 import pytest
-
 from antecedent import _native
 from antecedent import measurement_models as mm
 from antecedent import sequential_evaluation as se
@@ -168,20 +167,46 @@ POLICIES: dict[str, tuple[dict, float]] = {
 # --------------------------------------------------------------------------- the oracle
 
 ACTS = {
-    WAIT: dict(commit=False, cost=0.0, trans=((0.75, 0.25), (0.0, 1.0)), imm=(0.0, 0.0),
-               delayed=None, lik=None),
-    INSPECT: dict(commit=False, cost=0.25, trans=IDENTITY, imm=(0.0, 0.0), delayed=None,
-                  lik=((0.75, 0.25), (0.25, 0.75))),
+    WAIT: dict(
+        commit=False,
+        cost=0.0,
+        trans=((0.75, 0.25), (0.0, 1.0)),
+        imm=(0.0, 0.0),
+        delayed=None,
+        lik=None,
+    ),
+    INSPECT: dict(
+        commit=False,
+        cost=0.25,
+        trans=IDENTITY,
+        imm=(0.0, 0.0),
+        delayed=None,
+        lik=((0.75, 0.25), (0.25, 0.75)),
+    ),
     SHIP: dict(commit=True, cost=0.0, trans=IDENTITY, imm=(10.0, -10.0), delayed=None, lik=None),
-    REPAIR: dict(commit=True, cost=4.0, trans=((1.0, 0.0), (0.5, 0.5)), imm=(0.0, 0.0),
-                 delayed=(1, (10.0, -10.0)), lik=None),
-    PILOT: dict(commit=False, cost=0.25, trans=IDENTITY, imm=(0.0, 0.0), delayed=(2, (3.0, -1.0)),
-                lik=None),
+    REPAIR: dict(
+        commit=True,
+        cost=4.0,
+        trans=((1.0, 0.0), (0.5, 0.5)),
+        imm=(0.0, 0.0),
+        delayed=(1, (10.0, -10.0)),
+        lik=None,
+    ),
+    PILOT: dict(
+        commit=False, cost=0.25, trans=IDENTITY, imm=(0.0, 0.0), delayed=(2, (3.0, -1.0)), lik=None
+    ),
 }
 
 
-def oracle(policy: dict, *, boundaries: bool = True, horizon: int = 3, forfeit: bool = False,
-           init=(0.5, 0.5), terminal=(2.0, -2.0)) -> float:
+def oracle(
+    policy: dict,
+    *,
+    boundaries: bool = True,
+    horizon: int = 3,
+    forfeit: bool = False,
+    init=(0.5, 0.5),
+    terminal=(2.0, -2.0),
+) -> float:
     """Value of a policy table by joint-probability backward induction (independent oracle)."""
     bounds = [(0.85, None, REPAIR), (None, 0.15, SHIP)] if boundaries else []
 
@@ -434,8 +459,9 @@ def test_observation_channels_pass_through_the_measurement_model_checks():
         indicator=mm.MeasurementVariable("unit_condition", "noisy_misclassified", "category")
     )
     assert (
-        pytest.raises(se.SequentialEvaluationRefusal, se.evaluate, with_channel(proxy), inspect_only)
-        .value.reason_code
+        pytest.raises(
+            se.SequentialEvaluationRefusal, se.evaluate, with_channel(proxy), inspect_only
+        ).value.reason_code
         == "proxy_offered_as_construct"
     )
     differential = alarm_panel(structure="differential_population")
@@ -498,9 +524,7 @@ def test_comparisons_and_the_value_of_collecting_evidence_through_the_design_ran
     problem = model(boundaries=False)
     comparisons = [
         se.Comparison("repair_now", "act_now", det("v_now", {(): REPAIR})),
-        se.Comparison(
-            "wait_then_repair", "wait", det("v_wait", {(): WAIT, ((WAIT, 0),): REPAIR})
-        ),
+        se.Comparison("wait_then_repair", "wait", det("v_wait", {(): WAIT, ((WAIT, 0),): REPAIR})),
         se.Comparison(
             "inspect_then_repair",
             "collect_evidence",
@@ -607,8 +631,13 @@ def test_cancellation_and_bounds_are_observed():
     policy = det("v", POLICIES["ship_now"][0])
     assert (
         pytest.raises(
-            se.SequentialEvaluationRefusal, se.rollout, problem, policy,
-            seed=1, rollouts=10, cancel=token,
+            se.SequentialEvaluationRefusal,
+            se.rollout,
+            problem,
+            policy,
+            seed=1,
+            rollouts=10,
+            cancel=token,
         ).value.reason_code
         == "cancelled_no_claim"
     )
@@ -644,8 +673,9 @@ def small_problem():
         terminal_utility=(0.0, 0.0),
         actions=(
             se.Action("wait", "continue", transition=((0.75, 0.25), (0.0, 1.0))),
-            se.Action("inspect", "continue", transition=IDENTITY, utility_cost=0.25,
-                      channel=alarm_panel()),
+            se.Action(
+                "inspect", "continue", transition=IDENTITY, utility_cost=0.25, channel=alarm_panel()
+            ),
             se.Action("ship", "commit", transition=IDENTITY, immediate_utility=(10.0, -10.0)),
             se.Action("repair", "commit", transition=IDENTITY, immediate_utility=(6.0, -4.0)),
         ),
@@ -702,9 +732,15 @@ def test_off_policy_weighting_recovers_the_enumerated_value():
     # the log is the whole population, so the weighted mean is the g-formula value 3/2
     assert estimate.ordinary == pytest.approx(1.5, abs=1e-9)
     assert estimate.self_normalized == pytest.approx(1.5, abs=1e-9)
-    assert estimate.ordinary == pytest.approx(oracle(
-        {(): INSPECT, ((INSPECT, ALARM),): REPAIR, ((INSPECT, NEGATIVE),): SHIP},
-        boundaries=False, horizon=2, terminal=(0.0, 0.0)), abs=1e-9)
+    assert estimate.ordinary == pytest.approx(
+        oracle(
+            {(): INSPECT, ((INSPECT, ALARM),): REPAIR, ((INSPECT, NEGATIVE),): SHIP},
+            boundaries=False,
+            horizon=2,
+            terminal=(0.0, 0.0),
+        ),
+        abs=1e-9,
+    )
     # weight 4 on a quarter of the trajectories: ESS = N / 4
     assert estimate.max_weight == pytest.approx(4.0)
     assert estimate.effective_sample_size == pytest.approx(LOG_SIZE / 4, abs=1e-6)
@@ -814,9 +850,9 @@ def test_a_resealed_other_evaluation_corruption_and_wrong_kinds_are_refused():
     # damaged and truncated bytes, and bytes that are not an artifact
     damaged = bytearray(data)
     damaged[len(damaged) // 2] ^= 0x55
-    with pytest.raises(Exception):
+    with pytest.raises(se.SequentialEvaluationRefusal):
         se.consume_artifact(bytes(damaged))
-    with pytest.raises(Exception):
+    with pytest.raises(se.SequentialEvaluationRefusal):
         se.consume_artifact(data[:30])
     with pytest.raises(CausalTypeError):
         se.consume_artifact("not bytes")  # type: ignore[arg-type]
@@ -879,33 +915,58 @@ def test_declared_bounds_are_refused_not_truncated():
     states = tuple(f"s{i}" for i in range(many))
     flat = tuple(tuple(1.0 if i == j else 0.0 for j in range(many)) for i in range(many))
     wide = se.FiniteModel(
-        **{**base, "states": states, "initial": (1.0 / many,) * many,
-           "actions": (se.Action("ship", "commit", transition=flat),),
-           "terminal_utility": (0.0,) * many}
+        **{
+            **base,
+            "states": states,
+            "initial": (1.0 / many,) * many,
+            "actions": (se.Action("ship", "commit", transition=flat),),
+            "terminal_utility": (0.0,) * many,
+        }
     )
-    refused(lambda: se.evaluate(wide, ship_now), "invalid_argument",
-            "sequential_evaluation.model_states")
+    refused(
+        lambda: se.evaluate(wide, ship_now),
+        "invalid_argument",
+        "sequential_evaluation.model_states",
+    )
     # more than 16 actions
     crowd = se.FiniteModel(
-        **{**base, "actions": tuple(
-            se.Action(f"a{i}", "commit", transition=IDENTITY, immediate_utility=(0.0, 0.0))
-            for i in range(17))}
+        **{
+            **base,
+            "actions": tuple(
+                se.Action(f"a{i}", "commit", transition=IDENTITY, immediate_utility=(0.0, 0.0))
+                for i in range(17)
+            ),
+        }
     )
-    refused(lambda: se.evaluate(crowd, ship_now), "invalid_argument",
-            "sequential_evaluation.model_actions")
+    refused(
+        lambda: se.evaluate(crowd, ship_now),
+        "invalid_argument",
+        "sequential_evaluation.model_actions",
+    )
     # a horizon beyond 12 decision times
-    refused(lambda: se.evaluate(se.FiniteModel(**{**base, "horizon": 13}), ship_now),
-            "invalid_argument", "sequential_evaluation.model_horizon")
+    refused(
+        lambda: se.evaluate(se.FiniteModel(**{**base, "horizon": 13}), ship_now),
+        "invalid_argument",
+        "sequential_evaluation.model_horizon",
+    )
     one = se.FiniteModel(**base)
     # more than 65536 policy entries
     big = se.Policy.deterministic("big", {((0, i),): 0 for i in range(65_537)})
-    refused(lambda: se.evaluate(one, big), "invalid_argument",
-            "sequential_evaluation.limit_exceeded")
+    refused(
+        lambda: se.evaluate(one, big), "invalid_argument", "sequential_evaluation.limit_exceeded"
+    )
     # more than 10 million rollouts
-    refused(lambda: se.rollout(one, ship_now, seed=1, rollouts=10_000_001),
-            "invalid_argument", "sequential_evaluation.limit_exceeded")
+    refused(
+        lambda: se.rollout(one, ship_now, seed=1, rollouts=10_000_001),
+        "invalid_argument",
+        "sequential_evaluation.limit_exceeded",
+    )
     # more than 150000 logged trajectories
-    log = [se.LoggedTrajectory(f"t{i}", (se.LoggedStep(0, None, 1.0),), 0.0)
-           for i in range(150_001)]
-    refused(lambda: se.evaluate_off_policy(one, ship_now, ship_now, log), "invalid_argument",
-            "sequential_evaluation.limit_exceeded")
+    log = [
+        se.LoggedTrajectory(f"t{i}", (se.LoggedStep(0, None, 1.0),), 0.0) for i in range(150_001)
+    ]
+    refused(
+        lambda: se.evaluate_off_policy(one, ship_now, ship_now, log),
+        "invalid_argument",
+        "sequential_evaluation.limit_exceeded",
+    )

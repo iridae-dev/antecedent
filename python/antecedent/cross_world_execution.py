@@ -220,8 +220,7 @@ class CrossWorldRequest:
                 "population": _text(self.scm.population, "population"),
                 "history": _text(self.scm.history, "history"),
                 "exogenous": [
-                    {"name": e.name, "pmf": [float(p) for p in e.pmf]}
-                    for e in self.scm.exogenous
+                    {"name": e.name, "pmf": [float(p) for p in e.pmf]} for e in self.scm.exogenous
                 ],
                 "variables": [
                     {
@@ -264,7 +263,9 @@ class CrossWorldRequest:
                     {"world": w(a[0]), "variable": v(a[1]), "level": level(a[2], "level")}
                     for a in quantity.atoms
                 ],
-                "plus": None if quantity.plus is None else [w(quantity.plus[0]), v(quantity.plus[1])],
+                "plus": None
+                if quantity.plus is None
+                else [w(quantity.plus[0]), v(quantity.plus[1])],
                 "minus": None
                 if quantity.minus is None
                 else [w(quantity.minus[0]), v(quantity.minus[1])],
@@ -386,7 +387,9 @@ class CrossWorldExecutor:
     """
 
     def __init__(self, _native_executor: Any = None) -> None:
-        self._native = _native_executor if _native_executor is not None else _native.CrossWorldExecutor()
+        self._native = (
+            _native_executor if _native_executor is not None else _native.CrossWorldExecutor()
+        )
 
     def execute(self, request: CrossWorldRequest, *, cancel: Any = None) -> ExecutionResult:
         """Execute a request, reusing matching retained abductions."""
@@ -496,7 +499,9 @@ def seal(
     """
     if not isinstance(request, CrossWorldRequest):
         raise CausalTypeError("request must be a CrossWorldRequest")
-    parts, refusal = _native.cross_world_seal(request.to_json(), _text(artifact_id, "artifact_id"), cancel)
+    parts, refusal = _native.cross_world_seal(
+        request.to_json(), _text(artifact_id, "artifact_id"), cancel
+    )
     _refuse(refusal)
     assert parts is not None
     data, summary = parts

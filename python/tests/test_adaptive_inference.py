@@ -111,8 +111,8 @@ def aipw_estimate(
             inverse = 1.0 / probs[i][plus] + 1.0 / probs[i][minus]
         weights.append(1.0 if scheme == "uniform" else 1.0 / math.sqrt(inverse))
     total = sum(weights)
-    mean = sum(h * v for h, v in zip(weights, values)) / total
-    variance = sum((h * (v - mean)) ** 2 for h, v in zip(weights, values)) / total**2
+    mean = sum(h * v for h, v in zip(weights, values, strict=True)) / total
+    variance = sum((h * (v - mean)) ** 2 for h, v in zip(weights, values, strict=True)) / total**2
     return mean, variance
 
 
@@ -296,7 +296,9 @@ def test_the_posterior_is_the_conjugate_closed_form_of_the_counts():
     assert result.paradigm == "bayesian_posterior"
     assert result.claim == "point_only"
     n = len(design.assigned_arm)
-    counts = counts_of(list(design.assigned_arm), [list(o) for o in design.outcomes], list(range(n)))
+    counts = counts_of(
+        list(design.assigned_arm), [list(o) for o in design.outcomes], list(range(n))
+    )
     shapes = posterior_shapes(counts)
     v = result.values
     for arm, (a, b) in enumerate(shapes):
@@ -311,7 +313,9 @@ def test_the_posterior_is_the_conjugate_closed_form_of_the_counts():
     assert result.closed_guarantee == "adaptive_inference.posterior_interval_closed"
     # The first look saw half the data.
     early = session.analyse(ai.BayesianPosterior(look=0))
-    first = counts_of(list(design.assigned_arm), [list(o) for o in design.outcomes], list(range(30)))
+    first = counts_of(
+        list(design.assigned_arm), [list(o) for o in design.outcomes], list(range(30))
+    )
     assert early.values[0] == 1 + first[0][0]
 
 
@@ -430,7 +434,9 @@ def test_noncompliance_and_outcome_dependent_delay_are_refused_before_any_number
     assert error.detail == "adaptive_inference.exposure_differs_from_assignment"
     delayed = replace(
         design,
-        availability=ai.Availability(list(design.availability.available_at_look), "outcome_dependent"),
+        availability=ai.Availability(
+            list(design.availability.available_at_look), "outcome_dependent"
+        ),
     )
     error = refused(lambda: prepare(delayed).analyse(ai.BayesianPosterior(look=1)))
     assert error.detail == "adaptive_inference.delay_not_ignorable"
@@ -458,7 +464,11 @@ def test_adaptive_weighting_matches_an_independent_calculation(scheme):
     assert result.paradigm == "frequentist_adaptive_weighting"
     y = [o[0] for o in design.outcomes]
     estimate, variance = aipw_estimate(
-        list(design.assigned_arm), [list(r) for r in design.assignment_probabilities], y, (1, 0), scheme
+        list(design.assigned_arm),
+        [list(r) for r in design.assignment_probabilities],
+        y,
+        (1, 0),
+        scheme,
     )
     assert result.values[0] == pytest.approx(estimate, abs=1e-10)
     assert result.values[1] == pytest.approx(variance, abs=1e-10)
@@ -505,7 +515,9 @@ def test_repeated_measures_use_the_subject_mean_as_the_unit():
 
 
 def test_the_hierarchical_cluster_cell_is_carried_forward():
-    design = replace(epsilon_greedy_design(measurements=3, sizes=(40,)), outcome="hierarchical_clustered")
+    design = replace(
+        epsilon_greedy_design(measurements=3, sizes=(40,)), outcome="hierarchical_clustered"
+    )
     error = refused(
         lambda: prepare(design).analyse(ai.AdaptiveWeighting(look=0, plus_arm=1, minus_arm=0))
     )
@@ -522,7 +534,10 @@ def test_the_confidence_sequence_matches_the_closed_form_and_union_bounds_a_cont
     result = session.analyse(
         ai.ConfidenceSequence(look=1, alpha=0.05, tuning_samples=50.0, contrast=(1, 0))
     )
-    by_arm = [[o[0] for o, a in zip(design.outcomes, design.assigned_arm) if a == arm] for arm in (0, 1)]
+    by_arm = [
+        [o[0] for o, a in zip(design.outcomes, design.assigned_arm, strict=True) if a == arm]
+        for arm in (0, 1)
+    ]
     bounds = [sequence_bounds(v, 0.025, 50.0) for v in by_arm]
     v = result.values
     for arm in (0, 1):
@@ -566,9 +581,7 @@ def test_group_sequential_with_adaptive_assignment_is_a_closed_pairing():
     design = replace(
         thompson_design(),
         monitoring="group_sequential",
-        stopping_rule=ai.StoppingRule.alpha_spending(
-            "pocock_type", 0.05, "two_sided_symmetric"
-        ),
+        stopping_rule=ai.StoppingRule.alpha_spending("pocock_type", 0.05, "two_sided_symmetric"),
     )
     error = refused(lambda: prepare(design).analyse(ai.BayesianPosterior(look=1)))
     assert error.detail == "adaptive_inference.pairing_not_licensed"
@@ -621,11 +634,16 @@ def test_the_procedure_matrix_lists_every_cell_once_and_agrees_with_the_registry
     assert len(matrix) == len(expected_ids)
     table = load_toml(REPO / "parity" / "adaptive_procedures.toml")["cell"]
     assert [row["id"] for row in table] == [c.id for c in matrix]
-    for row, cell in zip(table, matrix):
+    for row, cell in zip(table, matrix, strict=True):
         assert row["status"] == cell.status, row["id"]
         assert tuple(row.get("paradigms", ())) == cell.paradigms, row["id"]
         assert row.get("owner") == cell.owner, row["id"]
-        assert row["status"] in {"licensed", "closed_incoherent", "closed_pairing", "carried_forward"}
+        assert row["status"] in {
+            "licensed",
+            "closed_incoherent",
+            "closed_pairing",
+            "carried_forward",
+        }
     classes = [c.status for c in matrix]
     assert {s: classes.count(s) for s in set(classes)} == {
         "licensed": 6,
@@ -650,7 +668,7 @@ def test_the_monitoring_contract_round_trips_and_a_fresh_reader_sees_rule_and_pa
     assert consumed.stopping_rule["spending"] == "obrien_fleming_type"
     assert consumed.contract_identity == session.contract_identity
     assert consumed.boundaries is not None
-    for got, want in zip(consumed.boundaries["critical"], (3.7103, 2.5114, 1.9930)):
+    for got, want in zip(consumed.boundaries["critical"], (3.7103, 2.5114, 1.9930), strict=True):
         assert got == pytest.approx(want, abs=2e-4)
     # Deterministic, and accepted against its own retained identity.
     assert session.export_contract("frequentist_group_sequential") == artifact
@@ -676,7 +694,7 @@ def test_the_result_artifact_is_recomputed_by_the_consumer_and_refuses_other_exp
     assert consumed.procedure == produced.procedure
     assert consumed.stopping_rule["spec"] == "posterior_probability_best"
     assert consumed.closed_guarantee == "adaptive_inference.posterior_interval_closed"
-    for a, b in zip(consumed.values, produced.values):
+    for a, b in zip(consumed.values, produced.values, strict=True):
         assert a == pytest.approx(b, abs=1e-9)
     # A different experiment (one outcome changed) is another identity: the consumer that
     # retained the first identity refuses the second artifact.
@@ -716,7 +734,14 @@ def test_a_fresh_process_consumes_both_artifacts_against_the_retained_identity(t
         "'identity': r.identity, 'values': list(r.values)}))\n"
     )
     done = subprocess.run(
-        [sys.executable, "-c", script, str(tmp_path / "contract.bin"), str(tmp_path / "result.bin"), retained],
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(tmp_path / "contract.bin"),
+            str(tmp_path / "result.bin"),
+            retained,
+        ],
         capture_output=True,
         text=True,
         cwd=tmp_path,
@@ -731,7 +756,14 @@ def test_a_fresh_process_consumes_both_artifacts_against_the_retained_identity(t
     produced = session.analyse(request).values
     assert wire["values"] == pytest.approx(list(produced), abs=1e-9)
     refusal = subprocess.run(
-        [sys.executable, "-c", script, str(tmp_path / "contract.bin"), str(tmp_path / "result.bin"), "0" * 64],
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(tmp_path / "contract.bin"),
+            str(tmp_path / "result.bin"),
+            "0" * 64,
+        ],
         capture_output=True,
         text=True,
         cwd=tmp_path,

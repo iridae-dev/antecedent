@@ -99,9 +99,9 @@ def test_enumerated_joint_law_nonlinear_functionals() -> None:
     y = np.array([b for _, b, c in rows for _ in range(c)])
     dx, dy = _draws(_artifact("snap-enum", x, y))
     assert jl.aligned_functional("product", dx, dy, "product").value("mean") == pytest.approx(0.4)
-    assert jl.aligned_functional(
-        "nonlinear_functional", dx, dy, "minimum"
-    ).value("mean") == pytest.approx(0.2)
+    assert jl.aligned_functional("nonlinear_functional", dx, dy, "minimum").value(
+        "mean"
+    ) == pytest.approx(0.2)
     # Covariance-aware contrast from the aligned rows equals the closed form.
     var_x, var_y = float(np.var(x)), float(np.var(y))
     cov = float(np.mean(x * y) - np.mean(x) * np.mean(y))
@@ -223,9 +223,7 @@ def test_equal_mass_envelope_equals_enumeration_over_permutations() -> None:
     y = jl.PropagationDraws.independent_marginal("y", ys, evidence_id="s2")
     perms = list(itertools.permutations(range(len(xs))))
     for t in (0.5, 1.0, 1.125, 1.5, 2.25):
-        hits = [
-            sum(1 for i, j in enumerate(p) if xs[i] + ys[j] <= t) / len(xs) for p in perms
-        ]
+        hits = [sum(1 for i, j in enumerate(p) if xs[i] + ys[j] <= t) / len(xs) for p in perms]
         claim = jl.dependence_envelope("sum", jl.EnvelopeQuery.sum_cdf(t), x, y)
         assert claim.value("sum_cdf_lower") == pytest.approx(min(hits))
         assert claim.value("sum_cdf_upper") == pytest.approx(max(hits))
@@ -296,9 +294,7 @@ def test_transported_composition_needs_an_aligned_law_or_a_covariance() -> None:
     diag = [[1.0, 0.0], [0.0, 1.0]]
     for dependence in ("unknown", "declared_independent"):
         with pytest.raises(R) as error:
-            jl.linear_moments(
-                "sum", [transported, other], [1.0, 1.0], diag, dependence=dependence
-            )
+            jl.linear_moments("sum", [transported, other], [1.0, 1.0], diag, dependence=dependence)
         assert error.value.reason_code == "joint_law_required"
         assert error.value.detail == "joint_law_propagation.transported_dependence_required"
     claim = jl.linear_moments(
@@ -380,6 +376,10 @@ def test_inputs_are_typed() -> None:
         jl.EnvelopeQuery.of_functional("bogus")
     with pytest.raises(CausalValueError):
         jl.linear_moments(
-            "sum", [jl.MomentInput("a", "s", 1.0)], [1.0], [[1.0, 0.0], [0.0, 1.0]],
-            dependence="covariance", covariance_id="c",
+            "sum",
+            [jl.MomentInput("a", "s", 1.0)],
+            [1.0],
+            [[1.0, 0.0], [0.0, 1.0]],
+            dependence="covariance",
+            covariance_id="c",
         )

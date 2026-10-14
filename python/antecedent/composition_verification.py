@@ -624,9 +624,7 @@ def _view(wire: Mapping[str, Any]) -> CompositionView:
         upstream=tuple(_entry(e) for e in wire["upstream"]),
         edges=tuple((e["downstream"], e["upstream"], e["kind"]) for e in wire["edges"]),
         evidence=tuple(wire["evidence"]),
-        transformations=tuple(
-            (t["node"], t["kind"], t["name"]) for t in wire["transformations"]
-        ),
+        transformations=tuple((t["node"], t["kind"], t["name"]) for t in wire["transformations"]),
         shared_data=_shared(wire["shared_data"]),
         versions=tuple((v["node"], v["version"]) for v in wire["versions"]),
         unsupported=tuple((u["node"], u["coordinate"]) for u in wire["unsupported"]),

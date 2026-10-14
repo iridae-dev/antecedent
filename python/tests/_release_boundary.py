@@ -129,7 +129,12 @@ def _quantity(variable: str) -> mc.Quantity:
     )
 
 
-def _table(variable: str, tag: str, parents: list[str], rows: list[tuple[tuple[str, ...], tuple[float, float]]]):
+def _table(
+    variable: str,
+    tag: str,
+    parents: list[str],
+    rows: list[tuple[tuple[str, ...], tuple[float, float]]],
+):
     declaration = mc.MechanismDeclaration(
         output=_quantity(variable),
         parents=tuple(_quantity(p) for p in parents),
@@ -139,7 +144,10 @@ def _table(variable: str, tag: str, parents: list[str], rows: list[tuple[tuple[s
     return mc.Mechanism.declared_table(
         declaration,
         levels=["0", "1"],
-        rows=[(dict(zip(parents, config, strict=True)), {"0": p0, "1": p1}) for config, (p0, p1) in rows],
+        rows=[
+            (dict(zip(parents, config, strict=True)), {"0": p0, "1": p1})
+            for config, (p0, p1) in rows
+        ],
     )
 
 
@@ -150,7 +158,10 @@ def compose(prevalence: float, baseline: float, effect: float) -> mc.PreparedMec
         [
             _table("X", repr(prevalence), [], [((), (1.0 - prevalence, prevalence))]),
             _table(
-                "Y", f"{baseline!r}:{effect!r}", ["X"], [(("0",), (1.0 - baseline, baseline)), (("1",), (1.0 - exposed, exposed))]
+                "Y",
+                f"{baseline!r}:{effect!r}",
+                ["X"],
+                [(("0",), (1.0 - baseline, baseline)), (("1",), (1.0 - exposed, exposed))],
             ),
         ],
         target_population_id="pop",
@@ -159,7 +170,9 @@ def compose(prevalence: float, baseline: float, effect: float) -> mc.PreparedMec
     )
 
 
-def outcome_risk(composition: mc.PreparedMechanismComposition, do: dict[str, str] | None = None) -> float:
+def outcome_risk(
+    composition: mc.PreparedMechanismComposition, do: dict[str, str] | None = None
+) -> float:
     return composition.finite_law(do or {}).probability({"Y": "1"})
 
 
@@ -260,7 +273,9 @@ def interface_components(
                 "prevalence",
                 _prevalence_quantity(),
                 "estimand:exposure_prevalence",
-                ic.SupportDomain.real() if producer_support_real else ic.SupportDomain.interval(0.0, 1.0),
+                ic.SupportDomain.real()
+                if producer_support_real
+                else ic.SupportDomain.interval(0.0, 1.0),
                 operations=("point", "mean"),
                 measurement_models=() if omit_measurement_model else (model_identity,),
             )
@@ -388,7 +403,9 @@ class World:
         self.plan_identity = self.composition.plan_identity
         self.excess_risk = excess_risk(self.composition)
         self.declaration = declaration(sc)
-        self.result = decide(self.declaration, self.excess_risk, ledger.state_digest, self.plan_identity)
+        self.result = decide(
+            self.declaration, self.excess_risk, ledger.state_digest, self.plan_identity
+        )
         self.graph = claim_graph(
             survey=self.survey,
             study_a=self.study_a,
@@ -412,7 +429,10 @@ class World:
         pooled = pool(
             ledger,
             "pooled_effect",
-            [(a, a_decl["estimate"], a_decl["variance"]), (b, b_decl["estimate"], b_decl["variance"])],
+            [
+                (a, a_decl["estimate"], a_decl["variance"]),
+                (b, b_decl["estimate"], b_decl["variance"]),
+            ],
         )
         return cls(sc, ledger, (survey, a, b), pooled, measure(sc))
 
@@ -451,7 +471,9 @@ class World:
     def studies(self) -> list[dict[str, Any]]:
         return [dict(s) for s in self.sc["studies"]]
 
-    def write_bundle(self, directory: pathlib.Path, studies: list[dict[str, Any]] | None = None) -> None:
+    def write_bundle(
+        self, directory: pathlib.Path, studies: list[dict[str, Any]] | None = None
+    ) -> None:
         """Seal the producer's artifacts, retained identities and declarations in ``directory``.
 
         The consumer reads only these files.

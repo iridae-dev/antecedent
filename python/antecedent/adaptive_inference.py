@@ -197,9 +197,7 @@ class StoppingRule:
         cls, threshold: float, *, ended_by_rule: bool = False
     ) -> StoppingRule:
         """Stop for efficacy when an arm's posterior probability of being best exceeds a level."""
-        return cls(
-            "efficacy", "posterior_probability_best", ended_by_rule, parameter=threshold
-        )
+        return cls("efficacy", "posterior_probability_best", ended_by_rule, parameter=threshold)
 
     @classmethod
     def posterior_expected_loss(
@@ -655,7 +653,9 @@ def consume_adaptive_monitoring_contract_artifact(
     """
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
-    handle = _unwrap(_native.adaptive_monitoring_contract_consume(bytes(artifact), expected_identity))
+    handle = _unwrap(
+        _native.adaptive_monitoring_contract_consume(bytes(artifact), expected_identity)
+    )
     wire = json.loads(handle.summary_json())
     boundaries = wire.get("boundaries")
     return ConsumedMonitoringContract(

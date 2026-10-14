@@ -153,7 +153,14 @@ def contract(**changes: object) -> sd.StaticContract:
 
 def bits(outcome: sd.Outcome) -> list[tuple[object, ...]]:
     return sorted(
-        (e["source"], e["source_lag"], e["target"], e["target_lag"], repr(e["statistic"]), repr(e["p_value"]))
+        (
+            e["source"],
+            e["source_lag"],
+            e["target"],
+            e["target_lag"],
+            repr(e["statistic"]),
+            repr(e["p_value"]),
+        )
         for e in outcome.evidence
     )
 
@@ -313,7 +320,10 @@ def test_closed_claims_and_score_search_are_refused() -> None:
     adapter, _, _ = run_full(contract(), DATA)
     for request, detail in (
         (adapter.request_recovery_claim, "selective_discovery.recovery_claim_not_licensed"),
-        (adapter.request_downstream_interval, "selective_discovery.downstream_interval_not_licensed"),
+        (
+            adapter.request_downstream_interval,
+            "selective_discovery.downstream_interval_not_licensed",
+        ),
     ):
         with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
             request()
@@ -363,9 +373,13 @@ def test_export_consume_inspect_and_resume() -> None:
     assert meta["result_identity"] == outcome.result_identity
     assert len(meta["receipts"]) == adapter.retained_statistics
 
-    resumed, report = sd.SelectiveDiscovery.resume(contract(), DATA, exported.artifact, exported.identity)
+    resumed, report = sd.SelectiveDiscovery.resume(
+        contract(), DATA, exported.artifact, exported.identity
+    )
     assert report.work.ci_tests_attempted == 0 and report.work.ci_tests_reused > 0
-    assert resumed.outcome is not None and resumed.outcome.result_identity == outcome.result_identity
+    assert (
+        resumed.outcome is not None and resumed.outcome.result_identity == outcome.result_identity
+    )
     assert resumed.run(contract(), DATA).work.is_pure_reuse
 
 
@@ -496,9 +510,13 @@ def test_temporal_resume_and_new_data() -> None:
     data = series(300, 31)
     adapter, _, outcome = run_full(temporal(), data, "temporal")
     exported = adapter.export_state()
-    resumed, report = sd.SelectiveDiscovery.resume(temporal(), data, exported.artifact, exported.identity)
+    resumed, report = sd.SelectiveDiscovery.resume(
+        temporal(), data, exported.artifact, exported.identity
+    )
     assert report.work.ci_tests_attempted == 0
-    assert resumed.outcome is not None and resumed.outcome.result_identity == outcome.result_identity
+    assert (
+        resumed.outcome is not None and resumed.outcome.result_identity == outcome.result_identity
+    )
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
         sd.SelectiveDiscovery.resume(temporal(), series(300, 32), exported.artifact)
     assert refused.value.detail == "selective_discovery.data_mismatch"

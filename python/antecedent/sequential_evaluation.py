@@ -326,7 +326,9 @@ class FiniteModel:
         object.__setattr__(self, "initial", _reals(self.initial, "initial law"))
         object.__setattr__(self, "horizon", _count(self.horizon, "horizon"))
         object.__setattr__(self, "actions", tuple(self.actions))
-        object.__setattr__(self, "terminal_utility", _reals(self.terminal_utility, "terminal utility"))
+        object.__setattr__(
+            self, "terminal_utility", _reals(self.terminal_utility, "terminal utility")
+        )
         if any(not isinstance(a, Action) for a in self.actions):
             raise CausalTypeError("actions must be Action declarations")
         if self.censoring not in _CENSORING:
@@ -457,14 +459,15 @@ class Policy:
         return Policy(version, tuple(sorted(entries)))
 
     @staticmethod
-    def stochastic(
-        version: str, table: Mapping[_History, Mapping[int, float]]
-    ) -> Policy:
+    def stochastic(version: str, table: Mapping[_History, Mapping[int, float]]) -> Policy:
         """Take actions at random in each history with the given probabilities."""
         entries = []
         for history, distribution in table.items():
             row = tuple(
-                sorted((_count(a, "action"), _number(p, "probability")) for a, p in distribution.items())
+                sorted(
+                    (_count(a, "action"), _number(p, "probability"))
+                    for a, p in distribution.items()
+                )
             )
             entries.append((_history(history, "history"), row))
         return Policy(version, tuple(sorted(entries)))
@@ -520,12 +523,16 @@ class LearnedFromEvaluationData:
         return {"kind": "learned_from_evaluation_data", "rule": _name(self.rule, "rule")}
 
 
-def _spec_wire(policy: Policy | ReweightedStaticScores | LearnedFromEvaluationData) -> dict[str, Any]:
+def _spec_wire(
+    policy: Policy | ReweightedStaticScores | LearnedFromEvaluationData,
+) -> dict[str, Any]:
     if isinstance(policy, Policy):
         return {"kind": "contingent", "policy": policy.to_wire()}
     if isinstance(policy, (ReweightedStaticScores, LearnedFromEvaluationData)):
         return policy._wire()
-    raise CausalTypeError("a policy is a Policy, ReweightedStaticScores or LearnedFromEvaluationData")
+    raise CausalTypeError(
+        "a policy is a Policy, ReweightedStaticScores or LearnedFromEvaluationData"
+    )
 
 
 def resolve_policy(policy: Policy | ReweightedStaticScores | LearnedFromEvaluationData) -> Policy:
@@ -620,7 +627,9 @@ class PolicyEvaluation:
             decisions=_decisions(wire["decisions"]),
             nodes_visited=wire["nodes_visited"],
             accounting_residual=wire["accounting_residual"],
-            measurement_identities=tuple((int(a), str(i)) for a, i in wire["measurement_identities"]),
+            measurement_identities=tuple(
+                (int(a), str(i)) for a, i in wire["measurement_identities"]
+            ),
             assumptions=dict(wire["assumptions"]),
             inference=wire["inference"],
         )
@@ -895,7 +904,12 @@ def compare(
     )
     wire = _result(
         _native.sequential_compare(
-            _dumps(model.to_wire()), _dumps(wire_comparisons), voi, request, max_nodes, cancel=cancel
+            _dumps(model.to_wire()),
+            _dumps(wire_comparisons),
+            voi,
+            request,
+            max_nodes,
+            cancel=cancel,
         )
     )
     return ComparisonReport(
@@ -967,11 +981,15 @@ class BeliefSession:
     """Follows one realized history: Bayes updates, each record counted once in a ledger."""
 
     def __init__(self, model: FiniteModel, session: str) -> None:
-        self._handle = _unwrap(_native.SequentialBeliefSession.start(_dumps(model.to_wire()), session))
+        self._handle = _unwrap(
+            _native.SequentialBeliefSession.start(_dumps(model.to_wire()), session)
+        )
 
     def observe(self, action: int, symbol: int, record: str) -> ObservationReceipt:
         """Record one action and the observation it produced; a repeat is refused."""
-        wire = _result(self._handle.observe(_count(action, "action"), _count(symbol, "symbol"), record))
+        wire = _result(
+            self._handle.observe(_count(action, "action"), _count(symbol, "symbol"), record)
+        )
         return ObservationReceipt(
             record_id=wire["record_id"],
             time=wire["time"],

@@ -132,7 +132,7 @@ def _floats(values: Iterable[object], what: str) -> list[float]:
     for value in values:
         if isinstance(value, bool) or not hasattr(value, "__float__"):
             raise CausalTypeError(f"{what} must hold real numbers")
-        number = float(value)  # type: ignore[arg-type]
+        number = float(value)
         if not math.isfinite(number):
             raise CausalValueError(f"{what} must be finite")
         out.append(number)

@@ -64,7 +64,9 @@ class FittedEffectModel:
         self._native = native
 
     @classmethod
-    def load(cls, artifact: bytes, *, expected_parent_claim: str | None = None) -> FittedEffectModel:
+    def load(
+        cls, artifact: bytes, *, expected_parent_claim: str | None = None
+    ) -> FittedEffectModel:
         """Load the portable fitted effect of a verified result.
 
         ``expected_parent_claim`` is the claim identity the consumer retained; a different

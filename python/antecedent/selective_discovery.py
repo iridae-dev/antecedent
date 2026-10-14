@@ -153,7 +153,9 @@ class Significance:
     @classmethod
     def block_shuffle(cls, replicates: int, block_size: int = 1) -> Significance:
         """A permutation null with ``replicates`` shuffles of blocks of ``block_size`` rows."""
-        return cls("block_shuffle", _count(replicates, "replicates"), _count(block_size, "block_size"))
+        return cls(
+            "block_shuffle", _count(replicates, "replicates"), _count(block_size, "block_size")
+        )
 
     def to_wire(self) -> dict[str, Any]:
         if self.kind == "analytic":
@@ -174,7 +176,12 @@ def _common_wire(contract: Any, kind: str) -> dict[str, Any]:
             raise CausalValueError(f"{name!r} is not one of the contract's variables") from None
 
     def link(item: Link) -> list[int]:
-        return [at(item.source), _count(item.source_lag, "lag"), at(item.target), _count(item.target_lag, "lag")]
+        return [
+            at(item.source),
+            _count(item.source_lag, "lag"),
+            at(item.target),
+            _count(item.target_lag, "lag"),
+        ]
 
     wire: dict[str, Any] = {
         "kind": kind,
@@ -699,6 +706,7 @@ def inspect_selective_discovery_artifact(artifact: bytes) -> Mapping[str, Any]:
         raise CausalTypeError("artifact must be bytes")
     text, refusal = _native.selective_discovery_inspect(bytes(artifact))
     _raise(refusal)
+    assert text is not None
     return dict(json.loads(text))
 
 
@@ -718,6 +726,7 @@ def consume_selective_discovery_artifact(
         raise CausalTypeError("artifact must be bytes")
     text, refusal = _native.selective_discovery_consume(bytes(artifact), expected_identity)
     _raise(refusal)
+    assert text is not None
     return dict(json.loads(text))
 
 

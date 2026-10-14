@@ -64,14 +64,28 @@ def build(
             structure=D("mechanism structure"),
             assumptions=("causal sufficiency",),
         ),
-        node("fit", "ledger_result", fit, structure=D("fit structure"), coordinate=SPACE,
-             calibration=held),
+        node(
+            "fit",
+            "ledger_result",
+            fit,
+            structure=D("fit structure"),
+            coordinate=SPACE,
+            calibration=held,
+        ),
         node("target", "target_population", unsupported=unsupported),
-        node("reported", "claim", coordinate=SPACE,
-             calibration=cv.Calibration.inherited("fit", RECORD, SPACE)),
-        node("transported", "transported_result", coordinate=D("coordinate", "target"),
-             transformation="transport_to_target",
-             assumptions=("s-admissible adjustment set",)),
+        node(
+            "reported",
+            "claim",
+            coordinate=SPACE,
+            calibration=cv.Calibration.inherited("fit", RECORD, SPACE),
+        ),
+        node(
+            "transported",
+            "transported_result",
+            coordinate=D("coordinate", "target"),
+            transformation="transport_to_target",
+            assumptions=("s-admissible adjustment set",),
+        ),
         node("decision", "decision"),
         node("sibling_data", "data"),
         node("sibling_claim", "claim"),
@@ -174,9 +188,7 @@ def test_a_withdrawn_provider_trust_withdraws_dependents_without_stale_numbers()
 
 
 def test_an_unsupported_target_withdraws_only_the_claim_resting_on_its_support():
-    result = cv.verify_composition(
-        build(unsupported=("income above 200k",)), previous=build()
-    )
+    result = cv.verify_composition(build(unsupported=("income above 200k",)), previous=build())
     assert result.keys_of("withdrawn") == ("target", "transported")
     assert result.classify("decision").klass == "still_valid"
     (withdrawal,) = result.classify("transported").withdrawals
@@ -243,7 +255,9 @@ def test_transported_calibration_never_inherits_to_a_different_target():
     error = refused(lambda: moved.require_valid("retargeted"))
     assert error.reason_code == "cell_not_licensed"
     assert error.detail == "composition_verification.calibration_not_held"
-    other_target = refused(lambda: cv.verify_composition(other, previous=other).require_valid("retargeted"))
+    other_target = refused(
+        lambda: cv.verify_composition(other, previous=other).require_valid("retargeted")
+    )
     assert other_target.reason_code == "cell_not_licensed"
 
 
@@ -279,7 +293,9 @@ def test_node_and_edge_declaration_order_never_changes_the_verification():
     base = build()
     after = build(cohort="v2")
     reference = cv.verify_composition(after, previous=base)
-    for nodes_order in itertools.islice(itertools.permutations(range(len(after.nodes))), 0, 4000, 997):
+    for nodes_order in itertools.islice(
+        itertools.permutations(range(len(after.nodes))), 0, 4000, 997
+    ):
         shuffled = cv.CompositionGraph(
             [after.nodes[i] for i in nodes_order], list(reversed(after.edges))
         )
@@ -324,15 +340,25 @@ def _ledger_world():
 
     def study(label, lo, hi):
         return ledger.add_source(
-            el.SourceDeclaration(label, "observation_set", observations=el.rows("cohort", range(lo, hi)))
+            el.SourceDeclaration(
+                label, "observation_set", observations=el.rows("cohort", range(lo, hi))
+            )
         )
 
     s1, s2, s3 = study("s1", 0, 10), study("s2", 10, 20), study("s3", 20, 30)
-    r12 = ledger.pool_summaries("s1_s2", [el.StudySummary(s1, 1.0, 1.0), el.StudySummary(s2, 3.0, 4.0)]).result
-    r23 = ledger.pool_summaries("s2_s3", [el.StudySummary(s2, 1.0, 1.0), el.StudySummary(s3, 3.0, 4.0)]).result
+    r12 = ledger.pool_summaries(
+        "s1_s2", [el.StudySummary(s1, 1.0, 1.0), el.StudySummary(s2, 3.0, 4.0)]
+    ).result
+    r23 = ledger.pool_summaries(
+        "s2_s3", [el.StudySummary(s2, 1.0, 1.0), el.StudySummary(s3, 3.0, 4.0)]
+    ).result
     rall = ledger.pool_summaries(
         "all",
-        [el.StudySummary(s1, 1.0, 1.0), el.StudySummary(s2, 3.0, 4.0), el.StudySummary(s3, 2.0, 2.0)],
+        [
+            el.StudySummary(s1, 1.0, 1.0),
+            el.StudySummary(s2, 3.0, 4.0),
+            el.StudySummary(s3, 2.0, 2.0),
+        ],
     ).result
     return ledger, (s1, s2, s3), (r12, r23, rall)
 
@@ -376,7 +402,9 @@ def test_shared_data_comes_from_the_ledger_and_unknown_is_never_independent():
         el.SourceDeclaration("b", "observation_set", observations=el.rows("cohort", range(50, 150)))
     )
     c = ledger.add_source(
-        el.SourceDeclaration("c", "observation_set", observations=el.rows("cohort", range(200, 210)))
+        el.SourceDeclaration(
+            "c", "observation_set", observations=el.rows("cohort", range(200, 210))
+        )
     )
     v = ledger.add_source(el.SourceDeclaration("vendor", "external_claim"))
     nodes = [
@@ -384,7 +412,9 @@ def test_shared_data_comes_from_the_ledger_and_unknown_is_never_independent():
         for key, src in (("na", a), ("nb", b), ("nc", c), ("nv", v))
     ]
     nodes.append(node("pooled", "ledger_result"))
-    graph = cv.CompositionGraph(nodes, [cv.Edge("pooled", k, "evidence") for k in ("na", "nb", "nc", "nv")])
+    graph = cv.CompositionGraph(
+        nodes, [cv.Edge("pooled", k, "evidence") for k in ("na", "nb", "nc", "nv")]
+    )
     relations = cv.shared_data_from_ledger(graph, ledger)
     assert [(r.first, r.second, r.relation, r.shared_observations) for r in relations] == [
         ("na", "nb", "shared_data", 50),
@@ -449,7 +479,9 @@ def test_a_mutated_artifact_is_refused():
         mutated = bytearray(data)
         mutated[position] ^= 0x55
         error = refused(
-            lambda m=bytes(mutated): cv.consume_composition_verification_artifact(m, exported.identity)
+            lambda m=bytes(mutated): cv.consume_composition_verification_artifact(
+                m, exported.identity
+            )
         )
         assert error.reason_code in {"invalid_argument", "route_not_supported"}
     error = refused(lambda: cv.consume_composition_verification_artifact(data[: len(data) // 2]))

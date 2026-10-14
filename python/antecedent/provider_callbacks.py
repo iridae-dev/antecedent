@@ -356,7 +356,9 @@ class Trust:
     def _wire(self) -> dict[str, Any]:
         return {
             "level": _choice(
-                self.level, "trust level", ("unverified", "externally_attested", "verified_extension")
+                self.level,
+                "trust level",
+                ("unverified", "externally_attested", "verified_extension"),
             ),
             "attestor": self.attestor,
             "receipt_digest": self.receipt_digest,
@@ -377,9 +379,7 @@ class Input:
     evidence: tuple[str, ...] | None = None
 
     @classmethod
-    def from_callback(
-        cls, name: str, inner: CallbackDeclaration, operation: str = "mean"
-    ) -> Input:
+    def from_callback(cls, name: str, inner: CallbackDeclaration, operation: str = "mean") -> Input:
         """An input supplied by another callback (a nested callback)."""
         _choice(operation, "operation", OPERATIONS)
         return cls(
@@ -475,7 +475,7 @@ class CallbackDeclaration:
         wire, refusal = _native.callback_declaration_identity(_dumps(self._wire()))
         _raise(refusal)
         assert wire is not None
-        return json.loads(wire)  # type: ignore[no-any-return]
+        return json.loads(wire)
 
     @property
     def identity(self) -> str:
@@ -834,7 +834,7 @@ class CallbackSession:
 
     def record(self, index: int) -> dict[str, Any]:
         """One history record (declaration, request, stage, values) as a mapping."""
-        return json.loads(self._handle.record_json(index))  # type: ignore[no-any-return]
+        return json.loads(self._handle.record_json(index))
 
     def dependents_of(self, identity: str) -> tuple[int, ...]:
         """History indices of results that consumed the callback with this declaration identity."""
@@ -938,9 +938,7 @@ class CallbackSession:
             refusal=CallbackRefusal(decoded["refusal"]),
         )
 
-    def export(
-        self, result: CallbackExecution | int, artifact_id: str
-    ) -> ExportedCallbackResult:
+    def export(self, result: CallbackExecution | int, artifact_id: str) -> ExportedCallbackResult:
         """Seal one history record as ``callback_result_v1``.
 
         A declaration and a portable output, not a promise that a callable runs elsewhere.
@@ -1001,7 +999,7 @@ def inspect_callback_result(artifact: bytes) -> dict[str, Any]:
     wire, refusal = _native.callback_result_inspect(bytes(artifact))
     _raise(refusal)
     assert wire is not None
-    return json.loads(wire)  # type: ignore[no-any-return]
+    return json.loads(wire)
 
 
 def values_digest(values: Iterable[float]) -> str:

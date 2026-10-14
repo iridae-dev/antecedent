@@ -909,9 +909,10 @@ def test_story_7_release_boundary_corrected_measurement_pooled_evidence_decision
     import subprocess as _subprocess
     import sys as _sys
 
-    import _release_boundary as rb
     import pytest as _pytest
     from antecedent import composition_verification as _cv
+
+    import _release_boundary as rb
 
     values, revised = rb.FIXTURE["values"], rb.FIXTURE["revised_values"]
 

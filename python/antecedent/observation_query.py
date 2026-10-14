@@ -110,7 +110,7 @@ def _name(value: object, what: str) -> str:
 def _number(value: object, what: str) -> float:
     if isinstance(value, (bool, str)) or not hasattr(value, "__float__"):
         raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)  # type: ignore[arg-type]
+    number = float(value)
     if not math.isfinite(number):
         raise CausalValueError(f"{what} must be finite")
     return number

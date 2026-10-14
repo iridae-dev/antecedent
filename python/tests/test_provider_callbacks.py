@@ -19,7 +19,7 @@ from statistics import NormalDist
 
 import pytest
 from antecedent import provider_callbacks as pc
-from antecedent.errors import CausalTypeError
+from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.joint_distribution import ScientificQuantity
 
 from _refusal import assert_registered_refusal
@@ -81,7 +81,9 @@ def gaussian(version="1.0", mu=MU, calls=None):
             rng = ctx.rng()
             return pc.Output.sample(rng.gauss(mu, SD) for _ in range(query.draws))
         if query.operation == "cdf":
-            return pc.Output.cdf(0.5 * (1 + math.erf((t - mu) / (SD * math.sqrt(2)))) for t in query.points)
+            return pc.Output.cdf(
+                0.5 * (1 + math.erf((t - mu) / (SD * math.sqrt(2)))) for t in query.points
+            )
         if query.operation == "quantile":
             return pc.Output.quantile(law.inv_cdf(p) for p in query.points)
         raise ValueError("not implemented")
@@ -193,15 +195,14 @@ def test_operations_are_negotiated_separately():
     assert counted(provider) == []
     # A distribution function does not supply a quantile function.
     cdf_only = declaration(operations=("cdf",))
-    error = refusal_of(
-        session.execute, provider, cdf_only, pc.Request(pc.Query.quantile([0.5]))
-    )
+    error = refusal_of(session.execute, provider, cdf_only, pc.Request(pc.Query.quantile([0.5])))
     assert error.reason_code == "external_capability_missing"
     assert error.detail == "callback_protocol.operation_not_declared"
     # An update needs its declaration and the observation law.
     error = refusal_of(
-        declaration(kind="posterior", meaning="parameter_posterior",
-                    operations=("posterior_update",)).validate
+        declaration(
+            kind="posterior", meaning="parameter_posterior", operations=("posterior_update",)
+        ).validate
     )
     assert error.detail == "callback_protocol.update_declaration_mismatch"
     error = refusal_of(declaration(operations=("mean", "posterior_update")).validate)
@@ -330,17 +331,13 @@ def test_malformed_laws_are_refused_whole():
     provider = pc.FunctionProvider(identity(), bad)
     session = pc.CallbackSession()
     decl = declaration()
-    error = refusal_of(
-        session.execute, provider, decl, pc.Request(pc.Query.cdf([0.0, 1.0]))
-    )
+    error = refusal_of(session.execute, provider, decl, pc.Request(pc.Query.cdf([0.0, 1.0])))
     assert error.reason_code == "callback_output_invalid"
     assert error.detail == "callback_protocol.output_not_a_law"
     assert error.invocations == 1
     error = refusal_of(session.execute, provider, decl, pc.Request(pc.Query.sample(3)))
     assert error.detail == "callback_protocol.output_not_finite"
-    error = refusal_of(
-        session.execute, provider, decl, pc.Request(pc.Query.quantile([0.5]))
-    )
+    error = refusal_of(session.execute, provider, decl, pc.Request(pc.Query.quantile([0.5])))
     assert error.detail == "callback_protocol.output_shape"
     assert len(session) == 0
 
@@ -352,9 +349,7 @@ def test_failure_cancellation_and_limits_are_typed_and_counted():
     session = pc.CallbackSession()
     decl = mean_only()
     request = pc.Request(pc.Query.mean())
-    error = refusal_of(
-        session.execute, pc.FunctionProvider(identity(), failing), decl, request
-    )
+    error = refusal_of(session.execute, pc.FunctionProvider(identity(), failing), decl, request)
     assert error.reason_code == "callback_provider_unavailable"
     assert error.invocations == 1 and len(session) == 0
     # Cancelled before the call: nothing runs.
@@ -471,8 +466,12 @@ def test_opaque_dependencies_make_reuse_ineligible_and_the_result_diagnostic():
 def test_nested_callback_binds_inputs_and_reports_dependents_and_overlap():
     source = "ab" * 32
     other_source = "cd" * 32
-    inner = declaration(component="inner", replay=pc.Replay.deterministic_pure(),
-                        operations=("mean",), evidence=(source,))
+    inner = declaration(
+        component="inner",
+        replay=pc.Replay.deterministic_pure(),
+        operations=("mean",),
+        evidence=(source,),
+    )
     session = pc.CallbackSession()
     inner_done = session.execute(gaussian(), inner, pc.Request(pc.Query.mean()))
     outer = declaration(
@@ -485,9 +484,7 @@ def test_nested_callback_binds_inputs_and_reports_dependents_and_overlap():
         evidence=(),
     )
     assert outer.effective_evidence() == (source,)
-    request = pc.Request(
-        pc.Query.mean(), input_digests={"inner": values_digest_of(inner_done)}
-    )
+    request = pc.Request(pc.Query.mean(), input_digests={"inner": values_digest_of(inner_done)})
 
     def shifted(query, ctx):
         return pc.Output.mean(ctx.inputs["inner"].values[0] + 3.0)
@@ -508,9 +505,7 @@ def test_nested_callback_binds_inputs_and_reports_dependents_and_overlap():
         outer,
         component="sibling",
         inputs=(
-            pc.Input.from_callback(
-                "inner", dataclasses.replace(inner, evidence=(other_source,))
-            ),
+            pc.Input.from_callback("inner", dataclasses.replace(inner, evidence=(other_source,))),
         ),
     )
     assert sibling.effective_evidence() == (other_source,)
@@ -533,7 +528,11 @@ def test_closed_routes_refuse_with_registered_codes_and_remedies():
             "cell_not_licensed",
             "callback_protocol.posterior_guarantee_not_licensed",
         ),
-        (pc.refuse_native_trust, "cell_not_licensed", "callback_protocol.native_trust_not_conferred"),
+        (
+            pc.refuse_native_trust,
+            "cell_not_licensed",
+            "callback_protocol.native_trust_not_conferred",
+        ),
         (
             pc.refuse_identification_licence,
             "cell_not_licensed",
@@ -545,7 +544,7 @@ def test_closed_routes_refuse_with_registered_codes_and_remedies():
         assert (error.reason_code, error.detail) == (code, detail)
         assert error.remedy
     # There is no native trust level to declare.
-    with pytest.raises(Exception):
+    with pytest.raises(CausalValueError, match="trust level"):
         declaration(trust=pc.Trust("native_licensed")).validate()
 
 
@@ -555,9 +554,7 @@ def test_closed_routes_refuse_with_registered_codes_and_remedies():
 def exported():
     session = pc.CallbackSession()
     decl = declaration()
-    done = session.execute(
-        gaussian(), decl, pc.Request(pc.Query.cdf([0.5, 2.0, 3.5]), seed=9)
-    )
+    done = session.execute(gaussian(), decl, pc.Request(pc.Query.cdf([0.5, 2.0, 3.5]), seed=9))
     return session, decl, done, session.export(done, "callback-result-1")
 
 
@@ -656,5 +653,7 @@ def test_fresh_process_resume_with_and_without_a_provider():
 def test_provider_objects_need_an_identity():
     with pytest.raises(CausalTypeError):
         pc.CallbackSession().execute(
-            object(), mean_only(), pc.Request(pc.Query.mean())  # type: ignore[arg-type]
+            object(),
+            mean_only(),
+            pc.Request(pc.Query.mean()),  # type: ignore[arg-type]
         )

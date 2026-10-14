@@ -81,7 +81,7 @@ def _refuse(payload: str | None) -> None:
 def _real(value: object, what: str) -> float:
     if isinstance(value, bool) or not hasattr(value, "__float__"):
         raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)  # type: ignore[arg-type]
+    number = float(value)
     if not math.isfinite(number):
         raise CausalValueError(f"{what} must be finite")
     return number
@@ -253,10 +253,17 @@ class EnvelopeQuery:
         return cls("functional", functional=functional)
 
     def _json(self) -> str:
-        body = {k: v for k, v in (
-            ("kind", self.kind), ("threshold", self.threshold), ("a", self.a), ("b", self.b),
-            ("functional", self.functional),
-        ) if v is not None}
+        body = {
+            k: v
+            for k, v in (
+                ("kind", self.kind),
+                ("threshold", self.threshold),
+                ("a", self.a),
+                ("b", self.b),
+                ("functional", self.functional),
+            )
+            if v is not None
+        }
         return json.dumps(body)
 
 

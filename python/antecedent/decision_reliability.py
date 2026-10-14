@@ -116,7 +116,7 @@ def _check_choice(value: object, allowed: tuple[str, ...], what: str) -> str:
 def _real(value: object, what: str) -> float:
     if isinstance(value, bool) or not hasattr(value, "__float__"):
         raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)  # type: ignore[arg-type]
+    number = float(value)
     if not math.isfinite(number):
         raise CausalValueError(f"{what} must be finite")
     return number
@@ -194,9 +194,7 @@ class Functional:
     def threshold_probability(cls, threshold: float, side: str = "above") -> Functional:
         """``P(utility > threshold)`` (``side="above"``) or ``P(utility <= threshold)``."""
         side = _check_choice(side, ("above", "at_or_below"), "side")
-        wire = {
-            "threshold_probability": {"threshold": _real(threshold, "threshold"), "side": side}
-        }
+        wire = {"threshold_probability": {"threshold": _real(threshold, "threshold"), "side": side}}
         return cls(wire, "threshold_probability")
 
     @classmethod
@@ -264,9 +262,11 @@ class CandidateSearchRecord:
             "maximize_quantile",
             "maximize_cvar",
         }
-        rule: Any = self.selection_rule if self.selection_rule in known else {
-            "declared": self.selection_rule
-        }
+        rule: Any = (
+            self.selection_rule
+            if self.selection_rule in known
+            else {"declared": self.selection_rule}
+        )
         return {
             "generator": self.generator,
             "budget": int(self.budget),
