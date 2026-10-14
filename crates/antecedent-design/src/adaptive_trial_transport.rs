@@ -19,7 +19,12 @@
 //!   adaptively weighted scores. A fixed design has its own transport route.
 //! * **Selection diagram.** The caller declares the stratum law as shifted or
 //!   invariant and the outcome-given-stratum-and-arm mechanism, which must be
-//!   invariant; a shifted outcome mechanism is refused.
+//!   invariant; a shifted outcome mechanism is refused. The diagram's source
+//!   population must be the trial's declared population and differ from the
+//!   target (a non-blank, distinct pair). A stratum law declared invariant
+//!   must equal the trial's empirical stratum law over its enrolled units, the
+//!   same rule the transported policy route applies to an initial law
+//!   declared invariant.
 //! * **Support.** For every target stratum with positive mass and for both
 //!   compared arms the trial must hold at least one analysed unit assigned
 //!   that arm, each with realized assignment probability at or above the
@@ -39,6 +44,19 @@
 //! measurements. The values are points; the estimator carries no interval
 //! and no sampling distribution.
 //!
+//! # Refresh
+//!
+//! Refresh with outcome-only data. The estimate is a function of one retained
+//! trial contract and one declared diagram, not a prepared object. New outcomes
+//! at the trial's population are a new contract (the realized assignment
+//! probabilities and the outcome record change): the arm means, the weights
+//! and the identity are recomputed and nothing is patched in place. The
+//! selection-diagram declaration, the target stratum law and the compared arms
+//! are kept as declarations. Data of another population, another stratum
+//! coding or another arm set is refused (`unit_strata`, `strata`, `arms`,
+//! `diagram_binding_mismatch`); an outcome mechanism that the new data no
+//! longer supports as invariant must be re-declared, never inherited.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::adaptive_design::{AdaptiveDesignContract, InferenceParadigm};
@@ -53,6 +71,8 @@ pub const ADAPTIVE_TRANSPORT_IDENTITY_VERSION: u64 = 1;
 pub const MAX_TRANSPORT_STRATA: usize = 1024;
 /// Tolerance for the target law summing to one.
 const LAW_TOLERANCE: f64 = 1e-9;
+/// Tolerance for a law declared invariant to equal the trial's empirical law.
+const INVARIANT_LAW_TOLERANCE: f64 = 1e-9;
 
 /// A mechanism of the trial that a selection node may point to.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -121,6 +141,10 @@ impl TrialSelectionDiagram {
 pub struct AdaptiveTransportRequest<'a> {
     /// The retained analysis contract of the trial.
     pub contract: Option<&'a AdaptiveDesignContract>,
+    /// Population the trial sampled. The contract carries no population, so
+    /// the caller names it here; the diagram's source population must equal
+    /// it.
+    pub trial_population: &'a str,
     /// The stratum index of each enrolled unit, in enrollment order.
     pub unit_strata: &'a [usize],
     /// The stratum labels.
@@ -211,6 +235,83 @@ fn adaptive_refusal(
     transport_refusal(code, format!("adaptive_transport.{rule}"), message, remedy)
 }
 
+fn check_populations(
+    trial_population: &str,
+    diagram: &TrialSelectionDiagram,
+) -> SequentialResult<()> {
+    if trial_population.trim().is_empty()
+        || diagram.source_population.trim().is_empty()
+        || diagram.target_population.trim().is_empty()
+    {
+        return Err(adaptive_refusal(
+            antecedent_core::reason_code!("invalid_argument"),
+            "population_label",
+            "the trial population and the diagram's source and target populations need non-blank labels",
+            "name the population the trial sampled and the population the means are transported to",
+        ));
+    }
+    if diagram.target_population == diagram.source_population
+        || diagram.target_population == trial_population
+    {
+        return Err(adaptive_refusal(
+            antecedent_core::reason_code!("invalid_argument"),
+            "target_is_source",
+            format!(
+                "the target population `{}` is the trial's own; there is nothing to transport",
+                diagram.target_population
+            ),
+            "analyse the trial in its own population with the adaptive inference route, or name a different target",
+        ));
+    }
+    if diagram.source_population != trial_population {
+        return Err(adaptive_refusal(
+            antecedent_core::reason_code!("transport_missing_evidence"),
+            "diagram_binding_mismatch",
+            format!(
+                "the diagram's source population is `{}`; the trial sampled `{trial_population}`",
+                diagram.source_population
+            ),
+            "declare the selection diagram for the population the trial sampled and the requested target",
+        ));
+    }
+    Ok(())
+}
+
+/// A stratum law declared invariant must be the trial's own empirical law.
+fn check_invariant_stratum_law(
+    diagram: &TrialSelectionDiagram,
+    unit_strata: &[usize],
+    law: &[f64],
+) -> SequentialResult<()> {
+    let declared_invariant = diagram
+        .mechanisms
+        .iter()
+        .any(|&(m, s)| m == TrialMechanism::StratumLaw && s == MechanismStatus::Invariant);
+    if !declared_invariant || unit_strata.is_empty() {
+        return Ok(());
+    }
+    let mut counts = vec![0_usize; law.len()];
+    for &stratum in unit_strata {
+        counts[stratum] += 1;
+    }
+    #[allow(clippy::cast_precision_loss, reason = "unit counts are far below 2^52")]
+    let total = unit_strata.len() as f64;
+    #[allow(clippy::cast_precision_loss, reason = "unit counts are far below 2^52")]
+    let differs = counts
+        .iter()
+        .zip(law)
+        .any(|(&count, &target)| (count as f64 / total - target).abs() > INVARIANT_LAW_TOLERANCE);
+    if differs {
+        return Err(adaptive_refusal(
+            antecedent_core::reason_code!("invalid_argument"),
+            "stratum_law_declared_invariant",
+            "the target stratum law differs from the trial's empirical stratum law, but the declaration marks the stratum law invariant",
+            "mark the stratum law shifted, or supply the trial's own stratum law as the target's",
+        ));
+    }
+    Ok(())
+}
+
 fn check_diagram(diagram: &TrialSelectionDiagram) -> SequentialResult<()> {
     let mut stratum: Option<MechanismStatus> = None;
     let mut outcome: Option<MechanismStatus> = None;
@@ -244,8 +345,8 @@ fn check_diagram(diagram: &TrialSelectionDiagram) -> SequentialResult<()> {
             "establish the outcome mechanism in the target population (a target trial), or restrict the shift to the stratum law",
         ));
     }
-    // Either status of the stratum law is licensed: a shifted law is the
-    // purpose of the route and an invariant one is a trivial transport.
+    // Either status of the stratum law is licensed here; an invariant
+    // declaration is checked against the trial's own law by the caller.
     Ok(())
 }
 
@@ -314,7 +415,8 @@ fn check_shape(
 ///
 /// # Errors
 /// A missing trial contract, selection diagram or target stratum law; a
-/// fixed-design trial; a procedure cell not licensed for adaptively weighted
+/// blank, self-targeting or unbound population pair; a stratum law declared
+/// invariant that differs from the trial's; a fixed-design trial; a procedure cell not licensed for adaptively weighted
 /// scores; exposure that differs from assignment or an outcome-dependent
 /// delay; an outcome mechanism marked shifted; an assigned arm below the
 /// declared probability floor; a target stratum with no analysed unit under a
@@ -357,8 +459,10 @@ pub fn transport_adaptive_trial(
             "transport a fixed-design trial through the fixed-design transport routes; this route is for data collected under an adaptive assignment",
         ));
     }
+    check_populations(request.trial_population, diagram)?;
     check_shape(contract, request, law)?;
     check_diagram(diagram)?;
+    check_invariant_stratum_law(diagram, request.unit_strata, law)?;
     contract
         .admit_paradigm(InferenceParadigm::FrequentistAdaptiveWeighting)
         .map_err(SequentialEvaluationError::from)?;
@@ -447,6 +551,7 @@ pub fn transport_adaptive_trial(
     writer
         .word(ADAPTIVE_TRANSPORT_IDENTITY_VERSION)
         .text(&contract_identity)
+        .text(request.trial_population)
         .text(&diagram_identity)
         .texts(request.stratum_labels)
         .reals(law)

@@ -807,3 +807,100 @@ fn monte_carlo_value_is_bound_but_never_marked_replayed() {
     let error = consume_wire(&resealed(edited), &open()).unwrap_err();
     assert!(matches!(&error, DesignRankingArtifactError::ReplayMismatch { .. }), "{error:?}");
 }
+
+/// Relabel one candidate `exact_request_verified` and recompute its signal
+/// identity, as a forger who can reseal would.
+fn relabelled_verified(wire: &DesignRankingArtifactWire, id: &str) -> DesignRankingArtifactWire {
+    use antecedent_design::signal::SignalReceipt;
+    let mut edited = wire.clone();
+    let candidate = candidate_mut(&mut edited, id);
+    candidate.trust = "exact_request_verified".into();
+    let provider = candidate.provider.clone().expect("an external candidate");
+    let mut lineage = candidate.request.evidence_lineage.clone();
+    lineage.sort();
+    let receipt = SignalReceipt {
+        request_fingerprint: candidate.request_fingerprint.clone(),
+        candidate_id: candidate.request.candidate_id.clone(),
+        prior_id: candidate.request.prior_id.clone(),
+        sample_size: candidate.sample_size,
+        rng_seed: candidate.request.rng_seed,
+        family: candidate.family.clone(),
+        update_mode: SignalUpdateMode::ExternalPosterior,
+        trust: SignalTrustLabel::ExactRequestVerified,
+        attestor: candidate.attestor.clone(),
+        provider_identity: Some(ProviderObjectIdentity {
+            provider_id: provider.provider_id,
+            object_id: provider.object_id,
+            version_id: provider.version_id,
+            snapshot_id: provider.snapshot_id,
+            request_id: provider.request_id,
+        }),
+        evidence_lineage: lineage,
+        conditional_independence: candidate.request.conditional_independence.clone(),
+        limits: SignalLimits {
+            max_sample_size: candidate.request.max_sample_size,
+            max_support: usize::try_from(candidate.request.max_support).unwrap(),
+        },
+        law_digest: candidate.law_digest.clone(),
+    };
+    candidate.signal_identity = receipt.identity();
+    edited.reseal_ranking().unwrap();
+    edited
+}
+
+#[test]
+fn a_stored_verification_label_without_a_receipt_is_consumed_as_an_attestation() {
+    let wire = seal_guess(frozen_candidates());
+    let edited = relabelled_verified(&wire, "cand-1");
+
+    // No receipt supplied: the label cannot be re-derived, so it is read as an attestation.
+    let consumed = consume_wire(&edited, &open()).unwrap();
+    let one = consumed.candidates.iter().find(|c| c.semantic_id == "cand-1").unwrap();
+    assert_eq!(one.trust, SignalTrustLabel::ExternallyAttested);
+    assert!(one.trust_limit.contains("no receipt"));
+    assert!(!one.natively_replayed());
+
+    // A consumer that holds the receipt for that candidate keeps the label.
+    let receipts: std::collections::BTreeSet<String> = ["cand-1".to_owned()].into();
+    let verified = antecedent_design::design_ranking_artifact::consume_wire_with_receipts(
+        &edited,
+        &open(),
+        &receipts,
+    )
+    .unwrap();
+    let one = verified.candidates.iter().find(|c| c.semantic_id == "cand-1").unwrap();
+    assert_eq!(one.trust, SignalTrustLabel::ExactRequestVerified);
+}
+
+#[test]
+fn a_newer_body_version_is_refused_as_a_version_before_any_field_is_read() {
+    // A body whose version word is not this reader's and whose shape is
+    // unrelated: the refusal names the version, not a field.
+    #[derive(serde::Serialize)]
+    struct Future {
+        version: u32,
+        unrelated: Vec<String>,
+    }
+    let body = antecedent_io_core::convert::to_cbor(&Future {
+        version: 99,
+        unrelated: vec!["a new layout".into()],
+    })
+    .unwrap();
+    let bytes = antecedent_io_core::encode_container(
+        &antecedent_io_core::ArtifactContainer {
+            kind: antecedent_design::design_ranking_artifact::DESIGN_RANKING_ARTIFACT_KIND,
+            note: "design_ranking",
+            max_bytes: 8 * 1024 * 1024,
+            artifact_id: "future",
+            library_version: "0.0.0",
+        },
+        &[antecedent_io_core::OutSection {
+            id: "design_ranking_body",
+            content_type: antecedent_io_core::CONTENT_CBOR,
+            bytes: &body,
+        }],
+    )
+    .unwrap();
+    let error = DesignRankingArtifactWire::from_bytes(&bytes).unwrap_err();
+    assert!(matches!(error, DesignRankingArtifactError::UnsupportedVersion(99)), "{error:?}");
+}

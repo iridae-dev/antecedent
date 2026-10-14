@@ -46,7 +46,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_contract::{ExternalRefusal, ProviderObjectIdentity, ScientificQuantity};
 use antecedent_core::{CanonicalWriter, is_blank};
-use antecedent_io_core::convert::{from_cbor, to_cbor};
+use antecedent_io_core::convert::to_cbor;
 use antecedent_io_core::error::IoError;
 use antecedent_io_core::quantity_wire::ScientificQuantityWire;
 use serde::{Deserialize, Serialize};
@@ -1006,7 +1006,9 @@ pub struct ConsumedCandidate {
     pub semantic_id: String,
     /// How the value was checked.
     pub replay: ReplayKind,
-    /// Provider trust label (never upgraded by consuming).
+    /// Provider trust label (never upgraded by consuming; a stored
+    /// `exact_request_verified` is reported `externally_attested` unless the
+    /// consumer supplied the receipt).
     pub trust: SignalTrustLabel,
     /// Update mode.
     pub update_mode: SignalUpdateMode,
@@ -1157,6 +1159,19 @@ impl DesignRankingArtifactWire {
         Ok(())
     }
 
+    /// Recompute the ranking identity from the stored candidates, then the
+    /// artifact digest. For a producer that edits a candidate's signal or trust
+    /// label; consumption still re-derives every number and the signal identity.
+    ///
+    /// # Errors
+    ///
+    /// A malformed ranking body or a CBOR encoding failure.
+    pub fn reseal_ranking(&mut self) -> Result<()> {
+        self.ranking_identity = rebuild_ranking(self)?.identity();
+        self.reseal()?;
+        Ok(())
+    }
+
     /// Serialize through the checksummed container, candidates in rank order.
     ///
     /// # Errors
@@ -1206,10 +1221,15 @@ impl DesignRankingArtifactWire {
                 IoError::Convert("unsupported design ranking artifact layout".into()).into()
             );
         };
-        let wire: Self = from_cbor(&body)?;
-        if wire.version != DESIGN_RANKING_ARTIFACT_VERSION {
-            return Err(DesignRankingArtifactError::UnsupportedVersion(wire.version));
-        }
+        // The version word is read from the untyped item before the typed
+        // body, so a newer layout is refused as an unsupported version.
+        let wire: Self = antecedent_io_core::decode_with_version(&body, |version: u32| {
+            if version == DESIGN_RANKING_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(DesignRankingArtifactError::UnsupportedVersion(version))
+            }
+        })?;
         Ok(wire)
     }
 }
@@ -1609,6 +1629,13 @@ fn trust_limit(trust: SignalTrustLabel, attestor: Option<&str>) -> String {
     }
 }
 
+fn trust_limit_unreceipted(attestor: Option<&str>) -> String {
+    format!(
+        "externally_attested by {}: the artifact stores an exact-request verification label but no receipt, and none was supplied by the consumer; supplier assertion only, not verified or natively replayed by Antecedent",
+        attestor.unwrap_or("unnamed attestor")
+    )
+}
+
 fn check_signal(candidate: &EvsiCandidateWire) -> Result<(SignalTrustLabel, SignalUpdateMode)> {
     let id = &candidate.semantic_id;
     let inconsistent = |slot: &'static str| DesignRankingArtifactError::SignalInconsistent {
@@ -1895,6 +1922,28 @@ pub fn consume_wire(
     wire: &DesignRankingArtifactWire,
     expectation: &ConsumeExpectation,
 ) -> Result<ConsumedDesignRanking> {
+    consume_wire_with_receipts(wire, expectation, &BTreeSet::new())
+}
+
+/// [`consume_wire`] with the candidates whose exact-request verification the
+/// consumer itself holds a receipt for.
+///
+/// The artifact does not retain a verification receipt, so a stored
+/// `exact_request_verified` label is a claim: the consumed candidate reports
+/// `externally_attested` unless its semantic id is in `verified_candidates`,
+/// which the consumer fills only from a receipt it checked against the same
+/// provider object and request. The label inside the signal identity is
+/// unchanged, so a resealed upgrade is not mistaken for a verified one and an
+/// honest verified artifact still replays.
+///
+/// # Errors
+///
+/// The first inconsistency found; see [`DesignRankingArtifactError`].
+pub fn consume_wire_with_receipts(
+    wire: &DesignRankingArtifactWire,
+    expectation: &ConsumeExpectation,
+    verified_candidates: &BTreeSet<String>,
+) -> Result<ConsumedDesignRanking> {
     if wire.version != DESIGN_RANKING_ARTIFACT_VERSION {
         return Err(DesignRankingArtifactError::UnsupportedVersion(wire.version));
     }
@@ -1936,7 +1985,16 @@ pub fn consume_wire(
     }
     let mut consumed = Vec::with_capacity(wire.candidates.len());
     for candidate in &wire.candidates {
-        consumed.push(verify_candidate(wire, candidate, &base)?);
+        let mut one = verify_candidate(wire, candidate, &base)?;
+        if one.trust == SignalTrustLabel::ExactRequestVerified
+            && !verified_candidates.contains(&candidate.semantic_id)
+        {
+            // A stored verification label with no receipt in the consumer's
+            // hands is an attestation, never a verification.
+            one.trust = SignalTrustLabel::ExternallyAttested;
+            one.trust_limit = trust_limit_unreceipted(candidate.attestor.as_deref());
+        }
+        consumed.push(one);
     }
     verify_order(wire)?;
     let ranking = rebuild_ranking(wire)?;

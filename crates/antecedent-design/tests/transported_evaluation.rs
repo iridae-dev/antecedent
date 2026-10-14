@@ -653,6 +653,7 @@ fn adaptive_trial_means_standardize_to_the_target_stratum_law() {
     let law = [0.25, 0.75];
     let request = AdaptiveTransportRequest {
         contract: Some(&contract),
+        trial_population: "trial_sites",
         unit_strata: &unit_strata,
         stratum_labels: &labels,
         target_stratum_law: Some(&law),
@@ -693,6 +694,7 @@ fn the_weighting_uses_the_recorded_probabilities_not_the_arm_counts() {
     let law = [1.0, 0.0];
     let request = AdaptiveTransportRequest {
         contract: Some(&contract),
+        trial_population: "trial_sites",
         unit_strata: &unit_strata,
         stratum_labels: &labels,
         target_stratum_law: Some(&law),
@@ -712,6 +714,7 @@ fn an_adaptive_source_without_its_contract_or_with_open_questions_is_refused() {
     let law = [0.25, 0.75];
     let base = AdaptiveTransportRequest {
         contract: Some(&contract),
+        trial_population: "trial_sites",
         unit_strata: &unit_strata,
         stratum_labels: &labels,
         target_stratum_law: Some(&law),
@@ -807,6 +810,7 @@ fn a_stratum_the_adaptive_assignment_starved_is_a_support_failure() {
     let law = [0.5, 0.5];
     let request = AdaptiveTransportRequest {
         contract: Some(&contract),
+        trial_population: "trial_sites",
         unit_strata: &unit_strata,
         stratum_labels: &labels,
         target_stratum_law: Some(&law),
@@ -818,4 +822,78 @@ fn a_stratum_the_adaptive_assignment_starved_is_a_support_failure() {
     assert_eq!(err.code, "transport_support_failure");
     assert_eq!(err.detail, "adaptive_transport.stratum_arm_unobserved");
     assert!(err.message.contains("got_control"));
+}
+
+#[test]
+fn the_trial_population_is_bound_to_the_diagram_and_distinct_from_the_target() {
+    let contract = AdaptiveDesignContract::new(declaration(epsilon_greedy())).unwrap();
+    let (unit_strata, labels) = strata();
+    let diagram = trial_diagram();
+    let law = [0.25, 0.75];
+    let base = AdaptiveTransportRequest {
+        contract: Some(&contract),
+        trial_population: "trial_sites",
+        unit_strata: &unit_strata,
+        stratum_labels: &labels,
+        target_stratum_law: Some(&law),
+        diagram: Some(&diagram),
+        treatment_arm: 1,
+        control_arm: 0,
+    };
+    assert!(transport_adaptive_trial(&base).is_ok());
+
+    // a diagram for some other source population than the trial's
+    let err = transport_adaptive_trial(&AdaptiveTransportRequest {
+        trial_population: "other_sites",
+        ..base
+    })
+    .unwrap_err();
+    assert_eq!(err.code, "transport_missing_evidence");
+    assert_eq!(err.detail, "adaptive_transport.diagram_binding_mismatch");
+
+    // target equal to source
+    let mut same = trial_diagram();
+    same.target_population = "trial_sites".into();
+    let err =
+        transport_adaptive_trial(&AdaptiveTransportRequest { diagram: Some(&same), ..base })
+            .unwrap_err();
+    assert_eq!(err.detail, "adaptive_transport.target_is_source");
+
+    // blank label
+    let mut blank = trial_diagram();
+    blank.target_population = "  ".into();
+    let err =
+        transport_adaptive_trial(&AdaptiveTransportRequest { diagram: Some(&blank), ..base })
+            .unwrap_err();
+    assert_eq!(err.detail, "adaptive_transport.population_label");
+}
+
+#[test]
+fn an_invariant_stratum_law_must_equal_the_trials_empirical_law() {
+    // unit_strata alternate 0/1 over 8 units: the empirical law is (0.5, 0.5).
+    let contract = AdaptiveDesignContract::new(declaration(epsilon_greedy())).unwrap();
+    let (unit_strata, labels) = strata();
+    let mut invariant = trial_diagram();
+    invariant.mechanisms[0].1 = MechanismStatus::Invariant;
+    let same = [0.5, 0.5];
+    let request = AdaptiveTransportRequest {
+        contract: Some(&contract),
+        trial_population: "trial_sites",
+        unit_strata: &unit_strata,
+        stratum_labels: &labels,
+        target_stratum_law: Some(&same),
+        diagram: Some(&invariant),
+        treatment_arm: 1,
+        control_arm: 0,
+    };
+    assert!(transport_adaptive_trial(&request).is_ok());
+
+    let different = [0.25, 0.75];
+    let err = transport_adaptive_trial(&AdaptiveTransportRequest {
+        target_stratum_law: Some(&different),
+        ..request
+    })
+    .unwrap_err();
+    assert_eq!(err.detail, "adaptive_transport.stratum_law_declared_invariant");
+    assert!(err.remedy.contains("shifted"));
 }

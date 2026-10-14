@@ -124,3 +124,4 @@ pub mod transport_sensitivity;
 pub mod transported_bridge;
 pub mod transported_policy;
 pub mod transported_synthesis;
+pub mod transported_decision_artifact;

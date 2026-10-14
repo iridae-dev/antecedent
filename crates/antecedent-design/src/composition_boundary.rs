@@ -595,6 +595,21 @@ impl DecisionInput {
         &self.provenance
     }
 
+    /// Weaken every coordinate's support to at most `floor`: a coordinate
+    /// keeps its own status when that is already weaker. A route that carries
+    /// a source across populations uses this so the label of the carrying
+    /// (its receipt) governs a law's coordinates, not the artifact's mask
+    /// alone. Never strengthens a status.
+    #[must_use]
+    pub fn with_support_floor(mut self, floor: SupportStatus) -> Self {
+        for (_, status) in &mut self.support.entries {
+            if status.severity() < floor.severity() {
+                *status = floor;
+            }
+        }
+        self
+    }
+
     /// Per-coordinate support.
     #[must_use]
     pub const fn support(&self) -> &SupportMap {

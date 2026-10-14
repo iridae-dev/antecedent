@@ -23,10 +23,11 @@ use antecedent_contract::evidence_ledger::{
 };
 use antecedent_core::SemanticDigest;
 use antecedent_design::transported_synthesis::{
-    DETAIL_OVERLAP_NOT_MODELLED, DETAIL_PRIOR_ROLE, DETAIL_SHARED_TRANSPORT,
+    DETAIL_NATIVE_POPULATION_BLANK, DETAIL_OVERLAP_NOT_MODELLED, DETAIL_PRIOR_ROLE, DETAIL_SHARED_TRANSPORT,
     DETAIL_SOURCE_LISTED_TWICE, DETAIL_TRANSPORT_VARIANCE_ON_NATIVE,
-    DETAIL_TRANSPORT_VARIANCE_UNDECLARED, TransportedContribution, TransportedSynthesisMethod,
-    TransportedSynthesisRefusal, synthesize_transported,
+    DETAIL_TARGET_POPULATION_MISMATCH, DETAIL_TRANSPORT_VARIANCE_UNDECLARED,
+    TransportedContribution, TransportedSynthesisMethod, TransportedSynthesisRefusal,
+    synthesize_transported, synthesize_transported_in_population,
 };
 use antecedent_stats::synthesis::{MeanPrior, TauPrior};
 
@@ -436,4 +437,105 @@ fn a_changed_input_at_unchanged_shape_changes_the_registered_result() {
     .unwrap();
     assert!(second.variance > first.variance);
     assert_ne!(first.result, second.result);
+}
+
+fn claim_to(ledger: &mut EvidenceLedger, label: &str, target: &str, start: u32) -> SourceId {
+    let identity = TransportIdentity {
+        source_populations: vec!["trial_a".to_owned()],
+        target_population: target.to_owned(),
+        selection_diagram: SemanticDigest::from_bytes([9; 32]),
+        assumptions: vec!["outcome mechanism invariant".to_owned()],
+    };
+    ledger
+        .add_source(
+            SourceDeclaration::new(label, SourceKind::ExternalClaim)
+                .with_observations(rows(start, start + 100))
+                .with_lineage(Lineage::Original)
+                .with_transport(identity),
+        )
+        .unwrap()
+}
+
+#[test]
+fn transports_to_different_targets_are_not_one_quantity() {
+    let mut ledger = EvidenceLedger::new();
+    let a = claim_to(&mut ledger, "claim a", "registry", 1_000);
+    let b = claim_to(&mut ledger, "claim b", "clinic_network", 2_000);
+    let before = ledger.state_digest();
+    let err = synthesize_transported(
+        &mut ledger,
+        "mixed targets",
+        &[contribution(a, 1.0, 1.0, Some(0.5)), contribution(b, 2.0, 1.0, Some(0.5))],
+        &pool(),
+    )
+    .unwrap_err();
+    assert_eq!(err.detail(), DETAIL_TARGET_POPULATION_MISMATCH);
+    assert_eq!(err.code(), "quantity_semantics_mismatch");
+    assert_eq!(ledger.state_digest(), before);
+}
+
+#[test]
+fn native_contributions_must_be_declared_in_the_transports_target() {
+    let mut ledger = EvidenceLedger::new();
+    let cohort = native(&mut ledger, "registry cohort", 0, 100);
+    let carried = claim(&mut ledger, "claim", SourceKind::ExternalClaim, 1_000, 1_100, 1);
+    let contributions =
+        [contribution(cohort, 1.0, 1.0, None), contribution(carried, 2.0, 1.0, Some(0.5))];
+
+    let before = ledger.state_digest();
+    let err = synthesize_transported_in_population(
+        &mut ledger,
+        "wrong native population",
+        &contributions,
+        &pool(),
+        "some_other_clinic",
+    )
+    .unwrap_err();
+    assert_eq!(err.detail(), DETAIL_TARGET_POPULATION_MISMATCH);
+    assert_eq!(ledger.state_digest(), before);
+
+    let err = synthesize_transported_in_population(
+        &mut ledger,
+        "blank",
+        &contributions,
+        &pool(),
+        "  ",
+    )
+    .unwrap_err();
+    assert_eq!(err.detail(), DETAIL_NATIVE_POPULATION_BLANK);
+
+    let out = synthesize_transported_in_population(
+        &mut ledger,
+        "declared",
+        &contributions,
+        &pool(),
+        "registry",
+    )
+    .unwrap();
+    near(out.estimate, 1.4);
+    assert_eq!(out.target_population.as_deref(), Some("registry"));
+    assert_eq!(out.native_population.as_deref(), Some("registry"));
+    assert_eq!(out.source_populations, vec!["trial_a".to_owned()]);
+}
+
+#[test]
+fn a_transport_with_no_assumption_or_a_self_target_is_refused_at_the_ledger() {
+    let mut ledger = EvidenceLedger::new();
+    let add = |ledger: &mut EvidenceLedger, start: u32, identity: TransportIdentity| {
+        ledger.add_source(
+            SourceDeclaration::new("claim", SourceKind::ExternalClaim)
+                .with_observations(rows(start, start + 100))
+                .with_lineage(Lineage::Original)
+                .with_transport(identity),
+        )
+    };
+    let err = add(
+        &mut ledger,
+        1_000,
+        TransportIdentity { assumptions: vec![], ..transport(3) },
+    )
+    .unwrap_err();
+    assert_eq!(err.detail, "evidence_ledger.invalid_declaration");
+    // The design-level guard stays for identities that reach synthesis.
+    assert!(add(&mut ledger, 1_000, transport(3)).is_ok());
 }

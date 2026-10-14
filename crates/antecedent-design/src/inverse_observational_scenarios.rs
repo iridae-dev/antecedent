@@ -43,6 +43,16 @@
 //!
 //! The law is borrowed for one call; the result owns its numbers.
 //!
+//! # Refresh
+//!
+//! Refresh with outcome-only data. The scenarios are a function of the law
+//! supplied at the call. New outcome-only data is a new aligned law (a new
+//! distribution artifact) and the scenarios are recomputed from it; the
+//! declared scenario cells and the event are kept. A law of another population
+//! or meaning is refused (an interventional law, or independent marginals under
+//! `joint_law_required`), and
+//! nothing is cached or refreshed in place.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;

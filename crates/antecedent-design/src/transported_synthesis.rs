@@ -32,6 +32,19 @@
 //! The ledger is borrowed mutably for one call and nothing is retained. The
 //! contributions are borrowed slices; the result owns its data.
 //!
+//! # Refresh
+//!
+//! Refresh with outcome-only data. A synthesis is a registration in the
+//! evidence ledger plus numbers computed from the contributions given at the
+//! call; it is not prepared or refreshed in place. New outcome-only data for a
+//! native source is a new ledger source and a new combination (the old result
+//! keeps its identity). What is kept is the transport identity of each
+//! transported claim and its declared transport variance; what is recomputed is
+//! every pooled, borrowed or prior-updated number and the mass account. A
+//! contribution whose source declares another target population than the rest,
+//! or a native population other than the target's, is refused
+//! (`target_population_mismatch`); a retired source is refused by the ledger.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
@@ -123,6 +136,18 @@ pub struct TransportedSynthesis {
     pub transported_sources: Vec<SourceId>,
     /// Transport identities that contributed, sorted and distinct.
     pub transport_identities: Vec<SemanticDigest>,
+    /// The one population every transported contribution was carried to;
+    /// `None` when no contribution is transported.
+    pub target_population: Option<String>,
+    /// Union of the populations the transported contributions were learned
+    /// in, sorted and distinct, taken from the ledger's transport identities.
+    pub source_populations: Vec<String>,
+    /// The population the caller declared for the native contributions, when
+    /// [`synthesize_transported_in_population`] was used. The ledger carries no
+    /// population for a native source, so a result from
+    /// [`synthesize_transported`] leaves this `None` and the native
+    /// contributions' population is the caller's unchecked declaration.
+    pub native_population: Option<String>,
     /// Observation mass the ledger counted, each observation once.
     pub mass: MassAccount,
     /// What the ledger says the result licenses.
@@ -161,8 +186,12 @@ impl TransportedSynthesisRefusal {
             }
             Self::Numeric(_) => antecedent_core::reason_code!("invalid_argument"),
             Self::Declaration { detail, .. } => {
-                if *detail == DETAIL_TRANSPORT_VARIANCE_UNDECLARED {
+                if *detail == DETAIL_TRANSPORT_VARIANCE_UNDECLARED
+                    || *detail == DETAIL_TRANSPORT_IDENTITY_INCOMPLETE
+                {
                     antecedent_core::reason_code!("transport_missing_evidence")
+                } else if *detail == DETAIL_TARGET_POPULATION_MISMATCH {
+                    antecedent_core::reason_code!("quantity_semantics_mismatch")
                 } else {
                     antecedent_core::reason_code!("invalid_argument")
                 }
@@ -204,6 +233,17 @@ pub const DETAIL_SHARED_TRANSPORT: &str = "transported_synthesis.shared_transpor
 /// Shared transport error was declared, but the sources' observations are
 /// shared or unknown and no sampling covariance models that.
 pub const DETAIL_OVERLAP_NOT_MODELLED: &str = "transported_synthesis.overlap_not_modelled";
+/// The transported contributions were carried to different target
+/// populations, or the native contributions' declared population is not the
+/// target.
+pub const DETAIL_TARGET_POPULATION_MISMATCH: &str =
+    "transported_synthesis.target_population_mismatch";
+/// A transported source's identity names no assumption, or its target is one of
+/// its own source populations.
+pub const DETAIL_TRANSPORT_IDENTITY_INCOMPLETE: &str =
+    "transported_synthesis.transport_identity_incomplete";
+/// The declared native population is blank.
+pub const DETAIL_NATIVE_POPULATION_BLANK: &str = "transported_synthesis.native_population_blank";
 /// The numerical routine refused its input.
 pub const DETAIL_NUMERIC: &str = "transported_synthesis.numeric_refused";
 
@@ -219,6 +259,8 @@ struct Classified {
     source: SourceId,
     summary: TransportAwareSummary,
     transport_digest: Option<SemanticDigest>,
+    target_population: Option<String>,
+    source_populations: Vec<String>,
 }
 
 fn classify(
@@ -249,8 +291,25 @@ fn classify(
                 "add the source to the evidence ledger before contributing it",
             ));
         };
-        let (origin, transport_digest) = match (&source.declaration.transport, c.transport_variance)
-        {
+        if let Some(transport) = &source.declaration.transport {
+            // The ledger records a transport identity as declared; a transport
+            // with no stated assumption, or one carried to its own source, is
+            // not a transport a result may stand on.
+            if transport.assumptions.is_empty()
+                || transport.assumptions.iter().any(|a| a.trim().is_empty())
+                || transport.source_populations.is_empty()
+                || transport.target_population.trim().is_empty()
+                || transport.source_populations.contains(&transport.target_population)
+            {
+                return Err(declaration(
+                    DETAIL_TRANSPORT_IDENTITY_INCOMPLETE,
+                    Some(c.source),
+                    "declare the assumptions the claim was carried under and a target population that is none of its source populations; there is nothing to transport otherwise",
+                ));
+            }
+        }
+        let (origin, transport_digest, target_population, source_populations) =
+            match (&source.declaration.transport, c.transport_variance) {
             (Some(transport), Some(variance)) => {
                 let digest = transport.digest();
                 (
@@ -259,6 +318,8 @@ fn classify(
                         transport_variance: variance,
                     },
                     Some(digest),
+                    Some(transport.target_population.clone()),
+                    transport.source_populations.clone(),
                 )
             }
             (Some(_), None) => {
@@ -275,7 +336,7 @@ fn classify(
                     "a native source has no transport error; drop the transport variance, or declare the source's transport identity in the ledger",
                 ));
             }
-            (None, None) => (SummaryOrigin::Native, None),
+            (None, None) => (SummaryOrigin::Native, None, None, Vec::new()),
         };
         out.push(Classified {
             source: c.source,
@@ -285,6 +346,8 @@ fn classify(
                 origin,
             },
             transport_digest,
+            target_population,
+            source_populations,
         });
     }
     out.sort_by_key(|c| c.source);
@@ -314,7 +377,75 @@ pub fn synthesize_transported(
     contributions: &[TransportedContribution],
     method: &TransportedSynthesisMethod,
 ) -> Result<TransportedSynthesis, TransportedSynthesisRefusal> {
+    synthesize_checked(ledger, label, contributions, method, None)
+}
+
+/// [`synthesize_transported`] with the population of the native contributions
+/// declared and checked against the transports' target.
+///
+/// The ledger carries no population for a native source, so the caller names
+/// the one population every native contribution was observed in. When any
+/// transported contribution is present it must equal their common target
+/// population; native target data from another population cannot be pooled as
+/// if it were the target's.
+///
+/// # Errors
+/// Every refusal of [`synthesize_transported`], a blank `native_population`,
+/// and [`DETAIL_TARGET_POPULATION_MISMATCH`] when the native population is not
+/// the transports' target.
+pub fn synthesize_transported_in_population(
+    ledger: &mut EvidenceLedger,
+    label: &str,
+    contributions: &[TransportedContribution],
+    method: &TransportedSynthesisMethod,
+    native_population: &str,
+) -> Result<TransportedSynthesis, TransportedSynthesisRefusal> {
+    if native_population.trim().is_empty() {
+        return Err(declaration(
+            DETAIL_NATIVE_POPULATION_BLANK,
+            None,
+            "name the population the native contributions were observed in",
+        ));
+    }
+    synthesize_checked(ledger, label, contributions, method, Some(native_population))
+}
+
+fn synthesize_checked(
+    ledger: &mut EvidenceLedger,
+    label: &str,
+    contributions: &[TransportedContribution],
+    method: &TransportedSynthesisMethod,
+    native_population: Option<&str>,
+) -> Result<TransportedSynthesis, TransportedSynthesisRefusal> {
     let classified = classify(ledger, contributions)?;
+    let targets: BTreeSet<&str> =
+        classified.iter().filter_map(|c| c.target_population.as_deref()).collect();
+    if targets.len() > 1 {
+        return Err(declaration(
+            DETAIL_TARGET_POPULATION_MISMATCH,
+            classified
+                .iter()
+                .find(|c| c.target_population.as_deref() != targets.iter().next().copied())
+                .map(|c| c.source),
+            "carry every transported contribution to one target population; claims about different targets are different quantities",
+        ));
+    }
+    let target_population = targets.iter().next().map(|t| (*t).to_owned());
+    if let (Some(native), Some(target)) = (native_population, target_population.as_deref()) {
+        if native != target {
+            return Err(declaration(
+                DETAIL_TARGET_POPULATION_MISMATCH,
+                classified.iter().find(|c| c.transport_digest.is_none()).map(|c| c.source),
+                "the native contributions were observed in another population than the transports' target; transport them too, or drop them",
+            ));
+        }
+    }
+    let source_populations: Vec<String> = classified
+        .iter()
+        .flat_map(|c| c.source_populations.iter().cloned())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
     let ids: Vec<SourceId> = classified.iter().map(|c| c.source).collect();
     let summaries: Vec<TransportAwareSummary> =
         classified.iter().map(|c| c.summary.clone()).collect();
@@ -451,6 +582,9 @@ pub fn synthesize_transported(
         native_sources,
         transported_sources,
         transport_identities: identities.into_iter().collect(),
+        target_population,
+        source_populations,
+        native_population: native_population.map(str::to_owned),
         mass: record.mass,
         claim_class: record.claim_class,
     })

@@ -86,20 +86,23 @@ pub fn cohort_decision_input(
 ///
 /// An inverse query asks which finite action meets a target mean, so a mean source
 /// answers a target on an affine utility and the existing engine refuses a probability,
-/// quantile or nonlinear utility on it. An inverse query carries no support policy, so a
-/// cohort mean transported under a declared covariate shift is not offered here.
+/// quantile or nonlinear utility on it. This entry takes no acceptance policy: a cohort
+/// mean transported under a declared covariate shift is a transported claim and is read
+/// through [`crate::inverse_forward_source::cohort_forward_source`] with
+/// `AcceptsTransported`, which carries the transport identity into the result.
 ///
 /// # Errors
-/// A source built under a declared covariate shift
-/// (`route_not_supported`, `cohort_decision.inverse_shift_not_licensed`).
+/// A source built under a declared covariate shift: the shape every consumer that does
+/// not accept transported claims returns (`cell_not_licensed`,
+/// `inverse_forward_source.transported_not_accepted`).
 pub fn cohort_forward_claim(source: &CohortDecisionSource) -> Result<ForwardClaim, CohortRefusal> {
     if source.shift().is_some() {
         return Err(CohortRefusal {
-            code: antecedent_core::reason_code!("route_not_supported"),
-            detail: "cohort_decision.inverse_shift_not_licensed",
+            code: antecedent_core::reason_code!("cell_not_licensed"),
+            detail: crate::inverse_forward_source::DETAIL_TRANSPORTED_NOT_ACCEPTED,
             subject: source.cohort().population_id().to_owned(),
-            remedy: "decide with a support policy that admits extrapolative evidence, or \
-                     fit on rows that cover the target population",
+            remedy: "accept transported claims explicitly (AcceptsTransported) so the result \
+                     carries the transport identity, or supply native target data",
         });
     }
     Ok(ForwardClaim::Means(cohort_mean_source(source)))

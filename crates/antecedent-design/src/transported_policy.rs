@@ -28,6 +28,18 @@
 //! is made, and the only premises are the declared ones in
 //! [`TransportPremises`].
 //!
+//! # Refresh
+//!
+//! Refresh with outcome-only data. The transported value is a function of
+//! the source model, the policy, the declared selection diagram and the target
+//! initial law. New outcome-only data refits the source model; the policy,
+//! the diagram and the target law are kept as declarations and the value, its
+//! identity and the source's own evaluation are recomputed. A refit that moves
+//! mass outside the declared invariant mechanisms, a target law outside the
+//! source's support or a model of another population is refused
+//! (`diagram_binding_mismatch`, `initial_law_declared_invariant` and the
+//! support refusal).
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;

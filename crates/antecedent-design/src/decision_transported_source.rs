@@ -43,6 +43,28 @@
 //! A response owns its value and receipt. Evaluation borrows the contract and
 //! the response and retains neither.
 //!
+//! # Refresh
+//!
+//! Refresh with outcome-only data. A transported response is a value and the
+//! receipt of how it was carried. New outcome-only data at the source
+//! population changes the carried value and so its source identity: the
+//! response is rebuilt from the producing result and the decision is
+//! recomputed. The declaration (populations, selection-diagram identities,
+//! assumptions) and the consumer's support policy are kept. Data of another
+//! population, quantity or arm is refused (`coordinate_not_in_target`,
+//! `mixed_transports`); the receipt is never edited in place to follow new
+//! data.
+//!
+//! # Export
+//!
+//! A transported point and its decision are exported and consumed by
+//! `transported_decision_artifact`, which re-derives the decision from the
+//! stored contract, value, receipt and policy rather than trusting the stored
+//! numbers. Routes with a typed constructor here (shifted cohort, policy,
+//! synthesis) cannot be declared by hand: their populations and identities are
+//! copied from the producing result. A typed route's transport identities must
+//! be 32-byte digests; only the `declared` route carries free text.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
@@ -98,8 +120,14 @@ pub const DETAIL_LAW_NOT_SUPPLIED: &str = "transported_decision.law_not_supplied
 pub const DETAIL_INTERVAL_NOT_LICENSED: &str = "transported_decision.interval_not_licensed";
 /// Detail: responses merged into one grid were not carried by one transport.
 pub const DETAIL_MIXED_TRANSPORTS: &str = "transported_decision.mixed_transports";
-/// Detail: the policy does not accept the transported support label.
-pub const DETAIL_SUPPORT_BELOW_POLICY: &str = "transported_decision.support_below_policy";
+/// Detail: a transport identity of a typed route is not a 32-byte digest.
+pub const DETAIL_IDENTITY_NOT_DIGEST: &str = "transported_decision.transport_identity_not_digest";
+/// Detail: a route that has a typed constructor was declared by hand.
+pub const DETAIL_ROUTE_NEEDS_TYPED_SOURCE: &str =
+    "transported_decision.route_needs_typed_source";
+/// Detail: the consumer's policy does not accept the transported support
+/// label (the decision-side form of `inverse_forward_source.transported_not_accepted`).
+pub const DETAIL_SUPPORT_BELOW_POLICY: &str = "transported_decision.transported_not_accepted";
 
 /// The route a transported value was carried by.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -212,6 +240,13 @@ impl TransportReceipt {
         {
             return Err(TransportedRefusal::TransportIdentityIncomplete);
         }
+        // A typed route's identities come from a producing route's canonical
+        // digests; only a hand-declared route may carry free text.
+        if self.route != TransportedRoute::Declared
+            && !self.transport_identities.iter().all(|t| is_digest_hex(t))
+        {
+            return Err(TransportedRefusal::IdentityNotDigest);
+        }
         match self.support_status() {
             Some(status) if status.severity() >= SupportStatus::Extrapolative.severity() => {}
             _ => return Err(TransportedRefusal::SupportLabelInflated(self.support.clone())),
@@ -247,6 +282,10 @@ impl TransportReceipt {
             .opt_real(self.uncalibrated_standard_error);
         writer.finish_hex()
     }
+}
+
+fn is_digest_hex(text: &str) -> bool {
+    text.len() == 64 && text.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 /// The value of a transported response.
@@ -326,6 +365,15 @@ impl TransportedResponse {
         means: Vec<f64>,
         declaration: &TransportDeclaration,
     ) -> Result<Self, TransportedRefusal> {
+        require_declarable_route(declaration.route)?;
+        Self::build_point(coordinates, means, declaration)
+    }
+
+    fn build_point(
+        coordinates: Vec<ScientificQuantity>,
+        means: Vec<f64>,
+        declaration: &TransportDeclaration,
+    ) -> Result<Self, TransportedRefusal> {
         if coordinates.is_empty()
             || coordinates.len() != means.len()
             || means.iter().any(|m| !m.is_finite())
@@ -365,6 +413,7 @@ impl TransportedResponse {
         law: DistributionArtifact,
         declaration: &TransportDeclaration,
     ) -> Result<Self, TransportedRefusal> {
+        require_declarable_route(declaration.route)?;
         let meta = law.metadata();
         if meta.trust == DistributionTrust::NativeLicensed {
             return Err(TransportedRefusal::NativeLabelOnTransported);
@@ -422,7 +471,7 @@ impl TransportedResponse {
             snapshot_id: mean.snapshot_id.clone(),
             causal_contract_id: mean.causal_contract_id.clone(),
         };
-        Self::declared_point(mean.coordinates, mean.means, &declaration)
+        Self::build_point(mean.coordinates, mean.means, &declaration)
     }
 
     /// The target-population value of a transported policy evaluation, stated
@@ -456,7 +505,7 @@ impl TransportedResponse {
             snapshot_id: evaluation.identity.clone(),
             causal_contract_id: evaluation.diagram_identity.clone(),
         };
-        Self::declared_point(vec![coordinate], vec![evaluation.target_value], &declaration)
+        Self::build_point(vec![coordinate], vec![evaluation.target_value], &declaration)
     }
 
     /// The value of a synthesis that contains transported claims, stated at
@@ -465,17 +514,22 @@ impl TransportedResponse {
     ///
     /// # Errors
     /// [`TransportedRefusal::NotTransported`] for a synthesis of native
-    /// sources only, and every refusal of [`Self::declared_point`].
+    /// sources only, and every refusal of [`Self::declared_point`]. The source
+    /// populations and the target are the ones the ledger's transport
+    /// identities recorded, never caller text; a coordinate stated in another
+    /// population is [`TransportedRefusal::QuantityNotInTarget`].
     pub fn from_transported_synthesis(
         synthesis: &TransportedSynthesis,
         coordinate: ScientificQuantity,
-        source_populations: Vec<String>,
         provider_id: &str,
     ) -> Result<Self, TransportedRefusal> {
+        let Some(target) = synthesis.target_population.clone() else {
+            return Err(TransportedRefusal::NotTransported);
+        };
         if synthesis.transported_sources.is_empty() || synthesis.transport_identities.is_empty() {
             return Err(TransportedRefusal::NotTransported);
         }
-        let target = coordinate.population_id.clone();
+        let source_populations = synthesis.source_populations.clone();
         let result = synthesis.result.to_hex();
         let declaration = TransportDeclaration {
             route: TransportedRoute::Synthesis,
@@ -499,7 +553,7 @@ impl TransportedResponse {
             snapshot_id: result.clone(),
             causal_contract_id: result,
         };
-        Self::declared_point(vec![coordinate], vec![synthesis.estimate], &declaration)
+        Self::build_point(vec![coordinate], vec![synthesis.estimate], &declaration)
     }
 
     /// Merge transported points that were carried by one transport into one
@@ -562,7 +616,40 @@ impl TransportedResponse {
             snapshot_id: merged.clone(),
             causal_contract_id: merged,
         };
-        Self::declared_point(coordinates, means, &declaration)
+        Self::build_point(coordinates, means, &declaration)
+    }
+
+    /// Rebuild a transported point from a stored receipt and mean grid, for a
+    /// consumer that re-derives a decision from an artifact. The receipt is
+    /// validated exactly as at construction; nothing in it is trusted.
+    ///
+    /// # Errors
+    /// A law-valued receipt, an invalid value, an invalid receipt or a
+    /// coordinate not stated in the receipt's target population.
+    pub(crate) fn from_stored_point(
+        mean: MeanSource,
+        receipt: TransportReceipt,
+    ) -> Result<Self, TransportedRefusal> {
+        if receipt.representation != TransportedRepresentation::PointOnly {
+            return Err(TransportedRefusal::InvalidValue("a stored point carries a point receipt"));
+        }
+        if mean.coordinates.is_empty()
+            || mean.coordinates.len() != mean.means.len()
+            || mean.means.iter().any(|m| !m.is_finite())
+        {
+            return Err(TransportedRefusal::InvalidValue("one finite mean per coordinate"));
+        }
+        for (position, coordinate) in mean.coordinates.iter().enumerate() {
+            if mean.coordinates[..position]
+                .iter()
+                .any(|earlier| earlier.require_same_coordinate(coordinate).is_ok())
+            {
+                return Err(TransportedRefusal::InvalidValue("coordinates are distinct"));
+            }
+        }
+        receipt.validate()?;
+        check_in_target(&mean.coordinates, &receipt.target_population)?;
+        Ok(Self { value: TransportedValue::Means(mean), receipt })
     }
 
     /// The value.
@@ -611,12 +698,29 @@ fn check_in_target(
     }
 }
 
+/// The routes with a typed constructor cannot be declared by hand: their
+/// populations and identities come from the producing result.
+fn require_declarable_route(route: TransportedRoute) -> Result<(), TransportedRefusal> {
+    match route {
+        TransportedRoute::Policy
+        | TransportedRoute::ShiftedCohort
+        | TransportedRoute::Synthesis => Err(TransportedRefusal::RouteNeedsTypedSource(route)),
+        TransportedRoute::CohortEffect
+        | TransportedRoute::Mechanism
+        | TransportedRoute::Declared => Ok(()),
+    }
+}
+
 /// Why a transported response was refused as a decision source.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum TransportedRefusal {
     /// The transport identity is incomplete.
     TransportIdentityIncomplete,
+    /// A typed route's transport identity is not a 32-byte digest.
+    IdentityNotDigest,
+    /// The route has a typed constructor and cannot be declared by hand.
+    RouteNeedsTypedSource(TransportedRoute),
     /// The object offered was not carried to another population.
     NotTransported,
     /// A coordinate is not stated in the target population.
@@ -664,7 +768,10 @@ impl TransportedRefusal {
             Self::TransportIdentityIncomplete => {
                 antecedent_core::reason_code!("transport_missing_evidence")
             }
-            Self::NotTransported | Self::InvalidValue(_) => {
+            Self::IdentityNotDigest => antecedent_core::reason_code!("transport_missing_evidence"),
+            Self::NotTransported
+            | Self::RouteNeedsTypedSource(_)
+            | Self::InvalidValue(_) => {
                 antecedent_core::reason_code!("invalid_argument")
             }
             Self::QuantityNotInTarget { .. } => {
@@ -680,9 +787,9 @@ impl TransportedRefusal {
             }
             Self::MixedTransports => antecedent_core::reason_code!("transport_not_certified"),
             Self::IntervalNotLicensed => antecedent_core::reason_code!("cell_not_licensed"),
-            Self::SupportBelowPolicy { .. } => {
-                antecedent_core::reason_code!("transport_support_failure")
-            }
+            // The same code every consumer uses to say it does not accept a
+            // transported input (inverse queries, cohort forward claims).
+            Self::SupportBelowPolicy { .. } => antecedent_core::reason_code!("cell_not_licensed"),
             Self::Boundary(error) => error.reason_code(),
         }
     }
@@ -692,6 +799,8 @@ impl TransportedRefusal {
     pub fn detail(&self) -> String {
         match self {
             Self::TransportIdentityIncomplete => DETAIL_IDENTITY_INCOMPLETE.to_owned(),
+            Self::IdentityNotDigest => DETAIL_IDENTITY_NOT_DIGEST.to_owned(),
+            Self::RouteNeedsTypedSource(_) => DETAIL_ROUTE_NEEDS_TYPED_SOURCE.to_owned(),
             Self::NotTransported => DETAIL_NOT_TRANSPORTED.to_owned(),
             Self::QuantityNotInTarget { .. } => DETAIL_NOT_IN_TARGET.to_owned(),
             Self::SupportLabelInflated(_) => DETAIL_SUPPORT_INFLATED.to_owned(),
@@ -716,6 +825,13 @@ impl TransportedRefusal {
                     "name the source populations (none of them the target), the target \
                      population, the selection diagram and the assumptions the value was carried under",
                 )
+                .build(),
+            Self::IdentityNotDigest => build(DETAIL_IDENTITY_NOT_DIGEST)
+                .remedy("a typed route's transport identity is the canonical digest its producing route computed; pass that digest, or declare the route as `declared`")
+                .build(),
+            Self::RouteNeedsTypedSource(route) => build(DETAIL_ROUTE_NEEDS_TYPED_SOURCE)
+                .offending(route.as_str())
+                .remedy("build the response from the producing result (`from_shifted_cohort`, `from_transported_policy`, `from_transported_synthesis`) so its populations and identities are copied, not typed")
                 .build(),
             Self::NotTransported => build(DETAIL_NOT_TRANSPORTED)
                 .remedy(
@@ -889,12 +1005,15 @@ pub fn evaluate_transported_decision(
                 TrustRequirement::Unrestricted,
             )
         }
+        // The receipt's label governs every coordinate of a law as it does
+        // for a point; the artifact's mask can only weaken it further.
         TransportedValue::Law(law) => DecisionInput::from_distribution_artifact(
             &id,
             law,
             &TrustEvidence::None,
             TrustRequirement::Unrestricted,
-        ),
+        )
+        .map(|input| input.with_support_floor(supplied)),
     }
     .map_err(TransportedRefusal::Boundary)?;
     let lineage = input.provenance().lineage_digest.clone();

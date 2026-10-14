@@ -31,12 +31,16 @@ use antecedent_core::{ExecutionContext, SupportStatus};
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
 };
-use antecedent_design::decision_transported_source::{TransportedResponse, TransportedRoute};
+use antecedent_design::decision_transported_source::{
+    TransportReceipt, TransportedRefusal, TransportedRepresentation, TransportedResponse,
+    TransportedRoute,
+};
 use antecedent_design::inverse_forward_source::{
     ComposedActionResponse, ComposedFamily, ComposedResponse, DETAIL_COMPOSED_LAW,
     DETAIL_COMPOSED_LEVELS, DETAIL_INTERVAL, DETAIL_POINT_ONLY_LAW,
     DETAIL_TRANSPORTED_NOT_ACCEPTED, ForwardRepresentation, ForwardSourceKind,
     ForwardSourceRefusal, InverseDemand, cohort_forward_source, composed_forward_source,
+    composed_forward_source_accepting,
     evaluate_inverse_on_source, forward_claim_digest, seal_on_source, seal_per_action_on_source,
     transported_forward_source,
 };
@@ -125,6 +129,7 @@ fn gaussian_response(means: [f64; 3]) -> ComposedResponse {
     ComposedResponse {
         family: ComposedFamily::LinearGaussian,
         assumed_mechanisms: vec!["u".into()],
+        transport: None,
         actions: IDS
             .iter()
             .zip(means)
@@ -275,6 +280,7 @@ fn finite_response(hi: [f64; 3]) -> ComposedResponse {
     ComposedResponse {
         family: ComposedFamily::Tabular,
         assumed_mechanisms: vec![],
+        transport: None,
         actions: IDS
             .iter()
             .zip(hi)
@@ -865,4 +871,101 @@ fn a_transported_response_is_refused_where_only_native_data_is_accepted() {
         error,
         ForwardSourceRefusal::IntervalNotLicensed(ForwardSourceKind::TransportedResponse)
     );
+}
+
+fn mechanism_receipt() -> TransportReceipt {
+    TransportReceipt {
+        route: TransportedRoute::Mechanism,
+        source_identity: format!("{:064x}", 7),
+        source_populations: vec!["trial".to_owned()],
+        target_population: "target".to_owned(),
+        transport_identities: vec![format!("{:064x}", 9)],
+        assumptions: vec!["outcome mechanism invariant across populations".to_owned()],
+        support: "extrapolative".to_owned(),
+        representation: TransportedRepresentation::PointOnly,
+        uncalibrated_standard_error: None,
+    }
+}
+
+#[test]
+fn a_composition_with_carried_mechanisms_is_not_native_target_data() {
+    let mut response = gaussian_response([1.0, 2.5, 4.0]);
+    response.transport = Some(mechanism_receipt());
+
+    // The default stance refuses a carried composition exactly as it refuses
+    // every other transported source.
+    let error = composed_forward_source(&response).unwrap_err();
+    assert_eq!(error, ForwardSourceRefusal::TransportedNotAccepted);
+    assert_eq!(error.code(), "cell_not_licensed");
+    assert_eq!(error.detail(), DETAIL_TRANSPORTED_NOT_ACCEPTED);
+
+    // Accepted explicitly, the origin names the carrying and is never `supported`.
+    let forward =
+        composed_forward_source_accepting(&response, TransportedInputPolicy::AcceptsTransported)
+            .unwrap();
+    assert_eq!(forward.origin().kind, ForwardSourceKind::ComposedMechanism);
+    assert_eq!(forward.origin().support, "extrapolative");
+    assert_eq!(forward.origin().transport, response.transport);
+
+    // The numbers are the native composition's: carrying changes the label.
+    let query = query_on(
+        identity_contract(&[
+            ("a0", mean_coordinate("do(t=0)", "mean")),
+            ("a1", mean_coordinate("do(t=1)", "mean")),
+            ("a2", mean_coordinate("do(t=2)", "mean")),
+        ]),
+        &IDS,
+        vec![mean_at_least(2.5)],
+    );
+    let result = evaluate_inverse_on_source(&query, &forward, InverseDemand::default()).unwrap();
+    assert!((result.result.actions[1].point_values[0].value.unwrap() - 2.5).abs() < 1e-12);
+    assert_eq!(result.origin.transport.as_ref().unwrap().target_population, "target");
+
+    // The carrying is part of the origin identity: the same numbers without
+    // it have another identity.
+    let native = composed_forward_source(&gaussian_response([1.0, 2.5, 4.0])).unwrap();
+    assert_ne!(native.origin().canonical_identity(), forward.origin().canonical_identity());
+    assert_eq!(native.origin().support, "supported");
+}
+
+#[test]
+fn a_carried_composition_with_a_wrong_or_inflated_receipt_is_refused() {
+    let mut response = gaussian_response([1.0, 2.5, 4.0]);
+    let mut receipt = mechanism_receipt();
+    receipt.route = TransportedRoute::Policy;
+    response.transport = Some(receipt);
+    let error =
+        composed_forward_source_accepting(&response, TransportedInputPolicy::AcceptsTransported)
+            .unwrap_err();
+    assert!(matches!(error, ForwardSourceRefusal::ComposedInvalid(_)));
+
+    let mut receipt = mechanism_receipt();
+    receipt.support = "supported".to_owned();
+    response.transport = Some(receipt);
+    let error =
+        composed_forward_source_accepting(&response, TransportedInputPolicy::AcceptsTransported)
+            .unwrap_err();
+    assert!(matches!(
+        error,
+        ForwardSourceRefusal::Transported(TransportedRefusal::SupportLabelInflated(_))
+    ));
+}
+
+#[test]
+fn one_shifted_cohort_is_refused_in_one_shape_by_every_consumer_that_does_not_accept_it() {
+    use antecedent_design::cohort_decision_input::cohort_forward_claim;
+    let shift = CovariateShiftDeclaration::new("target", "clinic_b", &["z"]);
+    let source = cohort_source("clinic_b", Some(shift));
+    let inverse = cohort_forward_source(&source, TransportedInputPolicy::NativeTargetOnly)
+        .unwrap_err();
+    let claim = cohort_forward_claim(&source).unwrap_err();
+    assert_eq!(inverse.code(), claim.code);
+    assert_eq!(inverse.detail(), claim.detail);
+    // The decision consumer's refusal for a policy that does not admit the
+    // label carries the same code.
+    let decision = TransportedRefusal::SupportBelowPolicy {
+        supplied: SupportStatus::Extrapolative,
+        required: SupportStatus::Supported,
+    };
+    assert_eq!(decision.code(), inverse.code());
 }

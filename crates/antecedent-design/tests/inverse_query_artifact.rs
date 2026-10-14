@@ -362,3 +362,20 @@ fn continuous_sample_artifact_never_claims_global_feasibility() {
     assert_eq!(finite.result().existence, ExistenceClaim::NoFeasibleActionInDeclaredSet);
     assert!(finite.result().exhaustive_over_declared_set);
 }
+
+#[test]
+fn source_evidence_is_counted_before_any_nested_artifact_is_replayed() {
+    let artifact = sealed(vec![mean_at_least(0.5)], GridScope::FiniteEnumeration);
+    let bytes = artifact.to_bytes("inverse-query-nested").unwrap();
+    let (meta, contract, data) = decode_parts(&bytes).unwrap();
+    // One more than the cap, each entry garbage: were any replayed first, the
+    // refusal would be about that entry's bytes, not the count.
+    let mut forged = meta.clone();
+    forged.source_evidence = (0..=antecedent_design::inverse_query_artifact::MAX_INVERSE_QUERY_SOURCE_EVIDENCE)
+        .map(|_| vec![0_u8; 4])
+        .collect();
+    let tampered = encode_parts(&forged, &contract, &data, "nested").unwrap();
+    let error = InverseQueryArtifact::from_bytes(&tampered, None).unwrap_err();
+    assert!(message(&error).contains("bounds_exceeded"), "{error}");
+    assert!(message(&error).contains("too many original source artifacts"), "{error}");
+}

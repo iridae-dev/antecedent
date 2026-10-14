@@ -26,6 +26,17 @@
 //! unresolved obligation of the derived claim; this module checks it against
 //! the diagram, it does not discharge it.
 //!
+//! # Refresh
+//!
+//! Refresh with outcome-only data. The transported premise is a checked
+//! statement over a declared diagram, not a function of the outcome data.
+//! New outcome-only data in the validating population changes the bridge's
+//! evidence: the derived claim is rebuilt from it, and the diagram, the
+//! declared modifiers and the terminal variable are kept. A diagram whose
+//! scope no longer matches the claim's populations, or a selection node into
+//! the terminal outcome or a modifier, is refused (the premise is named);
+//! the premise stays an unresolved obligation of the rebuilt claim.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::bridge::{

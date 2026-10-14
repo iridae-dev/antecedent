@@ -366,6 +366,8 @@ fn the_cohort_mean_is_a_licensed_forward_source_of_an_inverse_query() {
     )
     .unwrap();
     let refusal = cohort_forward_claim(&shifted).unwrap_err();
-    assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "cohort_decision.inverse_shift_not_licensed");
+    // One shape for a consumer that does not accept a transported claim: the
+    // same code and detail as the inverse forward source.
+    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.detail, "inverse_forward_source.transported_not_accepted");
 }

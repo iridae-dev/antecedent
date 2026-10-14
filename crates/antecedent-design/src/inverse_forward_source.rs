@@ -12,7 +12,11 @@
 //!   caller's numeric coding of the outcome levels. A Gaussian composition does
 //!   not supply a law the engine can integrate, so a quantile or a probability
 //!   on it is refused with [`ForwardSourceRefusal::ComposedLawNotMaterialized`]
-//!   and the remedy of drawing the intervened law.
+//!   and the remedy of drawing the intervened law. A composition whose
+//!   mechanisms were carried across populations is a transported claim: it is
+//!   refused under `NativeTargetOnly` and, under `AcceptsTransported`
+//!   ([`composed_forward_source_accepting`]), carries the transport receipt and
+//!   the receipt's support label instead of `supported`.
 //! - **Cohort-mean contrast** ([`cohort_forward_source`]): the weighted mean
 //!   contrast of a retained effect model over a declared cohort. A point. A
 //!   cohort carried under a declared covariate shift is a transported
@@ -52,6 +56,19 @@
 //! Sources own their claims. Evaluation borrows the query and the source and
 //! retains neither.
 //!
+//! # Refresh
+//!
+//! Refresh with outcome-only data. A forward source owns one claim and the
+//! origin that produced it; a refreshed composition, cohort model or transported
+//! value is a new source with a new claim digest and a new origin identity, and
+//! an inverse query is re-evaluated on it (nothing is refreshed in place). The
+//! query, the declared actions and the consumer's stance on transported claims
+//! are kept; the claim, its support label and its transport receipt are
+//! recomputed. A refresh that would carry mechanisms across populations changes
+//! the source from native to transported and is refused under
+//! `NativeTargetOnly`; data of another population, quantity or arm is refused
+//! by the producing route before it reaches here.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::provider_transport::TransportedInputPolicy;
@@ -75,7 +92,7 @@ use crate::decision_contract::DecisionContract;
 use crate::decision_eval::MeanSource;
 use crate::decision_transported_source::{
     TransportReceipt, TransportedRefusal, TransportedRepresentation, TransportedResponse,
-    TransportedValue,
+    TransportedRoute, TransportedValue,
 };
 use crate::inverse_query::{
     ForwardClaim, ForwardEvidence, InverseConstraint, InverseQuery, InverseQueryError,
@@ -235,7 +252,19 @@ impl ForwardOrigin {
             (ForwardSourceKind::TransportedResponse, None) => {
                 return Err("a transported origin carries its transport receipt");
             }
-            (_, Some(_)) => return Err("only a transported origin carries a transport receipt"),
+            (ForwardSourceKind::ComposedMechanism, Some(receipt)) => {
+                // Mechanisms carried across populations: the receipt's label
+                // governs, and its identity is bound beside the composition's.
+                receipt.validate().map_err(|_| "origin transport identity is incomplete")?;
+                if receipt.route != TransportedRoute::Mechanism
+                    || receipt.support != self.support
+                {
+                    return Err("origin does not match its transport receipt");
+                }
+            }
+            (_, Some(_)) => {
+                return Err("only a transported or carried origin carries a transport receipt");
+            }
             (_, None) => {}
         }
         Ok(())
@@ -583,6 +612,13 @@ pub struct ComposedResponse {
     pub family: ComposedFamily,
     /// Variables whose mechanism was declared rather than estimated.
     pub assumed_mechanisms: Vec<String>,
+    /// Present when any component mechanism was carried across populations
+    /// rather than refitted in the target: the receipt of that carrying (route
+    /// `mechanism`, the populations, the selection-diagram digests and the
+    /// declared assumptions, taken from the mechanism transport's own
+    /// admissions). `None` states that every mechanism is native to the
+    /// population the claim is about.
+    pub transport: Option<TransportReceipt>,
     /// One response per answered action.
     pub actions: Vec<ComposedActionResponse>,
 }
@@ -728,14 +764,50 @@ fn finite_law(
 /// coordinate; a finite-table response becomes one exact finite law per action
 /// (each action is its own intervention, so no pairing across actions exists).
 ///
+/// A response whose mechanisms were carried across populations is a
+/// transported claim and is refused here, as every transported source is
+/// refused where only native target data is accepted; read it through
+/// [`composed_forward_source_accepting`] with `AcceptsTransported`.
+///
 /// # Errors
 /// No action, repeated action or coordinate, a blank premises digest, a query
 /// and result of different kinds, a family that does not match the queries, a
-/// mean addressed by an outcome-law coordinate, a non-finite value, and a
-/// finite outcome whose levels are not coded exactly once.
+/// mean addressed by an outcome-law coordinate, a non-finite value, a finite
+/// outcome whose levels are not coded exactly once, and a response with carried
+/// mechanisms ([`ForwardSourceRefusal::TransportedNotAccepted`]).
 pub fn composed_forward_source(
     response: &ComposedResponse,
 ) -> Result<LicensedForwardSource, ForwardSourceRefusal> {
+    composed_forward_source_accepting(response, TransportedInputPolicy::NativeTargetOnly)
+}
+
+/// [`composed_forward_source`] with the consumer's stance on transported
+/// claims stated.
+///
+/// A response with carried mechanisms is read only under
+/// `AcceptsTransported`; its origin then carries the transport receipt and the
+/// receipt's support label (never `supported`), exactly as a transported
+/// response does. A response with no carried mechanisms is a native
+/// composition under either policy.
+///
+/// # Errors
+/// Those of [`composed_forward_source`]; a receipt that is malformed, whose
+/// route is not `mechanism`, or whose support is `supported`.
+pub fn composed_forward_source_accepting(
+    response: &ComposedResponse,
+    accept: TransportedInputPolicy,
+) -> Result<LicensedForwardSource, ForwardSourceRefusal> {
+    if let Some(receipt) = &response.transport {
+        if accept == TransportedInputPolicy::NativeTargetOnly {
+            return Err(ForwardSourceRefusal::TransportedNotAccepted);
+        }
+        receipt.validate()?;
+        if receipt.route != TransportedRoute::Mechanism {
+            return Err(ForwardSourceRefusal::ComposedInvalid(
+                "a carried composition's receipt names the mechanism route",
+            ));
+        }
+    }
     if response.actions.is_empty() {
         return Err(ForwardSourceRefusal::ComposedInvalid("at least one action"));
     }
@@ -810,6 +882,12 @@ pub fn composed_forward_source(
             writer.finish_hex()
         }
     };
+    // A composition with carried mechanisms is as strong as its transport:
+    // the receipt's label governs, never `supported`.
+    let support = response
+        .transport
+        .as_ref()
+        .map_or_else(|| SupportStatus::Supported.as_str().to_owned(), |t| t.support.clone());
     Ok(LicensedForwardSource {
         claims,
         origin: ForwardOrigin {
@@ -817,8 +895,8 @@ pub fn composed_forward_source(
             kind: ForwardSourceKind::ComposedMechanism,
             source_identity: identity,
             representation,
-            support: SupportStatus::Supported.as_str().to_owned(),
-            transport: None,
+            support,
+            transport: response.transport.clone(),
             assumed_mechanisms: response.assumed_mechanisms.clone(),
             provider_id,
             claim_digest,

@@ -263,7 +263,7 @@ fn the_default_policy_does_not_accept_a_transported_claim() {
             required: SupportStatus::Supported,
         }
     );
-    assert_eq!(error.code(), "transport_support_failure");
+    assert_eq!(error.code(), "cell_not_licensed");
     assert_eq!(error.detail(), DETAIL_SUPPORT_BELOW_POLICY);
 }
 
@@ -743,7 +743,6 @@ fn a_synthesis_with_a_transported_claim_is_a_transported_decision_source() {
     let response = TransportedResponse::from_transported_synthesis(
         &synthesis,
         coordinate.clone(),
-        vec!["trial_a".into()],
         "synthesis",
     )
     .unwrap();
@@ -801,9 +800,149 @@ fn a_synthesis_with_a_transported_claim_is_a_transported_decision_source() {
     let error = TransportedResponse::from_transported_synthesis(
         &pooled,
         coordinate,
-        vec!["trial_a".into()],
         "synthesis",
     )
     .unwrap_err();
     assert_eq!(error, TransportedRefusal::NotTransported);
+}
+
+#[test]
+fn a_route_with_a_typed_constructor_cannot_be_declared_by_hand() {
+    for route in
+        [TransportedRoute::Policy, TransportedRoute::ShiftedCohort, TransportedRoute::Synthesis]
+    {
+        let mut declared = declaration();
+        declared.route = route;
+        let error = TransportedResponse::declared_point(
+            vec![effect("clinic_b")],
+            vec![2.0],
+            &declared,
+        )
+        .unwrap_err();
+        assert_eq!(error, TransportedRefusal::RouteNeedsTypedSource(route));
+        assert_eq!(error.detail(), "transported_decision.route_needs_typed_source");
+    }
+}
+
+#[test]
+fn a_typed_route_identity_must_be_a_digest_while_a_declared_route_may_be_text() {
+    // Free text is a declaration and stays allowed on the declared route.
+    assert!(point(1.0).receipt().transport_identities == vec!["diagram-1".to_owned()]);
+    // A mechanism or cohort-effect route names a producing result's digest.
+    for route in [TransportedRoute::Mechanism, TransportedRoute::CohortEffect] {
+        let mut declared = declaration();
+        declared.route = route;
+        let error =
+            TransportedResponse::declared_point(vec![effect("clinic_b")], vec![2.0], &declared)
+                .unwrap_err();
+        assert_eq!(error, TransportedRefusal::IdentityNotDigest);
+        assert_eq!(error.detail(), "transported_decision.transport_identity_not_digest");
+        declared.transport_identities = vec![format!("{:064x}", 0xabc)];
+        assert!(
+            TransportedResponse::declared_point(vec![effect("clinic_b")], vec![2.0], &declared)
+                .is_ok()
+        );
+    }
+}
+
+#[test]
+fn a_support_floor_weakens_a_laws_coordinates_and_never_strengthens_them() {
+    use antecedent_design::composition_boundary::{
+        DecisionInput, TrustEvidence, TrustRequirement,
+    };
+    let law = transported_law(DistributionCalibration::PointOnly, DistributionTrust::Unverified);
+    let input = DecisionInput::from_distribution_artifact(
+        "law",
+        &law,
+        &TrustEvidence::None,
+        TrustRequirement::Unrestricted,
+    )
+    .unwrap();
+    // The artifact's own mask says supported.
+    assert!(input.support().entries().iter().all(|(_, s)| *s == SupportStatus::Supported));
+    let floored = input.clone().with_support_floor(SupportStatus::Extrapolative);
+    assert!(floored.support().entries().iter().all(|(_, s)| *s == SupportStatus::Extrapolative));
+    // A weaker status is kept, and a floor that is stronger changes nothing.
+    let again = floored.with_support_floor(SupportStatus::Supported);
+    assert!(again.support().entries().iter().all(|(_, s)| *s == SupportStatus::Extrapolative));
+}
+
+#[test]
+fn a_synthesis_receipt_takes_its_populations_from_the_ledger_not_the_caller() {
+    let mut ledger = EvidenceLedger::new();
+    let cohort = native_source(&mut ledger, "registry cohort", 0, 100);
+    let carried = ledger
+        .add_source(
+            SourceDeclaration::new("trial a claim", SourceKind::ExternalClaim)
+                .with_observations(registry_rows(1_000, 1_100))
+                .with_lineage(Lineage::Original)
+                .with_transport(selection_identity()),
+        )
+        .unwrap();
+    let contribution = |source, estimate, transport_variance| TransportedContribution {
+        source,
+        estimate,
+        sampling_variance: 1.0,
+        transport_variance,
+    };
+    let synthesis = synthesize_transported(
+        &mut ledger,
+        "pooled effect",
+        &[contribution(cohort, 1.0, None), contribution(carried, 2.0, Some(0.5))],
+        &TransportedSynthesisMethod::Pool { sampling_covariance: None },
+    )
+    .unwrap();
+    assert_eq!(synthesis.target_population.as_deref(), Some("registry"));
+    assert_eq!(synthesis.source_populations, vec!["trial_a".to_owned()]);
+
+    // A coordinate stated in some other population than the ledger's target
+    // is refused: the receipt cannot be pointed at a different target.
+    let elsewhere = ScientificQuantity {
+        population_id: "some_other_clinic".into(),
+        functional_id: "mean".into(),
+        ..common::quantity("effect")
+    };
+    let error =
+        TransportedResponse::from_transported_synthesis(&synthesis, elsewhere, "synthesis")
+            .unwrap_err();
+    assert!(matches!(error, TransportedRefusal::QuantityNotInTarget { .. }));
+}
+
+#[test]
+fn an_exported_transported_decision_replays_and_refuses_resealed_edits() {
+    use antecedent_design::transported_decision_artifact::{
+        consume_transported_decision, export_transported_decision,
+    };
+    let response = point(2.0);
+    let contract = contract_on(&response.coordinates()[0], affine());
+    let bytes =
+        export_transported_decision(&contract, &response, &accepting(), "transported-1").unwrap();
+    let consumed = consume_transported_decision(&bytes, None).unwrap();
+    // 4 * 2.0 - 1.5 = 6.5, recomputed by the consumer.
+    assert!((consumed.decision.decision.outcomes[0].expected_utility - 6.5).abs() < 1e-12);
+    assert_eq!(consumed.decision.receipt.target_population, "clinic_b");
+    let retained = consumed.decision.identity.clone();
+    assert!(consume_transported_decision(&bytes, Some(&retained)).is_ok());
+    assert!(consume_transported_decision(&bytes, Some("not-the-identity")).is_err());
+
+    // The same decision at another carried value has another identity, so a
+    // consumer that retained the first refuses the second's bytes.
+    let other = point(3.0);
+    let other_bytes =
+        export_transported_decision(&contract, &other, &accepting(), "transported-2").unwrap();
+    assert!(consume_transported_decision(&other_bytes, Some(&retained)).is_err());
+
+    // A law has its own export.
+    let law = transported_law(DistributionCalibration::PointOnly, DistributionTrust::Unverified);
+    let law_response = TransportedResponse::declared_law(law, &declaration()).unwrap();
+    let error =
+        export_transported_decision(&law_contract(), &law_response, &accepting(), "law").unwrap_err();
+    assert!(error.to_string().contains("law_not_exportable"), "{error}");
+
+    // A policy that does not admit the label cannot even export.
+    let strict = SupportPolicy {
+        unsupported: UnsupportedActionPolicy::RequireAllActions,
+        weakest_support: SupportStatus::Supported,
+    };
+    assert!(export_transported_decision(&contract, &response, &strict, "strict").is_err());
 }

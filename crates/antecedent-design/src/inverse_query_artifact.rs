@@ -76,6 +76,10 @@ pub const INVERSE_QUERY_INFERENCE_CLAIM: &str = "point_only";
 pub const MAX_INVERSE_QUERY_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 /// Most embedded forward claims (laws and mean grids) of one artifact.
 pub const MAX_INVERSE_QUERY_CLAIMS: usize = 256;
+/// Most original source artifacts one inverse-query artifact may carry. Each is
+/// replayed in full on consumption, so the count bounds the replay work inside
+/// the byte cap.
+pub const MAX_INVERSE_QUERY_SOURCE_EVIDENCE: usize = 8;
 
 const ARTIFACT_KIND: &str = "inverse_functional_query_v1";
 const META_SECTION: &str = "inverse_query.meta";
@@ -1244,7 +1248,7 @@ impl InverseQueryArtifact {
         mut self,
         sources: Vec<crate::source_evidence::SourceEvidence>,
     ) -> Result<Self, IoError> {
-        if sources.len() > 8 {
+        if sources.len() > MAX_INVERSE_QUERY_SOURCE_EVIDENCE {
             return Err(refused(BOUNDS, "too many original source artifacts"));
         }
         let text = crate::decision_artifact::contract_to_json(&self.query.contract)?;
@@ -1430,6 +1434,10 @@ impl InverseQueryArtifact {
         }
         if meta.claims.len() > MAX_INVERSE_QUERY_CLAIMS {
             return Err(refused(BOUNDS, "too many embedded claims"));
+        }
+        // Counted before any nested artifact is replayed.
+        if meta.source_evidence.len() > MAX_INVERSE_QUERY_SOURCE_EVIDENCE {
+            return Err(refused(BOUNDS, "too many original source artifacts"));
         }
         let contract =
             DecisionContractArtifact::from_bytes(&contract_bytes, &meta.contract_identity)?

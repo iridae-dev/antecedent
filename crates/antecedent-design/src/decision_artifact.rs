@@ -11,7 +11,7 @@ use antecedent_contract::{
     CompositionLink, CompositionStage, ProvenanceChain, ProvenanceChainError, ScientificQuantity,
 };
 use antecedent_core::CanonicalWriter;
-use antecedent_io_core::convert::{from_cbor, to_cbor};
+use antecedent_io_core::convert::to_cbor;
 use antecedent_io_core::distribution_artifact::DistributionArtifact;
 use antecedent_io_core::error::IoError;
 use antecedent_io_core::quantity_wire::ScientificQuantityWire;
@@ -330,8 +330,20 @@ pub(crate) fn decode_section<T: serde::de::DeserializeOwned>(
     let Ok([body]) = <[Vec<u8>; 1]>::try_from(parts) else {
         return Err(IoError::Convert("unsupported decision artifact layout".into()));
     };
-    from_cbor(&body)
+    // The version word is read from the untyped item first, so a newer body
+    // with a changed shape is refused as an unsupported version rather than
+    // as a field error of this reader's layout.
+    antecedent_io_core::decode_with_version(&body, |version: u16| {
+        if version == DECISION_BODY_VERSION {
+            Ok(())
+        } else {
+            Err(IoError::UnsupportedVersion { version: u32::from(version) })
+        }
+    })
 }
+
+/// Version word of every decision artifact body this reader decodes.
+const DECISION_BODY_VERSION: u16 = 1;
 
 pub(crate) fn refused(slot: &str, message: &str) -> IoError {
     IoError::Refused {

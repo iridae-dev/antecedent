@@ -26,6 +26,17 @@
 //! The value is a point value; it carries no interval and no period-drift
 //! model beyond the supplied initial law.
 //!
+//! # Refresh
+//!
+//! Refresh with outcome-only data. The period-shifted value is a function of
+//! the source model, the policy, the declared time-invariance and the target
+//! period. New outcome-only data refits the source model: the invariance
+//! declaration and the target are kept and the value and identity are
+//! recomputed. A refit whose horizon, history alphabet or mechanism set no
+//! longer matches the declaration is refused rather than reinterpreted; a
+//! simultaneous population and period change is not representable here and is
+//! refused.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};

@@ -29,6 +29,16 @@
 //!   one-parameter scalar family and is refused with a remedy rather than given an
 //!   invented range.
 //!
+//! # Refresh
+//!
+//! Refresh with outcome-only data. The range is a function of the
+//! transported point value and the declared violation family, never of the
+//! data directly. New outcome-only data changes the baseline point value: the
+//! baseline and every range endpoint are recomputed, and the grid and the
+//! declared specification are kept. The range is never inherited by another
+//! target or another route: a different transported value is a different
+//! statement and is built again.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
