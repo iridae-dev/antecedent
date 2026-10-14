@@ -18,6 +18,25 @@ use super::coherence::check_composition;
 use super::descriptor::{ComposedModelSpec, MAX_FINITE_STATES, MechanismFamily, MechanismForm};
 use super::{COMPOSITION_STREAM_DOMAIN, CompositionError, noise_stream_index};
 
+#[allow(
+    clippy::float_cmp,
+    reason = "preserve the original row bits exactly when the declared sum is exactly one"
+)]
+fn normalize_probability_rows(table: &mut [f64], width: usize) {
+    // The coherence checker accepts the usual floating-point simplex
+    // tolerance. Normalize once so the exact law and inverse-CDF sampler use
+    // the same conditional distribution, including the tiny rounding
+    // remainder in the final cell. Exact rows retain their original bits.
+    for row in table.chunks_exact_mut(width) {
+        let total: f64 = row.iter().sum();
+        if total != 1.0 {
+            for probability in row {
+                *probability /= total;
+            }
+        }
+    }
+}
+
 /// The exact joint law of a finite composition under one regime.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FiniteLaw {
@@ -198,18 +217,7 @@ impl ComposedFinite {
                     ),
                 });
             }
-            // The coherence checker accepts the usual floating-point simplex
-            // tolerance. Normalize once so the exact law and inverse-CDF
-            // sampler use the same conditional distribution, including the
-            // tiny rounding remainder in the final cell.
-            for row in table.chunks_exact_mut(width) {
-                let total: f64 = row.iter().sum();
-                if total != 1.0 {
-                    for probability in row {
-                        *probability /= total;
-                    }
-                }
-            }
+            normalize_probability_rows(&mut table, width);
             parents.push(pa);
             tables.push(table);
         }
