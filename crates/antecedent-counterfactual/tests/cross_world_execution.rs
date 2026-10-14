@@ -189,7 +189,10 @@ fn tolerated_exogenous_simplex_slack_is_normalized_for_abduction() {
     let scm = FiniteScm {
         population: "pop-a".to_owned(),
         history: "regime-1".to_owned(),
-        exogenous: vec![ExogenousVariable { name: "u".to_owned(), pmf: vec![0.5, 0.5000000005] }],
+        exogenous: vec![ExogenousVariable {
+            name: "u".to_owned(),
+            pmf: vec![0.5, 0.500_000_000_5],
+        }],
         variables: vec![FiniteVariable {
             name: "x".to_owned(),
             levels: 2,
@@ -201,7 +204,7 @@ fn tolerated_exogenous_simplex_slack_is_normalized_for_abduction() {
     let source_digest = scm.digest();
     let compiled = scm.compile().unwrap();
     let posterior = abduct_unit(&compiled, &unit("observed", &[(0, 1)]), &ctx()).unwrap();
-    assert!((posterior.evidence_probability - (0.5000000005 / 1.0000000005)).abs() < 1e-15);
+    assert!((posterior.evidence_probability - (0.500_000_000_5 / 1.000_000_000_5)).abs() < 1e-15);
     assert_eq!(posterior.states, vec![(1, 1.0)]);
     assert_eq!(scm.digest(), source_digest, "normalization does not rewrite source identity");
 }
