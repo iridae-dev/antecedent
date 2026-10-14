@@ -23,6 +23,7 @@ pub mod overlay;
 pub mod registry;
 pub mod sample;
 pub mod mechanism_transport;
+pub mod discretized_scm;
 
 pub use basis::{BasisTerm, ParentBasis};
 pub use batch::{
