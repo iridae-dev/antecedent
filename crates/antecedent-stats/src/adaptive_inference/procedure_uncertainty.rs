@@ -102,6 +102,12 @@ pub enum EstimandStatement {
     AssignedArmIntentToTreat,
 }
 
+/// Registered reason code of every premise failure raised by [`admit`].
+#[must_use]
+pub fn premise_reason_code() -> &'static str {
+    antecedent_core::reason_code!("cell_not_licensed")
+}
+
 fn premise(detail: &'static str, message: &'static str) -> Error {
     Error::PremiseFailed { detail, message }
 }

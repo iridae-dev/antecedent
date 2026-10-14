@@ -109,7 +109,7 @@ pub struct ComposedActionQuery {
 }
 
 fn composition_refusal(error: &MechanismCompositionRefusal) -> ForwardSourceRefusal {
-    let detail = error.details().first().copied().unwrap_or("mechanism_composition.refused");
+    let detail = error.details().first().copied().unwrap_or("mechanism_composition.artifact_invalid");
     ForwardSourceRefusal::Artifact {
         code: error.code(),
         text: format!("{detail}: the mechanism composition refused the action's query"),
