@@ -11145,6 +11145,7 @@ routes = [
   { name = "antecedent.cohort_decision.consume_cohort_decision_source", stage = "consume", status = "licensed", claim = "point_only" },
   { name = "antecedent.cohort_decision.evaluate_cohort_decision", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["cohort_decision_input", "cohort_mean_source", "cohort_trust_evidence"] },
   { name = "antecedent.cohort_decision.cohort_forward_claim", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["cohort_decision_forward_claim"] },
+  { name = "antecedent.python.cohort_decision.CohortDecisionSource.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_cohort_decision.py", refusal_assertion = "test_probability_quantile_nonlinear_and_joint_law_requests_are_refused" },
 ]
 fixtures = [
   { id = "cohort_decision.mean_contrast.dr_learner_hand_cohort_mean.positive", role = "positive", intent = "A DR-learner fit retains its CATE map and support box; the weighted cohort mean over a declared cohort equals the hand calculation (2.225) and the source is native.", evidence_test = "crates/antecedent/tests/cohort_decision.rs", evidence_assertion = "producer_to_cohort_to_affine_contract_matches_the_hand_calculation" },
@@ -12233,6 +12234,7 @@ routes = [
   { name = "antecedent.observation_posterior.conjugate_posterior", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.python.observation_query.finite_posterior", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.python.observation_query.conjugate_posterior", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.python.observation_query.posterior_update.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_observation_query.py", refusal_assertion = "test_interval_and_calibrated_probability_are_closed" },
 ]
 fixtures = [
   { id = "observation_query.posterior_update.hand_computed_screening_posterior.positive", role = "positive", intent = "Prior 0.01 with likelihood 0.9 / 0.05: one positive gives 2/13 with evidence 0.0585 and predictive 2.35/13; two positives give 0.0081/0.010575; order is irrelevant.", evidence_test = "crates/antecedent-model/tests/observation_query.rs", evidence_assertion = "finite_bayes_update_matches_the_hand_computed_posterior" },
@@ -12310,6 +12312,7 @@ routes = [
   { name = "antecedent.python.observation_query.required_bayes_factor", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.python.observation_query.required_observations_binary_signal", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.python.observation_query.required_observations_conjugate", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.python.observation_query.evidence_requirement.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_observation_query.py", refusal_assertion = "test_interval_and_calibrated_probability_are_closed" },
 ]
 fixtures = [
   { id = "observation_query.evidence_requirement.odds_ratio.positive", role = "positive", intent = "Moving a probability from 0.2 to 0.8 needs a Bayes factor of exactly 16; lowering reverses it; a probability already past the level needs none.", evidence_test = "crates/antecedent-model/tests/observation_query.rs", evidence_assertion = "the_required_bayes_factor_is_the_odds_ratio" },
@@ -13617,6 +13620,7 @@ routes = [
   { name = "antecedent._native.joint_law_linear_moments", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent._native.joint_law_consume", stage = "consume", status = "licensed", claim = "point_only", covers = ["joint_law_aligned_functional", "joint_law_mixture", "joint_law_mixture_undeclared", "joint_law_envelope", "joint_law_correlation_range", "joint_law_closed_reading"] },
   { name = "antecedent._native.joint_law_column", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent.python.joint_law_propagation.linear_moment_propagation.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_joint_law_propagation.py", refusal_assertion = "test_envelope_is_never_a_point_or_an_interval_and_ranges_are_labelled" },
 ]
 fixtures = [
   { id = "joint_law.linear_moment_propagation.covariance_contrast.positive", role = "positive", intent = "Var(X-Y)=4+9-6=7 and mean 3 replay from a sealed artifact.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_covariance_aware_contrast_replays_to_the_closed_form", shared_evidence = true },
@@ -14292,6 +14296,7 @@ routes = [
   { name = "antecedent.python.cross_world_execution.seal", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["CrossWorldExecution", "CrossWorldExecutionRefusal", "CrossWorldRequest", "capability_matrix", "decide", "joint_probability", "mean_contrast", "probability"] },
   { name = "antecedent.python.cross_world_execution.consume_cross_world_execution_artifact", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent._native.cross_world_seal", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.python.cross_world_execution.finite_markovian_scm.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_cross_world_execution.py", refusal_assertion = "test_artifact_round_trip_mutation_resume_and_fresh_process" },
 ]
 fixtures = [
   { id = "cross_world_execution.finite_markovian_scm.necessity_5_7.truth", role = "truth", intent = "P(Y_x0 = 0 | X = 1, Y = 1) = 0.5 / 0.7 = 5/7 and P(evidence) = 0.28 from response-type masses.", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", evidence_assertion = "probability_of_necessity_is_the_abduced_posterior_mass", shared_evidence = true },
