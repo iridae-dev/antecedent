@@ -568,6 +568,19 @@ fn check_envelope(
     shared: Vec<String>,
 ) -> Result<PropagationPlan, ExternalRefusal> {
     use PropagationOperation as Op;
+    if let PropagationDependence::CorrelationRange { rho_lo, rho_hi } = request.dependence {
+        if !(rho_lo.is_finite()
+            && rho_hi.is_finite()
+            && -1.0 <= rho_lo
+            && rho_lo < rho_hi
+            && rho_hi <= 1.0)
+        {
+            return Err(invalid(
+                "correlation_range",
+                "declare finite correlation bounds with -1 <= lower < upper <= 1",
+            ));
+        }
+    }
     let route = match request.dependence {
         PropagationDependence::CorrelationRange { .. } => {
             PropagationRoute::CorrelationRangeEnvelope
@@ -976,6 +989,17 @@ mod tests {
             RequestedReading::Envelope,
         );
         assert_eq!(check_propagation(&range).expect("range").label, "assumption_range");
+        for (rho_lo, rho_hi) in [(-1.1, 0.5), (-0.5, 1.1), (0.5, 0.5), (f64::NAN, 0.5)] {
+            let malformed = request(
+                PropagationOperation::Product,
+                marginals.clone(),
+                PropagationDependence::CorrelationRange { rho_lo, rho_hi },
+                RequestedReading::Envelope,
+            );
+            let (code, reason) = detail(&malformed);
+            assert_eq!(code, "invalid_argument");
+            assert_eq!(reason, "joint_law_propagation.invalid_request");
+        }
         let as_point = request(
             PropagationOperation::Sum,
             marginals.clone(),
