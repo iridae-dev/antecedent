@@ -53,7 +53,6 @@ pub const MAX_LATTICE_CHECKS: usize = 4_000_000;
 pub const MAX_COMPONENTS: usize = 256;
 
 const MASS_TOLERANCE: f64 = 1e-9;
-const MERGE_EPSILON: f64 = 1e-12;
 const CANCEL_STRIDE: usize = 4096;
 const STRUCTURE_RELATIVE_SLACK: f64 = 1e-12;
 
@@ -554,14 +553,18 @@ fn coupled_expectation(
         terms.push(m * v);
         rx -= m;
         ry -= m;
-        if rx <= MERGE_EPSILON {
+        // One of `rx` and `ry` is exactly the selected minimum, so its
+        // subtraction reaches zero. Do not use a probability tolerance here:
+        // even a tiny positive atom is part of the declared marginal and can
+        // change an allegedly exact coupling envelope.
+        if rx <= 0.0 {
             i += 1;
             if i == x.len() {
                 break;
             }
             rx = x[i].1;
         }
-        if ry <= MERGE_EPSILON {
+        if ry <= 0.0 {
             j += 1;
             if j == y.len() {
                 break;
@@ -722,7 +725,12 @@ pub fn covariance_envelope(
 ) -> Result<ValueBounds, JointLawError> {
     let product = product_moment_envelope(x, y, cancel)?;
     let centre = x.mean() * y.mean();
-    Ok(ValueBounds { lower: product.lower - centre, upper: product.upper - centre })
+    let lower = product.lower - centre;
+    let upper = product.upper - centre;
+    if !(centre.is_finite() && lower.is_finite() && upper.is_finite()) {
+        return Err(JointLawError::NonFiniteValue);
+    }
+    Ok(ValueBounds { lower, upper })
 }
 
 /// Extremes of `Var(a X + b Y)` over every coupling.
@@ -746,6 +754,9 @@ pub fn linear_variance_envelope(
     let base = a * a * x.variance() + b * b * y.variance();
     let cross = 2.0 * a * b;
     let (lo, hi) = (base + cross * cov.lower, base + cross * cov.upper);
+    if !(base.is_finite() && cross.is_finite() && lo.is_finite() && hi.is_finite()) {
+        return Err(JointLawError::NonFiniteValue);
+    }
     let bounds = ValueBounds::ordered(lo, hi);
     Ok(ValueBounds { lower: bounds.lower.max(0.0), upper: bounds.upper.max(0.0) })
 }
@@ -870,6 +881,9 @@ pub fn correlation_range_envelope(
     let at = |rho: f64| (centre + rho * scale, rho * scale, base + 2.0 * a * b * rho * scale);
     let (p_lo, c_lo, v_lo) = at(rho_lo);
     let (p_hi, c_hi, v_hi) = at(rho_hi);
+    if ![scale, centre, base, p_lo, c_lo, v_lo, p_hi, c_hi, v_hi].into_iter().all(f64::is_finite) {
+        return Err(JointLawError::NonFiniteValue);
+    }
     Ok(CorrelationRangeEnvelope {
         rho_lo,
         rho_hi,
@@ -1028,6 +1042,17 @@ mod tests {
         assert!(at2.is_degenerate() && (at2.lower - 1.0).abs() < 1e-15);
     }
 
+    #[test]
+    fn coupling_envelope_keeps_atoms_below_the_mass_tolerance() {
+        let tiny = 1e-13;
+        let x = Marginal::from_weighted(&[0.0, 10.0], &[1.0 - tiny, tiny]).expect("x");
+        let y = Marginal::from_weighted(&[0.0, 1.0], &[1.0 - tiny, tiny]).expect("y");
+        let product = product_moment_envelope(&x, &y, &token()).expect("product envelope");
+        // The comonotone coupling pairs the two rare upper atoms, contributing
+        // 10 * tiny. The old residual-mass cutoff silently discarded this cell.
+        assert!((product.upper - 10.0 * tiny).abs() < 1e-25, "{product:?}");
+    }
+
     fn permutations(n: usize) -> Vec<Vec<usize>> {
         fn go(current: &mut Vec<usize>, used: &mut [bool], out: &mut Vec<Vec<usize>>) {
             if current.len() == used.len() {
@@ -1177,6 +1202,23 @@ mod tests {
             correlation_range_envelope(x, y, 1.0, 1.0, 0.2, 0.2),
             Err(JointLawError::InvalidRange(_))
         ));
+    }
+
+    #[test]
+    fn finite_inputs_that_overflow_declared_moment_bounds_are_refused() {
+        let x = MomentSummary { mean: 1e308, standard_deviation: 0.0 };
+        let y = MomentSummary { mean: 1e308, standard_deviation: 0.0 };
+        assert_eq!(
+            correlation_range_envelope(x, y, 1.0, 0.0, -0.5, 0.5),
+            Err(JointLawError::NonFiniteValue)
+        );
+
+        let x = Marginal::from_draws(&[0.0, 1.0]).expect("x");
+        let y = Marginal::from_draws(&[0.0, 1.0]).expect("y");
+        assert_eq!(
+            linear_variance_envelope(1e308, 1.0, &x, &y, &token()),
+            Err(JointLawError::NonFiniteValue)
+        );
     }
 
     #[test]
