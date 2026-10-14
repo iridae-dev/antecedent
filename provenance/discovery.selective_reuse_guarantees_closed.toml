@@ -1,0 +1,20 @@
+feature_id = "discovery.selective_reuse_guarantees_closed"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: a closed variant. No whole-method error-control or interval
+# procedure for discovery followed by analysis is implemented, so there is nothing
+# to cite.
+papers = [
+]
+implementation_deviations = [
+  "Intentionally publishes nothing: recovery, error-control and interval claims stay closed with cell_not_licensed until the whole discovery-plus-analysis method (graph acceptance, estimation, reuse or splitting of the discovery rows) has measured coverage. A discovered structure supplies no selection diagram, and no envelope across an equivalence class is offered.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-discovery/tests/selective_discovery.rs",
+  "crates/antecedent/tests/selective_discovery_facade.rs",
+]

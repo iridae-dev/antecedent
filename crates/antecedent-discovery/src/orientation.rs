@@ -1063,6 +1063,7 @@ pub(crate) fn drive_to_fixed_point(
     let mut verifying = false;
     for _ in 0..MAX_ORIENTATION_ROUNDS {
         let d = round(&mut queue)?;
+        crate::selective::work::record_round(d.edges_changed, d.conflicts);
         let changed = d.edges_changed > 0;
         total.edges_changed += d.edges_changed;
         total.conflicts += d.conflicts;
@@ -1074,6 +1075,7 @@ pub(crate) fn drive_to_fixed_point(
         }
         if verifying {
             total.fixed_point = true;
+            crate::selective::work::record_fixed_point();
             return Ok(total);
         }
         // Quiescent under the delta queue: confirm with a full-scan pass.
