@@ -115,5 +115,8 @@ pub use z_transport_planner::{
 /// Independently consumed original source diagnostics and semantic mappings.
 pub mod source_evidence;
 pub mod source_projection_artifact;
+pub mod adaptive_trial_transport;
+pub mod temporal_policy_transport;
+pub mod transported_policy;
 pub mod transported_bridge;
 pub mod transported_synthesis;
