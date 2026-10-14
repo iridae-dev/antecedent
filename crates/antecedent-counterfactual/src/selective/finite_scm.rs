@@ -166,6 +166,14 @@ fn bounds(what: &str) -> CrossWorldExecutionError {
     )
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "retain the declared PMF bits when its accumulated sum is exactly one"
+)]
+fn normalized_pmf(pmf: &[f64], sum: f64) -> Vec<f64> {
+    if sum == 1.0 { pmf.to_vec() } else { pmf.iter().map(|mass| mass / sum).collect() }
+}
+
 fn unique_nonempty<'a>(
     names: impl Iterator<Item = &'a str>,
     what: &str,
@@ -209,14 +217,8 @@ impl FiniteScm {
             if !ok {
                 return Err(invalid("cross_world_execution.invalid_scm", exo.name.clone()));
             }
-            // Tolerated floating-point simplex slack must not change the
-            // probability law used by abduction. Keep exactly normalized rows
-            // bit-for-bit so ordinary stored fixtures retain their arithmetic.
-            pmfs.push(if sum == 1.0 {
-                exo.pmf.clone()
-            } else {
-                exo.pmf.iter().map(|mass| mass / sum).collect()
-            });
+            // Tolerated simplex slack is corrected; exact PMFs retain their bits.
+            pmfs.push(normalized_pmf(&exo.pmf, sum));
         }
         let mut users = vec![0usize; self.exogenous.len()];
         let mut n_cfg = Vec::with_capacity(n);
