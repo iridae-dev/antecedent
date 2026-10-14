@@ -137,6 +137,10 @@ pub use text::is_blank;
 pub use tolerance::ToleranceClass;
 pub use value::{Value, same_intervention_level};
 
+/// Label of a structural (Fréchet-Hoeffding) envelope over every coupling of
+/// the marginals; the single definition the contract and stats crates re-export.
+pub const STRUCTURAL_ENVELOPE_LABEL: &str = "structural_envelope";
+
 /// Library crate version string from Cargo.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

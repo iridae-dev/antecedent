@@ -145,14 +145,15 @@ fn one_edge_two_levels_matches_the_hand_computed_table_mean() {
     near(model.cell_edges("X").unwrap()[0], 0.0, 1e-12);
     near(model.cell_edges("Y").unwrap()[0], 0.0, 1e-12);
 
-    let result = model.mean_contrast(
-        &DiscreteContrast {
-            outcome: "Y".into(),
-            arms: vec![DiscreteArm { weight: 1.0, interventions: vec![("X".into(), 1)] }],
-        },
-        &ctx(),
-    )
-    .unwrap();
+    let result = model
+        .mean_contrast(
+            &DiscreteContrast {
+                outcome: "Y".into(),
+                arms: vec![DiscreteArm { weight: 1.0, interventions: vec![("X".into(), 1)] }],
+            },
+            &ctx(),
+        )
+        .unwrap();
     near(result.closed_form, 0.797_884_560_8, 1e-9);
     near(result.value, 0.648_89, 2e-3);
     near(result.absolute_error, 0.148_99, 2e-3);
@@ -379,7 +380,8 @@ fn non_gaussian_latent_bounded_and_degenerate_compositions_are_refused() {
     // A variable with no spread has no grid.
     let flat = lg("X", 1.0, 0.0, &[]);
     let plan = plan_for(std::slice::from_ref(&flat), 4);
-    let err = DiscretizedLinearGaussian::from_spec(&spec_of(vec![flat]), &plan, &ctx()).unwrap_err();
+    let err =
+        DiscretizedLinearGaussian::from_spec(&spec_of(vec![flat]), &plan, &ctx()).unwrap_err();
     assert_eq!(err.detail, DETAIL_DEGENERATE_MARGINAL);
 }
 
@@ -420,8 +422,8 @@ fn invalid_interventions_and_cancellation_are_refused() {
     let cancelled = ExecutionContext::for_tests(2);
     cancelled.cancellation.cancel();
     let spec = spec_of(chain());
-    let err =
-        DiscretizedLinearGaussian::from_spec(&spec, &plan_for(&chain(), 4), &cancelled).unwrap_err();
+    let err = DiscretizedLinearGaussian::from_spec(&spec, &plan_for(&chain(), 4), &cancelled)
+        .unwrap_err();
     assert_eq!(err.detail, DETAIL_CANCELLED);
     let err = model.mean_contrast(&contrast("Y", "X", 1, 0), &cancelled).unwrap_err();
     assert_eq!(err.detail, DETAIL_CANCELLED);
@@ -476,8 +478,9 @@ fn every_route_has_a_row_and_every_missing_paradigm_is_a_typed_closed_row() {
     // Only the structural envelope has no inferential paradigm.
     assert_eq!(neither, vec![ParityRoute::DiscoveredStructureTransport]);
     // The bridge is Frequentist point-only; its Bayesian request is closed.
-    assert!(require_paradigm(ParityRoute::DiscretizationBridge, InferenceParadigm::Frequentist)
-        .is_ok());
+    assert!(
+        require_paradigm(ParityRoute::DiscretizationBridge, InferenceParadigm::Frequentist).is_ok()
+    );
     assert_eq!(
         require_paradigm(ParityRoute::DiscretizationBridge, InferenceParadigm::Bayesian)
             .unwrap_err()

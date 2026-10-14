@@ -108,11 +108,17 @@ fn malformed_bytes_and_other_versions_are_refused_typed() {
     let bytes = export_discretized_scm(&discretized()).unwrap();
 
     let truncated = &bytes[..bytes.len() - 3];
-    assert_eq!(consume_discretized_scm(truncated, None, &ctx()).unwrap_err().detail, DETAIL_MALFORMED);
+    assert_eq!(
+        consume_discretized_scm(truncated, None, &ctx()).unwrap_err().detail,
+        DETAIL_MALFORMED
+    );
 
     let mut trailing = bytes.clone();
     trailing.push(0);
-    assert_eq!(consume_discretized_scm(&trailing, None, &ctx()).unwrap_err().detail, DETAIL_MALFORMED);
+    assert_eq!(
+        consume_discretized_scm(&trailing, None, &ctx()).unwrap_err().detail,
+        DETAIL_MALFORMED
+    );
 
     // The version word follows the length-prefixed tag.
     let tag_len = u64::from_le_bytes(bytes[..8].try_into().unwrap()) as usize;
@@ -163,8 +169,7 @@ fn a_self_consistent_artifact_for_another_composition_fails_the_expected_identit
     // Consistent on its own...
     assert!(consume_discretized_scm(&bytes, None, &ctx()).is_ok());
     // ... but not the composition the consumer expects.
-    let refusal =
-        consume_discretized_scm(&bytes, Some(original.identity()), &ctx()).unwrap_err();
+    let refusal = consume_discretized_scm(&bytes, Some(original.identity()), &ctx()).unwrap_err();
     assert_eq!(refusal.detail, DETAIL_IDENTITY_MISMATCH);
 }
 

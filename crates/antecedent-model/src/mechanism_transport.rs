@@ -49,11 +49,10 @@ use antecedent_core::identity::CanonicalWriter;
 
 use crate::compose::coherence::CoherenceFinding;
 use crate::compose::{
-    CoherenceKind, ComposedLinearGaussian, ComposedModelSpec, CompositionError,
-    Domain, FunctionalUncertainty, InvarianceDeclaration, MeanContrast, MechanismContext,
+    CoherenceKind, ComposedLinearGaussian, ComposedModelSpec, CompositionError, Domain,
+    FunctionalUncertainty, InvarianceDeclaration, MeanContrast, MechanismContext,
     MechanismDescriptor, MechanismFamily, MechanismForm, MechanismOrigin, ParameterTerm,
-    PosteriorDependence,
-    SelectionDiagramDeclaration,
+    PosteriorDependence, SelectionDiagramDeclaration,
 };
 
 /// Version of the transport route's identity encoding.
@@ -234,6 +233,29 @@ pub fn selection_targets(diagram: &SelectionDiagramDeclaration) -> Vec<String> {
     set.into_iter().map(str::to_owned).collect()
 }
 
+/// The registered reason code a transport finding detail is refused under.
+///
+/// This is the mapping the composition error applies by finding kind, stated
+/// per detail so the route names the code where it emits the refusal.
+/// `None` for a detail this route does not emit.
+#[must_use]
+pub fn refusal_code(detail: &str) -> Option<&'static str> {
+    match detail {
+        DETAIL_ORIGIN_NOT_FITTED | DETAIL_FAMILY_UNSUPPORTED => {
+            Some(antecedent_core::reason_code!("mechanism_composition_incoherent"))
+        }
+        DETAIL_DIAGRAM_SOURCE_MISMATCH
+        | DETAIL_DIAGRAM_TARGET_MISMATCH
+        | DETAIL_TARGET_NOT_NATIVE
+        | DETAIL_DUPLICATE_MECHANISM
+        | DETAIL_SELECTION_INTO_LATENT
+        | DETAIL_SELECTION_INTO_MECHANISM => {
+            Some(antecedent_core::reason_code!("quantity_semantics_mismatch"))
+        }
+        _ => None,
+    }
+}
+
 fn finding(
     kind: CoherenceKind,
     detail: &'static str,
@@ -340,7 +362,8 @@ pub fn transport_linear_gaussian(
     }
 
     if !findings.is_empty() {
-        findings.sort_by(|a, b| (a.kind, a.detail, &a.subject).cmp(&(b.kind, b.detail, &b.subject)));
+        findings
+            .sort_by(|a, b| (a.kind, a.detail, &a.subject).cmp(&(b.kind, b.detail, &b.subject)));
         findings.dedup();
         return Err(CompositionError::Incoherent { findings });
     }
@@ -443,10 +466,8 @@ fn identity_of(spec: &ComposedModelSpec, dispositions: &[MechanismDisposition]) 
     w.word(spec.mechanisms.len() as u64);
     for m in &spec.mechanisms {
         w.text(&m.variable);
-        let role = dispositions
-            .iter()
-            .find(|d| d.variable == m.variable)
-            .map_or(0, |d| match d.role {
+        let role =
+            dispositions.iter().find(|d| d.variable == m.variable).map_or(0, |d| match d.role {
                 MechanismRole::Transported => 1,
                 MechanismRole::NativeInTarget => 2,
             });

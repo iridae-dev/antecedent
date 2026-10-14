@@ -297,18 +297,15 @@ fn calibration_to_wire(calibration: &SceneCalibration) -> SceneCalibrationWire {
                 record: Some(hex(*record)),
                 established_at_target: Some(hex(*established_at_target)),
             }
-        }
-        // `SceneCalibration` is not marked non-exhaustive; keep the match total.
+        } // `SceneCalibration` is not marked non-exhaustive; keep the match total.
     }
 }
 
 fn calibration_from_wire(wire: &SceneCalibrationWire) -> Result<SceneCalibration, Failure> {
     let pair = || -> Result<(SemanticDigest, SemanticDigest), Failure> {
         let record = wire.record.as_deref().ok_or_else(|| malformed("calibration record"))?;
-        let target = wire
-            .established_at_target
-            .as_deref()
-            .ok_or_else(|| malformed("calibration target"))?;
+        let target =
+            wire.established_at_target.as_deref().ok_or_else(|| malformed("calibration target"))?;
         Ok((digest_of(record, "calibration record")?, digest_of(target, "calibration target")?))
     };
     let bare = wire.from.is_none() && wire.record.is_none() && wire.established_at_target.is_none();
@@ -480,8 +477,9 @@ fn reason_text(reason: &TransportReason) -> String {
         TransportReason::ClaimChanged { claim, cause } => {
             format!("{name}:{claim}:{}", cause.as_str())
         }
-        TransportReason::ClaimAdded { claim }
-        | TransportReason::ProviderTrustLost { claim } => format!("{name}:{claim}"),
+        TransportReason::ClaimAdded { claim } | TransportReason::ProviderTrustLost { claim } => {
+            format!("{name}:{claim}")
+        }
         TransportReason::ObservedStale { node } => format!("{name}:{node}"),
         TransportReason::TargetUnsupported { coordinates } => format!("{name}:{coordinates}"),
         TransportReason::ClaimUnsupported { claim, coordinates } => {

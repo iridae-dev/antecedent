@@ -892,7 +892,8 @@ fn a_coupling_change_recomputes_law_and_decision() {
 #[test]
 fn refused_and_fresh_process_statuses_classify_in_the_same_vocabulary() {
     let prev = standing_versions();
-    let caps = RecalcCapabilities::fresh_process(RetargetSupport::Licensed, ResumeContext::default());
+    let caps =
+        RecalcCapabilities::fresh_process(RetargetSupport::Licensed, ResumeContext::default());
     let plan = RecalcPlan::plan(&identities(&prev), &identities(&prev), &caps);
     // nothing was supplied: the provider requests are refused, which is a withdrawal; a derived
     // stage that merely does not exist in this process recomputes
@@ -942,5 +943,8 @@ fn standing_input_identities_are_typed_and_domain_separated() {
     let verified = ProviderStandingInput::Verified { level: "attested".to_string(), receipt: a };
     assert_ne!(verified.identity(b(0)), verified.identity(b(1)));
     assert_ne!(verified.identity(b(0)), ProviderStandingInput::Unverified.identity(b(0)));
-    assert_ne!(ProviderStandingInput::Revoked.identity(b(0)), ProviderStandingInput::Unverified.identity(b(0)));
+    assert_ne!(
+        ProviderStandingInput::Revoked.identity(b(0)),
+        ProviderStandingInput::Unverified.identity(b(0))
+    );
 }

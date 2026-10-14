@@ -632,10 +632,7 @@ fn an_exceedance_decision_reports_its_monte_carlo_band_and_verdict() {
             entry.1 = 0;
         }
     }
-    assert_eq!(
-        edited.consume(None, &ctx()),
-        Err(JointLawPropagationArtifactError::ResultMismatch)
-    );
+    assert_eq!(edited.consume(None, &ctx()), Err(JointLawPropagationArtifactError::ResultMismatch));
 }
 
 #[test]
@@ -674,8 +671,8 @@ fn spread_of_unpaired_marginals_or_an_envelope_dependence_is_refused() {
         PropagationDependence::MarginalsOnly,
         RequestedReading::Spread,
     );
-    let error =
-        JointLawPropagationArtifactWire::seal(&envelope_dependence, numbers, &ctx()).expect_err("no");
+    let error = JointLawPropagationArtifactWire::seal(&envelope_dependence, numbers, &ctx())
+        .expect_err("no");
     assert_eq!(
         details(&error),
         vec![(
@@ -705,10 +702,7 @@ fn a_mixture_exceedance_uses_the_known_weights_and_no_joint_law() {
         ),
         PropagationRequestWire::MixtureExceedance {
             weights: float_bits(&[0.25, 0.75]),
-            components: vec![
-                float_bits(&[0.0, 0.0, 1.0, 1.0]),
-                float_bits(&[1.0, 1.0, 1.0, 0.0]),
-            ],
+            components: vec![float_bits(&[0.0, 0.0, 1.0, 1.0]), float_bits(&[1.0, 1.0, 1.0, 0.0])],
             threshold: bits(0.5),
         },
         &ctx(),

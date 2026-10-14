@@ -256,9 +256,7 @@ impl ForwardOrigin {
                 // Mechanisms carried across populations: the receipt's label
                 // governs, and its identity is bound beside the composition's.
                 receipt.validate().map_err(|_| "origin transport identity is incomplete")?;
-                if receipt.route != TransportedRoute::Mechanism
-                    || receipt.support != self.support
-                {
+                if receipt.route != TransportedRoute::Mechanism || receipt.support != self.support {
                     return Err("origin does not match its transport receipt");
                 }
             }

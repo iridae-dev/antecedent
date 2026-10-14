@@ -34,6 +34,10 @@
 //! [`procedure_law`] computes its exact law; [`procedure_simulation`] runs
 //! it end to end for order-dependent estimators; [`procedure_uncertainty`]
 //! derives each paradigm's statement from them, separately.
+//! [`procedure_repeated_measures`] derives the same for units that contribute
+//! several correlated measurements (repeated measures, or members of a
+//! cluster with a unit-level random effect), under a declared within-unit
+//! dependence, by simulation with an exact closed-form oracle.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -42,6 +46,7 @@ pub mod confidence_sequence;
 pub mod group_sequential;
 pub mod procedure_contract;
 pub mod procedure_law;
+pub mod procedure_repeated_measures;
 pub mod procedure_simulation;
 pub mod procedure_uncertainty;
 pub mod weighting;
@@ -69,6 +74,15 @@ pub use procedure_contract::{
 };
 pub use procedure_law::{
     MAX_LAW_STATES, MAX_LAW_WORK, OutcomeKernel, ProcedureLaw, TerminalAtom, enumerate_law,
+};
+pub use procedure_repeated_measures::{
+    AnalysisEstimator, CellLabel, FinalAnalysis, GaussianMixtureLaw, MAX_MEASUREMENTS_PER_UNIT,
+    MAX_UNIT_BATCHES, MAX_UNIT_LAG, MixtureComponent, OutcomeStructure,
+    RepeatedMeasuresDeclaration, RepeatedMeasuresDerivation, RepeatedMeasuresLaw,
+    RepeatedMeasuresReplicate, RepeatedMeasuresRequest, RepeatedMeasuresSpec,
+    RepeatedMeasuresSummary, UnitAssignment, UnitSummary, WithinUnitCorrelation,
+    admit_repeated_measures, derive_repeated_measures, exact_fixed_contrast_law,
+    simulate_repeated_measures,
 };
 pub use procedure_simulation::{
     MAX_SIMULATION_REPLICATIONS, SimulatedLaw, SimulatedReplicate, SimulationRequest,

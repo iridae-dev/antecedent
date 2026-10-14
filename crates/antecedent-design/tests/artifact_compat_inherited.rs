@@ -56,7 +56,8 @@ const HINT: &str = "the inherited fixtures are copies of the previous release's 
 const OLD_CONTRACT_IDENTITY: &str =
     "ea64a7afcfec83a5b786fc865a9cc61be89feaa48a40043c11dea58887307b09";
 const OLD_SOURCE_DIGEST: &str = "c50f07f8a5f477e6b2358ce4f1d4b7d0d9943f847e1749f93d7fba23e1aa9ad6";
-const OLD_BUNDLE_IDENTITY: &str = "5ef964ff45f6987334ba3e05dd7e48884452a4ca6805f62df3f3d2bd6d3aca95";
+const OLD_BUNDLE_IDENTITY: &str =
+    "5ef964ff45f6987334ba3e05dd7e48884452a4ca6805f62df3f3d2bd6d3aca95";
 
 fn inherited(name: &str) -> Vec<u8> {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/inherited");
@@ -191,8 +192,9 @@ fn an_inherited_decision_result_requires_regeneration() {
     assert!(error.to_string().contains("decision_artifact.contract_expected"), "{error}");
     // A consumer that retained the previous release's identity and digest passes the
     // binding checks and is refused at the lineage, whose digests moved.
-    let error = DecisionResultArtifact::from_bytes(&bytes, OLD_CONTRACT_IDENTITY, OLD_SOURCE_DIGEST)
-        .expect_err("the stored lineage digests are not the current derivation");
+    let error =
+        DecisionResultArtifact::from_bytes(&bytes, OLD_CONTRACT_IDENTITY, OLD_SOURCE_DIGEST)
+            .expect_err("the stored lineage digests are not the current derivation");
     assert!(error.to_string().contains("lineage"), "{error}");
 }
 

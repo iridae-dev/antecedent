@@ -61,7 +61,7 @@
 //! `transported_decision_artifact`, which re-derives the decision from the
 //! stored contract, value, receipt and policy rather than trusting the stored
 //! numbers. Routes with a typed constructor here (shifted cohort, policy,
-//! synthesis) cannot be declared by hand: their populations and identities are
+//! synthesis, temporal policy, adaptive trial, surrogate bridge) cannot be declared by hand: their populations and identities are
 //! copied from the producing result. A typed route's transport identities must
 //! be 32-byte digests; only the `declared` route carries free text.
 //!
@@ -69,6 +69,7 @@
 
 use std::collections::BTreeSet;
 
+use antecedent_contract::bridge::BridgedClaim;
 use antecedent_contract::{ExternalRefusal, ScientificQuantity};
 use antecedent_core::{CanonicalWriter, SupportStatus};
 use antecedent_io_core::cohort_decision::CohortDecisionSource;
@@ -77,6 +78,7 @@ use antecedent_io_core::distribution_artifact::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::adaptive_trial_transport::{AdaptiveTransportEstimate, TrialSelectionDiagram};
 use crate::cohort_decision_input::cohort_mean_source;
 use crate::composition_boundary::{
     BoundaryError, DecisionInput, SupportPolicy, SupportedDecision, TrustEvidence,
@@ -85,6 +87,8 @@ use crate::composition_boundary::{
 use crate::decision_contract::{DecisionContract, DecisionCriterion};
 use crate::decision_eval::MeanSource;
 use crate::signal::RefusalBuilder;
+use crate::temporal_policy_transport::{TemporalPolicyEvaluation, TimeInvariance};
+use crate::transported_bridge::TransportedSurrogateBridge;
 use crate::transported_policy::TransportedPolicyEvaluation;
 use crate::transported_synthesis::TransportedSynthesis;
 
@@ -123,8 +127,7 @@ pub const DETAIL_MIXED_TRANSPORTS: &str = "transported_decision.mixed_transports
 /// Detail: a transport identity of a typed route is not a 32-byte digest.
 pub const DETAIL_IDENTITY_NOT_DIGEST: &str = "transported_decision.transport_identity_not_digest";
 /// Detail: a route that has a typed constructor was declared by hand.
-pub const DETAIL_ROUTE_NEEDS_TYPED_SOURCE: &str =
-    "transported_decision.route_needs_typed_source";
+pub const DETAIL_ROUTE_NEEDS_TYPED_SOURCE: &str = "transported_decision.route_needs_typed_source";
 /// Detail: the consumer's policy does not accept the transported support
 /// label (the decision-side form of `inverse_forward_source.transported_not_accepted`).
 pub const DETAIL_SUPPORT_BELOW_POLICY: &str = "transported_decision.transported_not_accepted";
@@ -143,6 +146,17 @@ pub enum TransportedRoute {
     Synthesis,
     /// Mechanism-level transport of fitted mechanisms.
     Mechanism,
+    /// A policy evaluated in another period under declared time-invariant
+    /// mechanisms. Its transport identity is the time-invariance digest.
+    TemporalPolicy,
+    /// An adaptive trial's arm mean or contrast transported to another
+    /// population by stratum reweighting. Its transport identity is the trial
+    /// selection-diagram digest.
+    AdaptiveTrial,
+    /// A surrogate-to-terminal bridge applied to a population the validation
+    /// trials were not run in. Its transport identity is the bridge
+    /// selection-diagram digest.
+    SurrogateBridge,
     /// Another route, declared by the caller with its own identity.
     Declared,
 }
@@ -157,7 +171,52 @@ impl TransportedRoute {
             Self::Policy => "policy",
             Self::Synthesis => "synthesis",
             Self::Mechanism => "mechanism",
+            Self::TemporalPolicy => "temporal_policy",
+            Self::AdaptiveTrial => "adaptive_trial",
+            Self::SurrogateBridge => "surrogate_bridge",
             Self::Declared => "declared",
+        }
+    }
+}
+
+/// The population label of a period of a population: `population@period`.
+///
+/// A quantity in the target period of a period shift is stated in this
+/// population; the model's own period is the source population.
+#[must_use]
+pub fn period_population_label(population: &str, period: &str) -> String {
+    format!("{population}@{period}")
+}
+
+/// Which value of an adaptive-trial transport a response states.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AdaptiveTransportedValue {
+    /// The transported mean of the treatment arm.
+    TreatmentMean,
+    /// The transported mean of the control arm.
+    ControlMean,
+    /// Treatment mean minus control mean.
+    Contrast,
+}
+
+impl AdaptiveTransportedValue {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::TreatmentMean => "treatment_mean",
+            Self::ControlMean => "control_mean",
+            Self::Contrast => "contrast",
+        }
+    }
+
+    /// The value of an estimate.
+    #[must_use]
+    pub const fn of(self, estimate: &AdaptiveTransportEstimate) -> f64 {
+        match self {
+            Self::TreatmentMean => estimate.treatment_mean,
+            Self::ControlMean => estimate.control_mean,
+            Self::Contrast => estimate.contrast,
         }
     }
 }
@@ -508,6 +567,182 @@ impl TransportedResponse {
         Self::build_point(vec![coordinate], vec![evaluation.target_value], &declaration)
     }
 
+    /// The target-period value of a temporal policy evaluation, stated at
+    /// `coordinate`.
+    ///
+    /// The source population is `population@source_period`, the target
+    /// `population@target_period` ([`period_population_label`]); the transport
+    /// identity is the digest of `invariance`, which must be the declaration
+    /// the evaluation was computed under. The fixed horizon and every
+    /// mechanism's declared status are assumptions of the receipt.
+    ///
+    /// # Errors
+    /// [`TransportedRefusal::InvalidValue`] for an invariance that is not the
+    /// one the evaluation recorded, and every refusal of
+    /// [`Self::declared_point`] (a coordinate stated in the bare population or
+    /// the source period is [`TransportedRefusal::QuantityNotInTarget`]).
+    pub fn from_temporal_policy(
+        evaluation: &TemporalPolicyEvaluation,
+        population: &str,
+        invariance: &TimeInvariance,
+        coordinate: ScientificQuantity,
+        provider_id: &str,
+    ) -> Result<Self, TransportedRefusal> {
+        if invariance.identity_hex() != evaluation.invariance_identity {
+            return Err(TransportedRefusal::InvalidValue(
+                "the time invariance the evaluation was computed under",
+            ));
+        }
+        let premises = &evaluation.premises;
+        let mut assumptions = vec![
+            premises.selection.to_owned(),
+            premises.invariance.to_owned(),
+            premises.overlap.to_owned(),
+            format!("fixed_horizon:{}", evaluation.horizon),
+        ];
+        assumptions.extend(
+            invariance
+                .mechanisms
+                .iter()
+                .map(|(mechanism, status)| format!("{}:{}", mechanism.name(), status.as_str())),
+        );
+        let declaration = TransportDeclaration {
+            route: TransportedRoute::TemporalPolicy,
+            source_identity: evaluation.identity.clone(),
+            source_populations: vec![period_population_label(
+                population,
+                &evaluation.source_period,
+            )],
+            target_population: period_population_label(population, &evaluation.target_period),
+            transport_identities: vec![evaluation.invariance_identity.clone()],
+            assumptions,
+            support: SupportStatus::Extrapolative,
+            uncalibrated_standard_error: None,
+            provider_id: provider_id.to_owned(),
+            snapshot_id: evaluation.identity.clone(),
+            causal_contract_id: evaluation.invariance_identity.clone(),
+        };
+        Self::build_point(vec![coordinate], vec![evaluation.target_value], &declaration)
+    }
+
+    /// An adaptive trial's transported arm mean or contrast, stated at
+    /// `coordinate`.
+    ///
+    /// The source population is the trial's, the target the diagram's, the
+    /// transport identity the diagram digest; the declared status of both trial
+    /// mechanisms and the route's five premises are the assumptions. `diagram`
+    /// must be the declaration the estimate was computed under and its source
+    /// population the trial's.
+    ///
+    /// # Errors
+    /// [`TransportedRefusal::InvalidValue`] for a diagram that is not the one
+    /// the estimate recorded or a trial population other than the diagram's
+    /// source, and every refusal of [`Self::declared_point`].
+    pub fn from_adaptive_trial(
+        estimate: &AdaptiveTransportEstimate,
+        value: AdaptiveTransportedValue,
+        trial_population: &str,
+        diagram: &TrialSelectionDiagram,
+        coordinate: ScientificQuantity,
+        provider_id: &str,
+    ) -> Result<Self, TransportedRefusal> {
+        if diagram.identity_hex() != estimate.diagram_identity {
+            return Err(TransportedRefusal::InvalidValue(
+                "the selection diagram the estimate was computed under",
+            ));
+        }
+        if diagram.source_population != trial_population {
+            return Err(TransportedRefusal::InvalidValue(
+                "the diagram's source population is the trial's",
+            ));
+        }
+        let premises = &estimate.premises;
+        let mut assumptions = vec![
+            premises.selection.to_owned(),
+            premises.sequential_ignorability.to_owned(),
+            premises.invariance.to_owned(),
+            premises.support.to_owned(),
+            premises.availability.to_owned(),
+        ];
+        assumptions.extend(
+            diagram
+                .mechanisms
+                .iter()
+                .map(|(mechanism, status)| format!("{}:{}", mechanism.as_str(), status.as_str())),
+        );
+        let declaration = TransportDeclaration {
+            route: TransportedRoute::AdaptiveTrial,
+            source_identity: estimate.identity.clone(),
+            source_populations: vec![trial_population.to_owned()],
+            target_population: diagram.target_population.clone(),
+            transport_identities: vec![estimate.diagram_identity.clone()],
+            assumptions,
+            support: SupportStatus::Extrapolative,
+            uncalibrated_standard_error: None,
+            provider_id: provider_id.to_owned(),
+            snapshot_id: estimate.identity.clone(),
+            causal_contract_id: estimate.contract_identity.clone(),
+        };
+        Self::build_point(vec![coordinate], vec![value.of(estimate)], &declaration)
+    }
+
+    /// The terminal-outcome value a surrogate bridge derived for a population
+    /// the validation trials were not run in, stated at the bridge's terminal
+    /// quantity.
+    ///
+    /// The source population is where the relation was validated, the target
+    /// the terminal quantity's; the transport identity is the bridge
+    /// selection-diagram digest, and the premise (invariance of the
+    /// surrogate-terminal relation), its modifiers and the validation evidence
+    /// are the assumptions. `bridged` must have been derived under `bridge`.
+    ///
+    /// # Errors
+    /// [`TransportedRefusal::NotTransported`] for a claim about the validated
+    /// scope; [`TransportedRefusal::InvalidValue`] for a bridge whose contract
+    /// is not the one the claim was derived under; and every refusal of
+    /// [`Self::declared_point`] (a validation and claim in one population
+    /// under different regimes has no distinct source population and is
+    /// [`TransportedRefusal::TransportIdentityIncomplete`]).
+    pub fn from_surrogate_bridge(
+        bridge: &TransportedSurrogateBridge,
+        bridged: &BridgedClaim,
+        provider_id: &str,
+    ) -> Result<Self, TransportedRefusal> {
+        let Some(premise) = bridged.contract.transport.as_ref().filter(|_| bridged.transported)
+        else {
+            return Err(TransportedRefusal::NotTransported);
+        };
+        match bridge.contract() {
+            Ok(contract) if contract.identity() == bridged.contract_identity => {}
+            _ => {
+                return Err(TransportedRefusal::InvalidValue(
+                    "the bridge contract the claim was derived under",
+                ));
+            }
+        }
+        let mut assumptions = vec![
+            format!("premise:{}", premise.id),
+            premise.statement.clone(),
+            format!("surrogate_validation_evidence:{}", bridge.validation_evidence),
+        ];
+        assumptions
+            .extend(bridge.relation_modifiers.iter().map(|m| format!("relation_modifier:{m}")));
+        let declaration = TransportDeclaration {
+            route: TransportedRoute::SurrogateBridge,
+            source_identity: bridged.claim.claim_id.to_hex(),
+            source_populations: vec![bridge.validated_in.population_id.clone()],
+            target_population: bridge.terminal.population_id.clone(),
+            transport_identities: vec![bridge.diagram.identity_hex()],
+            assumptions,
+            support: SupportStatus::Extrapolative,
+            uncalibrated_standard_error: None,
+            provider_id: provider_id.to_owned(),
+            snapshot_id: bridged.source_claim_id.to_hex(),
+            causal_contract_id: bridged.contract_identity.to_hex(),
+        };
+        Self::build_point(vec![bridge.terminal.clone()], vec![bridged.value], &declaration)
+    }
+
     /// The value of a synthesis that contains transported claims, stated at
     /// `coordinate`. The synthesis's model variance is retained as an
     /// uncalibrated standard error and is not inherited by a decision.
@@ -704,7 +939,12 @@ fn require_declarable_route(route: TransportedRoute) -> Result<(), TransportedRe
     match route {
         TransportedRoute::Policy
         | TransportedRoute::ShiftedCohort
-        | TransportedRoute::Synthesis => Err(TransportedRefusal::RouteNeedsTypedSource(route)),
+        | TransportedRoute::Synthesis
+        | TransportedRoute::TemporalPolicy
+        | TransportedRoute::AdaptiveTrial
+        | TransportedRoute::SurrogateBridge => {
+            Err(TransportedRefusal::RouteNeedsTypedSource(route))
+        }
         TransportedRoute::CohortEffect
         | TransportedRoute::Mechanism
         | TransportedRoute::Declared => Ok(()),
@@ -769,9 +1009,7 @@ impl TransportedRefusal {
                 antecedent_core::reason_code!("transport_missing_evidence")
             }
             Self::IdentityNotDigest => antecedent_core::reason_code!("transport_missing_evidence"),
-            Self::NotTransported
-            | Self::RouteNeedsTypedSource(_)
-            | Self::InvalidValue(_) => {
+            Self::NotTransported | Self::RouteNeedsTypedSource(_) | Self::InvalidValue(_) => {
                 antecedent_core::reason_code!("invalid_argument")
             }
             Self::QuantityNotInTarget { .. } => {
@@ -831,7 +1069,7 @@ impl TransportedRefusal {
                 .build(),
             Self::RouteNeedsTypedSource(route) => build(DETAIL_ROUTE_NEEDS_TYPED_SOURCE)
                 .offending(route.as_str())
-                .remedy("build the response from the producing result (`from_shifted_cohort`, `from_transported_policy`, `from_transported_synthesis`) so its populations and identities are copied, not typed")
+                .remedy("build the response from the producing result (`from_shifted_cohort`, `from_transported_policy`, `from_transported_synthesis`, `from_temporal_policy`, `from_adaptive_trial`, `from_surrogate_bridge`) so its populations and identities are copied, not typed")
                 .build(),
             Self::NotTransported => build(DETAIL_NOT_TRANSPORTED)
                 .remedy(

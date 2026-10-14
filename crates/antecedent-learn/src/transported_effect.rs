@@ -99,7 +99,12 @@ fn invalid(
     subject: impl Into<String>,
     remedy: &'static str,
 ) -> TransportRefusal {
-    TransportRefusal::new(antecedent_core::reason_code!("invalid_argument"), detail, subject, remedy)
+    TransportRefusal::new(
+        antecedent_core::reason_code!("invalid_argument"),
+        detail,
+        subject,
+        remedy,
+    )
 }
 
 fn schema_mismatch(
@@ -141,7 +146,12 @@ fn unlicensed(
     subject: impl Into<String>,
     remedy: &'static str,
 ) -> TransportRefusal {
-    TransportRefusal::new(antecedent_core::reason_code!("cell_not_licensed"), detail, subject, remedy)
+    TransportRefusal::new(
+        antecedent_core::reason_code!("cell_not_licensed"),
+        detail,
+        subject,
+        remedy,
+    )
 }
 
 /// A request the transported cohort mean cannot answer.
@@ -272,7 +282,8 @@ impl TargetCohort {
     /// names, ragged or nonfinite columns, and weights that are negative, nonfinite or do
     /// not sum to one.
     pub fn validate(&self) -> Result<(), TransportRefusal> {
-        let remedy = "declare a target cohort with named finite feature rows and normalized weights";
+        let remedy =
+            "declare a target cohort with named finite feature rows and normalized weights";
         let rows = self.weights.len();
         if self.population_id.trim().is_empty() {
             return Err(invalid("transported_effect.cohort_invalid", "population", remedy));
@@ -572,7 +583,11 @@ fn check_declaration(
     if declared.effect_modifiers != features {
         return Err(not_certified(
             "transported_effect.modifier_set_mismatch",
-            format!("declared={} model={}", declared.effect_modifiers.join(","), features.join(",")),
+            format!(
+                "declared={} model={}",
+                declared.effect_modifiers.join(","),
+                features.join(",")
+            ),
             "the declared effect modifiers must be exactly the model's features",
         ));
     }
@@ -763,7 +778,10 @@ mod tests {
                     implementation: "test".into(),
                     version: "1".into(),
                 },
-                model: PredictionMap::Linear { coefficients: vec![1.0, 2.0, -1.0], logistic: false },
+                model: PredictionMap::Linear {
+                    coefficients: vec![1.0, 2.0, -1.0],
+                    logistic: false,
+                },
             },
             support: support.then(|| EffectSupport {
                 version: 1,
@@ -823,7 +841,8 @@ mod tests {
     #[test]
     fn selection_into_the_mechanism_is_not_certified() {
         let c = cohort(vec![0.5], vec![1.0]);
-        let bad = SelectionShiftDeclaration::new("clinic_a", "clinic_b", "S", &["z", "y"], &["z", "w"]);
+        let bad =
+            SelectionShiftDeclaration::new("clinic_a", "clinic_b", "S", &["z", "y"], &["z", "w"]);
         let refusal = run(&model(true), &c, Some(&bad)).unwrap_err();
         assert_eq!(refusal.code, "transport_not_certified");
         assert_eq!(refusal.detail, "transported_effect.selection_enters_mechanism");

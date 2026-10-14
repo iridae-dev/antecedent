@@ -269,6 +269,16 @@ pub enum ContractGap {
     StoppingRuleMissing,
     /// No statement of how the final arm is selected.
     FinalSelectionMissing,
+    /// No outcome structure of a unit with several measurements.
+    OutcomeStructureMissing,
+    /// No declared within-unit correlation of repeated measures.
+    WithinUnitCorrelationMissing,
+    /// No declared between-unit variance of a clustered outcome.
+    BetweenUnitVarianceMissing,
+    /// No declared within-unit variance of a clustered outcome.
+    WithinUnitVarianceMissing,
+    /// No declared final-analysis estimator.
+    FinalAnalysisMissing,
     /// An element is present and not valid; the slug names which.
     Invalid(&'static str),
 }
@@ -284,6 +294,13 @@ impl ContractGap {
             Self::ExposureModelMissing => "adaptive_inference.exposure_history_missing",
             Self::StoppingRuleMissing => "adaptive_inference.stopping_rule_missing",
             Self::FinalSelectionMissing => "adaptive_inference.policy_selection_missing",
+            Self::OutcomeStructureMissing => "adaptive_inference.outcome_structure_missing",
+            Self::WithinUnitCorrelationMissing => {
+                "adaptive_inference.within_unit_correlation_missing"
+            }
+            Self::BetweenUnitVarianceMissing => "adaptive_inference.between_unit_variance_missing",
+            Self::WithinUnitVarianceMissing => "adaptive_inference.within_unit_variance_missing",
+            Self::FinalAnalysisMissing => "adaptive_inference.final_analysis_missing",
             Self::Invalid(detail) => detail,
         }
     }
@@ -318,6 +335,21 @@ impl ContractGap {
             }
             Self::FinalSelectionMissing => {
                 "declare how the procedure selects an arm when no stopping rule decided, or declare no selection"
+            }
+            Self::OutcomeStructureMissing => {
+                "declare the outcome structure of a unit: the measurements per unit and their dependence"
+            }
+            Self::WithinUnitCorrelationMissing => {
+                "declare the within-unit correlation of the repeated measures (compound symmetric or autoregressive), or declare independence explicitly with a correlation of zero"
+            }
+            Self::BetweenUnitVarianceMissing => {
+                "declare the between-unit variance of the unit-level random effect (zero declares no clustering)"
+            }
+            Self::WithinUnitVarianceMissing => {
+                "declare the within-unit variance of the clustered outcome"
+            }
+            Self::FinalAnalysisMissing => {
+                "declare the final-analysis estimator: a cluster-robust contrast of unit summaries, or the adaptively weighted score"
             }
             Self::Invalid(_) => "correct the declared element",
         }

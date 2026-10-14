@@ -196,16 +196,15 @@ fn inheriting_a_record_from_another_target_is_withdrawn_even_when_upstream_holds
 #[test]
 fn unsupported_target_withdraws_every_claim_for_support_with_the_coordinates() {
     let mut current = base();
-    current.target.support =
-        SupportStanding::Unsupported { coordinates: vec!["age>=80".into()] };
+    current.target.support = SupportStanding::Unsupported { coordinates: vec!["age>=80".into()] };
     let result = revalidate_transport(&base(), &current, &none()).unwrap();
     for key in ["effect", "decision", "note"] {
         let claim = result.claim(key).unwrap();
         assert_eq!(claim.class, Revalidation::Withdrawn, "{key}");
         assert!(
-            claim.reasons.contains(&TransportReason::TargetUnsupported {
-                coordinates: "age>=80".into()
-            }),
+            claim
+                .reasons
+                .contains(&TransportReason::TargetUnsupported { coordinates: "age>=80".into() }),
             "{key}"
         );
         assert!(claim.reasons.iter().any(TransportReason::is_withdrawal));
@@ -228,7 +227,9 @@ fn claim_level_support_and_provider_trust_withdraw_only_what_relies_on_them() {
     );
     let effect = result.claim("effect").unwrap();
     assert_eq!(effect.class, Revalidation::Withdrawn);
-    assert!(effect.reasons.contains(&TransportReason::ProviderTrustLost { claim: "effect".into() }));
+    assert!(
+        effect.reasons.contains(&TransportReason::ProviderTrustLost { claim: "effect".into() })
+    );
     // a claim withdrawn for provider trust is not still carrying its calibration
     assert_eq!(result.claim("decision").unwrap().class, Revalidation::Withdrawn);
 }

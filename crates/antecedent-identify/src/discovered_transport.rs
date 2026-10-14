@@ -398,8 +398,8 @@ pub fn transport_across_class(
         ));
     }
 
-    let mut sampler = CpdagCompletionSampler::new(class.clone(), request.member_bound)
-        .map_err(|error| {
+    let mut sampler =
+        CpdagCompletionSampler::new(class.clone(), request.member_bound).map_err(|error| {
             refusal(
                 "discovered_transport.class_too_large",
                 request,

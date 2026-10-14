@@ -641,9 +641,7 @@ fn check(
         return Err(CompositionVerificationArtifactError::UnsupportedSemantics("feature marker"));
     }
     if !meta.required_features.is_empty() {
-        return Err(CompositionVerificationArtifactError::UnsupportedSemantics(
-            "required feature",
-        ));
+        return Err(CompositionVerificationArtifactError::UnsupportedSemantics("required feature"));
     }
     let current = graph_from_wire(&meta.current)?;
     let previous = meta.previous.as_ref().map(graph_from_wire).transpose()?;

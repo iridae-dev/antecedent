@@ -310,12 +310,9 @@ impl Stage {
                 deps.push(Self::Representation);
                 deps
             }
-            Self::Law => vec![
-                Self::ScoreArtifact,
-                Self::TargetPopulation,
-                Self::Calibration,
-                Self::Coupling,
-            ],
+            Self::Law => {
+                vec![Self::ScoreArtifact, Self::TargetPopulation, Self::Calibration, Self::Coupling]
+            }
             Self::ProviderRequest(b) => {
                 vec![
                     Self::ExternalStudy(b),
@@ -343,8 +340,7 @@ impl Stage {
                 ]
             }
             Self::Decision => {
-                let mut deps =
-                    vec![Self::Law, Self::Utility, Self::Calibration, Self::Coupling];
+                let mut deps = vec![Self::Law, Self::Utility, Self::Calibration, Self::Coupling];
                 for i in 0..MAX_EXTERNAL_BRANCHES {
                     deps.push(Self::Prior(Branch(i)));
                     deps.push(Self::ProviderRequest(Branch(i)));

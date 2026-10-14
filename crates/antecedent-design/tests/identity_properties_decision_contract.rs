@@ -88,14 +88,8 @@ fn every_semantic_field_changes_identity() {
         ("constraint probability", Box::new(|c| c.constraints[0].min_probability = 0.9)),
         ("constraint removed", Box::new(|c| drop(c.constraints.pop()))),
         ("utility units", Box::new(|c| c.utility_units = "cost".into())),
-        (
-            "criterion",
-            Box::new(|c| c.criterion = DecisionCriterion::PosteriorExpectedLoss),
-        ),
-        (
-            "structural policy",
-            Box::new(|c| c.structural_policy = StructuralPolicy::Maximin),
-        ),
+        ("criterion", Box::new(|c| c.criterion = DecisionCriterion::PosteriorExpectedLoss)),
+        ("structural policy", Box::new(|c| c.structural_policy = StructuralPolicy::Maximin)),
     ];
     for (label, mutate) in mutations {
         let mut changed = base();

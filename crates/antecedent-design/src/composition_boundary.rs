@@ -32,7 +32,7 @@ use antecedent_contract::{
 use antecedent_core::{CanonicalWriter, SupportStatus};
 use antecedent_io_core::IoError;
 use antecedent_io_core::distribution_artifact::{
-    DistributionArtifact, DistributionCalibration, DistributionTrust, DrawAlignment,
+    DistributionArtifact, DistributionCalibration, DistributionTrust,
 };
 
 use crate::signal::{RefusalBuilder, at_stage};
@@ -1445,6 +1445,7 @@ fn validate_route(
     route: &DependenceRoute,
     left: &DecisionInput,
     right: &DecisionInput,
+    row_pairing: bool,
 ) -> Result<(), BoundaryError> {
     let unlicensed = || BoundaryError::DependenceRouteNotLicensed {
         left: left.id.clone(),
@@ -1456,6 +1457,8 @@ fn validate_route(
     };
     let aligned = rows_pairable(input);
     let capable = match route.kind {
+        // A covariance cannot pair draws row by row (`covariance_insufficient_for_nonlinear`).
+        RouteKind::Covariance if row_pairing => false,
         RouteKind::Covariance => {
             input.provenance.capabilities.contains(&ExternalCapability::Covariance)
         }
@@ -1514,6 +1517,20 @@ pub fn check_composition(
     relations: &[PairRelation],
     operation: Option<CompositionOperation>,
 ) -> Result<CompositionReceipt, BoundaryError> {
+    compose_checked(inputs, relations, operation, false)
+}
+
+/// Shared body of [`check_composition`] and [`check_paired_draws`].
+///
+/// `row_pairing` is set when the caller pairs draws row by row; a covariance
+/// then licenses no dependence, as the joint-law rule refuses a covariance for
+/// a nonlinear row-paired operation.
+fn compose_checked(
+    inputs: &[DecisionInput],
+    relations: &[PairRelation],
+    operation: Option<CompositionOperation>,
+    row_pairing: bool,
+) -> Result<CompositionReceipt, BoundaryError> {
     let Some(operation) = operation else {
         return Err(BoundaryError::OperationNotDeclared);
     };
@@ -1541,7 +1558,7 @@ pub fn check_composition(
             }
             let route = declared.and_then(|r| r.route.as_ref());
             if let Some(route) = route {
-                validate_route(route, left, right)?;
+                validate_route(route, left, right, row_pairing)?;
             }
             if let Err(issue) = pair_policy(operation, &relation) {
                 if let Some(route) = route {
@@ -1576,19 +1593,31 @@ pub fn check_composition(
     })
 }
 
+/// The alignment of an input's rows as the joint-law propagation rule reads
+/// it: the artifact's real pairing identity for one joint law, independent
+/// marginals for separately sampled draws, moments only otherwise.
+fn input_alignment(input: &DecisionInput) -> antecedent_contract::InputAlignment {
+    match &input.source {
+        InputSource::JointLaw(artifact) => artifact
+            .input_alignment()
+            .unwrap_or(antecedent_contract::InputAlignment::IndependentMarginals),
+        _ => antecedent_contract::InputAlignment::MomentsOnly,
+    }
+}
+
 /// Whether an input's rows are realizations of one joint law, decided by the
 /// joint-law propagation rule (`antecedent_contract::check_rows_pairable`).
 fn rows_pairable(input: &DecisionInput) -> bool {
-    let alignment = match &input.source {
-        InputSource::JointLaw(artifact)
-            if artifact.metadata().identity.alignment == DrawAlignment::Joint =>
-        {
+    // One input is checked against a partner of the same law, so only its own
+    // flag is decided here; distinct artifacts are compared by their real
+    // identities through `check_rows_pairable_across`.
+    let alignment = match input_alignment(input) {
+        antecedent_contract::InputAlignment::Aligned { .. } => {
             antecedent_contract::InputAlignment::Aligned {
                 alignment_id: "declared_pairing".to_owned(),
             }
         }
-        InputSource::JointLaw(_) => antecedent_contract::InputAlignment::IndependentMarginals,
-        _ => antecedent_contract::InputAlignment::MomentsOnly,
+        other => other,
     };
     antecedent_contract::check_rows_pairable(&alignment).is_ok()
 }
@@ -1607,6 +1636,8 @@ pub fn check_paired_draws(
     relations: &[PairRelation],
 ) -> Result<CompositionReceipt, BoundaryError> {
     let mut draw_count = None;
+    let alignments: Vec<antecedent_contract::InputAlignment> =
+        inputs.iter().map(input_alignment).collect();
     for input in inputs {
         // The propagation rule decides whether the input's rows may be paired;
         // the refusal keeps this module's existing error and detail.
@@ -1628,7 +1659,29 @@ pub fn check_paired_draws(
         }
         draw_count = Some(n);
     }
-    check_composition(inputs, relations, Some(CompositionOperation::StatisticalPooling))
+    let receipt =
+        compose_checked(inputs, relations, Some(CompositionOperation::StatisticalPooling), true)?;
+    // Separate artifacts are paired only when they carry the same alignment
+    // identity; a flag on each input alone cannot detect two different laws.
+    // A declared joint-law route is the pair's own pairing declaration.
+    for (i, left) in inputs.iter().enumerate() {
+        for (j, right) in inputs.iter().enumerate().skip(i + 1) {
+            let routed = find_relation(relations, &left.id, &right.id)
+                .and_then(|relation| relation.route.as_ref())
+                .is_some_and(|route| route.kind == RouteKind::JointLaw);
+            if routed {
+                continue;
+            }
+            let pair = [(left.id.as_str(), &alignments[i]), (right.id.as_str(), &alignments[j])];
+            if antecedent_contract::check_rows_pairable_across(&pair).is_err() {
+                return Err(BoundaryError::Eval(DecisionEvalError::JointLawRequired {
+                    action: None,
+                    supplied_alignment: "alignment_mismatch",
+                }));
+            }
+        }
+    }
+    Ok(receipt)
 }
 
 /// How structural atoms are to be combined.

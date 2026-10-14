@@ -13,11 +13,11 @@ use antecedent_core::{
     ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery, VariableId,
 };
 use antecedent_graph::{Cpdag, DenseNodeId};
+use antecedent_identify::TransportFormula;
 use antecedent_identify::discovered_transport::{
     DiscoveredTransportError, DiscoveredTransportRequest, EnvelopeStatus, MemberVerdict,
     transport_across_class,
 };
-use antecedent_identify::TransportFormula;
 
 fn v(raw: u32) -> VariableId {
     VariableId::from_raw(raw)
@@ -57,7 +57,9 @@ fn request<'a>(class: &'a Cpdag, targets: &'a [VariableId]) -> DiscoveredTranspo
     }
 }
 
-fn refusal(error: DiscoveredTransportError) -> antecedent_identify::discovered_transport::DiscoveredTransportRefusal {
+fn refusal(
+    error: DiscoveredTransportError,
+) -> antecedent_identify::discovered_transport::DiscoveredTransportRefusal {
     match error {
         DiscoveredTransportError::Refused(refusal) => refusal,
         other => panic!("expected a scientific refusal, got {other}"),
@@ -80,7 +82,8 @@ fn chain_class_yields_its_three_members_with_the_verdicts_fixed_for_each_dag() {
     assert!(!envelope.formulas_agree());
 
     let by_edges = |edges: &[(u32, u32)]| {
-        let want: Vec<(VariableId, VariableId)> = edges.iter().map(|&(p, c)| (v(p), v(c))).collect();
+        let want: Vec<(VariableId, VariableId)> =
+            edges.iter().map(|&(p, c)| (v(p), v(c))).collect();
         envelope
             .members()
             .iter()
@@ -89,7 +92,10 @@ fn chain_class_yields_its_three_members_with_the_verdicts_fixed_for_each_dag() {
     };
     // 0 -> 1 -> 2 with the mediator varying: recursive population factors.
     match &by_edges(&[(0, 1), (1, 2)]).verdict {
-        MemberVerdict::Identified { formula: TransportFormula::RecursiveFactorization { .. }, .. } => {}
+        MemberVerdict::Identified {
+            formula: TransportFormula::RecursiveFactorization { .. },
+            ..
+        } => {}
         other => panic!("0->1->2: {other:?}"),
     }
     // 0 <- 1 -> 2: a Markovian graph, so the truncated factorization identifies it.
@@ -119,8 +125,7 @@ fn a_fully_directed_class_is_one_member_and_still_labelled_an_envelope() {
     // Pre-treatment exogenous selection node: standardization over it.
     match &envelope.members()[0].verdict {
         MemberVerdict::Identified {
-            formula: TransportFormula::Standardize { over, .. },
-            ..
+            formula: TransportFormula::Standardize { over, .. }, ..
         } => assert_eq!(&over[..], &[v(1)]),
         other => panic!("{other:?}"),
     }
@@ -154,7 +159,8 @@ fn exhausted_search_bound_refuses_and_names_the_unresolved_pairs() {
     assert_eq!(refused.code, "discovered_structure_unresolved");
     assert_eq!(refused.detail, "discovered_transport.search_incomplete");
     assert_eq!(refused.exhausted_search_bounds, 1);
-    let pairs: Vec<(u32, u32)> = refused.unresolved.iter().map(|p| (p.a.raw(), p.b.raw())).collect();
+    let pairs: Vec<(u32, u32)> =
+        refused.unresolved.iter().map(|p| (p.a.raw(), p.b.raw())).collect();
     assert_eq!(pairs, vec![(0, 1), (1, 2)]);
     assert!(refused.unresolved.iter().all(|p| p.reason == "undirected_in_equivalence_class"));
     assert!(refused.remedy.contains("declare the graph"));
@@ -172,7 +178,8 @@ fn orientation_conflict_unknown_target_and_zero_bound_are_refused() {
 
     let class = chain(3);
     let unknown = [v(9)];
-    let refused = refusal(transport_across_class(&request(&class, &unknown), &query()).unwrap_err());
+    let refused =
+        refusal(transport_across_class(&request(&class, &unknown), &query()).unwrap_err());
     assert_eq!(refused.detail, "discovered_transport.selection_target_unknown");
     assert_eq!(refused.unknown_selection_targets, vec![v(9)]);
 

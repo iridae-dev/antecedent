@@ -8,6 +8,21 @@
 //! for the point value a route returns, what the value becomes if that premise fails by
 //! a declared amount.
 //!
+//! Every transported response route names its sensitivity route
+//! ([`TransportRoute::of_response_route`]), so a response built by a typed
+//! constructor is covered without the caller naming the route:
+//!
+//! | Response route | Sensitivity route | Premise the shift perturbs |
+//! |---|---|---|
+//! | `cohort_effect`, `shifted_cohort` | `cohort_decision` | selection-diagram invariance |
+//! | `policy` | `policy_transport` | selection-diagram invariance |
+//! | `synthesis` | `synthesis_transport` | selection-diagram invariance |
+//! | `mechanism` | `mechanism_transport` | mechanism invariance |
+//! | `temporal_policy` | `temporal_policy_transport` | time-invariance of the mechanisms across periods |
+//! | `adaptive_trial` | `adaptive_trial_source` | selection acts on the stratum law alone (the outcome law given stratum and arm is shared) |
+//! | `surrogate_bridge` | `bridge_transport` | invariance of the surrogate-terminal relation |
+//! | `declared` | none; the caller names one | |
+//!
 //! The violation family has one parameter: the transported quantity in the target
 //! differs from the point value by a shift `s` with `0 <= s <= bound`, either additive
 //! (in the quantity's own units) or proportional (a fraction of the point value). At
@@ -47,6 +62,7 @@ use antecedent_io_core::error::IoError;
 use antecedent_io_core::quantity_wire::ScientificQuantityWire;
 use antecedent_io_core::sensitivity_artifact::MAX_SENSITIVITY_GRID_POINTS;
 
+use crate::decision_transported_source::TransportedRoute;
 use crate::sensitivity_decision::{
     ASSUMPTION_RANGE_STATEMENT, ActionUtility, AssumptionCoordinate, AssumptionRangeStatement,
     PointSupport, SamplingStatus, SensitivityArtifact, SensitivityParts, SensitivityProvenance,
@@ -189,6 +205,25 @@ impl TransportRoute {
             Self::TemporalPolicyTransport => TransportPremise::TemporalInvariance,
             Self::ProviderHandoff => TransportPremise::AttestedInvariance,
             Self::DiscoveredStructure => TransportPremise::StructuralInvariance,
+        }
+    }
+
+    /// The sensitivity route a transported response's own route implies, when it
+    /// implies one. A `declared` response names none: its premise is free text, so
+    /// the caller must state which route's premise the shift perturbs.
+    #[must_use]
+    pub const fn of_response_route(route: TransportedRoute) -> Option<Self> {
+        match route {
+            TransportedRoute::CohortEffect | TransportedRoute::ShiftedCohort => {
+                Some(Self::CohortDecision)
+            }
+            TransportedRoute::Policy => Some(Self::PolicyTransport),
+            TransportedRoute::Synthesis => Some(Self::SynthesisTransport),
+            TransportedRoute::Mechanism => Some(Self::MechanismTransport),
+            TransportedRoute::TemporalPolicy => Some(Self::TemporalPolicyTransport),
+            TransportedRoute::AdaptiveTrial => Some(Self::AdaptiveTrialSource),
+            TransportedRoute::SurrogateBridge => Some(Self::BridgeTransport),
+            TransportedRoute::Declared => None,
         }
     }
 

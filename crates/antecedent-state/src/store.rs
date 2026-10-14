@@ -201,14 +201,16 @@ impl QueryStore {
     pub fn register(&mut self, query: CausalQuery) -> QueryId {
         let id = QueryId::from_raw(self.next_id);
         self.next_id = self.next_id.wrapping_add(1);
-        self.queries
-            .insert(id, QueryRecord {
+        self.queries.insert(
+            id,
+            QueryRecord {
                 id,
                 query,
                 result_valid_at: None,
                 last_published: None,
                 pending_inputs: Vec::new(),
-            });
+            },
+        );
         id
     }
 }

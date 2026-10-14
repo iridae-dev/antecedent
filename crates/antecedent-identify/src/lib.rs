@@ -162,6 +162,7 @@ mod test_support {
         DenseNodeId::from_raw(raw)
     }
 }
+pub mod discovered_transport;
 #[cfg(test)]
 mod id_scm_property;
 #[cfg(test)]
@@ -173,7 +174,6 @@ mod mag_id_bruteforce;
 #[cfg(any(test, feature = "test-util"))]
 #[doc(hidden)]
 pub mod oracle_dot;
-pub mod discovered_transport;
 
 pub use auto::{AutoIdentifier, PreparedAutoGraph};
 pub use backdoor::{AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph};

@@ -854,17 +854,15 @@ fn the_trial_population_is_bound_to_the_diagram_and_distinct_from_the_target() {
     // target equal to source
     let mut same = trial_diagram();
     same.target_population = "trial_sites".into();
-    let err =
-        transport_adaptive_trial(&AdaptiveTransportRequest { diagram: Some(&same), ..base })
-            .unwrap_err();
+    let err = transport_adaptive_trial(&AdaptiveTransportRequest { diagram: Some(&same), ..base })
+        .unwrap_err();
     assert_eq!(err.detail, "adaptive_transport.target_is_source");
 
     // blank label
     let mut blank = trial_diagram();
     blank.target_population = "  ".into();
-    let err =
-        transport_adaptive_trial(&AdaptiveTransportRequest { diagram: Some(&blank), ..base })
-            .unwrap_err();
+    let err = transport_adaptive_trial(&AdaptiveTransportRequest { diagram: Some(&blank), ..base })
+        .unwrap_err();
     assert_eq!(err.detail, "adaptive_transport.population_label");
 }
 

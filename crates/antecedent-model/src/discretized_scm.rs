@@ -154,7 +154,11 @@ impl BridgeRefusal {
     }
 }
 
-fn invalid(detail: &'static str, subject: impl Into<String>, remedy: &'static str) -> BridgeRefusal {
+fn invalid(
+    detail: &'static str,
+    subject: impl Into<String>,
+    remedy: &'static str,
+) -> BridgeRefusal {
     BridgeRefusal::new(antecedent_core::reason_code!("invalid_argument"), detail, subject, remedy)
 }
 
@@ -163,7 +167,12 @@ fn unsupported(
     subject: impl Into<String>,
     remedy: &'static str,
 ) -> BridgeRefusal {
-    BridgeRefusal::new(antecedent_core::reason_code!("route_not_supported"), detail, subject, remedy)
+    BridgeRefusal::new(
+        antecedent_core::reason_code!("route_not_supported"),
+        detail,
+        subject,
+        remedy,
+    )
 }
 
 /// How the cells of a variable are chosen.
@@ -197,11 +206,7 @@ pub struct DiscretizationPlan {
 impl DiscretizationPlan {
     /// The same level count for every named variable.
     #[must_use]
-    pub fn uniform(
-        method: DiscretizationMethod,
-        variables: &[String],
-        levels: usize,
-    ) -> Self {
+    pub fn uniform(method: DiscretizationMethod, variables: &[String], levels: usize) -> Self {
         Self { method, levels: variables.iter().map(|v| (v.clone(), levels)).collect() }
     }
 }
@@ -337,8 +342,7 @@ fn quantile_grid(mean: f64, sd: f64, n: usize) -> (Vec<f64>, Vec<f64>) {
         // phi at the k-th boundary, k in 0..=n; the outer boundaries are +-inf.
         if k == 0 || k == n { 0.0 } else { norm_pdf(z[k - 1]) }
     };
-    let values: Vec<f64> =
-        (0..n).map(|j| mean + sd * nf * (density(j) - density(j + 1))).collect();
+    let values: Vec<f64> = (0..n).map(|j| mean + sd * nf * (density(j) - density(j + 1))).collect();
     (edges, values)
 }
 
@@ -582,12 +586,7 @@ impl DiscretizedLinearGaussian {
                             (nodes[p].variable.clone(), nodes[p].level_names[digits[k]].clone())
                         })
                         .collect(),
-                    probabilities: node
-                        .level_names
-                        .iter()
-                        .cloned()
-                        .zip(probabilities)
-                        .collect(),
+                    probabilities: node.level_names.iter().cloned().zip(probabilities).collect(),
                 });
             }
             tables.push(rows);
@@ -800,16 +799,10 @@ impl DiscretizedLinearGaussian {
                     (v.as_str(), self.nodes[i].level_names[*l].as_str())
                 })
                 .collect();
-            let law = self
-                .finite
-                .law(&names, ctx)
-                .map_err(from_composition)?;
+            let law = self.finite.law(&names, ctx).map_err(from_composition)?;
             let marginal = law.marginal(&contrast.outcome).map_err(from_composition)?;
-            let discretized: f64 = marginal
-                .iter()
-                .zip(&self.nodes[outcome].values)
-                .map(|((_, p), x)| p * x)
-                .sum();
+            let discretized: f64 =
+                marginal.iter().zip(&self.nodes[outcome].values).map(|((_, p), x)| p * x).sum();
             let pairs: Vec<(&str, f64)> = arm
                 .interventions
                 .iter()
@@ -1204,10 +1197,7 @@ pub const PARITY_TABLE: [ParityRow; 15] = [
 /// The row of one route.
 #[must_use]
 pub fn parity_row(route: ParityRoute) -> &'static ParityRow {
-    PARITY_TABLE
-        .iter()
-        .find(|row| row.route == route)
-        .unwrap_or(&PARITY_TABLE[0])
+    PARITY_TABLE.iter().find(|row| row.route == route).unwrap_or(&PARITY_TABLE[0])
 }
 
 /// Admit a paradigm request on a route, or refuse it by its typed closed row.

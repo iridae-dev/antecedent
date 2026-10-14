@@ -25,13 +25,13 @@ use antecedent_contract::adaptive_design::{
     OutcomeStructure, PolicyEpoch, ProcedureCell, SpendingKind, StoppingRuleDeclaration,
     StoppingRuleKind, StoppingSpec,
 };
-use antecedent_contract::composition_verification::{
-    CalibrationDeclaration, CompositionGraph, CompositionNode,
-    DependencyKind as GraphDependencyKind, NodeKind, Revalidation,
-};
 use antecedent_contract::callback_protocol::{
     CallbackDeclaration, CallbackDependency, CallbackInput, CallbackKind, CallbackOperation,
     CallbackTrust, DependencyDeclaration, DependencyKind, InputSupplier, ReplayContract,
+};
+use antecedent_contract::composition_verification::{
+    CalibrationDeclaration, CompositionGraph, CompositionNode,
+    DependencyKind as GraphDependencyKind, NodeKind, Revalidation,
 };
 use antecedent_contract::evidence_ledger::{SourceId, TransportIdentity};
 use antecedent_contract::interface_contract::{ContractOperation, EvidenceBasis, SupportDomain};
@@ -45,10 +45,6 @@ use antecedent_discovery::selective::{
     STATISTIC_COMPONENTS, StatisticReceipt, StructureClass, StructureEdge, StructureNode,
     WorkUnits,
 };
-use antecedent_io_core::composition_verification_artifact::{
-    COMPOSITION_VERIFICATION_ARTIFACT_FEATURE, COMPOSITION_VERIFICATION_ARTIFACT_VERSION,
-    CompositionVerificationArtifact, CompositionVerificationArtifactError,
-};
 use antecedent_io_core::adaptive_monitoring_contract_artifact::{
     ADAPTIVE_MONITORING_CONTRACT_FEATURE, ADAPTIVE_MONITORING_CONTRACT_VERSION,
     AdaptiveMonitoringContractArtifact,
@@ -58,8 +54,12 @@ use antecedent_io_core::cohort_decision::{
     CohortColumn, CohortDecisionSource, CohortExpectation, CohortOptions, RetainedEffectModel,
 };
 use antecedent_io_core::compact_export::{
-    COMPACT_EXPORT_ARTIFACT_KIND, COMPACT_EXPORT_SECTION, CompactExport, ExportInput,
-    ExportLimits, ExportSpec, InputSupport, TermSpec,
+    COMPACT_EXPORT_ARTIFACT_KIND, COMPACT_EXPORT_SECTION, CompactExport, ExportInput, ExportLimits,
+    ExportSpec, InputSupport, TermSpec,
+};
+use antecedent_io_core::composition_verification_artifact::{
+    COMPOSITION_VERIFICATION_ARTIFACT_FEATURE, COMPOSITION_VERIFICATION_ARTIFACT_VERSION,
+    CompositionVerificationArtifact, CompositionVerificationArtifactError,
 };
 use antecedent_io_core::quantity_wire::ScientificQuantityWire;
 use antecedent_io_core::selective_discovery_artifact::{
@@ -71,8 +71,7 @@ use antecedent_io_core::transport_handoff_artifact::{
     TransportHandoffArtifact, TransportHandoffArtifactError,
 };
 use antecedent_io_core::{
-    ArtifactContainer, CONTENT_CBOR, OutSection, container_kind, decode_container,
-    encode_container,
+    ArtifactContainer, CONTENT_CBOR, OutSection, container_kind, decode_container, encode_container,
 };
 use antecedent_test_support::read_fixture_bytes;
 
@@ -198,10 +197,9 @@ fn handoff_callback() -> CallbackDeclaration {
     }
 }
 
-fn handoff_sealed() -> (
-    TransportHandoffArtifact,
-    antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta,
-) {
+fn handoff_sealed()
+-> (TransportHandoffArtifact, antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta)
+{
     TransportHandoffArtifact::seal_for_callback(
         &handoff_offer(),
         &handoff_callback(),
@@ -427,7 +425,9 @@ fn the_adaptive_monitoring_contract_golden_is_consumed_and_gated() {
     assert_eq!(consumed.paradigm(), InferenceParadigm::FrequentistGroupSequential);
     assert_eq!(consumed.contract().identity(), contract.identity());
     // The identity a producer derives today equals the stored one.
-    assert!(AdaptiveMonitoringContractArtifact::from_bytes(&bytes, Some(consumed.identity())).is_ok());
+    assert!(
+        AdaptiveMonitoringContractArtifact::from_bytes(&bytes, Some(consumed.identity())).is_ok()
+    );
 
     let mut meta = AdaptiveMonitoringContractArtifact::decode_unchecked(&bytes).expect("meta");
     assert_eq!(meta.version, ADAPTIVE_MONITORING_CONTRACT_VERSION);
@@ -458,15 +458,13 @@ fn composition_graph(cohort: u8) -> CompositionGraph {
             .with_calibration(held),
     )
     .unwrap();
-    g.add_node(
-        node("claim", NodeKind::Claim, 6).with_coordinate(digest_of(100)).with_calibration(
-            CalibrationDeclaration::Inherited {
-                from: "fit".to_owned(),
-                record: digest_of(90),
-                coordinate: digest_of(100),
-            },
-        ),
-    )
+    g.add_node(node("claim", NodeKind::Claim, 6).with_coordinate(digest_of(100)).with_calibration(
+        CalibrationDeclaration::Inherited {
+            from: "fit".to_owned(),
+            record: digest_of(90),
+            coordinate: digest_of(100),
+        },
+    ))
     .unwrap();
     g.add_node(node("sibling", NodeKind::Claim, 7)).unwrap();
     g.add_edge("model", "cohort", GraphDependencyKind::Data).unwrap();

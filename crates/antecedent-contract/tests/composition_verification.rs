@@ -784,11 +784,9 @@ fn a_standing_is_stated_as_one_value_and_unstated_standing_is_refused() {
         .expect("node");
     g.add_node(node("unstated", NodeKind::Claim, 2).with_standing(ClaimStanding::undeclared()))
         .expect("node");
-    g.add_node(
-        node("outside", NodeKind::Claim, 3).with_standing(
-            ClaimStanding::native_point().with_unsupported(vec!["income above 200k".to_owned()]),
-        ),
-    )
+    g.add_node(node("outside", NodeKind::Claim, 3).with_standing(
+        ClaimStanding::native_point().with_unsupported(vec!["income above 200k".to_owned()]),
+    ))
     .expect("node");
     let r = revalidate(&g, &g, &no_effects()).expect("revalidate");
     assert_eq!(keys(&r, Revalidation::StillValid), vec!["native"]);

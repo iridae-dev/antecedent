@@ -228,11 +228,11 @@ pub struct AdaptiveTransportEstimate {
 
 fn adaptive_refusal(
     code: &'static str,
-    rule: &str,
+    detail: &'static str,
     message: impl Into<String>,
     remedy: &'static str,
 ) -> SequentialEvaluationError {
-    transport_refusal(code, format!("adaptive_transport.{rule}"), message, remedy)
+    transport_refusal(code, detail, message, remedy)
 }
 
 fn check_populations(
@@ -245,7 +245,7 @@ fn check_populations(
     {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            "population_label",
+            "adaptive_transport.population_label",
             "the trial population and the diagram's source and target populations need non-blank labels",
             "name the population the trial sampled and the population the means are transported to",
         ));
@@ -255,7 +255,7 @@ fn check_populations(
     {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            "target_is_source",
+            "adaptive_transport.target_is_source",
             format!(
                 "the target population `{}` is the trial's own; there is nothing to transport",
                 diagram.target_population
@@ -266,7 +266,7 @@ fn check_populations(
     if diagram.source_population != trial_population {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            "diagram_binding_mismatch",
+            "adaptive_transport.diagram_binding_mismatch",
             format!(
                 "the diagram's source population is `{}`; the trial sampled `{trial_population}`",
                 diagram.source_population
@@ -304,7 +304,7 @@ fn check_invariant_stratum_law(
     if differs {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            "stratum_law_declared_invariant",
+            "adaptive_transport.stratum_law_declared_invariant",
             "the target stratum law differs from the trial's empirical stratum law, but the declaration marks the stratum law invariant",
             "mark the stratum law shifted, or supply the trial's own stratum law as the target's",
         ));
@@ -323,7 +323,7 @@ fn check_diagram(diagram: &TrialSelectionDiagram) -> SequentialResult<()> {
         if slot.replace(status).is_some() {
             return Err(adaptive_refusal(
                 antecedent_core::reason_code!("invalid_argument"),
-                "mechanism_declared_twice",
+                "adaptive_transport.mechanism_declared_twice",
                 format!("the diagram gives `{}` a status twice", mechanism.as_str()),
                 "declare each mechanism once",
             ));
@@ -332,7 +332,7 @@ fn check_diagram(diagram: &TrialSelectionDiagram) -> SequentialResult<()> {
     let (Some(_), Some(outcome)) = (stratum, outcome) else {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            "mechanism_status_missing",
+            "adaptive_transport.mechanism_status_missing",
             "the diagram does not declare both the stratum law and the outcome mechanism",
             "declare the stratum law and the outcome-given-stratum-and-arm mechanism as invariant or shifted; invariance is never assumed",
         ));
@@ -340,7 +340,7 @@ fn check_diagram(diagram: &TrialSelectionDiagram) -> SequentialResult<()> {
     if outcome == MechanismStatus::Shifted {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            "outcome_mechanism_not_invariant",
+            "adaptive_transport.outcome_mechanism_not_invariant",
             "the outcome law given stratum and arm is declared shifted; the trial cannot supply it for the target",
             "establish the outcome mechanism in the target population (a target trial), or restrict the shift to the stratum law",
         ));
@@ -364,7 +364,7 @@ fn check_shape(
     if !labels_ok || !distinct {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            "strata",
+            "adaptive_transport.strata",
             format!(
                 "a transport needs 1 to {MAX_TRANSPORT_STRATA} distinct non-blank stratum labels"
             ),
@@ -376,7 +376,7 @@ fn check_shape(
     {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            "unit_strata",
+            "adaptive_transport.unit_strata",
             format!(
                 "{} unit strata were supplied for a trial of {} units, or one is outside the {strata} strata",
                 request.unit_strata.len(),
@@ -391,7 +391,7 @@ fn check_shape(
     if !law_ok {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            "target_stratum_law",
+            "adaptive_transport.target_stratum_law",
             "the target stratum law must be one probability per stratum summing to one",
             "supply the target population's law over the declared strata",
         ));
@@ -403,7 +403,7 @@ fn check_shape(
     {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            "arms",
+            "adaptive_transport.arms",
             format!("the compared arms must be two distinct arms of the trial's {arms}"),
             "name two distinct declared arms",
         ));
@@ -430,7 +430,7 @@ pub fn transport_adaptive_trial(
     let Some(contract) = request.contract else {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("adaptive_contract_incomplete"),
-            "assignment_monitoring_contract_missing",
+            "adaptive_transport.assignment_monitoring_contract_missing",
             "the trial's data were collected under an assignment that depends on history, but no retained assignment and monitoring contract was supplied",
             "supply the AdaptiveDesignContract of the trial: the policy history, realized assignment probabilities, exposure history, outcome availability and delay, interim analyses and stopping rule",
         ));
@@ -438,7 +438,7 @@ pub fn transport_adaptive_trial(
     let Some(law) = request.target_stratum_law else {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            "target_stratum_law_missing",
+            "adaptive_transport.target_stratum_law_missing",
             "no stratum law was supplied for the target population",
             "supply the target population's law over the strata; the trial cannot provide it",
         ));
@@ -446,7 +446,7 @@ pub fn transport_adaptive_trial(
     let Some(diagram) = request.diagram else {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            "selection_diagram_missing",
+            "adaptive_transport.selection_diagram_missing",
             "no selection diagram relates the trial's population to the target",
             "supply a selection diagram marking the stratum law and the outcome mechanism invariant or shifted",
         ));
@@ -454,7 +454,7 @@ pub fn transport_adaptive_trial(
     if !contract.is_adaptive() {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("route_not_supported"),
-            "design_not_adaptive",
+            "adaptive_transport.design_not_adaptive",
             "the contract records a design fixed in advance, whose assignment is not history-driven",
             "transport a fixed-design trial through the fixed-design transport routes; this route is for data collected under an adaptive assignment",
         ));
@@ -470,7 +470,7 @@ pub fn transport_adaptive_trial(
     let probabilities = declaration.assignment_probabilities.as_ref().ok_or_else(|| {
         adaptive_refusal(
             antecedent_core::reason_code!("adaptive_contract_incomplete"),
-            "assignment_monitoring_contract_missing",
+            "adaptive_transport.assignment_monitoring_contract_missing",
             "the contract holds no realized assignment probabilities",
             "supply the AdaptiveDesignContract of the trial",
         )
@@ -480,7 +480,7 @@ pub fn transport_adaptive_trial(
     if analysed.is_empty() {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("transport_support_failure"),
-            "no_analysed_units",
+            "adaptive_transport.no_analysed_units",
             "no outcome was available at the final look",
             "the trial holds no observed outcome to transport",
         ));
@@ -496,7 +496,7 @@ pub fn transport_adaptive_trial(
         if probability < declaration.probability_floor {
             return Err(adaptive_refusal(
                 antecedent_core::reason_code!("adaptive_assumption_violated"),
-                "assignment_below_floor",
+                "adaptive_transport.assignment_below_floor",
                 format!(
                     "unit {unit} was assigned arm {arm} at probability {probability}, below the declared floor {}",
                     declaration.probability_floor
@@ -508,7 +508,7 @@ pub fn transport_adaptive_trial(
         if measurements.is_empty() {
             return Err(adaptive_refusal(
                 antecedent_core::reason_code!("adaptive_contract_incomplete"),
-                "outcome_missing",
+                "adaptive_transport.outcome_missing",
                 format!("analysed unit {unit} carries no measurement"),
                 "retain the outcome of every unit whose availability is declared",
             ));
@@ -532,7 +532,7 @@ pub fn transport_adaptive_trial(
             if units == 0 {
                 return Err(adaptive_refusal(
                     antecedent_core::reason_code!("transport_support_failure"),
-                    "stratum_arm_unobserved",
+                    "adaptive_transport.stratum_arm_unobserved",
                     format!(
                         "target stratum `{}` has mass {mass} but no analysed unit was assigned arm {arm} there",
                         request.stratum_labels[stratum]

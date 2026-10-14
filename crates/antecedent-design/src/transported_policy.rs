@@ -205,15 +205,17 @@ pub(crate) enum Axis {
 }
 
 impl Axis {
-    pub(crate) const fn prefix(self) -> &'static str {
+    /// Pick the refusal detail for this axis; both spellings are literals so
+    /// every emitted detail is visible to the promotion gate.
+    pub(crate) const fn detail(
+        self,
+        population: &'static str,
+        period: &'static str,
+    ) -> &'static str {
         match self {
-            Self::Population => "transported_policy",
-            Self::Period => "temporal_policy_transport",
+            Self::Population => population,
+            Self::Period => period,
         }
-    }
-
-    pub(crate) fn detail(self, rule: &str) -> String {
-        format!("{}.{rule}", self.prefix())
     }
 }
 
@@ -254,7 +256,10 @@ pub(crate) fn shifted_initial_state(
         if !required.contains(&mechanism) {
             return Err(transport_refusal(
                 antecedent_core::reason_code!("invalid_argument"),
-                axis.detail("mechanism_unknown"),
+                axis.detail(
+                    "transported_policy.mechanism_unknown",
+                    "temporal_policy_transport.mechanism_unknown",
+                ),
                 format!(
                     "the declaration names `{}`, which the model does not have",
                     mechanism.name()
@@ -265,7 +270,10 @@ pub(crate) fn shifted_initial_state(
         if seen.insert(mechanism, status).is_some() {
             return Err(transport_refusal(
                 antecedent_core::reason_code!("invalid_argument"),
-                axis.detail("mechanism_declared_twice"),
+                axis.detail(
+                    "transported_policy.mechanism_declared_twice",
+                    "temporal_policy_transport.mechanism_declared_twice",
+                ),
                 format!("the declaration gives `{}` a status twice", mechanism.name()),
                 "declare each mechanism once",
             ));
@@ -275,7 +283,10 @@ pub(crate) fn shifted_initial_state(
         if !seen.contains_key(mechanism) {
             return Err(transport_refusal(
                 antecedent_core::reason_code!("transport_missing_evidence"),
-                axis.detail("mechanism_status_missing"),
+                axis.detail(
+                    "transported_policy.mechanism_status_missing",
+                    "temporal_policy_transport.mechanism_status_missing",
+                ),
                 format!(
                     "the declaration does not say whether `{}` is invariant or shifted",
                     mechanism.name()
@@ -286,19 +297,19 @@ pub(crate) fn shifted_initial_state(
     }
     for (mechanism, status) in &seen {
         if *status == MechanismStatus::Shifted && *mechanism != ModelMechanism::InitialState {
-            let (rule, remedy) = match axis {
+            let (detail, remedy) = match axis {
                 Axis::Population => (
-                    "mechanism_not_invariant",
+                    "transported_policy.mechanism_not_invariant",
                     "the source cannot supply a transition, observation or utility mechanism that differs in the target: establish it for the target population (a target experiment, or a model native to the target), or restrict the shift to the initial-state law",
                 ),
                 Axis::Period => (
-                    "mechanism_time_varying",
+                    "temporal_policy_transport.mechanism_time_varying",
                     "a mechanism that varies with the period is not carried across periods by the source: establish it for the target period, or declare it time-invariant if that is the scientific premise",
                 ),
             };
             return Err(transport_refusal(
                 antecedent_core::reason_code!("transport_missing_evidence"),
-                axis.detail(rule),
+                detail,
                 format!(
                     "`{}` is declared shifted; only the initial-state law may differ between source and target",
                     mechanism.name()
@@ -326,7 +337,10 @@ pub(crate) fn check_target_initial(
     if !well_formed {
         return Err(transport_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            axis.detail("target_initial_law"),
+            axis.detail(
+                "transported_policy.target_initial_law",
+                "temporal_policy_transport.target_initial_law",
+            ),
             format!(
                 "the target initial law must be one probability per state ({states}) summing to one"
             ),
@@ -337,7 +351,10 @@ pub(crate) fn check_target_initial(
         if mass > 0.0 && source == 0.0 {
             return Err(transport_refusal(
                 antecedent_core::reason_code!("transport_support_failure"),
-                axis.detail("target_support_outside_source"),
+                axis.detail(
+                    "transported_policy.target_support_outside_source",
+                    "temporal_policy_transport.target_support_outside_source",
+                ),
                 format!(
                     "state `{}` has target mass {mass} but source mass zero, so no source evidence covers the mechanisms used there",
                     model.states[state]
@@ -351,7 +368,10 @@ pub(crate) fn check_target_initial(
     if differs && !initial_shifted {
         return Err(transport_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            axis.detail("initial_law_declared_invariant"),
+            axis.detail(
+                "transported_policy.initial_law_declared_invariant",
+                "temporal_policy_transport.initial_law_declared_invariant",
+            ),
             "the target initial law differs from the source's, but the declaration marks the initial-state law invariant",
             "mark the initial-state law shifted, or supply the source's initial law as the target's",
         ));
@@ -465,7 +485,7 @@ pub fn evaluate_transported_policy(
     let Some(diagram) = request.diagram else {
         return Err(transport_refusal(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            axis.detail("selection_diagram_missing"),
+            "transported_policy.selection_diagram_missing",
             format!(
                 "the policy was requested for population `{}` but no selection diagram relates it to the model's `{}`",
                 request.target_population, model.population
@@ -476,7 +496,7 @@ pub fn evaluate_transported_policy(
     let Some(target_initial) = request.target_initial else {
         return Err(transport_refusal(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            axis.detail("target_initial_law_missing"),
+            "transported_policy.target_initial_law_missing",
             format!(
                 "no initial-state law was supplied for target population `{}`",
                 request.target_population
@@ -487,7 +507,7 @@ pub fn evaluate_transported_policy(
     if request.target_population.trim().is_empty() {
         return Err(transport_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            axis.detail("target_population"),
+            "transported_policy.target_population",
             "the target population needs a non-blank label",
             "name the population the policy is evaluated in",
         ));
@@ -495,7 +515,7 @@ pub fn evaluate_transported_policy(
     if request.target_population == model.population {
         return Err(transport_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            axis.detail("target_is_source"),
+            "transported_policy.target_is_source",
             format!("the target population `{}` is the model's own", model.population),
             "evaluate the policy in the model's own population with the sequential g-formula; there is nothing to transport",
         ));
@@ -505,7 +525,7 @@ pub fn evaluate_transported_policy(
     {
         return Err(transport_refusal(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            axis.detail("diagram_binding_mismatch"),
+            "transported_policy.diagram_binding_mismatch",
             format!(
                 "the diagram relates `{}` to `{}`; the request is `{}` to `{}`",
                 diagram.source_population,
@@ -566,7 +586,7 @@ pub fn verify_transported_policy(
     {
         return Err(transport_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            Axis::Population.detail("value_mismatch"),
+            "transported_policy.value_mismatch",
             "a stored transported policy value does not replay from its model, policy, diagram and target law",
             "regenerate the evaluation from the request",
         ));

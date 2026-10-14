@@ -583,11 +583,10 @@ fn the_connection_still_refuses_a_different_population_a_calibration_demand_and_
     // A measured requirement is only well formed beside an interval or posterior.
     contract.consumes[0].calibration = CalibrationRequirement::Measured;
     contract.consumes[0].operations.insert(ContractOperation::Interval);
-    contract.consumes[0].uncertainty = Some(
-        antecedent_contract::interface_contract::UncertaintyMeaning::new(
+    contract.consumes[0].uncertainty =
+        Some(antecedent_contract::interface_contract::UncertaintyMeaning::new(
             DistributionMeaning::EstimatorSampling,
-        ),
-    );
+        ));
     let refusals = hand_to_consumer(&offer(), &contract, "effect", policy)
         .expect_err("transport supplies no measured calibration");
     assert!(refusals.iter().any(|r| r.code == "interface_contract_calibration_not_held"));

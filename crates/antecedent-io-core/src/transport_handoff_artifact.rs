@@ -134,10 +134,7 @@ fn refused(refusal: ExternalRefusal) -> Failure {
 }
 
 fn first_refusal(refusals: Vec<ExternalRefusal>) -> Failure {
-    refusals
-        .into_iter()
-        .next()
-        .map_or_else(|| malformed("a refusal without a refusal"), refused)
+    refusals.into_iter().next().map_or_else(|| malformed("a refusal without a refusal"), refused)
 }
 
 fn from_contract_error(error: InterfaceContractArtifactError) -> Failure {
@@ -575,21 +572,14 @@ impl TransportHandoffArtifact {
     /// # Errors
     /// `provider_transport.identity_mismatch` for another declaration, or the
     /// refusal of [`hand_to_callback`].
-    pub fn verify_against_callback(
-        &self,
-        callback: &CallbackDeclaration,
-    ) -> Result<(), Failure> {
+    pub fn verify_against_callback(&self, callback: &CallbackDeclaration) -> Result<(), Failure> {
         let supplied = callback.canonical_identity().to_hex();
         if self.callback_identity.as_deref() != Some(supplied.as_str()) {
             return Err(Failure::IdentityMismatch { field: "callback_identity" });
         }
-        let rederived = hand_to_callback(
-            &self.offer,
-            callback,
-            &self.consumed_port,
-            self.handoff.policy(),
-        )
-        .map_err(first_refusal)?;
+        let rederived =
+            hand_to_callback(&self.offer, callback, &self.consumed_port, self.handoff.policy())
+                .map_err(first_refusal)?;
         if rederived.identity() != self.handoff.identity() {
             return Err(Failure::IdentityMismatch { field: "handoff_identity" });
         }
@@ -681,7 +671,10 @@ impl TransportHandoffArtifact {
     /// # Errors
     /// An encoding failure.
     #[doc(hidden)]
-    pub fn meta_to_bytes(meta: &TransportHandoffMeta, artifact_id: &str) -> Result<Vec<u8>, Failure> {
+    pub fn meta_to_bytes(
+        meta: &TransportHandoffMeta,
+        artifact_id: &str,
+    ) -> Result<Vec<u8>, Failure> {
         encode_meta(meta, artifact_id)
     }
 }

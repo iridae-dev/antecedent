@@ -11,10 +11,10 @@
 use std::collections::BTreeMap;
 
 use antecedent_contract::composition_verification::Revalidation;
+use antecedent_contract::composition_verification::SupportStanding;
 use antecedent_contract::transport_revalidation::{
     SceneCalibration, SceneClaim, SceneClaimKind, SceneSource, SceneTarget, TransportScene,
 };
-use antecedent_contract::composition_verification::SupportStanding;
 use antecedent_core::SemanticDigest;
 use antecedent_io_core::container_kind;
 use antecedent_io_core::transport_revalidation_artifact::{
@@ -101,10 +101,7 @@ fn a_fresh_consumer_rederives_the_report_from_bytes() {
 
 #[test]
 fn a_calibration_record_from_another_target_is_withdrawn_and_never_inherited() {
-    let current = scene(
-        10,
-        SceneCalibration::Held { record: d(90), established_at_target: d(99) },
-    );
+    let current = scene(10, SceneCalibration::Held { record: d(90), established_at_target: d(99) });
     let (_, meta) =
         TransportRevalidationArtifact::seal(None, &current, &BTreeMap::new()).expect("seals");
     let effect = claim(&meta, "effect");
@@ -139,8 +136,8 @@ fn a_resealed_scene_edit_does_not_replay_and_an_unsealed_edit_changes_identity()
     // Another source identity at unchanged shape: the stored classification no longer matches.
     let mut moved = meta.clone();
     moved.current.sources[0].identity = d(12).to_hex();
-    let error = TransportRevalidationArtifact::from_meta(&reseal(moved), None)
-        .expect_err("scene edited");
+    let error =
+        TransportRevalidationArtifact::from_meta(&reseal(moved), None).expect_err("scene edited");
     assert!(matches!(error, TransportRevalidationArtifactError::ReplayMismatch(_)), "{error:?}");
 
     // The same edit without resealing is an identity mismatch or a replay mismatch, never accepted.

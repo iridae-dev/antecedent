@@ -10,7 +10,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, blake3_hex};
-use antecedent_io_core::convert::{from_cbor, to_cbor};
+use antecedent_io_core::convert::to_cbor;
 use antecedent_io_core::error::IoError;
 use serde::{Deserialize, Serialize};
 
@@ -132,11 +132,11 @@ impl DecisionReliabilityArtifact {
         expected: &DecisionReliabilityExpectation,
         ctx: &ExecutionContext,
     ) -> Result<(), IoError> {
-        if self.version != BODY_VERSION || self.digest != self.recomputed_digest()? {
-            return Err(refused(
-                "decision_reliability.identity_mismatch",
-                "version or digest differs",
-            ));
+        if self.version != BODY_VERSION {
+            return Err(IoError::UnsupportedVersion { version: self.version });
+        }
+        if self.digest != self.recomputed_digest()? {
+            return Err(refused("decision_reliability.identity_mismatch", "digest differs"));
         }
         let recomputed = assess(&self.draws, self.validation.as_ref(), &self.request, ctx)
             .map_err(|error| from_reliability(&error))?;
@@ -248,7 +248,16 @@ impl DecisionReliabilityArtifact {
                 "unsupported container layout",
             ));
         };
-        from_cbor(&body)
+        // The version is read from the untyped value and gated before the typed
+        // shape is interpreted, so a newer body is `UnsupportedVersion`, not a
+        // shape error.
+        antecedent_io_core::decode_with_version(&body, |version: u32| {
+            if version == BODY_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })
     }
 }
 

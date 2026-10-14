@@ -65,7 +65,6 @@ pub use declaration::{
     CalibrationRequirement, CalibrationStatus, ConsumedPort, ContractOperation,
     DependenceRequirement, EvidenceBasis, INTERFACE_CONTRACT_VERSION, InterfaceContract,
     MAX_INTERFACE_PORTS, MAX_INTERFACE_TEXT_BYTES, MAX_PORT_SET_ITEMS, PortFacts, ProducedPort,
-    SupportDomain,
-    UncertaintyMeaning, UncertaintyParadigm, operations_of_capabilities,
+    SupportDomain, UncertaintyMeaning, UncertaintyParadigm, operations_of_capabilities,
 };
 pub use refusal::InterfaceRefusal;

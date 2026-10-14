@@ -12,19 +12,19 @@ pub mod basis;
 pub mod batch;
 pub mod compile;
 pub mod compose;
+pub mod discretized_scm;
+pub mod discretized_scm_artifact;
 pub mod do_sampler;
 pub mod error;
 pub mod evaluate;
 pub mod lgssm;
 pub mod mechanism;
+pub mod mechanism_transport;
 pub mod model_collection;
 pub mod observation_query;
 pub mod overlay;
 pub mod registry;
 pub mod sample;
-pub mod mechanism_transport;
-pub mod discretized_scm;
-pub mod discretized_scm_artifact;
 
 pub use basis::{BasisTerm, ParentBasis};
 pub use batch::{

@@ -21,9 +21,9 @@ use antecedent_contract::evidence_ledger::{
     EvidenceLedger, ObservationId, SourceDeclaration, SourceId, SourceKind,
 };
 use antecedent_contract::interface_contract::{
-    CalibrationStatus, ComponentConnection, ConsumedPort, ContractOperation,
-    DependenceRequirement, EvidenceBasis, InterfaceContract, PortFacts, SupportDomain,
-    check_composition, check_composition_with_ledger, disjoint_requirements_without_ledger,
+    CalibrationStatus, ComponentConnection, ConsumedPort, ContractOperation, DependenceRequirement,
+    EvidenceBasis, InterfaceContract, PortFacts, SupportDomain, check_composition,
+    check_composition_with_ledger, disjoint_requirements_without_ledger,
 };
 use antecedent_contract::measurement::{
     MEASUREMENT_CONSTRUCT_PORT, MEASUREMENT_INDICATOR_PORT, MeasurementInterfaceBasis,
@@ -183,12 +183,7 @@ fn feed_forward() -> Vec<ComponentConnection> {
             "bridge:y_to_z",
             BRIDGE_SOURCE_PORT,
         ),
-        ComponentConnection::new(
-            "bridge:y_to_z",
-            BRIDGE_TARGET_PORT,
-            "outcome_model",
-            "schema:z",
-        ),
+        ComponentConnection::new("bridge:y_to_z", BRIDGE_TARGET_PORT, "outcome_model", "schema:z"),
     ]
 }
 
@@ -206,12 +201,7 @@ fn a_mechanism_a_bridge_and_a_callback_compose_through_the_one_check() {
     assert_eq!(composed.connections.len(), 2);
     // The calibration is the producer's, never raised by a consumer: a mean of
     // a fit offered with no uncertainty is point-only all the way.
-    assert!(
-        composed
-            .connections
-            .iter()
-            .all(|c| c.calibration == CalibrationStatus::PointOnly)
-    );
+    assert!(composed.connections.iter().all(|c| c.calibration == CalibrationStatus::PointOnly));
     // The mechanism's evidence was read from its declaration as a ledger id.
     assert_eq!(
         composed.connections[0].evidence,
@@ -235,8 +225,7 @@ fn matching_names_units_and_support_but_another_population_is_refused() {
         bridge_contract("adults", evidence),
         callback().interface_contract(),
     ];
-    let refusals =
-        check_composition(&components, &feed_forward()).expect_err("population differs");
+    let refusals = check_composition(&components, &feed_forward()).expect_err("population differs");
     assert_eq!(details(&refusals), vec!["interface_contract.population_mismatch"]);
     assert_eq!(refusals[0].expected.as_deref(), Some("adults"));
     assert_eq!(refusals[0].supplied.as_deref(), Some("children"));
@@ -247,11 +236,13 @@ fn a_bridge_consuming_a_mean_is_not_fed_by_a_law() {
     let mut ledger = EvidenceLedger::new();
     let evidence = observed(&mut ledger, "fit-y", &[1]);
     let law_basis = MechanismInterfaceBasis::new(
-        PortFacts::new(SupportDomain::Real).with_uncertainty(DistributionMeaning::ParameterPosterior),
+        PortFacts::new(SupportDomain::Real)
+            .with_uncertainty(DistributionMeaning::ParameterPosterior),
         [ContractOperation::Law],
     );
     let producer = mechanism(evidence, "adults").interface_contract(&law_basis);
-    let components = [producer, bridge_contract("adults", evidence), callback().interface_contract()];
+    let components =
+        [producer, bridge_contract("adults", evidence), callback().interface_contract()];
     let refusals = check_composition(&components, &feed_forward()).expect_err("law is not a mean");
     assert_eq!(details(&refusals), vec!["interface_contract.operation_unavailable"]);
     assert_eq!(refusals[0].offending.as_deref(), Some("mean"));
@@ -266,7 +257,8 @@ fn a_measurement_assumption_mismatch_is_refused_between_a_mechanism_and_a_bridge
         [ContractOperation::Mean],
     );
     let producer = mechanism(evidence, "adults").interface_contract(&basis);
-    let components = [producer, bridge_contract("adults", evidence), callback().interface_contract()];
+    let components =
+        [producer, bridge_contract("adults", evidence), callback().interface_contract()];
     let refusals =
         check_composition(&components, &feed_forward()).expect_err("measured under another model");
     assert_eq!(details(&refusals), vec!["interface_contract.measurement_assumption_mismatch"]);

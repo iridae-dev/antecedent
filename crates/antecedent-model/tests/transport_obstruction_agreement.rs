@@ -64,7 +64,8 @@ fn v(id: u32) -> VariableId {
 }
 
 fn regime(id: u32, population: &str, interventions: &[u32], measured: &[u32]) -> EvidenceRegime {
-    let kind = if interventions.is_empty() { RegimeKind::Observational } else { RegimeKind::Experimental };
+    let kind =
+        if interventions.is_empty() { RegimeKind::Observational } else { RegimeKind::Experimental };
     EvidenceRegime::try_new(
         RegimeId::from_raw(id),
         kind,
@@ -180,7 +181,8 @@ fn both_views_depend_on_the_diagram_alone_not_on_the_label_of_the_selected_varia
     // Swapping which variable carries the selection node swaps both verdicts
     // together; there is no configuration on which they disagree.
     for selection in Selection::ALL {
-        let composition_refuses = transport_linear_gaussian(&composition_request(selection)).is_err();
+        let composition_refuses =
+            transport_linear_gaussian(&composition_request(selection)).is_err();
         let finite_obstructed = matches!(
             finite_decision(selection),
             CounterfactualTransportDecision::ProvenNonTransportable(_)
@@ -259,10 +261,8 @@ fn a_diagram_with_no_selection_node_carries_and_two_nodes_into_different_variabl
 
     // Nodes into both x and y: x is refitted natively, y cannot be carried.
     let mut both = diagram(Selection::TreatmentSelected);
-    both.selection_nodes.push(SelectionNodeDeclaration {
-        name: "S2".into(),
-        points_into: vec!["y".into()],
-    });
+    both.selection_nodes
+        .push(SelectionNodeDeclaration { name: "S2".into(), points_into: vec!["y".into()] });
     let err = ComposedLinearGaussian::compile(&compile_spec(both)).unwrap_err();
     assert_eq!(details(&err), vec![DETAIL_SELECTION_INTO_MECHANISM]);
     assert_eq!(err.findings()[0].subject, "y");

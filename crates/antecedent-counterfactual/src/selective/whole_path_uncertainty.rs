@@ -221,9 +221,7 @@ impl WholePathUncertainty {
     }
 }
 
-fn rule_failure(
-    request: &PropagationRequest,
-) -> Result<&'static str, CrossWorldExecutionError> {
+fn rule_failure(request: &PropagationRequest) -> Result<&'static str, CrossWorldExecutionError> {
     check_propagation(request).map(|plan| plan.route.as_str()).map_err(from_external)
 }
 
@@ -304,9 +302,7 @@ pub fn derive_whole_path_uncertainty(
     let within = if involved.len() >= 2 {
         let (alignment, dependence) = match request.coupling {
             super::finite_executor::NoiseCoupling::SharedAbducedExogenous => (
-                InputAlignment::Aligned {
-                    alignment_id: format!("shared_exogenous:{evidence_id}"),
-                },
+                InputAlignment::Aligned { alignment_id: format!("shared_exogenous:{evidence_id}") },
                 PropagationDependence::AlignedJointLaw,
             ),
             super::finite_executor::NoiseCoupling::IndependentWorldNoise => {
@@ -395,8 +391,7 @@ pub fn derive_whole_path_uncertainty(
             weight_sum += weight;
         }
         work.world_predictions += request.worlds.len() as u64;
-        work.posterior_states_predicted +=
-            (posterior.states.len() * request.worlds.len()) as u64;
+        work.posterior_states_predicted += (posterior.states.len() * request.worlds.len()) as u64;
         if value.to_bits() != executed.value.to_bits() {
             return Err(mismatch("unit_value"));
         }
@@ -405,11 +400,7 @@ pub fn derive_whole_path_uncertainty(
             at_state.iter().map(|(w, g)| w * (g - value) * (g - value)).sum();
         weight_defect = weight_defect.max((weight_sum - 1.0).abs());
         total += value;
-        unit_spreads.push(UnitSpread {
-            unit: unit.unit.clone(),
-            value,
-            predictive_variance,
-        });
+        unit_spreads.push(UnitSpread { unit: unit.unit.clone(), value, predictive_variance });
     }
     let n = unit_spreads.len() as f64;
     let mean = total / n;
@@ -418,14 +409,13 @@ pub fn derive_whole_path_uncertainty(
     }
 
     let realized: f64 = unit_spreads.iter().map(|u| u.predictive_variance).sum::<f64>() / (n * n);
-    let sampling_variance = if unit_sampling == UnitSampling::IndependentSample
-        && unit_spreads.len() >= 2
-    {
-        let ss: f64 = unit_spreads.iter().map(|u| (u.value - mean) * (u.value - mean)).sum();
-        Some(ss / (n - 1.0) / n)
-    } else {
-        None
-    };
+    let sampling_variance =
+        if unit_sampling == UnitSampling::IndependentSample && unit_spreads.len() >= 2 {
+            let ss: f64 = unit_spreads.iter().map(|u| (u.value - mean) * (u.value - mean)).sum();
+            Some(ss / (n - 1.0) / n)
+        } else {
+            None
+        };
     work.summaries += 1;
 
     let sampling = match (unit_sampling, sampling_variance) {
@@ -438,7 +428,10 @@ pub fn derive_whole_path_uncertainty(
         _ => SourceTreatment::NotApplicable("the units are the whole set the claim is about"),
     };
     let sources = vec![
-        SourceAccount { source: UncertaintySource::Structural, treatment: SourceTreatment::Premise },
+        SourceAccount {
+            source: UncertaintySource::Structural,
+            treatment: SourceTreatment::Premise,
+        },
         SourceAccount {
             source: UncertaintySource::Posterior,
             treatment: SourceTreatment::Propagated { variance: realized },

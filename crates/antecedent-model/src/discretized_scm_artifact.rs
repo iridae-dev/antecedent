@@ -44,8 +44,7 @@ use crate::compose::{
     ComposedModelSpec, ContextCoordinate, CrossCovarianceBlock, Domain, InvarianceDeclaration,
     LatentDependence, MechanismContext, MechanismDescriptor, MechanismForm, MechanismOrigin,
     MechanismProvenance, MechanismUncertainty, ParameterId, ParameterTerm, ParentBinding,
-    PosteriorDependence, SelectionDiagramDeclaration, SelectionNodeDeclaration,
-    UncertaintyMeaning,
+    PosteriorDependence, SelectionDiagramDeclaration, SelectionNodeDeclaration, UncertaintyMeaning,
 };
 use crate::discretized_scm::{
     BridgeRefusal, DiscretizationMethod, DiscretizationPlan, DiscretizedLinearGaussian,
@@ -564,7 +563,11 @@ fn read_dependence(r: &mut Reader<'_>) -> Decoded<PosteriorDependence> {
             for _ in 0..n {
                 parameters.push(ParameterId { mechanism: r.text("dependence")?, term: r.term()? });
             }
-            Ok(PosteriorDependence::Joint { meaning, parameters, covariance: r.reals("dependence")? })
+            Ok(PosteriorDependence::Joint {
+                meaning,
+                parameters,
+                covariance: r.reals("dependence")?,
+            })
         }
         3 => {
             let n = r.count("dependence")?;
@@ -700,18 +703,16 @@ pub fn consume_discretized_scm(
     for _ in 0..n {
         let name = r.text("levels")?;
         order.push(name.clone());
-        let count = usize::try_from(r.word("levels")?)
-            .map_err(|_| ArtifactRefusal::malformed("levels"))?;
+        let count =
+            usize::try_from(r.word("levels")?).map_err(|_| ArtifactRefusal::malformed("levels"))?;
         if levels.insert(name, count).is_some() {
             return Err(ArtifactRefusal::malformed("levels"));
         }
     }
     let plan = DiscretizationPlan { method, levels };
 
-    let claimed_identity: [u8; 32] = r
-        .take(32, "identity")?
-        .try_into()
-        .map_err(|_| ArtifactRefusal::malformed("identity"))?;
+    let claimed_identity: [u8; 32] =
+        r.take(32, "identity")?.try_into().map_err(|_| ArtifactRefusal::malformed("identity"))?;
     let mut claimed = Vec::with_capacity(plan.levels.len());
     for variable in &order {
         claimed.push(Claimed {

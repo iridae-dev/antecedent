@@ -228,7 +228,10 @@ impl PerPopulationDiscovery {
         let mut structures: Vec<(String, Vec<super::structure::StructureEdge>)> = Vec::new();
         for (rows, (_, identity)) in populations.iter().zip(identities) {
             let per_population = for_population(contract, rows.population);
-            let adapter = self.adapters.entry(rows.population.to_owned()).or_insert_with(StaticSelectiveDiscovery::new);
+            let adapter = self
+                .adapters
+                .entry(rows.population.to_owned())
+                .or_insert_with(StaticSelectiveDiscovery::new);
             let report = adapter.run(&per_population, rows.data, ctx)?;
             let outcome = adapter.outcome().ok_or_else(|| {
                 invalid(
@@ -350,10 +353,8 @@ fn compare(
             let marks = structures
                 .iter()
                 .map(|(population, edges)| {
-                    let found = edges
-                        .iter()
-                        .find(|e| e.a == a && e.b == b)
-                        .map(|e| (e.at_a, e.at_b));
+                    let found =
+                        edges.iter().find(|e| e.a == a && e.b == b).map(|e| (e.at_a, e.at_b));
                     (population.clone(), found)
                 })
                 .collect();
@@ -415,8 +416,7 @@ mod tests {
     #[test]
     fn identical_structures_agree_on_every_edge() {
         let same = vec![edge(0, 1, Mark::Tail, Mark::Arrow)];
-        let compared =
-            compare(&[("a".to_owned(), same.clone()), ("b".to_owned(), same)]);
+        let compared = compare(&[("a".to_owned(), same.clone()), ("b".to_owned(), same)]);
         assert_eq!(compared.len(), 1);
         assert!(compared[0].agrees());
     }

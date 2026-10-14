@@ -97,7 +97,8 @@ fn callback(supplier: InputSupplier) -> CallbackDeclaration {
     }
 }
 
-fn sealed() -> (TransportHandoffArtifact, antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta)
+fn sealed()
+-> (TransportHandoffArtifact, antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta)
 {
     TransportHandoffArtifact::seal_for_callback(
         &offer(),
@@ -127,10 +128,7 @@ fn a_sealed_handoff_round_trips_and_a_fresh_consumer_rederives_it() {
     assert_eq!(consumed.offer(), &offer());
     assert_eq!(consumed.transport(), &offer().transport);
     assert_eq!(consumed.handoff().standing(), "transported_claim");
-    assert_eq!(
-        consumed.handoff().connection().calibration,
-        CalibrationStatus::PointOnly
-    );
+    assert_eq!(consumed.handoff().connection().calibration, CalibrationStatus::PointOnly);
     consumed.verify_against_callback(&declaration).expect("same declaration");
 
     // Another declaration (a changed dependency version at unchanged shape).
@@ -141,7 +139,10 @@ fn a_sealed_handoff_round_trips_and_a_fresh_consumer_rederives_it() {
         "beta=0.6",
     )]);
     let error = consumed.verify_against_callback(&other).expect_err("another declaration");
-    assert_eq!(error, TransportHandoffArtifactError::IdentityMismatch { field: "callback_identity" });
+    assert_eq!(
+        error,
+        TransportHandoffArtifactError::IdentityMismatch { field: "callback_identity" }
+    );
 }
 
 #[test]
@@ -209,10 +210,7 @@ fn a_handoff_that_the_library_refuses_does_not_seal() {
         TransportedInputPolicy::NativeTargetOnly,
     )
     .expect_err("native target data required");
-    assert_eq!(
-        error.refusal().expect("registered").1,
-        "provider_transport.native_target_required"
-    );
+    assert_eq!(error.refusal().expect("registered").1, "provider_transport.native_target_required");
 
     // The claim is not in the target population of its own transport identity.
     let mut elsewhere = offer();

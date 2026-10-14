@@ -84,9 +84,7 @@ fn execute(request: &FiniteExecutionRequest) -> FiniteExecutionResult {
     FiniteScmExecutor::new().execute(request, &ctx()).expect("executes")
 }
 
-fn refusal(
-    result: Result<impl std::fmt::Debug, CrossWorldExecutionError>,
-) -> (String, String) {
+fn refusal(result: Result<impl std::fmt::Debug, CrossWorldExecutionError>) -> (String, String) {
     let error = result.expect_err("a typed refusal");
     let refusal = error.refusal().expect("refusal");
     (refusal.code.to_owned(), refusal.detail.clone())
@@ -109,9 +107,8 @@ fn the_spread_is_the_enumerated_posterior_variance_and_the_unit_sampling_varianc
         FiniteQuantity::Probability(atom(0, 1, 0)),
     );
     let result = execute(&req);
-    let out =
-        derive_whole_path_uncertainty(&req, &result, UnitSampling::IndependentSample, &ctx())
-            .expect("derives");
+    let out = derive_whole_path_uncertainty(&req, &result, UnitSampling::IndependentSample, &ctx())
+        .expect("derives");
     assert_eq!(out.label, "uncalibrated_spread");
     assert!((out.value - 169.0 / 210.0).abs() < TOL);
     assert_eq!(out.value.to_bits(), result.value.to_bits());
@@ -166,13 +163,9 @@ fn fixed_units_have_no_sampling_variance_and_one_unit_has_no_between_unit_varian
         vec![unit("case", &[(0, 1), (1, 1)]), unit("clean", &[(0, 0), (1, 0)]), unit("open", &[])],
         FiniteQuantity::Probability(atom(0, 1, 0)),
     );
-    let out = derive_whole_path_uncertainty(
-        &three,
-        &execute(&three),
-        UnitSampling::FixedUnits,
-        &ctx(),
-    )
-    .expect("derives");
+    let out =
+        derive_whole_path_uncertainty(&three, &execute(&three), UnitSampling::FixedUnits, &ctx())
+            .expect("derives");
     assert_eq!(out.unit_mean_sampling_variance, None);
     assert!(matches!(
         out.source(UncertaintySource::Sampling).unwrap().treatment,
@@ -184,10 +177,8 @@ fn fixed_units_have_no_sampling_variance_and_one_unit_has_no_between_unit_varian
     // One unit under an independent-sample declaration: the between-unit
     // variance is not determined, and it is reported as unavailable, never as
     // zero.
-    let one = request(
-        vec![unit("case", &[(0, 1), (1, 1)])],
-        FiniteQuantity::Probability(atom(0, 1, 0)),
-    );
+    let one =
+        request(vec![unit("case", &[(0, 1), (1, 1)])], FiniteQuantity::Probability(atom(0, 1, 0)));
     let out = derive_whole_path_uncertainty(
         &one,
         &execute(&one),
@@ -240,8 +231,10 @@ fn a_cross_world_spread_uses_the_shared_exogenous_joint_law() {
     // The mean contrast itself executes under any declared coupling (it is
     // linear), but its spread is a property of the joint law: independent or
     // undeclared world noise is refused for the spread.
-    let independent =
-        FiniteExecutionRequest { coupling: NoiseCoupling::IndependentWorldNoise, ..contrast.clone() };
+    let independent = FiniteExecutionRequest {
+        coupling: NoiseCoupling::IndependentWorldNoise,
+        ..contrast.clone()
+    };
     let result = execute(&independent);
     assert!((result.value - 0.4).abs() < TOL);
     let (code, detail) = refusal(derive_whole_path_uncertainty(
@@ -268,32 +261,20 @@ fn a_cross_world_spread_uses_the_shared_exogenous_joint_law() {
 fn undeclared_unit_sampling_sampled_or_transported_paths_are_refused() {
     let req = request(vec![unit("open", &[])], FiniteQuantity::Probability(atom(0, 1, 0)));
     let result = execute(&req);
-    let (code, detail) = refusal(derive_whole_path_uncertainty(
-        &req,
-        &result,
-        UnitSampling::Undeclared,
-        &ctx(),
-    ));
+    let (code, detail) =
+        refusal(derive_whole_path_uncertainty(&req, &result, UnitSampling::Undeclared, &ctx()));
     assert_eq!(code, "sampling_dependence_unknown");
     assert_eq!(detail, "cross_world_uncertainty.unit_sampling_undeclared");
 
-    let sampled = FiniteExecutionRequest {
-        exogenous: ExogenousInference::PosteriorSampling,
-        ..req.clone()
-    };
-    let (code, detail) = refusal(derive_whole_path_uncertainty(
-        &sampled,
-        &result,
-        UnitSampling::FixedUnits,
-        &ctx(),
-    ));
+    let sampled =
+        FiniteExecutionRequest { exogenous: ExogenousInference::PosteriorSampling, ..req.clone() };
+    let (code, detail) =
+        refusal(derive_whole_path_uncertainty(&sampled, &result, UnitSampling::FixedUnits, &ctx()));
     assert_eq!(code, "cell_not_licensed");
     assert_eq!(detail, "cross_world_uncertainty.sampled_path_not_licensed");
 
-    let transported = FiniteExecutionRequest {
-        target_population: Some("pop-b".to_owned()),
-        ..req.clone()
-    };
+    let transported =
+        FiniteExecutionRequest { target_population: Some("pop-b".to_owned()), ..req.clone() };
     let (code, detail) = refusal(derive_whole_path_uncertainty(
         &transported,
         &result,
@@ -309,10 +290,8 @@ fn undeclared_unit_sampling_sampled_or_transported_paths_are_refused() {
 // shape, and an edited value are each refused.
 #[test]
 fn a_result_of_another_request_is_refused_even_at_an_unchanged_shape() {
-    let req = request(
-        vec![unit("case", &[(0, 1), (1, 1)])],
-        FiniteQuantity::Probability(atom(0, 1, 0)),
-    );
+    let req =
+        request(vec![unit("case", &[(0, 1), (1, 1)])], FiniteQuantity::Probability(atom(0, 1, 0)));
     let result = execute(&req);
     derive_whole_path_uncertainty(&req, &result, UnitSampling::FixedUnits, &ctx())
         .expect("the executed pair derives");
@@ -388,8 +367,7 @@ fn a_cancelled_context_produces_no_spread() {
     let result = execute(&req);
     let context = ExecutionContext::for_tests(5);
     context.cancellation.cancel();
-    let error =
-        derive_whole_path_uncertainty(&req, &result, UnitSampling::FixedUnits, &context)
-            .expect_err("cancelled");
+    let error = derive_whole_path_uncertainty(&req, &result, UnitSampling::FixedUnits, &context)
+        .expect_err("cancelled");
     assert_eq!(error, CrossWorldExecutionError::Cancelled);
 }

@@ -91,11 +91,7 @@ impl RepresentationInput {
         const LABEL: &str = "recalc.representation_input.v1";
         StageIdentity::of(
             LABEL,
-            &[
-                &tag_word(LABEL, "representation"),
-                self.family.as_bytes(),
-                self.version.as_bytes(),
-            ],
+            &[&tag_word(LABEL, "representation"), self.family.as_bytes(), self.version.as_bytes()],
         )
     }
 }
@@ -132,14 +128,12 @@ impl CouplingInput {
             Self::DeclaredIndependent => {
                 StageIdentity::of(LABEL, &[&tag_word(LABEL, "declared_independent")])
             }
-            Self::SharedExogenous { source } => StageIdentity::of(
-                LABEL,
-                &[&tag_word(LABEL, "shared_exogenous"), source.as_bytes()],
-            ),
-            Self::AlignedJoint { alignment } => StageIdentity::of(
-                LABEL,
-                &[&tag_word(LABEL, "aligned_joint"), alignment.as_bytes()],
-            ),
+            Self::SharedExogenous { source } => {
+                StageIdentity::of(LABEL, &[&tag_word(LABEL, "shared_exogenous"), source.as_bytes()])
+            }
+            Self::AlignedJoint { alignment } => {
+                StageIdentity::of(LABEL, &[&tag_word(LABEL, "aligned_joint"), alignment.as_bytes()])
+            }
             Self::Unknown => StageIdentity::of(LABEL, &[&tag_word(LABEL, "unknown")]),
         }
     }

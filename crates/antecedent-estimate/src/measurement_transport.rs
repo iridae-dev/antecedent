@@ -189,12 +189,7 @@ impl TransportReceipt {
                 MEASUREMENT_INVARIANCE_ASSUMPTION.to_owned(),
                 format!(
                     "{} invariant between {} and {}, declared by {}",
-                    declaration
-                        .invariant
-                        .iter()
-                        .map(|p| p.as_str())
-                        .collect::<Vec<_>>()
-                        .join(","),
+                    declaration.invariant.iter().map(|p| p.as_str()).collect::<Vec<_>>().join(","),
                     declaration.source_population,
                     declaration.target_population,
                     declaration.declarer
@@ -490,7 +485,9 @@ pub fn transport_measurement_model(
             return Err(refusal(
                 antecedent_core::reason_code!("measurement_binding_mismatch"),
                 "measurement_model.arm_mismatch",
-                format!("the model is bound to arm `{arm}`; the invariance premise covers the population only"),
+                format!(
+                    "the model is bound to arm `{arm}`; the invariance premise covers the population only"
+                ),
             ));
         }
     }
@@ -606,8 +603,8 @@ mod tests {
     #[test]
     fn untransported_model_is_refused_on_another_population() {
         let source = model("clinic_a", 0.9, 0.8);
-        let error = correct_binary_prevalence(&source, &data("clinic_b"), 520, 1000, &ctx())
-            .unwrap_err();
+        let error =
+            correct_binary_prevalence(&source, &data("clinic_b"), 520, 1000, &ctx()).unwrap_err();
         assert_eq!(error.detail, "measurement_model.population_mismatch");
     }
 
@@ -638,9 +635,8 @@ mod tests {
     fn differential_population_error_is_not_pooled() {
         let source = model("clinic_a", 0.9, 0.8);
         let differential = PopulationErrorStructure::Differential { declarer: "analyst".into() };
-        let error =
-            transport_measurement_model(&[source], Some(&differential), &data("clinic_b"))
-                .unwrap_err();
+        let error = transport_measurement_model(&[source], Some(&differential), &data("clinic_b"))
+            .unwrap_err();
         assert_eq!(error.code, "differential_error_not_pooled");
         assert_eq!(error.detail, "measurement_model.differential_population_unestablished");
     }
@@ -668,8 +664,7 @@ mod tests {
         other_regime.binding.regime_id = "do(a=1)".into();
         let models = [other_regime, model("clinic_a", 0.9, 0.8)];
         let transported =
-            transport_measurement_model(&models, Some(&premise(&BOTH)), &data("clinic_b"))
-                .unwrap();
+            transport_measurement_model(&models, Some(&premise(&BOTH)), &data("clinic_b")).unwrap();
         let out = transported
             .apply(&data("clinic_b"), |m, d| correct_binary_prevalence(m, d, 520, 1000, &ctx()))
             .unwrap();
@@ -701,9 +696,8 @@ mod tests {
         assert_eq!(error.detail, "measurement_model.invariance_source_unknown");
         let mut other_regime = data("clinic_b");
         other_regime.regime_id = "do(a=1)".into();
-        let error =
-            transport_measurement_model(&[source], Some(&premise(&BOTH)), &other_regime)
-                .unwrap_err();
+        let error = transport_measurement_model(&[source], Some(&premise(&BOTH)), &other_regime)
+            .unwrap_err();
         assert_eq!(error.detail, "measurement_model.regime_mismatch");
     }
 
@@ -740,10 +734,8 @@ mod tests {
     fn replicate_route_has_nothing_to_carry() {
         let mut source = model("clinic_a", 0.9, 0.8);
         source.route = MeasurementRoute::RepeatedMeasurements;
-        source.parameters = MeasurementParameters::Repeated {
-            min_replicated_units: 20,
-            min_reliability: 0.1,
-        };
+        source.parameters =
+            MeasurementParameters::Repeated { min_replicated_units: 20, min_reliability: 0.1 };
         let error = transport_measurement_model(
             &[source],
             Some(&premise(&[ErrorParameter::ErrorVariance])),

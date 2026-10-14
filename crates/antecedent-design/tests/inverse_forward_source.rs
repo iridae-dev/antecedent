@@ -40,9 +40,8 @@ use antecedent_design::inverse_forward_source::{
     DETAIL_COMPOSED_LEVELS, DETAIL_INTERVAL, DETAIL_POINT_ONLY_LAW,
     DETAIL_TRANSPORTED_NOT_ACCEPTED, ForwardRepresentation, ForwardSourceKind,
     ForwardSourceRefusal, InverseDemand, cohort_forward_source, composed_forward_source,
-    composed_forward_source_accepting,
-    evaluate_inverse_on_source, forward_claim_digest, seal_on_source, seal_per_action_on_source,
-    transported_forward_source,
+    composed_forward_source_accepting, evaluate_inverse_on_source, forward_claim_digest,
+    seal_on_source, seal_per_action_on_source, transported_forward_source,
 };
 use antecedent_design::inverse_query::{
     Comparison, FeasibilityStatus, GridScope, InverseConstraint, InverseQuery, SelectionOutcome,
@@ -956,8 +955,8 @@ fn one_shifted_cohort_is_refused_in_one_shape_by_every_consumer_that_does_not_ac
     use antecedent_design::cohort_decision_input::cohort_forward_claim;
     let shift = CovariateShiftDeclaration::new("target", "clinic_b", &["z"]);
     let source = cohort_source("clinic_b", Some(shift));
-    let inverse = cohort_forward_source(&source, TransportedInputPolicy::NativeTargetOnly)
-        .unwrap_err();
+    let inverse =
+        cohort_forward_source(&source, TransportedInputPolicy::NativeTargetOnly).unwrap_err();
     let claim = cohort_forward_claim(&source).unwrap_err();
     assert_eq!(inverse.code(), claim.code);
     assert_eq!(inverse.detail(), claim.detail);

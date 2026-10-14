@@ -797,12 +797,8 @@ fn a_synthesis_with_a_transported_claim_is_a_transported_decision_source() {
         &TransportedSynthesisMethod::Pool { sampling_covariance: None },
     )
     .unwrap();
-    let error = TransportedResponse::from_transported_synthesis(
-        &pooled,
-        coordinate,
-        "synthesis",
-    )
-    .unwrap_err();
+    let error = TransportedResponse::from_transported_synthesis(&pooled, coordinate, "synthesis")
+        .unwrap_err();
     assert_eq!(error, TransportedRefusal::NotTransported);
 }
 
@@ -813,12 +809,9 @@ fn a_route_with_a_typed_constructor_cannot_be_declared_by_hand() {
     {
         let mut declared = declaration();
         declared.route = route;
-        let error = TransportedResponse::declared_point(
-            vec![effect("clinic_b")],
-            vec![2.0],
-            &declared,
-        )
-        .unwrap_err();
+        let error =
+            TransportedResponse::declared_point(vec![effect("clinic_b")], vec![2.0], &declared)
+                .unwrap_err();
         assert_eq!(error, TransportedRefusal::RouteNeedsTypedSource(route));
         assert_eq!(error.detail(), "transported_decision.route_needs_typed_source");
     }
@@ -847,9 +840,7 @@ fn a_typed_route_identity_must_be_a_digest_while_a_declared_route_may_be_text() 
 
 #[test]
 fn a_support_floor_weakens_a_laws_coordinates_and_never_strengthens_them() {
-    use antecedent_design::composition_boundary::{
-        DecisionInput, TrustEvidence, TrustRequirement,
-    };
+    use antecedent_design::composition_boundary::{DecisionInput, TrustEvidence, TrustRequirement};
     let law = transported_law(DistributionCalibration::PointOnly, DistributionTrust::Unverified);
     let input = DecisionInput::from_distribution_artifact(
         "law",
@@ -902,9 +893,8 @@ fn a_synthesis_receipt_takes_its_populations_from_the_ledger_not_the_caller() {
         functional_id: "mean".into(),
         ..common::quantity("effect")
     };
-    let error =
-        TransportedResponse::from_transported_synthesis(&synthesis, elsewhere, "synthesis")
-            .unwrap_err();
+    let error = TransportedResponse::from_transported_synthesis(&synthesis, elsewhere, "synthesis")
+        .unwrap_err();
     assert!(matches!(error, TransportedRefusal::QuantityNotInTarget { .. }));
 }
 
@@ -935,8 +925,8 @@ fn an_exported_transported_decision_replays_and_refuses_resealed_edits() {
     // A law has its own export.
     let law = transported_law(DistributionCalibration::PointOnly, DistributionTrust::Unverified);
     let law_response = TransportedResponse::declared_law(law, &declaration()).unwrap();
-    let error =
-        export_transported_decision(&law_contract(), &law_response, &accepting(), "law").unwrap_err();
+    let error = export_transported_decision(&law_contract(), &law_response, &accepting(), "law")
+        .unwrap_err();
     assert!(error.to_string().contains("law_not_exportable"), "{error}");
 
     // A policy that does not admit the label cannot even export.

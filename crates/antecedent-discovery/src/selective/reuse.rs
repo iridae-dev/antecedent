@@ -154,7 +154,10 @@ impl SplitRule {
     /// # Errors
     ///
     /// A row out of range or repeated, a fraction outside `(0, 1)`, or a part with no rows.
-    pub fn assign(&self, n_rows: usize) -> Result<(Vec<usize>, Vec<usize>), SelectiveDiscoveryError> {
+    pub fn assign(
+        &self,
+        n_rows: usize,
+    ) -> Result<(Vec<usize>, Vec<usize>), SelectiveDiscoveryError> {
         let mut discovery: Vec<usize> = match self {
             Self::Explicit { discovery_rows } => {
                 let mut rows = discovery_rows.clone();
@@ -316,7 +319,8 @@ impl SampleSplitReceipt {
         variables: &[VariableId],
     ) -> Result<(), SelectiveDiscoveryError> {
         self.verify()?;
-        let identity = static_data_identity(table, variables).map_err(SelectiveDiscoveryError::from)?;
+        let identity =
+            static_data_identity(table, variables).map_err(SelectiveDiscoveryError::from)?;
         if identity.digest == self.analysis_data.digest {
             Ok(())
         } else {
@@ -404,9 +408,7 @@ pub fn split_rows(
             schema.clone(),
             gathered.iter().map(|(name, values)| (name.as_str(), values.as_slice())),
         )
-        .map_err(|error| {
-            invalid("selective_discovery.split_unsupported_rows", error.to_string())
-        })
+        .map_err(|error| invalid("selective_discovery.split_unsupported_rows", error.to_string()))
     };
     let discovery = part(&discovery_rows)?;
     let analysis = part(&analysis_rows)?;

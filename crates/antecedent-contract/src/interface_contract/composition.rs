@@ -26,7 +26,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use antecedent_core::identity::{CanonicalWriter, SemanticDigest};
 
 use super::connection::{Connection, check_ports};
-use crate::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
 use super::declaration::{
     CalibrationStatus, DependenceRequirement, EvidenceBasis, INTERFACE_CONTRACT_VERSION,
     InterfaceContract,
@@ -36,6 +35,7 @@ use super::refusal::{
     composition_too_large, cyclic_composition, dependence_unknown, duplicate_component,
     port_multiply_fed, shared_evidence, unknown_component, unknown_port,
 };
+use crate::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
 
 /// Most components one composition may contain.
 pub const MAX_COMPOSITION_COMPONENTS: usize = 1024;

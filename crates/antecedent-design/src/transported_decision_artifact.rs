@@ -151,9 +151,13 @@ pub fn export_transported_decision(
             "a transported law is exported as its distribution artifact; this artifact carries a point",
         ));
     };
-    let decision =
-        evaluate_transported_decision(contract, response, TransportedDemand::ExpectedUtility, policy)
-            .map_err(|error| from_transported(&error))?;
+    let decision = evaluate_transported_decision(
+        contract,
+        response,
+        TransportedDemand::ExpectedUtility,
+        policy,
+    )
+    .map_err(|error| from_transported(&error))?;
     let body = Body {
         version: TRANSPORTED_DECISION_ARTIFACT_VERSION,
         contract_json: contract_to_json(contract)?,
@@ -280,11 +284,17 @@ pub fn consume_transported_decision(
         .map_err(|error| from_transported(&error))?;
     let weakest = SupportStatus::from_name(&body.weakest_support)
         .ok_or_else(|| invalid("unknown weakest support label"))?;
-    let policy =
-        SupportPolicy { unsupported: unsupported_from(&body.unsupported)?, weakest_support: weakest };
-    let decision =
-        evaluate_transported_decision(&contract, &response, TransportedDemand::ExpectedUtility, &policy)
-            .map_err(|error| from_transported(&error))?;
+    let policy = SupportPolicy {
+        unsupported: unsupported_from(&body.unsupported)?,
+        weakest_support: weakest,
+    };
+    let decision = evaluate_transported_decision(
+        &contract,
+        &response,
+        TransportedDemand::ExpectedUtility,
+        &policy,
+    )
+    .map_err(|error| from_transported(&error))?;
     let replayed = outcome_wires(&decision);
     let same_outcomes = replayed.len() == body.outcomes.len()
         && replayed.iter().zip(&body.outcomes).all(|(a, b)| {

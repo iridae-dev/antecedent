@@ -66,8 +66,13 @@ fn consumer() -> InterfaceContract {
     }
 }
 
-fn seal(trust: ProviderTrust) -> Result<
-    (TransportHandoffArtifact, antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta),
+fn seal(
+    trust: ProviderTrust,
+) -> Result<
+    (
+        TransportHandoffArtifact,
+        antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta,
+    ),
     TransportHandoffArtifactError,
 > {
     TransportHandoffArtifact::seal_with_provider_trust(
@@ -114,8 +119,8 @@ fn the_trust_level_is_recoverable_from_the_artifact_and_part_of_its_identity() {
         "handoff",
     )
     .expect("bytes");
-    let consumed = TransportHandoffArtifact::from_bytes(&bytes, Some(verified.identity()))
-        .expect("consumes");
+    let consumed =
+        TransportHandoffArtifact::from_bytes(&bytes, Some(verified.identity())).expect("consumes");
     assert_eq!(consumed.provider_trust(), Some(ProviderTrust::ExactRequestVerified));
 }
 

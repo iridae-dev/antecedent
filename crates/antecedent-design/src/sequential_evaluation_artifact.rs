@@ -765,7 +765,7 @@ fn build_body(
         None => None,
     };
     let mut body = SequentialEvaluationBody {
-        version: 1,
+        version: u32::from(SEQUENTIAL_EVALUATION_ARTIFACT_VERSION),
         inference: SEQUENTIAL_EVALUATION_INFERENCE.to_owned(),
         model: model_to_wire_body(model),
         policy: policy_to_wire(policy),
@@ -877,11 +877,11 @@ impl SequentialEvaluationArtifact {
         ctx: &ExecutionContext,
     ) -> Result<(), IoError> {
         let body = &self.body;
-        if body.version != 1 || body.inference != SEQUENTIAL_EVALUATION_INFERENCE {
-            return Err(refused(
-                "sequential_evaluation.version",
-                "unsupported body version or inference claim",
-            ));
+        if body.version != u32::from(SEQUENTIAL_EVALUATION_ARTIFACT_VERSION) {
+            return Err(IoError::UnsupportedVersion { version: body.version });
+        }
+        if body.inference != SEQUENTIAL_EVALUATION_INFERENCE {
+            return Err(refused("sequential_evaluation.version", "unsupported inference claim"));
         }
         if body.digest != self.recomputed_digest()? {
             return Err(identity_refused("body digest"));

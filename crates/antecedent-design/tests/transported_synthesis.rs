@@ -23,9 +23,9 @@ use antecedent_contract::evidence_ledger::{
 };
 use antecedent_core::SemanticDigest;
 use antecedent_design::transported_synthesis::{
-    DETAIL_NATIVE_POPULATION_BLANK, DETAIL_OVERLAP_NOT_MODELLED, DETAIL_PRIOR_ROLE, DETAIL_SHARED_TRANSPORT,
-    DETAIL_SOURCE_LISTED_TWICE, DETAIL_TRANSPORT_VARIANCE_ON_NATIVE,
-    DETAIL_TARGET_POPULATION_MISMATCH, DETAIL_TRANSPORT_VARIANCE_UNDECLARED,
+    DETAIL_NATIVE_POPULATION_BLANK, DETAIL_OVERLAP_NOT_MODELLED, DETAIL_PRIOR_ROLE,
+    DETAIL_SHARED_TRANSPORT, DETAIL_SOURCE_LISTED_TWICE, DETAIL_TARGET_POPULATION_MISMATCH,
+    DETAIL_TRANSPORT_VARIANCE_ON_NATIVE, DETAIL_TRANSPORT_VARIANCE_UNDECLARED,
     TransportedContribution, TransportedSynthesisMethod, TransportedSynthesisRefusal,
     synthesize_transported, synthesize_transported_in_population,
 };
@@ -494,14 +494,9 @@ fn native_contributions_must_be_declared_in_the_transports_target() {
     assert_eq!(err.detail(), DETAIL_TARGET_POPULATION_MISMATCH);
     assert_eq!(ledger.state_digest(), before);
 
-    let err = synthesize_transported_in_population(
-        &mut ledger,
-        "blank",
-        &contributions,
-        &pool(),
-        "  ",
-    )
-    .unwrap_err();
+    let err =
+        synthesize_transported_in_population(&mut ledger, "blank", &contributions, &pool(), "  ")
+            .unwrap_err();
     assert_eq!(err.detail(), DETAIL_NATIVE_POPULATION_BLANK);
 
     let out = synthesize_transported_in_population(
@@ -529,12 +524,8 @@ fn a_transport_with_no_assumption_or_a_self_target_is_refused_at_the_ledger() {
                 .with_transport(identity),
         )
     };
-    let err = add(
-        &mut ledger,
-        1_000,
-        TransportIdentity { assumptions: vec![], ..transport(3) },
-    )
-    .unwrap_err();
+    let err = add(&mut ledger, 1_000, TransportIdentity { assumptions: vec![], ..transport(3) })
+        .unwrap_err();
     assert_eq!(err.detail, "evidence_ledger.invalid_declaration");
     // The design-level guard stays for identities that reach synthesis.
     assert!(add(&mut ledger, 1_000, transport(3)).is_ok());

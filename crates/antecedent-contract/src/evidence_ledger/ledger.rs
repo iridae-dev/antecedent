@@ -197,6 +197,17 @@ impl EvidenceLedger {
 
     // -- read access ------------------------------------------------------------------
 
+    /// Whether an active source already rests on the observation `id`.
+    ///
+    /// Reads each active source's lineage-resolved effective rows, so a source
+    /// that lost the row to a withdrawal or merge no longer holds it.
+    #[must_use]
+    pub fn holds(&self, id: ObservationId) -> bool {
+        self.sources.iter().filter(|source| source.status.is_active()).any(|source| {
+            source.effective.known().is_some_and(|rows| rows.binary_search(&id).is_ok())
+        })
+    }
+
     /// Sources in the order they were added.
     #[must_use]
     pub fn sources(&self) -> &[EvidenceSource] {
@@ -587,11 +598,7 @@ impl EvidenceLedger {
                     "a transport identity states at least one invariance or selection assumption"
                 ));
             }
-            if transport
-                .source_populations
-                .iter()
-                .any(|p| *p == transport.target_population)
-            {
+            if transport.source_populations.iter().any(|p| *p == transport.target_population) {
                 return Err(invalid!(
                     "evidence_ledger.invalid_declaration",
                     "a transport target population is not one of its source populations"

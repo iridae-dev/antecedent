@@ -71,7 +71,7 @@ pub const UNCALIBRATED_SPREAD_LABEL: &str = "uncalibrated_spread";
 /// coordinate exists until one is measured and attested.
 pub const CALIBRATION_STATUS: &str = "unmeasured";
 /// Label of a Fréchet-Hoeffding envelope over every coupling of the marginals.
-pub const STRUCTURAL_ENVELOPE_LABEL: &str = "structural_envelope";
+pub use antecedent_core::STRUCTURAL_ENVELOPE_LABEL;
 /// Label of the range implied by a declared correlation range.
 pub const CORRELATION_RANGE_LABEL: &str = crate::synthesis::DEPENDENCE_ENVELOPE_LABEL;
 /// Most atoms of one marginal.

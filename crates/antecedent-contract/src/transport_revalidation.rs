@@ -57,10 +57,9 @@ use antecedent_core::{CanonicalWriter, SemanticDigest};
 
 use crate::ExternalRefusal;
 use crate::composition_verification::{
-    CalibrationDeclaration, CalibrationState, ClaimRevalidation, CompositionGraph,
-    CompositionNode, DependencyKind, GraphError, GraphRevalidation, NodeKind, NumericalCause,
-    ObservedEffect, PriorAuthority, Revalidation, SupportStanding, TrustStanding,
-    WithdrawalKind, revalidate,
+    CalibrationDeclaration, CalibrationState, ClaimRevalidation, CompositionGraph, CompositionNode,
+    DependencyKind, GraphError, GraphRevalidation, NodeKind, NumericalCause, ObservedEffect,
+    PriorAuthority, Revalidation, SupportStanding, TrustStanding, WithdrawalKind, revalidate,
 };
 
 /// Version word written into the identity of a transport revalidation.
@@ -535,11 +534,7 @@ fn numerical_reason(origin: &str, cause: NumericalCause) -> TransportReason {
     }
 }
 
-fn withdrawal_reason(
-    kind: WithdrawalKind,
-    origin: &str,
-    detail: &str,
-) -> TransportReason {
+fn withdrawal_reason(kind: WithdrawalKind, origin: &str, detail: &str) -> TransportReason {
     let name = strip(origin, CLAIM_PREFIX)
         .or_else(|| strip(origin, SOURCE_PREFIX))
         .unwrap_or(origin)

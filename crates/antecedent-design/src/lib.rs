@@ -122,6 +122,6 @@ pub mod source_projection_artifact;
 pub mod temporal_policy_transport;
 pub mod transport_sensitivity;
 pub mod transported_bridge;
+pub mod transported_decision_artifact;
 pub mod transported_policy;
 pub mod transported_synthesis;
-pub mod transported_decision_artifact;

@@ -73,8 +73,7 @@ fn a_long_string_is_refused_at_decode_not_only_at_consume() {
 #[test]
 fn shared_evidence_is_bounded() {
     let mut wire = sealed();
-    wire.shared_evidence =
-        vec!["e".to_owned(); MAX_JOINT_LAW_PROPAGATION_SHARED_EVIDENCE + 1];
+    wire.shared_evidence = vec!["e".to_owned(); MAX_JOINT_LAW_PROPAGATION_SHARED_EVIDENCE + 1];
     let bytes = to_cbor(&wire).expect("encodes");
     assert_eq!(
         JointLawPropagationArtifactWire::decode(&bytes).expect_err("too many"),

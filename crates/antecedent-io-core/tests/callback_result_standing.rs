@@ -116,8 +116,8 @@ fn a_verified_declaration_without_a_receipt_consumes_as_diagnostic() {
     let (artifact, meta) = CallbackResultArtifact::seal(&record).expect("seals");
     assert_eq!(meta.standing, "diagnostic");
     let bytes = CallbackResultArtifact::to_bytes(&record, "verified").expect("bytes");
-    let consumed = CallbackResultArtifact::from_bytes(&bytes, Some(artifact.identity()))
-        .expect("consumes");
+    let consumed =
+        CallbackResultArtifact::from_bytes(&bytes, Some(artifact.identity())).expect("consumes");
     assert_eq!(consumed.record(), &record);
 
     // Stamping the label the unconfirmed declaration did not earn is refused.

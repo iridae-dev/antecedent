@@ -25,7 +25,7 @@ use antecedent_contract::evidence_ledger::{
 };
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 
-use super::belief::{branch_for, from_ledger, record_id, recorded_in_ledger};
+use super::belief::{branch_for, from_ledger, record_id};
 use super::gformula::{EvaluationLimits, walk};
 use super::model::{ActionRole, Compiled};
 use super::policy::{ContingentPolicy, HistoryKey};
@@ -386,7 +386,7 @@ pub fn evaluate_off_policy(
             "record each action and observation once",
         ));
     }
-    let known = ids.iter().filter(|id| recorded_in_ledger(ledger, **id)).count();
+    let known = ids.iter().filter(|id| ledger.holds(**id)).count();
     if known != 0 && known != ids.len() {
         return Err(refusal!(
             "evidence_double_counted",

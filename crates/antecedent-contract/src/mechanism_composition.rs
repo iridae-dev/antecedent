@@ -885,10 +885,7 @@ impl MechanismInterfaceBasis {
     /// `parent_operation` and states the parent's uncertainty meaning in
     /// `parents`.
     #[must_use]
-    pub fn new(
-        output: PortFacts,
-        offered: impl IntoIterator<Item = ContractOperation>,
-    ) -> Self {
+    pub fn new(output: PortFacts, offered: impl IntoIterator<Item = ContractOperation>) -> Self {
         Self {
             output,
             offered: offered.into_iter().collect(),
@@ -915,8 +912,9 @@ impl MechanismDeclaration {
     #[must_use]
     pub fn interface_contract(&self, basis: &MechanismInterfaceBasis) -> InterfaceContract {
         let evidence = basis.evidence.clone().unwrap_or_else(|| {
-            SourceId::from_hex(&self.evidence_id)
-                .map_or(EvidenceBasis::Undeclared, |id| EvidenceBasis::Declared(BTreeSet::from([id])))
+            SourceId::from_hex(&self.evidence_id).map_or(EvidenceBasis::Undeclared, |id| {
+                EvidenceBasis::Declared(BTreeSet::from([id]))
+            })
         });
         let stages: &[&'static str] = match self.origin {
             MechanismOriginKind::Fitted => &["evidence"],
@@ -1044,6 +1042,82 @@ impl MechanismCompositionPlan {
                 UncertaintyRoute::Declared("declared_cross_covariance")
             }
         }
+    }
+
+    /// Whether the mean of `outcome` under the hard interventions of one arm
+    /// is multilinear in the mechanisms' parameters: some consumed quantity of
+    /// the outcome is itself produced by a mechanism that is not intervened, so
+    /// a path of more than one edge multiplies coefficients.
+    #[must_use]
+    pub fn is_multilinear_in_parameters(&self, outcome: &str, intervened: &[&str]) -> bool {
+        let parents_of = |child: &str| -> Vec<&str> {
+            if intervened.contains(&child) {
+                return Vec::new();
+            }
+            self.edges
+                .iter()
+                .filter(|(_, c)| c == child)
+                .map(|(parent, _)| parent.as_str())
+                .collect()
+        };
+        parents_of(outcome).into_iter().any(|parent| !parents_of(parent).is_empty())
+    }
+
+    /// Check a parameter-uncertainty claim for the mean contrast of `outcome`
+    /// over arms with the given hard interventions, through the joint-law
+    /// propagation rule.
+    ///
+    /// A product of coefficients along a path is a nonlinear functional of the
+    /// parameters: a declared independence of the mechanisms' estimates is not
+    /// a joint law and is refused for it (`joint_law_required`), whatever its
+    /// justification. A functional linear in the parameters, an aligned joint
+    /// parameter law and a cross-mechanism covariance are unaffected, and so is
+    /// a single mechanism.
+    ///
+    /// # Errors
+    /// The propagation rule's refusal for a multilinear functional under a
+    /// declared independence.
+    #[allow(
+        clippy::result_large_err,
+        reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+    )]
+    pub fn check_contrast_uncertainty(
+        &self,
+        outcome: &str,
+        arm_interventions: &[Vec<String>],
+    ) -> Result<(), ExternalRefusal> {
+        use crate::joint_law_rule::{
+            InputAlignment, InputRole, PropagationDependence, PropagationInput,
+            PropagationOperation, PropagationRequest, RequestedReading, check_propagation,
+        };
+        if self.mechanisms.len() <= 1
+            || !matches!(self.dependence, DependenceDeclaration::IndependentByDesign { .. })
+        {
+            return Ok(());
+        }
+        let multilinear = arm_interventions.iter().any(|arm| {
+            let arm: Vec<&str> = arm.iter().map(String::as_str).collect();
+            self.is_multilinear_in_parameters(outcome, &arm)
+        });
+        if !multilinear {
+            return Ok(());
+        }
+        let request = PropagationRequest {
+            operation: PropagationOperation::Product,
+            inputs: self
+                .mechanisms
+                .iter()
+                .map(|m| PropagationInput {
+                    id: m.variable_id.clone(),
+                    evidence_id: m.evidence_id.clone(),
+                    role: InputRole::Estimate,
+                    alignment: InputAlignment::IndependentMarginals,
+                })
+                .collect(),
+            dependence: PropagationDependence::DeclaredIndependent,
+            reading: RequestedReading::Spread,
+        };
+        check_propagation(&request).map(|_| ())
     }
 
     /// Canonical identity of the plan: length-delimited canonical encoding of
@@ -1380,6 +1454,28 @@ mod tests {
             details(check_mechanism_composition(&independent)),
             ["mechanism_composition.posterior_dependence_shared_evidence_declared_independent"]
         );
+    }
+
+    #[test]
+    fn a_declared_independence_is_refused_for_a_multilinear_contrast() {
+        let mut independent = decl();
+        independent.dependence =
+            DependenceDeclaration::IndependentByDesign { justification: "disjoint trials".into() };
+        let plan = check_mechanism_composition(&independent).unwrap();
+        let through_mediator = [vec!["x".to_owned()]];
+        assert!(plan.is_multilinear_in_parameters("y", &["x"]));
+        let refusal = plan.check_contrast_uncertainty("y", &through_mediator).unwrap_err();
+        assert_eq!(refusal.code, "joint_law_required");
+        assert_eq!(refusal.detail, "joint_law_propagation.nonlinear_needs_aligned_joint_law");
+        refusal.validate().unwrap();
+        // Cutting the mediator leaves a contrast that is linear in the parameters.
+        assert!(!plan.is_multilinear_in_parameters("y", &["x", "m"]));
+        plan.check_contrast_uncertainty("y", &[vec!["x".to_owned(), "m".to_owned()]]).unwrap();
+        // An aligned joint law is not refused for the same contrast.
+        let mut joint = decl();
+        joint.dependence = DependenceDeclaration::AlignedJointLaw { law_id: "law-1".into() };
+        let plan = check_mechanism_composition(&joint).unwrap();
+        plan.check_contrast_uncertainty("y", &through_mediator).unwrap();
     }
 
     #[test]

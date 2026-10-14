@@ -116,8 +116,9 @@ fn recovery_bca_original_measurement_identity_receipt() {
     // The stored row is immutable measurement evidence and still carries the
     // retired textual identity; it is bound by alias, never re-stamped. Today's
     // identity is a domain-separated digest, so it can no longer equal that text.
-    assert!(recorded_functional
-        .starts_with("recovered_effect:x10.recovery.v1|graph=mgraph.v1;nodes="));
+    assert!(
+        recorded_functional.starts_with("recovered_effect:x10.recovery.v1|graph=mgraph.v1;nodes=")
+    );
     assert_ne!(original_functional, recorded_functional);
     // Independent oracle: re-encode the declared record fields with the public
     // canonical writer (length-delimited words and text, in declaration order).

@@ -232,7 +232,7 @@ pub fn evaluate_temporal_policy(
     let Some(invariance) = request.invariance else {
         return Err(transport_refusal(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            axis.detail("time_invariance_missing"),
+            "temporal_policy_transport.time_invariance_missing",
             format!(
                 "the policy was requested for period `{}` but no time-invariance declaration relates it to the model's `{}`",
                 target.period, model.period
@@ -243,7 +243,7 @@ pub fn evaluate_temporal_policy(
     let Some(target_initial) = request.target_initial else {
         return Err(transport_refusal(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            axis.detail("target_initial_law_missing"),
+            "temporal_policy_transport.target_initial_law_missing",
             format!("no initial-state law was supplied for target period `{}`", target.period),
             "supply the initial-state law of the target period over the model's latent states; it is the one input the source period cannot provide",
         ));
@@ -251,7 +251,7 @@ pub fn evaluate_temporal_policy(
     if target.period.trim().is_empty() {
         return Err(transport_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            axis.detail("target_period"),
+            "temporal_policy_transport.target_period",
             "the target period needs a non-blank label",
             "name the period the policy is evaluated in",
         ));
@@ -259,7 +259,7 @@ pub fn evaluate_temporal_policy(
     if target.period == model.period {
         return Err(transport_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            axis.detail("target_is_source"),
+            "temporal_policy_transport.target_is_source",
             format!("the target period `{}` is the model's own", model.period),
             "evaluate the policy in the model's own period with the sequential g-formula; there is nothing to transport",
         ));
@@ -267,7 +267,7 @@ pub fn evaluate_temporal_policy(
     if invariance.source_period != model.period || invariance.target_period != target.period {
         return Err(transport_refusal(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            axis.detail("invariance_binding_mismatch"),
+            "temporal_policy_transport.invariance_binding_mismatch",
             format!(
                 "the declaration relates period `{}` to `{}`; the request is `{}` to `{}`",
                 invariance.source_period, invariance.target_period, model.period, target.period
@@ -278,7 +278,7 @@ pub fn evaluate_temporal_policy(
     if invariance.horizon != model.horizon || target.horizon != model.horizon {
         return Err(transport_refusal(
             antecedent_core::reason_code!("route_not_supported"),
-            axis.detail("horizon_mismatch"),
+            "temporal_policy_transport.horizon_mismatch",
             format!(
                 "the model has {} decision times, the declaration {} and the target period {}",
                 model.horizon, invariance.horizon, target.horizon
@@ -290,7 +290,7 @@ pub fn evaluate_temporal_policy(
     if source_alphabet != target.alphabet {
         return Err(transport_refusal(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            axis.detail("history_alphabet_incompatible"),
+            "temporal_policy_transport.history_alphabet_incompatible",
             format!(
                 "the target period's actions and observation symbols differ from the model's ({} actions declared, {} supplied)",
                 source_alphabet.actions.len(),
@@ -346,7 +346,7 @@ pub fn verify_temporal_policy(
     {
         return Err(transport_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            Axis::Period.detail("value_mismatch"),
+            "temporal_policy_transport.value_mismatch",
             "a stored temporal policy value does not replay from its model, policy, declaration and target law",
             "regenerate the evaluation from the request",
         ));

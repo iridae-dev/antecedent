@@ -10,8 +10,9 @@
 mod transport_fixture;
 
 use antecedent_model::compose::{
-    CompositionError, ContrastArm, MeanContrast, MechanismForm, MechanismOrigin, MechanismUncertainty,
-    ParameterTerm, PosteriorDependence, SelectionNodeDeclaration, UncertaintyMeaning,
+    CompositionError, ContrastArm, MeanContrast, MechanismForm, MechanismOrigin,
+    MechanismUncertainty, ParameterTerm, PosteriorDependence, SelectionNodeDeclaration,
+    UncertaintyMeaning,
 };
 use antecedent_model::mechanism_transport::{
     DETAIL_DIAGRAM_SOURCE_MISMATCH, DETAIL_DUPLICATE_MECHANISM, DETAIL_FAMILY_UNSUPPORTED,
@@ -131,10 +132,9 @@ fn a_latent_loading_mechanism_needs_the_explicit_invariance_the_diagram_does_not
     // A selection node into the latent cause itself is refused with its own
     // literal, even with the invariance declared.
     let mut req = request(Selection::TreatmentSelected);
-    req.diagram.selection_nodes.push(SelectionNodeDeclaration {
-        name: "S_u".into(),
-        points_into: vec!["u".into()],
-    });
+    req.diagram
+        .selection_nodes
+        .push(SelectionNodeDeclaration { name: "S_u".into(), points_into: vec!["u".into()] });
     let err = transport_linear_gaussian(&req).unwrap_err();
     assert_eq!(details(&err), vec![DETAIL_SELECTION_INTO_LATENT]);
     assert_eq!(err.findings()[0].subject, "u:y");
@@ -153,7 +153,8 @@ fn only_fitted_linear_gaussian_mechanisms_are_carried() {
     assert!(details(&err).contains(&DETAIL_ORIGIN_NOT_FITTED), "{err:?}");
 
     let mut table = request(Selection::TreatmentSelected);
-    table.source_mechanisms[1].form = MechanismForm::Tabular { levels: vec!["a".into()], rows: vec![] };
+    table.source_mechanisms[1].form =
+        MechanismForm::Tabular { levels: vec!["a".into()], rows: vec![] };
     let err = transport_linear_gaussian(&table).unwrap_err();
     assert!(details(&err).contains(&DETAIL_FAMILY_UNSUPPORTED), "{err:?}");
 }

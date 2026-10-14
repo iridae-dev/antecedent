@@ -92,11 +92,12 @@ pub use joint_law_rule::{
 };
 pub use mechanism_composition::{
     AdmissionBasis, AdmissionCoordinate, DependenceDeclaration, LatentCauseDeclaration,
-    MAX_DECLARED_MECHANISMS, MECHANISM_COMPOSITION_STAGE, MECHANISM_VALUE_FUNCTIONAL,
-    MechanismCompositionDeclaration, MechanismCompositionPlan, MechanismDeclaration,
-    MECHANISM_OUTPUT_PORT, MechanismInterfaceBasis, MechanismOriginKind, PlannedMechanism,
-    PlannedParent, TransportAdmission, UncertaintyRoute, check_declared_independence_against_ledger,
-    check_mechanism_composition, composition_refusal, reason_code_for_kind,
+    MAX_DECLARED_MECHANISMS, MECHANISM_COMPOSITION_STAGE, MECHANISM_OUTPUT_PORT,
+    MECHANISM_VALUE_FUNCTIONAL, MechanismCompositionDeclaration, MechanismCompositionPlan,
+    MechanismDeclaration, MechanismInterfaceBasis, MechanismOriginKind, PlannedMechanism,
+    PlannedParent, TransportAdmission, UncertaintyRoute,
+    check_declared_independence_against_ledger, check_mechanism_composition, composition_refusal,
+    reason_code_for_kind,
 };
 pub use obligation::{ObligationKind, ObligationRecord, ObligationScope};
 pub use observation_query::{

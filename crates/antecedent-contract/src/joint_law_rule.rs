@@ -56,13 +56,13 @@
 
 use std::collections::BTreeSet;
 
-use crate::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
 use crate::ExternalRefusal;
+use crate::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
 
 /// Stage reported by every refusal of this module.
 pub const JOINT_LAW_STAGE: &str = "propagate";
 /// Label of a structural (Fréchet-Hoeffding) envelope.
-pub const STRUCTURAL_ENVELOPE_LABEL: &str = "structural_envelope";
+pub use antecedent_core::STRUCTURAL_ENVELOPE_LABEL;
 /// Label of a range implied by a declared correlation range.
 pub const ASSUMPTION_RANGE_LABEL: &str = "assumption_range";
 /// Label of a value computed under a licensed dependence route.
@@ -754,8 +754,8 @@ fn ledger_shared_evidence(
                 shared.insert(input.evidence_id.clone());
                 continue;
             }
-            let ids = SourceId::from_hex(&input.evidence_id)
-                .zip(SourceId::from_hex(&other.evidence_id));
+            let ids =
+                SourceId::from_hex(&input.evidence_id).zip(SourceId::from_hex(&other.evidence_id));
             let overlap = ids.and_then(|(a, b)| ledger.overlap(a, b).ok());
             match overlap {
                 Some(Overlap::Independent) => {}
@@ -764,8 +764,7 @@ fn ledger_shared_evidence(
                     shared.insert(other.evidence_id.clone());
                 }
                 Some(Overlap::Unknown { .. }) | None => {
-                    unresolved
-                        .get_or_insert_with(|| format!("{}|{}", input.id, other.id));
+                    unresolved.get_or_insert_with(|| format!("{}|{}", input.id, other.id));
                 }
             }
         }

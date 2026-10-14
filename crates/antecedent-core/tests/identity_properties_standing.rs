@@ -49,7 +49,8 @@ fn calibration_variants_and_fields_are_all_distinct() {
 
 #[test]
 fn absence_digests_differently_from_every_held_record() {
-    let held = CalibrationInput::Held { record: StageIdentity::ABSENT, coordinate: StageIdentity::ABSENT };
+    let held =
+        CalibrationInput::Held { record: StageIdentity::ABSENT, coordinate: StageIdentity::ABSENT };
     assert_ne!(CalibrationInput::Unmeasured.identity(), held.identity());
     assert_ne!(CalibrationInput::Unmeasured.identity(), StageIdentity::ABSENT);
     assert_ne!(CouplingInput::None.identity(), StageIdentity::ABSENT);
@@ -112,10 +113,8 @@ fn provider_standing_is_branch_level_and_receipt_sensitive() {
     let b0 = Branch::new(0).unwrap();
     let b1 = Branch::new(1).unwrap();
     let r = id("receipt-1");
-    let verified = |level: &str, receipt| ProviderStandingInput::Verified {
-        level: level.into(),
-        receipt,
-    };
+    let verified =
+        |level: &str, receipt| ProviderStandingInput::Verified { level: level.into(), receipt };
     let identities = [
         ProviderStandingInput::Unverified.identity(b0),
         ProviderStandingInput::Unverified.identity(b1),

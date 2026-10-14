@@ -308,8 +308,10 @@ fn classify(
                 ));
             }
         }
-        let (origin, transport_digest, target_population, source_populations) =
-            match (&source.declaration.transport, c.transport_variance) {
+        let (origin, transport_digest, target_population, source_populations) = match (
+            &source.declaration.transport,
+            c.transport_variance,
+        ) {
             (Some(transport), Some(variance)) => {
                 let digest = transport.digest();
                 (

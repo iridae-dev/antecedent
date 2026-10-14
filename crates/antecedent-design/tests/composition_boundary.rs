@@ -875,9 +875,10 @@ fn boundary_shared_data_refuses_paired_draws_unless_a_joint_law_route_is_license
         id: "cov-1".into(),
         source_input: "external".into(),
     };
-    let receipt =
-        check_paired_draws(&pair, &[shared_data("native", "external", Some(covariance))]).unwrap();
-    assert_eq!(receipt.routes, vec!["cov-1".to_owned()]);
+    // A covariance cannot pair draws row by row.
+    let error = check_paired_draws(&pair, &[shared_data("native", "external", Some(covariance))])
+        .unwrap_err();
+    assert!(matches!(error, BoundaryError::DependenceRouteNotLicensed { .. }));
 }
 
 #[test]

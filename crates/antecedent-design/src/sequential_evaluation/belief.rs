@@ -86,15 +86,6 @@ pub(crate) fn record_id(scope: &str, record: &str, role: &str) -> ObservationId 
     ObservationId::from_key(RECORD_DOMAIN, &writer.finish())
 }
 
-/// Whether an active ledger source already rests on `id`.
-pub(crate) fn recorded_in_ledger(ledger: &EvidenceLedger, id: ObservationId) -> bool {
-    ledger
-        .sources()
-        .iter()
-        .filter(|source| source.status.is_active())
-        .any(|source| source.effective.known().is_some_and(|rows| rows.binary_search(&id).is_ok()))
-}
-
 /// Map a ledger refusal onto the module's refusal, keeping its code.
 pub(crate) fn from_ledger(error: LedgerError) -> SequentialEvaluationError {
     SequentialEvaluationError::new(
@@ -302,7 +293,7 @@ impl BeliefTracker {
         };
         let action_id = record_id(&self.session, record, "action");
         let observation_id = record_id(&self.session, record, "observation");
-        if recorded_in_ledger(ledger, action_id) || recorded_in_ledger(ledger, observation_id) {
+        if ledger.holds(action_id) || ledger.holds(observation_id) {
             return Err(refusal!(
                 "evidence_double_counted",
                 "sequential_evaluation.record_already_counted",

@@ -371,7 +371,8 @@ fn source_evidence_is_counted_before_any_nested_artifact_is_replayed() {
     // One more than the cap, each entry garbage: were any replayed first, the
     // refusal would be about that entry's bytes, not the count.
     let mut forged = meta.clone();
-    forged.source_evidence = (0..=antecedent_design::inverse_query_artifact::MAX_INVERSE_QUERY_SOURCE_EVIDENCE)
+    forged.source_evidence = (0
+        ..=antecedent_design::inverse_query_artifact::MAX_INVERSE_QUERY_SOURCE_EVIDENCE)
         .map(|_| vec![0_u8; 4])
         .collect();
     let tampered = encode_parts(&forged, &contract, &data, "nested").unwrap();

@@ -85,9 +85,9 @@ use std::fmt;
 use std::sync::Arc;
 
 use antecedent_core::{
-    CanonicalWriter, CatalogDistribution, DistributionAvailability, EvidenceCatalog, EvidenceProjection,
-    ExecutionContext, LawOrigin, RegimeId, RegimeKind, SamplingSelection, SearchBudget,
-    SearchLimits, SearchReceipt, SearchStop, VariableDomain, VariableId,
+    CanonicalWriter, CatalogDistribution, DistributionAvailability, EvidenceCatalog,
+    EvidenceProjection, ExecutionContext, LawOrigin, RegimeId, RegimeKind, SamplingSelection,
+    SearchBudget, SearchLimits, SearchReceipt, SearchStop, VariableDomain, VariableId,
 };
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, NodeRef, SelectionDiagram};
