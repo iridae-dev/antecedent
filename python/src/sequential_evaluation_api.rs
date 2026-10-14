@@ -168,7 +168,7 @@ fn declaration<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResu
         .map_err(|error| crate::value_err(format!("invalid {what} declaration: {error}")))
 }
 
-fn model_of(text: &str) -> PyResult<seq::FiniteSequentialModel> {
+pub(crate) fn model_of(text: &str) -> PyResult<seq::FiniteSequentialModel> {
     let wire: ModelIn = declaration(text, "sequential model")?;
     let mut actions = Vec::with_capacity(wire.actions.len());
     for action in wire.actions {

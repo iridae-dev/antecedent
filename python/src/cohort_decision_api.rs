@@ -15,6 +15,10 @@ use antecedent::analysis::cohort_decision::{
     CovariateShiftDeclaration, FittedEffectModel, LawRequest, cohort_forward_claim,
     cohort_mean_source,
 };
+use antecedent::analysis::transported_cohort::{
+    SelectionShiftDeclaration, TRANSPORTED_POINT_SCOPE, TransportRefusal, TransportedCohort,
+    TransportedRequest, transport_cohort_effect_from_result, verify_cohort_transport,
+};
 use antecedent_core::ExecutionContext;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use pyo3::prelude::*;
@@ -317,11 +321,215 @@ fn cohort_decision_forward_claim(
     })
 }
 
+// ---------------------------------------------------------------------------
+// Transported cohort mean under a declared selection-diagram premise.
+// ---------------------------------------------------------------------------
+
+fn transport_refusal_json(error: &TransportRefusal, stage: &'static str) -> String {
+    RefusalJson::new(error.code, stage, error.detail, &error.to_string())
+        .offending(Some(&error.subject))
+        .remedy(Some(error.remedy))
+        .json()
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SelectionShiftJson {
+    source_population: String,
+    target_population: String,
+    selection_node: String,
+    selection_children: Vec<String>,
+    effect_modifiers: Vec<String>,
+}
+
+fn selection_shift_of(text: Option<&str>) -> PyResult<Option<SelectionShiftDeclaration>> {
+    let Some(text) = text else { return Ok(None) };
+    check_size(text, "selection shift")?;
+    let parsed: SelectionShiftJson = serde_json::from_str(text)
+        .map_err(|e| invalid_argument(format!("transported_effect.invalid_request: {e}")))?;
+    let children: Vec<&str> = parsed.selection_children.iter().map(String::as_str).collect();
+    let modifiers: Vec<&str> = parsed.effect_modifiers.iter().map(String::as_str).collect();
+    Ok(Some(SelectionShiftDeclaration::new(
+        &parsed.source_population,
+        &parsed.target_population,
+        &parsed.selection_node,
+        &children,
+        &modifiers,
+    )))
+}
+
+fn transport_summary(transported: &TransportedCohort) -> serde_json::Value {
+    let receipt = transported.receipt();
+    let features: Vec<serde_json::Value> = receipt
+        .overlap
+        .features
+        .iter()
+        .map(|f| {
+            serde_json::json!({
+                "feature": f.feature,
+                "source_lo": f.source_lo,
+                "source_hi": f.source_hi,
+                "target_lo": f.target_lo,
+                "target_hi": f.target_hi,
+                "rows_outside": f.rows_outside,
+                "mass_outside": f.mass_outside,
+                "disjoint": f.disjoint,
+            })
+        })
+        .collect();
+    serde_json::json!({
+        "route": receipt.route,
+        "identity": receipt.identity,
+        "model_identity": receipt.model_identity,
+        "parent_claim": receipt.parent_claim,
+        "source_population": receipt.source_population,
+        "target_population": receipt.target_population,
+        "selection_node": receipt.selection_node,
+        "selection_children": receipt.selection_children,
+        "effect_modifiers": receipt.effect_modifiers,
+        "cohort_digest": receipt.cohort_digest,
+        "mean_contrast": transported.mean_contrast(),
+        "row_contrasts": transported.row_contrasts(),
+        "support": receipt.support,
+        "inference": "point_only",
+        "scope": TRANSPORTED_POINT_SCOPE,
+        "assumptions": receipt.assumptions,
+        "overlap": {
+            "source_rows": receipt.overlap.source_rows,
+            "rows_checked": receipt.overlap.rows_checked,
+            "rows_outside": receipt.overlap.rows_outside,
+            "mass_outside": receipt.overlap.mass_outside,
+            "features": features,
+        },
+    })
+}
+
+/// `(transport summary json, decision source summary json, decision source artifact bytes,
+/// refusal json)`.
+type TransportBuildPayload = (Option<String>, Option<String>, Option<Vec<u8>>, Option<String>);
+
+/// Carry the retained model of an exported analysis result to a cohort of another
+/// population under a declared selection shift, and issue the existing decision source for
+/// the same cohort. Every number, the overlap check, the identity and every refusal are
+/// Rust's.
+#[pyfunction]
+#[pyo3(signature = (model_bytes, expected_claim, source_population, cohort_json, outcome_units, shift_json, artifact_id))]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one flat native entry mirroring the Rust facade call"
+)]
+fn transport_cohort_effect(
+    py: Python<'_>,
+    model_bytes: Vec<u8>,
+    expected_claim: Option<String>,
+    source_population: &str,
+    cohort_json: &str,
+    outcome_units: &str,
+    shift_json: Option<&str>,
+    artifact_id: &str,
+) -> PyResult<TransportBuildPayload> {
+    let cohort = match parse_cohort(cohort_json)? {
+        Ok(cohort) => cohort,
+        Err(error) => return Ok((None, None, None, Some(refusal_json(&error, "bind")))),
+    };
+    let shift = selection_shift_of(shift_json)?;
+    let source_population = source_population.to_owned();
+    let units = outcome_units.to_owned();
+    let artifact_id = artifact_id.to_owned();
+    detach_catch(py, move || {
+        let ctx = ExecutionContext::production_default(0);
+        let transported = match transport_cohort_effect_from_result(
+            &model_bytes,
+            expected_claim.as_deref(),
+            &source_population,
+            &cohort,
+            shift.as_ref(),
+            &ctx,
+        ) {
+            Ok(transported) => transported,
+            Err(error) => {
+                return Ok((None, None, None, Some(transport_refusal_json(&error, "transport"))));
+            }
+        };
+        let source = match transported.decision_source(&units, &ctx) {
+            Ok(source) => source,
+            Err(error) => {
+                return Ok((None, None, None, Some(transport_refusal_json(&error, "bind"))));
+            }
+        };
+        match source.to_bytes(&artifact_id) {
+            Ok(bytes) => Ok((
+                Some(transport_summary(&transported).to_string()),
+                Some(summary(&source).to_string()),
+                Some(bytes),
+                None,
+            )),
+            Err(error) => Ok((None, None, None, Some(refusal_json(&error, "bind")))),
+        }
+    })
+}
+
+/// Re-run the transport from the retained inputs and require the retained identity:
+/// `(transport summary json, refusal json)`.
+#[pyfunction]
+#[pyo3(signature = (model_bytes, expected_claim, source_population, cohort_json, shift_json, expected_identity))]
+fn transport_cohort_effect_verify(
+    py: Python<'_>,
+    model_bytes: Vec<u8>,
+    expected_claim: Option<String>,
+    source_population: &str,
+    cohort_json: &str,
+    shift_json: Option<&str>,
+    expected_identity: &str,
+) -> PyResult<ConsumePayload> {
+    let cohort = match parse_cohort(cohort_json)? {
+        Ok(cohort) => cohort,
+        Err(error) => return Ok((None, Some(refusal_json(&error, "bind")))),
+    };
+    let shift = selection_shift_of(shift_json)?;
+    let source_population = source_population.to_owned();
+    let expected = expected_identity.to_owned();
+    detach_catch(py, move || {
+        let ctx = ExecutionContext::production_default(0);
+        match verify_cohort_transport(
+            &model_bytes,
+            expected_claim.as_deref(),
+            &source_population,
+            &cohort,
+            shift.as_ref(),
+            &expected,
+            &ctx,
+        ) {
+            Ok(transported) => Ok((Some(transport_summary(&transported).to_string()), None)),
+            Err(error) => Ok((None, Some(transport_refusal_json(&error, "verify")))),
+        }
+    })
+}
+
+/// The typed refusal of a request the transported cohort mean cannot answer, with its
+/// remedy. `kind` is `interval` or `law`.
+#[pyfunction]
+fn transported_cohort_refusal(kind: &str) -> PyResult<String> {
+    let request = match kind {
+        "interval" => TransportedRequest::Interval,
+        "law" => TransportedRequest::Law,
+        other => {
+            return Err(invalid_argument(format!(
+                "transported_effect.invalid_request: kind {other}"
+            )));
+        }
+    };
+    Ok(transport_refusal_json(&request.refusal(), "evaluate"))
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(build_cohort_decision_source, m)?)?;
     m.add_function(wrap_pyfunction!(consume_cohort_decision_source, m)?)?;
     m.add_function(wrap_pyfunction!(validate_cohort_binding, m)?)?;
     m.add_function(wrap_pyfunction!(normalize_cohort_weights, m)?)?;
     m.add_function(wrap_pyfunction!(cohort_decision_law_refusal, m)?)?;
-    m.add_function(wrap_pyfunction!(cohort_decision_forward_claim, m)?)
+    m.add_function(wrap_pyfunction!(cohort_decision_forward_claim, m)?)?;
+    m.add_function(wrap_pyfunction!(transport_cohort_effect, m)?)?;
+    m.add_function(wrap_pyfunction!(transport_cohort_effect_verify, m)?)?;
+    m.add_function(wrap_pyfunction!(transported_cohort_refusal, m)?)
 }

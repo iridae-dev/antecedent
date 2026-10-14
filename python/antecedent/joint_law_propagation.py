@@ -18,9 +18,19 @@ what a composition needs:
   an interval or a posterior and never a substitute for an aligned joint law -- and a declared
   correlation range has an ``assumption_range`` (:func:`correlation_range`).
 
-A value under a licensed route is a labelled ``point_only`` value. :meth:`PropagationClaim.interval`
-and :meth:`PropagationClaim.posterior` always raise ``cell_not_licensed``: no composed coordinate
-has a measured coverage record. :meth:`PropagationClaim.export` writes
+A value under a licensed route is a labelled ``point_only`` value. Its **spread** (a variance, a
+Monte Carlo standard error, an exceedance probability with its Monte Carlo band and a verdict) is
+read through :func:`spread`, :func:`aligned_linear_spread`, :func:`linear_moments_spread`,
+:func:`composed_exceedance`, :func:`mixture_exceedance`, :func:`transported_spread` and
+:func:`transported_spread_aligned`; it is labelled ``uncalibrated_spread`` and carries no coverage
+statement. A spread of a transported claim needs all three pieces (source sampling, target
+sampling, transport functional) and their dependence (an aligned law or a covariance).
+
+:meth:`PropagationClaim.interval` and :meth:`PropagationClaim.posterior` always raise
+``cell_not_licensed``. An interval at a composed coordinate is licensed only by
+:meth:`PropagationClaim.check_composed_interval` with a *measured* :class:`CoverageRecord` for
+exactly that coordinate (:meth:`PropagationClaim.coordinate_id`) and construction; without one it
+raises the typed refusal. :meth:`PropagationClaim.export` writes
 ``joint_law_propagation_v1``; :func:`consume_joint_law_propagation_artifact` re-runs the rule and
 replays the result to identical bits and refuses any edit.
 
@@ -46,24 +56,40 @@ from .errors import CausalTypeError, CausalValueError
 from .joint_distribution import JointDistributionArtifact
 
 __all__ = [
+    "ComposedInterval",
     "ConsumedJointLawPropagation",
+    "CoverageRecord",
     "EnvelopeQuery",
     "JointLawPropagationRefusal",
     "MixtureComponent",
+    "MixtureDraws",
     "MomentInput",
     "PropagationClaim",
     "PropagationDraws",
     "aligned_functional",
     "aligned_linear",
+    "aligned_linear_spread",
+    "composed_exceedance",
     "consume_joint_law_propagation_artifact",
     "correlation_range",
     "dependence_envelope",
     "linear_moments",
+    "linear_moments_spread",
     "mixture",
+    "mixture_exceedance",
+    "spread",
+    "transported_spread",
+    "transported_spread_aligned",
 ]
 
 _FUNCTIONALS = ("product", "ratio", "minimum", "maximum", "squared_difference")
-_ROLES = ("estimate", "transported_interval", "source_sampling", "target_sampling")
+_ROLES = (
+    "estimate",
+    "transported_interval",
+    "source_sampling",
+    "target_sampling",
+    "transport_functional",
+)
 
 
 class JointLawPropagationRefusal(StructuredRefusal):
@@ -214,6 +240,71 @@ class MixtureComponent:
 
 
 @dataclass(frozen=True)
+class MixtureDraws:
+    """One component of a finite mixture given as draws, with its known weight."""
+
+    id: str
+    evidence_id: str
+    weight: float
+    draws: Sequence[float] | np.ndarray
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "id": _text(self.id, "id"),
+            "evidence_id": _text(self.evidence_id, "evidence_id"),
+            "weight": _real(self.weight, "weight"),
+            "draws": _floats(self.draws, "draws"),
+        }
+
+
+@dataclass(frozen=True)
+class CoverageRecord:
+    """A coverage record offered for a composed coordinate.
+
+    ``coordinate_id`` is :meth:`PropagationClaim.coordinate_id` of the claim the record was
+    measured at; ``construction`` names the interval construction it covers (for example
+    ``"normal_approximation"``); ``measured`` is true only for a completed, attested measurement
+    (a wired but unmeasured placeholder is refused).
+    """
+
+    record_id: str
+    coordinate_id: str
+    construction: str
+    nominal_level: float
+    measured: bool
+
+    def _json(self) -> str:
+        return json.dumps(
+            {
+                "record_id": _text(self.record_id, "record_id"),
+                "coordinate_id": _text(self.coordinate_id, "coordinate_id"),
+                "construction": _text(self.construction, "construction"),
+                "nominal_level": _real(self.nominal_level, "nominal_level"),
+                "measured": bool(self.measured),
+            }
+        )
+
+
+@dataclass(repr=False, frozen=True)
+class ComposedInterval(ScientificResult):
+    """An interval licensed by a measured coverage record at its composed coordinate.
+
+    ``lower`` and ``upper`` are present when the construction is built from the claim's own mean
+    and variance (``normal_approximation``); otherwise the licence names the construction the
+    caller builds from the aligned draws. The record, not this value, carries the coverage
+    evidence; the interval holds at the record's ``nominal_level`` only.
+    """
+
+    coordinate_id: str
+    record_id: str
+    construction: str
+    nominal_level: float
+    label: str
+    lower: float | None
+    upper: float | None
+
+
+@dataclass(frozen=True)
 class EnvelopeQuery:
     """What a dependence envelope is asked for. Build with the class methods."""
 
@@ -284,6 +375,7 @@ class PropagationClaim(ScientificResult):
     alignment_id: str | None
     n_rows: int | None
     values: Mapping[str, float]
+    verdict: str | None
     _bytes: bytes = field(repr=False, compare=False)
 
     def artifact(self) -> ExportedArtifact[ConsumedJointLawPropagation]:
@@ -305,6 +397,7 @@ class PropagationClaim(ScientificResult):
             alignment_id=info["alignment_id"],
             n_rows=info["n_rows"],
             values={name: value for name, value in info["values"]},
+            verdict=info.get("verdict"),
             _bytes=bytes(data),
         )
 
@@ -322,8 +415,49 @@ class PropagationClaim(ScientificResult):
         return self._bytes
 
     def interval(self) -> None:
-        """Always raises ``cell_not_licensed``: a component interval does not cover the composition."""
+        """Always raises ``cell_not_licensed``: a component interval does not cover the composition.
+
+        An interval at the composed coordinate is read through :meth:`check_composed_interval`.
+        """
         _refuse(_native.joint_law_closed_reading("interval"))
+
+    def coordinate_id(self) -> str:
+        """The composed coordinate (``operation|route|roles``) a coverage record must be measured at."""
+        coordinate, refusal = _native.joint_law_coordinate_id(self._bytes)
+        _refuse(refusal)
+        assert coordinate is not None
+        return coordinate
+
+    def check_composed_interval(
+        self, record: CoverageRecord | None, construction: str, *, cancel: Any = None
+    ) -> ComposedInterval:
+        """The interval reading, licensed only by a measured record at this coordinate.
+
+        The sealed artifact is verified and replayed first. With ``record=None`` the reading is
+        closed (``cell_not_licensed``, ``joint_law_propagation.interval_route_closed``); an
+        unmeasured record, a record for another coordinate or construction, and a claim whose
+        dependence route licenses no spread (an envelope) are refused with their own details.
+        """
+        if record is not None and not isinstance(record, CoverageRecord):
+            raise CausalTypeError("record must be a CoverageRecord or None")
+        licence, refusal = _native.joint_law_check_composed_interval(
+            self._bytes,
+            None if record is None else record._json(),
+            _text(construction, "construction"),
+            cancel,
+        )
+        _refuse(refusal)
+        assert licence is not None
+        info = json.loads(licence)
+        return ComposedInterval(
+            coordinate_id=info["coordinate_id"],
+            record_id=info["record_id"],
+            construction=info["construction"],
+            nominal_level=info["nominal_level"],
+            label=info["label"],
+            lower=info["lower"],
+            upper=info["upper"],
+        )
 
     def posterior(self) -> None:
         """Always raises ``cell_not_licensed``: no composed coordinate has measured calibration."""
@@ -344,6 +478,7 @@ class ConsumedJointLawPropagation(ScientificResult):
     alignment_id: str | None
     n_rows: int | None
     values: Mapping[str, float]
+    verdict: str | None = None
 
 
 @bind_mean_reading
@@ -521,6 +656,187 @@ def correlation_range(
     )
 
 
+def spread(
+    operation: str,
+    x: PropagationDraws,
+    y: PropagationDraws,
+    functional: str,
+    *,
+    cancel: Any = None,
+) -> PropagationClaim:
+    """The spread of ``g(X, Y)`` under the aligned joint law of two artifact columns.
+
+    Carries ``mean``, ``variance`` (sample, divisor ``n - 1``) and ``mean_standard_error`` of the
+    composed rows, labelled ``uncalibrated_spread``: no coverage statement.
+    """
+    if functional not in _FUNCTIONALS:
+        raise CausalValueError(f"functional must be one of {_FUNCTIONALS}")
+    xa, xc = x._require_artifact()
+    ya, yc = y._require_artifact()
+    return _claim(
+        _native.joint_law_spread(operation, x.id, xa, xc, y.id, ya, yc, functional, cancel)
+    )
+
+
+def aligned_linear_spread(
+    operation: str,
+    coefficients: tuple[float, float],
+    x: PropagationDraws,
+    y: PropagationDraws,
+    *,
+    cancel: Any = None,
+) -> PropagationClaim:
+    """The variance (and covariance) of ``a X + b Y`` from aligned columns, as a spread."""
+    a = _real(coefficients[0], "coefficients[0]")
+    b = _real(coefficients[1], "coefficients[1]")
+    xa, xc = x._require_artifact()
+    ya, yc = y._require_artifact()
+    return _claim(
+        _native.joint_law_aligned_linear_spread(operation, a, b, x.id, xa, xc, y.id, ya, yc, cancel)
+    )
+
+
+def linear_moments_spread(
+    operation: str,
+    inputs: Sequence[MomentInput],
+    coefficients: Sequence[float],
+    covariance: Sequence[Sequence[float]] | np.ndarray,
+    *,
+    dependence: str,
+    covariance_id: str | None = None,
+    cancel: Any = None,
+) -> PropagationClaim:
+    """The variance of ``sum a_i X_i`` under a covariance, as a spread (``uncalibrated_spread``)."""
+    matrix = np.asarray(covariance, dtype=np.float64)
+    k = len(inputs)
+    if matrix.shape != (k, k):
+        raise CausalValueError("covariance must be a k by k matrix for k inputs")
+    return _claim(
+        _native.joint_law_linear_moments_spread(
+            operation,
+            json.dumps([item._wire() for item in inputs]),
+            _floats(list(coefficients), "coefficients"),
+            [float(v) for v in matrix.ravel()],
+            dependence,
+            covariance_id,
+            cancel,
+        )
+    )
+
+
+def composed_exceedance(
+    operation: str,
+    x: PropagationDraws,
+    y: PropagationDraws,
+    functional: str,
+    *,
+    threshold: float,
+    cutoff: float,
+    band_level: float = 0.95,
+    cancel: Any = None,
+) -> PropagationClaim:
+    """``P(g(X, Y) > threshold)`` from aligned draws with its Monte Carlo band and a verdict.
+
+    ``verdict`` is ``"act"`` when the probability exceeds ``cutoff`` beyond the band,
+    ``"withhold"`` when it is below beyond the band, ``"unresolved"`` when the cutoff is inside
+    the band. The verdict is about the Monte Carlo error of the probability only. Values:
+    ``probability``, ``standard_error``, ``band``.
+    """
+    if functional not in _FUNCTIONALS:
+        raise CausalValueError(f"functional must be one of {_FUNCTIONALS}")
+    xa, xc = x._require_artifact()
+    ya, yc = y._require_artifact()
+    return _claim(
+        _native.joint_law_composed_exceedance(
+            operation,
+            x.id,
+            xa,
+            xc,
+            y.id,
+            ya,
+            yc,
+            functional,
+            _real(threshold, "threshold"),
+            _real(cutoff, "cutoff"),
+            _real(band_level, "band_level"),
+            cancel,
+        )
+    )
+
+
+def mixture_exceedance(
+    components: Sequence[MixtureDraws], *, threshold: float, cancel: Any = None
+) -> PropagationClaim:
+    """``P(X > threshold)`` of a known-weight mixture of draw sets (components never paired)."""
+    items = [c._wire() for c in components]
+    return _claim(
+        _native.joint_law_mixture_exceedance(
+            json.dumps(items), _real(threshold, "threshold"), cancel
+        )
+    )
+
+
+def transported_spread(
+    pieces: Sequence[MomentInput],
+    coefficients: Sequence[float],
+    covariance: Sequence[Sequence[float]] | np.ndarray,
+    *,
+    dependence: str = "covariance",
+    covariance_id: str | None = None,
+    cancel: Any = None,
+) -> PropagationClaim:
+    """The spread of a transported claim from its pieces and their covariance.
+
+    ``pieces`` carry the roles ``source_sampling``, ``target_sampling`` and
+    ``transport_functional``; a missing piece is refused
+    (``joint_law_propagation.transport_pieces_incomplete``) and so is a declared independence
+    (``joint_law_propagation.transported_dependence_required``): the pieces are dependent when
+    evidence is shared.
+    """
+    return linear_moments_spread(
+        "transported_composition",
+        pieces,
+        coefficients,
+        covariance,
+        dependence=dependence,
+        covariance_id=covariance_id,
+        cancel=cancel,
+    )
+
+
+def transported_spread_aligned(
+    source_sampling: PropagationDraws,
+    target_sampling: PropagationDraws,
+    transport_functional: PropagationDraws,
+    *,
+    coefficients: Sequence[float] = (1.0, 1.0, 1.0),
+    cancel: Any = None,
+) -> PropagationClaim:
+    """The spread of a transported claim from the aligned draws of its three pieces.
+
+    The three columns must share one alignment identity (columns of one joint law); the
+    covariance is the population covariance of the aligned rows.
+    """
+    sa, sc = source_sampling._require_artifact()
+    ta, tc = target_sampling._require_artifact()
+    fa, fc = transport_functional._require_artifact()
+    return _claim(
+        _native.joint_law_transported_spread_aligned(
+            source_sampling.id,
+            sa,
+            sc,
+            target_sampling.id,
+            ta,
+            tc,
+            transport_functional.id,
+            fa,
+            fc,
+            _floats(list(coefficients), "coefficients"),
+            cancel,
+        )
+    )
+
+
 @bind_mean_reading
 def consume_joint_law_propagation_artifact(
     data: bytes, *, expected_identity: str | None = None, cancel: Any = None
@@ -546,4 +862,5 @@ def consume_joint_law_propagation_artifact(
         alignment_id=info["alignment_id"],
         n_rows=info["n_rows"],
         values={name: value for name, value in info["values"]},
+        verdict=info.get("verdict"),
     )

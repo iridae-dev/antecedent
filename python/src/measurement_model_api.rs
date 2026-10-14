@@ -12,6 +12,10 @@
 //! issued; a claim of native trust is forwarded so the contract refuses it by
 //! name.
 
+use antecedent::analysis::transported_measurement::{
+    ErrorParameter, InvarianceDeclaration, PopulationErrorStructure, TransportBasis,
+    TransportReceipt, transport_measurement_estimate, verify_measurement_transport,
+};
 use antecedent::{
     CategoricalTarget, ConsumedMeasurement, MeasurementAnalysisBinding, MeasurementDetail,
     MeasurementEstimate, MeasurementInput, MeasurementModelRefusal, PreparedMeasurementModel,
@@ -1057,6 +1061,171 @@ fn measurement_model_identities(model_json: &str) -> PyResult<String> {
     .to_string())
 }
 
+// ---------------------------------------------------------------------------
+// Transport of a measurement model under a declared invariance premise.
+// ---------------------------------------------------------------------------
+
+fn parse_error_parameter(name: &str) -> PyResult<ErrorParameter> {
+    [
+        ErrorParameter::Sensitivity,
+        ErrorParameter::Specificity,
+        ErrorParameter::ConfusionMatrix,
+        ErrorParameter::ErrorVariance,
+    ]
+    .into_iter()
+    .find(|parameter| parameter.as_str() == name)
+    .ok_or_else(|| crate::value_err(format!("unknown error parameter `{name}`")))
+}
+
+fn parse_error_structure(value: &Json) -> PyResult<PopulationErrorStructure> {
+    let map = object(value, "population error structure")?;
+    match text(map, "kind")?.as_str() {
+        "invariant" => {
+            let parameters = texts(map, "invariant")?
+                .iter()
+                .map(|name| parse_error_parameter(name))
+                .collect::<PyResult<Vec<_>>>()?;
+            Ok(PopulationErrorStructure::Invariant(InvarianceDeclaration::new(
+                &text(map, "source_population")?,
+                &text(map, "target_population")?,
+                &text(map, "declarer")?,
+                &parameters,
+            )))
+        }
+        "differential" => {
+            Ok(PopulationErrorStructure::Differential { declarer: text(map, "declarer")? })
+        }
+        other => Err(crate::value_err(format!("unknown population error structure `{other}`"))),
+    }
+}
+
+fn parse_models(text_json: &str) -> PyResult<Vec<MeasurementModel>> {
+    match parse(text_json, "measurement models")? {
+        Json::Array(items) => items.iter().map(parse_model).collect(),
+        _ => Err(crate::value_err("measurement models must be a list")),
+    }
+}
+
+fn parse_optional_structure(text_json: Option<&str>) -> PyResult<Option<PopulationErrorStructure>> {
+    match text_json {
+        None => Ok(None),
+        Some(text_json) => {
+            parse_error_structure(&parse(text_json, "population error structure")?).map(Some)
+        }
+    }
+}
+
+fn transport_receipt_json(receipt: &TransportReceipt) -> Json {
+    let basis = match &receipt.basis {
+        TransportBasis::Established => json!({"kind": "established"}),
+        TransportBasis::DeclaredInvariance(declaration) => json!({
+            "kind": "declared_invariance",
+            "declarer": declaration.declarer,
+            "source_population": declaration.source_population,
+            "target_population": declaration.target_population,
+            "invariant": declaration.invariant.iter().map(|p| p.as_str()).collect::<Vec<_>>(),
+        }),
+        TransportBasis::DifferentialEstablished { declarer } => {
+            json!({"kind": "differential_established", "declarer": declarer})
+        }
+    };
+    json!({
+        "route": "measurement_model",
+        "identity": receipt.identity.to_hex(),
+        "source_model": receipt.source_model.to_hex(),
+        "source_population": receipt.source_population,
+        "target_population": receipt.target_population,
+        "basis": basis,
+        "carried": receipt.carried(),
+        "support": if receipt.carried() { "extrapolative" } else { "supported" },
+        "evidence": evidence_json(&receipt.evidence),
+        "assumptions": receipt.assumptions(),
+    })
+}
+
+/// Transport the measurement model of another population to the analysis population
+/// and form the corrected functional on the re-bound model: `(estimate handle, receipt
+/// json, refusal json)`.
+#[pyfunction]
+#[pyo3(signature = (models_json, structure_json, binding_json, data_json, provider_json=None, receipt=None, *, cancel=None))]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one flat native entry mirroring the Rust facade call"
+)]
+fn measurement_model_transport(
+    py: Python<'_>,
+    models_json: &str,
+    structure_json: Option<&str>,
+    binding_json: &str,
+    data_json: &str,
+    provider_json: Option<&str>,
+    receipt: Option<PyRef<'_, PyProviderVerificationReceipt>>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<(Option<MeasurementEstimateHandle>, Option<String>, Option<String>)> {
+    let models = parse_models(models_json)?;
+    let structure = parse_optional_structure(structure_json)?;
+    let binding = parse_analysis_binding(&parse(binding_json, "analysis binding")?)?;
+    let input = parse_input(&parse(data_json, "measurement data")?)?;
+    let provider = match provider_json {
+        Some(text) => Some(parse_provider(&parse(text, "provider object")?)?),
+        None => None,
+    };
+    let trust = match &provider {
+        Some(declaration) => match trust_of(declaration, receipt.as_deref()) {
+            Ok(trust) => Some(trust),
+            Err(refusal) => return Ok((None, None, Some(refusal_json(&refusal)))),
+        },
+        None => None,
+    };
+    let outcome = crate::detach_catch(py, move || {
+        let ctx = execution_context(0, None, cancel);
+        let supplied = match (&provider, &trust) {
+            (Some(declaration), Some(trust)) => Some((&declaration.object, trust)),
+            _ => None,
+        };
+        Ok(transport_measurement_estimate(
+            &models,
+            structure.as_ref(),
+            binding,
+            input,
+            supplied,
+            &ctx,
+        ))
+    })?;
+    Ok(match outcome {
+        Ok(done) => {
+            let receipt = transport_receipt_json(done.receipt()).to_string();
+            (
+                Some(MeasurementEstimateHandle { inner: done.estimate().clone() }),
+                Some(receipt),
+                None,
+            )
+        }
+        Err(refusal) => (None, None, Some(refusal_json(&refusal))),
+    })
+}
+
+/// Re-derive the transport from the retained source models and declaration and require
+/// the retained identity: `(receipt json, refusal json)`.
+#[pyfunction]
+fn measurement_model_transport_verify(
+    models_json: &str,
+    structure_json: Option<&str>,
+    binding_json: &str,
+    expected_identity: &str,
+) -> PyResult<(Option<String>, Option<String>)> {
+    let models = parse_models(models_json)?;
+    let structure = parse_optional_structure(structure_json)?;
+    let binding = parse_analysis_binding(&parse(binding_json, "analysis binding")?)?;
+    Ok(
+        match verify_measurement_transport(&models, structure.as_ref(), &binding, expected_identity)
+        {
+            Ok(receipt) => (Some(transport_receipt_json(&receipt).to_string()), None),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        },
+    )
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PreparedMeasurementHandle>()?;
     module.add_class::<MeasurementEstimateHandle>()?;
@@ -1064,5 +1233,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(measurement_model_prepare, module)?)?;
     module.add_function(wrap_pyfunction!(measurement_model_consume, module)?)?;
     module.add_function(wrap_pyfunction!(measurement_model_identities, module)?)?;
+    module.add_function(wrap_pyfunction!(measurement_model_transport, module)?)?;
+    module.add_function(wrap_pyfunction!(measurement_model_transport_verify, module)?)?;
     Ok(())
 }

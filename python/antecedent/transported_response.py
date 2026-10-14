@@ -74,11 +74,29 @@ __all__ = [
 ]
 
 TransportedRoute = Literal[
-    "cohort_effect", "shifted_cohort", "policy", "synthesis", "mechanism", "declared"
+    "cohort_effect",
+    "shifted_cohort",
+    "policy",
+    "synthesis",
+    "mechanism",
+    "temporal_policy",
+    "adaptive_trial",
+    "surrogate_bridge",
+    "declared",
 ]
 Demand = Literal["expected_utility", "law", "interval"]
 
-_ROUTES = ("cohort_effect", "shifted_cohort", "policy", "synthesis", "mechanism", "declared")
+_ROUTES = (
+    "cohort_effect",
+    "shifted_cohort",
+    "policy",
+    "synthesis",
+    "mechanism",
+    "temporal_policy",
+    "adaptive_trial",
+    "surrogate_bridge",
+    "declared",
+)
 _DEMANDS = ("expected_utility", "law", "interval")
 _SUPPORT = (
     "supported",

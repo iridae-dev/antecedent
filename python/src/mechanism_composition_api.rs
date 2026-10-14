@@ -11,6 +11,10 @@
 //! the source of its numbers; this bridge cannot label it fitted.
 
 use antecedent::analysis::mechanism_composition::CompositionQueryWire;
+use antecedent::analysis::transported_mechanism::{
+    MechanismRole, MechanismTransportDeclaration, TransportedMechanismComposition,
+    TransportedMechanismReceipt, verify_mechanism_transport,
+};
 use antecedent::{
     ConsumedComposition, DependenceInput, MechanismCompositionRefusal, MechanismCompositionRequest,
     MechanismInput, MechanismRefit, MechanismSource, PreparedMechanismComposition, StudyBuilder,
@@ -23,8 +27,9 @@ use antecedent_contract::{
 use antecedent_io::mechanism_composition_artifact::CompositionResultWire;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_model::compose::{
-    ContrastArm, CrossCovarianceBlock, Domain, MeanContrast, MechanismFamily, MechanismUncertainty,
-    ParameterId, ParameterTerm, TabularRow, UncertaintyMeaning,
+    ContextCoordinate, ContrastArm, CrossCovarianceBlock, Domain, InvarianceDeclaration,
+    MeanContrast, MechanismFamily, MechanismUncertainty, ParameterId, ParameterTerm,
+    SelectionNodeDeclaration, TabularRow, UncertaintyMeaning,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -642,8 +647,233 @@ impl PreparedCompositionHandle {
         })
     }
 
+    /// Carry this composition's fitted mechanisms into the target population under a
+    /// declared selection diagram: `(handle, receipt json)` or the refusal. A refusal
+    /// leaves this handle as it was.
+    #[pyo3(signature = (transport_json, *, cancel=None))]
+    fn transport_to(
+        &self,
+        py: Python<'_>,
+        transport_json: &str,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<Refused<(TransportedCompositionHandle, String)>> {
+        let declaration = parse_transport(&parse(transport_json, "transport")?)?;
+        let inner = self.inner.clone();
+        let outcome = crate::detach_catch(py, move || {
+            let ctx = execution_context(0, None, cancel);
+            Ok(inner.transport_to(&declaration, &ctx))
+        })?;
+        Ok(match outcome {
+            Ok(done) => {
+                let receipt = receipt_json(done.receipt()).to_string();
+                (Some((TransportedCompositionHandle { inner: done }, receipt)), None)
+            }
+            Err(refusal) => refused(&refusal),
+        })
+    }
+
+    /// Re-derive the transport from this composition and the declaration and require the
+    /// retained identity: `receipt json` or the refusal.
+    #[pyo3(signature = (transport_json, expected_identity, *, cancel=None))]
+    fn verify_transport(
+        &self,
+        py: Python<'_>,
+        transport_json: &str,
+        expected_identity: &str,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<Refused<String>> {
+        let declaration = parse_transport(&parse(transport_json, "transport")?)?;
+        let inner = self.inner.clone();
+        let expected = expected_identity.to_owned();
+        let outcome = crate::detach_catch(py, move || {
+            let ctx = execution_context(0, None, cancel);
+            Ok(verify_mechanism_transport(&inner, &declaration, &expected, &ctx))
+        })?;
+        Ok(match outcome {
+            Ok(done) => (Some(receipt_json(done.receipt()).to_string()), None),
+            Err(refusal) => refused(&refusal),
+        })
+    }
+
     /// Seal the premises and one query into an artifact: the query is
     /// executed and its result stored as bit patterns.
+    #[pyo3(signature = (query_json, *, cancel=None))]
+    fn export(
+        &self,
+        py: Python<'_>,
+        query_json: &str,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<Refused<(Py<PyBytes>, String, String)>> {
+        let query: CompositionQueryWire = serde_json::from_value(parse(query_json, "query")?)
+            .map_err(|error| crate::value_err(format!("invalid composition query: {error}")))?;
+        let inner = self.inner.clone();
+        let outcome = crate::detach_catch(py, move || {
+            let ctx = execution_context(0, None, cancel);
+            Ok(inner.export(query, &ctx))
+        })?;
+        Ok(match outcome {
+            Ok(done) => (
+                Some((
+                    PyBytes::new(py, &done.bytes).unbind(),
+                    done.premises_digest,
+                    result_json(&done.result).to_string(),
+                )),
+                None,
+            ),
+            Err(refusal) => refused(&refusal),
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Transport of a composition to another population.
+// ---------------------------------------------------------------------------
+
+fn parse_coordinate(name: &str) -> PyResult<ContextCoordinate> {
+    match name {
+        "population" => Ok(ContextCoordinate::Population),
+        "regime" => Ok(ContextCoordinate::Regime),
+        other => Err(crate::value_err(format!("unknown invariance coordinate `{other}`"))),
+    }
+}
+
+fn parse_transport(value: &Json) -> PyResult<MechanismTransportDeclaration> {
+    let map = object(value, "transport")?;
+    let mut selection_nodes = Vec::new();
+    for entry in list(map, "selection_nodes")? {
+        let node = object(entry, "selection node")?;
+        selection_nodes.push(SelectionNodeDeclaration {
+            name: text(node, "name")?,
+            points_into: texts(node, "points_into")?,
+        });
+    }
+    let mut invariances = Vec::new();
+    for entry in list(map, "invariances")? {
+        let invariance = object(entry, "invariance declaration")?;
+        invariances.push(InvarianceDeclaration {
+            variable: text(invariance, "variable")?,
+            coordinate: parse_coordinate(&text(invariance, "coordinate")?)?,
+            source: text(invariance, "source")?,
+            target: text(invariance, "target")?,
+            assumption_id: text(invariance, "assumption_id")?,
+        });
+    }
+    let target_refits =
+        list(map, "target_refits")?.iter().map(parse_refit).collect::<PyResult<Vec<_>>>()?;
+    Ok(MechanismTransportDeclaration {
+        target_population_id: text(map, "target_population_id")?,
+        target_regime_id: text(map, "target_regime_id")?,
+        selection_nodes,
+        target_refits,
+        invariances,
+        dependence: parse_dependence(member(map, "dependence")?)?,
+    })
+}
+
+fn receipt_json(receipt: &TransportedMechanismReceipt) -> Json {
+    json!({
+        "route": receipt.route,
+        "identity": receipt.identity,
+        "source_plan_identity": receipt.source_plan_identity,
+        "source_population": receipt.source_population,
+        "target_population": receipt.target_population,
+        "target_regime": receipt.target_regime,
+        "selection_nodes": receipt.selection_nodes.iter().map(|(name, into)| json!({
+            "name": name,
+            "points_into": into,
+        })).collect::<Vec<_>>(),
+        "selection_targets": receipt.selection_targets,
+        "dispositions": receipt.dispositions.iter().map(|d| json!({
+            "variable": d.variable,
+            "role": match d.role {
+                MechanismRole::Transported => "transported",
+                MechanismRole::NativeInTarget => "native_in_target",
+            },
+            "fitted_population": d.fitted_population,
+            "artifact_id": d.artifact_id,
+            "evidence_id": d.evidence_id,
+        })).collect::<Vec<_>>(),
+        "invariances": receipt.invariances.iter().map(|(variable, assumption)| json!({
+            "variable": variable,
+            "assumption_id": assumption,
+        })).collect::<Vec<_>>(),
+        "uncertainty_scope": receipt.uncertainty_scope,
+        "support": receipt.support,
+        "inference": receipt.inference,
+        "assumptions": receipt.assumptions,
+    })
+}
+
+/// A transported composition: one executable target-population model and its receipt.
+#[pyclass(name = "TransportedCompositionHandle", skip_from_py_object)]
+pub(crate) struct TransportedCompositionHandle {
+    inner: TransportedMechanismComposition,
+}
+
+#[pymethods]
+impl TransportedCompositionHandle {
+    /// Identity of the transported composition (lowercase hex).
+    fn identity(&self) -> String {
+        self.inner.identity_hex()
+    }
+
+    /// The receipt as JSON.
+    fn receipt_json(&self) -> String {
+        receipt_json(self.inner.receipt()).to_string()
+    }
+
+    /// `sum_k weight_k * E[outcome | do(arm_k)]` in the target composition.
+    fn mean_contrast(&self, contrast_json: &str) -> PyResult<Refused<f64>> {
+        let contrast = parse_contrast(&parse(contrast_json, "contrast")?)?;
+        Ok(match self.inner.mean_contrast(&contrast) {
+            Ok(value) => (Some(value), None),
+            Err(refusal) => refused(&refusal),
+        })
+    }
+
+    /// First-order parameter variance of a contrast with its scope label.
+    fn mean_contrast_uncertainty(&self, contrast_json: &str) -> PyResult<Refused<String>> {
+        let contrast = parse_contrast(&parse(contrast_json, "contrast")?)?;
+        Ok(match self.inner.mean_contrast_uncertainty(&contrast) {
+            Ok(done) => {
+                let u = &done.functional;
+                (
+                    Some(
+                        json!({
+                            "point": u.point,
+                            "variance": u.variance,
+                            "standard_error": u.standard_error,
+                            "meaning": u.meaning.map(|m| match m {
+                                UncertaintyMeaning::Posterior => "posterior",
+                                UncertaintyMeaning::SamplingDistribution => "sampling_distribution",
+                            }),
+                            "dependence": u.dependence,
+                            "method": u.method,
+                            "scope": done.scope,
+                            "gradient": u.gradient.iter().map(|(id, g)| json!({
+                                "mechanism": id.mechanism,
+                                "term": term_json(&id.term),
+                                "gradient": g,
+                            })).collect::<Vec<_>>(),
+                        })
+                        .to_string(),
+                    ),
+                    None,
+                )
+            }
+            Err(refusal) => refused(&refusal),
+        })
+    }
+
+    /// Always the typed refusal: no coverage includes the transport assumption.
+    fn interval(&self) -> String {
+        match self.inner.interval() {
+            Err(refusal) => refusal_json(&refusal),
+            Ok(never) => match never {},
+        }
+    }
+
+    /// Seal the transported premises and one query into the composition artifact.
     #[pyo3(signature = (query_json, *, cancel=None))]
     fn export(
         &self,
@@ -791,6 +1021,7 @@ fn source_json(source: &MechanismSource) -> Json {
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PreparedCompositionHandle>()?;
+    module.add_class::<TransportedCompositionHandle>()?;
     module.add_function(wrap_pyfunction!(mechanism_composition_prepare, module)?)?;
     module.add_function(wrap_pyfunction!(mechanism_composition_consume, module)?)?;
     module.add_function(wrap_pyfunction!(mechanism_composition_fitted_source, module)?)?;

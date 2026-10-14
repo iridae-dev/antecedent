@@ -30,6 +30,13 @@ unmeasured; the interval route is closed (``cell_not_licensed``).
 
 A source built from a verified analysis result is native. A source built from a caller-built
 compact export is a declared model and is never native.
+
+A cohort of another population can also be carried under a declared selection-diagram premise
+(:func:`transport_cohort_effect`): the selection node points only into the declared effect
+modifiers, which are exactly the model's features, and every row lies inside the fitted support.
+The result is a :class:`TransportedCohortEffect` with a typed :class:`CohortTransportReceipt`,
+its identity, a point-only value and the existing :class:`CohortDecisionSource` for the same
+cohort. An interval or a law is refused with the evidence that would license it.
 """
 
 from __future__ import annotations
@@ -49,6 +56,9 @@ from ._native import cohort_decision_forward_claim as _forward_claim
 from ._native import cohort_decision_law_refusal as _law_refusal
 from ._native import consume_cohort_decision_source as _consume
 from ._native import normalize_cohort_weights as _normalize
+from ._native import transport_cohort_effect as _transport
+from ._native import transport_cohort_effect_verify as _transport_verify
+from ._native import transported_cohort_refusal as _transported_refusal
 from ._native import validate_cohort_binding as _validate
 from ._refusal import StructuredRefusal
 from ._scientific import ScientificResult
@@ -65,11 +75,15 @@ __all__ = [
     "CohortBinding",
     "CohortDecisionRefusal",
     "CohortDecisionSource",
+    "CohortTransportReceipt",
     "CovariateShift",
+    "SelectionShift",
+    "TransportedCohortEffect",
     "UncalibratedStandardError",
     "consume_cohort_decision_source",
     "decision_source_from_compact_export",
     "decision_source_from_model",
+    "transport_cohort_effect",
 ]
 
 _DEFAULT_ARTIFACT_ID = "cohort_decision_source"
@@ -627,3 +641,227 @@ def consume_cohort_decision_source(
     if summary is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native verifier returned neither a result nor a refusal")
     return _source_of(summary, data)
+
+
+# --------------------------------------------------------------------------- transport
+
+
+@dataclass(frozen=True, slots=True)
+class SelectionShift:
+    """The selection-diagram premise of a shift between the model's population and a cohort's.
+
+    The selection node ``selection_node`` marks where the populations differ. It points into
+    ``selection_children`` (variables) and ``effect_modifiers`` are declared sufficient: given
+    exactly those, the conditional contrast does not depend on the selection node. The
+    declaration is valid only if the node points into nothing outside the modifiers and the
+    modifiers are exactly the model's features. It is a premise and is never tested.
+    """
+
+    source_population: str
+    target_population: str
+    selection_node: str
+    selection_children: tuple[str, ...]
+    effect_modifiers: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _text(self.source_population, "source_population")
+        _text(self.target_population, "target_population")
+        _text(self.selection_node, "selection_node")
+        for what in ("selection_children", "effect_modifiers"):
+            names = getattr(self, what)
+            if isinstance(names, str):
+                raise CausalTypeError(f"{what} must be an iterable of names")
+            coerce_fields(self, **{what: tuple(_text(n, what) for n in names)})
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "source_population": self.source_population,
+            "target_population": self.target_population,
+            "selection_node": self.selection_node,
+            "selection_children": list(self.selection_children),
+            "effect_modifiers": list(self.effect_modifiers),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class CohortTransportReceipt:
+    """How a cohort mean reached its target population.
+
+    ``support`` is always ``extrapolative`` and ``inference`` always ``point_only``.
+    ``overlap`` is the fitted-box check that passed (per feature: fitted and target range, rows and
+    weight outside, disjointness); it is a necessary condition, not a positivity guarantee.
+    """
+
+    route: str
+    identity: str
+    model_identity: str
+    parent_claim: str
+    source_population: str
+    target_population: str
+    selection_node: str
+    selection_children: tuple[str, ...]
+    effect_modifiers: tuple[str, ...]
+    cohort_digest: str
+    support: str
+    inference: str
+    assumptions: tuple[str, ...]
+    overlap: Mapping[str, Any]
+    scope: str
+
+    @classmethod
+    def _from_wire(cls, wire: Mapping[str, Any]) -> CohortTransportReceipt:
+        return cls(
+            route=str(wire["route"]),
+            identity=str(wire["identity"]),
+            model_identity=str(wire["model_identity"]),
+            parent_claim=str(wire["parent_claim"]),
+            source_population=str(wire["source_population"]),
+            target_population=str(wire["target_population"]),
+            selection_node=str(wire["selection_node"]),
+            selection_children=tuple(wire["selection_children"]),
+            effect_modifiers=tuple(wire["effect_modifiers"]),
+            cohort_digest=str(wire["cohort_digest"]),
+            support=str(wire["support"]),
+            inference=str(wire["inference"]),
+            assumptions=tuple(wire["assumptions"]),
+            overlap=dict(wire["overlap"]),
+            scope=str(wire["scope"]),
+        )
+
+    def as_transport_receipt(self) -> Any:
+        """The shared :class:`antecedent.transported_response.TransportReceipt` of this route."""
+        from .transported_response import TransportReceipt
+
+        return TransportReceipt(
+            route="cohort_effect",
+            source_identity=self.model_identity,
+            source_populations=(self.source_population,),
+            target_population=self.target_population,
+            transport_identities=(self.identity,),
+            assumptions=self.assumptions,
+            support=self.support,
+            representation="point_only",
+        )
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class TransportedCohortEffect(ScientificResult):
+    """A fitted effect model's weighted cohort-mean contrast, carried to another population.
+
+    ``mean_contrast`` is the expectation of one cohort-mean conditional contrast under the declared
+    selection shift: point-only, never target-population data, never two absolute potential-outcome
+    means. ``receipt`` and ``identity`` bind the model, the declaration, the cohort, the overlap
+    check and the value. :attr:`decision_source` is the existing :class:`CohortDecisionSource` for
+    the same cohort (labelled ``extrapolative``); decide on it through ``accept_extrapolative()``.
+    There is no interval and no law: :meth:`interval` and :meth:`refuse` raise the typed refusal.
+    """
+
+    identity: str
+    mean_contrast: float
+    row_contrasts: tuple[float, ...]
+    receipt: CohortTransportReceipt
+    native_target_data: bool = False
+    _decision: CohortDecisionSource | None = field(default=None, repr=False, compare=False)
+    _retained: Any = field(default=None, repr=False, compare=False)
+
+    @property
+    def decision_source(self) -> CohortDecisionSource:
+        """The existing cohort-mean decision source for the same cohort and shift."""
+        assert self._decision is not None
+        return self._decision
+
+    @property
+    def mean_source(self) -> MeanSource:
+        """The transported mean as a decision-contract mean source (extrapolative, accepted)."""
+        return self.decision_source.accept_extrapolative().mean_source
+
+    def interval(self, *, level: float = 0.95) -> None:
+        """Always refuses: no interval, band or posterior is licensed for a transported mean."""
+        del level
+        raise CohortDecisionRefusal(json.loads(_transported_refusal("interval")))
+
+    def refuse(self, kind: str = "law") -> None:
+        """Raise the typed refusal of a request this value cannot answer (``interval``, ``law``)."""
+        if kind not in ("interval", "law"):
+            self.decision_source.refuse(kind)
+        raise CohortDecisionRefusal(json.loads(_transported_refusal(kind)))
+
+    def verify(self) -> TransportedCohortEffect:
+        """Re-derive the whole transport from the retained inputs and require this identity.
+
+        Raises :class:`CohortDecisionRefusal` (``transported_effect.identity_mismatch``) when the
+        recomputed identity differs. Returns the recomputed effect.
+        """
+        model_bytes, claim, source_population, cohort, shift = self._retained
+        text, refusal = _transport_verify(
+            model_bytes,
+            claim,
+            source_population,
+            json.dumps(cohort._wire(), allow_nan=False),
+            None if shift is None else json.dumps(shift._wire()),
+            self.identity,
+        )
+        if refusal is not None:
+            raise CohortDecisionRefusal(json.loads(refusal))
+        assert text is not None
+        wire = json.loads(text)
+        return replace(self, identity=str(wire["identity"]))
+
+
+def transport_cohort_effect(
+    model: Any,
+    *,
+    cohort: CohortBinding,
+    source_population: str,
+    shift: SelectionShift | None,
+    outcome_units: str,
+    artifact_id: str = _DEFAULT_ARTIFACT_ID,
+) -> TransportedCohortEffect:
+    """Carry a retained fitted effect model to a cohort of another population.
+
+    ``model`` is a loaded :class:`antecedent.prediction.FittedEffectModel`; ``source_population``
+    names the population it was fitted for (the analysis result carries no population label of its
+    own, so it is declared and bound into the identity); ``cohort`` declares the target rows;
+    ``shift`` is the :class:`SelectionShift` premise.
+
+    The value is issued only when the declaration names the model's population as source and the
+    cohort's as target, the selection node points only into the declared effect modifiers, those
+    are exactly the model's features, and every cohort row lies inside the model's fitted support.
+
+    Raises:
+        CohortDecisionRefusal: the unmet premise, with a registered ``reason_code``, a
+            ``transported_effect.*`` ``detail`` (``shift_declaration_required``,
+            ``selection_enters_mechanism``, ``modifier_set_mismatch``, ``no_overlap``,
+            ``out_of_support``, ...) and the ``remedy``.
+    """
+    if not isinstance(cohort, CohortBinding):
+        raise CausalTypeError("cohort= must be a CohortBinding")
+    if shift is not None and not isinstance(shift, SelectionShift):
+        raise CausalTypeError("shift= must be a SelectionShift")
+    _text(source_population, "source_population")
+    if not isinstance(outcome_units, str) or not outcome_units.strip():
+        raise CausalValueError("outcome_units= is required: units are never inferred")
+    model_bytes = bytes(model.export())
+    claim = model.parent_claim
+    summary, decision, artifact, refusal = _transport(
+        model_bytes,
+        claim,
+        source_population,
+        json.dumps(cohort._wire(), allow_nan=False),
+        outcome_units,
+        None if shift is None else json.dumps(shift._wire()),
+        _text(artifact_id, "artifact_id"),
+    )
+    if refusal is not None:
+        raise CohortDecisionRefusal(json.loads(refusal))
+    if summary is None or decision is None or artifact is None:  # pragma: no cover
+        raise CausalValueError("the native transport returned neither a result nor a refusal")
+    wire = json.loads(summary)
+    return TransportedCohortEffect(
+        identity=str(wire["identity"]),
+        mean_contrast=float(wire["mean_contrast"]),
+        row_contrasts=tuple(float(v) for v in wire["row_contrasts"]),
+        receipt=CohortTransportReceipt._from_wire(wire),
+        _decision=_source_of(decision, artifact),
+        _retained=(model_bytes, claim, source_population, cohort, shift),
+    )

@@ -5653,6 +5653,24 @@ def cohort_decision_law_refusal(kind: str) -> str: ...
 def cohort_decision_forward_claim(
     artifact: bytes, expectation_json: str
 ) -> tuple[str | None, str | None]: ...
+def transport_cohort_effect(
+    model_bytes: bytes,
+    expected_claim: str | None,
+    source_population: str,
+    cohort_json: str,
+    outcome_units: str,
+    shift_json: str | None,
+    artifact_id: str,
+) -> tuple[str | None, str | None, bytes | None, str | None]: ...
+def transport_cohort_effect_verify(
+    model_bytes: bytes,
+    expected_claim: str | None,
+    source_population: str,
+    cohort_json: str,
+    shift_json: str | None,
+    expected_identity: str,
+) -> tuple[str | None, str | None]: ...
+def transported_cohort_refusal(kind: str) -> str: ...
 def evaluate_nonlinear_mediation(
     treatment: NDArray[np.float64],
     mediator: NDArray[np.float64],
@@ -6352,6 +6370,22 @@ def measurement_model_consume(
     artifact: bytes, expected_model_identity: str
 ) -> tuple[ConsumedMeasurementHandle | None, str | None]: ...
 def measurement_model_identities(model_json: str) -> str: ...
+def measurement_model_transport(
+    models_json: str,
+    structure_json: str | None,
+    binding_json: str,
+    data_json: str,
+    provider_json: str | None = None,
+    receipt: ProviderVerificationReceipt | None = None,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[MeasurementEstimateHandle | None, str | None, str | None]: ...
+def measurement_model_transport_verify(
+    models_json: str,
+    structure_json: str | None,
+    binding_json: str,
+    expected_identity: str,
+) -> tuple[str | None, str | None]: ...
 
 class PreparedBridgeHandle:
     def contract_json(self) -> str: ...
@@ -6490,6 +6524,26 @@ class PreparedCompositionHandle:
         *,
         cancel: CancellationToken | None = None,
     ) -> tuple[PreparedCompositionHandle | None, str | None]: ...
+    def export(
+        self, query_json: str, *, cancel: CancellationToken | None = None
+    ) -> tuple[tuple[bytes, str, str] | None, str | None]: ...
+    def transport_to(
+        self, transport_json: str, *, cancel: CancellationToken | None = None
+    ) -> tuple[tuple[TransportedCompositionHandle, str] | None, str | None]: ...
+    def verify_transport(
+        self,
+        transport_json: str,
+        expected_identity: str,
+        *,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, str | None]: ...
+
+class TransportedCompositionHandle:
+    def identity(self) -> str: ...
+    def receipt_json(self) -> str: ...
+    def mean_contrast(self, contrast_json: str) -> tuple[float | None, str | None]: ...
+    def mean_contrast_uncertainty(self, contrast_json: str) -> tuple[str | None, str | None]: ...
+    def interval(self) -> str: ...
     def export(
         self, query_json: str, *, cancel: CancellationToken | None = None
     ) -> tuple[tuple[bytes, str, str] | None, str | None]: ...
@@ -6704,6 +6758,38 @@ def adaptive_inference_result_consume(
     cancel: CancellationToken | None = None,
 ) -> tuple[ConsumedAdaptiveResultHandle | None, str | None]: ...
 def adaptive_procedure_matrix() -> str: ...
+
+class AdaptiveProcedureHandle:
+    def identity(self) -> str: ...
+    def summary_json(self) -> str: ...
+    def law(
+        self, truth: list[float], cancel: CancellationToken | None = None
+    ) -> tuple[str | None, str | None]: ...
+    def simulate(
+        self, truth: list[float], request_json: str, cancel: CancellationToken | None = None
+    ) -> tuple[str | None, str | None]: ...
+    def report(
+        self, request_json: str, cancel: CancellationToken | None = None
+    ) -> tuple[str | None, str | None]: ...
+
+class RepeatedMeasuresProcedureHandle:
+    def identity(self) -> str: ...
+    def cell_json(self) -> str: ...
+    def report(
+        self, request_json: str, cancel: CancellationToken | None = None
+    ) -> tuple[str | None, str | None]: ...
+
+def adaptive_procedure_declare(
+    declaration_json: str,
+) -> tuple[AdaptiveProcedureHandle | None, str | None]: ...
+def adaptive_procedure_from_contract(
+    session: AdaptiveInferenceHandle,
+    elements_json: str,
+    cancel: CancellationToken | None = None,
+) -> tuple[AdaptiveProcedureHandle | None, str | None]: ...
+def repeated_measures_procedure_declare(
+    declaration_json: str,
+) -> tuple[RepeatedMeasuresProcedureHandle | None, str | None]: ...
 def decision_reliability_assess(
     draws_json: str,
     validation_json: str | None,
@@ -6728,6 +6814,47 @@ def decision_reliability_digests(
     draws_json: str,
 ) -> tuple[tuple[str, str] | None, str | None]: ...
 def decision_reliability_publish(route: str, coordinate_json: str) -> str | None: ...
+def decision_reliability_derive(
+    draws_json: str,
+    validation_json: str | None,
+    request_json: str,
+    interval_json: str,
+    seed: int = 0,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def decision_reliability_consume_derived(
+    artifact: bytes,
+    expected_json: str | None,
+    interval_json: str,
+    seed: int = 0,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def decision_reliability_verify_derived(
+    artifact: bytes,
+    derived_json: str,
+    expected_json: str | None,
+    seed: int = 0,
+    cancel: CancellationToken | None = None,
+) -> str | None: ...
+def decision_reliability_publish_derived(route: str, derived_json: str) -> str | None: ...
+def decision_reliability_coverage_design_json() -> tuple[str | None, str | None]: ...
+def decision_reliability_reach_carrier(output_json: str) -> tuple[str | None, str | None]: ...
+def decision_reliability_assess_producer(
+    output_json: str,
+    validation_json: str | None,
+    request_json: str,
+    artifact_id: str,
+    seed: int = 0,
+    cancel: CancellationToken | None = None,
+) -> tuple[tuple[bytes, str, str] | None, str | None]: ...
+def decision_reliability_derive_producer(
+    output_json: str,
+    validation_json: str | None,
+    request_json: str,
+    interval_json: str,
+    seed: int = 0,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
 def joint_law_column(
     input_id: str, artifact: JointDistributionArtifact, column: int
 ) -> tuple[str | None, str | None]: ...
@@ -6802,6 +6929,75 @@ def joint_law_consume(
     cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
 def joint_law_closed_reading(reading: str) -> str: ...
+def joint_law_linear_moments_spread(
+    operation_name: str,
+    inputs_json: str,
+    coefficients: list[float],
+    covariance: list[float],
+    dependence: str,
+    covariance_id: str | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[tuple[bytes, str] | None, str | None]: ...
+def joint_law_spread(
+    operation_name: str,
+    x_id: str,
+    x: JointDistributionArtifact,
+    x_column: int,
+    y_id: str,
+    y: JointDistributionArtifact,
+    y_column: int,
+    functional: str,
+    cancel: CancellationToken | None = None,
+) -> tuple[tuple[bytes, str] | None, str | None]: ...
+def joint_law_aligned_linear_spread(
+    operation_name: str,
+    a: float,
+    b: float,
+    x_id: str,
+    x: JointDistributionArtifact,
+    x_column: int,
+    y_id: str,
+    y: JointDistributionArtifact,
+    y_column: int,
+    cancel: CancellationToken | None = None,
+) -> tuple[tuple[bytes, str] | None, str | None]: ...
+def joint_law_composed_exceedance(
+    operation_name: str,
+    x_id: str,
+    x: JointDistributionArtifact,
+    x_column: int,
+    y_id: str,
+    y: JointDistributionArtifact,
+    y_column: int,
+    functional: str,
+    threshold: float,
+    cutoff: float,
+    band_level: float,
+    cancel: CancellationToken | None = None,
+) -> tuple[tuple[bytes, str] | None, str | None]: ...
+def joint_law_mixture_exceedance(
+    components_json: str, threshold: float, cancel: CancellationToken | None = None
+) -> tuple[tuple[bytes, str] | None, str | None]: ...
+def joint_law_transported_spread_aligned(
+    source_id: str,
+    source: JointDistributionArtifact,
+    source_column: int,
+    target_id: str,
+    target: JointDistributionArtifact,
+    target_column: int,
+    functional_id: str,
+    functional: JointDistributionArtifact,
+    functional_column: int,
+    coefficients: list[float],
+    cancel: CancellationToken | None = None,
+) -> tuple[tuple[bytes, str] | None, str | None]: ...
+def joint_law_check_composed_interval(
+    artifact: bytes,
+    record_json: str | None,
+    construction: str,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def joint_law_coordinate_id(artifact: bytes) -> tuple[str | None, str | None]: ...
 
 class SequentialBeliefSession:
     @staticmethod
@@ -6925,6 +7121,40 @@ class SelectiveDiscoveryHandle:
     def request_recovery_claim(self) -> str: ...
     def request_downstream_interval(self) -> str: ...
     def request_selection_diagram(self, targets: list[int]) -> str: ...
+    def transport_across_class(
+        self,
+        query_json: str,
+        selection_targets: list[int],
+        member_bound: int | None = None,
+    ) -> tuple[str | None, str | None]: ...
+
+class PerPopulationDiscoveryHandle:
+    def __init__(self) -> None: ...
+    def run(
+        self,
+        contract_json: str,
+        populations: list[str],
+        names: list[str],
+        columns: list[list[Any]],
+        *,
+        threads: int | None = None,
+        cancel: Any = None,
+    ) -> tuple[str | None, str | None]: ...
+    def report_json(self) -> str | None: ...
+    def outcome_json(self, population: str) -> str | None: ...
+    def retained_statistics(self, population: str) -> int: ...
+    def request_selection_targets(self, candidates: list[int]) -> str: ...
+
+class SampleSplitDiscoveryHandle:
+    def receipt_json(self) -> str: ...
+    def outcome_json(self) -> str: ...
+    def discovery_columns(self) -> list[Any]: ...
+    def analysis_columns(self) -> list[Any]: ...
+    def verify(self) -> str | None: ...
+    def check_analysis_table(
+        self, names: list[str], columns: list[Any]
+    ) -> tuple[str | None, str | None]: ...
+    def request_unsplit_interval(self) -> str: ...
 
 def selective_discovery_resume(
     kind: str,
@@ -6942,6 +7172,26 @@ def selective_discovery_consume(
     artifact: bytes, expected_identity: str | None = None
 ) -> tuple[str | None, str | None]: ...
 def selective_discovery_score_search_refusal() -> str: ...
+def sample_split_discover(
+    contract_json: str,
+    names: list[str],
+    columns: list[Any],
+    rule_json: str,
+    *,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> tuple[SampleSplitDiscoveryHandle | None, str | None, str | None]: ...
+def discovered_transport_run(
+    contract_json: str,
+    names: list[str],
+    columns: list[Any],
+    query_json: str,
+    selection_targets: list[int],
+    member_bound: int | None = None,
+    *,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> tuple[str | None, str | None, str | None, str | None]: ...
 
 class CrossWorldExecutor:
     def __init__(self) -> None: ...
@@ -7002,6 +7252,56 @@ def transported_decision_evaluate(
     unsupported: str,
     weakest_support: str,
 ) -> tuple[str | None, str | None]: ...
+def transported_history_alphabet(model_json: str) -> tuple[str | None, str | None]: ...
+def transported_policy_construct(
+    model_json: str,
+    policy_json: str,
+    target_population: str,
+    target_initial: list[float] | None,
+    diagram_json: str | None,
+    coordinate_json: str,
+    provider_id: str,
+    max_nodes: int | None = None,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[TransportedResponseHandle | None, str | None, str | None]: ...
+def temporal_policy_construct(
+    model_json: str,
+    policy_json: str,
+    target_json: str,
+    target_initial: list[float] | None,
+    invariance_json: str | None,
+    coordinate_json: str,
+    provider_id: str,
+    max_nodes: int | None = None,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[TransportedResponseHandle | None, str | None, str | None]: ...
+def adaptive_trial_construct(
+    design_json: str | None,
+    trial_population: str,
+    unit_strata: list[int],
+    stratum_labels: list[str],
+    target_stratum_law: list[float] | None,
+    diagram_json: str | None,
+    treatment_arm: int,
+    control_arm: int,
+    value: str,
+    coordinate_json: str,
+    provider_id: str,
+) -> tuple[TransportedResponseHandle | None, str | None, str | None]: ...
+def transported_synthesis_construct(
+    ledger: EvidenceLedgerHandle,
+    label: str,
+    contributions_json: str,
+    method_json: str,
+    native_population: str | None,
+    coordinate_json: str,
+    provider_id: str,
+) -> tuple[TransportedResponseHandle | None, str | None, str | None]: ...
+def surrogate_bridge_construct(
+    bridge_json: str, claim_json: str, provider_id: str
+) -> tuple[TransportedResponseHandle | None, str | None, str | None]: ...
 def transport_sensitivity_build(
     response: TransportedResponseHandle,
     family: str,

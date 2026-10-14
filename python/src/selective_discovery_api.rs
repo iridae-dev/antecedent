@@ -8,8 +8,15 @@
 //!
 //! No recovery, error-control or interval statement is produced.
 
+use antecedent::analysis::per_population_discovery::{
+    PerPopulationDiscovery, PerPopulationReport, PopulationRows,
+    request_selection_targets_from_differences,
+};
+use antecedent::analysis::sample_split_analysis::{
+    AnalysisBinding, SplitDiscovery, SplitRule, WHOLE_METHOD_CALIBRATION, discover_on_split,
+};
 use antecedent_core::{Lag, VariableId};
-use antecedent_data::{TabularData, TimeSeriesData};
+use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use antecedent_discovery::constraints::{CiMaskType, DiscoveryConstraints};
 use antecedent_discovery::result::LaggedLink;
 use antecedent_discovery::selective::{
@@ -24,7 +31,7 @@ use antecedent_io::selective_discovery_artifact::{
     SelectiveDiscoveryArtifact, SelectiveDiscoveryArtifactError,
 };
 use antecedent_stats::{FdrAdjustment, MultipleTestingMethod, SignificanceMethod};
-use numpy::PyReadonlyArray1;
+use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
@@ -35,7 +42,13 @@ const STAGE: &str = "selective_discovery";
 // Refusals as data.
 // ---------------------------------------------------------------------------
 
-fn refusal_json(code: &str, stage: &str, detail: &str, message: &str, remedy: &str) -> String {
+pub(crate) fn refusal_json(
+    code: &str,
+    stage: &str,
+    detail: &str,
+    message: &str,
+    remedy: &str,
+) -> String {
     json!({
         "code": code,
         "stage": stage,
@@ -47,7 +60,7 @@ fn refusal_json(code: &str, stage: &str, detail: &str, message: &str, remedy: &s
     .to_string()
 }
 
-fn error_json(error: &SelectiveDiscoveryError) -> Option<String> {
+pub(crate) fn error_json(error: &SelectiveDiscoveryError) -> Option<String> {
     match error {
         SelectiveDiscoveryError::Refused { code, detail, remedy } => {
             Some(refusal_json(code, STAGE, detail, remedy, remedy))
@@ -121,7 +134,7 @@ fn reply(result: Result<String, SelectiveDiscoveryError>) -> Reply {
 // Declarations.
 // ---------------------------------------------------------------------------
 
-fn input_err(message: impl AsRef<str>) -> PyErr {
+pub(crate) fn input_err(message: impl AsRef<str>) -> PyErr {
     crate::value_err(message)
 }
 
@@ -129,7 +142,7 @@ fn field<'a>(map: &'a Map<String, Json>, key: &str) -> Option<&'a Json> {
     map.get(key).filter(|v| !v.is_null())
 }
 
-fn get_u64(map: &Map<String, Json>, key: &str) -> PyResult<u64> {
+pub(crate) fn get_u64(map: &Map<String, Json>, key: &str) -> PyResult<u64> {
     field(map, key)
         .and_then(Json::as_u64)
         .ok_or_else(|| input_err(format!("field `{key}` must be an unsigned integer")))
@@ -296,7 +309,10 @@ fn variables_of(n: usize) -> PyResult<Vec<VariableId>> {
     Ok((0..n).map(VariableId::from_raw).collect())
 }
 
-fn static_contract(map: &Map<String, Json>, n: usize) -> PyResult<StaticDiscoveryContract> {
+pub(crate) fn static_contract(
+    map: &Map<String, Json>,
+    n: usize,
+) -> PyResult<StaticDiscoveryContract> {
     let algorithm = match get_text(map, "algorithm")?.as_str() {
         "pc" => StaticAlgorithm::Pc,
         "fci" => StaticAlgorithm::Fci,
@@ -355,11 +371,11 @@ fn temporal_contract(map: &Map<String, Json>, n: usize) -> PyResult<TemporalDisc
 // Results as JSON.
 // ---------------------------------------------------------------------------
 
-fn hex(bytes: &[u8; 32]) -> String {
+pub(crate) fn hex(bytes: &[u8; 32]) -> String {
     antecedent_discovery::selective::digest_hex(bytes)
 }
 
-fn node_json(node: antecedent_discovery::selective::StructureNode) -> Json {
+pub(crate) fn node_json(node: antecedent_discovery::selective::StructureNode) -> Json {
     json!({ "kind": node.kind, "variable": node.variable, "aux": node.aux })
 }
 
@@ -410,7 +426,7 @@ fn evidence_json(native: &NativeResult) -> Vec<Json> {
     scored.iter().map(|s| link_json(&s.link, s.statistic, s.p_value, s.adjusted_p_value)).collect()
 }
 
-fn outcome_json(outcome: &DiscoveryOutcome) -> String {
+pub(crate) fn outcome_json(outcome: &DiscoveryOutcome) -> String {
     let unresolved: Vec<Json> = outcome
         .structure
         .unresolved_edges()
@@ -439,7 +455,7 @@ fn outcome_json(outcome: &DiscoveryOutcome) -> String {
     .to_string()
 }
 
-fn work_json(work: &WorkUnits) -> Json {
+pub(crate) fn work_json(work: &WorkUnits) -> Json {
     json!({
         "ci_tests_attempted": work.ci_tests_attempted,
         "ci_tests_completed": work.ci_tests_completed,
@@ -454,7 +470,7 @@ fn work_json(work: &WorkUnits) -> Json {
     })
 }
 
-fn plan_json(plan: &DiscoveryPlan) -> Json {
+pub(crate) fn plan_json(plan: &DiscoveryPlan) -> Json {
     let entries: Vec<Json> = plan
         .entries()
         .iter()
@@ -474,14 +490,17 @@ fn plan_json(plan: &DiscoveryPlan) -> Json {
     json!({ "stages": entries, "pure_reuse": plan.is_pure_reuse() })
 }
 
-fn report_json(report: &SelectiveRunReport) -> String {
+pub(crate) fn report_value(report: &SelectiveRunReport) -> Json {
     json!({
         "plan": plan_json(&report.plan),
         "work": work_json(&report.work),
         "outcome_changed": report.outcome_changed,
         "retained_statistics": report.retained_statistics,
     })
-    .to_string()
+}
+
+pub(crate) fn report_json(report: &SelectiveRunReport) -> String {
+    report_value(report).to_string()
 }
 
 fn state_json(state: &PortableDiscoveryState) -> String {
@@ -547,7 +566,7 @@ fn kind_of(kind: &str) -> PyResult<&'static str> {
     }
 }
 
-fn contract_map<'a>(parsed: &'a Json, kind: &str) -> PyResult<&'a Map<String, Json>> {
+pub(crate) fn contract_map<'a>(parsed: &'a Json, kind: &str) -> PyResult<&'a Map<String, Json>> {
     let map = parsed.as_object().ok_or_else(|| input_err("a contract is a JSON object"))?;
     if get_text(map, "kind")? != kind {
         return Err(input_err(format!("the contract is not a {kind} contract")));
@@ -555,7 +574,7 @@ fn contract_map<'a>(parsed: &'a Json, kind: &str) -> PyResult<&'a Map<String, Js
     Ok(map)
 }
 
-fn parse_json(text: &str) -> PyResult<Json> {
+pub(crate) fn parse_json(text: &str) -> PyResult<Json> {
     serde_json::from_str(text).map_err(|e| input_err(format!("contract is not valid JSON: {e}")))
 }
 
@@ -659,6 +678,37 @@ impl SelectiveDiscoveryHandle {
     /// Refusal of an interval for a downstream estimate resting on the retained structure.
     fn request_downstream_interval(&self) -> String {
         self.closed_claim(|o| request_downstream_interval(o).map(|_| ()))
+    }
+
+    /// The structural transport verdict of a mean-curve query across the retained class.
+    ///
+    /// Returns `(envelope_json, refusal_json)`; a PAG, a temporal structure, an exhausted
+    /// search bound, an orientation conflict and a target outside the structure are refusals.
+    #[pyo3(signature = (query_json, selection_targets, member_bound=None))]
+    fn transport_across_class(
+        &self,
+        query_json: &str,
+        selection_targets: Vec<u32>,
+        member_bound: Option<usize>,
+    ) -> PyResult<(Option<String>, Option<String>)> {
+        let Some(outcome) = self.inner.as_ref().and_then(Adapter::outcome) else {
+            return Ok((
+                None,
+                Some(refusal_json(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    STAGE,
+                    "selective_discovery.nothing_retained",
+                    "no discovery has run",
+                    "run discovery before requesting transport across its class",
+                )),
+            ));
+        };
+        crate::discovered_transport_api::across_outcome(
+            outcome,
+            query_json,
+            &selection_targets,
+            member_bound,
+        )
     }
 
     /// Refusal of a selection diagram built from the retained structure.
@@ -895,11 +945,382 @@ fn selective_discovery_score_search_refusal() -> String {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Per-population discovery.
+// ---------------------------------------------------------------------------
+
+fn per_population_report_json(report: &PerPopulationReport) -> String {
+    let populations: Vec<Json> = report
+        .populations
+        .iter()
+        .map(|p| {
+            json!({
+                "population": p.population,
+                "rows": p.data_identity.rows,
+                "data_identity": hex(&p.data_identity.digest),
+                "columns": p
+                    .data_identity
+                    .columns
+                    .iter()
+                    .map(|(variable, digest)| json!({ "variable": variable.raw(), "digest": hex(digest) }))
+                    .collect::<Vec<_>>(),
+                "report": report_value(&p.report),
+                "structure_identity": hex(&p.structure_identity),
+                "result_identity": hex(&p.result_identity),
+                "retained_statistics": p.retained_statistics,
+                "receipts_identity": p.receipts_identity.as_ref().map(hex),
+                "search_incomplete": p.search_incomplete,
+                "unresolved_edges": p.unresolved_edges,
+            })
+        })
+        .collect();
+    let edges: Vec<Json> = report
+        .edges
+        .iter()
+        .map(|edge| {
+            let marks: Vec<Json> = edge
+                .marks
+                .iter()
+                .map(|(population, marks)| {
+                    json!({
+                        "population": population,
+                        "marks": marks.as_ref().map(|(at_a, at_b)| {
+                            json!({ "at_a": at_a.as_str(), "at_b": at_b.as_str() })
+                        }),
+                    })
+                })
+                .collect();
+            json!({
+                "a": node_json(edge.a),
+                "b": node_json(edge.b),
+                "marks": marks,
+                "agrees": edge.agrees(),
+            })
+        })
+        .collect();
+    json!({
+        "kind": "descriptive_comparison",
+        "populations": populations,
+        "edges": edges,
+        "differing_edges": report.differing_edges().len(),
+        "identity": hex(&report.identity),
+    })
+    .to_string()
+}
+
+/// Per-population discovery: one retained statistic store per population, nothing pooled.
+#[pyclass(name = "PerPopulationDiscoveryHandle", skip_from_py_object)]
+pub(crate) struct PerPopulationDiscoveryHandle {
+    inner: Option<PerPopulationDiscovery>,
+}
+
+#[pymethods]
+impl PerPopulationDiscoveryHandle {
+    #[new]
+    fn new() -> Self {
+        Self { inner: Some(PerPopulationDiscovery::new()) }
+    }
+
+    /// Run the contract on each population's columns separately. `columns[i]` are the
+    /// searched columns (in `names` order) of `populations[i]`. Returns the report JSON or a
+    /// refusal.
+    #[pyo3(signature = (contract_json, populations, names, columns, *, threads=None, cancel=None))]
+    #[allow(clippy::too_many_arguments, reason = "one request: contract, labels, data")]
+    fn run(
+        &mut self,
+        py: Python<'_>,
+        contract_json: &str,
+        populations: Vec<String>,
+        names: Vec<String>,
+        columns: Vec<Vec<PyReadonlyArray1<'_, f64>>>,
+        threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> Reply {
+        let parsed = parse_json(contract_json)?;
+        let map = contract_map(&parsed, "static")?;
+        let seed = get_u64(map, "seed")?;
+        let contract = static_contract(map, names.len())?;
+        if populations.len() != columns.len() {
+            return Err(input_err("give one set of columns per population"));
+        }
+        let batches = columns
+            .iter()
+            .map(|set| crate::columns_to_batch(&names, set))
+            .collect::<PyResult<Vec<_>>>()?;
+        let ctx =
+            crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
+        let mut driver = self.inner.take().ok_or_else(|| input_err("handle is unavailable"))?;
+        let ran: PyResult<(PerPopulationDiscovery, Result<String, SelectiveDiscoveryError>)> =
+            crate::detach_catch(py, move || {
+                let mut tables: Vec<TabularData> = Vec::with_capacity(batches.len());
+                for batch in &batches {
+                    let (data, _): (TabularData, _) =
+                        crate::discovery_api::tabular_from_batch(batch)?;
+                    tables.push(data);
+                }
+                let rows: Vec<PopulationRows<'_>> = populations
+                    .iter()
+                    .zip(&tables)
+                    .map(|(population, data)| PopulationRows { population, data })
+                    .collect();
+                let result = driver
+                    .run(&contract, &rows, &ctx)
+                    .map(|report| per_population_report_json(report));
+                Ok((driver, result))
+            });
+        match ran {
+            Ok((driver, result)) => {
+                self.inner = Some(driver);
+                reply(result)
+            }
+            Err(error) => {
+                self.inner = Some(PerPopulationDiscovery::new());
+                Err(error)
+            }
+        }
+    }
+
+    /// The last report in which every population succeeded, as JSON.
+    fn report_json(&self) -> Option<String> {
+        self.inner.as_ref().and_then(PerPopulationDiscovery::report).map(per_population_report_json)
+    }
+
+    /// One population's retained outcome as JSON.
+    fn outcome_json(&self, population: &str) -> Option<String> {
+        self.inner
+            .as_ref()
+            .and_then(|d| d.adapter(population))
+            .and_then(StaticSelectiveDiscovery::outcome)
+            .map(outcome_json)
+    }
+
+    /// Statistics retained for one population.
+    fn retained_statistics(&self, population: &str) -> usize {
+        self.inner
+            .as_ref()
+            .and_then(|d| d.adapter(population))
+            .map_or(0, StaticSelectiveDiscovery::retained_statistics)
+    }
+
+    /// Refusal of selection targets read from the edges that differ between populations.
+    fn request_selection_targets(&self, candidates: Vec<u32>) -> String {
+        let Some(report) = self.inner.as_ref().and_then(PerPopulationDiscovery::report) else {
+            return refusal_json(
+                antecedent_core::reason_code!("invalid_argument"),
+                STAGE,
+                "selective_discovery.nothing_retained",
+                "no per-population discovery has run",
+                "run per-population discovery before requesting selection targets",
+            );
+        };
+        let ids: Vec<VariableId> = candidates.into_iter().map(VariableId::from_raw).collect();
+        match request_selection_targets_from_differences(report, &ids) {
+            Err(refusal) => structure_refusal(&refusal),
+            Ok(never) => match never {},
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Discovery followed by analysis on a row split.
+// ---------------------------------------------------------------------------
+
+fn rule_of(text: &str) -> PyResult<SplitRule> {
+    let parsed = parse_json(text)?;
+    let map = parsed.as_object().ok_or_else(|| input_err("a split rule is a JSON object"))?;
+    match get_text(map, "kind")?.as_str() {
+        "explicit" => {
+            let rows = field(map, "discovery_rows")
+                .and_then(Json::as_array)
+                .ok_or_else(|| input_err("field `discovery_rows` must be a list"))?
+                .iter()
+                .map(|v| {
+                    v.as_u64()
+                        .and_then(|n| usize::try_from(n).ok())
+                        .ok_or_else(|| input_err("discovery rows are row indices"))
+                })
+                .collect::<PyResult<Vec<_>>>()?;
+            Ok(SplitRule::Explicit { discovery_rows: rows })
+        }
+        "seeded_permutation" => Ok(SplitRule::SeededPermutation {
+            seed: get_u64(map, "seed")?,
+            discovery_fraction: field(map, "discovery_fraction")
+                .and_then(Json::as_f64)
+                .ok_or_else(|| input_err("field `discovery_fraction` must be a number"))?,
+        }),
+        other => Err(input_err(format!("unknown split rule {other:?}"))),
+    }
+}
+
+fn rule_value(rule: &SplitRule) -> Json {
+    match rule {
+        SplitRule::Explicit { discovery_rows } => {
+            let mut rows = discovery_rows.clone();
+            rows.sort_unstable();
+            json!({ "kind": "explicit", "discovery_rows": rows })
+        }
+        SplitRule::SeededPermutation { seed, discovery_fraction } => json!({
+            "kind": "seeded_permutation",
+            "seed": seed,
+            "discovery_fraction": discovery_fraction,
+        }),
+    }
+}
+
+fn binding_json(binding: &AnalysisBinding) -> String {
+    json!({
+        "receipt_identity": hex(&binding.receipt_identity),
+        "structure_identity": hex(&binding.structure_identity),
+        "result_identity": hex(&binding.result_identity),
+        "analysis_data_identity": hex(&binding.analysis_data_identity),
+        "identity": hex(&binding.identity),
+        "conditional_on_selected_graph": binding.conditional_on_selected_graph(),
+        "whole_method_calibration": binding.whole_method_calibration(),
+    })
+    .to_string()
+}
+
+fn columns_of(py: Python<'_>, data: &TabularData) -> PyResult<Vec<Py<PyArray1<f64>>>> {
+    data.schema()
+        .variables()
+        .iter()
+        .map(|spec| {
+            let values = data.float64_values(spec.id).map_err(|e| input_err(e.to_string()))?;
+            Ok(PyArray1::from_vec(py, values).unbind())
+        })
+        .collect()
+}
+
+/// A row split, the discovery run on its discovery part and the receipt tying them together.
+#[pyclass(name = "SampleSplitDiscoveryHandle", skip_from_py_object)]
+pub(crate) struct SampleSplitDiscoveryHandle {
+    inner: SplitDiscovery,
+    names: Vec<String>,
+}
+
+#[pymethods]
+impl SampleSplitDiscoveryHandle {
+    /// The split receipt as JSON.
+    fn receipt_json(&self) -> String {
+        let receipt = self.inner.receipt();
+        json!({
+            "rule": rule_value(&receipt.rule),
+            "n_rows": receipt.n_rows,
+            "n_discovery": receipt.n_discovery,
+            "n_analysis": receipt.n_analysis,
+            "discovery_rows_identity": hex(&receipt.discovery_rows_identity),
+            "analysis_rows_identity": hex(&receipt.analysis_rows_identity),
+            "discovery_data_identity": hex(&receipt.discovery_data.digest),
+            "analysis_data_identity": hex(&receipt.analysis_data.digest),
+            "identity": hex(&receipt.identity),
+            "conditional_on_selected_graph": true,
+            "whole_method_calibration": WHOLE_METHOD_CALIBRATION,
+        })
+        .to_string()
+    }
+
+    /// The discovery outcome as JSON.
+    fn outcome_json(&self) -> String {
+        outcome_json(self.inner.outcome())
+    }
+
+    /// The discovery part's columns, in `names` order.
+    fn discovery_columns(&self, py: Python<'_>) -> PyResult<Vec<Py<PyArray1<f64>>>> {
+        columns_of(py, self.inner.discovery_rows())
+    }
+
+    /// The analysis part's columns, in `names` order.
+    fn analysis_columns(&self, py: Python<'_>) -> PyResult<Vec<Py<PyArray1<f64>>>> {
+        columns_of(py, self.inner.analysis_rows())
+    }
+
+    /// Re-derive the partition from the rule; a refusal when the receipt does not hold.
+    fn verify(&self) -> Option<String> {
+        self.inner.verify().err().and_then(|e| error_json(&e))
+    }
+
+    /// Check that the supplied columns are exactly the analysis part; returns the binding JSON
+    /// or a refusal.
+    fn check_analysis_table(
+        &self,
+        names: Vec<String>,
+        columns: Vec<PyReadonlyArray1<'_, f64>>,
+    ) -> PyResult<(Option<String>, Option<String>)> {
+        if names != self.names {
+            return Err(input_err(
+                "the analysis table must carry the discovery table's columns in the same order",
+            ));
+        }
+        let batch = crate::columns_to_batch(&names, &columns)?;
+        let (data, _): (TabularData, _) = crate::discovery_api::tabular_from_batch(&batch)?;
+        match self.inner.check_analysis_table(&data) {
+            Ok(binding) => Ok((Some(binding_json(&binding)), None)),
+            Err(error) => match error_json(&error) {
+                Some(refusal) => Ok((None, Some(refusal))),
+                None => Err(discovery_failure(&error)),
+            },
+        }
+    }
+
+    /// Refusal of an interval for an analysis that reused the rows discovery saw.
+    fn request_unsplit_interval(&self) -> String {
+        match self.inner.request_unsplit_interval() {
+            Err(error) => error_json(&error).unwrap_or_default(),
+            Ok(never) => match never {},
+        }
+    }
+}
+
+type Split = (Option<SampleSplitDiscoveryHandle>, Option<String>, Option<String>);
+
+/// Split the rows by the declared rule and discover on the discovery part.
+///
+/// Returns `(handle, discovery_report_json, refusal)`.
+#[pyfunction]
+#[pyo3(signature = (contract_json, names, columns, rule_json, *, threads=None, cancel=None))]
+#[allow(clippy::too_many_arguments, reason = "one request: contract, data, rule")]
+fn sample_split_discover(
+    py: Python<'_>,
+    contract_json: &str,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    rule_json: &str,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<Split> {
+    let parsed = parse_json(contract_json)?;
+    let map = contract_map(&parsed, "static")?;
+    let seed = get_u64(map, "seed")?;
+    let contract = static_contract(map, names.len())?;
+    let rule = rule_of(rule_json)?;
+    let batch = crate::columns_to_batch(&names, &columns)?;
+    let ctx =
+        crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
+    let result: Result<SplitDiscovery, SelectiveDiscoveryError> =
+        crate::detach_catch(py, move || {
+            let (data, _): (TabularData, _) = crate::discovery_api::tabular_from_batch(&batch)?;
+            Ok(discover_on_split(&contract, &data, rule, &ctx))
+        })?;
+    match result {
+        Ok(split) => {
+            let report = report_json(split.report());
+            Ok((Some(SampleSplitDiscoveryHandle { inner: split, names }), Some(report), None))
+        }
+        Err(error) => match error_json(&error) {
+            Some(refusal) => Ok((None, None, Some(refusal))),
+            None => Err(discovery_failure(&error)),
+        },
+    }
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<SelectiveDiscoveryHandle>()?;
     module.add_function(wrap_pyfunction!(selective_discovery_resume, module)?)?;
     module.add_function(wrap_pyfunction!(selective_discovery_inspect, module)?)?;
     module.add_function(wrap_pyfunction!(selective_discovery_consume, module)?)?;
     module.add_function(wrap_pyfunction!(selective_discovery_score_search_refusal, module)?)?;
+    module.add_class::<PerPopulationDiscoveryHandle>()?;
+    module.add_class::<SampleSplitDiscoveryHandle>()?;
+    module.add_function(wrap_pyfunction!(sample_split_discover, module)?)?;
     Ok(())
 }

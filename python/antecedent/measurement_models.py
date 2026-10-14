@@ -59,13 +59,31 @@ Every correction, identity and refusal is computed in Rust; this module builds t
 presents the result. Refusals are :class:`MeasurementModelRefusal` (a
 :class:`~antecedent.errors.CausalUnsupportedError`) with a registered ``reason_code`` and a
 ``measurement_model.*`` ``detail``.
+
+A model established for one population is carried to another only under a declared invariance
+premise (:func:`transport_measurement_model`)::
+
+    result = mm.transport_measurement_model(
+        [source_model],
+        analysis_for_clinic_b,
+        mm.BinaryPrevalenceData(events=520, total=1000),
+        structure=mm.InvarianceDeclaration(
+            "clinic_a", "clinic_b", "analyst", ("sensitivity", "specificity")
+        ),
+    )
+    result.estimate.point, result.receipt.carried, result.identity
+
+The premise must name every error parameter the route uses; it is declared, never tested; its own
+uncertainty is not propagated; and the corrected value is never presented as native to the target.
+A missing premise, an undeclared parameter, a declared population-differential error without a
+model for the target, and a route with nothing to carry each refuse with the unmet premise.
 """
 
 from __future__ import annotations
 
 import json
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -81,6 +99,10 @@ from .errors import CausalTypeError, CausalValueError
 
 __all__ = [
     "AnalysisBinding",
+    "DifferentialErrorDeclaration",
+    "InvarianceDeclaration",
+    "MeasurementTransportReceipt",
+    "TransportedMeasurementEstimate",
     "BinaryParameters",
     "BinaryPrevalenceData",
     "BinaryRates",
@@ -111,6 +133,8 @@ __all__ = [
     "consume_measurement_model_artifact",
     "model_identities",
     "prepare_measurement_model",
+    "transport_measurement_model",
+    "verify_measurement_transport",
 ]
 
 #: Downstream operations a route may license or refuse.
@@ -1342,3 +1366,213 @@ def consume_measurement_model_artifact(
         provider_trust=summary["provider_trust"],
         _handle=handle,
     )
+
+
+# --------------------------------------------------------------------------- transport
+
+_ERROR_PARAMETERS = ("sensitivity", "specificity", "confusion_matrix", "error_variance")
+
+
+@dataclass(frozen=True, slots=True)
+class InvarianceDeclaration:
+    """The declared premise that named error parameters are the same in two populations.
+
+    ``invariant`` names every parameter the correction uses (``sensitivity`` and ``specificity``
+    for a binary indicator, ``confusion_matrix`` for an assigned categorical label,
+    ``error_variance`` for a continuous one). A premise about one parameter does not license a
+    correction that uses another. The premise is declared, never tested.
+    """
+
+    source_population: str
+    target_population: str
+    declarer: str
+    invariant: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _name(self.source_population, "source_population")
+        _name(self.target_population, "target_population")
+        _name(self.declarer, "declarer")
+        if isinstance(self.invariant, str):
+            raise CausalTypeError("invariant must be an iterable of parameter names")
+        object.__setattr__(
+            self,
+            "invariant",
+            tuple(_choice(p, "invariant parameter", _ERROR_PARAMETERS) for p in self.invariant),
+        )
+
+    def to_wire(self) -> dict[str, Any]:
+        return {
+            "kind": "invariant",
+            "source_population": self.source_population,
+            "target_population": self.target_population,
+            "declarer": self.declarer,
+            "invariant": list(self.invariant),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class DifferentialErrorDeclaration:
+    """The declared case that error differs by population: nothing is carried.
+
+    Only a model established for the target population is used; a missing one refuses
+    (``differential_error_not_pooled``) rather than falling back to another population's rates.
+    """
+
+    declarer: str
+
+    def __post_init__(self) -> None:
+        _name(self.declarer, "declarer")
+
+    def to_wire(self) -> dict[str, Any]:
+        return {"kind": "differential", "declarer": self.declarer}
+
+
+@dataclass(frozen=True, slots=True)
+class MeasurementTransportReceipt:
+    """The audit record of one transport of a measurement model.
+
+    ``basis`` is ``established`` (the target had its own model; nothing carried),
+    ``declared_invariance`` (parameters carried under the premise) or
+    ``differential_established`` (the target's own model, selected under a declared differential
+    structure). ``support`` is ``extrapolative`` when anything was carried.
+    """
+
+    identity: str
+    source_model: str
+    source_population: str
+    target_population: str
+    basis: Mapping[str, Any]
+    carried: bool
+    support: str
+    evidence: Mapping[str, Any]
+    assumptions: tuple[str, ...]
+
+    @classmethod
+    def _from_wire(cls, wire: Mapping[str, Any]) -> MeasurementTransportReceipt:
+        return cls(
+            identity=str(wire["identity"]),
+            source_model=str(wire["source_model"]),
+            source_population=str(wire["source_population"]),
+            target_population=str(wire["target_population"]),
+            basis=dict(wire["basis"]),
+            carried=bool(wire["carried"]),
+            support=str(wire["support"]),
+            evidence=dict(wire["evidence"]),
+            assumptions=tuple(wire["assumptions"]),
+        )
+
+
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class TransportedMeasurementEstimate(ScientificResult):
+    """A corrected functional of a transported measurement model, with its receipt.
+
+    ``estimate`` is the existing :class:`MeasurementEstimate` computed on the re-bound model
+    (``estimate.model`` is ``None``: the re-bound model is identified by
+    ``estimate.model_identity``). ``receipt`` and ``identity`` say how the model reached the target.
+    The standard error is conditional on the premise and uncalibrated; there is no interval.
+    """
+
+    identity: str
+    receipt: MeasurementTransportReceipt
+    estimate: MeasurementEstimate
+    native_target_data: bool = False
+
+    @property
+    def point(self) -> float:
+        return self.estimate.point
+
+    def interval(self) -> None:
+        """Always raises ``cell_not_licensed``."""
+        self.estimate.interval()
+
+    def export(self, artifact_id: str = _DEFAULT_ARTIFACT_ID) -> bytes:
+        """The existing measurement-model artifact of the re-bound model.
+
+        It carries no receipt: a consumer re-derives it with :func:`verify_measurement_transport`.
+        """
+        return self.estimate.export(artifact_id)
+
+
+def _structure_wire(structure: InvarianceDeclaration | DifferentialErrorDeclaration | None) -> Any:
+    if structure is None:
+        return None
+    if not isinstance(structure, (InvarianceDeclaration, DifferentialErrorDeclaration)):
+        raise CausalTypeError(
+            "structure must be an InvarianceDeclaration or a DifferentialErrorDeclaration"
+        )
+    return _dumps(structure.to_wire())
+
+
+def _models_wire(models: Sequence[MeasurementModel]) -> str:
+    listed = list(models)
+    if not listed or not all(isinstance(m, MeasurementModel) for m in listed):
+        raise CausalTypeError("models must be a non-empty sequence of MeasurementModel")
+    return _dumps([m.to_wire() for m in listed])
+
+
+def transport_measurement_model(
+    models: Sequence[MeasurementModel],
+    analysis: AnalysisBinding,
+    data: MeasurementData,
+    *,
+    structure: InvarianceDeclaration | DifferentialErrorDeclaration | None = None,
+    provider: ProviderObject | None = None,
+    receipt: Any = None,
+    cancel: Any = None,
+) -> TransportedMeasurementEstimate:
+    """Carry a measurement model to the population of ``analysis`` and correct ``data`` with it.
+
+    ``models`` are the models established so far, each for its own population. A model established
+    for the analysis population is used as is; otherwise ``structure`` decides (see
+    :class:`InvarianceDeclaration`, :class:`DifferentialErrorDeclaration`). Every prepare check of
+    :func:`prepare_measurement_model` then runs against the re-bound model.
+
+    Raises:
+        MeasurementModelRefusal: the unmet premise, with a registered ``reason_code`` (for example
+            ``transport_missing_evidence`` / ``measurement_model.invariance_premise_required``,
+            ``transport_not_certified`` / ``measurement_model.invariance_not_declared``,
+            ``differential_error_not_pooled``) and a ``remedy``.
+    """
+    provider_json = None if provider is None else _dumps(provider.to_wire())
+    handle, receipt_json, refusal = _native.measurement_model_transport(
+        _models_wire(models),
+        _structure_wire(structure),
+        _dumps(analysis.to_wire()),
+        _dumps(_wire(data)),
+        provider_json,
+        receipt,
+        cancel=cancel,
+    )
+    raise_refusal(refusal, MeasurementModelRefusal)
+    wire = json.loads(receipt_json)
+    return TransportedMeasurementEstimate(
+        identity=str(wire["identity"]),
+        receipt=MeasurementTransportReceipt._from_wire(wire),
+        estimate=_estimate(handle),
+    )
+
+
+def verify_measurement_transport(
+    models: Sequence[MeasurementModel],
+    analysis: AnalysisBinding,
+    *,
+    structure: InvarianceDeclaration | DifferentialErrorDeclaration | None,
+    expected_identity: str,
+) -> MeasurementTransportReceipt:
+    """Re-derive the transport from the source models and declaration; require the identity.
+
+    The fresh-consumer path for a receipt, which the measurement artifact does not carry.
+
+    Raises:
+        MeasurementModelRefusal: whatever the transport refuses, and
+            ``measurement_model.transport_receipt_mismatch`` (``measurement_binding_mismatch``)
+            when the recomputed identity is not ``expected_identity``.
+    """
+    text, refusal = _native.measurement_model_transport_verify(
+        _models_wire(models),
+        _structure_wire(structure),
+        _dumps(analysis.to_wire()),
+        _name(expected_identity, "expected_identity"),
+    )
+    raise_refusal(refusal, MeasurementModelRefusal)
+    return MeasurementTransportReceipt._from_wire(json.loads(text))

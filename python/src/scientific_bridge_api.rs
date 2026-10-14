@@ -268,7 +268,7 @@ fn contract_json(contract: &BridgeContract) -> Json {
 
 /// A declared source claim. The envelope carries only what a derivation
 /// depends on; the reasoning slots are unavailable.
-fn parse_claim(value: &Json) -> PyResult<ClaimEnvelope> {
+pub(crate) fn parse_claim(value: &Json) -> PyResult<ClaimEnvelope> {
     let map = object(value, "source claim")?;
     let kind_name = text(map, "kind")?;
     let kind = ClaimKind::from_name(&kind_name)

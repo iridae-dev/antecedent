@@ -27,7 +27,13 @@ What is claimed, and what is not:
 * **A discovered structure is not a selection diagram.**
   :meth:`SelectiveDiscovery.request_selection_diagram` refuses and names every unresolved edge
   and exhausted search bound.
-* **One population.** Multi-population discovery is closed (``route_not_supported``).
+* **One population per run.** A pooled or context-variable search is refused
+  (``route_not_supported``); several populations are discovered one at a time with
+  :class:`PerPopulationDiscovery`, nothing pooled and no invariance claimed.
+* **Discovery then analysis.** :func:`discover_on_split` partitions exchangeable rows into a
+  discovery part and an analysis part by a declared rule, discovers on the first only and binds
+  the second to the discovery through a receipt. The route licenses a statement conditional on
+  the selected graph; the whole-method calibration is recorded and unmeasured.
 
 Work is observed at the algorithm boundaries: CI tests handed to the test (attempted and
 completed), requests answered from a retained statistic (reused), orientation rounds and applied
@@ -64,6 +70,14 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ALGORITHMS",
+    "AnalysisBinding",
+    "PerPopulationDiscovery",
+    "PerPopulationReport",
+    "PopulationEdge",
+    "PopulationResult",
+    "SampleSplit",
+    "SplitReceipt",
+    "discover_on_split",
     "Edge",
     "ExportedState",
     "ConsumedSelectiveDiscovery",
@@ -778,3 +792,387 @@ def consume_selective_discovery_artifact(
 def request_score_search_reuse() -> None:
     """Ask to reuse local scores of a score-based search: always refused (``route_not_supported``)."""
     _raise(_native.selective_discovery_score_search_refusal())
+
+
+# --------------------------------------------------------------------------- per population
+
+
+@dataclass(frozen=True, slots=True)
+class PopulationResult:
+    """What discovery on one population's rows returned and retained.
+
+    ``data_identity`` covers that population's searched columns, so two populations with
+    content-identical rows are refused before any work. ``receipts_identity`` is ``None`` when
+    the retained statistics exceed what a portable state carries.
+    """
+
+    population: str
+    rows: int
+    data_identity: str
+    structure_identity: str
+    result_identity: str
+    receipts_identity: str | None
+    retained_statistics: int
+    search_incomplete: bool
+    unresolved_edges: int
+    report: RunReport
+
+
+@dataclass(frozen=True, slots=True)
+class PopulationEdge:
+    """One edge compared across populations.
+
+    ``marks`` maps each population to its ``(at_a, at_b)`` marks, or ``None`` when its structure
+    has no such edge. A difference is a difference between two estimates; it is not a statement
+    that a mechanism differs.
+    """
+
+    a: Node
+    b: Node
+    marks: Mapping[str, tuple[str, str] | None]
+    agrees: bool
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class PerPopulationReport(ScientificResult):
+    """Per-population structures lined up edge by edge. Descriptive only.
+
+    No selection diagram, invariance test or error rate is derived from the comparison.
+    """
+
+    populations: tuple[PopulationResult, ...]
+    edges: tuple[PopulationEdge, ...]
+    identity: str
+
+    @property
+    def label(self) -> str:
+        """The standing of the comparison: ``descriptive_comparison``."""
+        return "descriptive_comparison"
+
+    @property
+    def differing_edges(self) -> tuple[PopulationEdge, ...]:
+        """Edges present in some populations only, or marked differently."""
+        return tuple(e for e in self.edges if not e.agrees)
+
+    def population(self, name: str) -> PopulationResult:
+        """The result of population ``name``."""
+        for result in self.populations:
+            if result.population == name:
+                return result
+        raise CausalValueError(f"no population {name!r}")
+
+
+def _per_population_report(text: str, names: Sequence[str]) -> PerPopulationReport:
+    wire = json.loads(text)
+    populations = tuple(
+        PopulationResult(
+            population=str(p["population"]),
+            rows=int(p["rows"]),
+            data_identity=str(p["data_identity"]),
+            structure_identity=str(p["structure_identity"]),
+            result_identity=str(p["result_identity"]),
+            receipts_identity=p["receipts_identity"],
+            retained_statistics=int(p["retained_statistics"]),
+            search_incomplete=bool(p["search_incomplete"]),
+            unresolved_edges=int(p["unresolved_edges"]),
+            report=_report(json.dumps(p["report"])),
+        )
+        for p in wire["populations"]
+    )
+    edges = tuple(
+        PopulationEdge(
+            a=_node(e["a"], names),
+            b=_node(e["b"], names),
+            marks={
+                str(m["population"]): (
+                    None if m["marks"] is None else (str(m["marks"]["at_a"]), str(m["marks"]["at_b"]))
+                )
+                for m in e["marks"]
+            },
+            agrees=bool(e["agrees"]),
+        )
+        for e in wire["edges"]
+    )
+    return PerPopulationReport(populations, edges, str(wire["identity"]))
+
+
+class PerPopulationDiscovery(ScientificResult):
+    """Discovery run separately on each population's rows, with one retained store per population.
+
+    One declared static contract is applied to every population. Each population has its own
+    statistic store, data identity and result identity; no row or statistic crosses populations.
+    A refused or failed population leaves that population's retained state as it was, and the
+    set-level report is replaced only by a request in which every population succeeded::
+
+        driver = sd.PerPopulationDiscovery()
+        report = driver.run(contract, {"north": north_data, "south": south_data})
+        report.differing_edges          # descriptive; not a selection diagram
+        driver.outcome("north")         # that population's structure
+    """
+
+    def __init__(self) -> None:
+        self._handle: Any = _native.PerPopulationDiscoveryHandle()
+        self._names: tuple[str, ...] = ()
+
+    def run(
+        self,
+        contract: StaticContract,
+        populations: Mapping[str, Mapping[str, Any]],
+        *,
+        threads: int | None = None,
+        cancel: Any = None,
+    ) -> PerPopulationReport:
+        """Run ``contract`` on each population's columns.
+
+        ``populations`` maps a population label to a mapping of every searched variable to a
+        1-D float array. ``contract.population`` is replaced by each label.
+
+        Raises:
+            SelectiveDiscoveryRefusal: fewer than two populations, a blank label, a pooled or
+                context-variable declaration (``selective_discovery.pooled_population_search``),
+                content-identical populations
+                (``selective_discovery.pooled_population_data``) or a refused contract.
+            CausalDiscoveryError: the algorithm failed or was cancelled.
+        """
+        if not isinstance(contract, StaticContract):
+            raise CausalTypeError("contract must be a StaticContract")
+        if not isinstance(populations, Mapping):
+            raise CausalTypeError("populations must map a label to a column mapping")
+        labels = [_name(label, "population") for label in populations]
+        columns = [_columns(contract, populations[label]) for label in labels]
+        text, refusal = self._handle.run(
+            json.dumps(contract.to_wire(), sort_keys=True),
+            labels,
+            list(contract.variables),
+            columns,
+            threads=threads,
+            cancel=cancel,
+        )
+        _raise(refusal)
+        self._names = tuple(contract.variables)
+        assert text is not None
+        return _per_population_report(str(text), self._names)
+
+    @property
+    def report(self) -> PerPopulationReport | None:
+        """The last report in which every population succeeded, or ``None``."""
+        text = self._handle.report_json()
+        return None if text is None else _per_population_report(text, self._names)
+
+    def outcome(self, population: str) -> Outcome | None:
+        """One population's retained outcome, or ``None`` before it has run."""
+        text = self._handle.outcome_json(_name(population, "population"))
+        return None if text is None else _outcome(text, self._names)
+
+    def retained_statistics(self, population: str) -> int:
+        """Statistics retained for ``population``."""
+        return int(self._handle.retained_statistics(_name(population, "population")))
+
+    def request_selection_targets(self, candidates: Sequence[str] = ()) -> None:
+        """Ask for selection targets read from the edges that differ between populations.
+
+        Always raises :class:`SelectiveDiscoveryRefusal`
+        (``selective_discovery.differences_are_not_selection_targets``): a difference between two
+        discovered structures is a difference between two estimates, and selection targets are
+        declared by the caller.
+        """
+        ids = []
+        for name in candidates:
+            if name not in self._names:
+                raise CausalValueError(f"{name!r} is not a searched variable")
+            ids.append(self._names.index(name))
+        _raise(self._handle.request_selection_targets(ids))
+
+
+# --------------------------------------------------------------------------- sample split
+
+
+@dataclass(frozen=True, slots=True)
+class SplitReceipt:
+    """The record of one row split: enough to re-derive the partition and check a table.
+
+    ``whole_method_calibration`` is always ``unmeasured``: the design is recorded, not measured.
+    """
+
+    rule: Mapping[str, Any]
+    n_rows: int
+    n_discovery: int
+    n_analysis: int
+    discovery_rows_identity: str
+    analysis_rows_identity: str
+    discovery_data_identity: str
+    analysis_data_identity: str
+    identity: str
+    conditional_on_selected_graph: bool
+    whole_method_calibration: str
+
+
+@dataclass(frozen=True, slots=True)
+class AnalysisBinding:
+    """What an analysis table passed the split's check under.
+
+    The binding licenses a statement conditional on the selected graph, and no more: the
+    probability that discovery returned a graph that licenses the question is not controlled.
+    """
+
+    receipt_identity: str
+    structure_identity: str
+    result_identity: str
+    analysis_data_identity: str
+    identity: str
+    conditional_on_selected_graph: bool
+    whole_method_calibration: str
+
+
+class SampleSplit(ScientificResult):
+    """A row split, the discovery run on its discovery part and the receipt tying them together.
+
+    ``discovery`` and ``analysis`` map every column of the split table to that part's values.
+    Only ``analysis`` may be used by the downstream analysis; :meth:`check_analysis_table`
+    refuses any other rows.
+    """
+
+    def __init__(
+        self,
+        handle: Any,
+        names: Sequence[str],
+        report: RunReport,
+        discovery: Mapping[str, np.ndarray],
+        analysis: Mapping[str, np.ndarray],
+    ) -> None:
+        self._handle = handle
+        self._names = tuple(names)
+        self._report = report
+        self.discovery: Mapping[str, np.ndarray] = discovery
+        self.analysis: Mapping[str, np.ndarray] = analysis
+
+    @property
+    def report(self) -> RunReport:
+        """What the discovery request did (stage plan, observed work)."""
+        return self._report
+
+    @property
+    def receipt(self) -> SplitReceipt:
+        """The split receipt."""
+        wire = json.loads(self._handle.receipt_json())
+        return SplitReceipt(
+            rule=freeze(wire["rule"]),
+            n_rows=int(wire["n_rows"]),
+            n_discovery=int(wire["n_discovery"]),
+            n_analysis=int(wire["n_analysis"]),
+            discovery_rows_identity=str(wire["discovery_rows_identity"]),
+            analysis_rows_identity=str(wire["analysis_rows_identity"]),
+            discovery_data_identity=str(wire["discovery_data_identity"]),
+            analysis_data_identity=str(wire["analysis_data_identity"]),
+            identity=str(wire["identity"]),
+            conditional_on_selected_graph=bool(wire["conditional_on_selected_graph"]),
+            whole_method_calibration=str(wire["whole_method_calibration"]),
+        )
+
+    @property
+    def outcome(self) -> Outcome:
+        """The structure discovery returned on the discovery part."""
+        return _outcome(self._handle.outcome_json(), self._names)
+
+    def verify(self) -> None:
+        """Re-derive the partition from the rule and check the stored identities.
+
+        Raises:
+            SelectiveDiscoveryRefusal: ``split_not_disjoint`` or ``split_receipt_mismatch``.
+        """
+        _raise(self._handle.verify())
+
+    def check_analysis_table(self, data: Mapping[str, Any]) -> AnalysisBinding:
+        """Check that ``data`` is exactly the analysis part and bind it to this discovery.
+
+        Raises:
+            SelectiveDiscoveryRefusal: ``selective_discovery.analysis_rows_not_the_split_part``
+                for the discovery rows, the unsplit table or any other rows.
+        """
+        if not isinstance(data, Mapping):
+            raise CausalTypeError("data must map variable names to 1-D arrays")
+        columns = []
+        for name in self._names:
+            if name not in data:
+                raise CausalValueError(f"data has no column {name!r}")
+            column = np.ascontiguousarray(np.asarray(data[name], dtype=np.float64))
+            if column.ndim != 1:
+                raise CausalValueError(f"column {name!r} must be 1-D")
+            columns.append(column)
+        text, refusal = self._handle.check_analysis_table(list(self._names), columns)
+        _raise(refusal)
+        assert text is not None
+        wire = json.loads(text)
+        return AnalysisBinding(
+            receipt_identity=str(wire["receipt_identity"]),
+            structure_identity=str(wire["structure_identity"]),
+            result_identity=str(wire["result_identity"]),
+            analysis_data_identity=str(wire["analysis_data_identity"]),
+            identity=str(wire["identity"]),
+            conditional_on_selected_graph=bool(wire["conditional_on_selected_graph"]),
+            whole_method_calibration=str(wire["whole_method_calibration"]),
+        )
+
+    def request_unsplit_interval(self) -> None:
+        """Ask for an interval on account of discovery for an analysis that reused its rows.
+
+        Always raises :class:`SelectiveDiscoveryRefusal` (``cell_not_licensed``).
+        """
+        _raise(self._handle.request_unsplit_interval())
+
+
+def discover_on_split(
+    contract: StaticContract,
+    data: Mapping[str, Any],
+    *,
+    discovery_fraction: float | None = None,
+    seed: int | None = None,
+    discovery_rows: Sequence[int] | None = None,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> SampleSplit:
+    """Split the rows of ``data`` and discover on the discovery part only.
+
+    Declare the split either as ``discovery_rows`` (the rows discovery may use; every other row
+    is an analysis row) or as ``discovery_fraction`` with ``seed`` (a seeded permutation; the
+    first ``round(fraction * n)`` rows of the permutation are discovery rows). ``data`` must hold
+    every searched variable as a 1-D float array; rows are assumed exchangeable.
+
+    Raises:
+        SelectiveDiscoveryRefusal: weighted, masked or non-numeric rows
+            (``selective_discovery.split_unsupported_rows``), a rule that leaves a part empty,
+            repeats or exceeds a row, or a refused contract.
+        CausalDiscoveryError: the algorithm failed or was cancelled.
+    """
+    if not isinstance(contract, StaticContract):
+        raise CausalTypeError("contract must be a StaticContract")
+    if discovery_rows is not None:
+        if discovery_fraction is not None or seed is not None:
+            raise CausalValueError("declare discovery_rows or discovery_fraction with seed, not both")
+        rule: dict[str, Any] = {
+            "kind": "explicit",
+            "discovery_rows": [_count(r, "row") for r in discovery_rows],
+        }
+    else:
+        if discovery_fraction is None or seed is None:
+            raise CausalValueError("declare discovery_rows, or discovery_fraction with seed")
+        rule = {
+            "kind": "seeded_permutation",
+            "seed": _count(seed, "seed"),
+            "discovery_fraction": float(discovery_fraction),
+        }
+    columns = _columns(contract, data)
+    handle, report, refusal = _native.sample_split_discover(
+        json.dumps(contract.to_wire(), sort_keys=True),
+        list(contract.variables),
+        columns,
+        json.dumps(rule, sort_keys=True),
+        threads=threads,
+        cancel=cancel,
+    )
+    _raise(refusal)
+    assert handle is not None and report is not None
+    names = tuple(contract.variables)
+    discovery = dict(zip(names, handle.discovery_columns(), strict=True))
+    analysis = dict(zip(names, handle.analysis_columns(), strict=True))
+    return SampleSplit(handle, names, _report(report), discovery, analysis)

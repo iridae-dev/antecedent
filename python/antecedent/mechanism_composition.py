@@ -86,6 +86,13 @@ from .errors import CausalTypeError, CausalValueError
 
 __all__ = [
     "Admission",
+    "MechanismDisposition",
+    "MechanismTransport",
+    "MechanismTransportReceipt",
+    "SelectionNode",
+    "TransportedFunctionalUncertainty",
+    "TransportedMechanismComposition",
+    "TransportInvariance",
     "CompositionExport",
     "ConsumedComposition",
     "CrossCovarianceBlock",
@@ -1015,6 +1022,47 @@ class PreparedMechanismComposition(ScientificResult):
         )
         return _prepared(handle, self._scope)
 
+    def transport_to(
+        self, transport: MechanismTransport, *, cancel: Any = None
+    ) -> TransportedMechanismComposition:
+        """Carry this composition's fitted mechanisms into a target population's model.
+
+        ``transport`` declares the selection diagram (which variables each selection node points
+        into), the mechanisms natively refitted in the target, any explicit invariances and the
+        dependence between the estimates. A mechanism a selection node points into (or whose latent
+        cause it points into) is never carried, whatever invariance is declared for it: a selection
+        arrow dominates an invariance; refit it in the target. A refit always replaces the carried
+        mechanism and is never averaged with it. Returns a new object and leaves this one untouched,
+        whether it succeeds or refuses.
+
+        Raises:
+            MechanismCompositionRefusal: every unmet premise, each with a registered code and a
+                ``mechanism_transport.*`` (or ``mechanism_composition.*``) detail.
+        """
+        if not isinstance(transport, MechanismTransport):
+            raise CausalTypeError("transport must be a MechanismTransport")
+        handle, receipt = _unwrap(
+            self._handle.transport_to(_dumps(transport.to_wire()), cancel=cancel)
+        )
+        return _transported(handle, receipt, self._scope)
+
+    def verify_transport(
+        self, transport: MechanismTransport, *, expected_identity: str
+    ) -> MechanismTransportReceipt:
+        """Re-derive the transport from this composition and ``transport`` and require the identity.
+
+        Raises ``mechanism_transport.transport_identity_mismatch`` when the recomputed identity is
+        not ``expected_identity``.
+        """
+        if not isinstance(transport, MechanismTransport):
+            raise CausalTypeError("transport must be a MechanismTransport")
+        text = _unwrap(
+            self._handle.verify_transport(
+                _dumps(transport.to_wire()), _name(expected_identity, "expected_identity")
+            )
+        )
+        return _receipt_of(json.loads(text))
+
     def inverse_forward_source(
         self,
         actions: Sequence[Any],
@@ -1208,4 +1256,280 @@ def consume_mechanism_composition_artifact(
         premises_digest=wire["premises_digest"],
         family=wire["family"],
         result=_result(wire["result"]),
+    )
+
+
+# --------------------------------------------------------------------------- transport
+
+
+@dataclass(frozen=True, slots=True)
+class SelectionNode:
+    """A selection node of a selection diagram and the variables it points into."""
+
+    name: str
+    points_into: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _name(self.name, "selection node name")
+        if isinstance(self.points_into, str):
+            raise CausalTypeError("points_into must be an iterable of variable names")
+        object.__setattr__(
+            self, "points_into", tuple(_name(v, "variable") for v in self.points_into)
+        )
+
+    def to_wire(self) -> dict[str, Any]:
+        return {"name": self.name, "points_into": list(self.points_into)}
+
+
+@dataclass(frozen=True, slots=True)
+class TransportInvariance:
+    """An explicit assumption that one mechanism is invariant across a context coordinate.
+
+    Required for a carried mechanism that loads on a shared latent cause, and to carry across
+    regimes. A selection arrow into the variable still dominates it.
+    """
+
+    variable: str
+    coordinate: str
+    source: str
+    target: str
+    assumption_id: str
+
+    def __post_init__(self) -> None:
+        if self.coordinate not in ("population", "regime"):
+            raise CausalValueError("coordinate must be 'population' or 'regime'")
+        for what in ("variable", "source", "target", "assumption_id"):
+            _name(getattr(self, what), what)
+
+    def to_wire(self) -> dict[str, Any]:
+        return {
+            "variable": self.variable,
+            "coordinate": self.coordinate,
+            "source": self.source,
+            "target": self.target,
+            "assumption_id": self.assumption_id,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class MechanismTransport:
+    """What a transport of a prepared composition to a target population declares.
+
+    ``selection_nodes`` is the selection diagram from the composition's population to
+    ``target_population_id``. ``target_refits`` are mechanisms natively refitted in the target
+    (:class:`MechanismRefit`); each replaces the carried mechanism of its variable.
+    """
+
+    target_population_id: str
+    selection_nodes: tuple[SelectionNode, ...]
+    target_regime_id: str = "observational"
+    target_refits: tuple[MechanismRefit, ...] = ()
+    invariances: tuple[TransportInvariance, ...] = ()
+    dependence: Dependence | None = None
+
+    def __post_init__(self) -> None:
+        _name(self.target_population_id, "target_population_id")
+        _name(self.target_regime_id, "target_regime_id")
+        object.__setattr__(self, "selection_nodes", tuple(self.selection_nodes))
+        object.__setattr__(self, "target_refits", tuple(self.target_refits))
+        object.__setattr__(self, "invariances", tuple(self.invariances))
+
+    def to_wire(self) -> dict[str, Any]:
+        return {
+            "target_population_id": self.target_population_id,
+            "target_regime_id": self.target_regime_id,
+            "selection_nodes": [n.to_wire() for n in self.selection_nodes],
+            "target_refits": [r.to_wire() for r in self.target_refits],
+            "invariances": [i.to_wire() for i in self.invariances],
+            "dependence": (self.dependence or Dependence.unknown()).to_wire(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class MechanismDisposition:
+    """One component of a transported composition: carried or refitted, and from where."""
+
+    variable: str
+    role: str
+    fitted_population: str
+    artifact_id: str
+    evidence_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class MechanismTransportReceipt:
+    """The typed receipt of one transported mechanism composition.
+
+    ``support`` is always ``extrapolative`` and ``inference`` always ``point_only``.
+    ``uncertainty_scope`` says what the variance of a contrast contains: the source fits'
+    parameter covariance only; the transport assumption is not a variance term.
+    """
+
+    route: str
+    identity: str
+    source_plan_identity: str
+    source_population: str
+    target_population: str
+    target_regime: str
+    selection_nodes: tuple[SelectionNode, ...]
+    selection_targets: tuple[str, ...]
+    dispositions: tuple[MechanismDisposition, ...]
+    invariances: tuple[tuple[str, str], ...]
+    uncertainty_scope: str
+    support: str
+    inference: str
+    assumptions: tuple[str, ...]
+
+    @property
+    def transported_variables(self) -> tuple[str, ...]:
+        """Variables whose mechanism was carried from the source fit."""
+        return tuple(d.variable for d in self.dispositions if d.role == "transported")
+
+    @property
+    def native_variables(self) -> tuple[str, ...]:
+        """Variables whose mechanism was refitted in the target population."""
+        return tuple(d.variable for d in self.dispositions if d.role == "native_in_target")
+
+    def as_transport_receipt(self) -> Any:
+        """The shared :class:`antecedent.transported_response.TransportReceipt` of this route."""
+        from .transported_response import TransportReceipt
+
+        return TransportReceipt(
+            route="mechanism",
+            source_identity=self.source_plan_identity,
+            source_populations=(self.source_population,),
+            target_population=self.target_population,
+            transport_identities=(self.identity,),
+            assumptions=self.assumptions,
+            support=self.support,
+            representation="point_only",
+        )
+
+
+def _receipt_of(wire: Mapping[str, Any]) -> MechanismTransportReceipt:
+    return MechanismTransportReceipt(
+        route=str(wire["route"]),
+        identity=str(wire["identity"]),
+        source_plan_identity=str(wire["source_plan_identity"]),
+        source_population=str(wire["source_population"]),
+        target_population=str(wire["target_population"]),
+        target_regime=str(wire["target_regime"]),
+        selection_nodes=tuple(
+            SelectionNode(n["name"], tuple(n["points_into"])) for n in wire["selection_nodes"]
+        ),
+        selection_targets=tuple(wire["selection_targets"]),
+        dispositions=tuple(
+            MechanismDisposition(
+                variable=d["variable"],
+                role=d["role"],
+                fitted_population=d["fitted_population"],
+                artifact_id=d["artifact_id"],
+                evidence_id=d["evidence_id"],
+            )
+            for d in wire["dispositions"]
+        ),
+        invariances=tuple((i["variable"], i["assumption_id"]) for i in wire["invariances"]),
+        uncertainty_scope=str(wire["uncertainty_scope"]),
+        support=str(wire["support"]),
+        inference=str(wire["inference"]),
+        assumptions=tuple(wire["assumptions"]),
+    )
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class TransportedFunctionalUncertainty(FunctionalUncertainty):
+    """A first-order contrast variance of a transported composition, with its scope label.
+
+    ``scope`` states that the covariance is the source fits' for a carried mechanism and that the
+    transport assumption adds no variance term. Uncalibrated; no interval follows.
+    """
+
+    scope: str
+
+
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class TransportedMechanismComposition(ScientificResult):
+    """An executable target-population composition with its transport receipt.
+
+    Every component says whether it was carried from the source fit or refitted in the target.
+    The numbers are exact given the mechanisms; the variance is first-order, uncalibrated and
+    scoped; the interval route is closed.
+    """
+
+    identity: str
+    receipt: MechanismTransportReceipt
+    native_target_data: bool = False
+    _handle: Any = field(default=None, repr=False, compare=False)
+    _scope: Mapping[str, Any] | None = field(default=None, repr=False, compare=False)
+
+    @property
+    def transported_variables(self) -> tuple[str, ...]:
+        return self.receipt.transported_variables
+
+    def mean_contrast(self, contrast: MeanContrast) -> float:
+        """``sum_k weight_k * E[outcome | do(arm_k)]`` in the target composition."""
+        return float(_unwrap(self._handle.mean_contrast(_dumps(contrast.to_wire()))))
+
+    def mean_contrast_uncertainty(
+        self, contrast: MeanContrast
+    ) -> TransportedFunctionalUncertainty:
+        """The first-order parameter variance of a contrast, scoped by the transport receipt.
+
+        Raises ``joint_law_required`` when the dependence between more than one mechanism is
+        unknown or a cross-covariance pair is missing.
+        """
+        wire = json.loads(
+            _unwrap(self._handle.mean_contrast_uncertainty(_dumps(contrast.to_wire())))
+        )
+        return TransportedFunctionalUncertainty(
+            point=float(wire["point"]),
+            variance=float(wire["variance"]),
+            standard_error=float(wire["standard_error"]),
+            gradient=tuple(
+                (
+                    ParameterId(
+                        mechanism=g["mechanism"],
+                        term=ParameterTerm(kind=g["term"]["kind"], parent=g["term"].get("parent")),
+                    ),
+                    float(g["gradient"]),
+                )
+                for g in wire["gradient"]
+            ),
+            meaning=wire["meaning"],
+            dependence=str(wire["dependence"]),
+            method=str(wire["method"]),
+            scope=str(wire["scope"]),
+        )
+
+    def interval(self) -> None:
+        """Always raises ``cell_not_licensed``: no coverage includes the transport assumption."""
+        raise_refusal(self._handle.interval(), MechanismCompositionRefusal)
+
+    def export(
+        self,
+        query: MeanContrast | Mapping[str, Any],
+        *,
+        outcome: str | None = None,
+        cancel: Any = None,
+    ) -> CompositionExport:
+        """Seal the transported premises (with the diagram and invariances) and one query.
+
+        The artifact is the existing ``mechanism_composition_v1`` one;
+        :func:`consume_mechanism_composition_artifact` recompiles it under the coherence checker.
+        """
+        wire = _query_wire("linear_gaussian", query, outcome)
+        artifact, digest, result = _unwrap(self._handle.export(_dumps(wire), cancel=cancel))
+        return CompositionExport(
+            artifact=bytes(artifact),
+            premises_digest=digest,
+            result=_result(json.loads(result)),
+        )
+
+
+def _transported(
+    handle: Any, receipt_json: str, scope: Mapping[str, Any] | None
+) -> TransportedMechanismComposition:
+    receipt = _receipt_of(json.loads(receipt_json))
+    return TransportedMechanismComposition(
+        identity=receipt.identity, receipt=receipt, _handle=handle, _scope=scope
     )

@@ -163,7 +163,7 @@ fn status_json(status: &CellStatus) -> Json {
 /// A prepared adaptive-experiment analysis.
 #[pyclass(name = "AdaptiveInferenceHandle", skip_from_py_object)]
 pub(crate) struct AdaptiveInferenceHandle {
-    inner: AdaptiveInferenceSession,
+    pub(crate) inner: AdaptiveInferenceSession,
 }
 
 /// A consumed monitoring contract.

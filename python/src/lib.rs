@@ -32,6 +32,7 @@
 include!(concat!(env!("OUT_DIR"), "/python_test_link.rs"));
 
 mod adaptive_inference_api;
+mod adaptive_procedure_api;
 mod artifact_api;
 mod ate_api;
 mod attribution_api;
@@ -60,6 +61,7 @@ mod derived_treatment_api;
 mod descriptive_api;
 mod design_api;
 mod design_ranking_api;
+mod discovered_transport_api;
 mod discovery_api;
 mod discretized_composition_api;
 mod distribution_api;
@@ -168,6 +170,7 @@ mod transport_revalidation_api;
 mod transport_scenario_api;
 mod transport_statistical_api;
 mod transport_z_api;
+mod transported_constructors_api;
 mod transported_counterfactual_api;
 mod transported_response_api;
 mod vector_treatment_api;

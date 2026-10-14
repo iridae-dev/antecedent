@@ -75,8 +75,35 @@ __all__ = [
     "AdaptiveInferenceRefusal",
     "AdaptiveInferenceSession",
     "AdaptiveResult",
+    "AdaptiveProcedure",
     "AdaptiveWeighting",
+    "AnytimeProcedureReport",
+    "AssignmentRule",
     "Availability",
+    "BayesianProcedureReport",
+    "DERIVED_UNMEASURED",
+    "DecisionProcedureReport",
+    "ExposureModel",
+    "FinalSelection",
+    "FinalAnalysis",
+    "FixedSampleProcedureReport",
+    "GroupSequentialProcedureReport",
+    "InversionProcedureReport",
+    "OutcomeObservation",
+    "OutcomeStructure",
+    "ProcedureDeclaration",
+    "ProcedureElements",
+    "ProcedureLaw",
+    "ProcedureObservedTerminal",
+    "ProcedureReport",
+    "ProcedureSimulation",
+    "ProcedureStopping",
+    "RepeatedMeasuresDeclaration",
+    "RepeatedMeasuresProcedure",
+    "RepeatedMeasuresReport",
+    "UnitAssignment",
+    "WeightingProcedureReport",
+    "WithinUnitCorrelation",
     "BayesianPosterior",
     "ConfidenceSequence",
     "ConsumedAdaptiveResult",
@@ -758,6 +785,26 @@ class AdaptiveInferenceSession:
         """Whether the design adapted, was looked at or stopped."""
         return bool(self._summary["adaptive"])
 
+    def derive_procedure(
+        self, elements: ProcedureElements, *, cancel: Any = None
+    ) -> AdaptiveProcedure:
+        """The whole data-collection procedure of this experiment.
+
+        The contract supplies the looks, delay and stopping parameters; ``elements`` supplies what
+        the contract does not keep (the assignment rule, loss retention, the exposure-failure
+        model, final selection, posterior priors). The uncertainty of the procedure is then
+        derived by :meth:`AdaptiveProcedure.report`.
+
+        Raises:
+            AdaptiveInferenceRefusal: one detail per missing element and per disagreement between
+                the elements and the retained contract.
+        """
+        if not isinstance(elements, ProcedureElements):
+            raise CausalTypeError("elements must be a ProcedureElements")
+        wire = _procedure_json(elements.to_wire())
+        handle = _unwrap(_native.adaptive_procedure_from_contract(self._handle, wire, cancel))
+        return AdaptiveProcedure(handle)
+
     @overload
     def analyze(
         self, request: BayesianPosterior, *, cancel: Any = None
@@ -981,3 +1028,932 @@ def consume_adaptive_inference_result_artifact(
         _wire_values=tuple(float("nan") if v is None else float(v) for v in wire["values"]),
         closed_guarantee=wire["closed_guarantee"],
     )
+
+
+# ------------------------------------------------------------------ whole-procedure uncertainty
+#
+# The uncertainty of an adaptively collected result is a property of the whole data-collection
+# procedure (policy, looks, delay and loss, exposure failures, stopping, selection), not of the
+# final sample. The classes below declare that procedure and ask for its derived statements. Every
+# result is labelled ``derived_unmeasured``: exact (or simulated, with a Monte Carlo error) under
+# the stated model, with no interval or coverage licence.
+
+DERIVED_UNMEASURED = "derived_unmeasured"
+
+
+def _procedure_json(wire: Any) -> str:
+    try:
+        return json.dumps(wire, allow_nan=False, separators=(",", ":"))
+    except ValueError as error:
+        raise CausalValueError("a declared number must be finite") from error
+
+
+def _prior_wire(prior: tuple[float, float]) -> dict[str, Any]:
+    alpha, beta = prior
+    return {"prior_alpha": float(alpha), "prior_beta": float(beta)}
+
+
+@dataclass(frozen=True)
+class AssignmentRule:
+    """How units are assigned to arms, as a function of the observed history."""
+
+    kind: str
+    probabilities: Sequence[float] | None = None
+    epsilon: float | None = None
+    exploration: float | None = None
+    prior: tuple[float, float] = (1.0, 1.0)
+
+    @classmethod
+    def fixed(cls, probabilities: Sequence[float]) -> AssignmentRule:
+        """Probabilities fixed in advance."""
+        return cls("fixed", probabilities=tuple(float(p) for p in probabilities))
+
+    @classmethod
+    def epsilon_greedy(
+        cls, epsilon: float, prior: tuple[float, float] = (1.0, 1.0)
+    ) -> AssignmentRule:
+        """Epsilon-greedy over prior-shrunk running arm means."""
+        return cls("epsilon_greedy", epsilon=float(epsilon), prior=prior)
+
+    @classmethod
+    def thompson_beta(cls, prior: tuple[float, float] = (1.0, 1.0)) -> AssignmentRule:
+        """Beta-Bernoulli Thompson sampling."""
+        return cls("thompson_beta", prior=prior)
+
+    @classmethod
+    def upper_confidence_bound(cls, exploration: float = 2.0) -> AssignmentRule:
+        """Deterministic UCB1 (assignment probabilities are zero or one)."""
+        return cls("upper_confidence_bound", exploration=float(exploration))
+
+    def _wire(self) -> dict[str, Any]:
+        if self.kind == "fixed":
+            return {"kind": "fixed", "probabilities": list(self.probabilities or ())}
+        if self.kind == "epsilon_greedy":
+            return {"kind": self.kind, "epsilon": self.epsilon, **_prior_wire(self.prior)}
+        if self.kind == "thompson_beta":
+            return {"kind": self.kind, **_prior_wire(self.prior)}
+        return {"kind": self.kind, "exploration": self.exploration}
+
+
+@dataclass(frozen=True)
+class OutcomeObservation:
+    """When and whether each outcome is observed: a delay in looks and two retention levels."""
+
+    lag_looks: int = 0
+    retain_success: float = 1.0
+    retain_failure: float = 1.0
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "lag_looks": self.lag_looks,
+            "retain_success": float(self.retain_success),
+            "retain_failure": float(self.retain_failure),
+        }
+
+
+@dataclass(frozen=True)
+class ExposureModel:
+    """Exploration failures: the probability each assigned arm is not delivered, and what is."""
+
+    failure_probability: Sequence[float]
+    fallback_arm: int
+    attribution: Literal["assigned", "delivered"]
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "failure_probability": [float(p) for p in self.failure_probability],
+            "fallback_arm": self.fallback_arm,
+            "attribution": self.attribution,
+        }
+
+
+@dataclass(frozen=True)
+class ProcedureStopping:
+    """What a look can decide, with the parameters the derivation needs."""
+
+    kind: str
+    threshold: float | None = None
+    prior: tuple[float, float] = (1.0, 1.0)
+    critical: Sequence[float] | None = None
+    sidedness: str | None = None
+    max_units: int | None = None
+
+    @classmethod
+    def no_stopping(cls) -> ProcedureStopping:
+        """Nothing: the planned horizon is run."""
+        return cls("no_stopping")
+
+    @classmethod
+    def posterior_probability_best(
+        cls, threshold: float, prior: tuple[float, float] = (1.0, 1.0)
+    ) -> ProcedureStopping:
+        """Stop when an arm's posterior probability of being best reaches ``threshold``."""
+        return cls("posterior_probability_best", threshold=float(threshold), prior=prior)
+
+    @classmethod
+    def posterior_expected_loss(
+        cls, loss_threshold: float, prior: tuple[float, float] = (1.0, 1.0)
+    ) -> ProcedureStopping:
+        """Stop when the smallest posterior expected loss falls below ``loss_threshold``."""
+        return cls("posterior_expected_loss", threshold=float(loss_threshold), prior=prior)
+
+    @classmethod
+    def wald_boundaries(cls, critical: Sequence[float], sidedness: str) -> ProcedureStopping:
+        """Stop when arm 1's Wald statistic against arm 0 crosses a per-look critical value."""
+        return cls(
+            "wald_boundaries", critical=tuple(float(c) for c in critical), sidedness=sidedness
+        )
+
+    @classmethod
+    def resource_cap(cls, max_units: int) -> ProcedureStopping:
+        """Stop when the enrolled units reach the cap."""
+        return cls("resource_cap", max_units=max_units)
+
+    def _wire(self) -> dict[str, Any]:
+        if self.kind == "no_stopping":
+            return {"kind": self.kind}
+        if self.kind == "posterior_probability_best":
+            return {"kind": self.kind, "threshold": self.threshold, **_prior_wire(self.prior)}
+        if self.kind == "posterior_expected_loss":
+            return {"kind": self.kind, "loss_threshold": self.threshold, **_prior_wire(self.prior)}
+        if self.kind == "wald_boundaries":
+            return {
+                "kind": self.kind,
+                "critical": list(self.critical or ()),
+                "sidedness": self.sidedness,
+            }
+        return {"kind": self.kind, "max_units": self.max_units}
+
+
+@dataclass(frozen=True)
+class FinalSelection:
+    """How an arm is selected when no stopping rule decided."""
+
+    kind: str
+    prior: tuple[float, float] = (1.0, 1.0)
+
+    @classmethod
+    def no_selection(cls) -> FinalSelection:
+        """No arm is selected."""
+        return cls("no_selection")
+
+    @classmethod
+    def highest_observed_mean(cls) -> FinalSelection:
+        """The arm with the highest observed mean."""
+        return cls("highest_observed_mean")
+
+    @classmethod
+    def highest_posterior_mean(cls, prior: tuple[float, float] = (1.0, 1.0)) -> FinalSelection:
+        """The arm with the highest posterior mean under ``prior``."""
+        return cls("highest_posterior_mean", prior=prior)
+
+    def _wire(self) -> dict[str, Any]:
+        if self.kind == "highest_posterior_mean":
+            return {"kind": self.kind, **_prior_wire(self.prior)}
+        return {"kind": self.kind}
+
+
+@dataclass(frozen=True)
+class ProcedureDeclaration:
+    """Everything a producer states about the data-collection procedure.
+
+    Each element but ``arms`` may be ``None``; declaring the procedure then refuses with that
+    element's own detail (``adaptive_contract_incomplete``).
+    """
+
+    arms: int
+    assignment: AssignmentRule | None = None
+    enrolment: Sequence[int] | None = None
+    observation: OutcomeObservation | None = None
+    exposure: ExposureModel | None = None
+    stopping: ProcedureStopping | None = None
+    selection: FinalSelection | None = None
+    context_probabilities: Sequence[float] | None = None
+
+    def to_wire(self) -> dict[str, Any]:
+        """The declaration as the native wire mapping."""
+
+        def wire(value: Any) -> Any:
+            return None if value is None else value._wire()
+
+        return {
+            "arms": self.arms,
+            "context_probabilities": None
+            if self.context_probabilities is None
+            else [float(p) for p in self.context_probabilities],
+            "assignment": wire(self.assignment),
+            "enrolment": None if self.enrolment is None else [int(n) for n in self.enrolment],
+            "observation": wire(self.observation),
+            "exposure": wire(self.exposure),
+            "stopping": wire(self.stopping),
+            "selection": wire(self.selection),
+        }
+
+
+@dataclass(frozen=True)
+class ProcedureElements:
+    """What the retained analysis contract does not keep.
+
+    The contract holds realized probabilities, exposures, availability, looks and the stopping
+    rule's parameters. These are the rest: the assignment rule itself, how lost outcomes relate to
+    their values (``retention``), the exposure-failure model, the final selection and the prior of
+    a posterior stopping rule (``stopping_prior``).
+    """
+
+    assignment: AssignmentRule | None = None
+    selection: FinalSelection | None = None
+    retention: tuple[float, float] | None = None
+    exposure: ExposureModel | None = None
+    stopping_prior: tuple[float, float] | None = None
+    context_probabilities: Sequence[float] | None = None
+
+    def to_wire(self) -> dict[str, Any]:
+        """The elements as the native wire mapping."""
+        return {
+            "assignment": None if self.assignment is None else self.assignment._wire(),
+            "selection": None if self.selection is None else self.selection._wire(),
+            "retention": None
+            if self.retention is None
+            else {"success": float(self.retention[0]), "failure": float(self.retention[1])},
+            "exposure": None if self.exposure is None else self.exposure._wire(),
+            "stopping_prior": None
+            if self.stopping_prior is None
+            else {"alpha": float(self.stopping_prior[0]), "beta": float(self.stopping_prior[1])},
+            "context_probabilities": None
+            if self.context_probabilities is None
+            else [float(p) for p in self.context_probabilities],
+        }
+
+
+# --- requests, one per paradigm
+
+
+@dataclass(frozen=True)
+class ProcedureObservedTerminal:
+    """The terminal state a real procedure ended in: look, whether the rule stopped, the arm
+    decided (if any) and the observed contrast estimate."""
+
+    look: int
+    estimate: float
+    rule_stopped: bool = False
+    decision: int | None = None
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "look": self.look,
+            "rule_stopped": bool(self.rule_stopped),
+            "decision": self.decision,
+            "estimate": float(self.estimate),
+        }
+
+
+@dataclass(frozen=True)
+class BayesianProcedureReport:
+    """Posterior at ``observed`` counts (success, failure per cell) and the posterior-mean gap."""
+
+    prior: tuple[float, float] = (1.0, 1.0)
+    observed: Sequence[int] | None = None
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "kind": "bayesian_posterior",
+            **_prior_wire(self.prior),
+            "observed": None if self.observed is None else [int(n) for n in self.observed],
+        }
+
+
+@dataclass(frozen=True)
+class DecisionProcedureReport:
+    """Stopping-time law, expected sample size, decision law and regret under ``truth``."""
+
+    truth: Sequence[float]
+
+    def _wire(self) -> dict[str, Any]:
+        return {"kind": "decision_theoretic", "truth": [float(p) for p in self.truth]}
+
+
+@dataclass(frozen=True)
+class FixedSampleProcedureReport:
+    """Exact sampling law of the fixed design's contrast ``plus - minus`` under ``truth``."""
+
+    truth: Sequence[float]
+    plus: int = 1
+    minus: int = 0
+    observed: ProcedureObservedTerminal | None = None
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "kind": "fixed_sample",
+            "truth": [float(p) for p in self.truth],
+            "plus": self.plus,
+            "minus": self.minus,
+            "observed": None if self.observed is None else self.observed._wire(),
+        }
+
+
+@dataclass(frozen=True)
+class GroupSequentialProcedureReport:
+    """Actual crossing probabilities of the declared boundaries and stagewise inference."""
+
+    truth: Sequence[float]
+    level: float = 0.95
+    observed_look: int | None = None
+    observed_statistic: float | None = None
+
+    def _wire(self) -> dict[str, Any]:
+        observed = None
+        if self.observed_look is not None and self.observed_statistic is not None:
+            observed = {"look": self.observed_look, "statistic": float(self.observed_statistic)}
+        return {
+            "kind": "group_sequential",
+            "truth": [float(p) for p in self.truth],
+            "level": float(self.level),
+            "observed": observed,
+        }
+
+
+@dataclass(frozen=True)
+class WeightingProcedureReport:
+    """Simulated law of the adaptively weighted estimate under the whole procedure."""
+
+    truth: Sequence[float]
+    replications: int
+    seed: int
+    estimand: tuple[Literal["arm_mean", "contrast"], int, int] = ("contrast", 1, 0)
+    scheme: Literal["uniform", "variance_stabilizing"] = "uniform"
+    outcome_prior_mean: float = 0.5
+    outcome_prior_strength: float = 2.0
+    probability_floor: float = 0.01
+    z: float = 1.959963984540054
+
+    def _simulation_wire(self) -> dict[str, Any]:
+        kind, first, second = self.estimand
+        estimand = (
+            {"kind": "arm_mean", "arm": first}
+            if kind == "arm_mean"
+            else {"kind": "contrast", "plus": first, "minus": second}
+        )
+        return {
+            "replications": self.replications,
+            "seed": self.seed,
+            "estimand": estimand,
+            "scheme": self.scheme,
+            "outcome_prior_mean": float(self.outcome_prior_mean),
+            "outcome_prior_strength": float(self.outcome_prior_strength),
+            "probability_floor": float(self.probability_floor),
+        }
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "kind": "adaptive_weighting",
+            "truth": [float(p) for p in self.truth],
+            "z": float(self.z),
+            **self._simulation_wire(),
+        }
+
+
+@dataclass(frozen=True)
+class AnytimeProcedureReport:
+    """Simultaneous time-uniform bounds and their exact exclusion probability under ``truth``."""
+
+    alpha: float = 0.05
+    tuning_samples: float = 50.0
+    observed: Sequence[int] | None = None
+    truth: Sequence[float] | None = None
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "kind": "anytime_valid",
+            "alpha": float(self.alpha),
+            "tuning_samples": float(self.tuning_samples),
+            "observed": None if self.observed is None else [int(n) for n in self.observed],
+            "truth": None if self.truth is None else [float(p) for p in self.truth],
+        }
+
+
+@dataclass(frozen=True)
+class InversionProcedureReport:
+    """Confidence set from inverting the whole-procedure law over declared grids.
+
+    Not an inferential paradigm of the procedure matrix; the set carries no coverage claim.
+    """
+
+    observed: ProcedureObservedTerminal
+    contrasts: Sequence[float]
+    baselines: Sequence[float]
+    alpha: float = 0.05
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "kind": "whole_procedure_inversion",
+            "observed": self.observed._wire(),
+            "contrasts": [float(c) for c in self.contrasts],
+            "baselines": [float(b) for b in self.baselines],
+            "alpha": float(self.alpha),
+        }
+
+
+ProcedureReportRequest = (
+    BayesianProcedureReport
+    | DecisionProcedureReport
+    | FixedSampleProcedureReport
+    | GroupSequentialProcedureReport
+    | WeightingProcedureReport
+    | AnytimeProcedureReport
+    | InversionProcedureReport
+)
+
+
+# --- results
+
+
+@dataclass(repr=False, frozen=True)
+class ProcedureReport(ScientificResult):
+    """One paradigm's derived statement about the whole procedure.
+
+    ``body`` holds the paradigm's numbers; ``claim`` is always ``derived_unmeasured``.
+    """
+
+    paradigm: str
+    estimand: str
+    procedure_identity: str
+    contract_identity: str | None
+    body: dict[str, Any]
+    claim: str = DERIVED_UNMEASURED
+
+
+@dataclass(repr=False, frozen=True)
+class ProcedureLaw(ScientificResult):
+    """The exact law of the terminal state under a hypothesized truth."""
+
+    procedure_identity: str
+    atoms: tuple[dict[str, Any], ...]
+    expected_enrolled: float
+    rule_stop_probabilities: tuple[float, ...]
+    horizon_probability: float
+    cumulative_enrolment: tuple[int, ...]
+    work_units: int
+    peak_states: int
+    claim: str = DERIVED_UNMEASURED
+
+
+@dataclass(repr=False, frozen=True)
+class ProcedureSimulation(ScientificResult):
+    """Replicates of the whole procedure with the weighted estimate of each."""
+
+    procedure_identity: str
+    replicates: tuple[dict[str, Any], ...]
+    mean_enrolled: float
+    rule_stop_fraction: float
+    claim: str = DERIVED_UNMEASURED
+
+
+class AdaptiveProcedure:
+    """A declared adaptive procedure and the uncertainty derived from it.
+
+    Declare it directly (:meth:`declare`) or from a prepared contract
+    (:meth:`AdaptiveInferenceSession.procedure`). A paradigm whose validity premise the procedure
+    does not meet raises :class:`AdaptiveInferenceRefusal` with ``cell_not_licensed`` and the
+    premise's ``adaptive_inference.*`` detail.
+    """
+
+    def __init__(self, handle: Any) -> None:
+        self._handle = handle
+        self._summary: dict[str, Any] = json.loads(handle.summary_json())
+
+    @classmethod
+    def declare(cls, declaration: ProcedureDeclaration) -> AdaptiveProcedure:
+        """Declare the procedure.
+
+        Raises:
+            AdaptiveInferenceRefusal: ``adaptive_contract_incomplete`` with one detail per missing
+                element, or ``invalid_argument`` details for an inconsistent element.
+        """
+        if not isinstance(declaration, ProcedureDeclaration):
+            raise CausalTypeError("declaration must be a ProcedureDeclaration")
+        wire = _procedure_json(declaration.to_wire())
+        return cls(_unwrap(_native.adaptive_procedure_declare(wire)))
+
+    @property
+    def identity(self) -> str:
+        """Canonical identity (hex) of the declared procedure."""
+        return str(self._handle.identity())
+
+    @property
+    def contract_identity(self) -> str | None:
+        """Identity (hex) of the retained contract the procedure was built from, if any."""
+        value = self._summary.get("contract_identity")
+        return None if value is None else str(value)
+
+    @property
+    def taken_from_contract(self) -> tuple[str, ...]:
+        """The elements taken from the retained contract rather than declared."""
+        return tuple(self._summary.get("taken_from_contract") or ())
+
+    @property
+    def summary(self) -> dict[str, Any]:
+        """The validated elements and matrix labels (``family``, ``monitoring``, ...)."""
+        return dict(self._summary)
+
+    def law(self, truth: Sequence[float], *, cancel: Any = None) -> ProcedureLaw:
+        """The exact law of the terminal state under ``truth`` (one probability per cell)."""
+        wire = json.loads(
+            _unwrap(self._handle.law([float(p) for p in truth], cancel))
+        )
+        return ProcedureLaw(
+            procedure_identity=wire["procedure_identity"],
+            atoms=tuple(wire["atoms"]),
+            expected_enrolled=float(wire["expected_enrolled"]),
+            rule_stop_probabilities=tuple(float(p) for p in wire["rule_stop_probabilities"]),
+            horizon_probability=float(wire["horizon_probability"]),
+            cumulative_enrolment=tuple(int(n) for n in wire["cumulative_enrolment"]),
+            work_units=int(wire["work_units"]),
+            peak_states=int(wire["peak_states"]),
+        )
+
+    def simulate(
+        self, request: WeightingProcedureReport, *, cancel: Any = None
+    ) -> ProcedureSimulation:
+        """Run the whole procedure under ``request.truth`` and estimate by adaptive weighting."""
+        if not isinstance(request, WeightingProcedureReport):
+            raise CausalTypeError("request must be a WeightingProcedureReport")
+        wire = json.loads(
+            _unwrap(
+                self._handle.simulate(
+                    [float(p) for p in request.truth],
+                    _procedure_json(request._simulation_wire()),
+                    cancel,
+                )
+            )
+        )
+        return ProcedureSimulation(
+            procedure_identity=wire["procedure_identity"],
+            replicates=tuple(wire["replicates"]),
+            mean_enrolled=float(wire["mean_enrolled"]),
+            rule_stop_fraction=float(wire["rule_stop_fraction"]),
+        )
+
+    def report(self, request: ProcedureReportRequest, *, cancel: Any = None) -> ProcedureReport:
+        """One paradigm's derived statement.
+
+        Raises:
+            AdaptiveInferenceRefusal: ``cell_not_licensed`` when the procedure does not meet the
+                paradigm's premise (its detail names which), or the derivation's own refusal.
+        """
+        wire = getattr(request, "_wire", None)
+        if wire is None:
+            raise CausalTypeError("a request is one of the procedure report request classes")
+        payload = json.loads(
+            _unwrap(self._handle.report(_procedure_json(wire()), cancel))
+        )
+        return ProcedureReport(
+            paradigm=payload["paradigm"],
+            estimand=payload["estimand"],
+            procedure_identity=payload["procedure_identity"],
+            contract_identity=payload.get("contract_identity"),
+            body=payload["body"],
+        )
+
+
+# --------------------------------------------------------------------------- repeated measures
+#
+# Units that contribute several correlated measurements (repeated measures, or members of a
+# cluster with a unit-level random effect) are a separate outcome structure: the within-unit
+# dependence is declared, never defaulted, and every guarantee is about one cell of the procedure
+# matrix. Fixed-sample inference after response-adaptive assignment, and an independence
+# assumption for dependent measurements, are refused. Results are ``derived_unmeasured``.
+
+
+@dataclass(frozen=True)
+class WithinUnitCorrelation:
+    """Correlation of two measurements of one unit."""
+
+    kind: str
+    rho: float
+
+    @classmethod
+    def compound_symmetric(cls, rho: float) -> WithinUnitCorrelation:
+        """Every pair of measurements has correlation ``rho`` (``-1/(m-1) < rho < 1``)."""
+        return cls("compound_symmetric", float(rho))
+
+    @classmethod
+    def autoregressive(cls, rho: float) -> WithinUnitCorrelation:
+        """Measurements ``j`` and ``k`` have correlation ``rho ** |j - k|``."""
+        return cls("autoregressive", float(rho))
+
+    def _wire(self) -> dict[str, Any]:
+        return {"kind": self.kind, "rho": self.rho}
+
+
+@dataclass(frozen=True)
+class OutcomeStructure:
+    """The outcome structure of a unit with several measurements."""
+
+    kind: str
+    count: int
+    variance: float | None = None
+    correlation: WithinUnitCorrelation | None = None
+    between_variance: float | None = None
+    within_variance: float | None = None
+
+    @classmethod
+    def repeated_measures(
+        cls,
+        measurements: int,
+        variance: float,
+        correlation: WithinUnitCorrelation | None = None,
+    ) -> OutcomeStructure:
+        """``measurements`` per unit with marginal ``variance`` and a within-unit correlation.
+
+        Leaving ``correlation`` out is refused at declaration with
+        ``adaptive_inference.within_unit_correlation_missing``.
+        """
+        return cls("repeated_measures", int(measurements), float(variance), correlation)
+
+    @classmethod
+    def hierarchical(
+        cls,
+        members: int,
+        between_variance: float | None = None,
+        within_variance: float | None = None,
+    ) -> OutcomeStructure:
+        """A cluster of ``members`` with a unit-level random effect.
+
+        ``y_ij = mu + b_i + e_ij``; a missing variance is refused with its own detail.
+        """
+        return cls(
+            "hierarchical",
+            int(members),
+            between_variance=None if between_variance is None else float(between_variance),
+            within_variance=None if within_variance is None else float(within_variance),
+        )
+
+    def _wire(self) -> dict[str, Any]:
+        if self.kind == "repeated_measures":
+            return {
+                "kind": self.kind,
+                "measurements": self.count,
+                "variance": self.variance,
+                "correlation": None if self.correlation is None else self.correlation._wire(),
+            }
+        return {
+            "kind": self.kind,
+            "members": self.count,
+            "between_variance": self.between_variance,
+            "within_variance": self.within_variance,
+        }
+
+
+@dataclass(frozen=True)
+class UnitAssignment:
+    """Unit-level assignment, a function of the unit summaries of completed units."""
+
+    kind: str
+    probabilities: Sequence[float] | None = None
+    epsilon: float | None = None
+    prior_mean: float = 0.0
+    prior_strength: float = 1.0
+
+    @classmethod
+    def fixed(cls, probabilities: Sequence[float]) -> UnitAssignment:
+        """Probabilities fixed in advance."""
+        return cls("fixed", probabilities=tuple(float(p) for p in probabilities))
+
+    @classmethod
+    def epsilon_greedy(
+        cls, epsilon: float, prior_mean: float = 0.0, prior_strength: float = 1.0
+    ) -> UnitAssignment:
+        """Epsilon-greedy over prior-shrunk running means of the unit summaries."""
+        return cls(
+            "epsilon_greedy",
+            epsilon=float(epsilon),
+            prior_mean=float(prior_mean),
+            prior_strength=float(prior_strength),
+        )
+
+    def _wire(self) -> dict[str, Any]:
+        if self.kind == "fixed":
+            return {"kind": "fixed", "probabilities": list(self.probabilities or ())}
+        return {
+            "kind": self.kind,
+            "epsilon": self.epsilon,
+            "prior_mean": self.prior_mean,
+            "prior_strength": self.prior_strength,
+        }
+
+
+@dataclass(frozen=True)
+class FinalAnalysis:
+    """The declared final-analysis estimator of the contrast ``plus - minus``."""
+
+    kind: str
+    plus: int = 1
+    minus: int = 0
+    summary: Literal["mean", "gls"] = "mean"
+    scheme: Literal["uniform", "variance_stabilizing"] = "uniform"
+    prior_mean: float = 0.0
+    prior_strength: float = 1.0
+    probability_floor: float = 0.05
+
+    @classmethod
+    def cluster_robust(
+        cls, summary: Literal["mean", "gls"] = "mean", *, plus: int = 1, minus: int = 0
+    ) -> FinalAnalysis:
+        """Contrast of arm means of unit summaries with the unit-level (cluster-robust) variance.
+
+        A fixed-sample analysis: refused after response-adaptive assignment.
+        """
+        return cls("cluster_robust", plus=plus, minus=minus, summary=summary)
+
+    @classmethod
+    def pooled_independent(cls, *, plus: int = 1, minus: int = 0) -> FinalAnalysis:
+        """All measurements pooled as independent; refused when dependence is declared."""
+        return cls("pooled_independent", plus=plus, minus=minus)
+
+    @classmethod
+    def adaptively_weighted(
+        cls,
+        summary: Literal["mean", "gls"] = "mean",
+        *,
+        plus: int = 1,
+        minus: int = 0,
+        scheme: Literal["uniform", "variance_stabilizing"] = "uniform",
+        prior_mean: float = 0.0,
+        prior_strength: float = 1.0,
+        probability_floor: float = 0.05,
+    ) -> FinalAnalysis:
+        """The adaptively weighted augmented score over unit summaries (the weighting route)."""
+        return cls(
+            "adaptively_weighted",
+            plus=plus,
+            minus=minus,
+            summary=summary,
+            scheme=scheme,
+            prior_mean=float(prior_mean),
+            prior_strength=float(prior_strength),
+            probability_floor=float(probability_floor),
+        )
+
+    def _wire(self) -> dict[str, Any]:
+        estimator: dict[str, Any] = {"kind": self.kind}
+        if self.kind in ("cluster_robust", "adaptively_weighted"):
+            estimator["summary"] = self.summary
+        if self.kind == "adaptively_weighted":
+            estimator.update(
+                scheme=self.scheme,
+                prior_mean=self.prior_mean,
+                prior_strength=self.prior_strength,
+                probability_floor=self.probability_floor,
+            )
+        return {"estimator": estimator, "plus": self.plus, "minus": self.minus}
+
+
+@dataclass(frozen=True)
+class RepeatedMeasuresDeclaration:
+    """Everything a producer states about a repeated-measures or clustered procedure.
+
+    Each element but ``arms`` may be ``None``; declaring then refuses with that element's own
+    detail. ``enrolment`` is the units per policy-update batch (all ones is fully sequential);
+    ``lag_looks`` is the follow-up delay in batches. Only no stopping is derived for this cell.
+    """
+
+    arms: int
+    assignment: UnitAssignment | None = None
+    enrolment: Sequence[int] | None = None
+    structure: OutcomeStructure | None = None
+    analysis: FinalAnalysis | None = None
+    stopping: ProcedureStopping | None = None
+    lag_looks: int = 0
+
+    def to_wire(self) -> dict[str, Any]:
+        """The declaration as the native wire mapping."""
+
+        def wire(value: Any) -> Any:
+            return None if value is None else value._wire()
+
+        return {
+            "arms": self.arms,
+            "assignment": wire(self.assignment),
+            "enrolment": None if self.enrolment is None else [int(n) for n in self.enrolment],
+            "lag_looks": self.lag_looks,
+            "structure": wire(self.structure),
+            "analysis": wire(self.analysis),
+            "stopping": wire(self.stopping),
+        }
+
+
+@dataclass(repr=False, frozen=True)
+class RepeatedMeasuresReport(ScientificResult):
+    """A derived statement about a repeated-measures or clustered procedure.
+
+    ``cell`` names the matrix cell the statement is about (``id``, ``family``, ``outcome``,
+    ``monitoring``, ``stopping``, ``paradigm``); ``route`` names the analysis route; ``body``
+    holds the exact closed forms and, for a derived report, the simulated law with its Monte
+    Carlo error reported separately. ``claim`` is always ``derived_unmeasured``.
+    """
+
+    procedure_identity: str
+    cell: dict[str, Any]
+    route: str
+    body: dict[str, Any]
+    claim: str = DERIVED_UNMEASURED
+
+
+class RepeatedMeasuresProcedure:
+    """A declared repeated-measures or clustered adaptive procedure."""
+
+    def __init__(self, handle: Any) -> None:
+        self._handle = handle
+        self._cell: dict[str, Any] = json.loads(handle.cell_json())
+
+    @classmethod
+    def declare(cls, declaration: RepeatedMeasuresDeclaration) -> RepeatedMeasuresProcedure:
+        """Declare the procedure.
+
+        Raises:
+            AdaptiveInferenceRefusal: ``adaptive_contract_incomplete`` with one detail per missing
+                element (``adaptive_inference.within_unit_correlation_missing``,
+                ``...between_unit_variance_missing``, ...), or ``invalid_argument`` details.
+        """
+        if not isinstance(declaration, RepeatedMeasuresDeclaration):
+            raise CausalTypeError("declaration must be a RepeatedMeasuresDeclaration")
+        wire = _procedure_json(declaration.to_wire())
+        return cls(_unwrap(_native.repeated_measures_procedure_declare(wire)))
+
+    @property
+    def identity(self) -> str:
+        """Canonical identity (hex) of the declared procedure."""
+        return str(self._handle.identity())
+
+    @property
+    def cell(self) -> dict[str, Any]:
+        """The matrix cell of the procedure and the paradigm of its declared analysis."""
+        return dict(self._cell)
+
+    def _report(self, wire: dict[str, Any], cancel: Any) -> RepeatedMeasuresReport:
+        payload = json.loads(_unwrap(self._handle.report(_procedure_json(wire), cancel)))
+        return RepeatedMeasuresReport(
+            procedure_identity=payload["procedure_identity"],
+            cell=payload["cell"],
+            route=payload["route"],
+            body=payload["body"],
+        )
+
+    def closed_form(
+        self, arm_means: Sequence[float], *, cancel: Any = None
+    ) -> RepeatedMeasuresReport:
+        """The exact closed forms: unit-summary variance, design effect, exact contrast law."""
+        wire = {"kind": "closed_form", "arm_means": [float(m) for m in arm_means]}
+        return self._report(wire, cancel)
+
+    def derive(
+        self,
+        arm_means: Sequence[float],
+        *,
+        replications: int,
+        seed: int,
+        z: float = 1.96,
+        cancel: Any = None,
+    ) -> RepeatedMeasuresReport:
+        """The whole-procedure simulation under the paradigm of the declared analysis.
+
+        Raises:
+            AdaptiveInferenceRefusal: ``cell_not_licensed`` with the premise's detail when the
+                declared analysis does not meet its paradigm's premise.
+        """
+        wire = {
+            "kind": "derived",
+            "arm_means": [float(m) for m in arm_means],
+            "replications": int(replications),
+            "seed": int(seed),
+            "z": float(z),
+        }
+        return self._report(wire, cancel)
+
+    def derive_paradigm(
+        self,
+        paradigm: str,
+        arm_means: Sequence[float],
+        *,
+        replications: int,
+        seed: int,
+        z: float = 1.96,
+        cancel: Any = None,
+    ) -> RepeatedMeasuresReport:
+        """As :meth:`derive`, naming the paradigm asked for; any other is refused."""
+        wire = {
+            "kind": "paradigm",
+            "paradigm": paradigm,
+            "arm_means": [float(m) for m in arm_means],
+            "replications": int(replications),
+            "seed": int(seed),
+            "z": float(z),
+        }
+        return self._report(wire, cancel)
+
+    def transfer_guarantee(
+        self, cell_id: str, paradigm: str, *, cancel: Any = None
+    ) -> RepeatedMeasuresReport:
+        """Ask whether this cell's guarantee may be stated for another cell (it may not)."""
+        wire = {"kind": "cell_transfer", "cell_id": str(cell_id), "paradigm": str(paradigm)}
+        return self._report(wire, cancel)
