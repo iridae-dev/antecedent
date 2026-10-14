@@ -28,6 +28,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+pub mod staged;
+
 use std::collections::BTreeSet;
 
 use antecedent_contract::StructuredRefusal;
