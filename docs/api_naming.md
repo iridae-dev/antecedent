@@ -173,6 +173,19 @@ directly:
   supported analysis-to-decision handoff.
 - ``antecedent.transport`` — single-source graphical transportability
   specifications.
+- ``antecedent.transported_response`` — a response value carried to a target population
+  with its transport receipt, and the decision made on it; ``antecedent.transported_constructors``
+  builds those responses from checked inputs. Both are loaded on first access and listed by
+  ``dir(antecedent)``.
+- ``antecedent.transport_handoff`` — seal the connection of a transported claim to a callback
+  input, and re-derive it in a fresh consumer.
+- ``antecedent.discretized_composition`` — discretize a linear-Gaussian composition under a
+  declared plan into an executable finite model, with its distance from the closed form.
+- ``antecedent.inverse_sources`` — forward sources of an inverse query (composed, transported,
+  discretized, associational observational), each with its own refusals.
+- ``antecedent.transport.revalidation``, ``antecedent.transport.sensitivity`` and
+  ``antecedent.transport.discovered`` — transport revalidation, sensitivity and
+  discovered-graph routes; import them as submodules of ``antecedent.transport``.
 
 Discovery algorithms follow the same rule: what used to be sixteen free
 `discover_*()` functions are now config dataclasses on ``antecedent.discovery``

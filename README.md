@@ -123,7 +123,7 @@ The [support matrix](docs/support-matrix.md) separates licenses from coverage me
 
 ## What's new in 2.4
 
-Scientific composition connects models while preserving meaning, evidence and uncertainty. These goals include implemented and unfinished work:
+Scientific composition connects models while preserving meaning, evidence and uncertainty. The release covers:
 
 - **Inputs and mechanisms.** Propagate measurement and latent uncertainty; compose fitted mechanisms with explicit support and dependence.
 - **Evidence synthesis and revision.** Prevent double-counting; revalidate claims when evidence changes. Distinguish pooling, borrowing and transport.
@@ -132,7 +132,7 @@ Scientific composition connects models while preserving meaning, evidence and un
 - **Adaptive experiments.** Represent assignment, delayed outcomes and stopping rules; calibrate the complete procedure.
 - **Composition guarantees.** Check compatibility, propagate dependent uncertainty and inspect or replay pipeline evidence.
 
-See the [roadmap](ROADMAP.md#24-direction--broader-scientific-composition) for open work and the [changelog](CHANGELOG.md) for release history.
+See the [changelog](CHANGELOG.md) for release history and the [roadmap](ROADMAP.md) for what follows.
 
 ## Documentation and contribution
 

@@ -284,9 +284,8 @@ the counts in a fresh process.
 ### What consumes a transported counterfactual probability
 
 The result is a point. The inverse-outcome query and the decision contract do
-not take it as a forward source today (no API accepts it); a typed adapter that
-carries the point-only label and refuses a request that needs a law or an
-interval is scheduled with the inverse-query and decision-consumption work.
+not take it as a forward source (no API accepts it); a transported point enters
+those consumers only as a declared mean source that keeps the point-only label.
 
 The producer row `counterfactual_transport_result` (a `CounterfactualTransportResult`
 or its exported artifact) joins [the producer and consumer matrix](producer-consumer-matrix.md)

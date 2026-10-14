@@ -539,7 +539,7 @@ sampling coverage of every published derivative interval is gated in
   Both ride the same matrix cell. Frequentist `log_scale="treatment"` publishes
   `|a|` times the bias-corrected slope interval. `log_scale="outcome"` and
   transformed second derivatives publish joint-covariance delta-method
-  intervals, whose coverage is not yet calibrated for those scales.
+  intervals, whose coverage is not calibrated for those scales.
 - `ResponseJacobian(...)` and `DirectionalDerivative(...)` are additive-GAM
   plug-in gradients with at most two treatments, a common adjustment set, and
   a shared complete-case row set. The target surface is an unpenalized cubic

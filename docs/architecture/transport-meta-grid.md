@@ -113,7 +113,7 @@ identities and bootstrap ordering remain unchanged. Historical conservative
 negatives stay `NotCertified`; flat experiments acquire no invented joint regime.
 Earlier insufficient statistical artifacts still require regeneration.
 
-## Evidence and deferred calibration
+## Evidence and calibration
 
 `crates/antecedent-identify/tests/meta_transport_scm.rs` independently enumerates
 64 ordered three-node ADMGs, seven source-selection pairs, two parameterizations,

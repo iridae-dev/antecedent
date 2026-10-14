@@ -140,7 +140,7 @@ also refuses a consistently resealed artifact of another evaluation.
   diagram with the transition and observation mechanisms marked invariant and a
   target initial-state law with support overlap; the request is refused with
   that contract named (`transported_policy_contract_missing`).
-- **Temporal transport.** Deferred, with the same typed refusal
+- **Temporal transport.** Refused with the same typed refusal
   (`temporal_transport_contract_missing`). The model's laws are
   time-homogeneous within its horizon by construction; carrying them to
   another period is an invariance claim across periods that is not declared

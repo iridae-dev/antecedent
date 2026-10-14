@@ -244,7 +244,7 @@ path-specific counterfactual answer be transported to a named target?
   composition, and the joint theorem has not passed. Nothing is evaluated
   whatever is supplied; the refusal names the missing prerequisite gates and
   absent regime factors.
-- Claim: closed pending the joint theorem for the temporal, continuous and
+- Claim: closed because no joint theorem covers the temporal, continuous and
   non-finite scope. The finite discrete, static, acyclic semi-Markovian scope is
   answered by `antecedent.transport.advanced.identify_counterfactual`, which the
   refusal names; this entry point never delegates.

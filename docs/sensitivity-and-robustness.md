@@ -16,7 +16,7 @@ Four modules:
 | `antecedent.mechanism_discrepancy` | Does the mechanism of one node differ between a source and a target population? | asymptotic Wald diagnostic; calibration unmeasured |
 
 Registry authority is `parity/promotion.toml`; this page restates it. For the
-label vocabulary (point-only, no claim, closed pending calibration) see
+label vocabulary (point-only, no claim, closed without a measured calibration) see
 [decisions, design, repair and estimator breadth](decisions-breadth.md).
 
 ## Three quantities that are never merged

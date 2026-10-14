@@ -83,7 +83,7 @@ identity and a coordinate that the producer supplies.
 |---|---|
 | recalculation plan (`stage_effects`) | a recomputed stage recomputes; a refused stage is unexecutable (withdrawn) |
 | evidence ledger (`ledger_effects`) | a result needing recomputation recomputes; a withdrawn or replaced result is withdrawn |
-| invalidation log (`invalidation_effects`) | a bound query result or model invalidated after a state version recomputes |
+| invalidation log (`invalidation_effects`) | the three-state `query_revalidation` of a bound query since its state version: `still_valid` keeps, `recompute` for changed data or premises recomputes, `withdrawn` when a premise it rested on was removed is withdrawn |
 | claim freshness (`freshness_effects`) | withdrawn is withdrawn; superseded or a moved snapshot recomputes; an offline receiver reports nothing |
 
 `stage_node` builds a node whose identity is the planner's effective stage

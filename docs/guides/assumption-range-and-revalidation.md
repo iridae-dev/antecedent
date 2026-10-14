@@ -55,8 +55,8 @@ The report exports as the claim-level verification
 (`composition_verification_v1`), which a consumer replays. The io-core crate
 also defines `transport_revalidation_v1`, which carries both scenes, the
 effects and the classification and re-derives the whole report on consume,
-keeping the transport reasons; it is a library-level artifact with no facade
-or Python export yet.
+keeping the transport reasons; `TransportRevalidation.export` produces it in
+Python.
 
 A change of standing is itself a change: a provider's trust moving between
 snapshots, a calibration record replaced, or support restored recomputes the

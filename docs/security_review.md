@@ -62,8 +62,8 @@ Pre-calibration source review of the changes that became package version 2.2.0: 
 inverse-outcome route binds forward provenance and refuses unlicensed forward
 claims; batch retargeting requires one row snapshot; dependency and overlap
 failures have typed refusals. Ordinary test and documentation gates run before
-the final calibration and matrix pass. Calibration and the release candidate
-gate are still required before publication.
+the final calibration and matrix pass. Publication requires calibration and the
+release gate.
 
 Date: 2026-09-29
 Scope: workspace crates + `python` extension (package version **2.1.1**)
@@ -89,7 +89,7 @@ finite domains and checked catalog bindings; the nested SCM route is limited
 to the compatible explicit DAG and a point result. An offline `cargo deny
 check` on 2026-09-24 passed advisories, bans, licenses, and sources with
 warnings for existing dependency metadata and duplicate versions. This is a
-source and cached-advisory review; the release candidate still requires its
+source and cached-advisory review; a release requires its
 CI, calibration, artifact, and support gates on the final commit.
 
 Date: 2026-09-22
@@ -266,16 +266,18 @@ never trusted on its own, and a semantic edit that reseals the container is refu
 | Artifact decoder | Byte cap | Gates |
 |------------------|----------|-------|
 | Transport handoff (`transport_handoff_artifact`) | 8 MiB | Major-version and required-feature gate; callback identity re-derived; handoff re-run against the declaration with `verify_against_callback` |
-| Joint-law propagation (`joint_law_propagation_artifact`) | container cap | Version gate; non-finite results refused |
-| Composition verification (`composition_verification_artifact`) | 64 MiB | Version gate; ledger re-verification (`verify_ledger`) |
+| Joint-law propagation (`joint_law_propagation_artifact`) | 8 MiB (`MAX_JOINT_LAW_PROPAGATION_ARTIFACT_BYTES`); at most 256 inputs, 4096 shared-evidence entries, 4096 bytes per text field | Length checked before decode; version gate; non-finite results refused |
+| Composition verification (`composition_verification_artifact`) | 32 MiB (`MAX_COMPOSITION_VERIFICATION_ARTIFACT_BYTES`); at most 65,536 shared-data relations | Version gate; ledger re-verification (`verify_ledger`) |
 | Interface contract (`interface_contract_artifact`) | 16 MiB | Version gate; declaration bounds; identity recomputed |
 | Callback result (`callback_result_artifact`) | 24 MiB | Version gate; declaration and output re-validated; output digest recomputed |
 | Evidence ledger export (`evidence_ledger_artifact`) | 128 MiB | Version gate; source graph and overlap re-derived |
 | Counterfactual transport, transported counterfactual, sampled transport | 64 MiB (transported) | Version gate; stored expectations and identity compared on consume |
 | Cohort decision source (`cohort_decision`) | 64 MiB | Support, predictions, mean and identity recomputed from rows and model; caller supplies expectations |
 | Measurement model (`measurement_model_wire`) | 8 MiB | Expected model identity required; digest recomputed |
-| Inverse query, design ranking, decision, robust and structural results | 16 / 8 MiB / per kind | Version gate; contract and source digests required from the consumer |
-| Adaptive result and monitoring contract | container cap | Checked decode needs the execution context; unchecked decode returns metadata only |
+| Inverse query result | 16 MiB (`MAX_INVERSE_QUERY_ARTIFACT_BYTES`) | Version gate; contract and source digests required from the consumer |
+| Design ranking, decision and robust decision results | 8 MiB each (`MAX_DESIGN_RANKING_ARTIFACT_BYTES`, `MAX_DECISION_ARTIFACT_BYTES`); at most 65,536 robust items | Version gate; contract and source digests required from the consumer |
+| Structural decision result | no separate byte constant; decoded through the artifact container | Version gate; contract and source digests required from the consumer |
+| Adaptive result and monitoring contract | 256 MiB each (`MAX_ADAPTIVE_INFERENCE_RESULT_BYTES`, `MAX_ADAPTIVE_MONITORING_CONTRACT_BYTES`) | Checked decode needs the execution context; unchecked decode returns metadata only |
 
 Decoders return typed errors and do not panic on malformed input. They are exercised by the
 `fuzz/` targets (no-panic and bounded-allocation) and by per-artifact semantic-mutation tests.
