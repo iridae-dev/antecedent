@@ -255,7 +255,7 @@ def test_off_policy_returns_carry_the_expected_utility_only() -> None:
             run_seed=5,
         )
     )
-    assert carrier.producer == "sequential_evaluation"
+    assert carrier.producer == "sequential_off_policy"
     request = dr.ReliabilityRequest(functional=dr.Functional.cvar(0.5))
     with pytest.raises(DR) as raised:
         carrier.derive_uncertainty(request, dr.IntervalRequest(level=0.95))

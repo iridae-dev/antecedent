@@ -422,6 +422,11 @@ SNAPSHOT: dict[str, set[str]] = {
         "temporal",
         "temporal_counterfactual",
         "transported_counterfactual",
+        "transported_constructors",
+        "transported_response",
+        "transport_handoff",
+        "inverse_sources",
+        "discretized_composition",
         "vector_treatment",
     },
     "AnalysisResult": {

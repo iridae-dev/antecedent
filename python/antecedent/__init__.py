@@ -62,7 +62,14 @@ Transport and counterfactual:
 * ``transported_counterfactual`` transports a static path-specific counterfactual,
   ``temporal_counterfactual`` is its fixed-population temporal counterpart, ``cross_world`` is the
   path-specific edge intervention on a Markovian DAG and ``counterfactual_id`` the effect of
-  treatment on the treated on a bounded ADMG.
+  treatment on the treated on a bounded ADMG;
+* ``transported_response`` carries a response value to a target population with its transport
+  receipt and decides on it, ``transported_constructors`` builds those responses from checked
+  inputs, ``transport_handoff`` seals the connection of a transported claim to a callback input,
+  ``discretized_composition`` turns a linear-Gaussian composition into an executable finite model
+  with its distance from the closed form, and ``inverse_sources`` adapts each forward source of an
+  inverse query with its own refusals. The revalidation, sensitivity and discovered transport
+  routes are submodules of ``transport``.
 
 Sensitivity and robustness:
 
@@ -376,6 +383,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "decision_reliability",
     "decision_robust",
     "descriptive",
+    "discretized_composition",
     "dose_grid",
     "effect_constancy_review",
     "evidence_ledger",
@@ -384,6 +392,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "interface_contract",
     "inverse",
     "inverse_query",
+    "inverse_sources",
     "joint_distribution",
     "joint_law_propagation",
     "latent_class",
@@ -422,7 +431,10 @@ _LAZY_MODULES: tuple[str, ...] = (
     "source_projection",
     "temporal",
     "temporal_counterfactual",
+    "transport_handoff",
+    "transported_constructors",
     "transported_counterfactual",
+    "transported_response",
     "vector_treatment",
 )
 
@@ -440,6 +452,7 @@ if _TYPE_CHECKING:
     from . import decision_reliability as decision_reliability
     from . import decision_robust as decision_robust
     from . import descriptive as descriptive
+    from . import discretized_composition as discretized_composition
     from . import dose_grid as dose_grid
     from . import effect_constancy_review as effect_constancy_review
     from . import evidence_ledger as evidence_ledger
@@ -448,6 +461,7 @@ if _TYPE_CHECKING:
     from . import interface_contract as interface_contract
     from . import inverse as inverse
     from . import inverse_query as inverse_query
+    from . import inverse_sources as inverse_sources
     from . import joint_distribution as joint_distribution
     from . import joint_law_propagation as joint_law_propagation
     from . import latent_class as latent_class
@@ -486,7 +500,10 @@ if _TYPE_CHECKING:
     from . import source_projection as source_projection
     from . import temporal as temporal
     from . import temporal_counterfactual as temporal_counterfactual
+    from . import transport_handoff as transport_handoff
+    from . import transported_constructors as transported_constructors
     from . import transported_counterfactual as transported_counterfactual
+    from . import transported_response as transported_response
     from . import vector_treatment as vector_treatment
 
 _RETIRED_MODULES = {"prior_bank": "priors"}

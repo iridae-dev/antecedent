@@ -99,7 +99,7 @@ def model() -> se.FiniteModel:
 def policy(m: se.FiniteModel) -> se.Policy:
     return se.Policy.deterministic(
         "inspect_then_ship_on_quiet",
-        {(): "inspect", (("inspect", 0),): "ship", (("inspect", 1),): "hold"},
+        {(): "inspect", ((INSPECT, 0),): "ship", ((INSPECT, 1),): "hold"},
         m,
     )
 
@@ -450,7 +450,14 @@ def test_synthesis_refusals_are_the_routes_and_carry_no_interval():
     error = refused(lambda: build(both, coordinate=quantity("pooled", "trial_a")))
     assert error.detail == NOT_IN_TARGET
 
-    error = refused(lambda: build([tc.Contribution(cohort, 1.0, 1.0)]))
+    second = ledger.add_source(
+        el.SourceDeclaration(
+            "second cohort", "observation_set", observations=el.rows("registry", range(5000, 5100))
+        )
+    )
+    error = refused(
+        lambda: build([tc.Contribution(cohort, 1.0, 1.0), tc.Contribution(second, 1.5, 1.0)])
+    )
     assert error.detail == NOT_TRANSPORTED
 
     error = refused(

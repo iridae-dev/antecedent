@@ -232,13 +232,17 @@ def test_inputs_required_disjoint_cannot_share_evidence():
         ],
     )
     wires = [("s1", "out", "pool", "left"), ("s2", "out", "pool", "right")]
-    assert ic.check_composition([source("s1", (SOURCE_A,)), source("s2", (SOURCE_B,)), pool], wires)
-    error = refusal_of(
-        lambda: ic.check_composition(
-            [source("s1", (SOURCE_A,)), source("s2", (SOURCE_A,)), pool], wires
+    # Without a ledger the overlap of two declared sources is not computable, so the
+    # requirement is refused whatever the source identities say (disjoint or shared).
+    for second in (SOURCE_B, SOURCE_A):
+        error = refusal_of(
+            lambda second=second: ic.check_composition(
+                [source("s1", (SOURCE_A,)), source("s2", (second,)), pool], wires
+            )
         )
-    )
-    assert error.detail == "interface_contract.shared_evidence"
+        assert error.reason_code == "interface_contract_assumption_mismatch"
+        assert error.detail == "interface_contract.dependence_unknown"
+        assert error.remedy
 
 
 # --------------------------------------------------------------------------- artifact

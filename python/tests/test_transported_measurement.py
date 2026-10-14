@@ -13,6 +13,7 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
+from antecedent._freeze import thaw
 from antecedent import measurement_models as mm
 from antecedent.errors import CausalTypeError
 from antecedent.measurement_models import MeasurementModelRefusal
@@ -120,7 +121,7 @@ def test_the_transported_artifact_is_the_existing_one_and_replays() -> None:
         structure=invariance(),
         expected_identity=result.identity,
     )
-    assert again == result.receipt
+    assert thaw(again) == thaw(result.receipt)
     refused(
         lambda: mm.verify_measurement_transport(
             [model("clinic_a")],

@@ -73,7 +73,8 @@ def ols(target, regressors):
     design = np.column_stack([np.ones(n), *regressors])
     beta = np.linalg.lstsq(design, target, rcond=None)[0]
     resid = target - design @ beta
-    return beta, float(np.sqrt(resid @ resid / n))
+    # The fitted sigma is the unbiased residual scale, divisor n - (number of coefficients).
+    return beta, float(np.sqrt(resid @ resid / (n - design.shape[1])))
 
 
 def scm_law(spec: dict, do: dict | None = None):
@@ -373,8 +374,9 @@ def test_declared_source_mechanisms_are_not_carried() -> None:
         admit_declared_mechanisms=True,
     )
     error = refusal_of(lambda: declared.transport_to(transport(into=("M",))))
-    assert error.reason_code == "mechanism_composition_incoherent"
     assert "mechanism_transport.origin_not_fitted" in error.details
+    origin = [r for r in error.refusals if r["detail"] == "mechanism_transport.origin_not_fitted"]
+    assert origin and all(r["code"] == "mechanism_composition_incoherent" for r in origin)
 
 
 def test_declaration_types_are_checked(source_gcm) -> None:

@@ -95,7 +95,11 @@ def test_a_chain_is_a_class_and_each_member_carries_its_structural_verdict() -> 
 
 
 def test_a_compelled_structure_is_one_member_with_one_formula() -> None:
-    envelope = discovered.discover_and_transport(contract(), collider(2), **QUERY).envelope  # type: ignore[arg-type]
+    # Outcome y is the collider, x is the treatment and z (a parent of y, not an ancestor of x)
+    # is the varying mechanism: standardization over z. With outcome z the varying y would not
+    # be an ancestor of the outcome and the formula would be direct.
+    query = dict(QUERY, outcome="y", selection_targets=["z"])
+    envelope = discovered.discover_and_transport(contract(), collider(2), **query).envelope  # type: ignore[arg-type]
     assert envelope.kind == "structural_envelope"
     assert len(envelope.members) == 1
     assert envelope.unresolved == ()

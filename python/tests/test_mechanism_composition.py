@@ -639,7 +639,7 @@ def test_independence_and_a_declared_covariance_give_different_checked_variances
     )
     aligned = compose(uncertain_chain(), dependence=joint).mean_contrast_uncertainty(contrast)
     assert aligned.variance == pytest.approx(variance_declared, abs=1e-10)
-    assert aligned.dependence == "aligned_joint_law"
+    assert aligned.dependence == "joint_gaussian_covariance"
 
 
 def test_a_missing_cross_covariance_pair_is_unknown_for_that_pair():

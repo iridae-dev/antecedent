@@ -23,6 +23,11 @@ from pathlib import Path
 _SRC = Path(__file__).resolve().parents[1] / "src"
 
 SEED_ZERO = (
+    "decision_reliability_api.rs::decision_reliability_assess_producer",
+    "decision_reliability_api.rs::decision_reliability_consume_derived",
+    "decision_reliability_api.rs::decision_reliability_derive",
+    "decision_reliability_api.rs::decision_reliability_derive_producer",
+    "decision_reliability_api.rs::decision_reliability_verify_derived",
     "attribution_api.rs::attribute_distribution_change",
     "attribution_api.rs::attribute_distribution_change_robust",
     "attribution_api.rs::attribute_feature_relevance",
