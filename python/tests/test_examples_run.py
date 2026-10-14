@@ -42,9 +42,15 @@ def test_example_runs(path, monkeypatch):
     # reads it (`bench_python_overhead.py`'s `argparse.ArgumentParser`) would
     # otherwise inherit pytest's own argv (`-q`, the node id, `--tb=...`, ...) and
     # fail with "unrecognized arguments" under any normal pytest invocation. Each
-    # example must run the way a reader invoking it directly would: with no
-    # arguments beyond its own name.
-    monkeypatch.setattr("sys.argv", [str(path)])
+    # example must run the way a reader invoking it directly would, using its
+    # own arguments rather than pytest's.
+    argv = [str(path)]
+    # Exercise every benchmark workload and input format without repeating its
+    # timing samples. Correctness belongs here; performance measurements use
+    # the example's normal 25-iteration invocation.
+    if path.name == "bench_python_overhead.py":
+        argv.append("--smoke")
+    monkeypatch.setattr("sys.argv", argv)
     runpy.run_path(str(path), run_name="__main__")
 
 

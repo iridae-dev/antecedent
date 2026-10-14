@@ -9,6 +9,9 @@ from pathlib import Path
 
 def test_ux_types_through_lazy_root_and_explicit_imports(tmp_path):
     fixture = tmp_path / "positive.py"
+    # Reuse dependency analysis for the negative case while keeping cache
+    # writes private to this test (including parallel pytest workers).
+    mypy = [sys.executable, "-m", "mypy", "--cache-dir", str(tmp_path / "mypy-cache")]
     fixture.write_text("""from typing import assert_type
 import antecedent as ant
 from antecedent import adaptive_inference as ai
@@ -30,7 +33,7 @@ def checked(session: ai.AdaptiveInferenceSession, claim: sb.BridgedClaim) -> Non
     ant.transport.advanced.estimate_augmented_response_grid
 """)
     result = subprocess.run(
-        [sys.executable, "-m", "mypy", "--no-incremental", str(fixture)],
+        [*mypy, str(fixture)],
         cwd=Path(__file__).parents[1],
         text=True,
         capture_output=True,
@@ -43,7 +46,7 @@ ai.BayesianPosterior(look_typo=1)
 bad: ai.StoppingName = "invented"
 """)
     result = subprocess.run(
-        [sys.executable, "-m", "mypy", "--no-incremental", str(fixture)],
+        [*mypy, str(fixture)],
         cwd=Path(__file__).parents[1],
         text=True,
         capture_output=True,
