@@ -1,0 +1,24 @@
+feature_id = "transport.period_shift_policy"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A policy value carried across periods under one premise: the dynamic mechanisms are time-
+# invariant over a fixed horizon and only the initial state has moved. Original engineering over
+# the same sequential g-formula as transport.policy_evaluation; the premise is the
+# selection-diagram rule with time as the population index.
+papers = [
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+]
+implementation_deviations = [
+  "Bounded route, not a published algorithm: no period-drift model beyond the supplied target initial-state law; the target law's support must lie inside the source's.",
+  "Time invariance is declared per mechanism and never assumed; a transition, observation or utility mechanism marked shifted is refused as time-varying.",
+  "The horizon and the action/observation alphabets must match; the policy table is never re-keyed implicitly.",
+  "Point value only; no interval or posterior.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/tests/transported_evaluation.rs",
+]

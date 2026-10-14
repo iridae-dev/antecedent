@@ -1,0 +1,23 @@
+feature_id = "adaptive_inference.procedure_weighting_simulation"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Sampling law of an adaptively weighted estimator under the stopping time and policy selection
+# by whole-procedure simulation (streams keyed by seed and replicate index). The estimator is
+# that of adaptive_inference.adaptive_weighting; this record covers only the simulation of its
+# law under a declared procedure.
+papers = [
+  { title = "Confidence intervals for policy evaluation in adaptive experiments (Hadad, Hirshberg, Zhan, Wager, Athey, PNAS 118(15):e2014602118)", doi = "10.1073/pnas.2014602118", sections = ["adaptively weighted estimators and their behaviour under adaptive data collection"] },
+]
+implementation_deviations = [
+  "Monte Carlo law under a hypothesized truth with the caller reporting Monte Carlo error; it is not a coverage claim. Plug-in variance is a diagnostic.",
+  "Estimator history is the terminal-look retained history (revealed and observed units, with the policy's realized probabilities at enrolment); no claim is made about the paper's asymptotic normality at the stopping time.",
+  "Outcome-dependent loss makes the scores not martingale differences and is refused.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs",
+]

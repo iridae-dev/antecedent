@@ -1,0 +1,30 @@
+feature_id = "decision_reliability.derived_uncertainty"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Derived intervals and confidence sets for ranking and optimality statements: Wald intervals
+# for utilities and differences, Wilson intervals for ranking probabilities at the reported
+# effective sample size, a Bonferroni multiple-comparisons-with-the-best confidence set, and a
+# simultaneous interval for the selected candidate. Wilson (1927) and Hsu's multiple comparisons
+# with the best are the underlying constructions; neither has a DOI verified here.
+papers = [
+  { title = "Probable Inference, the Law of Succession, and Statistical Inference (Wilson, J. Am. Stat. Assoc. 22:209-212, 1927)", sections = ["score interval for a binomial proportion (DOI not verified, omitted)"] },
+  { title = "Multiple Comparisons: Theory and Methods (Hsu, 1996)", sections = ["multiple comparisons with the best (DOI not verified, omitted)"] },
+  { title = "The Optimizer's Curse: Skepticism and Postdecision Surprise in Decision Analysis (Smith and Winkler, Management Science 52, 2006)", doi = "10.1287/mnsc.1050.0451", sections = ["upward bias of the selected maximum of noisy estimates"] },
+]
+implementation_deviations = [
+  "Source-distribution uncertainty is carried unchanged and never added to the numerical or selection components; a probability is a probability under the supplied law and no interval here covers a wrong law.",
+  "Monte Carlo errors are treated as normal at the reported effective sample size and estimated standard errors as known; below MIN_NORMAL_ESS the derivation refuses. Candidates an adaptive search considered but did not retain are counted, never covered.",
+  "The Bonferroni critical values hold for any dependence between candidates and are conservative; no sharper joint critical value is implemented.",
+  "Derived-unmeasured: publish refuses with cell_not_licensed until a coverage record measures the route at its coordinate (candidate-set size, Monte Carlo budget, selection rule). The measurement design is data in coverage_design.rs; nothing is measured.",
+  "Producers that hold only a point (cohort mean, rollout mean) are refused (joint_law_required / diagnostic_not_available); implementation-keyed shared-noise rollouts are marginal-only and cannot support ranking probabilities.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/tests/decision_reliability_intervals.rs",
+  "crates/antecedent-design/tests/decision_reliability_producers.rs",
+  "crates/antecedent-design/tests/decision_reliability.rs",
+]

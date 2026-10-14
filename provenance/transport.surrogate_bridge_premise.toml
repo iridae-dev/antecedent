@@ -1,0 +1,24 @@
+feature_id = "transport.surrogate_bridge_premise"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Ties the transportability premise of a trial-level surrogate-to-terminal bridge to a declared
+# selection diagram: the premise holds only when no selection node points into the terminal
+# outcome or into a declared modifier of the relation.
+papers = [
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+  { title = "Surrogate endpoints in clinical trials: definition and operational criteria (Prentice, Stat Med 8:431-440)", doi = "10.1002/sim.4780080407", sections = ["surrogate endpoint criteria"] },
+  { title = "The validation of surrogate endpoints in meta-analyses of randomized experiments (Buyse, Molenberghs, Burzykowski, Renard and Geys, Biostatistics 1:49-67)", doi = "10.1093/biostatistics/1.1.49", sections = ["trial-level association between treatment effects on surrogate and terminal outcome"] },
+]
+implementation_deviations = [
+  "Checks the premise against a declared diagram; it does not discharge it. The premise stays an unresolved obligation of the derived claim.",
+  "The bridge itself remains the contract's route: point-only, a mean, one trial-level linear mapping inside the validated surrogate range; no interval and no substitution for an identified causal effect.",
+  "A selection node into the surrogate does not contradict the premise because the surrogate's effect in the target is the claim being bridged and is measured there.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/tests/transported_bridge.rs",
+]

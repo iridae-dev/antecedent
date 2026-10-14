@@ -1,0 +1,21 @@
+feature_id = "decision.transported_source"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A transported response (value plus the receipt of how it was carried) as a decision source,
+# and as a forward source of an inverse query. Contract and adapter logic over existing decision
+# and inverse engines; the expected-utility computation is the existing one.
+papers = []
+implementation_deviations = [
+  "A transported mean supplies only the expectation of an affine utility; a request that needs a law is refused (law_not_supplied), never widened by an assumed spread.",
+  "Labelled at best extrapolative; the default support policy admits only supported coordinates, so a consumer must name the weaker status. No interval is licensed from the transport step.",
+  "The source model's standard error is retained as an uncalibrated diagnostic and never becomes a decision, interval or feasibility statement. The inverse origin is a declaration; replay re-checks that the embedded numbers match it, not that the producing route re-executes.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/tests/decision_transported_source.rs",
+  "crates/antecedent-design/tests/inverse_forward_source.rs",
+]

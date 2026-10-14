@@ -1,0 +1,26 @@
+feature_id = "transport.measurement_model"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Carrying a measurement model (sensitivity/specificity, confusion matrix, error variance)
+# established in a source population to a target population under a declared invariance premise.
+# Selection-diagram invariance of a mechanism (here the measurement mechanism) is the cited
+# premise; the correction entry points are existing code. No paper introduces this binding
+# layer, so the citation is the premise only.
+papers = [
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+]
+implementation_deviations = [
+  "Not an implementation of a published estimator. The route re-binds an existing model to the target population only when every parameter the model's route uses is declared invariant; it then runs the existing correction and returns it with a receipt.",
+  "The invariance premise is declared and never tested; its uncertainty is not propagated (ParameterUncertainty::NotPropagated). The standard error a correction reports is uncalibrated and conditional on the premise, and no interval is issued.",
+  "Differential error is a distinct declared case that carries nothing: only a model established for the target itself is used, and a missing target model refuses rather than pooling another population's rates.",
+  "Replicated-measurement routes re-estimate error from the target's own replicates and an external latent posterior is bound to its source snapshot, so both are refused as having nothing to carry.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-estimate/src/measurement_transport.rs (module unit tests with hand-computed rates and one negative witness per refusal)",
+  "crates/antecedent-contract/tests/interface_adapters.rs",
+]

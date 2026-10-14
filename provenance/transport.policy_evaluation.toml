@@ -1,0 +1,25 @@
+feature_id = "transport.policy_evaluation"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Evaluation of a supplied fixed contingent policy by the sequential g-formula in a target
+# population: the same policy and the source's invariant mechanisms, with the caller's target
+# initial-state law. The g-formula for a fixed history-dependent policy over a finite model is
+# exact enumeration here; the transport premise is the selection-diagram rule.
+papers = [
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+  { title = "A new approach to causal inference in mortality studies with a sustained exposure period: application to control of the healthy worker survivor effect (Robins, Mathematical Modelling 7:1393-1512, 1986)", sections = ["the g-computation formula for a sustained treatment strategy (theorem and section numbers not independently verified; DOI omitted because it could not be verified)"] },
+]
+implementation_deviations = [
+  "Only the initial-state law may be shifted. A shifted transition, observation or utility mechanism is refused with the mechanism named, and an undeclared mechanism is refused: there is no default invariance.",
+  "The target initial-state law is supplied, not learned; its support must lie inside the source's, so every reachable target history was reachable in the source.",
+  "Point value only. No interval, posterior or coverage statement; the premises are the declared ones in TransportPremises.",
+  "The value is verified by re-evaluation (verify_transported_policy) rather than trusted from a stored number.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/tests/transported_evaluation.rs",
+]

@@ -1,0 +1,22 @@
+feature_id = "adaptive_inference.procedure_law"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Exact law of a complete batched adaptive procedure (assignment rule re-evaluated from observed
+# counts, outcome delay and loss, exposure failure, stopping rule, final selection) by dynamic
+# programming over the observed state, under a fixed Bernoulli truth or a Beta prior predictive
+# (Polya urn per cell). Enumeration of a finite-state Markov process; no primary paper
+# introduces this particular state recursion.
+papers = []
+implementation_deviations = [
+  "Bernoulli outcomes, at most 4 arms, 4 contexts, 8 cells, 24 looks, 400 units and a lag of at most 4 looks; discrete contexts with known probabilities and a policy run independently within each context.",
+  "Every element of the procedure must be declared (no defaults); a missing element is refused with its own detail.",
+  "Exact finite-law arithmetic supplies no interval or calibration licence: the law is of the declared procedure under a hypothesized truth only.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs",
+]

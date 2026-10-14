@@ -1,0 +1,21 @@
+feature_id = "adaptive_inference.procedure_anytime_exclusion"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Time-uniform confidence-sequence bounds for each cell's mean at the data-dependent stopping
+# time, and the exact whole-procedure probability that the terminal bounds exclude the truth.
+papers = [
+  { title = "Time-uniform, nonparametric, nonasymptotic confidence sequences (Howard, Ramdas, McAuliffe, Sekhon, Ann Statist 49:1055-1080)", doi = "10.1214/20-AOS1991", sections = ["sub-Gaussian/mixture boundary giving a time-uniform bound valid at any stopping time"] },
+]
+implementation_deviations = [
+  "The bound is the theorem's, valid at any stopping time under the paradigm's premises; the exclusion probability is computed exactly by the whole-procedure law for a hypothesized truth, not assumed to equal alpha. It is a check of a declared procedure at a declared truth, not a coverage record.",
+  "One context only; simultaneous bounds over cells; outcome-dependent loss is refused. The mixture-Hoeffding style boundary is implemented; tighter betting sequences are not.",
+  "Reports DERIVED_UNMEASURED.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs",
+]

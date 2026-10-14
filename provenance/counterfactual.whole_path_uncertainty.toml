@@ -1,0 +1,22 @@
+feature_id = "counterfactual.whole_path_uncertainty"
+implementation_crate = "antecedent-counterfactual"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Accounting of the uncertainty sources of the finite Markovian cross-world row
+# (abduction, action, per-world prediction, summary) from the executed row. The exact
+# enumeration of the exogenous posterior and the variance of a unit's counterfactual quantity
+# under it are elementary probability; the decomposition is original. No primary paper.
+papers = []
+implementation_deviations = [
+  "Structural uncertainty (mechanisms, exogenous laws, Markovianity, history, population) is declared, not estimated and not propagated; no mechanism-parameter uncertainty exists because nothing is fitted.",
+  "Posterior uncertainty is the exact predictive variance of the unit's counterfactual quantity under the unit's exogenous posterior, with all worlds reading the same exogenous state; for a contrast it is the aligned joint-law expectation, not a sum of marginal variances.",
+  "Sampling is either fixed units (no sampling variance) or an independent sample from a population (s^2 / n); an undeclared choice is refused. The two spreads are for different estimands and are never added.",
+  "Spreads carry the label uncalibrated_spread; no interval or posterior is produced. The derivation re-abduces and re-predicts every unit and requires bit-for-bit agreement with the executed result.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-counterfactual/tests/whole_path_uncertainty.rs",
+]

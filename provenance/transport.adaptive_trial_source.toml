@@ -1,0 +1,24 @@
+feature_id = "transport.adaptive_trial_source"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Arm means of an adaptive trial standardized to a finite target stratum law with the realized
+# assignment probabilities as weights (a Hajek-type self-normalized inverse-probability mean per
+# stratum and arm). The selection-diagram premise is declared: the stratum law may be shifted,
+# the outcome mechanism given stratum and arm must be invariant.
+papers = [
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+  { title = "Confidence intervals for policy evaluation in adaptive experiments (Hadad, Hirshberg, Zhan, Wager, Athey, PNAS 118(15):e2014602118)", doi = "10.1073/pnas.2014602118", sections = ["the realized assignment probabilities of an adaptive design as weights; only the point weighting idea is used"] },
+]
+implementation_deviations = [
+  "Not the adaptively weighted AIPW estimator of the cited paper: no outcome model, no variance-stabilizing adaptive weights and no confidence interval. Only the self-normalized inverse-realized-probability stratum mean and its standardization are implemented.",
+  "Point only; the estimator carries no sampling distribution. The contract's procedure cell must be licensed for adaptively weighted scores; a fixed design has its own route.",
+  "A trial without the retained assignment and monitoring contract is refused with the missing contract named; it is never analysed as if it were fixed. Every target stratum with positive mass and both arms must hold units with realized probability at or above the declared floor.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/tests/transported_evaluation.rs",
+]

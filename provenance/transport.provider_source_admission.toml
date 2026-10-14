@@ -1,0 +1,24 @@
+feature_id = "transport.provider_source_admission"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Admission of an external provider's output as source evidence for a transport, and hand-off of
+# a transported claim to an external consumer, both through the one interface contract. There
+# is no primary paper: this is a declaration check (population, regime, quantity, trust,
+# assumptions) over existing contract and ledger types. Nothing is executed.
+papers = []
+implementation_deviations = [
+  "Decides from declarations only: a declared population is the producer's declaration, not proof that the data came from it, and verification receipts cover provider behaviour at exact requests, not the truth of an invariance assumption.",
+  "Attestation and exact-request verification stay distinct: a provider only attested is refused where the route requires verification.",
+  "An admitted source is an external claim in the evidence ledger and never native target data; a handoff stays a transported external claim and its calibration label is never raised. No interval, posterior or calibration is licensed.",
+  "A consumer that accepts only native target data refuses the claim; the portable record (transport_handoff_v1) is re-derived by a consumer, not trusted.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-contract/tests/provider_transport.rs",
+  "crates/antecedent-io-core/tests/transport_handoff_artifact.rs",
+  "crates/antecedent-contract/tests/interface_adapters.rs",
+]

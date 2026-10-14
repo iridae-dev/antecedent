@@ -1,0 +1,24 @@
+feature_id = "discovery.sample_split_analysis"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Row split so that discovery sees only one part and the downstream analysis the other, with a
+# receipt a consumer re-derives from the rule. The derivation in the module (conditional
+# coverage given the selected graph plus a union bound on the selection event) is original
+# bookkeeping; the single-split idea is cited as the closest published statement.
+papers = [
+  { title = "A note on data-splitting for the evaluation of significance levels (Cox, Biometrika 62, 1975)", doi = "10.1093/biomet/62.2.441", sections = ["selection on one part of the data and evaluation on the other"] },
+]
+implementation_deviations = [
+  "No error rate or coverage is measured. The split removes a dependence; it licenses an interval for the effect given the selected graph only. Unconditional coverage needs a measured bound on P(selected graph not adequate), which the whole-method calibration design (recorded in the module, unmeasured) is to supply.",
+  "Reuse of the same rows for selection and analysis is refused for an interval: no selective-inference correction is implemented because the event 'PC with these tests returned g' has no tractable truncated law.",
+  "Rows are assumed exchangeable. Temporal, panel, clustered, weighted or masked rows are refused; a gap-separated temporal window is a different design not covered here.",
+  "The split fraction is declared, enters the identity, and has no free default.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-discovery/tests/selective_discovery.rs",
+]

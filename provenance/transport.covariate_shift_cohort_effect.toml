@@ -1,0 +1,28 @@
+feature_id = "transport.covariate_shift_cohort_effect"
+implementation_crate = "antecedent-learn"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A retained conditional-effect model applied to a declared target cohort under a selection
+# premise that the selection node enters only the effect modifiers. Pearl and Bareinboim state
+# the selection-diagram premise; Stuart et al. state the generalization conditions. Neither is
+# implemented as an algorithm: the module is an original bounded route (a weighted mean of the
+# model's own conditional-contrast predictions plus a support-box overlap assessment).
+papers = [
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+  { title = "The use of propensity scores to assess the generalizability of results from randomized trials (Stuart, Cole, Bradshaw and Leaf, 2011)", doi = "10.1111/j.1467-985X.2010.00673.x", sections = ["conditions for generalizing a conditional treatment effect to a target population"] },
+]
+implementation_deviations = [
+  "The invariance premise is a declaration and is never tested; the selection-diagram premise is checked only structurally (the selection node's children are inside the declared modifiers and those modifiers are exactly the model's features).",
+  "Overlap is a support-box necessary condition (per-feature disjointness and rows outside the fitted box). No density ratio, weight diagnostic or positivity guarantee is computed; the value is labelled extrapolative.",
+  "Point-only: no standard error, interval or law is inherited from the source model's own fit. An interval or law request is refused with the evidence that would license it.",
+  "No weighting of the source sample toward the target is performed (this is not inverse-odds-of-selection weighting); the model is retained and evaluated at target rows.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-learn/src/transported_effect.rs (module unit tests: hand-computed weighted cohort means, support-box and declaration refusals)",
+  "crates/antecedent-design/tests/decision_transported_source.rs",
+  "crates/antecedent-design/tests/inverse_forward_source.rs",
+]

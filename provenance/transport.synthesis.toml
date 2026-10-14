@@ -1,0 +1,28 @@
+feature_id = "transport.synthesis"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Fixed-effect generalized least squares over native and transported summaries with one shared
+# transport-error term per transport, hierarchical normal borrowing, and a transported prior for
+# a native normal likelihood. The inverse-variance / GLS pooling and normal-normal hierarchical
+# borrowing are textbook; the transport-error structure (one tau_t^2 shared by every summary
+# carried through the same transport) is a modelling construction of this implementation.
+papers = [
+  { title = "Introduction to Meta-Analysis (Borenstein, Hedges, Higgins, Rothstein, 2009)", doi = "10.1002/9780470743386", sections = ["chapter 11: fixed-effect model, inverse-variance weights", "chapter 13: random-effects model (hierarchical normal borrowing across exchangeable studies)"] },
+  { title = "Estimation in Parallel Randomized Experiments (Rubin, 1981)", doi = "10.3102/10769986006004377", sections = ["normal hierarchical model for exchangeable study effects"] },
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+]
+implementation_deviations = [
+  "The shared transport error is a declared variance, not an estimate: the premise that b_t has variance tau_t^2 and is common to all summaries of one transport is a modelling declaration. A transport with no declared uncertainty is refused rather than read as zero.",
+  "Pooling is generalized least squares under a declared covariance; the dependence between source and native estimates is the caller's declaration, with the evidence ledger deciding only whether the data overlap.",
+  "The result is a point and a model variance. No confidence interval, posterior coverage or calibration is claimed.",
+  "Hierarchical borrowing uses a moment-style normal model on summaries, not a full hierarchical posterior; the transported prior route treats a transported claim as the prior of a native likelihood and is point-and-variance only.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/tests/transported_synthesis.rs",
+  "crates/antecedent-stats/tests/synthesis_oracle.rs",
+]

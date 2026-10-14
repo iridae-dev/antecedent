@@ -1,0 +1,21 @@
+feature_id = "transport.revalidation"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Maps transported claims onto the existing claim-level dependency graph (target population,
+# selection diagram, sources, claims, decisions) and classifies recompute / withdrawn /
+# still_valid by comparing two scenes with the existing revalidation. Graph bookkeeping; no
+# primary paper and no statistic.
+papers = []
+implementation_deviations = [
+  "No statistic is computed and no calibration is declared. A record held at one target is never read as holding at another: such a claim is withdrawn for calibration while its point value is left as it was.",
+  "The classification rules of the shared revalidation graph are unchanged; only the mapping of transport objects to nodes, edges and coordinates is new.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-contract/tests/transport_revalidation.rs",
+  "crates/antecedent-contract/tests/composition_verification.rs",
+]
