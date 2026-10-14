@@ -173,6 +173,7 @@ mod mag_id_bruteforce;
 #[cfg(any(test, feature = "test-util"))]
 #[doc(hidden)]
 pub mod oracle_dot;
+pub mod discovered_transport;
 
 pub use auto::{AutoIdentifier, PreparedAutoGraph};
 pub use backdoor::{AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph};
