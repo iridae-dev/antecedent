@@ -35,6 +35,7 @@ pub mod observation_query;
 pub mod plan;
 pub mod program_binding;
 pub mod provenance;
+pub mod provider_transport;
 pub mod provider_trust;
 pub mod provider_verification;
 pub mod quantity;
