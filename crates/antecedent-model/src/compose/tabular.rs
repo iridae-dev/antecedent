@@ -198,6 +198,18 @@ impl ComposedFinite {
                     ),
                 });
             }
+            // The coherence checker accepts the usual floating-point simplex
+            // tolerance. Normalize once so the exact law and inverse-CDF
+            // sampler use the same conditional distribution, including the
+            // tiny rounding remainder in the final cell.
+            for row in table.chunks_exact_mut(width) {
+                let total: f64 = row.iter().sum();
+                if total != 1.0 {
+                    for probability in row {
+                        *probability /= total;
+                    }
+                }
+            }
             parents.push(pa);
             tables.push(table);
         }

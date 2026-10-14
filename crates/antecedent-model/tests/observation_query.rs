@@ -467,6 +467,20 @@ fn conjugate_update_matches_the_closed_form() {
     near(sequential.beta(), posterior.beta());
     assert!(BetaBernoulli::new(0.0, 1.0).is_err());
     assert!(BetaBernoulli::new(f64::NAN, 1.0).is_err());
+    assert!(BetaBernoulli::new(1.0, 1.0).unwrap().update(1_u64 << 53, 1).is_err());
+}
+
+#[test]
+fn beta_queries_remain_finite_for_large_valid_shapes() {
+    let prior = BetaBernoulli::new(1.0e308, 1.0e308).unwrap();
+    near(prior.mean(), 0.5);
+
+    // The closed form used to overflow at alpha + beta, falsely making the
+    // predictive probability zero and reporting the wrong budget extremum.
+    match observations_required_conjugate(&prior, 0.6, Direction::Raise, 100).unwrap_err() {
+        ObservationQueryError::LevelUnreachable { extremum, .. } => near(extremum, 0.5),
+        other => panic!("unexpected {other:?}"),
+    }
 }
 
 #[test]

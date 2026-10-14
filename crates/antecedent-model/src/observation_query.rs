@@ -772,7 +772,15 @@ impl BetaBernoulli {
     /// The mean, which is also the predictive probability of the next success.
     #[must_use]
     pub fn mean(&self) -> f64 {
-        self.alpha / (self.alpha + self.beta)
+        let total = self.alpha + self.beta;
+        if total.is_finite() {
+            return self.alpha / total;
+        }
+        // Both shapes are individually finite, while their sum can overflow
+        // even though the ratio is well defined.
+        let scale = self.alpha.max(self.beta);
+        let alpha = self.alpha / scale;
+        alpha / (alpha + self.beta / scale)
     }
 
     /// The posterior after `successes` and `failures` (conjugate update).
@@ -781,10 +789,15 @@ impl BetaBernoulli {
     /// A total count above `2^53`, where the update would not be exact.
     pub fn update(&self, successes: u64, failures: u64) -> Result<Self, ObservationQueryError> {
         const EXACT: u64 = 1 << 53;
-        if successes > EXACT || failures > EXACT {
+        if successes.checked_add(failures).is_none_or(|count| count > EXACT) {
             return Err(ObservationQueryError::Invalid("observation counts exceed 2^53"));
         }
-        Ok(Self { alpha: self.alpha + successes as f64, beta: self.beta + failures as f64 })
+        let alpha = self.alpha + successes as f64;
+        let beta = self.beta + failures as f64;
+        if !alpha.is_finite() || !beta.is_finite() {
+            return Err(ObservationQueryError::Invalid("updated Beta shapes must remain finite"));
+        }
+        Ok(Self { alpha, beta })
     }
 }
 
@@ -989,6 +1002,16 @@ pub fn observations_required_conjugate(
     let (a, b) = (prior.alpha, prior.beta);
     let value_after = |n: u64| -> f64 {
         let n = n as f64;
+        let total = a + b + n;
+        if total.is_finite() {
+            return match direction {
+                Direction::Raise => (a + n) / total,
+                Direction::Lower => a / total,
+            };
+        }
+        // Scaling avoids overflow for valid finite shapes near f64::MAX.
+        let scale = a.max(b).max(n);
+        let (a, b, n) = (a / scale, b / scale, n / scale);
         match direction {
             Direction::Raise => (a + n) / (a + b + n),
             Direction::Lower => a / (a + b + n),
@@ -1015,27 +1038,23 @@ pub fn observations_required_conjugate(
             bound: UnreachableBound::ObservationBudget { max_observations },
         })
     };
-    let estimate = match direction {
-        Direction::Raise => (level * (a + b) - a) / (1.0 - level),
-        Direction::Lower => a / level - (a + b),
-    }
-    .ceil();
-    if !estimate.is_finite() || estimate > (max_observations as f64) + 1.0 {
+    if !satisfied(value_after(max_observations)) {
         return budget_exceeded();
     }
-    let mut n = estimate.max(0.0) as u64;
-    while n > 0 && satisfied(value_after(n - 1)) {
-        n -= 1;
-    }
-    while !satisfied(value_after(n)) {
-        n += 1;
-        if n > max_observations {
-            return budget_exceeded();
+    // The predictive probability is monotone in n. Binary search the bounded
+    // integer domain instead of using a closed form whose intermediate sums
+    // can overflow for otherwise valid Beta shapes.
+    let mut low = 0_u64;
+    let mut high = max_observations;
+    while low < high {
+        let mid = low + (high - low) / 2;
+        if satisfied(value_after(mid)) {
+            high = mid;
+        } else {
+            low = mid + 1;
         }
     }
-    if n > max_observations {
-        return budget_exceeded();
-    }
+    let n = low;
     Ok(EvidenceRequirement {
         direction,
         observations: n,

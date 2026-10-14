@@ -858,6 +858,23 @@ fn composition_matches_the_enumerated_finite_scm() {
 }
 
 #[test]
+fn finite_rows_with_rounding_slack_compile_to_a_normalized_law() {
+    for slack in [-5.0e-10, 5.0e-10] {
+        let mut mechanisms = binary_chain();
+        let MechanismForm::Tabular { rows, .. } = &mut mechanisms[0].form else {
+            unreachable!();
+        };
+        rows[0].probabilities[1].1 += slack;
+        let model = ComposedFinite::compile(&spec_of(mechanisms)).unwrap();
+        let law = model.law(&[], &ExecutionContext::for_tests(1)).unwrap();
+        assert!(
+            (law.probabilities().iter().sum::<f64>() - 1.0).abs() < 1.0e-15,
+            "slack {slack} left a non-normalized compiled law"
+        );
+    }
+}
+
+#[test]
 fn finite_tables_that_cannot_compose_are_refused() {
     // A level the producer can emit that the consumer never saw.
     let mut mechanisms = binary_chain();
