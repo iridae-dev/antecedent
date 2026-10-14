@@ -9,7 +9,12 @@ coordinate. Neither produces an interval without a measured record.
 | Composed spread, interval candidate and exceedance decision | `antecedent_stats::joint_law` (`draw_spread`, `normal_interval_candidate`, `composed_exceedance_decision`), `antecedent_contract::check_composed_interval` | `uncalibrated_spread`; candidates `unmeasured` |
 | Whole path of the finite Markovian cross-world row | `antecedent_counterfactual::selective::whole_path_uncertainty::derive_whole_path_uncertainty` | `uncalibrated_spread` |
 
-Provenance records: `joint_law.composed_spread_and_exceedance`,
+The whole-path account is a sealed sibling of the cross-world execution:
+`CrossWorldExecution::whole_path_uncertainty(UnitSampling, ctx)` in the facade,
+`CrossWorldExecution.whole_path_uncertainty("fixed_units" |
+"independent_sample")` in Python, each returning a `WholePathAccount` with
+`inspect()` and `verify_against(execution)`. Provenance records:
+`joint_law.composed_spread_and_exceedance`,
 `counterfactual.whole_path_uncertainty`.
 
 ## What each kind of dependence information licenses
@@ -47,7 +52,12 @@ independent sample, which you declare) and numerical (exact enumeration, no
 draws). The two spreads, `realized_mean_predictive_variance` and
 `unit_mean_sampling_variance`, are for different estimands and are never added.
 The derivation re-abduces every unit and refuses a result computed from other
-mechanisms, evidence, worlds or quantity.
+mechanisms, evidence, worlds or quantity. The account is not a field of the
+execution's wire: a consumer derives it again from the consumed execution and
+the declared unit sampling, and `verify_against` refuses an account that does
+not re-derive from that execution (`cross_world_uncertainty.account_mismatch`).
+Units times joint exogenous states are bounded; sampled-path and transported
+cross-world executions have no whole-path derivation and are refused.
 
 ## What is refused, and the remedy
 
@@ -55,8 +65,10 @@ mechanisms, evidence, worlds or quantity.
 | --- | --- | --- |
 | Interval of a composition with no record at its coordinate | closed reading (`cell_not_licensed`) | Use the spread, or measure the coordinate |
 | Row pairing of unaligned or marginal inputs | `joint_law_required` (`alignment_mismatch`, `index_pairing_refused`) | Supply draws from one joint law |
-| Independence declared for inputs of unknown evidence overlap | `sampling_dependence_unknown` | Register the sources in the evidence ledger |
+| Independence declared for inputs of unknown evidence overlap | `sampling_dependence_unknown` (`joint_law_propagation.evidence_overlap_unknown`) | Register the sources in the evidence ledger |
+| Independence declared for evidence the ledger shows is shared | `evidence_double_counted` (`joint_law_propagation.shared_evidence_declared_independent`) | Treat the inputs as dependent and supply a covariance or an aligned joint law |
 | Some transport pieces named, some omitted | missing-pieces refusal | Name source sampling, target sampling and the transport functional |
 | Unit sampling not declared | `sampling_dependence_unknown` (`cross_world_uncertainty.unit_sampling_undeclared`) | Declare fixed units or a sample from a population |
+| A sampled-path or transported cross-world path | `cell_not_licensed` (`cross_world_uncertainty.sampled_path_not_licensed`, `transported_path_closed`) | Use exact enumeration in the population the mechanisms were declared for |
 | Fitted or sampled mechanisms in a cross-world row | closed | Use the sampled counterfactual route with its posterior input |
 | Interval or posterior from the whole path | closed | Use the labelled spread |

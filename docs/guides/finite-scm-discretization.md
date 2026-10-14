@@ -5,8 +5,13 @@ transport) need variables with finitely many levels. A composed linear-Gaussian
 model has a closed form. The discretization is the bounded bridge between them,
 with a computed error bound against the closed form.
 
-Rust surface: `antecedent_model::discretized_scm::DiscretizedLinearGaussian`.
-Provenance record: `model.discretized_linear_gaussian_scm`.
+Rust surface: `antecedent_model::discretized_scm::DiscretizedLinearGaussian`;
+facade `PreparedMechanismComposition::discretize` with `mean_contrast`,
+`refresh`, `export` and `consume_discretized_composition`. Python:
+`PreparedMechanismComposition.discretize(levels)` or
+`antecedent.discretized_composition.discretize`, then `DiscreteContrast.ate` /
+`mean_at` and `mean_contrast`. Provenance records:
+`model.discretized_linear_gaussian_scm`, `model.discretized_scm_artifact`.
 
 ## Method
 
@@ -26,6 +31,20 @@ guarantee for the mean of every variable and for a linear contrast of means. It
 says nothing about variances, probabilities or counterfactual quantities of the
 discretized law.
 
+## Refresh, export and consume
+
+`refresh` discretizes a refit composition again under the declared plan: the
+plan is kept; the cell edges, values, tables and identity are recomputed; a
+refit that adds or removes a variable is refused (`levels_undeclared`) and the
+handle is left as it was. `export` writes the source premises, the plan and the
+claimed numbers. The consumer does not trust them: it
+re-runs the discretization from the carried premises and plan and requires the
+identity and every claimed edge, value and mean-error bound to equal the
+re-derived ones bit for bit, so an edited premise or an edited claimed number
+is refused. A consumer that retained the identity independently refuses a
+self-consistent artifact of another composition. Only a linear-Gaussian
+composition is exportable.
+
 ## Label
 
 Point-only (`BRIDGE_INFERENCE`). No interval, posterior or calibration; the
@@ -44,3 +63,5 @@ the paradigm a request names that the route does not.
 | Mechanism loading on a shared latent cause | `discretized_scm.latent_confounding` | Use a Markovian composition |
 | Interval or posterior on the discretized value | `discretized_scm.point_only` | Use the point and its bound |
 | A paradigm the route is closed to | `paradigm_parity.paradigm_closed` | Use the paradigm the parity row names |
+| Bytes that are truncated, of another version, or whose premises or claimed numbers no longer re-derive | `discretized_scm_artifact.malformed`, `version_unsupported`, `rederivation_refused`, `claimed_numbers_differ`, `identity_mismatch` | Export again from the producing composition |
+| A finite-table or non-linear-Gaussian composition exported | `discretized_scm_artifact.not_exportable` | Export from a linear-Gaussian composition |

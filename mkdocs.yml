@@ -55,6 +55,19 @@ nav:
       - Transport and interference: transport-interference.md
       - Transport failures: guides/transport-failure.md
       - Transport theorem scope: guides/transport-scope.md
+      - Transported cohort decisions and measurement models: guides/transported-decisions-and-measurement.md
+      - Mechanism transport and transported synthesis: guides/mechanism-and-synthesis-transport.md
+      - Transported policy, adaptive trials and period shifts: guides/transported-policy-and-adaptive-source.md
+      - Discovered-structure transport: guides/discovered-structure-transport.md
+      - Provider-sourced transport: guides/provider-sourced-transport.md
+      - Assumption ranges and revalidation: guides/assumption-range-and-revalidation.md
+      - Inverse queries and decisions on composed and transported sources: guides/inverse-and-decision-reach.md
+      - Finite-SCM discretization: guides/finite-scm-discretization.md
+      - Composed uncertainty: guides/composed-uncertainty.md
+      - Decision-reliability derived uncertainty: guides/decision-reliability-uncertainty.md
+      - Adaptive procedure uncertainty: guides/adaptive-procedure-uncertainty.md
+      - Interface-contract adapters: guides/interface-contract-adapters.md
+      - What the transport and uncertainty routes do not do: user-facing-limits.md
       - Finite-action inverse outcome: guides/inverse-outcome.md
       - Matched case-control odds ratio: guides/matched-case-control.md
       - Descriptive raw-versus-adjusted comparison: guides/descriptive-comparison.md
@@ -67,6 +80,11 @@ nav:
       - Configured batches and batch retarget: guides/batch-retarget.md
       - Cross-fitted DML scores and retarget covariance: guides/dml-scores.md
       - Transport name migration: migrations/2.0-transport-day1.md
+      - Design ranking verification and overlap: migrations/design-ranking-verification-and-overlap.md
+      - Composite decision stage identity: migrations/composite-decision-stage-identity.md
+      - Decision and claim identity domains: migrations/decision-and-claim-identity-domains.md
+      - Design ranking fingerprints: migrations/design-ranking-fingerprints.md
+      - Recovery identity and rule spelling: migrations/recovery-identity-and-rule-spelling.md
       - Prior bank: priors.md
       - Graph uncertainty: graph_uncertainty.md
   - Design-family studies:

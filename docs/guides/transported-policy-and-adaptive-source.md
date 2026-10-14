@@ -14,6 +14,16 @@ Each has a `verify_*` function that re-evaluates and refuses a value that does
 not match. Provenance records: `transport.policy_evaluation`,
 `transport.adaptive_trial_source`, `transport.period_shift_policy`.
 
+Each value reaches a decision, an inverse query or an assumption range as a
+transported response. The typed constructors in the facade
+(`transported_policy_response`, `temporal_policy_response`,
+`adaptive_trial_response`, `transported_synthesis_response`,
+`surrogate_bridge_response`, in `analysis::transported_constructors`) re-run the
+route and copy the populations, identities, assumptions and support label from
+the producing result; none is typed by the caller. In Python the response is
+read as `antecedent.transported_response.TransportedResponse`; the policy,
+adaptive-trial and period routes themselves have no Python entry.
+
 ## Transported policy
 
 You declare, for every mechanism (initial state, each action's transition, each
@@ -29,7 +39,12 @@ history was reachable in the source. The value is
 The trial is analysed through its `AdaptiveDesignContract` (assignment policy
 history, realized probabilities, exposure history, outcome availability and
 delay, interim analyses, stopping rule). Without it the trial is refused, never
-analysed as if it were fixed. The contract's procedure cell must be licensed for
+analysed as if it were fixed. The request names the trial's own population
+(`trial_population`, required): it must be non-blank, must differ from the
+target and must be the selection diagram's source population, and it enters the
+estimate identity. A stratum law declared invariant is checked against the
+trial's empirical stratum law over its enrolled units (tolerance 1e-9); a
+declaration the trial itself contradicts is refused rather than trusted. The contract's procedure cell must be licensed for
 adaptively weighted scores. The stratum law may be shifted, the outcome given
 stratum and arm must be invariant. For every target stratum with positive mass
 and both compared arms the trial must hold analysed units whose realized
@@ -53,6 +68,8 @@ re-keyed implicitly. Only the initial state may have moved.
 | Target initial law outside the source support | `transport_support_failure` | Restrict the target law to the source support |
 | Different horizon or alphabet across periods | `invalid_argument` | Build a model for the target period |
 | Adaptive trial with no retained contract | `adaptive_contract_incomplete` | Supply the `AdaptiveDesignContract` |
+| Blank trial population, target equal to the trial population, or a diagram whose source is another population | `invalid_argument` (`adaptive_transport.population_label`, `target_is_source`), `transport_missing_evidence` (`diagram_binding_mismatch`) | Name the trial's population and the diagram built for it |
+| Stratum law declared invariant that differs from the trial's own | `invalid_argument` (`adaptive_transport.stratum_law_declared_invariant`) | Declare the stratum law shifted, or correct the declaration |
 | Contract cell not licensed for weighted scores, or fixed design | `route_not_supported` | Use the fixed-design transport route |
 | Shifted outcome mechanism, or unsupported stratum/arm | `transport_missing_evidence`, `transport_support_failure` | Declare invariance honestly or collect the missing cell |
 | Interval or posterior | none issued | Use the point as labelled; an interval needs a measured record |

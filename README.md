@@ -100,6 +100,8 @@ Continue with the [Python workflow](docs/python-workflow.md), [Rust quickstart](
 | Analyze experiments, policies, survival and longitudinal regimes | [Examples](docs/examples.md), [design-family support](docs/graphless-support-matrix.md) |
 | Estimate effects with cross-fitted nuisance learners | [Capabilities](docs/capabilities.md), [cluster-owned cross-fitting](docs/guides/clustered-dml.md) |
 | Transport effects; answer temporal and counterfactual questions | [Population, time and uncertainty](docs/population-time-uncertainty.md), [transport and counterfactuals](docs/transport-counterfactuals.md) |
+| Carry a transported value into a decision, inverse query or handoff; revalidate it | [Transported decisions](docs/guides/transported-decisions-and-measurement.md), [inverse and decision reach](docs/guides/inverse-and-decision-reach.md), [assumption range and revalidation](docs/guides/assumption-range-and-revalidation.md) |
+| Derive uncertainty of composed, adaptive and decision-reliability results | [Composed uncertainty](docs/guides/composed-uncertainty.md), [adaptive procedures](docs/guides/adaptive-procedure-uncertainty.md), [what these routes do not do](docs/user-facing-limits.md) |
 | Make decisions from causal results or external evidence | [Result lifecycle](docs/lifecycle.md), [decisions](docs/decisions.md), [external evidence](docs/external-science.md) |
 | Rank studies by objective, information value and cost | [Study ranking](docs/design-ranking.md) |
 | Recalculate an analysis and inspect reuse | [Selective recalculation](docs/recalculation-capabilities.md) |

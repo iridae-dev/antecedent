@@ -81,6 +81,8 @@ Common remedies:
 | `cell_not_licensed` / `*.composition_not_licensed` | Report the sampling interval next to the assumption range; do not compose them. No composition method is licensed. |
 | `cell_not_licensed` / `learned_joint_transport.route_frozen` | Use the checked `transport.advanced.learned_joint_transport` adapter inside its measured protocol. The separate `prepare_learned_continuous` IID route offers a point estimate or its scoped analytic interval via `prepared.interval()`; these methods have distinct contracts. |
 | `cell_not_licensed` / `transported_counterfactual.nonadditive_mechanism` and its siblings | Declare the premise in `Premises` if you can defend it, or choose an assignment inside the affine-additive class. |
+| `cell_not_licensed` / `*.transported_not_accepted` | The consumer was not declared to accept a transported input. Accept it explicitly (an inverse query's `accepts_transported=True`, a decision support policy that names `extrapolative`) and the result carries the transport receipt, or supply native target data. |
+| `transport_support_failure` / `transported_decision.support_rule_unmet` | A support rule of the decision contract is stronger than the transported label can meet; weaken the declared rule or obtain target evidence. |
 | `transport_proven_non_transportable` | Read `witness`: two models agree on the source and differ on the target. Remove the selection on that mechanism or supply target evidence for it. |
 | `decision_contract_unsatisfied` / `native_claims.source_not_supplied` | A mean cannot answer a quantile or probability. Supply aligned joint draws. |
 | `route_not_supported` / `decision_evaluation.mean_source_not_replayable` | `Decision.export()` requires aligned joint draws; `decision.replay` uses that same law. For a bound external mean claim, `composition_bundle.mean_decision` supplies a distinct point-only bundle artifact. Native mean workflows retain their own source-bound recalculation/replay contracts. |
@@ -408,6 +410,356 @@ ok
 | `scientific_bridge.value_kind_not_carried` | `cell_not_licensed` | Only a point mean is bridged; transforming a law, posterior, identified set or joint law needs its own licensed route. |
 | `scientific_bridge.value_kind_substitution` | `bridge_substitution_refused` | Supply the requested object from its own route; these are not interchangeable. |
 | `scientific_bridge.youden_too_small` | `measurement_not_identified` | A more accurate measurement or a larger declared minimum-evidence study is needed. |
+
+## Transport, uncertainty and reach refusals
+
+Each detail below is registered with its top-level code and a remedy in `parity/promotion.toml`, like the sections above. These are the refusals of the transport, decision-reach and uncertainty routes. Every one is a statement that a premise or declaration was missing; none is a failure of the data.
+
+### Transported cohort effect and measurement transport
+
+`transported_effect.*`, `measurement_transport.*`. A retained effect model or measurement model is carried to a declared target; the value is point-only. See [the guide](guides/transported-decisions-and-measurement.md).
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `transported_effect.cohort_invalid` | `invalid_argument` | Declare a target cohort with named finite feature rows and normalized weights. |
+| `transported_effect.weights_invalid` | `invalid_argument` | Supply finite nonnegative weights. |
+| `transported_effect.weights_not_normalized` | `invalid_argument` | Normalize the weights to sum to one. |
+| `transported_effect.feature_schema_mismatch` | `schema_mismatch` | Supply exactly the model's named features: none missing and none extra. |
+| `transported_effect.population_not_different` | `quantity_semantics_mismatch` | Decide it as a within-population cohort with no shift declaration. |
+| `transported_effect.shift_declaration_required` | `transport_missing_evidence` | Declare the populations, the selection node, the variables it points into and the effect modifiers. |
+| `transported_effect.declaration_invalid` | `invalid_argument` | Name the populations, the selection node and the variables it points into. |
+| `transported_effect.shift_declaration_mismatch` | `transport_not_certified` | Declare the model's population as source and the cohort's population as target. |
+| `transported_effect.selection_enters_mechanism` | `transport_not_certified` | Let the selection node point only into declared effect modifiers; otherwise refit in the target population. |
+| `transported_effect.modifier_set_mismatch` | `transport_not_certified` | Declare exactly the model's features as the effect modifiers. |
+| `transported_effect.model_invalid` | `invalid_argument` | Refit or re-export the model and name every retained feature once. |
+| `transported_effect.link_not_identity` | `quantity_semantics_mismatch` | Retain the identity-scale conditional-contrast map. |
+| `transported_effect.support_contract_absent` | `cell_not_licensed` | Refit with a producer that retains the fitted-row support contract. |
+| `transported_effect.no_overlap` | `transport_support_failure` | Supply a model fitted on rows that cover the target population. |
+| `transported_effect.out_of_support` | `transport_support_failure` | Restrict the cohort (a new cohort) or fit on rows that cover the target. |
+| `transported_effect.prediction_refused` | `cell_not_licensed` | Check the cohort features against the model. |
+| `transported_effect.non_finite_result` | `cell_not_licensed` | Check the model and the cohort. |
+| `transported_effect.interval_not_licensed` | `cell_not_licensed` | None available: the value is point-only under a declared premise until whole-method coverage including the transport and support steps is measured. |
+| `transported_effect.law_not_supplied` | `decision_contract_unsatisfied` | Supply aligned outcome draws under a declared transport model. |
+| `measurement_model.no_model` | `measurement_model_invalid` | Supply the source model the premise names. |
+| `measurement_model.invariance_premise_required` | `transport_missing_evidence` | Declare which error parameters are invariant, declare them differential, or validate in the target population. |
+| `measurement_model.differential_population_unestablished` | `differential_error_not_pooled` | Obtain a validation sample in the target population. |
+| `measurement_model.invariance_target_mismatch` | `transport_not_certified` | Redeclare the premise for the data's population. |
+| `measurement_model.invariance_source_unknown` | `transport_not_certified` | Supply the source model. |
+| `measurement_model.invariance_not_declared` | `transport_not_certified` | Declare each parameter named in the message. |
+| `measurement_model.nothing_to_transport` | `route_not_supported` | Use the target replicates directly. |
+| `measurement_model.posterior_bound_to_snapshot` | `route_not_supported` | Request a new provider posterior for the target snapshot. |
+
+### Mechanism transport, synthesis and bridge premise
+
+`mechanism_transport.*`, `transported_synthesis.*`, `scientific_bridge.*`. See [the guide](guides/mechanism-and-synthesis-transport.md).
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `mechanism_transport.origin_not_fitted` | `mechanism_composition_incoherent` | Carry only mechanisms estimated from retained evidence; an external or declared mechanism needs its own admission. |
+| `mechanism_transport.family_unsupported` | `mechanism_composition_incoherent` | Decide a finite table with the finite counterfactual transport derivation; refit other families in the target. |
+| `mechanism_transport.diagram_source_mismatch` | `quantity_semantics_mismatch` | Declare the diagram between that population and the target. |
+| `mechanism_transport.diagram_target_mismatch` | `quantity_semantics_mismatch` | Declare the diagram between the source population and this target. |
+| `mechanism_transport.target_mechanism_not_native` | `quantity_semantics_mismatch` | Supply as a target mechanism only one fitted in the target; carry the others as source mechanisms. |
+| `mechanism_transport.selection_arrow_into_latent` | `quantity_semantics_mismatch` | Refit the mechanism in the target population. |
+| `mechanism_transport.duplicate_mechanism` | `quantity_semantics_mismatch` | Give each variable exactly one mechanism per role. |
+| `transported_synthesis.transport_variance_undeclared` | `transport_missing_evidence` | Declare the transport variance; an undeclared transport is not a zero-variance one. |
+| `transported_synthesis.transport_variance_on_native_source` | `invalid_argument` | Drop it, or declare the transport identity in the ledger. |
+| `transported_synthesis.source_listed_twice` | `invalid_argument` | Contribute each source once. |
+| `transported_synthesis.unknown_source` | `invalid_argument` | Add the source to the ledger first. |
+| `transported_synthesis.no_contributions` | `invalid_argument` | Contribute at least one ledger claim. |
+| `transported_synthesis.overlap_not_modelled` | `invalid_argument` | Supply a sampling covariance modelling the overlap, or contribute sources with disjoint declared observations. |
+| `transported_synthesis.target_population_mismatch` | `quantity_semantics_mismatch` | Transport every claim to the one target population the native evidence is drawn from. |
+| `transported_synthesis.transport_identity_incomplete` | `transport_missing_evidence` | State the assumptions, the source populations and a distinct target. |
+| `transported_synthesis.native_population_blank` | `invalid_argument` | Name the population of the native evidence. |
+| `transported_synthesis.numeric_refused` | `invalid_argument` | Supply finite positive sampling variances and a finite nonnegative, consistent transport variance. |
+| `transported_synthesis.shared_transport_needs_covariance` | `joint_law_required` | Pool them with the shared covariance. |
+| `transported_synthesis.prior_role_mismatch` | `invalid_argument` | Name one transported prior; pool or borrow to combine several transported claims. |
+| `scientific_bridge.transport_premise_contradicted_by_selection_diagram` | `bridge_assumption_missing` | Validate the surrogate in the claim's population, or declare a diagram without a selection node into the terminal outcome and its modifiers. |
+| `scientific_bridge.transport_diagram_scope_mismatch` | `bridge_binding_mismatch` | Declare the diagram between those two populations. |
+
+### Transported policy, adaptive trial source and period shift
+
+`transported_policy.*`, `adaptive_transport.*`, `temporal_policy_transport.*`. See [the guide](guides/transported-policy-and-adaptive-source.md).
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `transported_policy.selection_diagram_missing` | `transport_missing_evidence` | Supply a selection diagram that marks every mechanism of the model invariant or shifted between the source and target populations. |
+| `transported_policy.target_initial_law_missing` | `transport_missing_evidence` | Supply the target population's initial law over the model's latent states. |
+| `transported_policy.diagram_binding_mismatch` | `transport_missing_evidence` | Declare the diagram for the model's population and the requested target. |
+| `transported_policy.mechanism_status_missing` | `transport_missing_evidence` | Declare every mechanism invariant or shifted; invariance is never assumed. |
+| `transported_policy.mechanism_not_invariant` | `transport_missing_evidence` | Establish it for the target population, or restrict the shift to the initial-state law. |
+| `transported_policy.target_support_outside_source` | `transport_support_failure` | Restrict the target law to the source's support or establish the mechanisms there. |
+| `transported_policy.initial_law_declared_invariant` | `invalid_argument` | Mark the initial-state law shifted or supply the source's law. |
+| `transported_policy.target_initial_law` | `invalid_argument` | Supply one probability per state summing to one. |
+| `transported_policy.target_population` | `invalid_argument` | Name the target population. |
+| `transported_policy.target_is_source` | `invalid_argument` | Use the sequential g-formula; there is nothing to transport. |
+| `transported_policy.mechanism_unknown` | `invalid_argument` | Declare the model's own mechanisms only. |
+| `transported_policy.mechanism_declared_twice` | `invalid_argument` | Declare each mechanism once. |
+| `transported_policy.value_mismatch` | `invalid_argument` | Regenerate the evaluation from the request. |
+| `temporal_policy_transport.time_invariance_missing` | `transport_missing_evidence` | Declare every mechanism invariant across the periods or shifted, over a stated fixed horizon. |
+| `temporal_policy_transport.target_initial_law_missing` | `transport_missing_evidence` | Supply the target period's initial-state law. |
+| `temporal_policy_transport.invariance_binding_mismatch` | `transport_missing_evidence` | Declare the invariance for the model's period and the target period. |
+| `temporal_policy_transport.mechanism_status_missing` | `transport_missing_evidence` | Declare every mechanism; time invariance is never assumed. |
+| `temporal_policy_transport.mechanism_time_varying` | `transport_missing_evidence` | Establish it for the target period, or declare it invariant if that is the premise. |
+| `temporal_policy_transport.history_alphabet_incompatible` | `transport_missing_evidence` | Establish the same actions and symbols with the same meanings; the policy table is not re-keyed implicitly. |
+| `temporal_policy_transport.horizon_mismatch` | `route_not_supported` | State one fixed horizon; a horizon change is not a bounded route. |
+| `temporal_policy_transport.target_support_outside_source` | `transport_support_failure` | Restrict the law to the source's support. |
+| `temporal_policy_transport.initial_law_declared_invariant` | `invalid_argument` | Mark the initial-state law shifted or supply the source's law. |
+| `temporal_policy_transport.target_initial_law` | `invalid_argument` | Supply one probability per state summing to one. |
+| `temporal_policy_transport.target_period` | `invalid_argument` | Name the target period. |
+| `temporal_policy_transport.target_is_source` | `invalid_argument` | Use the sequential g-formula. |
+| `temporal_policy_transport.mechanism_unknown` | `invalid_argument` | Declare the model's own mechanisms only. |
+| `temporal_policy_transport.mechanism_declared_twice` | `invalid_argument` | Declare each mechanism once. |
+| `temporal_policy_transport.value_mismatch` | `invalid_argument` | Regenerate the evaluation from the request. |
+| `adaptive_transport.assignment_monitoring_contract_missing` | `adaptive_contract_incomplete` | Supply the adaptive design contract: policy history, realized assignment probabilities, exposure history, outcome availability and delay, interim analyses, stopping rule. |
+| `adaptive_transport.outcome_missing` | `adaptive_contract_incomplete` | Retain the outcome of every unit whose availability is declared. |
+| `adaptive_transport.target_stratum_law_missing` | `transport_missing_evidence` | Supply the target population's law over the strata. |
+| `adaptive_transport.selection_diagram_missing` | `transport_missing_evidence` | Supply a diagram marking the stratum law and outcome mechanism. |
+| `adaptive_transport.mechanism_status_missing` | `transport_missing_evidence` | Declare both; invariance is never assumed. |
+| `adaptive_transport.outcome_mechanism_not_invariant` | `transport_missing_evidence` | Establish it in the target (a target trial) or restrict the shift to the stratum law. |
+| `adaptive_transport.diagram_binding_mismatch` | `transport_missing_evidence` | Declare the diagram between the trial population and the target. |
+| `adaptive_transport.design_not_adaptive` | `route_not_supported` | Use the fixed-design transport routes. |
+| `adaptive_transport.stratum_arm_unobserved` | `transport_support_failure` | Restrict the target law, coarsen strata or collect units there. |
+| `adaptive_transport.no_analysed_units` | `transport_support_failure` | The trial holds no observed outcome to transport. |
+| `adaptive_transport.assignment_below_floor` | `adaptive_assumption_violated` | Restrict the compared arms or justify a lower floor; nothing is clipped. |
+| `adaptive_transport.strata` | `invalid_argument` | Name 1 to 1024 distinct strata. |
+| `adaptive_transport.unit_strata` | `invalid_argument` | Give every enrolled unit a declared stratum. |
+| `adaptive_transport.target_stratum_law` | `invalid_argument` | Supply one probability per stratum summing to one. |
+| `adaptive_transport.arms` | `invalid_argument` | Name two distinct arms. |
+| `adaptive_transport.mechanism_declared_twice` | `invalid_argument` | Declare each once. |
+| `adaptive_transport.population_label` | `invalid_argument` | Name both populations. |
+| `adaptive_transport.target_is_source` | `invalid_argument` | Use the within-trial estimate; there is nothing to transport. |
+| `adaptive_transport.stratum_law_declared_invariant` | `invalid_argument` | Mark the stratum law shifted or supply the trial's law. |
+| `adaptive_transport.value_mismatch` | `invalid_argument` | Regenerate from the request. |
+
+### Discovered structure and per-population discovery
+
+`discovered_transport.*`, `selective_discovery.*`. See [the guide](guides/discovered-structure-transport.md).
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `discovered_transport.search_incomplete` | `discovered_structure_unresolved` | Complete the search or declare the graph. |
+| `discovered_transport.orientation_conflict` | `discovered_structure_unresolved` | Resolve the conflict or declare the graph. |
+| `discovered_transport.selection_target_unknown` | `discovered_structure_unresolved` | Declare selection targets that are variables of the class. |
+| `discovered_transport.member_bound_zero` | `discovered_structure_unresolved` | Allow at least one member. |
+| `discovered_transport.class_too_large` | `discovered_structure_unresolved` | Restrict the structure or declare a graph. |
+| `discovered_transport.no_members` | `discovered_structure_unresolved` | Check the discovered structure. |
+| `discovered_transport.pag_members_not_causal_graphs` | `discovered_structure_unresolved` | Resolve the PAG to a declared causal graph (an ADMG you assert) and request transport with that graph. |
+| `selective_discovery.pooled_population_search` | `route_not_supported` | Run one population at a time; cross-population assumptions belong to the transport contract. |
+| `selective_discovery.populations_missing` | `invalid_argument` | Supply at least two populations or use the single-population route. |
+| `selective_discovery.population_missing` | `invalid_argument` | Name every population. |
+| `selective_discovery.population_repeated` | `invalid_argument` | Use each population label once. |
+| `selective_discovery.pooled_population_data` | `invalid_argument` | Supply each population's own rows. |
+| `selective_discovery.nothing_retained` | `invalid_argument` | Run discovery before reporting. |
+| `selective_discovery.split_rows_repeated` | `invalid_argument` | List each discovery row once. |
+| `selective_discovery.split_row_out_of_range` | `invalid_argument` | Use row indices inside the table. |
+| `selective_discovery.split_fraction_invalid` | `invalid_argument` | Choose a fraction in (0, 1). |
+| `selective_discovery.split_part_empty` | `invalid_argument` | Leave rows in both parts. |
+| `selective_discovery.split_not_disjoint` | `invalid_argument` | Re-split the table. |
+| `selective_discovery.split_receipt_mismatch` | `invalid_argument` | Regenerate the receipt from the rule. |
+| `selective_discovery.analysis_rows_not_the_split_part` | `invalid_argument` | Analyse the analysis part the receipt names. |
+| `selective_discovery.split_unsupported_rows` | `route_not_supported` | Split an unweighted, unmasked float64 table. |
+
+### Provider-sourced transport and handoff
+
+`provider_transport.*`, `transport_handoff.*`. See [the guide](guides/provider-sourced-transport.md).
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `provider_transport.blank_field` | `interface_contract_invalid` | Name every identity. |
+| `provider_transport.population_missing` | `interface_contract_invalid` | Declare the population it was established in. |
+| `provider_transport.regime_missing` | `interface_contract_invalid` | Declare the regime (observational is explicit). |
+| `provider_transport.quantity_invalid` | `interface_contract_invalid` | Name variable, units, functional, transform and a canonical conditioning. |
+| `provider_transport.object_unsupported` | `interface_contract_invalid` | Offer a supported object. |
+| `provider_transport.object_invalid` | `interface_contract_invalid` | Declare a complete identity, distinct quantities and operations. |
+| `provider_transport.assumptions_missing` | `interface_contract_invalid` | Name them. |
+| `provider_transport.native_trust_claimed` | `interface_contract_invalid` | Declare attested or verified. |
+| `provider_transport.trust_incomplete` | `interface_contract_invalid` | Name the attestor. |
+| `provider_transport.quantity_not_declared` | `external_binding_mismatch` | Offer a declared quantity. |
+| `provider_transport.verification_required` | `external_verification_failed` | Supply an exact-request receipt covering the object. |
+| `provider_transport.receipt_does_not_cover` | `external_verification_failed` | Supply the receipt for this exact object. |
+| `provider_transport.population_not_a_source` | `interface_contract_quantity_mismatch` | Use a provider from a declared source population. |
+| `provider_transport.assumptions_not_carried` | `interface_contract_assumption_mismatch` | Carry it in the transport identity. |
+| `provider_transport.transport_identity_incomplete` | `interface_contract_invalid` | Name them; transport only to a different population. |
+| `provider_transport.evidence_missing` | `interface_contract_invalid` | Name the sources it derives from. |
+| `provider_transport.claim_not_in_target` | `interface_contract_quantity_mismatch` | State it in the target population. |
+| `provider_transport.native_target_required` | `interface_contract_assumption_mismatch` | Supply native data or declare the input as accepting a transported claim. |
+| `provider_transport.input_not_external` | `interface_contract_assumption_mismatch` | Hand the claim to an externally supplied input. |
+| `provider_transport.identity_mismatch` | `route_not_supported` | Re-seal from the declarations. |
+| `provider_transport.artifact_invalid` | `invalid_argument` | Supply an artifact written by this library. |
+
+### Transported decisions and inverse forward sources
+
+`transported_decision.*`, `transported_decision_artifact.*`, `inverse_forward_source.*`. A consumer that does not accept a transported input refuses it as `cell_not_licensed` with `transported_not_accepted`, whichever source (cohort, composed, response, decision) carried it. See [the guide](guides/inverse-and-decision-reach.md).
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `transported_decision.transport_identity_incomplete` | `transport_missing_evidence` | Name them; transport only to a different population. |
+| `transported_decision.transport_identity_not_digest` | `transport_missing_evidence` | Pass the producing result's digest identity. |
+| `transported_decision.not_transported` | `invalid_argument` | Decide it as a within-population claim. |
+| `transported_decision.route_needs_typed_source` | `invalid_argument` | Use the typed constructor so populations and identities are taken from the producer. |
+| `transported_decision.invalid_value` | `invalid_argument` | Supply finite values for distinct coordinates. |
+| `transported_decision.coordinate_not_in_target` | `quantity_semantics_mismatch` | State every coordinate in the target population. |
+| `transported_decision.support_label_inflated` | `transport_not_certified` | Declare extrapolative or weaker. |
+| `transported_decision.calibration_label_inflated` | `transport_not_certified` | Declare point-only or unmeasured. |
+| `transported_decision.native_label_on_transported_value` | `transport_not_certified` | A transported value is never native. |
+| `transported_decision.mixed_transports` | `transport_not_certified` | Decide each transport's value on its own. |
+| `transported_decision.law_not_supplied` | `decision_contract_unsatisfied` | Supply a transported law. |
+| `transported_decision.interval_not_licensed` | `cell_not_licensed` | None: the value is point-only. |
+| `transported_decision.transported_not_accepted` | `cell_not_licensed` | Accept a transported claim explicitly in the support policy. |
+| `transported_decision.uncertainty_requirement` | `decision_contract_unsatisfied` | Supply a transported law or drop the requirement. |
+| `transported_decision.exclusions_leave_no_comparison` | `decision_contract_unsatisfied` | Declare fewer exclusions. |
+| `transported_decision.support_rule_unmet` | `transport_support_failure` | Weaken the support rule for this input. |
+| `transported_decision_artifact.law_not_exportable` | `route_not_supported` | Export a point, or decide the law in process. |
+| `transported_decision_artifact.bounds_exceeded` | `invalid_argument` | Export fewer coordinates or actions. |
+| `transported_decision_artifact.replay_mismatch` | `invalid_argument` | Re-export from the producer. |
+| `transported_decision_artifact.identity_expected` | `decision_contract_unsatisfied` | Supply the artifact whose identity was retained. |
+| `transported_decision_artifact.invalid` | `invalid_argument` | Supply an artifact written by this library. |
+| `inverse_forward_source.transported_not_accepted` | `cell_not_licensed` | Accept a transported input explicitly with its receipt, or supply native target data. |
+| `inverse_forward_source.point_only_law_requested` | `decision_contract_unsatisfied` | Supply a source that carries a law. |
+| `inverse_forward_source.interval_not_licensed` | `cell_not_licensed` | None: the source is point-only; use a mean or a law constraint. |
+| `inverse_forward_source.origin_invalid` | `invalid_argument` | Re-seal the query from its source. |
+| `inverse_forward_source.composed_response_invalid` | `mechanism_composition_incoherent` | Supply the composition's response with its carrying receipt. |
+| `inverse_forward_source.composed_query_result_mismatch` | `invalid_argument` | Re-export the composition. |
+| `inverse_forward_source.composed_family_mismatch` | `mechanism_composition_incoherent` | Query the composition in its own family. |
+| `inverse_forward_source.composed_level_coding` | `mechanism_composition_incoherent` | Supply a numeric coding of every outcome level exactly once. |
+| `inverse_forward_source.composed_coordinate_is_outcome_law` | `invalid_argument` | Name the mean coordinate. |
+| `inverse_forward_source.composed_law_not_materialized` | `decision_contract_unsatisfied` | Draw the intervened law with the model sampler and supply aligned draws. |
+| `inverse_forward_source.per_action_not_sealable` | `invalid_argument` | Seal one artifact per action. |
+| `inverse_observational_scenarios.invalid_scenarios` | `invalid_argument` | Declare distinct, named scenario cells. |
+| `inverse_observational_scenarios.invalid_parameter` | `invalid_argument` | Correct the declaration. |
+| `inverse_observational_scenarios.condition_on_outcome` | `quantity_semantics_mismatch` | Condition on a covariate coordinate. |
+| `inverse_observational_scenarios.coordinate_missing` | `quantity_semantics_mismatch` | Name a coordinate of the law. |
+| `inverse_observational_scenarios.coordinate_unsupported` | `quantity_semantics_mismatch` | Use an unmasked coordinate. |
+| `inverse_observational_scenarios.joint_law_required` | `joint_law_required` | Supply an aligned joint observational law. |
+| `inverse_observational_scenarios.meaning_not_observational` | `distribution_meaning_mismatch` | Supply an observational law. |
+| `inverse_observational_scenarios.event_has_no_mass` | `invalid_argument` | Choose an event with mass. |
+| `inverse_observational_scenarios.non_finite_draw` | `invalid_argument` | Supply finite draws. |
+| `inverse_observational_scenarios.result_mismatch` | `invalid_argument` | Regenerate the result from the law. |
+
+### Assumption range and revalidation
+
+`transport_sensitivity.*`, `transport_revalidation.*`. See [the guide](guides/assumption-range-and-revalidation.md).
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `transport_sensitivity.no_scalar_family` | `route_not_supported` | State the sensitivity on the transported effect estimated with the structure and declare the shift bound there. |
+| `transport_sensitivity.non_finite_point` | `invalid_argument` | Supply the finite point value the route returned. |
+| `transport_sensitivity.invalid_bound` | `invalid_argument` | Declare a finite, positive bound for the shift. |
+| `transport_sensitivity.invalid_grid` | `invalid_argument` | Request at least two and at most the maximum number of grid points. |
+| `transport_sensitivity.proportional_at_zero` | `invalid_argument` | Declare an additive shift in the quantity's units instead. |
+| `transport_sensitivity.not_transported` | `invalid_argument` | Name the target population the claim is transported to. |
+| `transport_sensitivity.quantity_not_in_target` | `quantity_semantics_mismatch` | State the quantity in the target population the route transports to. |
+| `transport_sensitivity.blank_identity` | `invalid_argument` | Supply the identity field. |
+| `transport_sensitivity.surface_refused` | `invalid_argument` | Declare a reference quantity in the same population and units as the transported quantity. |
+| `transport_sensitivity.interval_not_composed` | `cell_not_licensed` | None: the range stays an assumption range; sampling is withheld. |
+| `transport_sensitivity.law_response_not_scalar` | `route_not_supported` | Reduce the law to the scalar functional the decision uses and transport that. |
+| `transport_sensitivity.route_undeclared` | `route_not_supported` | Declare the transport route the premise belongs to. |
+| `transport_sensitivity.coordinate_out_of_range` | `invalid_argument` | Name a coordinate the response has. |
+| `transport_revalidation.scene_invalid` | `invalid_argument` | Declare a scene whose claims, sources and decisions form a valid graph. |
+| `transport_revalidation.claim_target_mismatch` | `quantity_semantics_mismatch` | State every claim in the scene's target population. |
+| `transport_revalidation.source_undeclared` | `transport_missing_evidence` | Declare the source in the scene. |
+| `transport_revalidation.duplicate_claim` | `invalid_argument` | Give each claim a unique key. |
+| `transport_revalidation.unknown_claim` | `invalid_argument` | Name a claim of the scene. |
+| `transport_revalidation.value_digest` | `invalid_argument` | Supply a finite value. |
+| `transport_revalidation.identity_mismatch` | `route_not_supported` | Re-seal from the scenes. |
+| `transport_revalidation.replay_mismatch` | `invalid_argument` | Re-seal from the scenes. |
+
+### Composed spread, whole path, evidence overlap and interface contracts
+
+`joint_law_propagation.*`, `cross_world_uncertainty.*`, `interface_contract.*`. See [composed uncertainty](guides/composed-uncertainty.md) and [interface-contract adapters](guides/interface-contract-adapters.md).
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `joint_law_propagation.spread_needs_licensed_dependence` | `cell_not_licensed` | Supply a covariance, an aligned joint law, known weights or a declared independence of distinct evidence; a correlation range or marginals alone give only the labelled envelope. |
+| `joint_law_propagation.evidence_overlap_unknown` | `sampling_dependence_unknown` | Declare the observations of each source in the ledger. |
+| `joint_law_propagation.mixture_weights_unknown` | `invalid_argument` | Supply the mixture weights or ask for the dependence envelope. |
+| `cross_world_uncertainty.unit_sampling_undeclared` | `sampling_dependence_unknown` | Declare fixed units or an independent sample of a population. |
+| `cross_world_uncertainty.sampled_path_not_licensed` | `cell_not_licensed` | Use exact enumeration; sampled-path coverage is not measured. |
+| `cross_world_uncertainty.transported_path_closed` | `cell_not_licensed` | Derive in the population the mechanisms were declared for; no transported abduction derivation exists. |
+| `cross_world_uncertainty.incompatible_history` | `route_not_supported` | Declare mechanisms for the history of the evidence. |
+| `cross_world_uncertainty.bounds_exceeded` | `invalid_argument` | Reduce units or states below the bound. |
+| `cross_world_uncertainty.result_mismatch` | `invalid_argument` | Pass the result of executing this request. |
+| `cross_world_uncertainty.account_mismatch` | `invalid_argument` | Re-derive the account from the execution. |
+| `interface_contract.population_mismatch` | `interface_contract_quantity_mismatch` | Produce the quantity for the consumer's population or declare a transport of evidence. |
+| `interface_contract.operation_unavailable` | `interface_contract_operation_unavailable` | Supply a producer that offers the operation, or lower the consumer's requirement to what it uses. |
+| `interface_contract.measurement_assumption_mismatch` | `interface_contract_assumption_mismatch` | Produce under the consumer's models or declare the consumer under the producer's. |
+| `interface_contract.missing_operations` | `interface_contract_invalid` | Declare at least one operation the port offers or requires. |
+| `interface_contract.shared_evidence` | `interface_contract_assumption_mismatch` | Feed disjoint evidence or declare the dependence the combination uses. |
+| `interface_contract.dependence_unknown` | `interface_contract_assumption_mismatch` | Declare the evidence sources (their evidence-ledger identities). |
+| `mechanism_composition.posterior_dependence_evidence_overlap_unknown` | `joint_law_required` | Declare the observations of each mechanism's evidence in the ledger. |
+| `joint_law_propagation.shared_evidence_declared_independent` | `evidence_double_counted` | Treat the inputs as dependent and supply a covariance or aligned joint law. |
+| `joint_law_propagation.alignment_mismatch` | `joint_law_required` | Supply columns of one joint law; rows of different joint laws are not paired. |
+| `joint_law_propagation.index_pairing_refused` | `joint_law_required` | Supply the draws of one joint law with a shared alignment identity, a covariance for a linear operation, or ask for the dependence envelope. |
+
+### Decision reliability and adaptive procedure uncertainty
+
+`decision_reliability.*`, `adaptive_inference.*`. See [decision reliability](guides/decision-reliability-uncertainty.md) and [adaptive procedures](guides/adaptive-procedure-uncertainty.md).
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `adaptive_inference.policy_history_missing` | `adaptive_contract_incomplete` | Declare the assignment rule that governed every unit, as a function of the observed history. |
+| `adaptive_inference.interim_analyses_missing` | `adaptive_contract_incomplete` | Declare the interim looks: the units enrolled between consecutive looks. |
+| `adaptive_inference.outcome_availability_missing` | `adaptive_contract_incomplete` | Declare when outcomes become observable and how loss relates to the outcome value. |
+| `adaptive_inference.exposure_history_missing` | `adaptive_contract_incomplete` | Declare the exposure model: the probability that an assigned arm is not delivered and what is delivered instead. |
+| `adaptive_inference.stopping_rule_missing` | `adaptive_contract_incomplete` | Declare the stopping rule, its parameters and what it decides at each look. |
+| `adaptive_inference.policy_selection_missing` | `adaptive_contract_incomplete` | Declare how the procedure selects an arm when no stopping rule decided, or declare no selection. |
+| `adaptive_inference.arms_invalid` | `invalid_argument` | Correct the declared element. |
+| `adaptive_inference.contexts_invalid` | `invalid_argument` | Declare 1 to 4 contexts with known probabilities summing to one. |
+| `adaptive_inference.rule_mismatch` | `invalid_argument` | Correct the declared element. |
+| `adaptive_inference.looks_not_ordered` | `invalid_argument` | Declare 1 to 24 looks with a positive first look and at most 400 units. |
+| `adaptive_inference.outcome_availability_invalid` | `invalid_argument` | Correct the declared element. |
+| `adaptive_inference.exposure_invalid` | `invalid_argument` | Correct the declared element. |
+| `adaptive_inference.posterior_premise_outcome_dependent_delay` | `cell_not_licensed` | Declare ignorable loss and delay, or analyse a paradigm that models the loss. |
+| `adaptive_inference.anytime_premise_contexts` | `cell_not_licensed` | Analyse one context at a time or declare a single context. |
+| `adaptive_inference.outcome_dependent_delay` | `cell_not_licensed` | Declare ignorable loss or use a paradigm that models the loss. |
+| `adaptive_inference.fixed_sample_design_adaptive` | `cell_not_licensed` | Use the paradigm licensed for the adaptive cell. |
+| `adaptive_inference.fixed_sample_data_dependent_stopping` | `cell_not_licensed` | Use the group-sequential or anytime-valid paradigm. |
+| `adaptive_inference.group_sequential_assignment_adaptive` | `cell_not_licensed` | Use fixed randomization or an anytime-valid paradigm. |
+| `adaptive_inference.inversion_premise_contexts` | `cell_not_licensed` | Invert one context at a time. |
+| `decision_reliability.effective_sample_size_too_small` | `route_not_supported` | Draw more or reduce serial dependence. |
+| `decision_reliability.dependence_unknown` | `joint_law_required` | Declare shared simulation, independent streams or an aligned joint law. |
+| `decision_reliability.search_record_required` | `invalid_argument` | Supply the candidate search record (considered and retained counts). |
+| `decision_reliability.validation_not_independent` | `invalid_argument` | Validate on an independent stream or a disjoint split. |
+| `decision_reliability.producer_point_only` | `joint_law_required` | Supply aligned per-draw utilities from one joint law, or retain per-rollout utilities. |
+| `decision_reliability.producer_mean_disagrees` | `distribution_meaning_mismatch` | Supply draws of the same quantity or drop the agreement check. |
+
+### Finite-SCM discretization
+
+`discretized_scm.*`, `discretized_scm_artifact.*`, `paradigm_parity.*`. See [the guide](guides/finite-scm-discretization.md).
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `discretized_scm.levels_undeclared` | `invalid_argument` | Declare a level count for every variable. |
+| `discretized_scm.levels_out_of_range` | `invalid_argument` | Declare between 2 and 64 levels. |
+| `discretized_scm.unknown_variable` | `invalid_argument` | Declare levels for the composition's own variables. |
+| `discretized_scm.state_space_too_large` | `invalid_argument` | Declare fewer levels or fewer variables. |
+| `discretized_scm.non_gaussian_mechanism` | `route_not_supported` | Discretize a linear-Gaussian composition. |
+| `discretized_scm.support_not_real_line` | `route_not_supported` | Declare an unbounded real support. |
+| `discretized_scm.latent_confounding` | `route_not_supported` | Use a Markovian composition; a latent-confounded finite SCM needs the exogenous-term construction. |
+| `discretized_scm.degenerate_marginal` | `route_not_supported` | Declare a positive finite noise scale. |
+| `discretized_scm.composition_incoherent` | `mechanism_composition_incoherent` | Repair the composition findings. |
+| `discretized_scm.intervention_invalid` | `invalid_argument` | Name declared variables and levels. |
+| `discretized_scm.point_only` | `cell_not_licensed` | None: the value is point-only with a computed mean-error bound. |
+| `discretized_scm.cancelled` | `cancelled_no_claim` | Re-run without cancellation. |
+| `discretized_scm.numerical` | `invalid_argument` | Check the composition parameters. |
+| `discretized_scm_artifact.malformed` | `invalid_argument` | Supply bytes written by this library. |
+| `discretized_scm_artifact.version_unsupported` | `schema_mismatch` | Re-export with this library version. |
+| `discretized_scm_artifact.not_exportable` | `route_not_supported` | Re-export from a linear-Gaussian composition. |
+| `discretized_scm_artifact.rederivation_refused` | `invalid_argument` | Re-export from the producing composition. |
+| `discretized_scm_artifact.identity_mismatch` | `invalid_argument` | Supply the artifact whose identity was retained. |
+| `discretized_scm_artifact.claimed_numbers_differ` | `invalid_argument` | Re-export from the producing composition. |
+| `paradigm_parity.paradigm_closed` | `cell_not_licensed` | Use the paradigm the route supports; the closed reason is returned as the remedy. |
+
+### Evidence overlap of design studies
+
+`evsi.*`, `design_ranking.*`, `prior_signal.*`. Whether a study's data overlap the prior's is read from the evidence ledger; a lineage the ledger cannot decide is unknown, and unknown is never disjoint.
+
+| Detail | Code | What would license the request |
+| --- | --- | --- |
+| `evsi.source_overlap_unknown` | `evidence_overlap_unknown` | Declare the study's observations (or its lineage) in the ledger. |
+| `design_ranking.source_overlap_unknown` | `evidence_overlap_unknown` | Declare the observations of the study and prior sources in the ledger. |
+| `prior_signal.observation_overlap_unknown` | `evidence_overlap_unknown` | Declare the observation ids of every source. |
 
 ## Remedies
 

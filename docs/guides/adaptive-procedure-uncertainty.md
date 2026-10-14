@@ -8,7 +8,9 @@ another. Every result carries `derived_unmeasured`: the law is exact under the
 stated model but no coverage of any method has been measured.
 
 Rust surface: `antecedent_stats::adaptive_inference::{procedure_contract,
-procedure_law, procedure_simulation, procedure_uncertainty}`. Provenance
+procedure_law, procedure_simulation, procedure_uncertainty}`; every premise
+failure of `admit` carries the one registered code `cell_not_licensed` with its
+own detail. There is no Python entry for this route yet. Provenance
 records: `adaptive_inference.procedure_law`,
 `adaptive_inference.procedure_bayesian_martingale_gap`,
 `adaptive_inference.procedure_anytime_exclusion`,
@@ -44,8 +46,8 @@ more: it is not an interval and not a calibration.
 | Refused request | Reason code or detail | Remedy |
 | --- | --- | --- |
 | Procedure element missing | `adaptive_contract_incomplete` (for example `adaptive_inference.stopping_rule_missing`) | Declare it |
-| Posterior from value-dependent loss | `adaptive_inference.posterior_premise_outcome_dependent_delay` | Model the loss mechanism or restrict to ignorable loss |
-| Fixed-sample or group-sequential on an adaptive design | `adaptive_inference.fixed_sample_design_adaptive`, `group_sequential_assignment_adaptive` | Use the adaptive-weighting or anytime-valid paradigm |
-| Rule that does not match the paradigm | `adaptive_inference.rule_mismatch` | Declare the matching stopping rule |
-| Anytime-valid with several contexts | `adaptive_inference` premise failure | Run per context |
+| Posterior from value-dependent loss | `cell_not_licensed` (`adaptive_inference.posterior_premise_outcome_dependent_delay`) | Model the loss mechanism or restrict to ignorable loss |
+| Fixed-sample or group-sequential on an adaptive design | `cell_not_licensed` (`adaptive_inference.fixed_sample_design_adaptive`, `group_sequential_assignment_adaptive`) | Use the adaptive-weighting or anytime-valid paradigm |
+| Rule that does not match the paradigm | `cell_not_licensed` (`adaptive_inference.rule_mismatch`) | Declare the matching stopping rule |
+| Anytime-valid with several contexts | `cell_not_licensed` (an `adaptive_inference.*` premise failure) | Run per context |
 | Any interval or coverage claim | not licensed | Treat as derived-unmeasured |

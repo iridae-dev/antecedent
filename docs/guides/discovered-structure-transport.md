@@ -12,6 +12,17 @@ routes keep the two apart.
 Provenance records: `transport.cpdag_class_envelope`,
 `discovery.per_population`, `discovery.sample_split_analysis`.
 
+Facade entries: `analysis::discovered_transport::{transport_discovered_structure,
+discover_and_transport}` (a retained discovery outcome or a table, plus the
+declared selection targets and query),
+`analysis::per_population_discovery::{discover_per_population,
+add_per_population_claims}` (each population's discovery stages enter the
+composition graph under the population's coordinate, so one population's changed
+rows recompute that population's claims and leave the others valid) and
+`analysis::sample_split_analysis::{discover_on_split,
+SplitDiscovery::check_analysis_table}` (a table that is not the receipt's
+analysis rows is refused). None has a Python entry yet.
+
 ## Structural envelope
 
 A CPDAG stands for every DAG in a Markov equivalence class, and which member is

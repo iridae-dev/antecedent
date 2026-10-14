@@ -25,6 +25,13 @@ uncertainty and `point_only` otherwise; it is never measured by default, and a
 bridge never raises a calibration its source did not hold. Licensing remains the
 declaration's own check; the projection licenses nothing a connection does not.
 
+Adapted ports are checked by the one connection check, so a population
+mismatch is `interface_contract.population_mismatch`, an operation the producer
+does not offer (point, mean, law, draws, joint draws, covariance, interval,
+posterior; none implies another) is `operation_unavailable`, and a measurement
+model the quantity was not established under is
+`measurement_assumption_mismatch`.
+
 ## Evidence overlap
 
 `check_composition_with_ledger` and `check_propagation_with_ledger` read overlap

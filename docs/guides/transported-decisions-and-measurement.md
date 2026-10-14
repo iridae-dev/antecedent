@@ -9,8 +9,14 @@ Neither inspects target outcomes, and neither produces an interval.
 | Retained effect model applied to a target cohort | `antecedent_learn::transported_effect::transport_cohort_effect` | `TransportedCohortEffect`: one weighted cohort-mean contrast, point-only |
 | Measurement model carried to another population | `antecedent_estimate::measurement_transport::transport_measurement_model` | `TransportedMeasurementModel` plus a receipt; applied through `apply` |
 
-Python bindings follow the Python API refactor; this page names the Rust
-surface only. Provenance records: `transport.covariate_shift_cohort_effect`,
+A cohort effect is read in Python as a `cohort_decision` source and, under a
+declared covariate shift, becomes a transported response with
+`antecedent.transported_response.TransportedResponse.from_shifted_cohort`; it
+is then decided on with `Contract.evaluate_transported` or read by an inverse
+query through `antecedent.inverse_sources.cohort_forward_source` (see
+[inverse queries and decisions](inverse-and-decision-reach.md)). The
+measurement-model route is reached through `antecedent.measurement_model`.
+Provenance records: `transport.covariate_shift_cohort_effect`,
 `transport.measurement_model`.
 
 ## Cohort effect under a selection premise
@@ -26,7 +32,9 @@ population is a transport claim, issued only when two premises are met:
    finds no feature disjoint from the fitted range and no row outside it. A box
    is a necessary condition for positivity, not an overlap or density guarantee.
 
-The value is `sum_i w_i tau(x_i)` over named cohort rows with normalized weights.
+Model feature names must be distinct; a model that names a feature twice is
+refused before anything is applied. The value is `sum_i w_i tau(x_i)` over
+named cohort rows with normalized weights.
 It is labelled extrapolative. No standard error, interval or utility variance of
 the source fit is inherited.
 
@@ -49,7 +57,9 @@ that binds the source model identity, both populations, the premise and the
 basis. The corrected functional is never presented as native to the target.
 Only the parameter-estimation uncertainty the correction already propagates is
 reported, it is conditional on the premise and uncalibrated, and the uncertainty
-of the premise itself is not propagated.
+of the premise itself is not propagated. When several models are held, the one
+established for the requested population, regime and arm is used; a model for
+the population alone is a fallback only when none matches the regime and arm.
 
 ## What is refused, and the remedy
 
@@ -57,6 +67,7 @@ of the premise itself is not propagated.
 | --- | --- | --- |
 | No selection-shift declaration | `transport_missing_evidence` | Declare the selection node and the effect modifiers it enters |
 | Declaration does not match the model, populations or selection structure (selection enters the mechanism, modifiers differ from features) | `transport_not_certified` | Correct the declaration or refit the model with the modifiers the diagram requires |
+| A model that names a feature twice | `invalid_argument` (`transported_effect.model_invalid`) | Give every model feature one name |
 | No overlap, or rows outside the support box | `transport_support_failure` | Restrict the cohort to the fitted box or refit on data that covers it |
 | Interval, standard error or law of the cohort effect | `cell_not_licensed` / `decision_contract_unsatisfied` | Use the point value; an interval needs a measured record at that coordinate |
 | Measurement parameters not declared invariant, or only some of them | `transport_missing_evidence` / `transport_not_certified` | Name every parameter the route uses, or establish the model in the target |

@@ -1057,6 +1057,57 @@ current contract. Observational network exposure has a retained pointwise
 cluster interval only for known fixed propensities and measured cluster support;
 externally fitted propensities remain point-only, and the route is off-axis.
 
+### Transported claims, decisions, inverse sources and revalidation
+
+A value carried from one population to a declared target is a transported
+response: a point (or a transported law) labelled extrapolative, with a receipt
+naming the populations it was learned in and carried to, the selection-diagram
+identities and the assumptions. It is never native target data, and none of
+these routes licenses an interval, a posterior coverage statement or a
+calibration claim. Guides: [transported decisions and
+measurement](guides/transported-decisions-and-measurement.md),
+[inverse queries and decisions](guides/inverse-and-decision-reach.md),
+[assumption range and revalidation](guides/assumption-range-and-revalidation.md).
+
+* **Transported response and decision** (`antecedent.transported_response`):
+  `TransportedResponse.declared_point` / `declared_law` /
+  `from_shifted_cohort(cohort_source)` with a `TransportDeclaration`, and
+  `evaluate_transported(contract, response, analysis=, demand=, support_policy=)`
+  (also `Contract.evaluate_transported`). A mean answers an affine expected
+  utility only; a law, probability, quantile or hard constraint on a point is
+  refused, an interval is `cell_not_licensed`, and the default support policy
+  refuses the extrapolative label until the policy names it.
+* **Forward sources of an inverse query** (`antecedent.inverse_sources`):
+  `composed_forward_source`, `cohort_forward_source`,
+  `transported_forward_source`, each adapted with its own refusals and its origin
+  carried into the sealed artifact; `observational_scenarios` is associational
+  and ranks no action. A consumer that does not accept a transported input
+  refuses it as `cell_not_licensed` / `transported_not_accepted`.
+* **Assumption range** (`antecedent.transport.sensitivity`):
+  `transport_sensitivity(response, family=, bound=, grid_points=, reference=,
+  reference_value=)` returns the range at declared grid points; the bound is the
+  caller's declaration, no probability attaches to a shift.
+* **Revalidation** (`antecedent.transport.revalidation`): `TransportScene.builder`
+  declares target, sources, transported claims (with their calibration standing)
+  and decisions; `revalidate(previous, current, effects)` and
+  `TransportClaimState.observe` classify each claim `still_valid`, `recompute`
+  or `withdrawn`. Calibration established at one target is withdrawn at another.
+* **Handoff to a callback** (`antecedent.transport_handoff`): `hand_to_callback`
+  and `consume_for_callback` seal and re-derive one connection of a transported
+  claim to a callback input that declares it accepts transported claims; the
+  claim is never native target data and its calibration label is never raised.
+* **Discretized composition** (`antecedent.discretized_composition`):
+  `PreparedMechanismComposition.discretize(levels)` builds a finite model with a
+  computed mean-error bound against the closed form; point-only, exportable, and
+  re-derived bit for bit by a consumer.
+* **Whole-path uncertainty** (`CrossWorldExecution.whole_path_uncertainty`): an
+  uncalibrated spread of the finite cross-world row under a declared unit
+  sampling, verified against its execution.
+
+Policy, adaptive-trial, period-shift, synthesis, surrogate-bridge, mechanism and
+discovered-structure transport are library and facade routes without a Python
+entry; the [limits page](user-facing-limits.md) states what each does not do.
+
 ## Treatment policy evaluation
 
 `antecedent.policy.BinaryPolicy` represents fixed binary recommendations or a

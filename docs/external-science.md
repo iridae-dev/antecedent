@@ -206,6 +206,20 @@ Refusal details retain their owning namespace: `external_response_binding`,
 neither an interval nor sampling calibration for a CDF or quantile, and external
 trust remains external.
 
+## Transported claims as callback inputs
+
+A transported claim (a value about a target population derived from other
+populations under a declared selection diagram) may be offered to a callback
+input that is declared to accept transported claims:
+`antecedent.transport_handoff.hand_to_callback(offer, callback, input)`. The
+record seals the offer, the callback declaration, the input and the transport
+identity; `consume_for_callback` re-derives the connection and refuses an edit,
+a relabelled calibration, another callback declaration and an input that takes
+native target data only. The claim is never native target data, its calibration
+label is never raised, and a provider trust label stays at
+`externally_attested` or `verified_extension`. See [provider-sourced
+transport](guides/provider-sourced-transport.md).
+
 ## Law, posterior and nested callbacks
 
 A callback that supplies a law, a posterior or a composition of them (mean,

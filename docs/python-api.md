@@ -28,6 +28,12 @@ The Python surface is documented by task in these guides:
 - [Sensitivity and robustness](sensitivity-and-robustness.md): `msm_sensitivity.msm_ate_sensitivity`, `sensitivity_decision`, `decision_robust` and `mechanism_discrepancy.diagnose_mechanism_discrepancy`.
 - [Transport and counterfactuals](transport-counterfactuals.md): the affine-additive transported path-specific effect, `MechanismSelection`, the scenario invariance report and the source-bound learned joint measured adapter.
 - [Prepared recalculation](recalculation-capabilities.md): checked family sessions, selective recalculation, bounded external mean callbacks, frozen scores and portable resume.
+- [Transported decisions and measurement](guides/transported-decisions-and-measurement.md) and [inverse queries and decisions](guides/inverse-and-decision-reach.md): `transported_response` (`TransportedResponse`, `TransportDeclaration`, `evaluate_transported`) and `inverse_sources` (`composed_forward_source`, `cohort_forward_source`, `transported_forward_source`, `observational_scenarios`).
+- [Assumption range and revalidation](guides/assumption-range-and-revalidation.md): `transport.sensitivity.transport_sensitivity`, `transport.revalidation` (`TransportScene`, `revalidate`, `TransportClaimState`).
+- [Provider-sourced transport](guides/provider-sourced-transport.md): `transport_handoff.hand_to_callback` and `consume_for_callback`.
+- [Finite-SCM discretization](guides/finite-scm-discretization.md): `discretized_composition.discretize`, `PreparedMechanismComposition.discretize`, `consume_discretized_composition`.
+- [Composed uncertainty](guides/composed-uncertainty.md): `CrossWorldExecution.whole_path_uncertainty`.
+- [What the transport and uncertainty routes do not do](user-facing-limits.md).
 - [Refusals](refusal-and-partial-knowledge.md#structured-refusals-and-their-remedies): the shared `StructuredRefusal` base with `.code`, `.detail`, `.offending` and `.remedy`.
 - [Composition and bundles](composition.md): `composition_bundle.Bundle`, `add_artifact` and `consume_bundle`.
 
