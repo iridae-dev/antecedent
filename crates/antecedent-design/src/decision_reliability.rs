@@ -209,7 +209,7 @@ fn builder(code: &'static str, detail: &str) -> RefusalBuilder {
 }
 
 /// The refusal for a producer that holds only a point value, with the remedy for its route.
-fn producer_point_only_refusal(producer: &ProducerKind, held: &str) -> ExternalRefusal {
+fn producer_point_only_refusal(producer: ProducerKind, held: &str) -> ExternalRefusal {
     match producer {
         ProducerKind::CohortMeanDecision => builder(
             antecedent_core::reason_code!("joint_law_required"),
@@ -348,7 +348,7 @@ impl ReliabilityError {
             )
             .build(),
             Self::ProducerPointOnly { producer, held } => {
-                producer_point_only_refusal(producer, held)
+                producer_point_only_refusal(*producer, held)
             }
             Self::ProducerMeanDisagrees { id, reported, draws_mean, standard_error } => {
                 producer_mean_disagrees_refusal(id, *reported, *draws_mean, *standard_error)

@@ -860,8 +860,6 @@ fn four_node_branch_conformance_has_no_unchecked_obstructions() {
 /// A parameterization is skipped when a node's Bernoulli weight would leave `(0, 1)`.
 #[test]
 fn four_node_branch_positives_match_latent_scm_truth() {
-    const PARAMS: [(f64, f64, f64, f64); 3] =
-        [(0.12, 0.16, 0.12, 0.09), (0.08, 0.14, 0.11, 0.07), (0.18, 0.10, 0.08, 0.05)];
     let failed = std::sync::atomic::AtomicBool::new(false);
     let message = std::sync::Mutex::new(String::new());
     let checked = std::sync::atomic::AtomicU64::new(0);
@@ -877,12 +875,7 @@ fn four_node_branch_positives_match_latent_scm_truth() {
             scope.spawn(move || {
                 let ctx = ExecutionContext::for_tests(worker as u64);
                 let catalog = four_node_power_set_catalog();
-                let query = ClassicalTransportQuery {
-                    outcomes: Arc::from([v(3)]),
-                    treatments: Arc::from([v(0)]),
-                    source: Arc::from("source"),
-                    target: Arc::from("target"),
-                };
+                let query = four_node_query();
                 for directed in (worker..64).step_by(workers) {
                     let directed = directed as u32;
                     for bidirected in 0..64u32 {
@@ -893,15 +886,11 @@ fn four_node_branch_positives_match_latent_scm_truth() {
                         // Source mechanisms do not depend on target selections. Keep
                         // one validated set per parameterization for this graph;
                         // target laws and independent do-truths still vary per case.
-                        let mut sources: [Option<Vec<ExactDiscreteLaw>>; PARAMS.len()] =
+                        let mut sources: [Option<Vec<ExactDiscreteLaw>>; FOUR_NODE_PARAMS.len()] =
                             std::array::from_fn(|_| None);
                         for selections in 0..16u32 {
                             visited.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                            let diagram = SelectionDiagram::try_new(
-                                graph.clone(),
-                                (0..4).filter(|i| selections & (1 << i) != 0).map(v).collect::<Vec<_>>(),
-                            )
-                            .unwrap();
+                            let diagram = four_node_diagram(&graph, selections);
                             let proof = match identify_classical_transport(
                                 &diagram,
                                 &query,
@@ -921,7 +910,7 @@ fn four_node_branch_positives_match_latent_scm_truth() {
                                 }
                             };
                             for (parameter, (base, parent_w, shared_w, sel_w)) in
-                                PARAMS.into_iter().enumerate()
+                                FOUR_NODE_PARAMS.into_iter().enumerate()
                             {
                                 if !four_node_param_in_unit_interval(
                                     directed, bidirected, selections, base, parent_w, shared_w, sel_w,
@@ -977,6 +966,26 @@ fn four_node_branch_positives_match_latent_scm_truth() {
 }
 
 const FOUR_EDGES: [(usize, usize); 6] = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
+
+const FOUR_NODE_PARAMS: [(f64, f64, f64, f64); 3] =
+    [(0.12, 0.16, 0.12, 0.09), (0.08, 0.14, 0.11, 0.07), (0.18, 0.10, 0.08, 0.05)];
+
+fn four_node_query() -> ClassicalTransportQuery {
+    ClassicalTransportQuery {
+        outcomes: Arc::from([v(3)]),
+        treatments: Arc::from([v(0)]),
+        source: Arc::from("source"),
+        target: Arc::from("target"),
+    }
+}
+
+fn four_node_diagram(graph: &Admg, selections: u32) -> SelectionDiagram {
+    SelectionDiagram::try_new(
+        graph.clone(),
+        (0..4).filter(|i| selections & (1 << i) != 0).map(v).collect::<Vec<_>>(),
+    )
+    .unwrap()
+}
 
 fn four_node_graph(directed: u32, bidirected: u32) -> Admg {
     let mut graph = Admg::with_variables(4);

@@ -131,7 +131,7 @@ fn a_surrogate_validated_elsewhere_is_carried_when_the_diagram_leaves_the_relati
             .receipt
             .unresolved
             .iter()
-            .any(|item| &**item == format!("transportability:{SURROGATE_TRANSPORT_PREMISE_ID}"))
+            .any(|item| **item == format!("transportability:{SURROGATE_TRANSPORT_PREMISE_ID}"))
     );
     // Still point-only: no interval is licensed for the transported bridge.
     assert!(bridged.request_interval().is_err());

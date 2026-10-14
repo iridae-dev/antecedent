@@ -452,14 +452,16 @@ struct Values {
     reports: Vec<ScenarioReport>,
 }
 
+/// One scenario's `(column, lower, upper)` conditions, resolved against the law.
+type ScenarioConditions = Vec<(usize, f64, f64)>;
+
 /// The (column, lower, upper) conditions of every scenario, resolved against the law.
 fn scenario_columns(
     query: &ObservationalScenarioQuery,
     parsed: &[Option<ScientificQuantity>],
     mask: Option<&[bool]>,
-) -> Result<Vec<Vec<(usize, f64, f64)>>, ObservationalScenarioError> {
-    let mut scenario_columns: Vec<Vec<(usize, f64, f64)>> =
-        Vec::with_capacity(query.scenarios.len());
+) -> Result<Vec<ScenarioConditions>, ObservationalScenarioError> {
+    let mut scenario_columns: Vec<ScenarioConditions> = Vec::with_capacity(query.scenarios.len());
     for scenario in &query.scenarios {
         let mut columns = Vec::with_capacity(scenario.conditions.len());
         for condition in &scenario.conditions {
@@ -508,43 +510,33 @@ fn scenario_reports(
         .collect()
 }
 
-/// Answer an observational-scenario question on an aligned observational law.
-///
-/// # Errors
-/// An empty, repeated or oversized scenario list, a non-finite threshold or
-/// bound, a scenario that conditions on the outcome, a coordinate that is
-/// missing or masked, non-joint alignment, a law that is not observational, a
-/// non-finite draw, and an event with no mass.
-pub fn evaluate_observational_scenarios(
-    query: &ObservationalScenarioQuery,
-    law: &DistributionArtifact,
-) -> Result<ObservationalScenarioResult, ObservationalScenarioError> {
-    validate(query)?;
-    let metadata = law.metadata();
-    if metadata.identity.alignment != DrawAlignment::Joint {
-        return Err(ObservationalScenarioError::JointLawRequired("independent_marginals"));
-    }
-    let meaning = DistributionMeaning::from(law.semantic());
-    if !matches!(
-        meaning,
-        DistributionMeaning::PosteriorPredictive | DistributionMeaning::EmpiricalOutcome
-    ) {
-        return Err(ObservationalScenarioError::MeaningNotObservational(meaning_label(meaning)));
-    }
-    let parsed: Vec<Option<ScientificQuantity>> = law
-        .quantities()
-        .iter()
-        .map(|wire| ScientificQuantity::try_from(wire.clone()).ok())
-        .collect();
-    let mask = metadata.supported.as_deref();
-    let outcome_column = column_of(&parsed, mask, &query.outcome)?;
-    let scenario_columns = scenario_columns(query, &parsed, mask)?;
-    let [rows, width] = law.shape();
-    let draws = law.draws();
-    let raw: Vec<f64> = metadata.weights.clone().unwrap_or_else(|| vec![1.0; rows]);
-    let total: f64 = raw.iter().sum();
-    let weights: Vec<f64> = raw.iter().map(|w| w / total).collect();
+/// Where the outcome sits in the law's row-major draw matrix.
+#[derive(Clone, Copy)]
+struct RowLayout {
+    width: usize,
+    outcome_column: usize,
+}
 
+/// Weighted event and scenario masses and draw counts accumulated over the law's rows.
+struct RowAccumulation {
+    event_mass: f64,
+    event_square: f64,
+    covered: f64,
+    masses: Vec<f64>,
+    joint: Vec<f64>,
+    scenario_draws: Vec<u64>,
+    joint_draws: Vec<u64>,
+}
+
+fn accumulate_rows(
+    query: &ObservationalScenarioQuery,
+    scenario_columns: &[ScenarioConditions],
+    weights: &[f64],
+    draws: &[f64],
+    layout: RowLayout,
+) -> Result<RowAccumulation, ObservationalScenarioError> {
+    let RowLayout { width, outcome_column } = layout;
+    let rows = weights.len();
     let mut event_mass = 0.0;
     let mut event_square = 0.0;
     let mut covered = 0.0;
@@ -589,6 +581,69 @@ pub fn evaluate_observational_scenarios(
             }
         }
     }
+    Ok(RowAccumulation {
+        event_mass,
+        event_square,
+        covered,
+        masses,
+        joint,
+        scenario_draws,
+        joint_draws,
+    })
+}
+
+/// Answer an observational-scenario question on an aligned observational law.
+///
+/// # Errors
+/// An empty, repeated or oversized scenario list, a non-finite threshold or
+/// bound, a scenario that conditions on the outcome, a coordinate that is
+/// missing or masked, non-joint alignment, a law that is not observational, a
+/// non-finite draw, and an event with no mass.
+pub fn evaluate_observational_scenarios(
+    query: &ObservationalScenarioQuery,
+    law: &DistributionArtifact,
+) -> Result<ObservationalScenarioResult, ObservationalScenarioError> {
+    validate(query)?;
+    let metadata = law.metadata();
+    if metadata.identity.alignment != DrawAlignment::Joint {
+        return Err(ObservationalScenarioError::JointLawRequired("independent_marginals"));
+    }
+    let meaning = DistributionMeaning::from(law.semantic());
+    if !matches!(
+        meaning,
+        DistributionMeaning::PosteriorPredictive | DistributionMeaning::EmpiricalOutcome
+    ) {
+        return Err(ObservationalScenarioError::MeaningNotObservational(meaning_label(meaning)));
+    }
+    let parsed: Vec<Option<ScientificQuantity>> = law
+        .quantities()
+        .iter()
+        .map(|wire| ScientificQuantity::try_from(wire.clone()).ok())
+        .collect();
+    let mask = metadata.supported.as_deref();
+    let outcome_column = column_of(&parsed, mask, &query.outcome)?;
+    let scenario_columns = scenario_columns(query, &parsed, mask)?;
+    let [rows, width] = law.shape();
+    let draws = law.draws();
+    let raw: Vec<f64> = metadata.weights.clone().unwrap_or_else(|| vec![1.0; rows]);
+    let total: f64 = raw.iter().sum();
+    let weights: Vec<f64> = raw.iter().map(|w| w / total).collect();
+
+    let RowAccumulation {
+        event_mass,
+        event_square,
+        covered,
+        masses,
+        joint,
+        scenario_draws,
+        joint_draws,
+    } = accumulate_rows(
+        query,
+        &scenario_columns,
+        &weights,
+        draws,
+        RowLayout { width, outcome_column },
+    )?;
     if event_mass.is_nan() || event_mass <= 0.0 {
         return Err(ObservationalScenarioError::EventHasNoMass);
     }

@@ -1806,7 +1806,7 @@ mod tests {
         let shifted: Vec<f64> = ys.iter().cycle().skip(3).take(ys.len()).copied().collect();
         let unpaired = aligned_functional_draws(&xs, &shifted, ValueFunctional::Product, &token())
             .expect("rows");
-        assert_ne!(draw_spread(&unpaired, None).expect("spread").mean, spread.mean);
+        assert!((draw_spread(&unpaired, None).expect("spread").mean - spread.mean).abs() > 1e-12);
     }
 
     #[test]
@@ -1848,11 +1848,11 @@ mod tests {
         let b = [1.0, 2.0];
         let law = mixture_marginal(&[0.5, 0.5], &[&a, &b]).expect("law");
         assert_eq!(law.atoms(), &[(0.0, 0.25), (1.0, 0.5), (2.0, 0.25)]);
-        assert_eq!(law.quantile(0.25).expect("q"), 0.0);
-        assert_eq!(law.quantile(0.26).expect("q"), 1.0);
-        assert_eq!(law.quantile(0.75).expect("q"), 1.0);
-        assert_eq!(law.quantile(0.76).expect("q"), 2.0);
-        assert_eq!(law.quantile(1.0).expect("q"), 2.0);
+        assert!((law.quantile(0.25).expect("q") - 0.0).abs() < 1e-12);
+        assert!((law.quantile(0.26).expect("q") - 1.0).abs() < 1e-12);
+        assert!((law.quantile(0.75).expect("q") - 1.0).abs() < 1e-12);
+        assert!((law.quantile(0.76).expect("q") - 2.0).abs() < 1e-12);
+        assert!((law.quantile(1.0).expect("q") - 2.0).abs() < 1e-12);
         assert!(law.quantile(0.0).is_err());
         let candidate = marginal_interval_candidate(&law, 0.5).expect("interval");
         // Level 0.5: the 0.25 and 0.75 quantiles, 0 and 1.
@@ -1898,7 +1898,7 @@ mod tests {
         // a cutoff just under one is unresolved rather than act.
         let all = vec![1.0; 100];
         let at_one = composed_exceedance_decision(&all, 0.0, 0.99, 0.95, None).expect("d");
-        assert_eq!(at_one.probability, 1.0);
+        assert!((at_one.probability - 1.0).abs() < 1e-12);
         assert!(at_one.standard_error > 0.013 && at_one.standard_error < 0.0133);
         assert_eq!(at_one.verdict, DecisionVerdict::Unresolved);
         assert_eq!(

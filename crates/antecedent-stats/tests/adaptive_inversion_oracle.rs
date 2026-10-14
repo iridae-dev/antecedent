@@ -298,7 +298,7 @@ fn ordering_tails_of_the_adaptive_procedure_match_the_enumeration() {
             close(library.upper, upper, 1e-9, "upper tail");
             close(library.lower, lower, 1e-9, "lower tail");
             // Both arms are observed in every terminal state of this procedure.
-            assert_eq!(library.undefined_mass, 0.0);
+            assert!(library.undefined_mass.abs() < 1e-12);
         }
     }
 }
@@ -387,7 +387,7 @@ fn inversion_refuses_what_its_premises_do_not_cover() {
     estimate_not_finite.estimate = f64::NAN;
     assert!(matches!(
         inversion_interval(&spec, &estimate_not_finite, &small, 0.3, &never),
-        Err(Error::InvalidParameter(_)) | Err(Error::Shape(_))
+        Err(Error::InvalidParameter(_) | Error::Shape(_))
     ));
 
     // The law bound: 64 x 64 is admitted, 65 x 64 is one past it.

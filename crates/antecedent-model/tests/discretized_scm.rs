@@ -140,8 +140,8 @@ fn one_edge_two_levels_matches_the_hand_computed_table_mean() {
     let y = model.level_values("Y").unwrap();
     near(x[0], -0.797_884_560_8, 1e-9);
     near(x[1], 0.797_884_560_8, 1e-9);
-    near(y[0], -1.128_379_167_1, 1e-9);
-    near(y[1], 1.128_379_167_1, 1e-9);
+    near(y[0], -std::f64::consts::FRAC_2_SQRT_PI, 1e-9);
+    near(y[1], std::f64::consts::FRAC_2_SQRT_PI, 1e-9);
     near(model.cell_edges("X").unwrap()[0], 0.0, 1e-12);
     near(model.cell_edges("Y").unwrap()[0], 0.0, 1e-12);
 

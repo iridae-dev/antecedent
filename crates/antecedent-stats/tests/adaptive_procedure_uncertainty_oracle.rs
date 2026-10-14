@@ -108,6 +108,7 @@ fn assert_same_law(actual: &TerminalMap, expected: &TerminalMap, tolerance: f64,
 // -- Independent enumeration of the immediate, one-unit-per-look procedure ------------------------
 
 type Counts = [(u32, u32); 2];
+type GapCase = (fn(&mut ProcedureDeclaration), ContractGap, &'static str);
 
 /// `P(theta_b > theta_a)` for integer shapes (the finite sum of Evan Miller).
 fn miller_b_exceeds_a(a: (u32, u32), b: (u32, u32)) -> f64 {
@@ -181,7 +182,7 @@ fn enumerated(
 #[test]
 fn every_missing_element_of_the_procedure_is_its_own_refusal() {
     let complete = declaration(fixed_half(), vec![4]);
-    let cases: [(fn(&mut ProcedureDeclaration), ContractGap, &str); 6] = [
+    let cases: [GapCase; 6] = [
         (
             |d| d.assignment = None,
             ContractGap::AssignmentPolicyMissing,
@@ -756,7 +757,7 @@ fn anytime_bound_holds_at_the_stopping_time_of_an_adaptive_procedure() {
         assert!(value <= alpha + 1e-12, "exclusion {value} at {truth:?} exceeds {alpha}");
     }
     let report = anytime_valid_report(&spec, &[3, 1, 0, 0], 0.2, 5.0).unwrap();
-    assert_eq!(report.alpha_per_cell, 0.1);
+    assert!((report.alpha_per_cell - 0.1).abs() < 1e-12);
     assert_eq!((report.bounds[1].lower, report.bounds[1].upper), (0.0, 1.0));
     close(
         report.bounds[0].upper,

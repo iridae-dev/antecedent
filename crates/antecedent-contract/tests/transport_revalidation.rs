@@ -154,11 +154,8 @@ fn recalibrating_at_the_new_target_restores_the_claim_after_recomputation() {
     current.target.identity = d(111);
     for claim in &mut current.claims {
         match &mut claim.calibration {
-            SceneCalibration::Held { established_at_target, record } => {
-                *established_at_target = d(111);
-                *record = d(91);
-            }
-            SceneCalibration::Inherited { established_at_target, record, .. } => {
+            SceneCalibration::Held { established_at_target, record }
+            | SceneCalibration::Inherited { established_at_target, record, .. } => {
                 *established_at_target = d(111);
                 *record = d(91);
             }

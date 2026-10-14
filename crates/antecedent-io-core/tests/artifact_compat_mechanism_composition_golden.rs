@@ -8,7 +8,7 @@
 //! Generate or refresh it with
 //! `cargo test -p antecedent-io-core --test artifact_compat_mechanism_composition_golden -- --ignored write_`
 //!
-//! Oracle: X = 1 + 2 e_X ; M = 0.5 + 2 X + e_M ; Y = -1 + 0.5 X + 3 M + 0.5 e_Y, so
+//! Oracle: X = 1 + 2 `e_X` ; M = 0.5 + 2 X + `e_M` ; Y = -1 + 0.5 X + 3 M + 0.5 `e_Y`, so
 //! do(X=2) gives E[Y] = 13.5 and Var[Y] = 9.25.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

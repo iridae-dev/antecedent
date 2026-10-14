@@ -121,7 +121,8 @@ fn malformed_bytes_and_other_versions_are_refused_typed() {
     );
 
     // The version word follows the length-prefixed tag.
-    let tag_len = u64::from_le_bytes(bytes[..8].try_into().unwrap()) as usize;
+    let tag_len = usize::try_from(u64::from_le_bytes(bytes[..8].try_into().unwrap()))
+        .expect("tag length fits usize");
     let at = 8 + tag_len;
     let mut other = bytes.clone();
     other[at..at + 4].copy_from_slice(&(DISCRETIZED_SCM_ARTIFACT_VERSION + 1).to_le_bytes());

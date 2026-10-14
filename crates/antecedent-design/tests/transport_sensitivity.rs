@@ -118,7 +118,7 @@ fn artifact_keeps_the_acting_decision_when_the_range_never_reaches_the_reference
         Some(&SensitivityOutcome::InvariantAction { action: TRANSPORTED_ACTION_ID.into() })
     );
     assert_eq!(artifact.grid(), &[0.0, 1.0, 2.0]);
-    assert_eq!(artifact.coordinate().maximum, 2.0);
+    assert!((artifact.coordinate().maximum - 2.0).abs() < 1e-12);
 }
 
 #[test]

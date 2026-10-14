@@ -44,12 +44,12 @@ fn close(actual: f64, expected: f64, tolerance: f64, what: &str) {
     );
 }
 
-fn compound(rho: f64) -> Option<WithinUnitCorrelation> {
-    Some(WithinUnitCorrelation::CompoundSymmetric { rho })
+fn compound(rho: f64) -> WithinUnitCorrelation {
+    WithinUnitCorrelation::CompoundSymmetric { rho }
 }
 
-fn autoregressive(rho: f64) -> Option<WithinUnitCorrelation> {
-    Some(WithinUnitCorrelation::Autoregressive { rho })
+fn autoregressive(rho: f64) -> WithinUnitCorrelation {
+    WithinUnitCorrelation::Autoregressive { rho }
 }
 
 fn repeated(
@@ -125,7 +125,7 @@ fn compound_symmetry_gives_the_design_effect_one_plus_m_minus_one_rho() {
     let spec = spec_of(declaration(
         even(),
         vec![10],
-        repeated(4, 2.0, compound(0.3)),
+        repeated(4, 2.0, Some(compound(0.3))),
         cluster_robust(UnitSummary::Mean),
     ));
     close(spec.unit_summary_variance(), 0.95, 1e-12, "variance of the unit mean");
@@ -135,7 +135,7 @@ fn compound_symmetry_gives_the_design_effect_one_plus_m_minus_one_rho() {
     let gls = spec_of(declaration(
         even(),
         vec![10],
-        repeated(4, 2.0, compound(0.3)),
+        repeated(4, 2.0, Some(compound(0.3))),
         cluster_robust(UnitSummary::Gls),
     ));
     close(gls.unit_summary_variance(), 0.95, 1e-12, "GLS variance under compound symmetry");
@@ -144,7 +144,7 @@ fn compound_symmetry_gives_the_design_effect_one_plus_m_minus_one_rho() {
     let negative = spec_of(declaration(
         even(),
         vec![10],
-        repeated(2, 1.0, compound(-0.5)),
+        repeated(2, 1.0, Some(compound(-0.5))),
         cluster_robust(UnitSummary::Mean),
     ));
     close(negative.design_effect(), 0.5, 1e-12, "negative correlation design effect");
@@ -152,7 +152,7 @@ fn compound_symmetry_gives_the_design_effect_one_plus_m_minus_one_rho() {
     let independent = spec_of(declaration(
         even(),
         vec![10],
-        repeated(5, 3.0, compound(0.0)),
+        repeated(5, 3.0, Some(compound(0.0))),
         cluster_robust(UnitSummary::Mean),
     ));
     close(independent.design_effect(), 1.0, 1e-12, "independent design effect");
@@ -166,7 +166,7 @@ fn autoregressive_correlation_matches_the_hand_summed_matrix_and_gls_closed_form
     let mean = spec_of(declaration(
         even(),
         vec![10],
-        repeated(3, 1.0, autoregressive(0.5)),
+        repeated(3, 1.0, Some(autoregressive(0.5))),
         cluster_robust(UnitSummary::Mean),
     ));
     close(mean.unit_summary_variance(), 5.5 / 9.0, 1e-12, "AR(1) mean variance");
@@ -174,7 +174,7 @@ fn autoregressive_correlation_matches_the_hand_summed_matrix_and_gls_closed_form
     let gls = spec_of(declaration(
         even(),
         vec![10],
-        repeated(3, 1.0, autoregressive(0.5)),
+        repeated(3, 1.0, Some(autoregressive(0.5))),
         cluster_robust(UnitSummary::Gls),
     ));
     close(gls.unit_summary_variance(), 0.6, 1e-12, "AR(1) GLS variance");
@@ -183,7 +183,7 @@ fn autoregressive_correlation_matches_the_hand_summed_matrix_and_gls_closed_form
     let two = spec_of(declaration(
         even(),
         vec![10],
-        repeated(2, 1.0, autoregressive(0.4)),
+        repeated(2, 1.0, Some(autoregressive(0.4))),
         cluster_robust(UnitSummary::Gls),
     ));
     close(two.unit_summary_variance(), 0.7, 1e-12, "AR(1) m = 2");
@@ -215,7 +215,7 @@ fn fixed_spec(units: u32, m: u32, rho: f64, summary: UnitSummary) -> RepeatedMea
     spec_of(declaration(
         even(),
         vec![units],
-        repeated(m, 1.0, compound(rho)),
+        repeated(m, 1.0, Some(compound(rho))),
         cluster_robust(summary),
     ))
 }
@@ -264,7 +264,7 @@ fn the_fixed_allocation_contrast_law_matches_the_enumerated_binomial_mixture() {
     let skewed = spec_of(declaration(
         UnitAssignment::Fixed { probabilities: vec![0.75, 0.25] },
         vec![2],
-        repeated(2, 1.0, compound(0.5)),
+        repeated(2, 1.0, Some(compound(0.5))),
         cluster_robust(UnitSummary::Mean),
     ));
     let law = exact_fixed_contrast_law(&skewed, &means).unwrap();
@@ -278,7 +278,7 @@ fn only_revealed_units_enter_the_exact_law() {
     let mut d = declaration(
         even(),
         vec![1, 1, 1, 1],
-        repeated(2, 1.0, compound(0.5)),
+        repeated(2, 1.0, Some(compound(0.5))),
         cluster_robust(UnitSummary::Mean),
     );
     d.lag_looks = 2;
@@ -290,7 +290,7 @@ fn only_revealed_units_enter_the_exact_law() {
     let mut follow_up = declaration(
         even(),
         vec![1, 1, 1, 1, 0, 0],
-        repeated(2, 1.0, compound(0.5)),
+        repeated(2, 1.0, Some(compound(0.5))),
         cluster_robust(UnitSummary::Mean),
     );
     follow_up.lag_looks = 2;
@@ -356,7 +356,7 @@ fn simulated_gls_summary_under_ar1_matches_the_closed_form_variance() {
     let spec = spec_of(declaration(
         even(),
         vec![6],
-        repeated(3, 1.0, autoregressive(0.5)),
+        repeated(3, 1.0, Some(autoregressive(0.5))),
         cluster_robust(UnitSummary::Gls),
     ));
     let means = [0.0, 0.3];
@@ -409,8 +409,12 @@ fn the_weighted_estimate_is_unbiased_under_epsilon_greedy_assignment() {
     // 40 units enrolled one at a time under epsilon-greedy over unit means;
     // the augmented score is a martingale difference under any history-
     // dependent policy, so the uniform weighted contrast is unbiased.
-    let spec =
-        spec_of(declaration(greedy(0.4), vec![1; 40], repeated(3, 1.0, compound(0.5)), weighted()));
+    let spec = spec_of(declaration(
+        greedy(0.4),
+        vec![1; 40],
+        repeated(3, 1.0, Some(compound(0.5))),
+        weighted(),
+    ));
     assert_eq!(spec.family_name(), "epsilon_greedy");
     assert_eq!(
         spec.cell().id(),
@@ -453,8 +457,12 @@ fn the_derivation_reports_exact_forms_and_monte_carlo_error_separately() {
     assert!(derived.simulated.monte_carlo_standard_error > 0.0);
     assert_eq!(derived.replications, 2_000);
     // A weighted analysis has no closed-form contrast law.
-    let adaptive =
-        spec_of(declaration(greedy(0.5), vec![1; 20], repeated(3, 1.0, compound(0.3)), weighted()));
+    let adaptive = spec_of(declaration(
+        greedy(0.5),
+        vec![1; 20],
+        repeated(3, 1.0, Some(compound(0.3))),
+        weighted(),
+    ));
     let derived =
         derive_repeated_measures(&adaptive, &means, &request(300, 7), 1.96, &never).unwrap();
     assert!(derived.exact_law.is_none());
@@ -466,8 +474,12 @@ fn the_derivation_reports_exact_forms_and_monte_carlo_error_separately() {
 
 #[test]
 fn a_replicate_does_not_depend_on_how_many_others_are_run() {
-    let spec =
-        spec_of(declaration(greedy(0.3), vec![1; 12], repeated(3, 1.0, compound(0.4)), weighted()));
+    let spec = spec_of(declaration(
+        greedy(0.3),
+        vec![1; 12],
+        repeated(3, 1.0, Some(compound(0.4))),
+        weighted(),
+    ));
     let means = [0.0, 0.5];
     let short = simulate_repeated_measures(&spec, &means, &request(25, 99), &never).unwrap();
     let long = simulate_repeated_measures(&spec, &means, &request(60, 99), &never).unwrap();
@@ -477,7 +489,12 @@ fn a_replicate_does_not_depend_on_how_many_others_are_run() {
 #[test]
 fn a_changed_correlation_at_unchanged_shape_changes_the_simulated_law() {
     let mk = |rho| {
-        spec_of(declaration(greedy(0.3), vec![1; 12], repeated(3, 1.0, compound(rho)), weighted()))
+        spec_of(declaration(
+            greedy(0.3),
+            vec![1; 12],
+            repeated(3, 1.0, Some(compound(rho))),
+            weighted(),
+        ))
     };
     let means = [0.0, 0.5];
     let a = simulate_repeated_measures(&mk(0.2), &means, &request(20, 3), &never).unwrap();
@@ -496,11 +513,19 @@ fn cancellation_discards_the_simulation() {
 
 #[test]
 fn matrix_names_follow_the_declared_structure_and_batches() {
-    let sequential =
-        spec_of(declaration(greedy(0.2), vec![1; 10], repeated(3, 1.0, compound(0.2)), weighted()));
+    let sequential = spec_of(declaration(
+        greedy(0.2),
+        vec![1; 10],
+        repeated(3, 1.0, Some(compound(0.2))),
+        weighted(),
+    ));
     assert_eq!(sequential.family_name(), "epsilon_greedy");
-    let batched =
-        spec_of(declaration(greedy(0.2), vec![5, 5], repeated(3, 1.0, compound(0.2)), weighted()));
+    let batched = spec_of(declaration(
+        greedy(0.2),
+        vec![5, 5],
+        repeated(3, 1.0, Some(compound(0.2))),
+        weighted(),
+    ));
     assert_eq!(batched.family_name(), "batched_adaptive");
     let clustered = spec_of(declaration(
         greedy(0.2),
@@ -573,7 +598,7 @@ fn every_missing_element_gives_its_own_gap() {
     let mut d = declaration(
         even(),
         vec![10],
-        repeated(4, 1.0, compound(0.2)),
+        repeated(4, 1.0, Some(compound(0.2))),
         cluster_robust(UnitSummary::Mean),
     );
     d.assignment = None;
@@ -611,36 +636,36 @@ fn inconsistent_elements_are_refused_with_their_own_detail() {
         gaps_of(declaration(even(), vec![10], structure, cluster_robust(UnitSummary::Mean)))
     };
     assert_eq!(
-        one(repeated(1, 1.0, compound(0.2))),
+        one(repeated(1, 1.0, Some(compound(0.2)))),
         vec![ContractGap::Invalid("adaptive_inference.measurements_invalid")]
     );
     assert_eq!(
-        one(repeated(33, 1.0, compound(0.2))),
+        one(repeated(33, 1.0, Some(compound(0.2)))),
         vec![ContractGap::Invalid("adaptive_inference.measurements_invalid")]
     );
     assert_eq!(
-        one(repeated(4, 0.0, compound(0.2))),
+        one(repeated(4, 0.0, Some(compound(0.2)))),
         vec![ContractGap::Invalid("adaptive_inference.variance_invalid")]
     );
     // rho = 1 is singular.
     assert_eq!(
-        one(repeated(4, 1.0, compound(1.0))),
+        one(repeated(4, 1.0, Some(compound(1.0)))),
         vec![ContractGap::Invalid("adaptive_inference.correlation_invalid")]
     );
     // rho (m - 1) must exceed -1: -0.5 * 3 = -1.5.
     assert_eq!(
-        one(repeated(4, 1.0, compound(-0.5))),
+        one(repeated(4, 1.0, Some(compound(-0.5)))),
         vec![ContractGap::Invalid("adaptive_inference.correlation_invalid")]
     );
     assert_eq!(
-        one(repeated(4, 1.0, autoregressive(1.0))),
+        one(repeated(4, 1.0, Some(autoregressive(1.0)))),
         vec![ContractGap::Invalid("adaptive_inference.correlation_invalid")]
     );
     // Stopping other than no stopping is a separate cell.
     let mut stopped = declaration(
         even(),
         vec![10],
-        repeated(4, 1.0, compound(0.2)),
+        repeated(4, 1.0, Some(compound(0.2))),
         cluster_robust(UnitSummary::Mean),
     );
     stopped.stopping = Some(StoppingRule::WaldBoundaries {
@@ -655,7 +680,7 @@ fn inconsistent_elements_are_refused_with_their_own_detail() {
     let mut same = declaration(
         even(),
         vec![10],
-        repeated(4, 1.0, compound(0.2)),
+        repeated(4, 1.0, Some(compound(0.2))),
         cluster_robust(UnitSummary::Mean),
     );
     same.analysis =
@@ -668,7 +693,7 @@ fn a_fixed_sample_analysis_after_adaptive_assignment_is_refused() {
     let spec = spec_of(declaration(
         greedy(0.3),
         vec![1; 20],
-        repeated(3, 1.0, compound(0.3)),
+        repeated(3, 1.0, Some(compound(0.3))),
         cluster_robust(UnitSummary::Mean),
     ));
     assert_eq!(
@@ -699,7 +724,7 @@ fn the_independence_assumption_is_refused_for_dependent_measurements() {
     let dependent = spec_of(declaration(
         even(),
         vec![10],
-        repeated(4, 1.0, compound(0.3)),
+        repeated(4, 1.0, Some(compound(0.3))),
         AnalysisEstimator::PooledIndependent,
     ));
     assert_eq!(
@@ -745,7 +770,7 @@ fn the_independence_assumption_is_refused_for_dependent_measurements() {
     let independent = spec_of(declaration(
         even(),
         vec![10],
-        repeated(4, 1.0, compound(0.0)),
+        repeated(4, 1.0, Some(compound(0.0))),
         AnalysisEstimator::PooledIndependent,
     ));
     admit_repeated_measures(&independent, UncertaintyParadigm::FrequentistFixedSample).unwrap();
@@ -765,8 +790,12 @@ fn the_independence_assumption_is_refused_for_dependent_measurements() {
 
 #[test]
 fn other_paradigms_are_separate_cells_and_not_derived() {
-    let spec =
-        spec_of(declaration(greedy(0.3), vec![1; 20], repeated(3, 1.0, compound(0.3)), weighted()));
+    let spec = spec_of(declaration(
+        greedy(0.3),
+        vec![1; 20],
+        repeated(3, 1.0, Some(compound(0.3))),
+        weighted(),
+    ));
     for paradigm in [
         UncertaintyParadigm::BayesianPosterior,
         UncertaintyParadigm::AnytimeValidFrequentist,
@@ -790,8 +819,12 @@ fn other_paradigms_are_separate_cells_and_not_derived() {
 
 #[test]
 fn a_guarantee_is_never_paired_across_cells() {
-    let spec =
-        spec_of(declaration(greedy(0.3), vec![1; 20], repeated(3, 1.0, compound(0.3)), weighted()));
+    let spec = spec_of(declaration(
+        greedy(0.3),
+        vec![1; 20],
+        repeated(3, 1.0, Some(compound(0.3))),
+        weighted(),
+    ));
     let cell = spec.cell();
     assert_eq!(cell.id(), "epsilon_greedy/repeated_measures/final_analysis_only/no_stopping");
     // The same cell: accepted.
@@ -837,8 +870,12 @@ fn a_guarantee_is_never_paired_across_cells() {
 
 #[test]
 fn an_adaptive_or_weighted_procedure_has_no_closed_form_law() {
-    let spec =
-        spec_of(declaration(greedy(0.3), vec![1; 20], repeated(3, 1.0, compound(0.3)), weighted()));
+    let spec = spec_of(declaration(
+        greedy(0.3),
+        vec![1; 20],
+        repeated(3, 1.0, Some(compound(0.3))),
+        weighted(),
+    ));
     assert_eq!(
         premise_detail(exact_fixed_contrast_law(&spec, &[0.0, 0.0])),
         "adaptive_inference.exact_law_unavailable"
