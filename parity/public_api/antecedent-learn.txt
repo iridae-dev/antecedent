@@ -15,7 +15,9 @@ impl core::clone::Clone for antecedent_learn::BayesianBasisEffect
 impl core::clone::Clone for antecedent_learn::BayesianBasisGComputation
 impl core::clone::Clone for antecedent_learn::BayesianBasisSpec
 impl core::clone::Clone for antecedent_learn::CrossFittedPrediction
+impl core::clone::Clone for antecedent_learn::EffectSupport
 impl core::clone::Clone for antecedent_learn::ElasticNetSpec
+impl core::clone::Clone for antecedent_learn::FeatureRange
 impl core::clone::Clone for antecedent_learn::FittedEffect
 impl core::clone::Clone for antecedent_learn::ForestSpec
 impl core::clone::Clone for antecedent_learn::GbtSpec
@@ -42,6 +44,7 @@ impl core::clone::Clone for antecedent_learn::PredictionNode
 impl core::clone::Clone for antecedent_learn::PredictionTask
 impl core::clone::Clone for antecedent_learn::RidgeLogisticLearner
 impl core::clone::Clone for antecedent_learn::RidgeSpec
+impl core::clone::Clone for antecedent_learn::SupportReport
 impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::BayesianRefusal
 impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Diagnostics
 impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Options
@@ -57,11 +60,14 @@ impl core::cmp::Eq for antecedent_learn::LinearSpec
 impl core::cmp::Eq for antecedent_learn::PolynomialBasis
 impl core::cmp::Eq for antecedent_learn::PosteriorPredictionProvenance
 impl core::cmp::Eq for antecedent_learn::PredictionTask
+impl core::cmp::Eq for antecedent_learn::SupportReport
 impl core::cmp::PartialEq for antecedent_learn::BasisRegressionPosterior
 impl core::cmp::PartialEq for antecedent_learn::BasisTargetPopulation
 impl core::cmp::PartialEq for antecedent_learn::BayesianBasisEffect
 impl core::cmp::PartialEq for antecedent_learn::BayesianBasisSpec
+impl core::cmp::PartialEq for antecedent_learn::EffectSupport
 impl core::cmp::PartialEq for antecedent_learn::ElasticNetSpec
+impl core::cmp::PartialEq for antecedent_learn::FeatureRange
 impl core::cmp::PartialEq for antecedent_learn::FittedEffect
 impl core::cmp::PartialEq for antecedent_learn::ForestSpec
 impl core::cmp::PartialEq for antecedent_learn::GbtSpec
@@ -84,6 +90,7 @@ impl core::cmp::PartialEq for antecedent_learn::PredictionMap
 impl core::cmp::PartialEq for antecedent_learn::PredictionNode
 impl core::cmp::PartialEq for antecedent_learn::PredictionTask
 impl core::cmp::PartialEq for antecedent_learn::RidgeSpec
+impl core::cmp::PartialEq for antecedent_learn::SupportReport
 impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::BayesianRefusal
 impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Diagnostics
 impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Options
@@ -114,7 +121,9 @@ impl core::fmt::Debug for antecedent_learn::BayesianBasisEffect
 impl core::fmt::Debug for antecedent_learn::BayesianBasisGComputation
 impl core::fmt::Debug for antecedent_learn::BayesianBasisSpec
 impl core::fmt::Debug for antecedent_learn::CrossFittedPrediction
+impl core::fmt::Debug for antecedent_learn::EffectSupport
 impl core::fmt::Debug for antecedent_learn::ElasticNetSpec
+impl core::fmt::Debug for antecedent_learn::FeatureRange
 impl core::fmt::Debug for antecedent_learn::FittedEffect
 impl core::fmt::Debug for antecedent_learn::FittedEffectError
 impl core::fmt::Debug for antecedent_learn::ForestSpec
@@ -142,6 +151,7 @@ impl core::fmt::Debug for antecedent_learn::PredictionNode
 impl core::fmt::Debug for antecedent_learn::PredictionTask
 impl core::fmt::Debug for antecedent_learn::RidgeLogisticLearner
 impl core::fmt::Debug for antecedent_learn::RidgeSpec
+impl core::fmt::Debug for antecedent_learn::SupportReport
 impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::BayesianRefusal
 impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Diagnostics
 impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Options
@@ -154,6 +164,7 @@ impl core::marker::Copy for antecedent_learn::BasisTargetPopulation
 impl core::marker::Copy for antecedent_learn::BayesianBasisGComputation
 impl core::marker::Copy for antecedent_learn::BayesianBasisSpec
 impl core::marker::Copy for antecedent_learn::ElasticNetSpec
+impl core::marker::Copy for antecedent_learn::FeatureRange
 impl core::marker::Copy for antecedent_learn::ForestSpec
 impl core::marker::Copy for antecedent_learn::GbtSpec
 impl core::marker::Copy for antecedent_learn::Identity
@@ -170,13 +181,16 @@ impl core::marker::Copy for antecedent_learn::PolynomialBasis
 impl core::marker::Copy for antecedent_learn::PredictionTask
 impl core::marker::Copy for antecedent_learn::RidgeLogisticLearner
 impl core::marker::Copy for antecedent_learn::RidgeSpec
+impl core::marker::Copy for antecedent_learn::SupportReport
 impl core::marker::Freeze for antecedent_learn::BasisRegressionPosterior [auto]
 impl core::marker::Freeze for antecedent_learn::BasisTargetPopulation [auto]
 impl core::marker::Freeze for antecedent_learn::BayesianBasisEffect [auto]
 impl core::marker::Freeze for antecedent_learn::BayesianBasisGComputation [auto]
 impl core::marker::Freeze for antecedent_learn::BayesianBasisSpec [auto]
 impl core::marker::Freeze for antecedent_learn::CrossFittedPrediction [auto]
+impl core::marker::Freeze for antecedent_learn::EffectSupport [auto]
 impl core::marker::Freeze for antecedent_learn::ElasticNetSpec [auto]
+impl core::marker::Freeze for antecedent_learn::FeatureRange [auto]
 impl core::marker::Freeze for antecedent_learn::FiniteJoint [auto]
 impl core::marker::Freeze for antecedent_learn::FittedEffect [auto]
 impl core::marker::Freeze for antecedent_learn::FittedEffectError [auto]
@@ -205,6 +219,7 @@ impl core::marker::Freeze for antecedent_learn::PredictionNode [auto]
 impl core::marker::Freeze for antecedent_learn::PredictionTask [auto]
 impl core::marker::Freeze for antecedent_learn::RidgeLogisticLearner [auto]
 impl core::marker::Freeze for antecedent_learn::RidgeSpec [auto]
+impl core::marker::Freeze for antecedent_learn::SupportReport [auto]
 impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
 impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
 impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Options [auto]
@@ -216,7 +231,9 @@ impl core::marker::Send for antecedent_learn::BayesianBasisEffect [auto]
 impl core::marker::Send for antecedent_learn::BayesianBasisGComputation [auto]
 impl core::marker::Send for antecedent_learn::BayesianBasisSpec [auto]
 impl core::marker::Send for antecedent_learn::CrossFittedPrediction [auto]
+impl core::marker::Send for antecedent_learn::EffectSupport [auto]
 impl core::marker::Send for antecedent_learn::ElasticNetSpec [auto]
+impl core::marker::Send for antecedent_learn::FeatureRange [auto]
 impl core::marker::Send for antecedent_learn::FiniteJoint [auto]
 impl core::marker::Send for antecedent_learn::FittedEffect [auto]
 impl core::marker::Send for antecedent_learn::FittedEffectError [auto]
@@ -245,6 +262,7 @@ impl core::marker::Send for antecedent_learn::PredictionNode [auto]
 impl core::marker::Send for antecedent_learn::PredictionTask [auto]
 impl core::marker::Send for antecedent_learn::RidgeLogisticLearner [auto]
 impl core::marker::Send for antecedent_learn::RidgeSpec [auto]
+impl core::marker::Send for antecedent_learn::SupportReport [auto]
 impl core::marker::Send for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
 impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
 impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Options [auto]
@@ -254,7 +272,9 @@ impl core::marker::StructuralPartialEq for antecedent_learn::BasisRegressionPost
 impl core::marker::StructuralPartialEq for antecedent_learn::BasisTargetPopulation
 impl core::marker::StructuralPartialEq for antecedent_learn::BayesianBasisEffect
 impl core::marker::StructuralPartialEq for antecedent_learn::BayesianBasisSpec
+impl core::marker::StructuralPartialEq for antecedent_learn::EffectSupport
 impl core::marker::StructuralPartialEq for antecedent_learn::ElasticNetSpec
+impl core::marker::StructuralPartialEq for antecedent_learn::FeatureRange
 impl core::marker::StructuralPartialEq for antecedent_learn::FittedEffect
 impl core::marker::StructuralPartialEq for antecedent_learn::ForestSpec
 impl core::marker::StructuralPartialEq for antecedent_learn::GbtSpec
@@ -277,6 +297,7 @@ impl core::marker::StructuralPartialEq for antecedent_learn::PredictionMap
 impl core::marker::StructuralPartialEq for antecedent_learn::PredictionNode
 impl core::marker::StructuralPartialEq for antecedent_learn::PredictionTask
 impl core::marker::StructuralPartialEq for antecedent_learn::RidgeSpec
+impl core::marker::StructuralPartialEq for antecedent_learn::SupportReport
 impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::BayesianRefusal
 impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::Diagnostics
 impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::Options
@@ -288,7 +309,9 @@ impl core::marker::Sync for antecedent_learn::BayesianBasisEffect [auto]
 impl core::marker::Sync for antecedent_learn::BayesianBasisGComputation [auto]
 impl core::marker::Sync for antecedent_learn::BayesianBasisSpec [auto]
 impl core::marker::Sync for antecedent_learn::CrossFittedPrediction [auto]
+impl core::marker::Sync for antecedent_learn::EffectSupport [auto]
 impl core::marker::Sync for antecedent_learn::ElasticNetSpec [auto]
+impl core::marker::Sync for antecedent_learn::FeatureRange [auto]
 impl core::marker::Sync for antecedent_learn::FiniteJoint [auto]
 impl core::marker::Sync for antecedent_learn::FittedEffect [auto]
 impl core::marker::Sync for antecedent_learn::FittedEffectError [auto]
@@ -317,6 +340,7 @@ impl core::marker::Sync for antecedent_learn::PredictionNode [auto]
 impl core::marker::Sync for antecedent_learn::PredictionTask [auto]
 impl core::marker::Sync for antecedent_learn::RidgeLogisticLearner [auto]
 impl core::marker::Sync for antecedent_learn::RidgeSpec [auto]
+impl core::marker::Sync for antecedent_learn::SupportReport [auto]
 impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
 impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
 impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Options [auto]
@@ -328,7 +352,9 @@ impl core::marker::Unpin for antecedent_learn::BayesianBasisEffect [auto]
 impl core::marker::Unpin for antecedent_learn::BayesianBasisGComputation [auto]
 impl core::marker::Unpin for antecedent_learn::BayesianBasisSpec [auto]
 impl core::marker::Unpin for antecedent_learn::CrossFittedPrediction [auto]
+impl core::marker::Unpin for antecedent_learn::EffectSupport [auto]
 impl core::marker::Unpin for antecedent_learn::ElasticNetSpec [auto]
+impl core::marker::Unpin for antecedent_learn::FeatureRange [auto]
 impl core::marker::Unpin for antecedent_learn::FiniteJoint [auto]
 impl core::marker::Unpin for antecedent_learn::FittedEffect [auto]
 impl core::marker::Unpin for antecedent_learn::FittedEffectError [auto]
@@ -357,6 +383,7 @@ impl core::marker::Unpin for antecedent_learn::PredictionNode [auto]
 impl core::marker::Unpin for antecedent_learn::PredictionTask [auto]
 impl core::marker::Unpin for antecedent_learn::RidgeLogisticLearner [auto]
 impl core::marker::Unpin for antecedent_learn::RidgeSpec [auto]
+impl core::marker::Unpin for antecedent_learn::SupportReport [auto]
 impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
 impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
 impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Options [auto]
@@ -368,7 +395,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::BayesianBasis
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::BayesianBasisGComputation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::BayesianBasisSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::CrossFittedPrediction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::EffectSupport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::ElasticNetSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::FeatureRange [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::FittedEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::FittedEffectError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::ForestSpec [auto]
@@ -396,6 +425,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::PredictionNod
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::PredictionTask [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::RidgeLogisticLearner [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::RidgeSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::SupportReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::Options [auto]
@@ -407,7 +437,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::BayesianBasisEff
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::BayesianBasisGComputation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::BayesianBasisSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::CrossFittedPrediction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::EffectSupport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::ElasticNetSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::FeatureRange [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::FittedEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::FittedEffectError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::ForestSpec [auto]
@@ -435,12 +467,15 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::PredictionNode [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::PredictionTask [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::RidgeLogisticLearner [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::RidgeSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::SupportReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl serde_core::ser::Serialize for antecedent_learn::EffectSupport
 impl serde_core::ser::Serialize for antecedent_learn::ElasticNetSpec
+impl serde_core::ser::Serialize for antecedent_learn::FeatureRange
 impl serde_core::ser::Serialize for antecedent_learn::FittedEffect
 impl serde_core::ser::Serialize for antecedent_learn::ForestSpec
 impl serde_core::ser::Serialize for antecedent_learn::GbtSpec
@@ -520,7 +555,9 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::DesignView<'
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::TargetView<'a> [auto]
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::EffectSupport
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::ElasticNetSpec where antecedent_learn::ElasticNetSpec: core::default::Default
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::FeatureRange
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::FittedEffect
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::ForestSpec where antecedent_learn::ForestSpec: core::default::Default
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::GbtSpec where antecedent_learn::GbtSpec: core::default::Default
@@ -537,6 +574,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::nested_markov_b
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::nested_markov_bayesian::Options
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::nested_markov_bayesian::Posterior
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::nested_markov_bayesian::Prior
+pub const <antecedent_learn::EffectSupport>::VERSION: u32
 pub const antecedent_learn::BASIS_MAX_DEGREE: usize
 pub const antecedent_learn::nested_markov_bayesian::COORDINATES: [&str; 14]
 pub const antecedent_learn::nested_markov_bayesian::METHOD: &str
@@ -577,11 +615,17 @@ pub field antecedent_learn::CrossFittedPrediction::fold_assignment: alloc::vec::
 pub field antecedent_learn::CrossFittedPrediction::model_provenance: alloc::vec::Vec<antecedent_learn::LearnerProvenance>
 pub field antecedent_learn::CrossFittedPrediction::predictions: alloc::vec::Vec<f64>
 pub field antecedent_learn::CrossFittedPrediction::validation: antecedent_learn::NuisanceDiagnostics
+pub field antecedent_learn::EffectSupport::ranges: alloc::vec::Vec<antecedent_learn::FeatureRange>
+pub field antecedent_learn::EffectSupport::rows: u64
+pub field antecedent_learn::EffectSupport::version: u32
 pub field antecedent_learn::ElasticNetSpec::l1_ratio: f64
 pub field antecedent_learn::ElasticNetSpec::lambda: f64
+pub field antecedent_learn::FeatureRange::hi: f64
+pub field antecedent_learn::FeatureRange::lo: f64
 pub field antecedent_learn::FittedEffect::features: alloc::vec::Vec<u32>
 pub field antecedent_learn::FittedEffect::intercept: bool
 pub field antecedent_learn::FittedEffect::predictor: antecedent_learn::PortablePredictor
+pub field antecedent_learn::FittedEffect::support: core::option::Option<antecedent_learn::EffectSupport>
 pub field antecedent_learn::FittedEffect::version: u32
 pub field antecedent_learn::ForestSpec::extra_trees: bool
 pub field antecedent_learn::ForestSpec::min_samples_leaf: core::option::Option<u32>
@@ -636,6 +680,9 @@ pub field antecedent_learn::PosteriorPredictionProvenance::model: antecedent_lea
 pub field antecedent_learn::PosteriorPredictionProvenance::model_id: alloc::sync::Arc<str>
 pub field antecedent_learn::PosteriorPredictionProvenance::prior_id: alloc::sync::Arc<str>
 pub field antecedent_learn::RidgeSpec::lambda: f64
+pub field antecedent_learn::SupportReport::first_feature: core::option::Option<usize>
+pub field antecedent_learn::SupportReport::first_row: core::option::Option<usize>
+pub field antecedent_learn::SupportReport::rows_outside: usize
 pub field antecedent_learn::nested_markov_bayesian::Diagnostics::bulk_ess: f64
 pub field antecedent_learn::nested_markov_bayesian::Diagnostics::folded_rhat: f64
 pub field antecedent_learn::nested_markov_bayesian::Diagnostics::rank_rhat: f64
@@ -675,9 +722,11 @@ pub fn <antecedent_learn::DesignView<'a>>::fn get(self, row: usize, col: usize) 
 pub fn <antecedent_learn::DesignView<'a>>::fn nrows(self) -> usize
 pub fn <antecedent_learn::DesignView<'a>>::fn physical_index(self, logical_row: usize) -> core::result::Result<usize, antecedent_learn::LearnError>
 pub fn <antecedent_learn::DesignView<'a>>::fn with_rows(self, rows: antecedent_learn::RowSelection<'a>) -> core::result::Result<Self, antecedent_learn::LearnError>
+pub fn <antecedent_learn::EffectSupport>::fn from_rows(columns: &[&[f64]], rows: core::option::Option<&[usize]>) -> core::option::Option<Self>
 pub fn <antecedent_learn::FiniteJoint>::fn counts(&self) -> &[u64]
 pub fn <antecedent_learn::FiniteJoint>::fn fit(columns: &[alloc::vec::Vec<usize>], cardinalities: &[usize], learner: antecedent_learn::LearnerSpec, max_cells: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_learn::LearnError>
 pub fn <antecedent_learn::FiniteJoint>::fn probabilities(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_learn::LearnError>
+pub fn <antecedent_learn::FittedEffect>::fn check_support(&self, columns: &[&[f64]], nrows: usize) -> core::result::Result<core::option::Option<antecedent_learn::SupportReport>, antecedent_learn::FittedEffectError>
 pub fn <antecedent_learn::FittedEffect>::fn predict(&self, features: &[antecedent_core::ids::VariableId], columns: &[&[f64]], nrows: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_learn::FittedEffectError>
 pub fn <antecedent_learn::FittedEffect>::fn validate(&self) -> core::result::Result<(), antecedent_learn::FittedEffectError>
 pub fn <antecedent_learn::ForestSpec>::const fn resolved_min_samples_leaf(self, task: antecedent_learn::PredictionTask) -> u32
@@ -749,7 +798,9 @@ pub struct antecedent_learn::DenseDesign has private fields
 pub struct antecedent_learn::DenseDesign<'a>
 pub struct antecedent_learn::DesignView has private fields
 pub struct antecedent_learn::DesignView<'a>
+pub struct antecedent_learn::EffectSupport
 pub struct antecedent_learn::ElasticNetSpec
+pub struct antecedent_learn::FeatureRange
 pub struct antecedent_learn::FiniteJoint
 pub struct antecedent_learn::FiniteJoint has private fields
 pub struct antecedent_learn::FittedEffect
@@ -778,6 +829,7 @@ pub struct antecedent_learn::RidgeLogisticLearner has private fields
 pub struct antecedent_learn::RidgeSpec
 pub struct antecedent_learn::RowSelection has private fields
 pub struct antecedent_learn::RowSelection<'a>
+pub struct antecedent_learn::SupportReport
 pub struct antecedent_learn::TargetView has private fields
 pub struct antecedent_learn::TargetView<'a>
 pub struct antecedent_learn::nested_markov_bayesian::Diagnostics

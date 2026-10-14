@@ -3,11 +3,13 @@
 # One line per public item; do not edit by hand.
 #[doc(hidden)] pub fn antecedent_identify::admg_conditional_refusal(error: &antecedent_identify::IdentificationError) -> core::option::Option<(&'static str, &'static str)>
 #[doc(hidden)] pub fn antecedent_identify::counterfactual_id::evaluate_counterfactual_functional(problem: &antecedent_identify::counterfactual_id::CounterfactualIdProblem, derivation: &antecedent_identify::counterfactual_id::CounterfactualIdDerivation, law: &antecedent_expr::exact::ExactDiscreteLaw, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::counterfactual_id::CounterfactualIdPoint, antecedent_identify::counterfactual_id::CounterfactualIdRefusal>
+#[doc(hidden)] pub fn antecedent_identify::counterfactual_transport_refusal(error: &antecedent_identify::IdentificationError) -> core::option::Option<(&'static str, &'static str)>
 #[doc(hidden)] pub fn antecedent_identify::cross_world::check_cross_world_edges(node_count: usize, edges: &[(u32, u32)], query: &antecedent_core::query::cross_world::CrossWorldQuery) -> core::result::Result<antecedent_identify::cross_world::CrossWorldWitness, antecedent_identify::cross_world::CrossWorldRefusal>
 #[doc(hidden)] pub fn antecedent_identify::mixed_source_rule_names() -> alloc::vec::Vec<&'static str>
 #[doc(hidden)] pub fn antecedent_identify::mz_transport_refusal(error: &antecedent_identify::IdentificationError) -> core::option::Option<(&'static str, &'static str)>
 #[doc(hidden)] pub fn antecedent_identify::recovery::m_graph_signature(graph: &antecedent_graph::admg::Admg) -> alloc::string::String
 #[doc(hidden)] pub fn antecedent_identify::render_quantity(quantity: &antecedent_identify::MixedQuantity, names: &[alloc::string::String]) -> alloc::string::String
+#[doc(hidden)] pub fn antecedent_identify::replay_counterfactual_transport(problem: &antecedent_identify::CounterfactualTransportProblem, query: &antecedent_identify::CounterfactualTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, record: &antecedent_identify::CounterfactualTransportSearchRecord, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CounterfactualTransportDecision, antecedent_identify::IdentificationError>
 #[doc(hidden)] pub fn antecedent_identify::sid::scenarios::mass_sum(values: impl core::iter::traits::collect::IntoIterator<Item = f64>) -> f64
 #[doc(hidden)] pub fn antecedent_identify::sid::scenarios::unaccounted_after(identified: f64) -> f64
 #[doc(hidden)] pub fn antecedent_identify::sid::validate_mz_transport_query(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MzTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog) -> core::result::Result<antecedent_identify::ValidatedMzTransportQuery, antecedent_identify::IdentificationError>
@@ -58,6 +60,28 @@ impl core::clone::Clone for antecedent_identify::ConditionalTransportQuery
 impl core::clone::Clone for antecedent_identify::ConditionalTransportRecord
 impl core::clone::Clone for antecedent_identify::ConditionalWitnessCheck
 impl core::clone::Clone for antecedent_identify::ConditionalWitnessRecord
+impl core::clone::Clone for antecedent_identify::CounterfactualCitedRegime
+impl core::clone::Clone for antecedent_identify::CounterfactualFactor
+impl core::clone::Clone for antecedent_identify::CounterfactualFunctional
+impl core::clone::Clone for antecedent_identify::CounterfactualItem
+impl core::clone::Clone for antecedent_identify::CounterfactualItemSource
+impl core::clone::Clone for antecedent_identify::CounterfactualLevel
+impl core::clone::Clone for antecedent_identify::CounterfactualMissingRegime
+impl core::clone::Clone for antecedent_identify::CounterfactualMovedAtom
+impl core::clone::Clone for antecedent_identify::CounterfactualSum
+impl core::clone::Clone for antecedent_identify::CounterfactualSymbol
+impl core::clone::Clone for antecedent_identify::CounterfactualTransportDecision
+impl core::clone::Clone for antecedent_identify::CounterfactualTransportDerivation
+impl core::clone::Clone for antecedent_identify::CounterfactualTransportInspection
+impl core::clone::Clone for antecedent_identify::CounterfactualTransportMissing
+impl core::clone::Clone for antecedent_identify::CounterfactualTransportObstruction
+impl core::clone::Clone for antecedent_identify::CounterfactualTransportProblem
+impl core::clone::Clone for antecedent_identify::CounterfactualTransportQuery
+impl core::clone::Clone for antecedent_identify::CounterfactualTransportSearchRecord
+impl core::clone::Clone for antecedent_identify::CounterfactualTransportSource
+impl core::clone::Clone for antecedent_identify::CounterfactualTransportUnsupported
+impl core::clone::Clone for antecedent_identify::CounterfactualTransportWitness
+impl core::clone::Clone for antecedent_identify::CounterfactualTransportWitnessCheck
 impl core::clone::Clone for antecedent_identify::DerivationStep
 impl core::clone::Clone for antecedent_identify::DerivationTrace
 impl core::clone::Clone for antecedent_identify::EfficientBackdoorIdentifier
@@ -261,6 +285,24 @@ impl core::cmp::Eq for antecedent_identify::ConditionalStageRecord
 impl core::cmp::Eq for antecedent_identify::ConditionalTransportQuery
 impl core::cmp::Eq for antecedent_identify::ConditionalWitnessCheck
 impl core::cmp::Eq for antecedent_identify::ConditionalWitnessRecord
+impl core::cmp::Eq for antecedent_identify::CounterfactualCitedRegime
+impl core::cmp::Eq for antecedent_identify::CounterfactualFactor
+impl core::cmp::Eq for antecedent_identify::CounterfactualFunctional
+impl core::cmp::Eq for antecedent_identify::CounterfactualItem
+impl core::cmp::Eq for antecedent_identify::CounterfactualItemSource
+impl core::cmp::Eq for antecedent_identify::CounterfactualLevel
+impl core::cmp::Eq for antecedent_identify::CounterfactualMissingRegime
+impl core::cmp::Eq for antecedent_identify::CounterfactualMovedAtom
+impl core::cmp::Eq for antecedent_identify::CounterfactualSum
+impl core::cmp::Eq for antecedent_identify::CounterfactualSymbol
+impl core::cmp::Eq for antecedent_identify::CounterfactualTransportInspection
+impl core::cmp::Eq for antecedent_identify::CounterfactualTransportMissing
+impl core::cmp::Eq for antecedent_identify::CounterfactualTransportProblem
+impl core::cmp::Eq for antecedent_identify::CounterfactualTransportSearchRecord
+impl core::cmp::Eq for antecedent_identify::CounterfactualTransportSource
+impl core::cmp::Eq for antecedent_identify::CounterfactualTransportUnsupported
+impl core::cmp::Eq for antecedent_identify::CounterfactualTransportWitness
+impl core::cmp::Eq for antecedent_identify::CounterfactualTransportWitnessCheck
 impl core::cmp::Eq for antecedent_identify::DerivationStep
 impl core::cmp::Eq for antecedent_identify::DerivationTrace
 impl core::cmp::Eq for antecedent_identify::EstimandClaim
@@ -355,6 +397,8 @@ impl core::cmp::Eq for antecedent_identify::sid::temporal_sequence::SliceInvaria
 impl core::cmp::Eq for antecedent_identify::sid::temporal_sequence::TemporalDecisionLimits
 impl core::cmp::Eq for antecedent_identify::sid::temporal_sequence::TemporalRefusal
 impl core::cmp::Eq for antecedent_identify::sid::temporal_sequence::TemporalSlots
+impl core::cmp::Ord for antecedent_identify::CounterfactualLevel
+impl core::cmp::Ord for antecedent_identify::CounterfactualSymbol
 impl core::cmp::Ord for antecedent_identify::counterfactual_id::CfSymbol
 impl core::cmp::Ord for antecedent_identify::counterfactual_id::CfValue
 impl core::cmp::Ord for antecedent_identify::cross_world::CounterfactualNode
@@ -377,6 +421,25 @@ impl core::cmp::PartialEq for antecedent_identify::ConditionalStageRecord
 impl core::cmp::PartialEq for antecedent_identify::ConditionalTransportQuery
 impl core::cmp::PartialEq for antecedent_identify::ConditionalWitnessCheck
 impl core::cmp::PartialEq for antecedent_identify::ConditionalWitnessRecord
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualCitedRegime
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualFactor
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualFunctional
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualItem
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualItemSource
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualLevel
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualMissingRegime
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualMovedAtom
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualSum
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualSymbol
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualTransportInspection
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualTransportMissing
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualTransportProblem
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualTransportQuery
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualTransportSearchRecord
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualTransportSource
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualTransportUnsupported
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualTransportWitness
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualTransportWitnessCheck
 impl core::cmp::PartialEq for antecedent_identify::DerivationStep
 impl core::cmp::PartialEq for antecedent_identify::DerivationTrace
 impl core::cmp::PartialEq for antecedent_identify::EstimandClaim
@@ -499,6 +562,8 @@ impl core::cmp::PartialEq for antecedent_identify::sid::temporal_sequence::Slice
 impl core::cmp::PartialEq for antecedent_identify::sid::temporal_sequence::TemporalDecisionLimits
 impl core::cmp::PartialEq for antecedent_identify::sid::temporal_sequence::TemporalRefusal
 impl core::cmp::PartialEq for antecedent_identify::sid::temporal_sequence::TemporalSlots
+impl core::cmp::PartialOrd for antecedent_identify::CounterfactualLevel
+impl core::cmp::PartialOrd for antecedent_identify::CounterfactualSymbol
 impl core::cmp::PartialOrd for antecedent_identify::counterfactual_id::CfSymbol
 impl core::cmp::PartialOrd for antecedent_identify::counterfactual_id::CfValue
 impl core::cmp::PartialOrd for antecedent_identify::cross_world::CounterfactualNode
@@ -582,6 +647,28 @@ impl core::fmt::Debug for antecedent_identify::ConditionalTransportQuery
 impl core::fmt::Debug for antecedent_identify::ConditionalTransportRecord
 impl core::fmt::Debug for antecedent_identify::ConditionalWitnessCheck
 impl core::fmt::Debug for antecedent_identify::ConditionalWitnessRecord
+impl core::fmt::Debug for antecedent_identify::CounterfactualCitedRegime
+impl core::fmt::Debug for antecedent_identify::CounterfactualFactor
+impl core::fmt::Debug for antecedent_identify::CounterfactualFunctional
+impl core::fmt::Debug for antecedent_identify::CounterfactualItem
+impl core::fmt::Debug for antecedent_identify::CounterfactualItemSource
+impl core::fmt::Debug for antecedent_identify::CounterfactualLevel
+impl core::fmt::Debug for antecedent_identify::CounterfactualMissingRegime
+impl core::fmt::Debug for antecedent_identify::CounterfactualMovedAtom
+impl core::fmt::Debug for antecedent_identify::CounterfactualSum
+impl core::fmt::Debug for antecedent_identify::CounterfactualSymbol
+impl core::fmt::Debug for antecedent_identify::CounterfactualTransportDecision
+impl core::fmt::Debug for antecedent_identify::CounterfactualTransportDerivation
+impl core::fmt::Debug for antecedent_identify::CounterfactualTransportInspection
+impl core::fmt::Debug for antecedent_identify::CounterfactualTransportMissing
+impl core::fmt::Debug for antecedent_identify::CounterfactualTransportObstruction
+impl core::fmt::Debug for antecedent_identify::CounterfactualTransportProblem
+impl core::fmt::Debug for antecedent_identify::CounterfactualTransportQuery
+impl core::fmt::Debug for antecedent_identify::CounterfactualTransportSearchRecord
+impl core::fmt::Debug for antecedent_identify::CounterfactualTransportSource
+impl core::fmt::Debug for antecedent_identify::CounterfactualTransportUnsupported
+impl core::fmt::Debug for antecedent_identify::CounterfactualTransportWitness
+impl core::fmt::Debug for antecedent_identify::CounterfactualTransportWitnessCheck
 impl core::fmt::Debug for antecedent_identify::DerivationStep
 impl core::fmt::Debug for antecedent_identify::DerivationTrace
 impl core::fmt::Debug for antecedent_identify::EfficientBackdoorIdentifier
@@ -784,6 +871,8 @@ impl core::fmt::Display for antecedent_identify::sid::temporal_sequence::Tempora
 impl core::fmt::Display for antecedent_identify::sid::temporal_sequence::TemporalSequenceError
 impl core::hash::Hash for antecedent_identify::ChainPartial
 impl core::hash::Hash for antecedent_identify::ChainRecoveryDetail
+impl core::hash::Hash for antecedent_identify::CounterfactualLevel
+impl core::hash::Hash for antecedent_identify::CounterfactualSymbol
 impl core::hash::Hash for antecedent_identify::IdentificationBudget
 impl core::hash::Hash for antecedent_identify::MixedRule
 impl core::hash::Hash for antecedent_identify::PartiallyObserved
@@ -796,6 +885,11 @@ impl core::marker::Copy for antecedent_identify::ChainPartial
 impl core::marker::Copy for antecedent_identify::ChainRecoveryDetail
 impl core::marker::Copy for antecedent_identify::ChainRecoveryQuery
 impl core::marker::Copy for antecedent_identify::ComponentFactorization
+impl core::marker::Copy for antecedent_identify::CounterfactualItem
+impl core::marker::Copy for antecedent_identify::CounterfactualItemSource
+impl core::marker::Copy for antecedent_identify::CounterfactualLevel
+impl core::marker::Copy for antecedent_identify::CounterfactualMovedAtom
+impl core::marker::Copy for antecedent_identify::CounterfactualSymbol
 impl core::marker::Copy for antecedent_identify::IdentificationBudget
 impl core::marker::Copy for antecedent_identify::MixedRule
 impl core::marker::Copy for antecedent_identify::MixedSearchSummary
@@ -851,6 +945,28 @@ impl core::marker::Freeze for antecedent_identify::ConditionalTransportQuery [au
 impl core::marker::Freeze for antecedent_identify::ConditionalTransportRecord [auto]
 impl core::marker::Freeze for antecedent_identify::ConditionalWitnessCheck [auto]
 impl core::marker::Freeze for antecedent_identify::ConditionalWitnessRecord [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualCitedRegime [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualFactor [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualFunctional [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualItem [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualItemSource [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualLevel [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualMissingRegime [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualMovedAtom [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualSum [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualSymbol [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualTransportDecision [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualTransportDerivation [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualTransportInspection [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualTransportMissing [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualTransportObstruction [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualTransportProblem [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualTransportQuery [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualTransportSearchRecord [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualTransportSource [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualTransportUnsupported [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualTransportWitness [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualTransportWitnessCheck [auto]
 impl core::marker::Freeze for antecedent_identify::DerivationStep [auto]
 impl core::marker::Freeze for antecedent_identify::DerivationTrace [auto]
 impl core::marker::Freeze for antecedent_identify::EfficientBackdoorIdentifier [auto]
@@ -1076,6 +1192,28 @@ impl core::marker::Send for antecedent_identify::ConditionalTransportQuery [auto
 impl core::marker::Send for antecedent_identify::ConditionalTransportRecord [auto]
 impl core::marker::Send for antecedent_identify::ConditionalWitnessCheck [auto]
 impl core::marker::Send for antecedent_identify::ConditionalWitnessRecord [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualCitedRegime [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualFactor [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualFunctional [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualItem [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualItemSource [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualLevel [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualMissingRegime [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualMovedAtom [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualSum [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualSymbol [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualTransportDecision [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualTransportDerivation [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualTransportInspection [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualTransportMissing [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualTransportObstruction [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualTransportProblem [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualTransportQuery [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualTransportSearchRecord [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualTransportSource [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualTransportUnsupported [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualTransportWitness [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualTransportWitnessCheck [auto]
 impl core::marker::Send for antecedent_identify::DerivationStep [auto]
 impl core::marker::Send for antecedent_identify::DerivationTrace [auto]
 impl core::marker::Send for antecedent_identify::EfficientBackdoorIdentifier [auto]
@@ -1283,6 +1421,25 @@ impl core::marker::StructuralPartialEq for antecedent_identify::ConditionalStage
 impl core::marker::StructuralPartialEq for antecedent_identify::ConditionalTransportQuery
 impl core::marker::StructuralPartialEq for antecedent_identify::ConditionalWitnessCheck
 impl core::marker::StructuralPartialEq for antecedent_identify::ConditionalWitnessRecord
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualCitedRegime
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualFactor
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualFunctional
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualItem
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualItemSource
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualLevel
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualMissingRegime
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualMovedAtom
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualSum
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualSymbol
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualTransportInspection
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualTransportMissing
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualTransportProblem
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualTransportQuery
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualTransportSearchRecord
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualTransportSource
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualTransportUnsupported
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualTransportWitness
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualTransportWitnessCheck
 impl core::marker::StructuralPartialEq for antecedent_identify::DerivationStep
 impl core::marker::StructuralPartialEq for antecedent_identify::DerivationTrace
 impl core::marker::StructuralPartialEq for antecedent_identify::EstimandClaim
@@ -1439,6 +1596,28 @@ impl core::marker::Sync for antecedent_identify::ConditionalTransportQuery [auto
 impl core::marker::Sync for antecedent_identify::ConditionalTransportRecord [auto]
 impl core::marker::Sync for antecedent_identify::ConditionalWitnessCheck [auto]
 impl core::marker::Sync for antecedent_identify::ConditionalWitnessRecord [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualCitedRegime [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualFactor [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualFunctional [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualItem [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualItemSource [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualLevel [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualMissingRegime [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualMovedAtom [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualSum [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualSymbol [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualTransportDecision [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualTransportDerivation [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualTransportInspection [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualTransportMissing [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualTransportObstruction [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualTransportProblem [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualTransportQuery [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualTransportSearchRecord [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualTransportSource [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualTransportUnsupported [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualTransportWitness [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualTransportWitnessCheck [auto]
 impl core::marker::Sync for antecedent_identify::DerivationStep [auto]
 impl core::marker::Sync for antecedent_identify::DerivationTrace [auto]
 impl core::marker::Sync for antecedent_identify::EfficientBackdoorIdentifier [auto]
@@ -1664,6 +1843,28 @@ impl core::marker::Unpin for antecedent_identify::ConditionalTransportQuery [aut
 impl core::marker::Unpin for antecedent_identify::ConditionalTransportRecord [auto]
 impl core::marker::Unpin for antecedent_identify::ConditionalWitnessCheck [auto]
 impl core::marker::Unpin for antecedent_identify::ConditionalWitnessRecord [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualCitedRegime [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualFactor [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualFunctional [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualItem [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualItemSource [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualLevel [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualMissingRegime [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualMovedAtom [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualSum [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualSymbol [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualTransportDecision [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualTransportDerivation [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualTransportInspection [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualTransportMissing [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualTransportObstruction [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualTransportProblem [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualTransportQuery [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualTransportSearchRecord [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualTransportSource [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualTransportUnsupported [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualTransportWitness [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualTransportWitnessCheck [auto]
 impl core::marker::Unpin for antecedent_identify::DerivationStep [auto]
 impl core::marker::Unpin for antecedent_identify::DerivationTrace [auto]
 impl core::marker::Unpin for antecedent_identify::EfficientBackdoorIdentifier [auto]
@@ -1889,6 +2090,28 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::Conditiona
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::ConditionalTransportRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::ConditionalWitnessCheck [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::ConditionalWitnessRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualCitedRegime [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualFactor [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualFunctional [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualItem [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualItemSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualLevel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualMissingRegime [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualMovedAtom [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualSum [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualSymbol [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportDecision [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportDerivation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportInspection [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportMissing [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportObstruction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportProblem [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportQuery [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportSearchRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportUnsupported [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportWitness [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportWitnessCheck [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::DerivationStep [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::DerivationTrace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::EfficientBackdoorIdentifier [auto]
@@ -2114,6 +2337,28 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::ConditionalTr
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::ConditionalTransportRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::ConditionalWitnessCheck [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::ConditionalWitnessRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualCitedRegime [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualFactor [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualFunctional [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualItem [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualItemSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualLevel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualMissingRegime [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualMovedAtom [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualSum [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualSymbol [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportDecision [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportDerivation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportInspection [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportMissing [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportObstruction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportProblem [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportQuery [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportSearchRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportUnsupported [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportWitness [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportWitnessCheck [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::DerivationStep [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::DerivationTrace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::EfficientBackdoorIdentifier [auto]
@@ -2308,6 +2553,8 @@ impl serde_core::ser::Serialize for antecedent_identify::ConditionalNonTransport
 impl serde_core::ser::Serialize for antecedent_identify::ConditionalObstructionRecord
 impl serde_core::ser::Serialize for antecedent_identify::ConditionalTransportRecord
 impl serde_core::ser::Serialize for antecedent_identify::ConditionalWitnessRecord
+impl serde_core::ser::Serialize for antecedent_identify::CounterfactualTransportSearchRecord
+impl serde_core::ser::Serialize for antecedent_identify::CounterfactualTransportWitness
 impl serde_core::ser::Serialize for antecedent_identify::MetaSource
 impl serde_core::ser::Serialize for antecedent_identify::MixedSourceDerivationRecord
 impl serde_core::ser::Serialize for antecedent_identify::MixedStepRecord
@@ -2367,6 +2614,8 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::ConditionalN
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::ConditionalObstructionRecord
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::ConditionalTransportRecord
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::ConditionalWitnessRecord
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::CounterfactualTransportSearchRecord
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::CounterfactualTransportWitness
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::MetaSource
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::MixedSourceDerivationRecord
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::MixedStepRecord
@@ -2429,6 +2678,20 @@ pub const antecedent_identify::CAPPED_COMPLETION_DIAGNOSTIC_CODE: &str
 pub const antecedent_identify::CHAIN_RECOVERY_LIMITS: antecedent_core::search::SearchLimits
 pub const antecedent_identify::CHAIN_RECOVERY_RULE_VERSION: &str
 pub const antecedent_identify::CONDITIONAL_WITNESS_MAX_LATENT_LEVELS: usize
+pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_CONTRACT: &str
+pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS: antecedent_core::search::SearchLimits
+pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_ATOMS: usize
+pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_CELLS: usize
+pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE: usize
+pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_LEVELS: usize
+pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_LIMITS: antecedent_core::search::SearchLimits
+pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_NODES: usize
+pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_REGIMES: usize
+pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_SOURCES: usize
+pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS: usize
+pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES: usize
+pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_WORLDS: usize
+pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES: u64
 pub const antecedent_identify::JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str
 pub const antecedent_identify::MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str
 pub const antecedent_identify::MIXED_SOURCE_DEFAULT_LIMITS: antecedent_core::search::SearchLimits
@@ -2497,6 +2760,10 @@ pub enum antecedent_identify::ChainRecoveryDetail
 pub enum antecedent_identify::ClassicalTransportResult
 pub enum antecedent_identify::ComponentFactorization
 pub enum antecedent_identify::ConditionalTransportDecision
+pub enum antecedent_identify::CounterfactualFunctional
+pub enum antecedent_identify::CounterfactualItemSource
+pub enum antecedent_identify::CounterfactualLevel
+pub enum antecedent_identify::CounterfactualTransportDecision
 pub enum antecedent_identify::MixedRule
 pub enum antecedent_identify::MixedSourceDecision
 pub enum antecedent_identify::MzTransportDecision
@@ -2610,6 +2877,75 @@ pub field antecedent_identify::ConditionalWitnessRecord::outcome_level: alloc::v
 pub field antecedent_identify::ConditionalWitnessRecord::second: antecedent_identify::WitnessModelRecord
 pub field antecedent_identify::ConditionalWitnessRecord::second_value: alloc::string::String
 pub field antecedent_identify::ConditionalWitnessRecord::treatment_level: alloc::vec::Vec<u8>
+pub field antecedent_identify::CounterfactualCitedRegime::interventions: alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub field antecedent_identify::CounterfactualCitedRegime::population: alloc::sync::Arc<str>
+pub field antecedent_identify::CounterfactualCitedRegime::regime: antecedent_core::ids::RegimeId
+pub field antecedent_identify::CounterfactualFactor::item: usize
+pub field antecedent_identify::CounterfactualFactor::outputs: alloc::vec::Vec<(usize, antecedent_identify::CounterfactualLevel)>
+pub field antecedent_identify::CounterfactualFactor::parents: alloc::vec::Vec<(usize, antecedent_identify::CounterfactualLevel)>
+pub field antecedent_identify::CounterfactualItem::population: usize
+pub field antecedent_identify::CounterfactualItem::source: antecedent_identify::CounterfactualItemSource
+pub field antecedent_identify::CounterfactualItem::variables: u32
+pub field antecedent_identify::CounterfactualMissingRegime::interventions: alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub field antecedent_identify::CounterfactualMissingRegime::population: alloc::sync::Arc<str>
+pub field antecedent_identify::CounterfactualMovedAtom::level: usize
+pub field antecedent_identify::CounterfactualMovedAtom::variable: usize
+pub field antecedent_identify::CounterfactualMovedAtom::world: usize
+pub field antecedent_identify::CounterfactualSum::factors: alloc::vec::Vec<antecedent_identify::CounterfactualFactor>
+pub field antecedent_identify::CounterfactualSum::symbols: alloc::vec::Vec<antecedent_identify::CounterfactualSymbol>
+pub field antecedent_identify::CounterfactualSymbol::id: usize
+pub field antecedent_identify::CounterfactualSymbol::variable: usize
+pub field antecedent_identify::CounterfactualTransportDerivation::catalog: antecedent_core::query::transport_catalog::EvidenceCatalog
+pub field antecedent_identify::CounterfactualTransportDerivation::cited: alloc::vec::Vec<antecedent_identify::CounterfactualCitedRegime>
+pub field antecedent_identify::CounterfactualTransportDerivation::conditioning_mass_checked: bool
+pub field antecedent_identify::CounterfactualTransportDerivation::contract: &'static str
+pub field antecedent_identify::CounterfactualTransportDerivation::denominator: antecedent_identify::CounterfactualFunctional
+pub field antecedent_identify::CounterfactualTransportDerivation::ignored: alloc::vec::Vec<(antecedent_core::ids::RegimeId, alloc::string::String)>
+pub field antecedent_identify::CounterfactualTransportDerivation::items: alloc::vec::Vec<antecedent_identify::CounterfactualItem>
+pub field antecedent_identify::CounterfactualTransportDerivation::moved: alloc::vec::Vec<antecedent_identify::CounterfactualMovedAtom>
+pub field antecedent_identify::CounterfactualTransportDerivation::numerator: antecedent_identify::CounterfactualFunctional
+pub field antecedent_identify::CounterfactualTransportDerivation::populations: alloc::vec::Vec<alloc::sync::Arc<str>>
+pub field antecedent_identify::CounterfactualTransportDerivation::positivity_guard: core::option::Option<antecedent_identify::CounterfactualFunctional>
+pub field antecedent_identify::CounterfactualTransportDerivation::problem: antecedent_identify::CounterfactualTransportProblem
+pub field antecedent_identify::CounterfactualTransportDerivation::query: antecedent_identify::CounterfactualTransportQuery
+pub field antecedent_identify::CounterfactualTransportDerivation::rules: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_identify::CounterfactualTransportDerivation::search: antecedent_identify::CounterfactualTransportSearchRecord
+pub field antecedent_identify::CounterfactualTransportInspection::detail: &'static str
+pub field antecedent_identify::CounterfactualTransportInspection::failures: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_identify::CounterfactualTransportInspection::stages: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_identify::CounterfactualTransportInspection::witness: alloc::string::String
+pub field antecedent_identify::CounterfactualTransportMissing::detail: alloc::string::String
+pub field antecedent_identify::CounterfactualTransportMissing::missing: alloc::vec::Vec<antecedent_identify::CounterfactualMissingRegime>
+pub field antecedent_identify::CounterfactualTransportObstruction::catalog: antecedent_core::query::transport_catalog::EvidenceCatalog
+pub field antecedent_identify::CounterfactualTransportObstruction::check: antecedent_identify::CounterfactualTransportWitnessCheck
+pub field antecedent_identify::CounterfactualTransportObstruction::problem: antecedent_identify::CounterfactualTransportProblem
+pub field antecedent_identify::CounterfactualTransportObstruction::query: antecedent_identify::CounterfactualTransportQuery
+pub field antecedent_identify::CounterfactualTransportObstruction::reason: alloc::string::String
+pub field antecedent_identify::CounterfactualTransportObstruction::witness: antecedent_identify::CounterfactualTransportWitness
+pub field antecedent_identify::CounterfactualTransportQuery::event: antecedent_core::query::counterfactual_event::CounterfactualEventQuery
+pub field antecedent_identify::CounterfactualTransportQuery::sources: alloc::sync::Arc<[antecedent_identify::CounterfactualTransportSource]>
+pub field antecedent_identify::CounterfactualTransportQuery::target: alloc::sync::Arc<str>
+pub field antecedent_identify::CounterfactualTransportSearchRecord::depth_limit: usize
+pub field antecedent_identify::CounterfactualTransportSearchRecord::depth_reached: usize
+pub field antecedent_identify::CounterfactualTransportSearchRecord::memory_limit_bytes: u64
+pub field antecedent_identify::CounterfactualTransportSearchRecord::operations_consumed: usize
+pub field antecedent_identify::CounterfactualTransportSearchRecord::operations_limit: usize
+pub field antecedent_identify::CounterfactualTransportSearchRecord::stages: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_identify::CounterfactualTransportSource::controllable: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_identify::CounterfactualTransportSource::population: alloc::sync::Arc<str>
+pub field antecedent_identify::CounterfactualTransportSource::selection_targets: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_identify::CounterfactualTransportUnsupported::detail: &'static str
+pub field antecedent_identify::CounterfactualTransportUnsupported::message: alloc::string::String
+pub field antecedent_identify::CounterfactualTransportWitness::baseline: alloc::string::String
+pub field antecedent_identify::CounterfactualTransportWitness::clique: alloc::vec::Vec<u32>
+pub field antecedent_identify::CounterfactualTransportWitness::first: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_identify::CounterfactualTransportWitness::first_value: alloc::string::String
+pub field antecedent_identify::CounterfactualTransportWitness::second: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_identify::CounterfactualTransportWitness::second_value: alloc::string::String
+pub field antecedent_identify::CounterfactualTransportWitness::support: alloc::vec::Vec<alloc::vec::Vec<u32>>
+pub field antecedent_identify::CounterfactualTransportWitnessCheck::cells_compared: usize
+pub field antecedent_identify::CounterfactualTransportWitnessCheck::first_value: alloc::string::String
+pub field antecedent_identify::CounterfactualTransportWitnessCheck::second_value: alloc::string::String
 pub field antecedent_identify::DerivationStep::detail: alloc::sync::Arc<str>
 pub field antecedent_identify::DerivationStep::rule: alloc::sync::Arc<str>
 pub field antecedent_identify::DerivationTrace::steps: alloc::vec::Vec<antecedent_identify::DerivationStep>
@@ -3276,6 +3612,27 @@ pub fn <antecedent_identify::ConditionalTransportDerivation>::fn moves(&self) ->
 pub fn <antecedent_identify::ConditionalTransportDerivation>::fn recheck(&self, diagram: &antecedent_graph::selection::SelectionDiagram, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::ConditionalTransportDerivation>::fn remaining(&self) -> &[antecedent_core::ids::VariableId]
 pub fn <antecedent_identify::ConditionalTransportDerivation>::fn to_record(&self) -> antecedent_identify::ConditionalTransportRecord
+pub fn <antecedent_identify::CounterfactualTransportDecision>::const fn identification_status(&self) -> antecedent_core::query::transport_contract::TransportOutcomeKind
+pub fn <antecedent_identify::CounterfactualTransportDecision>::const fn reason_code(&self) -> core::option::Option<&'static str>
+pub fn <antecedent_identify::CounterfactualTransportDecision>::fn derivation(&self) -> core::option::Option<&antecedent_identify::CounterfactualTransportDerivation>
+pub fn <antecedent_identify::CounterfactualTransportDecision>::fn detail_code(&self) -> core::option::Option<&'static str>
+pub fn <antecedent_identify::CounterfactualTransportDerivation>::fn canonical_text(&self) -> alloc::string::String
+pub fn <antecedent_identify::CounterfactualTransportDerivation>::fn replay_checked(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::CounterfactualTransportObstruction>::fn verify(&self) -> core::result::Result<antecedent_identify::CounterfactualTransportWitnessCheck, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::CounterfactualTransportProblem>::fn bidirected(&self) -> &[(usize, usize)]
+pub fn <antecedent_identify::CounterfactualTransportProblem>::fn canonical_text(&self) -> alloc::string::String
+pub fn <antecedent_identify::CounterfactualTransportProblem>::fn directed(&self) -> &[(usize, usize)]
+pub fn <antecedent_identify::CounterfactualTransportProblem>::fn from_admg(admg: &antecedent_graph::admg::Admg, levels: &[(antecedent_core::ids::VariableId, alloc::vec::Vec<f64>)]) -> core::result::Result<Self, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::CounterfactualTransportProblem>::fn index_of(&self, variable: antecedent_core::ids::VariableId) -> core::option::Option<usize>
+pub fn <antecedent_identify::CounterfactualTransportProblem>::fn level_index(&self, index: usize, level: f64) -> core::option::Option<usize>
+pub fn <antecedent_identify::CounterfactualTransportProblem>::fn levels(&self, index: usize) -> alloc::vec::Vec<f64>
+pub fn <antecedent_identify::CounterfactualTransportProblem>::fn new(variables: &[(antecedent_core::ids::VariableId, alloc::vec::Vec<f64>)], directed: &[(antecedent_core::ids::VariableId, antecedent_core::ids::VariableId)], bidirected: &[(antecedent_core::ids::VariableId, antecedent_core::ids::VariableId)]) -> core::result::Result<Self, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::CounterfactualTransportProblem>::fn topological_order(&self) -> &[usize]
+pub fn <antecedent_identify::CounterfactualTransportProblem>::fn variable_count(&self) -> usize
+pub fn <antecedent_identify::CounterfactualTransportProblem>::fn variables(&self) -> &[antecedent_core::ids::VariableId]
+pub fn <antecedent_identify::CounterfactualTransportProblem>::fn variables_of_mask(&self, mask: u32) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub fn <antecedent_identify::CounterfactualTransportQuery>::fn canonical(&self) -> Self
+pub fn <antecedent_identify::CounterfactualTransportQuery>::fn canonical_text(&self) -> alloc::string::String
 pub fn <antecedent_identify::DerivationTrace>::fn push(&mut self, rule: impl core::convert::Into<alloc::sync::Arc<str>>, detail: impl core::convert::Into<alloc::sync::Arc<str>>)
 pub fn <antecedent_identify::EfficientBackdoorIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedIdentificationGraph, query: &antecedent_core::query::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::EfficientBackdoorIdentifier>::fn new() -> Self
@@ -3583,6 +3940,7 @@ pub fn antecedent_identify::envelope::search_truncated(result: &antecedent_ident
 pub fn antecedent_identify::execution_counts::count_checked_identifications<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, u64)
 pub fn antecedent_identify::identify_catalog_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_classical_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ClassicalTransportResult, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::identify_counterfactual_transport(problem: &antecedent_identify::CounterfactualTransportProblem, query: &antecedent_identify::CounterfactualTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CounterfactualTransportDecision, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_cpdag_response_general(cpdag: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_meta_catalog(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MetaTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_meta_transport(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MetaTransportQuery, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ClassicalTransportResult, antecedent_identify::IdentificationError>
@@ -3618,6 +3976,7 @@ pub fn antecedent_identify::sid::validate_z_experiment_family(diagram: &antecede
 pub fn antecedent_identify::sid::validate_z_transport_query(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn antecedent_identify::sid::verify_classical_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, derivation: &antecedent_identify::ClassicalTransportDerivation, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn antecedent_identify::sid::verify_conditional_witness(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, record: &antecedent_identify::ConditionalWitnessRecord, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ConditionalWitnessCheck, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::sid::verify_counterfactual_transport_witness(problem: &antecedent_identify::CounterfactualTransportProblem, query: &antecedent_identify::CounterfactualTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, witness: &antecedent_identify::CounterfactualTransportWitness) -> core::result::Result<antecedent_identify::CounterfactualTransportWitnessCheck, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::sid::verify_meta_s_hedge(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MetaTransportQuery, witness: &antecedent_identify::sid::SHedgeCertificate, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn antecedent_identify::sid::verify_meta_transport(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MetaTransportQuery, proof: &antecedent_identify::ClassicalTransportDerivation, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn antecedent_identify::sid::verify_mixed_source_derivation(graph: &antecedent_graph::admg::Admg, derivation: &antecedent_identify::MixedSourceDerivation, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog) -> core::result::Result<(), antecedent_identify::IdentificationError>
@@ -3698,6 +4057,25 @@ pub struct antecedent_identify::ConditionalTransportQuery
 pub struct antecedent_identify::ConditionalTransportRecord
 pub struct antecedent_identify::ConditionalWitnessCheck
 pub struct antecedent_identify::ConditionalWitnessRecord
+pub struct antecedent_identify::CounterfactualCitedRegime
+pub struct antecedent_identify::CounterfactualFactor
+pub struct antecedent_identify::CounterfactualItem
+pub struct antecedent_identify::CounterfactualMissingRegime
+pub struct antecedent_identify::CounterfactualMovedAtom
+pub struct antecedent_identify::CounterfactualSum
+pub struct antecedent_identify::CounterfactualSymbol
+pub struct antecedent_identify::CounterfactualTransportDerivation
+pub struct antecedent_identify::CounterfactualTransportInspection
+pub struct antecedent_identify::CounterfactualTransportMissing
+pub struct antecedent_identify::CounterfactualTransportObstruction
+pub struct antecedent_identify::CounterfactualTransportProblem
+pub struct antecedent_identify::CounterfactualTransportProblem has private fields
+pub struct antecedent_identify::CounterfactualTransportQuery
+pub struct antecedent_identify::CounterfactualTransportSearchRecord
+pub struct antecedent_identify::CounterfactualTransportSource
+pub struct antecedent_identify::CounterfactualTransportUnsupported
+pub struct antecedent_identify::CounterfactualTransportWitness
+pub struct antecedent_identify::CounterfactualTransportWitnessCheck
 pub struct antecedent_identify::DerivationStep
 pub struct antecedent_identify::DerivationTrace
 pub struct antecedent_identify::EfficientBackdoorIdentifier
@@ -3966,6 +4344,20 @@ pub use antecedent_identify::sid::BoundMzTransportFunctional = antecedent_identi
 pub use antecedent_identify::sid::BoundTransportFunctional = antecedent_identify::BoundTransportFunctional
 pub use antecedent_identify::sid::BoundZTransportFunctional = antecedent_identify::BoundZTransportFunctional
 pub use antecedent_identify::sid::CONDITIONAL_WITNESS_MAX_LATENT_LEVELS = antecedent_identify::CONDITIONAL_WITNESS_MAX_LATENT_LEVELS
+pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_CONTRACT = antecedent_identify::COUNTERFACTUAL_TRANSPORT_CONTRACT
+pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS = antecedent_identify::COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS
+pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_ATOMS = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_ATOMS
+pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_CELLS = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_CELLS
+pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE
+pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_LEVELS = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_LEVELS
+pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_LIMITS = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_LIMITS
+pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_NODES = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_NODES
+pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_REGIMES = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_REGIMES
+pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_SOURCES = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_SOURCES
+pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS
+pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES
+pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_WORLDS = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_WORLDS
+pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES
 pub use antecedent_identify::sid::CatalogTransportResult = antecedent_identify::CatalogTransportResult
 pub use antecedent_identify::sid::ClassicalTransportDerivation = antecedent_identify::ClassicalTransportDerivation
 pub use antecedent_identify::sid::ClassicalTransportQuery = antecedent_identify::ClassicalTransportQuery
@@ -3983,6 +4375,28 @@ pub use antecedent_identify::sid::ConditionalTransportQuery = antecedent_identif
 pub use antecedent_identify::sid::ConditionalTransportRecord = antecedent_identify::ConditionalTransportRecord
 pub use antecedent_identify::sid::ConditionalWitnessCheck = antecedent_identify::ConditionalWitnessCheck
 pub use antecedent_identify::sid::ConditionalWitnessRecord = antecedent_identify::ConditionalWitnessRecord
+pub use antecedent_identify::sid::CounterfactualCitedRegime = antecedent_identify::CounterfactualCitedRegime
+pub use antecedent_identify::sid::CounterfactualFactor = antecedent_identify::CounterfactualFactor
+pub use antecedent_identify::sid::CounterfactualFunctional = antecedent_identify::CounterfactualFunctional
+pub use antecedent_identify::sid::CounterfactualItem = antecedent_identify::CounterfactualItem
+pub use antecedent_identify::sid::CounterfactualItemSource = antecedent_identify::CounterfactualItemSource
+pub use antecedent_identify::sid::CounterfactualLevel = antecedent_identify::CounterfactualLevel
+pub use antecedent_identify::sid::CounterfactualMissingRegime = antecedent_identify::CounterfactualMissingRegime
+pub use antecedent_identify::sid::CounterfactualMovedAtom = antecedent_identify::CounterfactualMovedAtom
+pub use antecedent_identify::sid::CounterfactualSum = antecedent_identify::CounterfactualSum
+pub use antecedent_identify::sid::CounterfactualSymbol = antecedent_identify::CounterfactualSymbol
+pub use antecedent_identify::sid::CounterfactualTransportDecision = antecedent_identify::CounterfactualTransportDecision
+pub use antecedent_identify::sid::CounterfactualTransportDerivation = antecedent_identify::CounterfactualTransportDerivation
+pub use antecedent_identify::sid::CounterfactualTransportInspection = antecedent_identify::CounterfactualTransportInspection
+pub use antecedent_identify::sid::CounterfactualTransportMissing = antecedent_identify::CounterfactualTransportMissing
+pub use antecedent_identify::sid::CounterfactualTransportObstruction = antecedent_identify::CounterfactualTransportObstruction
+pub use antecedent_identify::sid::CounterfactualTransportProblem = antecedent_identify::CounterfactualTransportProblem
+pub use antecedent_identify::sid::CounterfactualTransportQuery = antecedent_identify::CounterfactualTransportQuery
+pub use antecedent_identify::sid::CounterfactualTransportSearchRecord = antecedent_identify::CounterfactualTransportSearchRecord
+pub use antecedent_identify::sid::CounterfactualTransportSource = antecedent_identify::CounterfactualTransportSource
+pub use antecedent_identify::sid::CounterfactualTransportUnsupported = antecedent_identify::CounterfactualTransportUnsupported
+pub use antecedent_identify::sid::CounterfactualTransportWitness = antecedent_identify::CounterfactualTransportWitness
+pub use antecedent_identify::sid::CounterfactualTransportWitnessCheck = antecedent_identify::CounterfactualTransportWitnessCheck
 pub use antecedent_identify::sid::MIXED_SOURCE_DEFAULT_LIMITS = antecedent_identify::MIXED_SOURCE_DEFAULT_LIMITS
 pub use antecedent_identify::sid::MIXED_SOURCE_MAX_DISTRIBUTIONS = antecedent_identify::MIXED_SOURCE_MAX_DISTRIBUTIONS
 pub use antecedent_identify::sid::MIXED_SOURCE_MAX_DO = antecedent_identify::MIXED_SOURCE_MAX_DO
@@ -4075,6 +4489,7 @@ pub use antecedent_identify::sid::admg_conditional_refusal = antecedent_identify
 pub use antecedent_identify::sid::bind_mixed_source_catalog = antecedent_identify::bind_mixed_source_catalog
 pub use antecedent_identify::sid::bind_mz_transport_catalog = antecedent_identify::bind_mz_transport_catalog
 pub use antecedent_identify::sid::bind_z_transport_catalog = antecedent_identify::bind_z_transport_catalog
+pub use antecedent_identify::sid::counterfactual_transport_refusal = antecedent_identify::counterfactual_transport_refusal
 pub use antecedent_identify::sid::decide_admg_conditional_transport = antecedent_identify::decide_admg_conditional_transport
 pub use antecedent_identify::sid::decide_mixed_source = antecedent_identify::decide_mixed_source
 pub use antecedent_identify::sid::decide_mz_transport = antecedent_identify::decide_mz_transport
@@ -4083,6 +4498,7 @@ pub use antecedent_identify::sid::decide_z_transport_inspecting = antecedent_ide
 pub use antecedent_identify::sid::decide_z_transport_with_catalog = antecedent_identify::decide_z_transport_with_catalog
 pub use antecedent_identify::sid::identify_catalog_transport = antecedent_identify::identify_catalog_transport
 pub use antecedent_identify::sid::identify_classical_transport = antecedent_identify::identify_classical_transport
+pub use antecedent_identify::sid::identify_counterfactual_transport = antecedent_identify::identify_counterfactual_transport
 pub use antecedent_identify::sid::identify_meta_catalog = antecedent_identify::identify_meta_catalog
 pub use antecedent_identify::sid::identify_meta_transport = antecedent_identify::identify_meta_transport
 pub use antecedent_identify::sid::identify_z_transport = antecedent_identify::identify_z_transport
@@ -4094,6 +4510,7 @@ pub use antecedent_identify::sid::mixed_source_rule_names = antecedent_identify:
 pub use antecedent_identify::sid::mz_transport_refusal = antecedent_identify::mz_transport_refusal
 pub use antecedent_identify::sid::plan_study_additions = antecedent_identify::plan_study_additions
 pub use antecedent_identify::sid::render_quantity = antecedent_identify::render_quantity
+pub use antecedent_identify::sid::replay_counterfactual_transport = antecedent_identify::replay_counterfactual_transport
 pub use antecedent_identify::sid::search_conditional_witness = antecedent_identify::search_conditional_witness
 pub use antecedent_identify::temporal_backdoor::PARENT_ADJUSTMENT_RULE = antecedent_identify::PARENT_ADJUSTMENT_RULE
 pub use antecedent_identify::temporal_backdoor::TemporalBackdoorIdentifier = antecedent_identify::TemporalBackdoorIdentifier
@@ -4121,6 +4538,7 @@ pub use antecedent_identify::validate_z_transport_query = antecedent_identify::s
 pub use antecedent_identify::verify_chain_witness = antecedent_identify::recovery_chain::verify_chain_witness
 pub use antecedent_identify::verify_classical_transport = antecedent_identify::sid::verify_classical_transport
 pub use antecedent_identify::verify_conditional_witness = antecedent_identify::sid::verify_conditional_witness
+pub use antecedent_identify::verify_counterfactual_transport_witness = antecedent_identify::sid::verify_counterfactual_transport_witness
 pub use antecedent_identify::verify_meta_s_hedge = antecedent_identify::sid::verify_meta_s_hedge
 pub use antecedent_identify::verify_meta_transport = antecedent_identify::sid::verify_meta_transport
 pub use antecedent_identify::verify_mixed_source_derivation = antecedent_identify::sid::verify_mixed_source_derivation
@@ -4150,6 +4568,21 @@ pub variant antecedent_identify::ConditionalTransportDecision::Identified(alloc:
 pub variant antecedent_identify::ConditionalTransportDecision::MissingEvidence { derivation: alloc::boxed::Box<antecedent_identify::ConditionalTransportDerivation>, obligations: alloc::sync::Arc<[alloc::sync::Arc<str>]> }
 pub variant antecedent_identify::ConditionalTransportDecision::NotCertified(antecedent_identify::ConditionalTransportInspection)
 pub variant antecedent_identify::ConditionalTransportDecision::ProvenNonTransportable(alloc::boxed::Box<antecedent_identify::ConditionalNonTransportabilityProof>)
+pub variant antecedent_identify::CounterfactualFunctional::Complement { variable: usize, whole: alloc::boxed::Box<antecedent_identify::CounterfactualFunctional>, flipped: alloc::boxed::Box<antecedent_identify::CounterfactualFunctional> }
+pub variant antecedent_identify::CounterfactualFunctional::Sum(antecedent_identify::CounterfactualSum)
+pub variant antecedent_identify::CounterfactualFunctional::Zero
+pub variant antecedent_identify::CounterfactualItemSource::Extract { from: usize }
+pub variant antecedent_identify::CounterfactualItemSource::Marginal { from: usize }
+pub variant antecedent_identify::CounterfactualItemSource::Regime { regime: antecedent_core::ids::RegimeId, intervened: u32 }
+pub variant antecedent_identify::CounterfactualItemSource::Transfer { from: usize }
+pub variant antecedent_identify::CounterfactualLevel::Fixed(usize)
+pub variant antecedent_identify::CounterfactualLevel::Symbol(usize)
+pub variant antecedent_identify::CounterfactualTransportDecision::Exhausted(antecedent_core::search::SearchReceipt)
+pub variant antecedent_identify::CounterfactualTransportDecision::Identified(alloc::boxed::Box<antecedent_identify::CounterfactualTransportDerivation>)
+pub variant antecedent_identify::CounterfactualTransportDecision::MissingEvidence(alloc::boxed::Box<antecedent_identify::CounterfactualTransportMissing>)
+pub variant antecedent_identify::CounterfactualTransportDecision::NotCertified(antecedent_identify::CounterfactualTransportInspection)
+pub variant antecedent_identify::CounterfactualTransportDecision::ProvenNonTransportable(alloc::boxed::Box<antecedent_identify::CounterfactualTransportObstruction>)
+pub variant antecedent_identify::CounterfactualTransportDecision::UnsupportedScope(antecedent_identify::CounterfactualTransportUnsupported)
 pub variant antecedent_identify::IdentificationBudget::Binding
 pub variant antecedent_identify::IdentificationBudget::BindingMemory
 pub variant antecedent_identify::IdentificationBudget::Memory

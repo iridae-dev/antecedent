@@ -31,6 +31,15 @@
 #[non_exhaustive] pub enum antecedent_core::TemporalPolicy
 #[non_exhaustive] pub enum antecedent_core::TheoremFamily
 #[non_exhaustive] pub enum antecedent_core::TransportSupportCoordinate
+#[non_exhaustive] pub enum antecedent_core::measurement_model::ArmBinding
+#[non_exhaustive] pub enum antecedent_core::measurement_model::DifferentialAxis
+#[non_exhaustive] pub enum antecedent_core::measurement_model::ErrorStructure
+#[non_exhaustive] pub enum antecedent_core::measurement_model::MappingSemantics
+#[non_exhaustive] pub enum antecedent_core::measurement_model::MeasurementInference
+#[non_exhaustive] pub enum antecedent_core::measurement_model::MeasurementKind
+#[non_exhaustive] pub enum antecedent_core::measurement_model::MeasurementModelError
+#[non_exhaustive] pub enum antecedent_core::measurement_model::ParameterEvidence
+#[non_exhaustive] pub enum antecedent_core::measurement_model::ParameterUncertainty
 #[non_exhaustive] pub enum antecedent_core::query::ExperimentFamily
 #[non_exhaustive] pub enum antecedent_core::query::GraphAssumptionSet
 #[non_exhaustive] pub enum antecedent_core::query::TransportDistributionFamily
@@ -237,6 +246,27 @@ impl core::clone::Clone for antecedent_core::execution_attempt::AttemptReport
 impl core::clone::Clone for antecedent_core::execution_attempt::ObservationToken
 impl core::clone::Clone for antecedent_core::execution_attempt::Operation
 impl core::clone::Clone for antecedent_core::execution_attempt::OperationCounts
+impl core::clone::Clone for antecedent_core::measurement_model::ArmBinding
+impl core::clone::Clone for antecedent_core::measurement_model::BinaryArmRates
+impl core::clone::Clone for antecedent_core::measurement_model::CorrectedFunctionalRecord
+impl core::clone::Clone for antecedent_core::measurement_model::DifferentialAxis
+impl core::clone::Clone for antecedent_core::measurement_model::ErrorStructure
+impl core::clone::Clone for antecedent_core::measurement_model::MappingSemantics
+impl core::clone::Clone for antecedent_core::measurement_model::MeasurementBinding
+impl core::clone::Clone for antecedent_core::measurement_model::MeasurementIdentities
+impl core::clone::Clone for antecedent_core::measurement_model::MeasurementInference
+impl core::clone::Clone for antecedent_core::measurement_model::MeasurementKind
+impl core::clone::Clone for antecedent_core::measurement_model::MeasurementModel
+impl core::clone::Clone for antecedent_core::measurement_model::MeasurementModelError
+impl core::clone::Clone for antecedent_core::measurement_model::MeasurementParameters
+impl core::clone::Clone for antecedent_core::measurement_model::MeasurementRoute
+impl core::clone::Clone for antecedent_core::measurement_model::MeasurementVariable
+impl core::clone::Clone for antecedent_core::measurement_model::ParameterEvidence
+impl core::clone::Clone for antecedent_core::measurement_model::ParameterUncertainty
+impl core::clone::Clone for antecedent_core::measurement_model::PosteriorReference
+impl core::clone::Clone for antecedent_core::measurement_model::RepresentationMapping
+impl core::clone::Clone for antecedent_core::measurement_model::RepresentationVersion
+impl core::clone::Clone for antecedent_core::measurement_model::VarianceComponent
 impl core::clone::Clone for antecedent_core::query::ComputationLimits
 impl core::clone::Clone for antecedent_core::query::ExperimentFamily
 impl core::clone::Clone for antecedent_core::query::GraphAssumptionSet
@@ -397,6 +427,22 @@ impl core::cmp::Eq for antecedent_core::WorldSpec
 impl core::cmp::Eq for antecedent_core::execution_attempt::AttemptReport
 impl core::cmp::Eq for antecedent_core::execution_attempt::Operation
 impl core::cmp::Eq for antecedent_core::execution_attempt::OperationCounts
+impl core::cmp::Eq for antecedent_core::measurement_model::ArmBinding
+impl core::cmp::Eq for antecedent_core::measurement_model::DifferentialAxis
+impl core::cmp::Eq for antecedent_core::measurement_model::ErrorStructure
+impl core::cmp::Eq for antecedent_core::measurement_model::MappingSemantics
+impl core::cmp::Eq for antecedent_core::measurement_model::MeasurementBinding
+impl core::cmp::Eq for antecedent_core::measurement_model::MeasurementIdentities
+impl core::cmp::Eq for antecedent_core::measurement_model::MeasurementInference
+impl core::cmp::Eq for antecedent_core::measurement_model::MeasurementKind
+impl core::cmp::Eq for antecedent_core::measurement_model::MeasurementModelError
+impl core::cmp::Eq for antecedent_core::measurement_model::MeasurementRoute
+impl core::cmp::Eq for antecedent_core::measurement_model::MeasurementVariable
+impl core::cmp::Eq for antecedent_core::measurement_model::ParameterEvidence
+impl core::cmp::Eq for antecedent_core::measurement_model::ParameterUncertainty
+impl core::cmp::Eq for antecedent_core::measurement_model::PosteriorReference
+impl core::cmp::Eq for antecedent_core::measurement_model::RepresentationMapping
+impl core::cmp::Eq for antecedent_core::measurement_model::RepresentationVersion
 impl core::cmp::Eq for antecedent_core::query::ComputationLimits
 impl core::cmp::Eq for antecedent_core::query::ExperimentFamily
 impl core::cmp::Eq for antecedent_core::query::GraphAssumptionSet
@@ -441,6 +487,8 @@ impl core::cmp::Ord for antecedent_core::TemporalNodeKey
 impl core::cmp::Ord for antecedent_core::VariableId
 impl core::cmp::Ord for antecedent_core::WorldId
 impl core::cmp::Ord for antecedent_core::WorldObservation
+impl core::cmp::Ord for antecedent_core::measurement_model::MeasurementKind
+impl core::cmp::Ord for antecedent_core::measurement_model::MeasurementRoute
 impl core::cmp::Ord for antecedent_core::recalc::Branch
 impl core::cmp::Ord for antecedent_core::recalc::Stage
 impl core::cmp::Ord for antecedent_core::recalc::StageIdentity
@@ -632,6 +680,27 @@ impl core::cmp::PartialEq for antecedent_core::WorldSpec
 impl core::cmp::PartialEq for antecedent_core::execution_attempt::AttemptReport
 impl core::cmp::PartialEq for antecedent_core::execution_attempt::Operation
 impl core::cmp::PartialEq for antecedent_core::execution_attempt::OperationCounts
+impl core::cmp::PartialEq for antecedent_core::measurement_model::ArmBinding
+impl core::cmp::PartialEq for antecedent_core::measurement_model::BinaryArmRates
+impl core::cmp::PartialEq for antecedent_core::measurement_model::CorrectedFunctionalRecord
+impl core::cmp::PartialEq for antecedent_core::measurement_model::DifferentialAxis
+impl core::cmp::PartialEq for antecedent_core::measurement_model::ErrorStructure
+impl core::cmp::PartialEq for antecedent_core::measurement_model::MappingSemantics
+impl core::cmp::PartialEq for antecedent_core::measurement_model::MeasurementBinding
+impl core::cmp::PartialEq for antecedent_core::measurement_model::MeasurementIdentities
+impl core::cmp::PartialEq for antecedent_core::measurement_model::MeasurementInference
+impl core::cmp::PartialEq for antecedent_core::measurement_model::MeasurementKind
+impl core::cmp::PartialEq for antecedent_core::measurement_model::MeasurementModel
+impl core::cmp::PartialEq for antecedent_core::measurement_model::MeasurementModelError
+impl core::cmp::PartialEq for antecedent_core::measurement_model::MeasurementParameters
+impl core::cmp::PartialEq for antecedent_core::measurement_model::MeasurementRoute
+impl core::cmp::PartialEq for antecedent_core::measurement_model::MeasurementVariable
+impl core::cmp::PartialEq for antecedent_core::measurement_model::ParameterEvidence
+impl core::cmp::PartialEq for antecedent_core::measurement_model::ParameterUncertainty
+impl core::cmp::PartialEq for antecedent_core::measurement_model::PosteriorReference
+impl core::cmp::PartialEq for antecedent_core::measurement_model::RepresentationMapping
+impl core::cmp::PartialEq for antecedent_core::measurement_model::RepresentationVersion
+impl core::cmp::PartialEq for antecedent_core::measurement_model::VarianceComponent
 impl core::cmp::PartialEq for antecedent_core::query::ComputationLimits
 impl core::cmp::PartialEq for antecedent_core::query::ExperimentFamily
 impl core::cmp::PartialEq for antecedent_core::query::GraphAssumptionSet
@@ -676,6 +745,8 @@ impl core::cmp::PartialOrd for antecedent_core::TemporalNodeKey
 impl core::cmp::PartialOrd for antecedent_core::VariableId
 impl core::cmp::PartialOrd for antecedent_core::WorldId
 impl core::cmp::PartialOrd for antecedent_core::WorldObservation
+impl core::cmp::PartialOrd for antecedent_core::measurement_model::MeasurementKind
+impl core::cmp::PartialOrd for antecedent_core::measurement_model::MeasurementRoute
 impl core::cmp::PartialOrd for antecedent_core::recalc::Branch
 impl core::cmp::PartialOrd for antecedent_core::recalc::Stage
 impl core::cmp::PartialOrd for antecedent_core::recalc::StageIdentity
@@ -925,6 +996,27 @@ impl core::fmt::Debug for antecedent_core::WorldSpec
 impl core::fmt::Debug for antecedent_core::execution_attempt::AttemptReport
 impl core::fmt::Debug for antecedent_core::execution_attempt::Operation
 impl core::fmt::Debug for antecedent_core::execution_attempt::OperationCounts
+impl core::fmt::Debug for antecedent_core::measurement_model::ArmBinding
+impl core::fmt::Debug for antecedent_core::measurement_model::BinaryArmRates
+impl core::fmt::Debug for antecedent_core::measurement_model::CorrectedFunctionalRecord
+impl core::fmt::Debug for antecedent_core::measurement_model::DifferentialAxis
+impl core::fmt::Debug for antecedent_core::measurement_model::ErrorStructure
+impl core::fmt::Debug for antecedent_core::measurement_model::MappingSemantics
+impl core::fmt::Debug for antecedent_core::measurement_model::MeasurementBinding
+impl core::fmt::Debug for antecedent_core::measurement_model::MeasurementIdentities
+impl core::fmt::Debug for antecedent_core::measurement_model::MeasurementInference
+impl core::fmt::Debug for antecedent_core::measurement_model::MeasurementKind
+impl core::fmt::Debug for antecedent_core::measurement_model::MeasurementModel
+impl core::fmt::Debug for antecedent_core::measurement_model::MeasurementModelError
+impl core::fmt::Debug for antecedent_core::measurement_model::MeasurementParameters
+impl core::fmt::Debug for antecedent_core::measurement_model::MeasurementRoute
+impl core::fmt::Debug for antecedent_core::measurement_model::MeasurementVariable
+impl core::fmt::Debug for antecedent_core::measurement_model::ParameterEvidence
+impl core::fmt::Debug for antecedent_core::measurement_model::ParameterUncertainty
+impl core::fmt::Debug for antecedent_core::measurement_model::PosteriorReference
+impl core::fmt::Debug for antecedent_core::measurement_model::RepresentationMapping
+impl core::fmt::Debug for antecedent_core::measurement_model::RepresentationVersion
+impl core::fmt::Debug for antecedent_core::measurement_model::VarianceComponent
 impl core::fmt::Debug for antecedent_core::query::ComputationLimits
 impl core::fmt::Debug for antecedent_core::query::ExperimentFamily
 impl core::fmt::Debug for antecedent_core::query::GraphAssumptionSet
@@ -1069,6 +1161,18 @@ impl core::hash::Hash for antecedent_core::VariableId
 impl core::hash::Hash for antecedent_core::WorldId
 impl core::hash::Hash for antecedent_core::WorldObservation
 impl core::hash::Hash for antecedent_core::WorldSpec
+impl core::hash::Hash for antecedent_core::measurement_model::ArmBinding
+impl core::hash::Hash for antecedent_core::measurement_model::DifferentialAxis
+impl core::hash::Hash for antecedent_core::measurement_model::ErrorStructure
+impl core::hash::Hash for antecedent_core::measurement_model::MappingSemantics
+impl core::hash::Hash for antecedent_core::measurement_model::MeasurementBinding
+impl core::hash::Hash for antecedent_core::measurement_model::MeasurementKind
+impl core::hash::Hash for antecedent_core::measurement_model::MeasurementRoute
+impl core::hash::Hash for antecedent_core::measurement_model::MeasurementVariable
+impl core::hash::Hash for antecedent_core::measurement_model::ParameterEvidence
+impl core::hash::Hash for antecedent_core::measurement_model::PosteriorReference
+impl core::hash::Hash for antecedent_core::measurement_model::RepresentationMapping
+impl core::hash::Hash for antecedent_core::measurement_model::RepresentationVersion
 impl core::hash::Hash for antecedent_core::query::ComputationLimits
 impl core::hash::Hash for antecedent_core::query::ExperimentFamily
 impl core::hash::Hash for antecedent_core::query::GraphAssumptionSet
@@ -1154,6 +1258,13 @@ impl core::marker::Copy for antecedent_core::WorldId
 impl core::marker::Copy for antecedent_core::WorldObservation
 impl core::marker::Copy for antecedent_core::execution_attempt::Operation
 impl core::marker::Copy for antecedent_core::execution_attempt::OperationCounts
+impl core::marker::Copy for antecedent_core::measurement_model::DifferentialAxis
+impl core::marker::Copy for antecedent_core::measurement_model::ErrorStructure
+impl core::marker::Copy for antecedent_core::measurement_model::MeasurementIdentities
+impl core::marker::Copy for antecedent_core::measurement_model::MeasurementInference
+impl core::marker::Copy for antecedent_core::measurement_model::MeasurementKind
+impl core::marker::Copy for antecedent_core::measurement_model::MeasurementRoute
+impl core::marker::Copy for antecedent_core::measurement_model::ParameterUncertainty
 impl core::marker::Copy for antecedent_core::query::ComputationLimits
 impl core::marker::Copy for antecedent_core::query::ExperimentFamily
 impl core::marker::Copy for antecedent_core::query::GraphAssumptionSet
@@ -1372,6 +1483,27 @@ impl core::marker::Freeze for antecedent_core::WorldSpec [auto]
 impl core::marker::Freeze for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Freeze for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Freeze for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::ArmBinding [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::BinaryArmRates [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::DifferentialAxis [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::ErrorStructure [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::MappingSemantics [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::MeasurementBinding [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::MeasurementIdentities [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::MeasurementInference [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::MeasurementKind [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::MeasurementModel [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::MeasurementModelError [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::MeasurementParameters [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::MeasurementRoute [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::MeasurementVariable [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::ParameterEvidence [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::ParameterUncertainty [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::PosteriorReference [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::RepresentationMapping [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::RepresentationVersion [auto]
+impl core::marker::Freeze for antecedent_core::measurement_model::VarianceComponent [auto]
 impl core::marker::Freeze for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Freeze for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Freeze for antecedent_core::query::GraphAssumptionSet [auto]
@@ -1593,6 +1725,27 @@ impl core::marker::Send for antecedent_core::WorldSpec [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::marker::Send for antecedent_core::measurement_model::ArmBinding [auto]
+impl core::marker::Send for antecedent_core::measurement_model::BinaryArmRates [auto]
+impl core::marker::Send for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
+impl core::marker::Send for antecedent_core::measurement_model::DifferentialAxis [auto]
+impl core::marker::Send for antecedent_core::measurement_model::ErrorStructure [auto]
+impl core::marker::Send for antecedent_core::measurement_model::MappingSemantics [auto]
+impl core::marker::Send for antecedent_core::measurement_model::MeasurementBinding [auto]
+impl core::marker::Send for antecedent_core::measurement_model::MeasurementIdentities [auto]
+impl core::marker::Send for antecedent_core::measurement_model::MeasurementInference [auto]
+impl core::marker::Send for antecedent_core::measurement_model::MeasurementKind [auto]
+impl core::marker::Send for antecedent_core::measurement_model::MeasurementModel [auto]
+impl core::marker::Send for antecedent_core::measurement_model::MeasurementModelError [auto]
+impl core::marker::Send for antecedent_core::measurement_model::MeasurementParameters [auto]
+impl core::marker::Send for antecedent_core::measurement_model::MeasurementRoute [auto]
+impl core::marker::Send for antecedent_core::measurement_model::MeasurementVariable [auto]
+impl core::marker::Send for antecedent_core::measurement_model::ParameterEvidence [auto]
+impl core::marker::Send for antecedent_core::measurement_model::ParameterUncertainty [auto]
+impl core::marker::Send for antecedent_core::measurement_model::PosteriorReference [auto]
+impl core::marker::Send for antecedent_core::measurement_model::RepresentationMapping [auto]
+impl core::marker::Send for antecedent_core::measurement_model::RepresentationVersion [auto]
+impl core::marker::Send for antecedent_core::measurement_model::VarianceComponent [auto]
 impl core::marker::Send for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Send for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Send for antecedent_core::query::GraphAssumptionSet [auto]
@@ -1802,6 +1955,27 @@ impl core::marker::StructuralPartialEq for antecedent_core::WorldSpec
 impl core::marker::StructuralPartialEq for antecedent_core::execution_attempt::AttemptReport
 impl core::marker::StructuralPartialEq for antecedent_core::execution_attempt::Operation
 impl core::marker::StructuralPartialEq for antecedent_core::execution_attempt::OperationCounts
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::ArmBinding
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::BinaryArmRates
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::CorrectedFunctionalRecord
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::DifferentialAxis
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::ErrorStructure
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::MappingSemantics
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::MeasurementBinding
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::MeasurementIdentities
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::MeasurementInference
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::MeasurementKind
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::MeasurementModel
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::MeasurementModelError
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::MeasurementParameters
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::MeasurementRoute
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::MeasurementVariable
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::ParameterEvidence
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::ParameterUncertainty
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::PosteriorReference
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::RepresentationMapping
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::RepresentationVersion
+impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::VarianceComponent
 impl core::marker::StructuralPartialEq for antecedent_core::query::ComputationLimits
 impl core::marker::StructuralPartialEq for antecedent_core::query::ExperimentFamily
 impl core::marker::StructuralPartialEq for antecedent_core::query::GraphAssumptionSet
@@ -2023,6 +2197,27 @@ impl core::marker::Sync for antecedent_core::WorldSpec [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::ArmBinding [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::BinaryArmRates [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::DifferentialAxis [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::ErrorStructure [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::MappingSemantics [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::MeasurementBinding [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::MeasurementIdentities [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::MeasurementInference [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::MeasurementKind [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::MeasurementModel [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::MeasurementModelError [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::MeasurementParameters [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::MeasurementRoute [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::MeasurementVariable [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::ParameterEvidence [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::ParameterUncertainty [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::PosteriorReference [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::RepresentationMapping [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::RepresentationVersion [auto]
+impl core::marker::Sync for antecedent_core::measurement_model::VarianceComponent [auto]
 impl core::marker::Sync for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Sync for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Sync for antecedent_core::query::GraphAssumptionSet [auto]
@@ -2244,6 +2439,27 @@ impl core::marker::Unpin for antecedent_core::WorldSpec [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::ArmBinding [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::BinaryArmRates [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::DifferentialAxis [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::ErrorStructure [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::MappingSemantics [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::MeasurementBinding [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::MeasurementIdentities [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::MeasurementInference [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::MeasurementKind [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::MeasurementModel [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::MeasurementModelError [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::MeasurementParameters [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::MeasurementRoute [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::MeasurementVariable [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::ParameterEvidence [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::ParameterUncertainty [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::PosteriorReference [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::RepresentationMapping [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::RepresentationVersion [auto]
+impl core::marker::Unpin for antecedent_core::measurement_model::VarianceComponent [auto]
 impl core::marker::Unpin for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Unpin for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Unpin for antecedent_core::query::GraphAssumptionSet [auto]
@@ -2465,6 +2681,27 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldSpec [aut
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::Operation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::ArmBinding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::BinaryArmRates [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::DifferentialAxis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::ErrorStructure [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::MappingSemantics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::MeasurementBinding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::MeasurementIdentities [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::MeasurementInference [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::MeasurementKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::MeasurementModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::MeasurementModelError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::MeasurementParameters [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::MeasurementRoute [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::MeasurementVariable [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::ParameterEvidence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::ParameterUncertainty [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::PosteriorReference [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::RepresentationMapping [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::RepresentationVersion [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::VarianceComponent [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::query::ComputationLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::query::ExperimentFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::query::GraphAssumptionSet [auto]
@@ -2685,6 +2922,27 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::Operation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::ArmBinding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::BinaryArmRates [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::DifferentialAxis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::ErrorStructure [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::MappingSemantics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::MeasurementBinding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::MeasurementIdentities [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::MeasurementInference [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::MeasurementKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::MeasurementModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::MeasurementModelError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::MeasurementParameters [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::MeasurementRoute [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::MeasurementVariable [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::ParameterEvidence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::ParameterUncertainty [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::PosteriorReference [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::RepresentationMapping [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::RepresentationVersion [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::VarianceComponent [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::query::ComputationLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::query::ExperimentFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::query::GraphAssumptionSet [auto]
@@ -2779,6 +3037,8 @@ pub const <antecedent_core::TemporalResponseSpec>::POLICY_SUSTAINED: &'static st
 pub const <antecedent_core::TransportOutcomeKind>::ALL: [Self; 10]
 pub const <antecedent_core::TransportOutcomeKind>::IDENTIFICATION: [Self; 5]
 pub const <antecedent_core::TransportOutcomeKind>::LEGACY_IDENTIFICATION_SPELLINGS: [(&'static str, Self); 6]
+pub const <antecedent_core::measurement_model::MeasurementKind>::ALL: [Self; 6]
+pub const <antecedent_core::measurement_model::MeasurementRoute>::ALL: [Self; 5]
 pub const <antecedent_core::recalc::StageIdentity>::ABSENT: Self
 pub const antecedent_core::ARCH_SIMD_COMPILED: bool
 pub const antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES: u64
@@ -2796,6 +3056,7 @@ pub const antecedent_core::MAX_TEMPORAL_RESPONSE_HORIZONS: usize
 pub const antecedent_core::POSTERIOR_MASS_TOLERANCE: f64
 pub const antecedent_core::TEMPORAL_OBSERVATION_UNLICENSED: &str
 pub const antecedent_core::VERSION: &str
+pub const antecedent_core::measurement_model::MEASUREMENT_MODEL_FORMAT: u16
 pub const antecedent_core::reason_code::PREFIX: &str
 pub const antecedent_core::reason_code::REASON_CODES: &[&str]
 pub const antecedent_core::reason_code::RUNTIME_REFUSAL_CODES: &[&str]
@@ -2858,6 +3119,8 @@ pub enum antecedent_core::Value
 pub enum antecedent_core::ValueType
 pub enum antecedent_core::VariableDomain
 pub enum antecedent_core::execution_attempt::Operation
+pub enum antecedent_core::measurement_model::MeasurementParameters
+pub enum antecedent_core::measurement_model::MeasurementRoute
 pub enum antecedent_core::query::OutcomeGuarantee
 pub enum antecedent_core::recalc::Boundary
 pub enum antecedent_core::recalc::ChangeKind
@@ -3318,6 +3581,57 @@ pub field antecedent_core::execution_attempt::ExecutionAttempt::result: core::re
 pub field antecedent_core::execution_attempt::OperationCounts::attempted: u64
 pub field antecedent_core::execution_attempt::OperationCounts::completed: u64
 pub field antecedent_core::execution_attempt::OperationCounts::failed: u64
+pub field antecedent_core::measurement_model::BinaryArmRates::arm_id: core::option::Option<alloc::string::String>
+pub field antecedent_core::measurement_model::BinaryArmRates::sensitivity: f64
+pub field antecedent_core::measurement_model::BinaryArmRates::sensitivity_variance: f64
+pub field antecedent_core::measurement_model::BinaryArmRates::specificity: f64
+pub field antecedent_core::measurement_model::BinaryArmRates::specificity_variance: f64
+pub field antecedent_core::measurement_model::CorrectedFunctionalRecord::data_identity: antecedent_core::SemanticDigest
+pub field antecedent_core::measurement_model::CorrectedFunctionalRecord::functional_id: alloc::string::String
+pub field antecedent_core::measurement_model::CorrectedFunctionalRecord::inference: antecedent_core::measurement_model::MeasurementInference
+pub field antecedent_core::measurement_model::CorrectedFunctionalRecord::model_identity: antecedent_core::SemanticDigest
+pub field antecedent_core::measurement_model::CorrectedFunctionalRecord::naive_point: core::option::Option<f64>
+pub field antecedent_core::measurement_model::CorrectedFunctionalRecord::parameter_uncertainty: antecedent_core::measurement_model::ParameterUncertainty
+pub field antecedent_core::measurement_model::CorrectedFunctionalRecord::point: f64
+pub field antecedent_core::measurement_model::CorrectedFunctionalRecord::route: antecedent_core::measurement_model::MeasurementRoute
+pub field antecedent_core::measurement_model::CorrectedFunctionalRecord::rows: u64
+pub field antecedent_core::measurement_model::CorrectedFunctionalRecord::standard_error: core::option::Option<f64>
+pub field antecedent_core::measurement_model::CorrectedFunctionalRecord::variance_components: alloc::vec::Vec<antecedent_core::measurement_model::VarianceComponent>
+pub field antecedent_core::measurement_model::MeasurementBinding::arm: antecedent_core::measurement_model::ArmBinding
+pub field antecedent_core::measurement_model::MeasurementBinding::population_id: alloc::string::String
+pub field antecedent_core::measurement_model::MeasurementBinding::regime_id: alloc::string::String
+pub field antecedent_core::measurement_model::MeasurementIdentities::arm: antecedent_core::SemanticDigest
+pub field antecedent_core::measurement_model::MeasurementIdentities::evidence: antecedent_core::SemanticDigest
+pub field antecedent_core::measurement_model::MeasurementIdentities::measurement: antecedent_core::SemanticDigest
+pub field antecedent_core::measurement_model::MeasurementIdentities::model: antecedent_core::SemanticDigest
+pub field antecedent_core::measurement_model::MeasurementIdentities::population: antecedent_core::SemanticDigest
+pub field antecedent_core::measurement_model::MeasurementIdentities::regime: antecedent_core::SemanticDigest
+pub field antecedent_core::measurement_model::MeasurementIdentities::representation: antecedent_core::SemanticDigest
+pub field antecedent_core::measurement_model::MeasurementModel::binding: antecedent_core::measurement_model::MeasurementBinding
+pub field antecedent_core::measurement_model::MeasurementModel::construct: antecedent_core::measurement_model::MeasurementVariable
+pub field antecedent_core::measurement_model::MeasurementModel::evidence: antecedent_core::measurement_model::ParameterEvidence
+pub field antecedent_core::measurement_model::MeasurementModel::indicator: antecedent_core::measurement_model::MeasurementVariable
+pub field antecedent_core::measurement_model::MeasurementModel::model_id: alloc::string::String
+pub field antecedent_core::measurement_model::MeasurementModel::parameters: antecedent_core::measurement_model::MeasurementParameters
+pub field antecedent_core::measurement_model::MeasurementModel::representation: antecedent_core::measurement_model::RepresentationVersion
+pub field antecedent_core::measurement_model::MeasurementModel::route: antecedent_core::measurement_model::MeasurementRoute
+pub field antecedent_core::measurement_model::MeasurementModel::structure: antecedent_core::measurement_model::ErrorStructure
+pub field antecedent_core::measurement_model::MeasurementVariable::id: alloc::string::String
+pub field antecedent_core::measurement_model::MeasurementVariable::kind: antecedent_core::measurement_model::MeasurementKind
+pub field antecedent_core::measurement_model::MeasurementVariable::units: alloc::string::String
+pub field antecedent_core::measurement_model::PosteriorReference::object_id: alloc::string::String
+pub field antecedent_core::measurement_model::PosteriorReference::provider_id: alloc::string::String
+pub field antecedent_core::measurement_model::PosteriorReference::request_id: alloc::string::String
+pub field antecedent_core::measurement_model::PosteriorReference::snapshot_id: alloc::string::String
+pub field antecedent_core::measurement_model::PosteriorReference::version_id: alloc::string::String
+pub field antecedent_core::measurement_model::RepresentationMapping::from: antecedent_core::measurement_model::RepresentationVersion
+pub field antecedent_core::measurement_model::RepresentationMapping::mapping_id: alloc::string::String
+pub field antecedent_core::measurement_model::RepresentationMapping::semantics: antecedent_core::measurement_model::MappingSemantics
+pub field antecedent_core::measurement_model::RepresentationMapping::to: antecedent_core::measurement_model::RepresentationVersion
+pub field antecedent_core::measurement_model::RepresentationVersion::coordinate_system_id: alloc::string::String
+pub field antecedent_core::measurement_model::RepresentationVersion::version: u32
+pub field antecedent_core::measurement_model::VarianceComponent::name: alloc::string::String
+pub field antecedent_core::measurement_model::VarianceComponent::variance: f64
 pub field antecedent_core::query::ComputationLimits::max_standardizer_candidates: u32
 pub field antecedent_core::query::ComputationLimits::multi_node_c_component_recursion: bool
 pub field antecedent_core::query::TheoremReference::citation: alloc::sync::Arc<str>
@@ -3835,6 +4149,20 @@ pub fn <antecedent_core::execution_attempt::AttemptReport>::fn is_complete(&self
 pub fn <antecedent_core::execution_attempt::AttemptReport>::fn is_empty(&self) -> bool
 pub fn <antecedent_core::execution_attempt::AttemptReport>::fn operations(&self) -> impl core::iter::traits::iterator::Iterator<Item = (antecedent_core::execution_attempt::Operation, antecedent_core::execution_attempt::OperationCounts)> + '_
 pub fn <antecedent_core::execution_attempt::OperationCounts>::fn unfinished(self) -> u64
+pub fn <antecedent_core::measurement_model::CorrectedFunctionalRecord>::const fn has_interval(&self) -> bool
+pub fn <antecedent_core::measurement_model::DifferentialAxis>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::measurement_model::MeasurementInference>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::measurement_model::MeasurementKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::measurement_model::MeasurementKind>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_core::measurement_model::MeasurementModel>::fn identities(&self) -> antecedent_core::measurement_model::MeasurementIdentities
+pub fn <antecedent_core::measurement_model::MeasurementModel>::fn validate(&self) -> core::result::Result<(), antecedent_core::measurement_model::MeasurementModelError>
+pub fn <antecedent_core::measurement_model::MeasurementParameters>::const fn route(&self) -> antecedent_core::measurement_model::MeasurementRoute
+pub fn <antecedent_core::measurement_model::MeasurementRoute>::const fn accepted_indicator_kinds(self) -> &'static [antecedent_core::measurement_model::MeasurementKind]
+pub fn <antecedent_core::measurement_model::MeasurementRoute>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::measurement_model::MeasurementRoute>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_core::measurement_model::ParameterUncertainty>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::measurement_model::ParameterUncertainty>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_core::measurement_model::RepresentationMapping>::fn carries_intervention_meaning(&self) -> bool
 pub fn <antecedent_core::query::ExperimentFamily>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::query::GraphAssumptionSet>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::query::OutcomeGuarantee>::const fn as_str(self) -> &'static str
@@ -3882,6 +4210,7 @@ pub fn antecedent_core::execution_attempt::observe_execution<T, E>(execute: impl
 pub fn antecedent_core::fnv1a_u64(bytes: &[u8]) -> u64
 pub fn antecedent_core::identity::to_hex(bytes: &[u8]) -> alloc::string::String
 pub fn antecedent_core::is_blank(text: &str) -> bool
+pub fn antecedent_core::measurement_model::measurement_data_digest(parts: &[(&str, &[f64])]) -> antecedent_core::SemanticDigest
 pub fn antecedent_core::policy_graphless_coordinate(multi: bool, ipw: bool, uplift: bool, cate: bool, regret: bool, crossfit: bool) -> (&'static str, &'static str, &'static str)
 pub fn antecedent_core::query::randomized_graphless_coordinate(design: &antecedent_core::RandomizationDesign, estimand: antecedent_core::RandomizedEstimand, received_treatment: bool, fixed_cuped: bool, has_ancova: bool) -> (&'static str, &'static str, &'static str, &'static str, &'static str)
 pub fn antecedent_core::reason_code::split_prefix(message: &str) -> core::option::Option<(&str, &str)>
@@ -3897,6 +4226,7 @@ pub mod antecedent_core::identity
 pub mod antecedent_core::ids
 pub mod antecedent_core::interval
 pub mod antecedent_core::intervention
+pub mod antecedent_core::measurement_model
 pub mod antecedent_core::node
 pub mod antecedent_core::query
 pub mod antecedent_core::reason_code
@@ -4068,6 +4398,16 @@ pub struct antecedent_core::execution_attempt::ExecutionAttempt<T, E>
 pub struct antecedent_core::execution_attempt::ObservationToken has private fields
 pub struct antecedent_core::execution_attempt::OperationCounts
 pub struct antecedent_core::execution_attempt::OperationGuard has private fields
+pub struct antecedent_core::measurement_model::BinaryArmRates
+pub struct antecedent_core::measurement_model::CorrectedFunctionalRecord
+pub struct antecedent_core::measurement_model::MeasurementBinding
+pub struct antecedent_core::measurement_model::MeasurementIdentities
+pub struct antecedent_core::measurement_model::MeasurementModel
+pub struct antecedent_core::measurement_model::MeasurementVariable
+pub struct antecedent_core::measurement_model::PosteriorReference
+pub struct antecedent_core::measurement_model::RepresentationMapping
+pub struct antecedent_core::measurement_model::RepresentationVersion
+pub struct antecedent_core::measurement_model::VarianceComponent
 pub struct antecedent_core::query::ComputationLimits
 pub struct antecedent_core::query::TheoremReference
 pub struct antecedent_core::recalc::Branch
@@ -4730,6 +5070,47 @@ pub variant antecedent_core::execution_attempt::Operation::ProgramCompilation
 pub variant antecedent_core::execution_attempt::Operation::ProviderBinding
 pub variant antecedent_core::execution_attempt::Operation::ProviderInvocation
 pub variant antecedent_core::execution_attempt::Operation::ScoreConstruction
+pub variant antecedent_core::measurement_model::ArmBinding::AllArms
+pub variant antecedent_core::measurement_model::ArmBinding::Arm(alloc::string::String)
+pub variant antecedent_core::measurement_model::DifferentialAxis::Arm
+pub variant antecedent_core::measurement_model::DifferentialAxis::Population
+pub variant antecedent_core::measurement_model::DifferentialAxis::Time
+pub variant antecedent_core::measurement_model::ErrorStructure::Differential(antecedent_core::measurement_model::DifferentialAxis)
+pub variant antecedent_core::measurement_model::ErrorStructure::NonDifferential
+pub variant antecedent_core::measurement_model::MappingSemantics::CoordinateRelabeling
+pub variant antecedent_core::measurement_model::MappingSemantics::InterventionPreserving { evidence_id: alloc::string::String }
+pub variant antecedent_core::measurement_model::MeasurementInference::PointOnly
+pub variant antecedent_core::measurement_model::MeasurementInference::UncalibratedStandardError
+pub variant antecedent_core::measurement_model::MeasurementKind::Derived
+pub variant antecedent_core::measurement_model::MeasurementKind::LatentScientific
+pub variant antecedent_core::measurement_model::MeasurementKind::LearnedVectorRepresentation
+pub variant antecedent_core::measurement_model::MeasurementKind::NoisyMisclassified
+pub variant antecedent_core::measurement_model::MeasurementKind::Observed
+pub variant antecedent_core::measurement_model::MeasurementKind::ProbabilisticFeatureAssignment
+pub variant antecedent_core::measurement_model::MeasurementModelError::BlankField(&'static str)
+pub variant antecedent_core::measurement_model::MeasurementModelError::IndicatorKindNotAccepted { route: antecedent_core::measurement_model::MeasurementRoute, kind: antecedent_core::measurement_model::MeasurementKind }
+pub variant antecedent_core::measurement_model::MeasurementModelError::InvalidParameter(&'static str)
+pub variant antecedent_core::measurement_model::MeasurementModelError::ObservedIndicator
+pub variant antecedent_core::measurement_model::MeasurementModelError::ProxyOfferedAsConstruct { offered: antecedent_core::measurement_model::MeasurementKind }
+pub variant antecedent_core::measurement_model::MeasurementModelError::RouteParameterMismatch
+pub variant antecedent_core::measurement_model::MeasurementModelError::StructureParameterMismatch
+pub variant antecedent_core::measurement_model::MeasurementParameters::Binary { rates: alloc::vec::Vec<antecedent_core::measurement_model::BinaryArmRates>, min_youden: f64 }
+pub variant antecedent_core::measurement_model::MeasurementParameters::Categorical { levels: alloc::vec::Vec<alloc::string::String>, confusion: alloc::vec::Vec<f64>, column_counts: core::option::Option<alloc::vec::Vec<u64>>, max_condition: f64 }
+pub variant antecedent_core::measurement_model::MeasurementParameters::ClassicalError { error_variance: f64, error_variance_standard_error: f64, min_reliability: f64 }
+pub variant antecedent_core::measurement_model::MeasurementParameters::ExternalPosterior { reference: antecedent_core::measurement_model::PosteriorReference, conditioned_on_outcome: bool, min_draws: u32 }
+pub variant antecedent_core::measurement_model::MeasurementParameters::Repeated { min_replicated_units: u32, min_reliability: f64 }
+pub variant antecedent_core::measurement_model::MeasurementRoute::BinaryMisclassification
+pub variant antecedent_core::measurement_model::MeasurementRoute::ClassicalContinuousError
+pub variant antecedent_core::measurement_model::MeasurementRoute::ExternalLatentPosterior
+pub variant antecedent_core::measurement_model::MeasurementRoute::ProbabilisticCategorical
+pub variant antecedent_core::measurement_model::MeasurementRoute::RepeatedMeasurements
+pub variant antecedent_core::measurement_model::ParameterEvidence::Declared { declarer: alloc::string::String }
+pub variant antecedent_core::measurement_model::ParameterEvidence::ExternalProvider { provider_id: alloc::string::String }
+pub variant antecedent_core::measurement_model::ParameterEvidence::ReplicateSample { sample_id: alloc::string::String }
+pub variant antecedent_core::measurement_model::ParameterEvidence::ValidationSample { sample_id: alloc::string::String, units: u64 }
+pub variant antecedent_core::measurement_model::ParameterUncertainty::DeclaredExact
+pub variant antecedent_core::measurement_model::ParameterUncertainty::NotPropagated
+pub variant antecedent_core::measurement_model::ParameterUncertainty::Propagated
 pub variant antecedent_core::query::ExperimentFamily::SuppliedCatalog
 pub variant antecedent_core::query::ExperimentFamily::TheoremExperiments
 pub variant antecedent_core::query::GraphAssumptionSet::SemiMarkovianSelectionAdmg

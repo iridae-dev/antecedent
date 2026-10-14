@@ -2,6 +2,9 @@
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
 #[non_exhaustive] pub enum antecedent_model::ModelError
+#[non_exhaustive] pub enum antecedent_model::compose::CompositionError
+#[non_exhaustive] pub enum antecedent_model::observation_query::ObservationQueryError
+#[non_exhaustive] pub enum antecedent_model::observation_query::UnreachableBound
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::CompiledCausalModel [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::CompiledMechanismStore [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::InvertibleStructuralCausalModel [auto]
@@ -48,18 +51,140 @@ impl core::clone::Clone for antecedent_model::SelectionPolicy
 impl core::clone::Clone for antecedent_model::StructuralCausalModel
 impl core::clone::Clone for antecedent_model::ValueBatch
 impl core::clone::Clone for antecedent_model::WeightingDoSampler
+impl core::clone::Clone for antecedent_model::compose::CoherenceFinding
+impl core::clone::Clone for antecedent_model::compose::CoherenceKind
+impl core::clone::Clone for antecedent_model::compose::ComposedFinite
+impl core::clone::Clone for antecedent_model::compose::ComposedLinearGaussian
+impl core::clone::Clone for antecedent_model::compose::ComposedModelSpec
+impl core::clone::Clone for antecedent_model::compose::CompositionError
+impl core::clone::Clone for antecedent_model::compose::Containment
+impl core::clone::Clone for antecedent_model::compose::ContextCoordinate
+impl core::clone::Clone for antecedent_model::compose::ContrastArm
+impl core::clone::Clone for antecedent_model::compose::CrossCovarianceBlock
+impl core::clone::Clone for antecedent_model::compose::Domain
+impl core::clone::Clone for antecedent_model::compose::FiniteLaw
+impl core::clone::Clone for antecedent_model::compose::FunctionalUncertainty
+impl core::clone::Clone for antecedent_model::compose::InvarianceDeclaration
+impl core::clone::Clone for antecedent_model::compose::JointGaussian
+impl core::clone::Clone for antecedent_model::compose::LatentDependence
+impl core::clone::Clone for antecedent_model::compose::MeanContrast
+impl core::clone::Clone for antecedent_model::compose::MechanismContext
+impl core::clone::Clone for antecedent_model::compose::MechanismDescriptor
+impl core::clone::Clone for antecedent_model::compose::MechanismFamily
+impl core::clone::Clone for antecedent_model::compose::MechanismForm
+impl core::clone::Clone for antecedent_model::compose::MechanismOrigin
+impl core::clone::Clone for antecedent_model::compose::MechanismProvenance
+impl core::clone::Clone for antecedent_model::compose::MechanismUncertainty
+impl core::clone::Clone for antecedent_model::compose::ParameterId
+impl core::clone::Clone for antecedent_model::compose::ParameterTerm
+impl core::clone::Clone for antecedent_model::compose::ParentBinding
+impl core::clone::Clone for antecedent_model::compose::PosteriorDependence
+impl core::clone::Clone for antecedent_model::compose::SampleTable
+impl core::clone::Clone for antecedent_model::compose::SelectionDiagramDeclaration
+impl core::clone::Clone for antecedent_model::compose::SelectionNodeDeclaration
+impl core::clone::Clone for antecedent_model::compose::TabularRow
+impl core::clone::Clone for antecedent_model::compose::UncertaintyMeaning
+impl core::clone::Clone for antecedent_model::compose::uncertainty::ParameterCovariance
+impl core::clone::Clone for antecedent_model::observation_query::BayesPosterior
+impl core::clone::Clone for antecedent_model::observation_query::BetaBernoulli
+impl core::clone::Clone for antecedent_model::observation_query::ConditionalDistribution
+impl core::clone::Clone for antecedent_model::observation_query::ConditioningInterventionPair
+impl core::clone::Clone for antecedent_model::observation_query::Direction
+impl core::clone::Clone for antecedent_model::observation_query::EvidenceRequirement
+impl core::clone::Clone for antecedent_model::observation_query::FiniteBayesModel
+impl core::clone::Clone for antecedent_model::observation_query::MeasuredConditional
+impl core::clone::Clone for antecedent_model::observation_query::ObservationQueryError
+impl core::clone::Clone for antecedent_model::observation_query::RequiredBayesFactor
+impl core::clone::Clone for antecedent_model::observation_query::SignalLevelOutcome
+impl core::clone::Clone for antecedent_model::observation_query::ThresholdCrossing
+impl core::clone::Clone for antecedent_model::observation_query::UnreachableBound
 impl core::cmp::Eq for antecedent_model::BasisTerm
 impl core::cmp::Eq for antecedent_model::MechanismFamily
 impl core::cmp::Eq for antecedent_model::MechanismTyping
 impl core::cmp::Eq for antecedent_model::ModelError
 impl core::cmp::Eq for antecedent_model::NoiseInferenceMode
 impl core::cmp::Eq for antecedent_model::SelectionPolicy
+impl core::cmp::Eq for antecedent_model::compose::CoherenceFinding
+impl core::cmp::Eq for antecedent_model::compose::CoherenceKind
+impl core::cmp::Eq for antecedent_model::compose::Containment
+impl core::cmp::Eq for antecedent_model::compose::ContextCoordinate
+impl core::cmp::Eq for antecedent_model::compose::InvarianceDeclaration
+impl core::cmp::Eq for antecedent_model::compose::MechanismContext
+impl core::cmp::Eq for antecedent_model::compose::MechanismFamily
+impl core::cmp::Eq for antecedent_model::compose::MechanismOrigin
+impl core::cmp::Eq for antecedent_model::compose::MechanismProvenance
+impl core::cmp::Eq for antecedent_model::compose::ParameterId
+impl core::cmp::Eq for antecedent_model::compose::ParameterTerm
+impl core::cmp::Eq for antecedent_model::compose::SelectionDiagramDeclaration
+impl core::cmp::Eq for antecedent_model::compose::SelectionNodeDeclaration
+impl core::cmp::Eq for antecedent_model::compose::UncertaintyMeaning
+impl core::cmp::Eq for antecedent_model::observation_query::Direction
+impl core::cmp::Eq for antecedent_model::observation_query::UnreachableBound
+impl core::cmp::Ord for antecedent_model::compose::CoherenceKind
+impl core::cmp::Ord for antecedent_model::compose::ContextCoordinate
+impl core::cmp::Ord for antecedent_model::compose::MechanismFamily
+impl core::cmp::Ord for antecedent_model::compose::MechanismOrigin
+impl core::cmp::Ord for antecedent_model::compose::ParameterId
+impl core::cmp::Ord for antecedent_model::compose::ParameterTerm
+impl core::cmp::Ord for antecedent_model::compose::UncertaintyMeaning
 impl core::cmp::PartialEq for antecedent_model::BasisTerm
 impl core::cmp::PartialEq for antecedent_model::MechanismFamily
 impl core::cmp::PartialEq for antecedent_model::MechanismTyping
 impl core::cmp::PartialEq for antecedent_model::ModelError
 impl core::cmp::PartialEq for antecedent_model::NoiseInferenceMode
 impl core::cmp::PartialEq for antecedent_model::SelectionPolicy
+impl core::cmp::PartialEq for antecedent_model::compose::CoherenceFinding
+impl core::cmp::PartialEq for antecedent_model::compose::CoherenceKind
+impl core::cmp::PartialEq for antecedent_model::compose::ComposedModelSpec
+impl core::cmp::PartialEq for antecedent_model::compose::CompositionError
+impl core::cmp::PartialEq for antecedent_model::compose::Containment
+impl core::cmp::PartialEq for antecedent_model::compose::ContextCoordinate
+impl core::cmp::PartialEq for antecedent_model::compose::ContrastArm
+impl core::cmp::PartialEq for antecedent_model::compose::CrossCovarianceBlock
+impl core::cmp::PartialEq for antecedent_model::compose::Domain
+impl core::cmp::PartialEq for antecedent_model::compose::FiniteLaw
+impl core::cmp::PartialEq for antecedent_model::compose::FunctionalUncertainty
+impl core::cmp::PartialEq for antecedent_model::compose::InvarianceDeclaration
+impl core::cmp::PartialEq for antecedent_model::compose::JointGaussian
+impl core::cmp::PartialEq for antecedent_model::compose::LatentDependence
+impl core::cmp::PartialEq for antecedent_model::compose::MeanContrast
+impl core::cmp::PartialEq for antecedent_model::compose::MechanismContext
+impl core::cmp::PartialEq for antecedent_model::compose::MechanismDescriptor
+impl core::cmp::PartialEq for antecedent_model::compose::MechanismFamily
+impl core::cmp::PartialEq for antecedent_model::compose::MechanismForm
+impl core::cmp::PartialEq for antecedent_model::compose::MechanismOrigin
+impl core::cmp::PartialEq for antecedent_model::compose::MechanismProvenance
+impl core::cmp::PartialEq for antecedent_model::compose::MechanismUncertainty
+impl core::cmp::PartialEq for antecedent_model::compose::ParameterId
+impl core::cmp::PartialEq for antecedent_model::compose::ParameterTerm
+impl core::cmp::PartialEq for antecedent_model::compose::ParentBinding
+impl core::cmp::PartialEq for antecedent_model::compose::PosteriorDependence
+impl core::cmp::PartialEq for antecedent_model::compose::SampleTable
+impl core::cmp::PartialEq for antecedent_model::compose::SelectionDiagramDeclaration
+impl core::cmp::PartialEq for antecedent_model::compose::SelectionNodeDeclaration
+impl core::cmp::PartialEq for antecedent_model::compose::TabularRow
+impl core::cmp::PartialEq for antecedent_model::compose::UncertaintyMeaning
+impl core::cmp::PartialEq for antecedent_model::compose::uncertainty::ParameterCovariance
+impl core::cmp::PartialEq for antecedent_model::observation_query::BayesPosterior
+impl core::cmp::PartialEq for antecedent_model::observation_query::BetaBernoulli
+impl core::cmp::PartialEq for antecedent_model::observation_query::ConditionalDistribution
+impl core::cmp::PartialEq for antecedent_model::observation_query::ConditioningInterventionPair
+impl core::cmp::PartialEq for antecedent_model::observation_query::Direction
+impl core::cmp::PartialEq for antecedent_model::observation_query::EvidenceRequirement
+impl core::cmp::PartialEq for antecedent_model::observation_query::FiniteBayesModel
+impl core::cmp::PartialEq for antecedent_model::observation_query::MeasuredConditional
+impl core::cmp::PartialEq for antecedent_model::observation_query::ObservationQueryError
+impl core::cmp::PartialEq for antecedent_model::observation_query::RequiredBayesFactor
+impl core::cmp::PartialEq for antecedent_model::observation_query::SignalLevelOutcome
+impl core::cmp::PartialEq for antecedent_model::observation_query::ThresholdCrossing
+impl core::cmp::PartialEq for antecedent_model::observation_query::UnreachableBound
+impl core::cmp::PartialOrd for antecedent_model::compose::CoherenceKind
+impl core::cmp::PartialOrd for antecedent_model::compose::ContextCoordinate
+impl core::cmp::PartialOrd for antecedent_model::compose::MechanismFamily
+impl core::cmp::PartialOrd for antecedent_model::compose::MechanismOrigin
+impl core::cmp::PartialOrd for antecedent_model::compose::ParameterId
+impl core::cmp::PartialOrd for antecedent_model::compose::ParameterTerm
+impl core::cmp::PartialOrd for antecedent_model::compose::UncertaintyMeaning
 impl core::convert::From<antecedent_data::error::DataError> for antecedent_model::ModelError
 impl core::convert::From<antecedent_graph::error::GraphError> for antecedent_model::ModelError
 impl core::convert::From<antecedent_stats::error::StatsError> for antecedent_model::ModelError
@@ -72,6 +197,8 @@ impl core::default::Default for antecedent_model::ModelEvaluator
 impl core::default::Default for antecedent_model::NoiseBatch
 impl core::default::Default for antecedent_model::ValueBatch
 impl core::error::Error for antecedent_model::ModelError
+impl core::error::Error for antecedent_model::compose::CompositionError
+impl core::error::Error for antecedent_model::observation_query::ObservationQueryError
 impl core::fmt::Debug for antecedent_model::BasisTerm
 impl core::fmt::Debug for antecedent_model::CompiledCausalModel
 impl core::fmt::Debug for antecedent_model::CompiledMechanismStore
@@ -102,18 +229,81 @@ impl core::fmt::Debug for antecedent_model::SelectionPolicy
 impl core::fmt::Debug for antecedent_model::StructuralCausalModel
 impl core::fmt::Debug for antecedent_model::ValueBatch
 impl core::fmt::Debug for antecedent_model::WeightingDoSampler
+impl core::fmt::Debug for antecedent_model::compose::CoherenceFinding
+impl core::fmt::Debug for antecedent_model::compose::CoherenceKind
+impl core::fmt::Debug for antecedent_model::compose::ComposedFinite
+impl core::fmt::Debug for antecedent_model::compose::ComposedLinearGaussian
+impl core::fmt::Debug for antecedent_model::compose::ComposedModelSpec
+impl core::fmt::Debug for antecedent_model::compose::CompositionError
+impl core::fmt::Debug for antecedent_model::compose::Containment
+impl core::fmt::Debug for antecedent_model::compose::ContextCoordinate
+impl core::fmt::Debug for antecedent_model::compose::ContrastArm
+impl core::fmt::Debug for antecedent_model::compose::CrossCovarianceBlock
+impl core::fmt::Debug for antecedent_model::compose::Domain
+impl core::fmt::Debug for antecedent_model::compose::FiniteLaw
+impl core::fmt::Debug for antecedent_model::compose::FunctionalUncertainty
+impl core::fmt::Debug for antecedent_model::compose::InvarianceDeclaration
+impl core::fmt::Debug for antecedent_model::compose::JointGaussian
+impl core::fmt::Debug for antecedent_model::compose::LatentDependence
+impl core::fmt::Debug for antecedent_model::compose::MeanContrast
+impl core::fmt::Debug for antecedent_model::compose::MechanismContext
+impl core::fmt::Debug for antecedent_model::compose::MechanismDescriptor
+impl core::fmt::Debug for antecedent_model::compose::MechanismFamily
+impl core::fmt::Debug for antecedent_model::compose::MechanismForm
+impl core::fmt::Debug for antecedent_model::compose::MechanismOrigin
+impl core::fmt::Debug for antecedent_model::compose::MechanismProvenance
+impl core::fmt::Debug for antecedent_model::compose::MechanismUncertainty
+impl core::fmt::Debug for antecedent_model::compose::ParameterId
+impl core::fmt::Debug for antecedent_model::compose::ParameterTerm
+impl core::fmt::Debug for antecedent_model::compose::ParentBinding
+impl core::fmt::Debug for antecedent_model::compose::PosteriorDependence
+impl core::fmt::Debug for antecedent_model::compose::SampleTable
+impl core::fmt::Debug for antecedent_model::compose::SelectionDiagramDeclaration
+impl core::fmt::Debug for antecedent_model::compose::SelectionNodeDeclaration
+impl core::fmt::Debug for antecedent_model::compose::TabularRow
+impl core::fmt::Debug for antecedent_model::compose::UncertaintyMeaning
+impl core::fmt::Debug for antecedent_model::compose::uncertainty::ParameterCovariance
+impl core::fmt::Debug for antecedent_model::observation_query::BayesPosterior
+impl core::fmt::Debug for antecedent_model::observation_query::BetaBernoulli
+impl core::fmt::Debug for antecedent_model::observation_query::ConditionalDistribution
+impl core::fmt::Debug for antecedent_model::observation_query::ConditioningInterventionPair
+impl core::fmt::Debug for antecedent_model::observation_query::Direction
+impl core::fmt::Debug for antecedent_model::observation_query::EvidenceRequirement
+impl core::fmt::Debug for antecedent_model::observation_query::FiniteBayesModel
+impl core::fmt::Debug for antecedent_model::observation_query::MeasuredConditional
+impl core::fmt::Debug for antecedent_model::observation_query::ObservationQueryError
+impl core::fmt::Debug for antecedent_model::observation_query::RequiredBayesFactor
+impl core::fmt::Debug for antecedent_model::observation_query::SignalLevelOutcome
+impl core::fmt::Debug for antecedent_model::observation_query::ThresholdCrossing
+impl core::fmt::Debug for antecedent_model::observation_query::UnreachableBound
 impl core::fmt::Display for antecedent_model::ModelError
+impl core::fmt::Display for antecedent_model::compose::CompositionError
+impl core::fmt::Display for antecedent_model::observation_query::ObservationQueryError
 impl core::hash::Hash for antecedent_model::BasisTerm
 impl core::hash::Hash for antecedent_model::MechanismFamily
 impl core::hash::Hash for antecedent_model::MechanismTyping
 impl core::hash::Hash for antecedent_model::NoiseInferenceMode
 impl core::hash::Hash for antecedent_model::SelectionPolicy
+impl core::hash::Hash for antecedent_model::compose::CoherenceKind
+impl core::hash::Hash for antecedent_model::observation_query::Direction
+impl core::hash::Hash for antecedent_model::observation_query::UnreachableBound
 impl core::marker::Copy for antecedent_model::BasisTerm
 impl core::marker::Copy for antecedent_model::MechanismFamily
 impl core::marker::Copy for antecedent_model::MechanismTyping
 impl core::marker::Copy for antecedent_model::NoiseInferenceMode
 impl core::marker::Copy for antecedent_model::PredictiveDraws
 impl core::marker::Copy for antecedent_model::SelectionPolicy
+impl core::marker::Copy for antecedent_model::compose::CoherenceKind
+impl core::marker::Copy for antecedent_model::compose::Containment
+impl core::marker::Copy for antecedent_model::compose::ContextCoordinate
+impl core::marker::Copy for antecedent_model::compose::MechanismFamily
+impl core::marker::Copy for antecedent_model::compose::MechanismOrigin
+impl core::marker::Copy for antecedent_model::compose::UncertaintyMeaning
+impl core::marker::Copy for antecedent_model::observation_query::BetaBernoulli
+impl core::marker::Copy for antecedent_model::observation_query::Direction
+impl core::marker::Copy for antecedent_model::observation_query::EvidenceRequirement
+impl core::marker::Copy for antecedent_model::observation_query::RequiredBayesFactor
+impl core::marker::Copy for antecedent_model::observation_query::UnreachableBound
 impl core::marker::Freeze for antecedent_model::BasisTerm [auto]
 impl core::marker::Freeze for antecedent_model::CompiledCausalModel [auto]
 impl core::marker::Freeze for antecedent_model::CompiledMechanismStore [auto]
@@ -144,6 +334,53 @@ impl core::marker::Freeze for antecedent_model::SelectionPolicy [auto]
 impl core::marker::Freeze for antecedent_model::StructuralCausalModel [auto]
 impl core::marker::Freeze for antecedent_model::ValueBatch [auto]
 impl core::marker::Freeze for antecedent_model::WeightingDoSampler [auto]
+impl core::marker::Freeze for antecedent_model::compose::CoherenceFinding [auto]
+impl core::marker::Freeze for antecedent_model::compose::CoherenceKind [auto]
+impl core::marker::Freeze for antecedent_model::compose::ComposedFinite [auto]
+impl core::marker::Freeze for antecedent_model::compose::ComposedLinearGaussian [auto]
+impl core::marker::Freeze for antecedent_model::compose::ComposedModelSpec [auto]
+impl core::marker::Freeze for antecedent_model::compose::CompositionError [auto]
+impl core::marker::Freeze for antecedent_model::compose::Containment [auto]
+impl core::marker::Freeze for antecedent_model::compose::ContextCoordinate [auto]
+impl core::marker::Freeze for antecedent_model::compose::ContrastArm [auto]
+impl core::marker::Freeze for antecedent_model::compose::CrossCovarianceBlock [auto]
+impl core::marker::Freeze for antecedent_model::compose::Domain [auto]
+impl core::marker::Freeze for antecedent_model::compose::FiniteLaw [auto]
+impl core::marker::Freeze for antecedent_model::compose::FunctionalUncertainty [auto]
+impl core::marker::Freeze for antecedent_model::compose::InvarianceDeclaration [auto]
+impl core::marker::Freeze for antecedent_model::compose::JointGaussian [auto]
+impl core::marker::Freeze for antecedent_model::compose::LatentDependence [auto]
+impl core::marker::Freeze for antecedent_model::compose::MeanContrast [auto]
+impl core::marker::Freeze for antecedent_model::compose::MechanismContext [auto]
+impl core::marker::Freeze for antecedent_model::compose::MechanismDescriptor [auto]
+impl core::marker::Freeze for antecedent_model::compose::MechanismFamily [auto]
+impl core::marker::Freeze for antecedent_model::compose::MechanismForm [auto]
+impl core::marker::Freeze for antecedent_model::compose::MechanismOrigin [auto]
+impl core::marker::Freeze for antecedent_model::compose::MechanismProvenance [auto]
+impl core::marker::Freeze for antecedent_model::compose::MechanismUncertainty [auto]
+impl core::marker::Freeze for antecedent_model::compose::ParameterId [auto]
+impl core::marker::Freeze for antecedent_model::compose::ParameterTerm [auto]
+impl core::marker::Freeze for antecedent_model::compose::ParentBinding [auto]
+impl core::marker::Freeze for antecedent_model::compose::PosteriorDependence [auto]
+impl core::marker::Freeze for antecedent_model::compose::SampleTable [auto]
+impl core::marker::Freeze for antecedent_model::compose::SelectionDiagramDeclaration [auto]
+impl core::marker::Freeze for antecedent_model::compose::SelectionNodeDeclaration [auto]
+impl core::marker::Freeze for antecedent_model::compose::TabularRow [auto]
+impl core::marker::Freeze for antecedent_model::compose::UncertaintyMeaning [auto]
+impl core::marker::Freeze for antecedent_model::compose::uncertainty::ParameterCovariance [auto]
+impl core::marker::Freeze for antecedent_model::observation_query::BayesPosterior [auto]
+impl core::marker::Freeze for antecedent_model::observation_query::BetaBernoulli [auto]
+impl core::marker::Freeze for antecedent_model::observation_query::ConditionalDistribution [auto]
+impl core::marker::Freeze for antecedent_model::observation_query::ConditioningInterventionPair [auto]
+impl core::marker::Freeze for antecedent_model::observation_query::Direction [auto]
+impl core::marker::Freeze for antecedent_model::observation_query::EvidenceRequirement [auto]
+impl core::marker::Freeze for antecedent_model::observation_query::FiniteBayesModel [auto]
+impl core::marker::Freeze for antecedent_model::observation_query::MeasuredConditional [auto]
+impl core::marker::Freeze for antecedent_model::observation_query::ObservationQueryError [auto]
+impl core::marker::Freeze for antecedent_model::observation_query::RequiredBayesFactor [auto]
+impl core::marker::Freeze for antecedent_model::observation_query::SignalLevelOutcome [auto]
+impl core::marker::Freeze for antecedent_model::observation_query::ThresholdCrossing [auto]
+impl core::marker::Freeze for antecedent_model::observation_query::UnreachableBound [auto]
 impl core::marker::Send for antecedent_model::BasisTerm [auto]
 impl core::marker::Send for antecedent_model::CompiledCausalModel [auto]
 impl core::marker::Send for antecedent_model::CompiledMechanismStore [auto]
@@ -174,12 +411,104 @@ impl core::marker::Send for antecedent_model::SelectionPolicy [auto]
 impl core::marker::Send for antecedent_model::StructuralCausalModel [auto]
 impl core::marker::Send for antecedent_model::ValueBatch [auto]
 impl core::marker::Send for antecedent_model::WeightingDoSampler [auto]
+impl core::marker::Send for antecedent_model::compose::CoherenceFinding [auto]
+impl core::marker::Send for antecedent_model::compose::CoherenceKind [auto]
+impl core::marker::Send for antecedent_model::compose::ComposedFinite [auto]
+impl core::marker::Send for antecedent_model::compose::ComposedLinearGaussian [auto]
+impl core::marker::Send for antecedent_model::compose::ComposedModelSpec [auto]
+impl core::marker::Send for antecedent_model::compose::CompositionError [auto]
+impl core::marker::Send for antecedent_model::compose::Containment [auto]
+impl core::marker::Send for antecedent_model::compose::ContextCoordinate [auto]
+impl core::marker::Send for antecedent_model::compose::ContrastArm [auto]
+impl core::marker::Send for antecedent_model::compose::CrossCovarianceBlock [auto]
+impl core::marker::Send for antecedent_model::compose::Domain [auto]
+impl core::marker::Send for antecedent_model::compose::FiniteLaw [auto]
+impl core::marker::Send for antecedent_model::compose::FunctionalUncertainty [auto]
+impl core::marker::Send for antecedent_model::compose::InvarianceDeclaration [auto]
+impl core::marker::Send for antecedent_model::compose::JointGaussian [auto]
+impl core::marker::Send for antecedent_model::compose::LatentDependence [auto]
+impl core::marker::Send for antecedent_model::compose::MeanContrast [auto]
+impl core::marker::Send for antecedent_model::compose::MechanismContext [auto]
+impl core::marker::Send for antecedent_model::compose::MechanismDescriptor [auto]
+impl core::marker::Send for antecedent_model::compose::MechanismFamily [auto]
+impl core::marker::Send for antecedent_model::compose::MechanismForm [auto]
+impl core::marker::Send for antecedent_model::compose::MechanismOrigin [auto]
+impl core::marker::Send for antecedent_model::compose::MechanismProvenance [auto]
+impl core::marker::Send for antecedent_model::compose::MechanismUncertainty [auto]
+impl core::marker::Send for antecedent_model::compose::ParameterId [auto]
+impl core::marker::Send for antecedent_model::compose::ParameterTerm [auto]
+impl core::marker::Send for antecedent_model::compose::ParentBinding [auto]
+impl core::marker::Send for antecedent_model::compose::PosteriorDependence [auto]
+impl core::marker::Send for antecedent_model::compose::SampleTable [auto]
+impl core::marker::Send for antecedent_model::compose::SelectionDiagramDeclaration [auto]
+impl core::marker::Send for antecedent_model::compose::SelectionNodeDeclaration [auto]
+impl core::marker::Send for antecedent_model::compose::TabularRow [auto]
+impl core::marker::Send for antecedent_model::compose::UncertaintyMeaning [auto]
+impl core::marker::Send for antecedent_model::compose::uncertainty::ParameterCovariance [auto]
+impl core::marker::Send for antecedent_model::observation_query::BayesPosterior [auto]
+impl core::marker::Send for antecedent_model::observation_query::BetaBernoulli [auto]
+impl core::marker::Send for antecedent_model::observation_query::ConditionalDistribution [auto]
+impl core::marker::Send for antecedent_model::observation_query::ConditioningInterventionPair [auto]
+impl core::marker::Send for antecedent_model::observation_query::Direction [auto]
+impl core::marker::Send for antecedent_model::observation_query::EvidenceRequirement [auto]
+impl core::marker::Send for antecedent_model::observation_query::FiniteBayesModel [auto]
+impl core::marker::Send for antecedent_model::observation_query::MeasuredConditional [auto]
+impl core::marker::Send for antecedent_model::observation_query::ObservationQueryError [auto]
+impl core::marker::Send for antecedent_model::observation_query::RequiredBayesFactor [auto]
+impl core::marker::Send for antecedent_model::observation_query::SignalLevelOutcome [auto]
+impl core::marker::Send for antecedent_model::observation_query::ThresholdCrossing [auto]
+impl core::marker::Send for antecedent_model::observation_query::UnreachableBound [auto]
 impl core::marker::StructuralPartialEq for antecedent_model::BasisTerm
 impl core::marker::StructuralPartialEq for antecedent_model::MechanismFamily
 impl core::marker::StructuralPartialEq for antecedent_model::MechanismTyping
 impl core::marker::StructuralPartialEq for antecedent_model::ModelError
 impl core::marker::StructuralPartialEq for antecedent_model::NoiseInferenceMode
 impl core::marker::StructuralPartialEq for antecedent_model::SelectionPolicy
+impl core::marker::StructuralPartialEq for antecedent_model::compose::CoherenceFinding
+impl core::marker::StructuralPartialEq for antecedent_model::compose::CoherenceKind
+impl core::marker::StructuralPartialEq for antecedent_model::compose::ComposedModelSpec
+impl core::marker::StructuralPartialEq for antecedent_model::compose::CompositionError
+impl core::marker::StructuralPartialEq for antecedent_model::compose::Containment
+impl core::marker::StructuralPartialEq for antecedent_model::compose::ContextCoordinate
+impl core::marker::StructuralPartialEq for antecedent_model::compose::ContrastArm
+impl core::marker::StructuralPartialEq for antecedent_model::compose::CrossCovarianceBlock
+impl core::marker::StructuralPartialEq for antecedent_model::compose::Domain
+impl core::marker::StructuralPartialEq for antecedent_model::compose::FiniteLaw
+impl core::marker::StructuralPartialEq for antecedent_model::compose::FunctionalUncertainty
+impl core::marker::StructuralPartialEq for antecedent_model::compose::InvarianceDeclaration
+impl core::marker::StructuralPartialEq for antecedent_model::compose::JointGaussian
+impl core::marker::StructuralPartialEq for antecedent_model::compose::LatentDependence
+impl core::marker::StructuralPartialEq for antecedent_model::compose::MeanContrast
+impl core::marker::StructuralPartialEq for antecedent_model::compose::MechanismContext
+impl core::marker::StructuralPartialEq for antecedent_model::compose::MechanismDescriptor
+impl core::marker::StructuralPartialEq for antecedent_model::compose::MechanismFamily
+impl core::marker::StructuralPartialEq for antecedent_model::compose::MechanismForm
+impl core::marker::StructuralPartialEq for antecedent_model::compose::MechanismOrigin
+impl core::marker::StructuralPartialEq for antecedent_model::compose::MechanismProvenance
+impl core::marker::StructuralPartialEq for antecedent_model::compose::MechanismUncertainty
+impl core::marker::StructuralPartialEq for antecedent_model::compose::ParameterId
+impl core::marker::StructuralPartialEq for antecedent_model::compose::ParameterTerm
+impl core::marker::StructuralPartialEq for antecedent_model::compose::ParentBinding
+impl core::marker::StructuralPartialEq for antecedent_model::compose::PosteriorDependence
+impl core::marker::StructuralPartialEq for antecedent_model::compose::SampleTable
+impl core::marker::StructuralPartialEq for antecedent_model::compose::SelectionDiagramDeclaration
+impl core::marker::StructuralPartialEq for antecedent_model::compose::SelectionNodeDeclaration
+impl core::marker::StructuralPartialEq for antecedent_model::compose::TabularRow
+impl core::marker::StructuralPartialEq for antecedent_model::compose::UncertaintyMeaning
+impl core::marker::StructuralPartialEq for antecedent_model::compose::uncertainty::ParameterCovariance
+impl core::marker::StructuralPartialEq for antecedent_model::observation_query::BayesPosterior
+impl core::marker::StructuralPartialEq for antecedent_model::observation_query::BetaBernoulli
+impl core::marker::StructuralPartialEq for antecedent_model::observation_query::ConditionalDistribution
+impl core::marker::StructuralPartialEq for antecedent_model::observation_query::ConditioningInterventionPair
+impl core::marker::StructuralPartialEq for antecedent_model::observation_query::Direction
+impl core::marker::StructuralPartialEq for antecedent_model::observation_query::EvidenceRequirement
+impl core::marker::StructuralPartialEq for antecedent_model::observation_query::FiniteBayesModel
+impl core::marker::StructuralPartialEq for antecedent_model::observation_query::MeasuredConditional
+impl core::marker::StructuralPartialEq for antecedent_model::observation_query::ObservationQueryError
+impl core::marker::StructuralPartialEq for antecedent_model::observation_query::RequiredBayesFactor
+impl core::marker::StructuralPartialEq for antecedent_model::observation_query::SignalLevelOutcome
+impl core::marker::StructuralPartialEq for antecedent_model::observation_query::ThresholdCrossing
+impl core::marker::StructuralPartialEq for antecedent_model::observation_query::UnreachableBound
 impl core::marker::Sync for antecedent_model::BasisTerm [auto]
 impl core::marker::Sync for antecedent_model::CompiledCausalModel [auto]
 impl core::marker::Sync for antecedent_model::CompiledMechanismStore [auto]
@@ -210,6 +539,53 @@ impl core::marker::Sync for antecedent_model::SelectionPolicy [auto]
 impl core::marker::Sync for antecedent_model::StructuralCausalModel [auto]
 impl core::marker::Sync for antecedent_model::ValueBatch [auto]
 impl core::marker::Sync for antecedent_model::WeightingDoSampler [auto]
+impl core::marker::Sync for antecedent_model::compose::CoherenceFinding [auto]
+impl core::marker::Sync for antecedent_model::compose::CoherenceKind [auto]
+impl core::marker::Sync for antecedent_model::compose::ComposedFinite [auto]
+impl core::marker::Sync for antecedent_model::compose::ComposedLinearGaussian [auto]
+impl core::marker::Sync for antecedent_model::compose::ComposedModelSpec [auto]
+impl core::marker::Sync for antecedent_model::compose::CompositionError [auto]
+impl core::marker::Sync for antecedent_model::compose::Containment [auto]
+impl core::marker::Sync for antecedent_model::compose::ContextCoordinate [auto]
+impl core::marker::Sync for antecedent_model::compose::ContrastArm [auto]
+impl core::marker::Sync for antecedent_model::compose::CrossCovarianceBlock [auto]
+impl core::marker::Sync for antecedent_model::compose::Domain [auto]
+impl core::marker::Sync for antecedent_model::compose::FiniteLaw [auto]
+impl core::marker::Sync for antecedent_model::compose::FunctionalUncertainty [auto]
+impl core::marker::Sync for antecedent_model::compose::InvarianceDeclaration [auto]
+impl core::marker::Sync for antecedent_model::compose::JointGaussian [auto]
+impl core::marker::Sync for antecedent_model::compose::LatentDependence [auto]
+impl core::marker::Sync for antecedent_model::compose::MeanContrast [auto]
+impl core::marker::Sync for antecedent_model::compose::MechanismContext [auto]
+impl core::marker::Sync for antecedent_model::compose::MechanismDescriptor [auto]
+impl core::marker::Sync for antecedent_model::compose::MechanismFamily [auto]
+impl core::marker::Sync for antecedent_model::compose::MechanismForm [auto]
+impl core::marker::Sync for antecedent_model::compose::MechanismOrigin [auto]
+impl core::marker::Sync for antecedent_model::compose::MechanismProvenance [auto]
+impl core::marker::Sync for antecedent_model::compose::MechanismUncertainty [auto]
+impl core::marker::Sync for antecedent_model::compose::ParameterId [auto]
+impl core::marker::Sync for antecedent_model::compose::ParameterTerm [auto]
+impl core::marker::Sync for antecedent_model::compose::ParentBinding [auto]
+impl core::marker::Sync for antecedent_model::compose::PosteriorDependence [auto]
+impl core::marker::Sync for antecedent_model::compose::SampleTable [auto]
+impl core::marker::Sync for antecedent_model::compose::SelectionDiagramDeclaration [auto]
+impl core::marker::Sync for antecedent_model::compose::SelectionNodeDeclaration [auto]
+impl core::marker::Sync for antecedent_model::compose::TabularRow [auto]
+impl core::marker::Sync for antecedent_model::compose::UncertaintyMeaning [auto]
+impl core::marker::Sync for antecedent_model::compose::uncertainty::ParameterCovariance [auto]
+impl core::marker::Sync for antecedent_model::observation_query::BayesPosterior [auto]
+impl core::marker::Sync for antecedent_model::observation_query::BetaBernoulli [auto]
+impl core::marker::Sync for antecedent_model::observation_query::ConditionalDistribution [auto]
+impl core::marker::Sync for antecedent_model::observation_query::ConditioningInterventionPair [auto]
+impl core::marker::Sync for antecedent_model::observation_query::Direction [auto]
+impl core::marker::Sync for antecedent_model::observation_query::EvidenceRequirement [auto]
+impl core::marker::Sync for antecedent_model::observation_query::FiniteBayesModel [auto]
+impl core::marker::Sync for antecedent_model::observation_query::MeasuredConditional [auto]
+impl core::marker::Sync for antecedent_model::observation_query::ObservationQueryError [auto]
+impl core::marker::Sync for antecedent_model::observation_query::RequiredBayesFactor [auto]
+impl core::marker::Sync for antecedent_model::observation_query::SignalLevelOutcome [auto]
+impl core::marker::Sync for antecedent_model::observation_query::ThresholdCrossing [auto]
+impl core::marker::Sync for antecedent_model::observation_query::UnreachableBound [auto]
 impl core::marker::Unpin for antecedent_model::BasisTerm [auto]
 impl core::marker::Unpin for antecedent_model::CompiledCausalModel [auto]
 impl core::marker::Unpin for antecedent_model::CompiledMechanismStore [auto]
@@ -240,6 +616,53 @@ impl core::marker::Unpin for antecedent_model::SelectionPolicy [auto]
 impl core::marker::Unpin for antecedent_model::StructuralCausalModel [auto]
 impl core::marker::Unpin for antecedent_model::ValueBatch [auto]
 impl core::marker::Unpin for antecedent_model::WeightingDoSampler [auto]
+impl core::marker::Unpin for antecedent_model::compose::CoherenceFinding [auto]
+impl core::marker::Unpin for antecedent_model::compose::CoherenceKind [auto]
+impl core::marker::Unpin for antecedent_model::compose::ComposedFinite [auto]
+impl core::marker::Unpin for antecedent_model::compose::ComposedLinearGaussian [auto]
+impl core::marker::Unpin for antecedent_model::compose::ComposedModelSpec [auto]
+impl core::marker::Unpin for antecedent_model::compose::CompositionError [auto]
+impl core::marker::Unpin for antecedent_model::compose::Containment [auto]
+impl core::marker::Unpin for antecedent_model::compose::ContextCoordinate [auto]
+impl core::marker::Unpin for antecedent_model::compose::ContrastArm [auto]
+impl core::marker::Unpin for antecedent_model::compose::CrossCovarianceBlock [auto]
+impl core::marker::Unpin for antecedent_model::compose::Domain [auto]
+impl core::marker::Unpin for antecedent_model::compose::FiniteLaw [auto]
+impl core::marker::Unpin for antecedent_model::compose::FunctionalUncertainty [auto]
+impl core::marker::Unpin for antecedent_model::compose::InvarianceDeclaration [auto]
+impl core::marker::Unpin for antecedent_model::compose::JointGaussian [auto]
+impl core::marker::Unpin for antecedent_model::compose::LatentDependence [auto]
+impl core::marker::Unpin for antecedent_model::compose::MeanContrast [auto]
+impl core::marker::Unpin for antecedent_model::compose::MechanismContext [auto]
+impl core::marker::Unpin for antecedent_model::compose::MechanismDescriptor [auto]
+impl core::marker::Unpin for antecedent_model::compose::MechanismFamily [auto]
+impl core::marker::Unpin for antecedent_model::compose::MechanismForm [auto]
+impl core::marker::Unpin for antecedent_model::compose::MechanismOrigin [auto]
+impl core::marker::Unpin for antecedent_model::compose::MechanismProvenance [auto]
+impl core::marker::Unpin for antecedent_model::compose::MechanismUncertainty [auto]
+impl core::marker::Unpin for antecedent_model::compose::ParameterId [auto]
+impl core::marker::Unpin for antecedent_model::compose::ParameterTerm [auto]
+impl core::marker::Unpin for antecedent_model::compose::ParentBinding [auto]
+impl core::marker::Unpin for antecedent_model::compose::PosteriorDependence [auto]
+impl core::marker::Unpin for antecedent_model::compose::SampleTable [auto]
+impl core::marker::Unpin for antecedent_model::compose::SelectionDiagramDeclaration [auto]
+impl core::marker::Unpin for antecedent_model::compose::SelectionNodeDeclaration [auto]
+impl core::marker::Unpin for antecedent_model::compose::TabularRow [auto]
+impl core::marker::Unpin for antecedent_model::compose::UncertaintyMeaning [auto]
+impl core::marker::Unpin for antecedent_model::compose::uncertainty::ParameterCovariance [auto]
+impl core::marker::Unpin for antecedent_model::observation_query::BayesPosterior [auto]
+impl core::marker::Unpin for antecedent_model::observation_query::BetaBernoulli [auto]
+impl core::marker::Unpin for antecedent_model::observation_query::ConditionalDistribution [auto]
+impl core::marker::Unpin for antecedent_model::observation_query::ConditioningInterventionPair [auto]
+impl core::marker::Unpin for antecedent_model::observation_query::Direction [auto]
+impl core::marker::Unpin for antecedent_model::observation_query::EvidenceRequirement [auto]
+impl core::marker::Unpin for antecedent_model::observation_query::FiniteBayesModel [auto]
+impl core::marker::Unpin for antecedent_model::observation_query::MeasuredConditional [auto]
+impl core::marker::Unpin for antecedent_model::observation_query::ObservationQueryError [auto]
+impl core::marker::Unpin for antecedent_model::observation_query::RequiredBayesFactor [auto]
+impl core::marker::Unpin for antecedent_model::observation_query::SignalLevelOutcome [auto]
+impl core::marker::Unpin for antecedent_model::observation_query::ThresholdCrossing [auto]
+impl core::marker::Unpin for antecedent_model::observation_query::UnreachableBound [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::BasisTerm [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::DoSampleResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::InterventionOverlay [auto]
@@ -262,6 +685,53 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::PredictiveDra
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::SelectionPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ValueBatch [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::WeightingDoSampler [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::CoherenceFinding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::CoherenceKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::ComposedFinite [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::ComposedLinearGaussian [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::ComposedModelSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::CompositionError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::Containment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::ContextCoordinate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::ContrastArm [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::CrossCovarianceBlock [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::Domain [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::FiniteLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::FunctionalUncertainty [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::InvarianceDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::JointGaussian [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::LatentDependence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::MeanContrast [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::MechanismContext [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::MechanismDescriptor [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::MechanismFamily [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::MechanismForm [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::MechanismOrigin [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::MechanismProvenance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::MechanismUncertainty [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::ParameterId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::ParameterTerm [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::ParentBinding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::PosteriorDependence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::SampleTable [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::SelectionDiagramDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::SelectionNodeDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::TabularRow [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::UncertaintyMeaning [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::compose::uncertainty::ParameterCovariance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::BayesPosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::BetaBernoulli [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::ConditionalDistribution [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::ConditioningInterventionPair [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::Direction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::EvidenceRequirement [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::FiniteBayesModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::MeasuredConditional [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::ObservationQueryError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::RequiredBayesFactor [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::SignalLevelOutcome [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::ThresholdCrossing [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::UnreachableBound [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::BasisTerm [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::DoSampleResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::InterventionOverlay [auto]
@@ -284,6 +754,53 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::PredictiveDraws 
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::SelectionPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ValueBatch [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::WeightingDoSampler [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::CoherenceFinding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::CoherenceKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::ComposedFinite [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::ComposedLinearGaussian [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::ComposedModelSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::CompositionError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::Containment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::ContextCoordinate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::ContrastArm [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::CrossCovarianceBlock [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::Domain [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::FiniteLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::FunctionalUncertainty [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::InvarianceDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::JointGaussian [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::LatentDependence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::MeanContrast [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::MechanismContext [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::MechanismDescriptor [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::MechanismFamily [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::MechanismForm [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::MechanismOrigin [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::MechanismProvenance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::MechanismUncertainty [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::ParameterId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::ParameterTerm [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::ParentBinding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::PosteriorDependence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::SampleTable [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::SelectionDiagramDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::SelectionNodeDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::TabularRow [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::UncertaintyMeaning [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::compose::uncertainty::ParameterCovariance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::BayesPosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::BetaBernoulli [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::ConditionalDistribution [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::ConditioningInterventionPair [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::Direction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::EvidenceRequirement [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::FiniteBayesModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::MeasuredConditional [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::ObservationQueryError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::RequiredBayesFactor [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::SignalLevelOutcome [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::ThresholdCrossing [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::UnreachableBound [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ModelView<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_model::ModelView<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_model::NoiseBatchMut<'a> [auto]
@@ -324,9 +841,25 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ParentBat
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ValueBatchMut<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_model::ConditionEvidence<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_model::ParentBatch<'a> [auto]
+pub const <antecedent_model::compose::CoherenceKind>::ALL: [antecedent_model::compose::CoherenceKind; 15]
 pub const antecedent_model::VERSION: &str
 pub const antecedent_model::basis::SPLINE_KNOT_QUANTILES: [f64; 3]
 pub const antecedent_model::basis::SPLINE_MIN_DISTINCT: usize
+pub const antecedent_model::compose::COMPOSITION_STREAM_DOMAIN: antecedent_core::execution::StreamDomain
+pub const antecedent_model::compose::COVARIANCE_TOLERANCE: f64
+pub const antecedent_model::compose::MAX_COMPOSED_LATENTS: usize
+pub const antecedent_model::compose::MAX_COMPOSED_MECHANISMS: usize
+pub const antecedent_model::compose::MAX_FINITE_STATES: usize
+pub const antecedent_model::compose::MAX_LEVELS_PER_VARIABLE: usize
+pub const antecedent_model::compose::MAX_PARENTS_PER_MECHANISM: usize
+pub const antecedent_model::compose::MAX_SAMPLE_CELLS: usize
+pub const antecedent_model::compose::MECHANISM_DESCRIPTOR_VERSION: u32
+pub const antecedent_model::observation_query::LEVEL_TOLERANCE: f64
+pub const antecedent_model::observation_query::MAX_BAYES_HYPOTHESES: usize
+pub const antecedent_model::observation_query::MAX_BAYES_OBSERVATION_LEVELS: usize
+pub const antecedent_model::observation_query::MAX_BAYES_SEQUENCE: usize
+pub const antecedent_model::observation_query::MAX_REQUIRED_OBSERVATIONS: u64
+pub const antecedent_model::observation_query::SIMPLEX_TOLERANCE: f64
 pub const fn antecedent_model::mechanism::reference_noise(slot: &antecedent_model::MechanismSlot) -> f64
 pub enum antecedent_model::BasisTerm
 pub enum antecedent_model::MechanismFamily
@@ -334,6 +867,17 @@ pub enum antecedent_model::MechanismSlot
 pub enum antecedent_model::MechanismTyping
 pub enum antecedent_model::NoiseInferenceMode
 pub enum antecedent_model::SelectionPolicy
+pub enum antecedent_model::compose::CoherenceKind
+pub enum antecedent_model::compose::Containment
+pub enum antecedent_model::compose::ContextCoordinate
+pub enum antecedent_model::compose::Domain
+pub enum antecedent_model::compose::MechanismFamily
+pub enum antecedent_model::compose::MechanismForm
+pub enum antecedent_model::compose::MechanismOrigin
+pub enum antecedent_model::compose::ParameterTerm
+pub enum antecedent_model::compose::PosteriorDependence
+pub enum antecedent_model::compose::UncertaintyMeaning
+pub enum antecedent_model::observation_query::Direction
 pub field antecedent_model::CompiledCausalModel::graph: alloc::sync::Arc<antecedent_graph::dag::Dag>
 pub field antecedent_model::CompiledCausalModel::mechanisms: antecedent_model::CompiledMechanismStore
 pub field antecedent_model::CompiledCausalModel::node_order: alloc::sync::Arc<[antecedent_graph::types::DenseNodeId]>
@@ -419,6 +963,110 @@ pub field antecedent_model::ValueBatchMut::n_rows: usize
 pub field antecedent_model::ValueBatchMut::values: &'a mut [f64]
 pub field antecedent_model::WeightingDoSampler::outcome: antecedent_core::ids::VariableId
 pub field antecedent_model::WeightingDoSampler::treatment: antecedent_core::ids::VariableId
+pub field antecedent_model::compose::CoherenceFinding::detail: &'static str
+pub field antecedent_model::compose::CoherenceFinding::expected: core::option::Option<alloc::string::String>
+pub field antecedent_model::compose::CoherenceFinding::kind: antecedent_model::compose::CoherenceKind
+pub field antecedent_model::compose::CoherenceFinding::remedy: &'static str
+pub field antecedent_model::compose::CoherenceFinding::subject: alloc::string::String
+pub field antecedent_model::compose::CoherenceFinding::supplied: core::option::Option<alloc::string::String>
+pub field antecedent_model::compose::ComposedModelSpec::admit_declared_mechanisms: bool
+pub field antecedent_model::compose::ComposedModelSpec::dependence: antecedent_model::compose::PosteriorDependence
+pub field antecedent_model::compose::ComposedModelSpec::edges: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub field antecedent_model::compose::ComposedModelSpec::invariances: alloc::vec::Vec<antecedent_model::compose::InvarianceDeclaration>
+pub field antecedent_model::compose::ComposedModelSpec::mechanisms: alloc::vec::Vec<antecedent_model::compose::MechanismDescriptor>
+pub field antecedent_model::compose::ComposedModelSpec::selection_diagrams: alloc::vec::Vec<antecedent_model::compose::SelectionDiagramDeclaration>
+pub field antecedent_model::compose::ComposedModelSpec::target: antecedent_model::compose::MechanismContext
+pub field antecedent_model::compose::ContrastArm::interventions: alloc::vec::Vec<(alloc::string::String, f64)>
+pub field antecedent_model::compose::ContrastArm::weight: f64
+pub field antecedent_model::compose::CrossCovarianceBlock::first: alloc::string::String
+pub field antecedent_model::compose::CrossCovarianceBlock::first_parameters: alloc::vec::Vec<antecedent_model::compose::ParameterTerm>
+pub field antecedent_model::compose::CrossCovarianceBlock::second: alloc::string::String
+pub field antecedent_model::compose::CrossCovarianceBlock::second_parameters: alloc::vec::Vec<antecedent_model::compose::ParameterTerm>
+pub field antecedent_model::compose::CrossCovarianceBlock::values: alloc::vec::Vec<f64>
+pub field antecedent_model::compose::FunctionalUncertainty::dependence: &'static str
+pub field antecedent_model::compose::FunctionalUncertainty::gradient: alloc::vec::Vec<(antecedent_model::compose::ParameterId, f64)>
+pub field antecedent_model::compose::FunctionalUncertainty::meaning: core::option::Option<antecedent_model::compose::UncertaintyMeaning>
+pub field antecedent_model::compose::FunctionalUncertainty::method: &'static str
+pub field antecedent_model::compose::FunctionalUncertainty::point: f64
+pub field antecedent_model::compose::FunctionalUncertainty::standard_error: f64
+pub field antecedent_model::compose::FunctionalUncertainty::variance: f64
+pub field antecedent_model::compose::InvarianceDeclaration::assumption_id: alloc::string::String
+pub field antecedent_model::compose::InvarianceDeclaration::coordinate: antecedent_model::compose::ContextCoordinate
+pub field antecedent_model::compose::InvarianceDeclaration::source: alloc::string::String
+pub field antecedent_model::compose::InvarianceDeclaration::target: alloc::string::String
+pub field antecedent_model::compose::InvarianceDeclaration::variable: alloc::string::String
+pub field antecedent_model::compose::LatentDependence::latent: alloc::string::String
+pub field antecedent_model::compose::LatentDependence::loading: core::option::Option<f64>
+pub field antecedent_model::compose::LatentDependence::shared_with: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_model::compose::MeanContrast::arms: alloc::vec::Vec<antecedent_model::compose::ContrastArm>
+pub field antecedent_model::compose::MeanContrast::outcome: alloc::string::String
+pub field antecedent_model::compose::MechanismContext::population: alloc::string::String
+pub field antecedent_model::compose::MechanismContext::regime: alloc::string::String
+pub field antecedent_model::compose::MechanismDescriptor::conditioning_set: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_model::compose::MechanismDescriptor::context: antecedent_model::compose::MechanismContext
+pub field antecedent_model::compose::MechanismDescriptor::form: antecedent_model::compose::MechanismForm
+pub field antecedent_model::compose::MechanismDescriptor::latents: alloc::vec::Vec<antecedent_model::compose::LatentDependence>
+pub field antecedent_model::compose::MechanismDescriptor::output_support: antecedent_model::compose::Domain
+pub field antecedent_model::compose::MechanismDescriptor::output_transform: alloc::string::String
+pub field antecedent_model::compose::MechanismDescriptor::output_units: alloc::string::String
+pub field antecedent_model::compose::MechanismDescriptor::parents: alloc::vec::Vec<antecedent_model::compose::ParentBinding>
+pub field antecedent_model::compose::MechanismDescriptor::provenance: antecedent_model::compose::MechanismProvenance
+pub field antecedent_model::compose::MechanismDescriptor::uncertainty: core::option::Option<antecedent_model::compose::MechanismUncertainty>
+pub field antecedent_model::compose::MechanismDescriptor::variable: alloc::string::String
+pub field antecedent_model::compose::MechanismProvenance::artifact_id: alloc::string::String
+pub field antecedent_model::compose::MechanismProvenance::evidence_id: alloc::string::String
+pub field antecedent_model::compose::MechanismProvenance::origin: antecedent_model::compose::MechanismOrigin
+pub field antecedent_model::compose::MechanismUncertainty::covariance: alloc::vec::Vec<f64>
+pub field antecedent_model::compose::MechanismUncertainty::meaning: antecedent_model::compose::UncertaintyMeaning
+pub field antecedent_model::compose::MechanismUncertainty::parameters: alloc::vec::Vec<antecedent_model::compose::ParameterTerm>
+pub field antecedent_model::compose::ParameterId::mechanism: alloc::string::String
+pub field antecedent_model::compose::ParameterId::term: antecedent_model::compose::ParameterTerm
+pub field antecedent_model::compose::ParentBinding::domain: antecedent_model::compose::Domain
+pub field antecedent_model::compose::ParentBinding::transform: alloc::string::String
+pub field antecedent_model::compose::ParentBinding::units: alloc::string::String
+pub field antecedent_model::compose::ParentBinding::variable: alloc::string::String
+pub field antecedent_model::compose::SampleTable::columns: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_model::compose::SampleTable::variables: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_model::compose::SelectionDiagramDeclaration::selection_nodes: alloc::vec::Vec<antecedent_model::compose::SelectionNodeDeclaration>
+pub field antecedent_model::compose::SelectionDiagramDeclaration::source_population: alloc::string::String
+pub field antecedent_model::compose::SelectionDiagramDeclaration::target_population: alloc::string::String
+pub field antecedent_model::compose::SelectionNodeDeclaration::name: alloc::string::String
+pub field antecedent_model::compose::SelectionNodeDeclaration::points_into: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_model::compose::TabularRow::parent_levels: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub field antecedent_model::compose::TabularRow::probabilities: alloc::vec::Vec<(alloc::string::String, f64)>
+pub field antecedent_model::compose::uncertainty::ParameterCovariance::covariance: alloc::vec::Vec<f64>
+pub field antecedent_model::compose::uncertainty::ParameterCovariance::dependence_label: &'static str
+pub field antecedent_model::compose::uncertainty::ParameterCovariance::parameters: alloc::vec::Vec<antecedent_model::compose::ParameterId>
+pub field antecedent_model::observation_query::BayesPosterior::evidence_probability: f64
+pub field antecedent_model::observation_query::BayesPosterior::hypotheses: alloc::vec::Vec<(alloc::string::String, f64)>
+pub field antecedent_model::observation_query::BayesPosterior::log_evidence: f64
+pub field antecedent_model::observation_query::BayesPosterior::predictive: alloc::vec::Vec<(alloc::string::String, f64)>
+pub field antecedent_model::observation_query::ConditionalDistribution::evidence_probability: f64
+pub field antecedent_model::observation_query::ConditionalDistribution::levels: alloc::vec::Vec<(alloc::string::String, f64)>
+pub field antecedent_model::observation_query::ConditionalDistribution::outcome: alloc::string::String
+pub field antecedent_model::observation_query::ConditioningInterventionPair::conditioning: antecedent_model::observation_query::ConditionalDistribution
+pub field antecedent_model::observation_query::ConditioningInterventionPair::intervention: alloc::vec::Vec<(alloc::string::String, f64)>
+pub field antecedent_model::observation_query::ConditioningInterventionPair::max_abs_difference: f64
+pub field antecedent_model::observation_query::EvidenceRequirement::already_satisfied: bool
+pub field antecedent_model::observation_query::EvidenceRequirement::bayes_factor_per_observation: core::option::Option<f64>
+pub field antecedent_model::observation_query::EvidenceRequirement::direction: antecedent_model::observation_query::Direction
+pub field antecedent_model::observation_query::EvidenceRequirement::observations: u64
+pub field antecedent_model::observation_query::EvidenceRequirement::value_at_requirement: f64
+pub field antecedent_model::observation_query::MeasuredConditional::construct_posterior: alloc::vec::Vec<(alloc::string::String, f64)>
+pub field antecedent_model::observation_query::MeasuredConditional::evidence_probability: f64
+pub field antecedent_model::observation_query::MeasuredConditional::outcome: alloc::vec::Vec<(alloc::string::String, f64)>
+pub field antecedent_model::observation_query::RequiredBayesFactor::already_satisfied: bool
+pub field antecedent_model::observation_query::RequiredBayesFactor::direction: antecedent_model::observation_query::Direction
+pub field antecedent_model::observation_query::RequiredBayesFactor::factor: f64
+pub field antecedent_model::observation_query::SignalLevelOutcome::conditional: f64
+pub field antecedent_model::observation_query::SignalLevelOutcome::crosses: bool
+pub field antecedent_model::observation_query::SignalLevelOutcome::level: alloc::string::String
+pub field antecedent_model::observation_query::SignalLevelOutcome::probability: f64
+pub field antecedent_model::observation_query::ThresholdCrossing::crossing_probability: f64
+pub field antecedent_model::observation_query::ThresholdCrossing::direction: antecedent_model::observation_query::Direction
+pub field antecedent_model::observation_query::ThresholdCrossing::levels: alloc::vec::Vec<antecedent_model::observation_query::SignalLevelOutcome>
+pub field antecedent_model::observation_query::ThresholdCrossing::outcome_level: alloc::string::String
+pub field antecedent_model::observation_query::ThresholdCrossing::threshold: f64
 pub fn <antecedent_model::CompiledCausalModel>::fn compile(graph: antecedent_graph::dag::Dag) -> core::result::Result<Self, antecedent_model::ModelError>
 pub fn <antecedent_model::CompiledCausalModel>::fn dense_of(&self, var: antecedent_core::ids::VariableId) -> core::option::Option<antecedent_graph::types::DenseNodeId>
 pub fn <antecedent_model::CompiledCausalModel>::fn gather_for(&self, child: antecedent_graph::types::DenseNodeId) -> core::option::Option<&antecedent_model::ParentGatherPlan>
@@ -493,8 +1141,62 @@ pub fn <antecedent_model::ValueBatchMut<'a>>::fn set(&mut self, row: usize, node
 pub fn <antecedent_model::WeightingDoSampler>::fn estimate(&self, model: &antecedent_model::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, treatment_value: f64, _ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::DoSampleResult, antecedent_model::ModelError>
 pub fn <antecedent_model::WeightingDoSampler>::fn new(treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId) -> Self
 pub fn <antecedent_model::WeightingDoSampler>::fn weighted_mean(result: &antecedent_model::DoSampleResult) -> f64
+pub fn <antecedent_model::compose::CoherenceKind>::const fn tag(self) -> &'static str
+pub fn <antecedent_model::compose::CoherenceKind>::fn reason_code(self) -> &'static str
+pub fn <antecedent_model::compose::ComposedFinite>::fn compile(spec: &antecedent_model::compose::ComposedModelSpec) -> core::result::Result<Self, antecedent_model::compose::CompositionError>
+pub fn <antecedent_model::compose::ComposedFinite>::fn law(&self, interventions: &[(&str, &str)], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::compose::FiniteLaw, antecedent_model::compose::CompositionError>
+pub fn <antecedent_model::compose::ComposedFinite>::fn sample(&self, interventions: &[(&str, &str)], n_rows: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<usize>>, antecedent_model::compose::CompositionError>
+pub fn <antecedent_model::compose::ComposedFinite>::fn spec(&self) -> &antecedent_model::compose::ComposedModelSpec
+pub fn <antecedent_model::compose::ComposedFinite>::fn variables(&self) -> &[alloc::string::String]
+pub fn <antecedent_model::compose::ComposedLinearGaussian>::fn compile(spec: &antecedent_model::compose::ComposedModelSpec) -> core::result::Result<Self, antecedent_model::compose::CompositionError>
+pub fn <antecedent_model::compose::ComposedLinearGaussian>::fn law(&self, interventions: &[(&str, f64)]) -> core::result::Result<antecedent_model::compose::JointGaussian, antecedent_model::compose::CompositionError>
+pub fn <antecedent_model::compose::ComposedLinearGaussian>::fn mean_contrast(&self, contrast: &antecedent_model::compose::MeanContrast) -> core::result::Result<f64, antecedent_model::compose::CompositionError>
+pub fn <antecedent_model::compose::ComposedLinearGaussian>::fn mean_contrast_uncertainty(&self, contrast: &antecedent_model::compose::MeanContrast) -> core::result::Result<antecedent_model::compose::FunctionalUncertainty, antecedent_model::compose::CompositionError>
+pub fn <antecedent_model::compose::ComposedLinearGaussian>::fn sample(&self, interventions: &[(&str, f64)], n_rows: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::compose::SampleTable, antecedent_model::compose::CompositionError>
+pub fn <antecedent_model::compose::ComposedLinearGaussian>::fn spec(&self) -> &antecedent_model::compose::ComposedModelSpec
+pub fn <antecedent_model::compose::ComposedLinearGaussian>::fn topological_order(&self) -> &[usize]
+pub fn <antecedent_model::compose::ComposedLinearGaussian>::fn variables(&self) -> &[alloc::string::String]
+pub fn <antecedent_model::compose::ComposedModelSpec>::fn canonical(&self) -> Self
+pub fn <antecedent_model::compose::CompositionError>::fn findings(&self) -> &[antecedent_model::compose::CoherenceFinding]
+pub fn <antecedent_model::compose::Domain>::fn contained_in(&self, outer: &Self) -> antecedent_model::compose::Containment
+pub fn <antecedent_model::compose::Domain>::fn contains_value(&self, value: f64) -> bool
+pub fn <antecedent_model::compose::Domain>::fn describe(&self) -> alloc::string::String
+pub fn <antecedent_model::compose::Domain>::fn validate(&self) -> core::result::Result<(), &'static str>
+pub fn <antecedent_model::compose::FiniteLaw>::fn levels(&self) -> &[alloc::vec::Vec<alloc::string::String>]
+pub fn <antecedent_model::compose::FiniteLaw>::fn marginal(&self, variable: &str) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, f64)>, antecedent_model::compose::CompositionError>
+pub fn <antecedent_model::compose::FiniteLaw>::fn probabilities(&self) -> &[f64]
+pub fn <antecedent_model::compose::FiniteLaw>::fn probability(&self, event: &[(&str, &str)]) -> core::result::Result<f64, antecedent_model::compose::CompositionError>
+pub fn <antecedent_model::compose::FiniteLaw>::fn variables(&self) -> &[alloc::string::String]
+pub fn <antecedent_model::compose::JointGaussian>::fn covariance_matrix(&self) -> &[f64]
+pub fn <antecedent_model::compose::JointGaussian>::fn covariance_of(&self, a: &str, b: &str) -> core::option::Option<f64>
+pub fn <antecedent_model::compose::JointGaussian>::fn mean(&self) -> &[f64]
+pub fn <antecedent_model::compose::JointGaussian>::fn mean_of(&self, variable: &str) -> core::option::Option<f64>
+pub fn <antecedent_model::compose::JointGaussian>::fn variables(&self) -> &[alloc::string::String]
+pub fn <antecedent_model::compose::JointGaussian>::fn variance_of(&self, variable: &str) -> core::option::Option<f64>
+pub fn <antecedent_model::compose::MechanismDescriptor>::fn canonical(&self) -> Self
+pub fn <antecedent_model::compose::MechanismForm>::fn family(&self) -> antecedent_model::compose::MechanismFamily
+pub fn <antecedent_model::observation_query::BetaBernoulli>::const fn alpha(&self) -> f64
+pub fn <antecedent_model::observation_query::BetaBernoulli>::const fn beta(&self) -> f64
+pub fn <antecedent_model::observation_query::BetaBernoulli>::fn mean(&self) -> f64
+pub fn <antecedent_model::observation_query::BetaBernoulli>::fn new(alpha: f64, beta: f64) -> core::result::Result<Self, antecedent_model::observation_query::ObservationQueryError>
+pub fn <antecedent_model::observation_query::BetaBernoulli>::fn update(&self, successes: u64, failures: u64) -> core::result::Result<Self, antecedent_model::observation_query::ObservationQueryError>
+pub fn <antecedent_model::observation_query::Direction>::const fn as_str(self) -> &'static str
+pub fn <antecedent_model::observation_query::Direction>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_model::observation_query::FiniteBayesModel>::fn hypotheses(&self) -> &[alloc::string::String]
+pub fn <antecedent_model::observation_query::FiniteBayesModel>::fn likelihood(&self) -> &[f64]
+pub fn <antecedent_model::observation_query::FiniteBayesModel>::fn new(hypotheses: alloc::vec::Vec<alloc::string::String>, prior: alloc::vec::Vec<f64>, observation_levels: alloc::vec::Vec<alloc::string::String>, likelihood: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_model::observation_query::ObservationQueryError>
+pub fn <antecedent_model::observation_query::FiniteBayesModel>::fn observation_levels(&self) -> &[alloc::string::String]
+pub fn <antecedent_model::observation_query::FiniteBayesModel>::fn posterior(&self, observations: &[&str]) -> core::result::Result<antecedent_model::observation_query::BayesPosterior, antecedent_model::observation_query::ObservationQueryError>
+pub fn <antecedent_model::observation_query::FiniteBayesModel>::fn prior(&self) -> &[f64]
 pub fn antecedent_model::basis::column_moments(columns: &[&[f64]], n_rows: usize) -> (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)
 pub fn antecedent_model::basis::spline_knots(columns: &[&[f64]], n_rows: usize, centers: &[f64], scales: &[f64]) -> alloc::vec::Vec<alloc::sync::Arc<[f64]>>
+pub fn antecedent_model::compose::check_composition(spec: &antecedent_model::compose::ComposedModelSpec) -> alloc::vec::Vec<antecedent_model::compose::CoherenceFinding>
+pub fn antecedent_model::compose::coherence::is_positive_semidefinite(matrix: &[f64], n: usize) -> bool
+pub fn antecedent_model::compose::coherence::parameter_layout(spec: &antecedent_model::compose::ComposedModelSpec) -> alloc::vec::Vec<antecedent_model::compose::ParameterId>
+pub fn antecedent_model::compose::coherence::parameter_terms(descriptor: &antecedent_model::compose::MechanismDescriptor) -> alloc::vec::Vec<antecedent_model::compose::ParameterTerm>
+pub fn antecedent_model::compose::coherence::uncertainty_findings(spec: &antecedent_model::compose::ComposedModelSpec) -> alloc::vec::Vec<antecedent_model::compose::CoherenceFinding>
+pub fn antecedent_model::compose::noise_stream_index(role: u64, name: &str) -> u64
+pub fn antecedent_model::compose::uncertainty::assemble_parameter_covariance(spec: &antecedent_model::compose::ComposedModelSpec) -> core::result::Result<antecedent_model::compose::uncertainty::ParameterCovariance, alloc::vec::Vec<antecedent_model::compose::CoherenceFinding>>
 pub fn antecedent_model::do_sampler::interventional_mean(model: &antecedent_model::CompiledCausalModel, interventions: &[antecedent_core::intervention::Intervention], outcome: antecedent_core::ids::VariableId, n_draws: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<f64, antecedent_model::ModelError>
 pub fn antecedent_model::evaluate_batch_topo(order: &[antecedent_graph::types::DenseNodeId], gathers: &[antecedent_model::ParentGatherPlan], slots: &[antecedent_model::MechanismSlot], noise: &antecedent_model::NoiseBatchMut<'_>, values: &mut antecedent_model::ValueBatchMut<'_>, ws: &mut antecedent_model::MechanismWorkspace) -> core::result::Result<(), antecedent_model::ModelError>
 pub fn antecedent_model::evaluate_column(slot: &antecedent_model::MechanismSlot, parents: antecedent_model::ParentBatch<'_>, noise: &[f64], output: &mut [f64], ws: &mut antecedent_model::MechanismWorkspace) -> core::result::Result<(), antecedent_model::ModelError>
@@ -504,6 +1206,14 @@ pub fn antecedent_model::kalman_filter(y: &[f64], a: f64, process_var: f64, obs_
 pub fn antecedent_model::lgssm::rts_smooth(a: f64, x_f: &[f64], p_f: &[f64], x_pred: &[f64], p_pred: &[f64]) -> (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)
 pub fn antecedent_model::log_prob_column(slot: &antecedent_model::MechanismSlot, values: &[f64], parents: antecedent_model::ParentBatch<'_>, output: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
 pub fn antecedent_model::mechanism::sample_noise_column(slot: &antecedent_model::MechanismSlot, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, output: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
+pub fn antecedent_model::observation_query::condition(law: &antecedent_model::compose::FiniteLaw, outcome: &str, observed: &[(&str, &str)], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::observation_query::ConditionalDistribution, antecedent_model::observation_query::ObservationQueryError>
+pub fn antecedent_model::observation_query::condition_on_measured(law: &antecedent_model::compose::FiniteLaw, outcome: &str, construct: &str, observed: &[(&str, &str)], likelihood: &[f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::observation_query::MeasuredConditional, antecedent_model::observation_query::ObservationQueryError>
+pub fn antecedent_model::observation_query::conditioning_and_intervention(model: &antecedent_model::compose::ComposedFinite, outcome: &str, assignment: &[(&str, &str)], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::observation_query::ConditioningInterventionPair, antecedent_model::observation_query::ObservationQueryError>
+pub fn antecedent_model::observation_query::intervene(model: &antecedent_model::compose::ComposedFinite, outcome: &str, interventions: &[(&str, &str)], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, f64)>, antecedent_model::observation_query::ObservationQueryError>
+pub fn antecedent_model::observation_query::observations_required_binary_signal(prior: f64, level: f64, direction: antecedent_model::observation_query::Direction, rate_given_hypothesis: f64, rate_given_complement: f64, max_observations: u64) -> core::result::Result<antecedent_model::observation_query::EvidenceRequirement, antecedent_model::observation_query::ObservationQueryError>
+pub fn antecedent_model::observation_query::observations_required_conjugate(prior: &antecedent_model::observation_query::BetaBernoulli, level: f64, direction: antecedent_model::observation_query::Direction, max_observations: u64) -> core::result::Result<antecedent_model::observation_query::EvidenceRequirement, antecedent_model::observation_query::ObservationQueryError>
+pub fn antecedent_model::observation_query::required_bayes_factor(prior: f64, level: f64, direction: antecedent_model::observation_query::Direction) -> core::result::Result<antecedent_model::observation_query::RequiredBayesFactor, antecedent_model::observation_query::ObservationQueryError>
+pub fn antecedent_model::observation_query::threshold_crossing_observations(law: &antecedent_model::compose::FiniteLaw, outcome: &str, outcome_level: &str, signal: &str, background: &[(&str, &str)], threshold: f64, direction: antecedent_model::observation_query::Direction, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::observation_query::ThresholdCrossing, antecedent_model::observation_query::ObservationQueryError>
 pub fn antecedent_model::refuse_cross_family_soft(existing: &antecedent_model::MechanismSlot, soft: &antecedent_core::intervention::MechanismOverride) -> core::result::Result<(), antecedent_model::ModelError>
 pub fn antecedent_model::sample::sample_conditional_interventional(model: &antecedent_model::CompiledCausalModel, interventions: &[antecedent_core::intervention::Intervention], evidence: &antecedent_model::ConditionEvidence<'_>, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::ValueBatch, antecedent_model::ModelError>
 pub fn antecedent_model::sample::sample_interventional(model: &antecedent_model::CompiledCausalModel, interventions: &[antecedent_core::intervention::Intervention], n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, _ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::ValueBatch, antecedent_model::ModelError>
@@ -517,12 +1227,19 @@ pub fn antecedent_model::sample::soft_to_slot(soft: &antecedent_core::interventi
 pub mod antecedent_model::basis
 pub mod antecedent_model::batch
 pub mod antecedent_model::compile
+pub mod antecedent_model::compose
+pub mod antecedent_model::compose::coherence
+pub mod antecedent_model::compose::descriptor
+pub mod antecedent_model::compose::gaussian
+pub mod antecedent_model::compose::tabular
+pub mod antecedent_model::compose::uncertainty
 pub mod antecedent_model::do_sampler
 pub mod antecedent_model::error
 pub mod antecedent_model::evaluate
 pub mod antecedent_model::lgssm
 pub mod antecedent_model::mechanism
 pub mod antecedent_model::model_collection
+pub mod antecedent_model::observation_query
 pub mod antecedent_model::overlay
 pub mod antecedent_model::registry
 pub mod antecedent_model::sample
@@ -556,6 +1273,45 @@ pub struct antecedent_model::StructuralCausalModel
 pub struct antecedent_model::ValueBatch
 pub struct antecedent_model::ValueBatchMut<'a>
 pub struct antecedent_model::WeightingDoSampler
+pub struct antecedent_model::compose::CoherenceFinding
+pub struct antecedent_model::compose::ComposedFinite
+pub struct antecedent_model::compose::ComposedFinite has private fields
+pub struct antecedent_model::compose::ComposedLinearGaussian
+pub struct antecedent_model::compose::ComposedLinearGaussian has private fields
+pub struct antecedent_model::compose::ComposedModelSpec
+pub struct antecedent_model::compose::ContrastArm
+pub struct antecedent_model::compose::CrossCovarianceBlock
+pub struct antecedent_model::compose::FiniteLaw
+pub struct antecedent_model::compose::FiniteLaw has private fields
+pub struct antecedent_model::compose::FunctionalUncertainty
+pub struct antecedent_model::compose::InvarianceDeclaration
+pub struct antecedent_model::compose::JointGaussian
+pub struct antecedent_model::compose::JointGaussian has private fields
+pub struct antecedent_model::compose::LatentDependence
+pub struct antecedent_model::compose::MeanContrast
+pub struct antecedent_model::compose::MechanismContext
+pub struct antecedent_model::compose::MechanismDescriptor
+pub struct antecedent_model::compose::MechanismProvenance
+pub struct antecedent_model::compose::MechanismUncertainty
+pub struct antecedent_model::compose::ParameterId
+pub struct antecedent_model::compose::ParentBinding
+pub struct antecedent_model::compose::SampleTable
+pub struct antecedent_model::compose::SelectionDiagramDeclaration
+pub struct antecedent_model::compose::SelectionNodeDeclaration
+pub struct antecedent_model::compose::TabularRow
+pub struct antecedent_model::compose::uncertainty::ParameterCovariance
+pub struct antecedent_model::observation_query::BayesPosterior
+pub struct antecedent_model::observation_query::BetaBernoulli
+pub struct antecedent_model::observation_query::BetaBernoulli has private fields
+pub struct antecedent_model::observation_query::ConditionalDistribution
+pub struct antecedent_model::observation_query::ConditioningInterventionPair
+pub struct antecedent_model::observation_query::EvidenceRequirement
+pub struct antecedent_model::observation_query::FiniteBayesModel
+pub struct antecedent_model::observation_query::FiniteBayesModel has private fields
+pub struct antecedent_model::observation_query::MeasuredConditional
+pub struct antecedent_model::observation_query::RequiredBayesFactor
+pub struct antecedent_model::observation_query::SignalLevelOutcome
+pub struct antecedent_model::observation_query::ThresholdCrossing
 pub trait antecedent_model::DynamicMechanism: core::marker::Send + core::marker::Sync
 pub trait fn fn antecedent_model::DynamicMechanism::evaluate_column(&self, parents: antecedent_model::ParentBatch<'_>, noise: &[f64], output: &mut [f64], workspace: &mut antecedent_model::MechanismWorkspace) -> core::result::Result<(), antecedent_model::ModelError>
 pub trait fn fn antecedent_model::DynamicMechanism::infer_noise_column(&self, value: &[f64], parents: antecedent_model::ParentBatch<'_>, output: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError> {default}
@@ -579,6 +1335,50 @@ pub use antecedent_model::compile::ModelOutputLayout = antecedent_model::ModelOu
 pub use antecedent_model::compile::ParentGatherPlan = antecedent_model::ParentGatherPlan
 pub use antecedent_model::compile::ProbabilisticCausalModel = antecedent_model::ProbabilisticCausalModel
 pub use antecedent_model::compile::StructuralCausalModel = antecedent_model::StructuralCausalModel
+pub use antecedent_model::compose::coherence::COVARIANCE_TOLERANCE = antecedent_model::compose::COVARIANCE_TOLERANCE
+pub use antecedent_model::compose::coherence::CoherenceFinding = antecedent_model::compose::CoherenceFinding
+pub use antecedent_model::compose::coherence::CoherenceKind = antecedent_model::compose::CoherenceKind
+pub use antecedent_model::compose::coherence::check_composition = antecedent_model::compose::check_composition
+pub use antecedent_model::compose::descriptor::ComposedModelSpec = antecedent_model::compose::ComposedModelSpec
+pub use antecedent_model::compose::descriptor::Containment = antecedent_model::compose::Containment
+pub use antecedent_model::compose::descriptor::ContextCoordinate = antecedent_model::compose::ContextCoordinate
+pub use antecedent_model::compose::descriptor::CrossCovarianceBlock = antecedent_model::compose::CrossCovarianceBlock
+pub use antecedent_model::compose::descriptor::Domain = antecedent_model::compose::Domain
+pub use antecedent_model::compose::descriptor::InvarianceDeclaration = antecedent_model::compose::InvarianceDeclaration
+pub use antecedent_model::compose::descriptor::LatentDependence = antecedent_model::compose::LatentDependence
+pub use antecedent_model::compose::descriptor::MAX_COMPOSED_LATENTS = antecedent_model::compose::MAX_COMPOSED_LATENTS
+pub use antecedent_model::compose::descriptor::MAX_COMPOSED_MECHANISMS = antecedent_model::compose::MAX_COMPOSED_MECHANISMS
+pub use antecedent_model::compose::descriptor::MAX_FINITE_STATES = antecedent_model::compose::MAX_FINITE_STATES
+pub use antecedent_model::compose::descriptor::MAX_LEVELS_PER_VARIABLE = antecedent_model::compose::MAX_LEVELS_PER_VARIABLE
+pub use antecedent_model::compose::descriptor::MAX_PARENTS_PER_MECHANISM = antecedent_model::compose::MAX_PARENTS_PER_MECHANISM
+pub use antecedent_model::compose::descriptor::MECHANISM_DESCRIPTOR_VERSION = antecedent_model::compose::MECHANISM_DESCRIPTOR_VERSION
+pub use antecedent_model::compose::descriptor::MechanismContext = antecedent_model::compose::MechanismContext
+pub use antecedent_model::compose::descriptor::MechanismDescriptor = antecedent_model::compose::MechanismDescriptor
+pub use antecedent_model::compose::descriptor::MechanismFamily = antecedent_model::compose::MechanismFamily
+pub use antecedent_model::compose::descriptor::MechanismForm = antecedent_model::compose::MechanismForm
+pub use antecedent_model::compose::descriptor::MechanismOrigin = antecedent_model::compose::MechanismOrigin
+pub use antecedent_model::compose::descriptor::MechanismProvenance = antecedent_model::compose::MechanismProvenance
+pub use antecedent_model::compose::descriptor::MechanismUncertainty = antecedent_model::compose::MechanismUncertainty
+pub use antecedent_model::compose::descriptor::ParameterId = antecedent_model::compose::ParameterId
+pub use antecedent_model::compose::descriptor::ParameterTerm = antecedent_model::compose::ParameterTerm
+pub use antecedent_model::compose::descriptor::ParentBinding = antecedent_model::compose::ParentBinding
+pub use antecedent_model::compose::descriptor::PosteriorDependence = antecedent_model::compose::PosteriorDependence
+pub use antecedent_model::compose::descriptor::SelectionDiagramDeclaration = antecedent_model::compose::SelectionDiagramDeclaration
+pub use antecedent_model::compose::descriptor::SelectionNodeDeclaration = antecedent_model::compose::SelectionNodeDeclaration
+pub use antecedent_model::compose::descriptor::TabularRow = antecedent_model::compose::TabularRow
+pub use antecedent_model::compose::descriptor::UncertaintyMeaning = antecedent_model::compose::UncertaintyMeaning
+pub use antecedent_model::compose::gaussian::ComposedLinearGaussian = antecedent_model::compose::ComposedLinearGaussian
+pub use antecedent_model::compose::gaussian::ContrastArm = antecedent_model::compose::ContrastArm
+pub use antecedent_model::compose::gaussian::FunctionalUncertainty = antecedent_model::compose::FunctionalUncertainty
+pub use antecedent_model::compose::gaussian::JointGaussian = antecedent_model::compose::JointGaussian
+pub use antecedent_model::compose::gaussian::MeanContrast = antecedent_model::compose::MeanContrast
+pub use antecedent_model::compose::gaussian::SampleTable = antecedent_model::compose::SampleTable
+pub use antecedent_model::compose::is_positive_semidefinite = antecedent_model::compose::coherence::is_positive_semidefinite
+pub use antecedent_model::compose::parameter_layout = antecedent_model::compose::coherence::parameter_layout
+pub use antecedent_model::compose::parameter_terms = antecedent_model::compose::coherence::parameter_terms
+pub use antecedent_model::compose::tabular::ComposedFinite = antecedent_model::compose::ComposedFinite
+pub use antecedent_model::compose::tabular::FiniteLaw = antecedent_model::compose::FiniteLaw
+pub use antecedent_model::compose::uncertainty_findings = antecedent_model::compose::coherence::uncertainty_findings
 pub use antecedent_model::do_sampler::DoSampleResult = antecedent_model::DoSampleResult
 pub use antecedent_model::do_sampler::KdeDoSampler = antecedent_model::KdeDoSampler
 pub use antecedent_model::do_sampler::McmcDoSampler = antecedent_model::McmcDoSampler
@@ -663,3 +1463,61 @@ pub variant antecedent_model::NoiseInferenceMode::Invertible
 pub variant antecedent_model::NoiseInferenceMode::Posterior
 pub variant antecedent_model::SelectionPolicy::BestScore
 pub variant antecedent_model::SelectionPolicy::RequireFamily(antecedent_model::MechanismFamily)
+pub variant antecedent_model::compose::CoherenceKind::CausalParents
+pub variant antecedent_model::compose::CoherenceKind::ConditioningSet
+pub variant antecedent_model::compose::CoherenceKind::Cycle
+pub variant antecedent_model::compose::CoherenceKind::Family
+pub variant antecedent_model::compose::CoherenceKind::Population
+pub variant antecedent_model::compose::CoherenceKind::PosteriorDependence
+pub variant antecedent_model::compose::CoherenceKind::Provenance
+pub variant antecedent_model::compose::CoherenceKind::Regime
+pub variant antecedent_model::compose::CoherenceKind::Shape
+pub variant antecedent_model::compose::CoherenceKind::SharedLatent
+pub variant antecedent_model::compose::CoherenceKind::Support
+pub variant antecedent_model::compose::CoherenceKind::Transform
+pub variant antecedent_model::compose::CoherenceKind::UncertaintyAlignment
+pub variant antecedent_model::compose::CoherenceKind::Units
+pub variant antecedent_model::compose::CoherenceKind::VariableIdentity
+pub variant antecedent_model::compose::CompositionError::Cancelled
+pub variant antecedent_model::compose::CompositionError::Incoherent { findings: alloc::vec::Vec<antecedent_model::compose::CoherenceFinding> }
+pub variant antecedent_model::compose::CompositionError::Numerical { message: alloc::string::String }
+pub variant antecedent_model::compose::CompositionError::Unsupported { message: alloc::string::String }
+pub variant antecedent_model::compose::Containment::Contained
+pub variant antecedent_model::compose::Containment::Disjoint
+pub variant antecedent_model::compose::Containment::KindMismatch
+pub variant antecedent_model::compose::Containment::Partial
+pub variant antecedent_model::compose::ContextCoordinate::Population
+pub variant antecedent_model::compose::ContextCoordinate::Regime
+pub variant antecedent_model::compose::Domain::Interval { lo: f64, hi: f64 }
+pub variant antecedent_model::compose::Domain::Levels(alloc::vec::Vec<alloc::string::String>)
+pub variant antecedent_model::compose::Domain::Real
+pub variant antecedent_model::compose::MechanismFamily::LinearGaussian
+pub variant antecedent_model::compose::MechanismFamily::Tabular
+pub variant antecedent_model::compose::MechanismForm::LinearGaussian { intercept: f64, sigma: f64, coefficients: alloc::vec::Vec<(alloc::string::String, f64)> }
+pub variant antecedent_model::compose::MechanismForm::Tabular { levels: alloc::vec::Vec<alloc::string::String>, rows: alloc::vec::Vec<antecedent_model::compose::TabularRow> }
+pub variant antecedent_model::compose::MechanismOrigin::Declared
+pub variant antecedent_model::compose::MechanismOrigin::ExternalBinding
+pub variant antecedent_model::compose::MechanismOrigin::Fitted
+pub variant antecedent_model::compose::ParameterTerm::Coefficient(alloc::string::String)
+pub variant antecedent_model::compose::ParameterTerm::Intercept
+pub variant antecedent_model::compose::PosteriorDependence::CrossCovariance { blocks: alloc::vec::Vec<antecedent_model::compose::CrossCovarianceBlock> }
+pub variant antecedent_model::compose::PosteriorDependence::IndependentByDesign { justification: alloc::string::String }
+pub variant antecedent_model::compose::PosteriorDependence::Joint { meaning: antecedent_model::compose::UncertaintyMeaning, parameters: alloc::vec::Vec<antecedent_model::compose::ParameterId>, covariance: alloc::vec::Vec<f64> }
+pub variant antecedent_model::compose::PosteriorDependence::Unknown
+pub variant antecedent_model::compose::UncertaintyMeaning::Posterior
+pub variant antecedent_model::compose::UncertaintyMeaning::SamplingDistribution
+pub variant antecedent_model::observation_query::Direction::Lower
+pub variant antecedent_model::observation_query::Direction::Raise
+pub variant antecedent_model::observation_query::ObservationQueryError::Cancelled
+pub variant antecedent_model::observation_query::ObservationQueryError::Composition(antecedent_model::compose::CompositionError)
+pub variant antecedent_model::observation_query::ObservationQueryError::ConstructObserved(alloc::string::String)
+pub variant antecedent_model::observation_query::ObservationQueryError::Invalid(&'static str)
+pub variant antecedent_model::observation_query::ObservationQueryError::LevelUnreachable { level: f64, extremum: f64, direction: antecedent_model::observation_query::Direction, bound: antecedent_model::observation_query::UnreachableBound }
+pub variant antecedent_model::observation_query::ObservationQueryError::OutcomeObserved(alloc::string::String)
+pub variant antecedent_model::observation_query::ObservationQueryError::RepeatedVariable(alloc::string::String)
+pub variant antecedent_model::observation_query::ObservationQueryError::UnknownLevel { variable: alloc::string::String, level: alloc::string::String }
+pub variant antecedent_model::observation_query::ObservationQueryError::UnknownVariable(alloc::string::String)
+pub variant antecedent_model::observation_query::ObservationQueryError::ZeroProbabilityEvidence
+pub variant antecedent_model::observation_query::UnreachableBound::NoObservationCrosses
+pub variant antecedent_model::observation_query::UnreachableBound::ObservationBudget { max_observations: u64 }
+pub variant antecedent_model::observation_query::UnreachableBound::SignalDoesNotMove

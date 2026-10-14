@@ -23,6 +23,7 @@
 #[doc(hidden)] pub struct antecedent_estimate::smoothed_dose::SmoothedDoseEvaluation
 #[non_exhaustive] pub enum antecedent_estimate::EstimationError
 #[non_exhaustive] pub enum antecedent_estimate::TemporalMediationUncertainty
+#[non_exhaustive] pub enum antecedent_estimate::adaptive_inference::PosteriorRule
 #[non_exhaustive] pub enum antecedent_estimate::scenario_covariance::CovarianceMethod
 #[non_exhaustive] pub enum antecedent_estimate::scenario_covariance::RowDependence
 #[non_exhaustive] pub struct antecedent_estimate::AnalyticSe
@@ -113,6 +114,8 @@ impl core::clone::Clone for antecedent_estimate::ConditionalLinearAdjustment
 impl core::clone::Clone for antecedent_estimate::ConditionalOddsRatio
 impl core::clone::Clone for antecedent_estimate::ContinuousResponseEstimator
 impl core::clone::Clone for antecedent_estimate::ContinuousResponseOptions
+impl core::clone::Clone for antecedent_estimate::CounterfactualTransportEvidence
+impl core::clone::Clone for antecedent_estimate::CounterfactualTransportPoint
 impl core::clone::Clone for antecedent_estimate::CrossfitCacheStats
 impl core::clone::Clone for antecedent_estimate::CrossfitRecord
 impl core::clone::Clone for antecedent_estimate::DependenceScope
@@ -172,6 +175,7 @@ impl core::clone::Clone for antecedent_estimate::LearnedContinuousUncertainty
 impl core::clone::Clone for antecedent_estimate::LinearAdjustmentAte
 impl core::clone::Clone for antecedent_estimate::LinearContrast
 impl core::clone::Clone for antecedent_estimate::LinearFitKind
+impl core::clone::Clone for antecedent_estimate::LoweredCounterfactualItem
 impl core::clone::Clone for antecedent_estimate::MatchedSetCounts
 impl core::clone::Clone for antecedent_estimate::MaxDeviationBand
 impl core::clone::Clone for antecedent_estimate::MeanPair
@@ -283,6 +287,18 @@ impl core::clone::Clone for antecedent_estimate::TwoStageLeastSquaresWorkspace
 impl core::clone::Clone for antecedent_estimate::Unavailable
 impl core::clone::Clone for antecedent_estimate::WaldIv
 impl core::clone::Clone for antecedent_estimate::WeightedSupport
+impl core::clone::Clone for antecedent_estimate::adaptive_inference::AdaptiveInferenceError
+impl core::clone::Clone for antecedent_estimate::adaptive_inference::ArmCounts
+impl core::clone::Clone for antecedent_estimate::adaptive_inference::BayesianPosterior
+impl core::clone::Clone for antecedent_estimate::adaptive_inference::GroupSequentialPlan
+impl core::clone::Clone for antecedent_estimate::adaptive_inference::GroupSequentialResult
+impl core::clone::Clone for antecedent_estimate::adaptive_inference::PosteriorArm
+impl core::clone::Clone for antecedent_estimate::adaptive_inference::PosteriorRule
+impl core::clone::Clone for antecedent_estimate::adaptive_inference::SequenceResult
+impl core::clone::Clone for antecedent_estimate::adaptive_inference::StoppingDecision
+impl core::clone::Clone for antecedent_estimate::adaptive_inference::WeightedOptions
+impl core::clone::Clone for antecedent_estimate::adaptive_inference::WeightedResult
+impl core::clone::Clone for antecedent_estimate::adaptive_inference::WithheldGuarantee
 impl core::clone::Clone for antecedent_estimate::adjustment::CheckedAdjustmentLowering
 impl core::clone::Clone for antecedent_estimate::adjustment_resume::AdjustedFit
 impl core::clone::Clone for antecedent_estimate::ancova::AncovaFit
@@ -308,6 +324,26 @@ impl core::clone::Clone for antecedent_estimate::categorical_treatment::PairCont
 impl core::clone::Clone for antecedent_estimate::continuous_dose::DosePolicyValue
 impl core::clone::Clone for antecedent_estimate::continuous_dose::DoseResponsePoint
 impl core::clone::Clone for antecedent_estimate::continuous_dose::DoseWindow
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::OverlapPair
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledAxis
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledInference
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SamplingDesign
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty
 impl core::clone::Clone for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry
 impl core::clone::Clone for antecedent_estimate::cpdag_scenarios::CpdagScenarioReport
 impl core::clone::Clone for antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios
@@ -377,6 +413,14 @@ impl core::clone::Clone for antecedent_estimate::learned_trial::TrialNuisanceDia
 impl core::clone::Clone for antecedent_estimate::local_polynomial_ratio::LocalPolynomialRatioFit
 impl core::clone::Clone for antecedent_estimate::marginal_structural_model::MsmIntervals95
 impl core::clone::Clone for antecedent_estimate::marginal_structural_model::MsmSummary
+impl core::clone::Clone for antecedent_estimate::measurement::CorrectedBinaryPrevalence
+impl core::clone::Clone for antecedent_estimate::measurement::CorrectedBinaryRiskDifference
+impl core::clone::Clone for antecedent_estimate::measurement::CorrectedCategoricalOutcome
+impl core::clone::Clone for antecedent_estimate::measurement::CorrectedLinearEffect
+impl core::clone::Clone for antecedent_estimate::measurement::CorrectedPosteriorLinearEffect
+impl core::clone::Clone for antecedent_estimate::measurement::DataBinding
+impl core::clone::Clone for antecedent_estimate::measurement::MeasurementError
+impl core::clone::Clone for antecedent_estimate::measurement::PosteriorCombination
 impl core::clone::Clone for antecedent_estimate::mechanism_discrepancy::CoefficientDiscrepancy
 impl core::clone::Clone for antecedent_estimate::mechanism_discrepancy::DiscrepancyConclusion
 impl core::clone::Clone for antecedent_estimate::mechanism_discrepancy::DiscrepancyOptions
@@ -577,10 +621,21 @@ impl core::cmp::Eq for antecedent_estimate::SelectedOutcomeCorrection
 impl core::cmp::Eq for antecedent_estimate::SmoothedDoseUncertainty
 impl core::cmp::Eq for antecedent_estimate::TrialSampling
 impl core::cmp::Eq for antecedent_estimate::Unavailable
+impl core::cmp::Eq for antecedent_estimate::adaptive_inference::AdaptiveInferenceError
+impl core::cmp::Eq for antecedent_estimate::adaptive_inference::ArmCounts
+impl core::cmp::Eq for antecedent_estimate::adaptive_inference::WithheldGuarantee
 impl core::cmp::Eq for antecedent_estimate::bayesian_robust_ate::BayesianRobustRefit
 impl core::cmp::Eq for antecedent_estimate::categorical_treatment::LevelCount
 impl core::cmp::Eq for antecedent_estimate::categorical_treatment::LevelScale
 impl core::cmp::Eq for antecedent_estimate::categorical_treatment::MonotonicityDirection
+impl core::cmp::Eq for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
+impl core::cmp::Eq for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration
+impl core::cmp::Eq for antecedent_estimate::counterfactual_transport_sampled::OverlapPair
+impl core::cmp::Eq for antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels
+impl core::cmp::Eq for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs
+impl core::cmp::Eq for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
+impl core::cmp::Eq for antecedent_estimate::counterfactual_transport_sampled::SamplingDesign
+impl core::cmp::Eq for antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty
 impl core::cmp::Eq for antecedent_estimate::dose_grid_functional::ClaimSet
 impl core::cmp::Eq for antecedent_estimate::dose_grid_functional::DoseDesign
 impl core::cmp::Eq for antecedent_estimate::dose_grid_functional::IntervalCalibration
@@ -605,6 +660,9 @@ impl core::cmp::Eq for antecedent_estimate::latent_class_effects::LatentClassBoo
 impl core::cmp::Eq for antecedent_estimate::latent_class_effects::LatentClassPremise
 impl core::cmp::Eq for antecedent_estimate::latent_class_effects::PremiseStatus
 impl core::cmp::Eq for antecedent_estimate::learned_joint_transport::LearnedProviderRecord
+impl core::cmp::Eq for antecedent_estimate::measurement::DataBinding
+impl core::cmp::Eq for antecedent_estimate::measurement::MeasurementError
+impl core::cmp::Eq for antecedent_estimate::measurement::PosteriorCombination
 impl core::cmp::Eq for antecedent_estimate::mechanism_discrepancy::DiscrepancyConclusion
 impl core::cmp::Eq for antecedent_estimate::mechanism_discrepancy::MechanismMeasurement
 impl core::cmp::Eq for antecedent_estimate::mechanism_discrepancy::ParentSpec
@@ -642,6 +700,7 @@ impl core::cmp::Eq for antecedent_estimate::temporal_refresh::RefreshReceipt
 impl core::cmp::Eq for antecedent_estimate::temporal_refresh::TemporalWindowIdentity
 impl core::cmp::Eq for antecedent_estimate::vector_treatment::VectorCovariance
 impl core::cmp::Ord for antecedent_estimate::ObservationPattern
+impl core::cmp::Ord for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
 impl core::cmp::Ord for antecedent_estimate::temporal_refresh::ObservationPeriod
 impl core::cmp::PartialEq for antecedent_estimate::AdjustedEstimate
 impl core::cmp::PartialEq for antecedent_estimate::AlignedRows
@@ -679,6 +738,8 @@ impl core::cmp::PartialEq for antecedent_estimate::ClusterTotalInterval
 impl core::cmp::PartialEq for antecedent_estimate::ConditionalOddsRatio
 impl core::cmp::PartialEq for antecedent_estimate::ContinuousResponseEstimator
 impl core::cmp::PartialEq for antecedent_estimate::ContinuousResponseOptions
+impl core::cmp::PartialEq for antecedent_estimate::CounterfactualTransportEvidence
+impl core::cmp::PartialEq for antecedent_estimate::CounterfactualTransportPoint
 impl core::cmp::PartialEq for antecedent_estimate::CrossfitCacheStats
 impl core::cmp::PartialEq for antecedent_estimate::DependenceScope
 impl core::cmp::PartialEq for antecedent_estimate::DescriptiveComparison
@@ -787,6 +848,18 @@ impl core::cmp::PartialEq for antecedent_estimate::TrialAipwOptions
 impl core::cmp::PartialEq for antecedent_estimate::TrialSampling
 impl core::cmp::PartialEq for antecedent_estimate::Unavailable
 impl core::cmp::PartialEq for antecedent_estimate::WeightedSupport
+impl core::cmp::PartialEq for antecedent_estimate::adaptive_inference::AdaptiveInferenceError
+impl core::cmp::PartialEq for antecedent_estimate::adaptive_inference::ArmCounts
+impl core::cmp::PartialEq for antecedent_estimate::adaptive_inference::BayesianPosterior
+impl core::cmp::PartialEq for antecedent_estimate::adaptive_inference::GroupSequentialPlan
+impl core::cmp::PartialEq for antecedent_estimate::adaptive_inference::GroupSequentialResult
+impl core::cmp::PartialEq for antecedent_estimate::adaptive_inference::PosteriorArm
+impl core::cmp::PartialEq for antecedent_estimate::adaptive_inference::PosteriorRule
+impl core::cmp::PartialEq for antecedent_estimate::adaptive_inference::SequenceResult
+impl core::cmp::PartialEq for antecedent_estimate::adaptive_inference::StoppingDecision
+impl core::cmp::PartialEq for antecedent_estimate::adaptive_inference::WeightedOptions
+impl core::cmp::PartialEq for antecedent_estimate::adaptive_inference::WeightedResult
+impl core::cmp::PartialEq for antecedent_estimate::adaptive_inference::WithheldGuarantee
 impl core::cmp::PartialEq for antecedent_estimate::adjustment::CheckedAdjustmentLowering
 impl core::cmp::PartialEq for antecedent_estimate::ancova::AncovaFit
 impl core::cmp::PartialEq for antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit
@@ -811,6 +884,23 @@ impl core::cmp::PartialEq for antecedent_estimate::categorical_treatment::PairCo
 impl core::cmp::PartialEq for antecedent_estimate::continuous_dose::DosePolicyValue
 impl core::cmp::PartialEq for antecedent_estimate::continuous_dose::DoseResponsePoint
 impl core::cmp::PartialEq for antecedent_estimate::continuous_dose::DoseWindow
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::OverlapPair
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledAxis
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledInference
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::SamplingDesign
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty
 impl core::cmp::PartialEq for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry
 impl core::cmp::PartialEq for antecedent_estimate::dose_grid_functional::ClaimSet
 impl core::cmp::PartialEq for antecedent_estimate::dose_grid_functional::DoseContrast
@@ -878,6 +968,14 @@ impl core::cmp::PartialEq for antecedent_estimate::learned_trial::TrialNuisanceD
 impl core::cmp::PartialEq for antecedent_estimate::local_polynomial_ratio::LocalPolynomialRatioFit
 impl core::cmp::PartialEq for antecedent_estimate::marginal_structural_model::MsmIntervals95
 impl core::cmp::PartialEq for antecedent_estimate::marginal_structural_model::MsmSummary
+impl core::cmp::PartialEq for antecedent_estimate::measurement::CorrectedBinaryPrevalence
+impl core::cmp::PartialEq for antecedent_estimate::measurement::CorrectedBinaryRiskDifference
+impl core::cmp::PartialEq for antecedent_estimate::measurement::CorrectedCategoricalOutcome
+impl core::cmp::PartialEq for antecedent_estimate::measurement::CorrectedLinearEffect
+impl core::cmp::PartialEq for antecedent_estimate::measurement::CorrectedPosteriorLinearEffect
+impl core::cmp::PartialEq for antecedent_estimate::measurement::DataBinding
+impl core::cmp::PartialEq for antecedent_estimate::measurement::MeasurementError
+impl core::cmp::PartialEq for antecedent_estimate::measurement::PosteriorCombination
 impl core::cmp::PartialEq for antecedent_estimate::mechanism_discrepancy::CoefficientDiscrepancy
 impl core::cmp::PartialEq for antecedent_estimate::mechanism_discrepancy::DiscrepancyConclusion
 impl core::cmp::PartialEq for antecedent_estimate::mechanism_discrepancy::DiscrepancyOptions
@@ -1016,6 +1114,7 @@ impl core::cmp::PartialEq for antecedent_estimate::vector_treatment::VectorTreat
 impl core::cmp::PartialEq for antecedent_estimate::vector_treatment::VectorTreatmentInput
 impl core::cmp::PartialEq for antecedent_estimate::vector_treatment::VectorTreatmentOptions
 impl core::cmp::PartialOrd for antecedent_estimate::ObservationPattern
+impl core::cmp::PartialOrd for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
 impl core::cmp::PartialOrd for antecedent_estimate::temporal_refresh::ObservationPeriod
 impl core::convert::From<antecedent_core::query::error::QueryError> for antecedent_estimate::EstimationError
 impl core::convert::From<antecedent_data::error::DataError> for antecedent_estimate::EstimationError
@@ -1094,6 +1193,8 @@ impl core::default::Default for antecedent_estimate::TwoStageLeastSquares
 impl core::default::Default for antecedent_estimate::TwoStageLeastSquaresWorkspace
 impl core::default::Default for antecedent_estimate::WaldIv
 impl core::default::Default for antecedent_estimate::bayesian_robust_ate::BayesianRobustAteOptions
+impl core::default::Default for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs
+impl core::default::Default for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits
 impl core::default::Default for antecedent_estimate::dose_grid_functional::ClaimSet
 impl core::default::Default for antecedent_estimate::functional_distribution::EmpiricalFactorCache
 impl core::default::Default for antecedent_estimate::joint_bayesian_transport::FailedFitDiagnostics
@@ -1105,7 +1206,9 @@ impl core::default::Default for antecedent_estimate::vector_treatment::VectorCov
 impl core::default::Default for antecedent_estimate::vector_treatment::VectorTreatmentOptions
 impl core::error::Error for antecedent_estimate::EstimationError
 impl core::error::Error for antecedent_estimate::SampledRecoveryError
+impl core::error::Error for antecedent_estimate::adaptive_inference::AdaptiveInferenceError
 impl core::error::Error for antecedent_estimate::joint_bayesian_transport::JointTransportRefusal
+impl core::error::Error for antecedent_estimate::measurement::MeasurementError
 impl core::fmt::Debug for antecedent_estimate::AdjustedEstimate
 impl core::fmt::Debug for antecedent_estimate::AdmgConditionalExactPlan
 impl core::fmt::Debug for antecedent_estimate::AipwAte
@@ -1162,6 +1265,8 @@ impl core::fmt::Debug for antecedent_estimate::ConditionalLinearAdjustment
 impl core::fmt::Debug for antecedent_estimate::ConditionalOddsRatio
 impl core::fmt::Debug for antecedent_estimate::ContinuousResponseEstimator
 impl core::fmt::Debug for antecedent_estimate::ContinuousResponseOptions
+impl core::fmt::Debug for antecedent_estimate::CounterfactualTransportEvidence
+impl core::fmt::Debug for antecedent_estimate::CounterfactualTransportPoint
 impl core::fmt::Debug for antecedent_estimate::CrossfitCacheStats
 impl core::fmt::Debug for antecedent_estimate::CrossfitNuisanceCache
 impl core::fmt::Debug for antecedent_estimate::CrossfitRecord
@@ -1222,6 +1327,7 @@ impl core::fmt::Debug for antecedent_estimate::LearnedContinuousUncertainty
 impl core::fmt::Debug for antecedent_estimate::LinearAdjustmentAte
 impl core::fmt::Debug for antecedent_estimate::LinearContrast
 impl core::fmt::Debug for antecedent_estimate::LinearFitKind
+impl core::fmt::Debug for antecedent_estimate::LoweredCounterfactualItem
 impl core::fmt::Debug for antecedent_estimate::MatchedSetCounts
 impl core::fmt::Debug for antecedent_estimate::MaxDeviationBand
 impl core::fmt::Debug for antecedent_estimate::MeanPair
@@ -1334,6 +1440,18 @@ impl core::fmt::Debug for antecedent_estimate::TwoStageLeastSquaresWorkspace
 impl core::fmt::Debug for antecedent_estimate::Unavailable
 impl core::fmt::Debug for antecedent_estimate::WaldIv
 impl core::fmt::Debug for antecedent_estimate::WeightedSupport
+impl core::fmt::Debug for antecedent_estimate::adaptive_inference::AdaptiveInferenceError
+impl core::fmt::Debug for antecedent_estimate::adaptive_inference::ArmCounts
+impl core::fmt::Debug for antecedent_estimate::adaptive_inference::BayesianPosterior
+impl core::fmt::Debug for antecedent_estimate::adaptive_inference::GroupSequentialPlan
+impl core::fmt::Debug for antecedent_estimate::adaptive_inference::GroupSequentialResult
+impl core::fmt::Debug for antecedent_estimate::adaptive_inference::PosteriorArm
+impl core::fmt::Debug for antecedent_estimate::adaptive_inference::PosteriorRule
+impl core::fmt::Debug for antecedent_estimate::adaptive_inference::SequenceResult
+impl core::fmt::Debug for antecedent_estimate::adaptive_inference::StoppingDecision
+impl core::fmt::Debug for antecedent_estimate::adaptive_inference::WeightedOptions
+impl core::fmt::Debug for antecedent_estimate::adaptive_inference::WeightedResult
+impl core::fmt::Debug for antecedent_estimate::adaptive_inference::WithheldGuarantee
 impl core::fmt::Debug for antecedent_estimate::adjustment::CheckedAdjustmentLowering
 impl core::fmt::Debug for antecedent_estimate::adjustment_resume::AdjustedFit
 impl core::fmt::Debug for antecedent_estimate::ancova::AncovaFit
@@ -1359,6 +1477,26 @@ impl core::fmt::Debug for antecedent_estimate::categorical_treatment::PairContra
 impl core::fmt::Debug for antecedent_estimate::continuous_dose::DosePolicyValue
 impl core::fmt::Debug for antecedent_estimate::continuous_dose::DoseResponsePoint
 impl core::fmt::Debug for antecedent_estimate::continuous_dose::DoseWindow
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::OverlapPair
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledAxis
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledInference
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SamplingDesign
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty
 impl core::fmt::Debug for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry
 impl core::fmt::Debug for antecedent_estimate::cpdag_scenarios::CpdagScenarioReport
 impl core::fmt::Debug for antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios
@@ -1429,6 +1567,14 @@ impl core::fmt::Debug for antecedent_estimate::learned_trial::TrialNuisanceDiagn
 impl core::fmt::Debug for antecedent_estimate::local_polynomial_ratio::LocalPolynomialRatioFit
 impl core::fmt::Debug for antecedent_estimate::marginal_structural_model::MsmIntervals95
 impl core::fmt::Debug for antecedent_estimate::marginal_structural_model::MsmSummary
+impl core::fmt::Debug for antecedent_estimate::measurement::CorrectedBinaryPrevalence
+impl core::fmt::Debug for antecedent_estimate::measurement::CorrectedBinaryRiskDifference
+impl core::fmt::Debug for antecedent_estimate::measurement::CorrectedCategoricalOutcome
+impl core::fmt::Debug for antecedent_estimate::measurement::CorrectedLinearEffect
+impl core::fmt::Debug for antecedent_estimate::measurement::CorrectedPosteriorLinearEffect
+impl core::fmt::Debug for antecedent_estimate::measurement::DataBinding
+impl core::fmt::Debug for antecedent_estimate::measurement::MeasurementError
+impl core::fmt::Debug for antecedent_estimate::measurement::PosteriorCombination
 impl core::fmt::Debug for antecedent_estimate::mechanism_discrepancy::CoefficientDiscrepancy
 impl core::fmt::Debug for antecedent_estimate::mechanism_discrepancy::DiscrepancyConclusion
 impl core::fmt::Debug for antecedent_estimate::mechanism_discrepancy::DiscrepancyOptions
@@ -1582,7 +1728,9 @@ impl core::fmt::Debug for antecedent_estimate::vector_treatment::VectorTreatment
 impl core::fmt::Debug for antecedent_estimate::vector_treatment::VectorTreatmentOptions
 impl core::fmt::Display for antecedent_estimate::EstimationError
 impl core::fmt::Display for antecedent_estimate::SampledRecoveryError
+impl core::fmt::Display for antecedent_estimate::adaptive_inference::AdaptiveInferenceError
 impl core::fmt::Display for antecedent_estimate::joint_bayesian_transport::JointTransportRefusal
+impl core::fmt::Display for antecedent_estimate::measurement::MeasurementError
 impl core::hash::Hash for antecedent_estimate::AnalyticSeKind
 impl core::hash::Hash for antecedent_estimate::BayesianBackendKind
 impl core::hash::Hash for antecedent_estimate::CircularBlockFamily
@@ -1593,6 +1741,7 @@ impl core::hash::Hash for antecedent_estimate::ObservationPattern
 impl core::hash::Hash for antecedent_estimate::PropensityNuisance
 impl core::hash::Hash for antecedent_estimate::SampledRecoveryDetail
 impl core::hash::Hash for antecedent_estimate::SelectedOutcomeCorrection
+impl core::hash::Hash for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
 impl core::hash::Hash for antecedent_estimate::vector_treatment::VectorCovariance
 impl core::marker::Copy for antecedent_estimate::AdjustedEstimate
 impl core::marker::Copy for antecedent_estimate::AlignedRows
@@ -1665,11 +1814,20 @@ impl core::marker::Copy for antecedent_estimate::TransportOverlapReport
 impl core::marker::Copy for antecedent_estimate::TrialAipwOptions
 impl core::marker::Copy for antecedent_estimate::TrialSampling
 impl core::marker::Copy for antecedent_estimate::Unavailable
+impl core::marker::Copy for antecedent_estimate::adaptive_inference::ArmCounts
+impl core::marker::Copy for antecedent_estimate::adaptive_inference::PosteriorArm
+impl core::marker::Copy for antecedent_estimate::adaptive_inference::PosteriorRule
+impl core::marker::Copy for antecedent_estimate::adaptive_inference::StoppingDecision
+impl core::marker::Copy for antecedent_estimate::adaptive_inference::WeightedOptions
+impl core::marker::Copy for antecedent_estimate::adaptive_inference::WithheldGuarantee
 impl core::marker::Copy for antecedent_estimate::bayesian_iv::StageVariances
 impl core::marker::Copy for antecedent_estimate::bayesian_robust_ate::BayesianRobustAteOptions
 impl core::marker::Copy for antecedent_estimate::categorical_treatment::LevelScale
 impl core::marker::Copy for antecedent_estimate::categorical_treatment::MonotonicityDirection
 impl core::marker::Copy for antecedent_estimate::continuous_dose::DoseWindow
+impl core::marker::Copy for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
+impl core::marker::Copy for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits
+impl core::marker::Copy for antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule
 impl core::marker::Copy for antecedent_estimate::dose_grid_functional::ClaimSet
 impl core::marker::Copy for antecedent_estimate::dose_grid_functional::DoseContrast
 impl core::marker::Copy for antecedent_estimate::dose_grid_functional::DoseDerivative
@@ -1694,6 +1852,7 @@ impl core::marker::Copy for antecedent_estimate::joint_bayesian_transport::Varyi
 impl core::marker::Copy for antecedent_estimate::latent_class_effects::LatentClassBootstrap
 impl core::marker::Copy for antecedent_estimate::latent_class_effects::LatentClassPremise
 impl core::marker::Copy for antecedent_estimate::latent_class_effects::PremiseStatus
+impl core::marker::Copy for antecedent_estimate::measurement::PosteriorCombination
 impl core::marker::Copy for antecedent_estimate::mechanism_discrepancy::DiscrepancyConclusion
 impl core::marker::Copy for antecedent_estimate::mechanism_discrepancy::DiscrepancyOptions
 impl core::marker::Copy for antecedent_estimate::mechanism_discrepancy::DiscrepancyTest
@@ -1814,6 +1973,8 @@ impl core::marker::Freeze for antecedent_estimate::ConditionalLinearAdjustment [
 impl core::marker::Freeze for antecedent_estimate::ConditionalOddsRatio [auto]
 impl core::marker::Freeze for antecedent_estimate::ContinuousResponseEstimator [auto]
 impl core::marker::Freeze for antecedent_estimate::ContinuousResponseOptions [auto]
+impl core::marker::Freeze for antecedent_estimate::CounterfactualTransportEvidence [auto]
+impl core::marker::Freeze for antecedent_estimate::CounterfactualTransportPoint [auto]
 impl core::marker::Freeze for antecedent_estimate::CrossfitCacheStats [auto]
 impl core::marker::Freeze for antecedent_estimate::CrossfitRecord [auto]
 impl core::marker::Freeze for antecedent_estimate::DependenceScope [auto]
@@ -1873,6 +2034,7 @@ impl core::marker::Freeze for antecedent_estimate::LearnedContinuousUncertainty 
 impl core::marker::Freeze for antecedent_estimate::LinearAdjustmentAte [auto]
 impl core::marker::Freeze for antecedent_estimate::LinearContrast [auto]
 impl core::marker::Freeze for antecedent_estimate::LinearFitKind [auto]
+impl core::marker::Freeze for antecedent_estimate::LoweredCounterfactualItem [auto]
 impl core::marker::Freeze for antecedent_estimate::MatchedSetCounts [auto]
 impl core::marker::Freeze for antecedent_estimate::MaxDeviationBand [auto]
 impl core::marker::Freeze for antecedent_estimate::MeanPair [auto]
@@ -1985,6 +2147,18 @@ impl core::marker::Freeze for antecedent_estimate::TwoStageLeastSquaresWorkspace
 impl core::marker::Freeze for antecedent_estimate::Unavailable [auto]
 impl core::marker::Freeze for antecedent_estimate::WaldIv [auto]
 impl core::marker::Freeze for antecedent_estimate::WeightedSupport [auto]
+impl core::marker::Freeze for antecedent_estimate::adaptive_inference::AdaptiveInferenceError [auto]
+impl core::marker::Freeze for antecedent_estimate::adaptive_inference::ArmCounts [auto]
+impl core::marker::Freeze for antecedent_estimate::adaptive_inference::BayesianPosterior [auto]
+impl core::marker::Freeze for antecedent_estimate::adaptive_inference::GroupSequentialPlan [auto]
+impl core::marker::Freeze for antecedent_estimate::adaptive_inference::GroupSequentialResult [auto]
+impl core::marker::Freeze for antecedent_estimate::adaptive_inference::PosteriorArm [auto]
+impl core::marker::Freeze for antecedent_estimate::adaptive_inference::PosteriorRule [auto]
+impl core::marker::Freeze for antecedent_estimate::adaptive_inference::SequenceResult [auto]
+impl core::marker::Freeze for antecedent_estimate::adaptive_inference::StoppingDecision [auto]
+impl core::marker::Freeze for antecedent_estimate::adaptive_inference::WeightedOptions [auto]
+impl core::marker::Freeze for antecedent_estimate::adaptive_inference::WeightedResult [auto]
+impl core::marker::Freeze for antecedent_estimate::adaptive_inference::WithheldGuarantee [auto]
 impl core::marker::Freeze for antecedent_estimate::adjustment::CheckedAdjustmentLowering [auto]
 impl core::marker::Freeze for antecedent_estimate::adjustment_resume::AdjustedFit [auto]
 impl core::marker::Freeze for antecedent_estimate::ancova::AncovaFit [auto]
@@ -2010,6 +2184,26 @@ impl core::marker::Freeze for antecedent_estimate::categorical_treatment::PairCo
 impl core::marker::Freeze for antecedent_estimate::continuous_dose::DosePolicyValue [auto]
 impl core::marker::Freeze for antecedent_estimate::continuous_dose::DoseResponsePoint [auto]
 impl core::marker::Freeze for antecedent_estimate::continuous_dose::DoseWindow [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::OverlapPair [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledAxis [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledInference [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SamplingDesign [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty [auto]
 impl core::marker::Freeze for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry [auto]
 impl core::marker::Freeze for antecedent_estimate::cpdag_scenarios::CpdagScenarioReport [auto]
 impl core::marker::Freeze for antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios [auto]
@@ -2079,6 +2273,14 @@ impl core::marker::Freeze for antecedent_estimate::learned_trial::TrialNuisanceD
 impl core::marker::Freeze for antecedent_estimate::local_polynomial_ratio::LocalPolynomialRatioFit [auto]
 impl core::marker::Freeze for antecedent_estimate::marginal_structural_model::MsmIntervals95 [auto]
 impl core::marker::Freeze for antecedent_estimate::marginal_structural_model::MsmSummary [auto]
+impl core::marker::Freeze for antecedent_estimate::measurement::CorrectedBinaryPrevalence [auto]
+impl core::marker::Freeze for antecedent_estimate::measurement::CorrectedBinaryRiskDifference [auto]
+impl core::marker::Freeze for antecedent_estimate::measurement::CorrectedCategoricalOutcome [auto]
+impl core::marker::Freeze for antecedent_estimate::measurement::CorrectedLinearEffect [auto]
+impl core::marker::Freeze for antecedent_estimate::measurement::CorrectedPosteriorLinearEffect [auto]
+impl core::marker::Freeze for antecedent_estimate::measurement::DataBinding [auto]
+impl core::marker::Freeze for antecedent_estimate::measurement::MeasurementError [auto]
+impl core::marker::Freeze for antecedent_estimate::measurement::PosteriorCombination [auto]
 impl core::marker::Freeze for antecedent_estimate::mechanism_discrepancy::CoefficientDiscrepancy [auto]
 impl core::marker::Freeze for antecedent_estimate::mechanism_discrepancy::DiscrepancyConclusion [auto]
 impl core::marker::Freeze for antecedent_estimate::mechanism_discrepancy::DiscrepancyOptions [auto]
@@ -2285,6 +2487,8 @@ impl core::marker::Send for antecedent_estimate::ConditionalLinearAdjustment [au
 impl core::marker::Send for antecedent_estimate::ConditionalOddsRatio [auto]
 impl core::marker::Send for antecedent_estimate::ContinuousResponseEstimator [auto]
 impl core::marker::Send for antecedent_estimate::ContinuousResponseOptions [auto]
+impl core::marker::Send for antecedent_estimate::CounterfactualTransportEvidence [auto]
+impl core::marker::Send for antecedent_estimate::CounterfactualTransportPoint [auto]
 impl core::marker::Send for antecedent_estimate::CrossfitCacheStats [auto]
 impl core::marker::Send for antecedent_estimate::CrossfitNuisanceCache [auto]
 impl core::marker::Send for antecedent_estimate::CrossfitRecord [auto]
@@ -2345,6 +2549,7 @@ impl core::marker::Send for antecedent_estimate::LearnedContinuousUncertainty [a
 impl core::marker::Send for antecedent_estimate::LinearAdjustmentAte [auto]
 impl core::marker::Send for antecedent_estimate::LinearContrast [auto]
 impl core::marker::Send for antecedent_estimate::LinearFitKind [auto]
+impl core::marker::Send for antecedent_estimate::LoweredCounterfactualItem [auto]
 impl core::marker::Send for antecedent_estimate::MatchedSetCounts [auto]
 impl core::marker::Send for antecedent_estimate::MaxDeviationBand [auto]
 impl core::marker::Send for antecedent_estimate::MeanPair [auto]
@@ -2459,6 +2664,18 @@ impl core::marker::Send for antecedent_estimate::TwoStageLeastSquaresWorkspace [
 impl core::marker::Send for antecedent_estimate::Unavailable [auto]
 impl core::marker::Send for antecedent_estimate::WaldIv [auto]
 impl core::marker::Send for antecedent_estimate::WeightedSupport [auto]
+impl core::marker::Send for antecedent_estimate::adaptive_inference::AdaptiveInferenceError [auto]
+impl core::marker::Send for antecedent_estimate::adaptive_inference::ArmCounts [auto]
+impl core::marker::Send for antecedent_estimate::adaptive_inference::BayesianPosterior [auto]
+impl core::marker::Send for antecedent_estimate::adaptive_inference::GroupSequentialPlan [auto]
+impl core::marker::Send for antecedent_estimate::adaptive_inference::GroupSequentialResult [auto]
+impl core::marker::Send for antecedent_estimate::adaptive_inference::PosteriorArm [auto]
+impl core::marker::Send for antecedent_estimate::adaptive_inference::PosteriorRule [auto]
+impl core::marker::Send for antecedent_estimate::adaptive_inference::SequenceResult [auto]
+impl core::marker::Send for antecedent_estimate::adaptive_inference::StoppingDecision [auto]
+impl core::marker::Send for antecedent_estimate::adaptive_inference::WeightedOptions [auto]
+impl core::marker::Send for antecedent_estimate::adaptive_inference::WeightedResult [auto]
+impl core::marker::Send for antecedent_estimate::adaptive_inference::WithheldGuarantee [auto]
 impl core::marker::Send for antecedent_estimate::adjustment::CheckedAdjustmentLowering [auto]
 impl core::marker::Send for antecedent_estimate::adjustment_resume::AdjustedFit [auto]
 impl core::marker::Send for antecedent_estimate::ancova::AncovaFit [auto]
@@ -2484,6 +2701,26 @@ impl core::marker::Send for antecedent_estimate::categorical_treatment::PairCont
 impl core::marker::Send for antecedent_estimate::continuous_dose::DosePolicyValue [auto]
 impl core::marker::Send for antecedent_estimate::continuous_dose::DoseResponsePoint [auto]
 impl core::marker::Send for antecedent_estimate::continuous_dose::DoseWindow [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::OverlapPair [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledAxis [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledInference [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SamplingDesign [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty [auto]
 impl core::marker::Send for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry [auto]
 impl core::marker::Send for antecedent_estimate::cpdag_scenarios::CpdagScenarioReport [auto]
 impl core::marker::Send for antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios [auto]
@@ -2554,6 +2791,14 @@ impl core::marker::Send for antecedent_estimate::learned_trial::TrialNuisanceDia
 impl core::marker::Send for antecedent_estimate::local_polynomial_ratio::LocalPolynomialRatioFit [auto]
 impl core::marker::Send for antecedent_estimate::marginal_structural_model::MsmIntervals95 [auto]
 impl core::marker::Send for antecedent_estimate::marginal_structural_model::MsmSummary [auto]
+impl core::marker::Send for antecedent_estimate::measurement::CorrectedBinaryPrevalence [auto]
+impl core::marker::Send for antecedent_estimate::measurement::CorrectedBinaryRiskDifference [auto]
+impl core::marker::Send for antecedent_estimate::measurement::CorrectedCategoricalOutcome [auto]
+impl core::marker::Send for antecedent_estimate::measurement::CorrectedLinearEffect [auto]
+impl core::marker::Send for antecedent_estimate::measurement::CorrectedPosteriorLinearEffect [auto]
+impl core::marker::Send for antecedent_estimate::measurement::DataBinding [auto]
+impl core::marker::Send for antecedent_estimate::measurement::MeasurementError [auto]
+impl core::marker::Send for antecedent_estimate::measurement::PosteriorCombination [auto]
 impl core::marker::Send for antecedent_estimate::mechanism_discrepancy::CoefficientDiscrepancy [auto]
 impl core::marker::Send for antecedent_estimate::mechanism_discrepancy::DiscrepancyConclusion [auto]
 impl core::marker::Send for antecedent_estimate::mechanism_discrepancy::DiscrepancyOptions [auto]
@@ -2740,6 +2985,8 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::ClusterTotalInte
 impl core::marker::StructuralPartialEq for antecedent_estimate::ConditionalOddsRatio
 impl core::marker::StructuralPartialEq for antecedent_estimate::ContinuousResponseEstimator
 impl core::marker::StructuralPartialEq for antecedent_estimate::ContinuousResponseOptions
+impl core::marker::StructuralPartialEq for antecedent_estimate::CounterfactualTransportEvidence
+impl core::marker::StructuralPartialEq for antecedent_estimate::CounterfactualTransportPoint
 impl core::marker::StructuralPartialEq for antecedent_estimate::CrossfitCacheStats
 impl core::marker::StructuralPartialEq for antecedent_estimate::DependenceScope
 impl core::marker::StructuralPartialEq for antecedent_estimate::DescriptiveComparison
@@ -2847,6 +3094,18 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::TrialAipwOptions
 impl core::marker::StructuralPartialEq for antecedent_estimate::TrialSampling
 impl core::marker::StructuralPartialEq for antecedent_estimate::Unavailable
 impl core::marker::StructuralPartialEq for antecedent_estimate::WeightedSupport
+impl core::marker::StructuralPartialEq for antecedent_estimate::adaptive_inference::AdaptiveInferenceError
+impl core::marker::StructuralPartialEq for antecedent_estimate::adaptive_inference::ArmCounts
+impl core::marker::StructuralPartialEq for antecedent_estimate::adaptive_inference::BayesianPosterior
+impl core::marker::StructuralPartialEq for antecedent_estimate::adaptive_inference::GroupSequentialPlan
+impl core::marker::StructuralPartialEq for antecedent_estimate::adaptive_inference::GroupSequentialResult
+impl core::marker::StructuralPartialEq for antecedent_estimate::adaptive_inference::PosteriorArm
+impl core::marker::StructuralPartialEq for antecedent_estimate::adaptive_inference::PosteriorRule
+impl core::marker::StructuralPartialEq for antecedent_estimate::adaptive_inference::SequenceResult
+impl core::marker::StructuralPartialEq for antecedent_estimate::adaptive_inference::StoppingDecision
+impl core::marker::StructuralPartialEq for antecedent_estimate::adaptive_inference::WeightedOptions
+impl core::marker::StructuralPartialEq for antecedent_estimate::adaptive_inference::WeightedResult
+impl core::marker::StructuralPartialEq for antecedent_estimate::adaptive_inference::WithheldGuarantee
 impl core::marker::StructuralPartialEq for antecedent_estimate::adjustment::CheckedAdjustmentLowering
 impl core::marker::StructuralPartialEq for antecedent_estimate::ancova::AncovaFit
 impl core::marker::StructuralPartialEq for antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit
@@ -2871,6 +3130,23 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::categorical_trea
 impl core::marker::StructuralPartialEq for antecedent_estimate::continuous_dose::DosePolicyValue
 impl core::marker::StructuralPartialEq for antecedent_estimate::continuous_dose::DoseResponsePoint
 impl core::marker::StructuralPartialEq for antecedent_estimate::continuous_dose::DoseWindow
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::OverlapPair
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledAxis
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledInference
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::SamplingDesign
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty
 impl core::marker::StructuralPartialEq for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry
 impl core::marker::StructuralPartialEq for antecedent_estimate::dose_grid_functional::ClaimSet
 impl core::marker::StructuralPartialEq for antecedent_estimate::dose_grid_functional::DoseContrast
@@ -2938,6 +3214,14 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::learned_trial::T
 impl core::marker::StructuralPartialEq for antecedent_estimate::local_polynomial_ratio::LocalPolynomialRatioFit
 impl core::marker::StructuralPartialEq for antecedent_estimate::marginal_structural_model::MsmIntervals95
 impl core::marker::StructuralPartialEq for antecedent_estimate::marginal_structural_model::MsmSummary
+impl core::marker::StructuralPartialEq for antecedent_estimate::measurement::CorrectedBinaryPrevalence
+impl core::marker::StructuralPartialEq for antecedent_estimate::measurement::CorrectedBinaryRiskDifference
+impl core::marker::StructuralPartialEq for antecedent_estimate::measurement::CorrectedCategoricalOutcome
+impl core::marker::StructuralPartialEq for antecedent_estimate::measurement::CorrectedLinearEffect
+impl core::marker::StructuralPartialEq for antecedent_estimate::measurement::CorrectedPosteriorLinearEffect
+impl core::marker::StructuralPartialEq for antecedent_estimate::measurement::DataBinding
+impl core::marker::StructuralPartialEq for antecedent_estimate::measurement::MeasurementError
+impl core::marker::StructuralPartialEq for antecedent_estimate::measurement::PosteriorCombination
 impl core::marker::StructuralPartialEq for antecedent_estimate::mechanism_discrepancy::CoefficientDiscrepancy
 impl core::marker::StructuralPartialEq for antecedent_estimate::mechanism_discrepancy::DiscrepancyConclusion
 impl core::marker::StructuralPartialEq for antecedent_estimate::mechanism_discrepancy::DiscrepancyOptions
@@ -3131,6 +3415,8 @@ impl core::marker::Sync for antecedent_estimate::ConditionalLinearAdjustment [au
 impl core::marker::Sync for antecedent_estimate::ConditionalOddsRatio [auto]
 impl core::marker::Sync for antecedent_estimate::ContinuousResponseEstimator [auto]
 impl core::marker::Sync for antecedent_estimate::ContinuousResponseOptions [auto]
+impl core::marker::Sync for antecedent_estimate::CounterfactualTransportEvidence [auto]
+impl core::marker::Sync for antecedent_estimate::CounterfactualTransportPoint [auto]
 impl core::marker::Sync for antecedent_estimate::CrossfitCacheStats [auto]
 impl core::marker::Sync for antecedent_estimate::CrossfitNuisanceCache [auto]
 impl core::marker::Sync for antecedent_estimate::CrossfitRecord [auto]
@@ -3191,6 +3477,7 @@ impl core::marker::Sync for antecedent_estimate::LearnedContinuousUncertainty [a
 impl core::marker::Sync for antecedent_estimate::LinearAdjustmentAte [auto]
 impl core::marker::Sync for antecedent_estimate::LinearContrast [auto]
 impl core::marker::Sync for antecedent_estimate::LinearFitKind [auto]
+impl core::marker::Sync for antecedent_estimate::LoweredCounterfactualItem [auto]
 impl core::marker::Sync for antecedent_estimate::MatchedSetCounts [auto]
 impl core::marker::Sync for antecedent_estimate::MaxDeviationBand [auto]
 impl core::marker::Sync for antecedent_estimate::MeanPair [auto]
@@ -3305,6 +3592,18 @@ impl core::marker::Sync for antecedent_estimate::TwoStageLeastSquaresWorkspace [
 impl core::marker::Sync for antecedent_estimate::Unavailable [auto]
 impl core::marker::Sync for antecedent_estimate::WaldIv [auto]
 impl core::marker::Sync for antecedent_estimate::WeightedSupport [auto]
+impl core::marker::Sync for antecedent_estimate::adaptive_inference::AdaptiveInferenceError [auto]
+impl core::marker::Sync for antecedent_estimate::adaptive_inference::ArmCounts [auto]
+impl core::marker::Sync for antecedent_estimate::adaptive_inference::BayesianPosterior [auto]
+impl core::marker::Sync for antecedent_estimate::adaptive_inference::GroupSequentialPlan [auto]
+impl core::marker::Sync for antecedent_estimate::adaptive_inference::GroupSequentialResult [auto]
+impl core::marker::Sync for antecedent_estimate::adaptive_inference::PosteriorArm [auto]
+impl core::marker::Sync for antecedent_estimate::adaptive_inference::PosteriorRule [auto]
+impl core::marker::Sync for antecedent_estimate::adaptive_inference::SequenceResult [auto]
+impl core::marker::Sync for antecedent_estimate::adaptive_inference::StoppingDecision [auto]
+impl core::marker::Sync for antecedent_estimate::adaptive_inference::WeightedOptions [auto]
+impl core::marker::Sync for antecedent_estimate::adaptive_inference::WeightedResult [auto]
+impl core::marker::Sync for antecedent_estimate::adaptive_inference::WithheldGuarantee [auto]
 impl core::marker::Sync for antecedent_estimate::adjustment::CheckedAdjustmentLowering [auto]
 impl core::marker::Sync for antecedent_estimate::adjustment_resume::AdjustedFit [auto]
 impl core::marker::Sync for antecedent_estimate::ancova::AncovaFit [auto]
@@ -3330,6 +3629,26 @@ impl core::marker::Sync for antecedent_estimate::categorical_treatment::PairCont
 impl core::marker::Sync for antecedent_estimate::continuous_dose::DosePolicyValue [auto]
 impl core::marker::Sync for antecedent_estimate::continuous_dose::DoseResponsePoint [auto]
 impl core::marker::Sync for antecedent_estimate::continuous_dose::DoseWindow [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::OverlapPair [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledAxis [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledInference [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SamplingDesign [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty [auto]
 impl core::marker::Sync for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry [auto]
 impl core::marker::Sync for antecedent_estimate::cpdag_scenarios::CpdagScenarioReport [auto]
 impl core::marker::Sync for antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios [auto]
@@ -3400,6 +3719,14 @@ impl core::marker::Sync for antecedent_estimate::learned_trial::TrialNuisanceDia
 impl core::marker::Sync for antecedent_estimate::local_polynomial_ratio::LocalPolynomialRatioFit [auto]
 impl core::marker::Sync for antecedent_estimate::marginal_structural_model::MsmIntervals95 [auto]
 impl core::marker::Sync for antecedent_estimate::marginal_structural_model::MsmSummary [auto]
+impl core::marker::Sync for antecedent_estimate::measurement::CorrectedBinaryPrevalence [auto]
+impl core::marker::Sync for antecedent_estimate::measurement::CorrectedBinaryRiskDifference [auto]
+impl core::marker::Sync for antecedent_estimate::measurement::CorrectedCategoricalOutcome [auto]
+impl core::marker::Sync for antecedent_estimate::measurement::CorrectedLinearEffect [auto]
+impl core::marker::Sync for antecedent_estimate::measurement::CorrectedPosteriorLinearEffect [auto]
+impl core::marker::Sync for antecedent_estimate::measurement::DataBinding [auto]
+impl core::marker::Sync for antecedent_estimate::measurement::MeasurementError [auto]
+impl core::marker::Sync for antecedent_estimate::measurement::PosteriorCombination [auto]
 impl core::marker::Sync for antecedent_estimate::mechanism_discrepancy::CoefficientDiscrepancy [auto]
 impl core::marker::Sync for antecedent_estimate::mechanism_discrepancy::DiscrepancyConclusion [auto]
 impl core::marker::Sync for antecedent_estimate::mechanism_discrepancy::DiscrepancyOptions [auto]
@@ -3606,6 +3933,8 @@ impl core::marker::Unpin for antecedent_estimate::ConditionalLinearAdjustment [a
 impl core::marker::Unpin for antecedent_estimate::ConditionalOddsRatio [auto]
 impl core::marker::Unpin for antecedent_estimate::ContinuousResponseEstimator [auto]
 impl core::marker::Unpin for antecedent_estimate::ContinuousResponseOptions [auto]
+impl core::marker::Unpin for antecedent_estimate::CounterfactualTransportEvidence [auto]
+impl core::marker::Unpin for antecedent_estimate::CounterfactualTransportPoint [auto]
 impl core::marker::Unpin for antecedent_estimate::CrossfitCacheStats [auto]
 impl core::marker::Unpin for antecedent_estimate::CrossfitNuisanceCache [auto]
 impl core::marker::Unpin for antecedent_estimate::CrossfitRecord [auto]
@@ -3666,6 +3995,7 @@ impl core::marker::Unpin for antecedent_estimate::LearnedContinuousUncertainty [
 impl core::marker::Unpin for antecedent_estimate::LinearAdjustmentAte [auto]
 impl core::marker::Unpin for antecedent_estimate::LinearContrast [auto]
 impl core::marker::Unpin for antecedent_estimate::LinearFitKind [auto]
+impl core::marker::Unpin for antecedent_estimate::LoweredCounterfactualItem [auto]
 impl core::marker::Unpin for antecedent_estimate::MatchedSetCounts [auto]
 impl core::marker::Unpin for antecedent_estimate::MaxDeviationBand [auto]
 impl core::marker::Unpin for antecedent_estimate::MeanPair [auto]
@@ -3780,6 +4110,18 @@ impl core::marker::Unpin for antecedent_estimate::TwoStageLeastSquaresWorkspace 
 impl core::marker::Unpin for antecedent_estimate::Unavailable [auto]
 impl core::marker::Unpin for antecedent_estimate::WaldIv [auto]
 impl core::marker::Unpin for antecedent_estimate::WeightedSupport [auto]
+impl core::marker::Unpin for antecedent_estimate::adaptive_inference::AdaptiveInferenceError [auto]
+impl core::marker::Unpin for antecedent_estimate::adaptive_inference::ArmCounts [auto]
+impl core::marker::Unpin for antecedent_estimate::adaptive_inference::BayesianPosterior [auto]
+impl core::marker::Unpin for antecedent_estimate::adaptive_inference::GroupSequentialPlan [auto]
+impl core::marker::Unpin for antecedent_estimate::adaptive_inference::GroupSequentialResult [auto]
+impl core::marker::Unpin for antecedent_estimate::adaptive_inference::PosteriorArm [auto]
+impl core::marker::Unpin for antecedent_estimate::adaptive_inference::PosteriorRule [auto]
+impl core::marker::Unpin for antecedent_estimate::adaptive_inference::SequenceResult [auto]
+impl core::marker::Unpin for antecedent_estimate::adaptive_inference::StoppingDecision [auto]
+impl core::marker::Unpin for antecedent_estimate::adaptive_inference::WeightedOptions [auto]
+impl core::marker::Unpin for antecedent_estimate::adaptive_inference::WeightedResult [auto]
+impl core::marker::Unpin for antecedent_estimate::adaptive_inference::WithheldGuarantee [auto]
 impl core::marker::Unpin for antecedent_estimate::adjustment::CheckedAdjustmentLowering [auto]
 impl core::marker::Unpin for antecedent_estimate::adjustment_resume::AdjustedFit [auto]
 impl core::marker::Unpin for antecedent_estimate::ancova::AncovaFit [auto]
@@ -3805,6 +4147,26 @@ impl core::marker::Unpin for antecedent_estimate::categorical_treatment::PairCon
 impl core::marker::Unpin for antecedent_estimate::continuous_dose::DosePolicyValue [auto]
 impl core::marker::Unpin for antecedent_estimate::continuous_dose::DoseResponsePoint [auto]
 impl core::marker::Unpin for antecedent_estimate::continuous_dose::DoseWindow [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::OverlapPair [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledAxis [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledInference [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SamplingDesign [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty [auto]
 impl core::marker::Unpin for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry [auto]
 impl core::marker::Unpin for antecedent_estimate::cpdag_scenarios::CpdagScenarioReport [auto]
 impl core::marker::Unpin for antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios [auto]
@@ -3875,6 +4237,14 @@ impl core::marker::Unpin for antecedent_estimate::learned_trial::TrialNuisanceDi
 impl core::marker::Unpin for antecedent_estimate::local_polynomial_ratio::LocalPolynomialRatioFit [auto]
 impl core::marker::Unpin for antecedent_estimate::marginal_structural_model::MsmIntervals95 [auto]
 impl core::marker::Unpin for antecedent_estimate::marginal_structural_model::MsmSummary [auto]
+impl core::marker::Unpin for antecedent_estimate::measurement::CorrectedBinaryPrevalence [auto]
+impl core::marker::Unpin for antecedent_estimate::measurement::CorrectedBinaryRiskDifference [auto]
+impl core::marker::Unpin for antecedent_estimate::measurement::CorrectedCategoricalOutcome [auto]
+impl core::marker::Unpin for antecedent_estimate::measurement::CorrectedLinearEffect [auto]
+impl core::marker::Unpin for antecedent_estimate::measurement::CorrectedPosteriorLinearEffect [auto]
+impl core::marker::Unpin for antecedent_estimate::measurement::DataBinding [auto]
+impl core::marker::Unpin for antecedent_estimate::measurement::MeasurementError [auto]
+impl core::marker::Unpin for antecedent_estimate::measurement::PosteriorCombination [auto]
 impl core::marker::Unpin for antecedent_estimate::mechanism_discrepancy::CoefficientDiscrepancy [auto]
 impl core::marker::Unpin for antecedent_estimate::mechanism_discrepancy::DiscrepancyConclusion [auto]
 impl core::marker::Unpin for antecedent_estimate::mechanism_discrepancy::DiscrepancyOptions [auto]
@@ -4081,6 +4451,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::Conditiona
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ConditionalOddsRatio [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ContinuousResponseEstimator [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ContinuousResponseOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::CounterfactualTransportEvidence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::CounterfactualTransportPoint [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::CrossfitCacheStats [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::CrossfitNuisanceCache [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::CrossfitRecord [auto]
@@ -4141,6 +4513,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::LearnedCon
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::LinearAdjustmentAte [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::LinearContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::LinearFitKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::LoweredCounterfactualItem [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::MatchedSetCounts [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::MaxDeviationBand [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::MeanPair [auto]
@@ -4255,6 +4628,18 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TwoStageLe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::Unavailable [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::WaldIv [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::WeightedSupport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::adaptive_inference::AdaptiveInferenceError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::adaptive_inference::ArmCounts [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::adaptive_inference::BayesianPosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::adaptive_inference::GroupSequentialPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::adaptive_inference::GroupSequentialResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::adaptive_inference::PosteriorArm [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::adaptive_inference::PosteriorRule [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::adaptive_inference::SequenceResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::adaptive_inference::StoppingDecision [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::adaptive_inference::WeightedOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::adaptive_inference::WeightedResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::adaptive_inference::WithheldGuarantee [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::adjustment::CheckedAdjustmentLowering [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::adjustment_resume::AdjustedFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ancova::AncovaFit [auto]
@@ -4280,6 +4665,26 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::categorica
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::continuous_dose::DosePolicyValue [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::continuous_dose::DoseResponsePoint [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::continuous_dose::DoseWindow [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::OverlapPair [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledAxis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledInference [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SamplingDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cpdag_scenarios::CpdagScenarioReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios [auto]
@@ -4350,6 +4755,14 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::learned_tr
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::local_polynomial_ratio::LocalPolynomialRatioFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::marginal_structural_model::MsmIntervals95 [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::marginal_structural_model::MsmSummary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::measurement::CorrectedBinaryPrevalence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::measurement::CorrectedBinaryRiskDifference [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::measurement::CorrectedCategoricalOutcome [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::measurement::CorrectedLinearEffect [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::measurement::CorrectedPosteriorLinearEffect [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::measurement::DataBinding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::measurement::MeasurementError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::measurement::PosteriorCombination [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::mechanism_discrepancy::CoefficientDiscrepancy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::mechanism_discrepancy::DiscrepancyConclusion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::mechanism_discrepancy::DiscrepancyOptions [auto]
@@ -4555,6 +4968,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ConditionalLi
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ConditionalOddsRatio [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ContinuousResponseEstimator [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ContinuousResponseOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::CounterfactualTransportEvidence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::CounterfactualTransportPoint [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::CrossfitCacheStats [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::CrossfitNuisanceCache [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::CrossfitRecord [auto]
@@ -4615,6 +5030,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::LearnedContin
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::LinearAdjustmentAte [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::LinearContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::LinearFitKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::LoweredCounterfactualItem [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::MatchedSetCounts [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::MaxDeviationBand [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::MeanPair [auto]
@@ -4729,6 +5145,18 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TwoStageLeast
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::Unavailable [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::WaldIv [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::WeightedSupport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::adaptive_inference::AdaptiveInferenceError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::adaptive_inference::ArmCounts [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::adaptive_inference::BayesianPosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::adaptive_inference::GroupSequentialPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::adaptive_inference::GroupSequentialResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::adaptive_inference::PosteriorArm [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::adaptive_inference::PosteriorRule [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::adaptive_inference::SequenceResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::adaptive_inference::StoppingDecision [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::adaptive_inference::WeightedOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::adaptive_inference::WeightedResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::adaptive_inference::WithheldGuarantee [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::adjustment::CheckedAdjustmentLowering [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::adjustment_resume::AdjustedFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ancova::AncovaFit [auto]
@@ -4754,6 +5182,26 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::categorical_t
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuous_dose::DosePolicyValue [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuous_dose::DoseResponsePoint [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuous_dose::DoseWindow [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::OverlapPair [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledAxis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledInference [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SamplingDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cpdag_scenarios::CpdagScenarioReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios [auto]
@@ -4824,6 +5272,14 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::learned_trial
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::local_polynomial_ratio::LocalPolynomialRatioFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::marginal_structural_model::MsmIntervals95 [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::marginal_structural_model::MsmSummary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::measurement::CorrectedBinaryPrevalence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::measurement::CorrectedBinaryRiskDifference [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::measurement::CorrectedCategoricalOutcome [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::measurement::CorrectedLinearEffect [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::measurement::CorrectedPosteriorLinearEffect [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::measurement::DataBinding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::measurement::MeasurementError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::measurement::PosteriorCombination [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::mechanism_discrepancy::CoefficientDiscrepancy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::mechanism_discrepancy::DiscrepancyConclusion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::mechanism_discrepancy::DiscrepancyOptions [auto]
@@ -5029,6 +5485,7 @@ impl<'a> core::clone::Clone for antecedent_estimate::StaticMediationProblem<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::TemporalDesignInputs<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::TemporalIdentification<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::TemporalSlopeSpec<'a>
+impl<'a> core::clone::Clone for antecedent_estimate::adaptive_inference::WeightedHistory<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::bayesian_iv::IvSample<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::bayesian_rd::RdSample<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::continuous_dose::DoseRows<'a>
@@ -5036,6 +5493,10 @@ impl<'a> core::clone::Clone for antecedent_estimate::continuous_dose::DoseRules<
 impl<'a> core::clone::Clone for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::gcomp::GcompContrast<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::latent_class_effects::LatentClassData<'a>
+impl<'a> core::clone::Clone for antecedent_estimate::measurement::CategoricalFunctional<'a>
+impl<'a> core::clone::Clone for antecedent_estimate::measurement::LinearMeasuredData<'a>
+impl<'a> core::clone::Clone for antecedent_estimate::measurement::PosteriorLinearData<'a>
+impl<'a> core::clone::Clone for antecedent_estimate::measurement::RiskDifferenceInput<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::nonlinear_mediation::NonlinearMediationInput<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::policy_value::BinaryIpwDesign<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::policy_value::BinaryPolicyDesign<'a>
@@ -5043,6 +5504,10 @@ impl<'a> core::clone::Clone for antecedent_estimate::policy_value::MultiActionIp
 impl<'a> core::clone::Clone for antecedent_estimate::policy_value::MultiActionLimits<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::survival::KnownCensoring<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::survival::SurvivalRows<'a>
+impl<'a> core::cmp::Eq for antecedent_estimate::measurement::CategoricalFunctional<'a>
+impl<'a> core::cmp::Eq for antecedent_estimate::measurement::RiskDifferenceInput<'a>
+impl<'a> core::cmp::PartialEq for antecedent_estimate::measurement::CategoricalFunctional<'a>
+impl<'a> core::cmp::PartialEq for antecedent_estimate::measurement::RiskDifferenceInput<'a>
 impl<'a> core::cmp::PartialEq for antecedent_estimate::policy_value::MultiActionLimits<'a>
 impl<'a> core::default::Default for antecedent_estimate::SharedCellInputs<'a>
 impl<'a> core::default::Default for antecedent_estimate::policy_value::MultiActionLimits<'a>
@@ -5058,6 +5523,7 @@ impl<'a> core::fmt::Debug for antecedent_estimate::SharedCellInputs<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::StaticMediationProblem<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::TemporalIdentification<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::TemporalSlopeSpec<'a>
+impl<'a> core::fmt::Debug for antecedent_estimate::adaptive_inference::WeightedHistory<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::bayesian_iv::IvSample<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::bayesian_rd::RdSample<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::continuous_dose::DoseRows<'a>
@@ -5065,6 +5531,10 @@ impl<'a> core::fmt::Debug for antecedent_estimate::continuous_dose::DoseRules<'a
 impl<'a> core::fmt::Debug for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::gcomp::GcompContrast<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::latent_class_effects::LatentClassData<'a>
+impl<'a> core::fmt::Debug for antecedent_estimate::measurement::CategoricalFunctional<'a>
+impl<'a> core::fmt::Debug for antecedent_estimate::measurement::LinearMeasuredData<'a>
+impl<'a> core::fmt::Debug for antecedent_estimate::measurement::PosteriorLinearData<'a>
+impl<'a> core::fmt::Debug for antecedent_estimate::measurement::RiskDifferenceInput<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::nonlinear_mediation::NonlinearMediationInput<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::policy_value::BinaryIpwDesign<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::policy_value::BinaryPolicyDesign<'a>
@@ -5085,6 +5555,7 @@ impl<'a> core::marker::Copy for antecedent_estimate::SharedCellInputs<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::StaticMediationProblem<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::TemporalDesignInputs<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::TemporalSlopeSpec<'a>
+impl<'a> core::marker::Copy for antecedent_estimate::adaptive_inference::WeightedHistory<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::bayesian_iv::IvSample<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::bayesian_rd::RdSample<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::continuous_dose::DoseRows<'a>
@@ -5092,6 +5563,10 @@ impl<'a> core::marker::Copy for antecedent_estimate::continuous_dose::DoseRules<
 impl<'a> core::marker::Copy for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::gcomp::GcompContrast<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::latent_class_effects::LatentClassData<'a>
+impl<'a> core::marker::Copy for antecedent_estimate::measurement::CategoricalFunctional<'a>
+impl<'a> core::marker::Copy for antecedent_estimate::measurement::LinearMeasuredData<'a>
+impl<'a> core::marker::Copy for antecedent_estimate::measurement::PosteriorLinearData<'a>
+impl<'a> core::marker::Copy for antecedent_estimate::measurement::RiskDifferenceInput<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::nonlinear_mediation::NonlinearMediationInput<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::policy_value::BinaryIpwDesign<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::policy_value::BinaryPolicyDesign<'a>
@@ -5114,6 +5589,7 @@ impl<'a> core::marker::Freeze for antecedent_estimate::StaticMediationProblem<'a
 impl<'a> core::marker::Freeze for antecedent_estimate::TemporalDesignInputs<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::TemporalIdentification<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::TemporalSlopeSpec<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_estimate::adaptive_inference::WeightedHistory<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::bayesian_iv::IvSample<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::bayesian_rd::RdSample<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::continuous_dose::DoseRows<'a> [auto]
@@ -5121,6 +5597,10 @@ impl<'a> core::marker::Freeze for antecedent_estimate::continuous_dose::DoseRule
 impl<'a> core::marker::Freeze for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::latent_class_effects::LatentClassData<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_estimate::measurement::CategoricalFunctional<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_estimate::measurement::LinearMeasuredData<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_estimate::measurement::PosteriorLinearData<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_estimate::measurement::RiskDifferenceInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::nonlinear_mediation::NonlinearMediationInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::policy_value::BinaryIpwDesign<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::policy_value::BinaryPolicyDesign<'a> [auto]
@@ -5144,6 +5624,7 @@ impl<'a> core::marker::Send for antecedent_estimate::StaticMediationProblem<'a> 
 impl<'a> core::marker::Send for antecedent_estimate::TemporalDesignInputs<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::TemporalIdentification<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::TemporalSlopeSpec<'a> [auto]
+impl<'a> core::marker::Send for antecedent_estimate::adaptive_inference::WeightedHistory<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::bayesian_iv::IvSample<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::bayesian_rd::RdSample<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::continuous_dose::DoseRows<'a> [auto]
@@ -5151,6 +5632,10 @@ impl<'a> core::marker::Send for antecedent_estimate::continuous_dose::DoseRules<
 impl<'a> core::marker::Send for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::latent_class_effects::LatentClassData<'a> [auto]
+impl<'a> core::marker::Send for antecedent_estimate::measurement::CategoricalFunctional<'a> [auto]
+impl<'a> core::marker::Send for antecedent_estimate::measurement::LinearMeasuredData<'a> [auto]
+impl<'a> core::marker::Send for antecedent_estimate::measurement::PosteriorLinearData<'a> [auto]
+impl<'a> core::marker::Send for antecedent_estimate::measurement::RiskDifferenceInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::nonlinear_mediation::NonlinearMediationInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::policy_value::BinaryIpwDesign<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::policy_value::BinaryPolicyDesign<'a> [auto]
@@ -5159,6 +5644,8 @@ impl<'a> core::marker::Send for antecedent_estimate::policy_value::MultiActionLi
 impl<'a> core::marker::Send for antecedent_estimate::statistical_transport::EvaluatedPointLaws<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::survival::KnownCensoring<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::survival::SurvivalRows<'a> [auto]
+impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::measurement::CategoricalFunctional<'a>
+impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::measurement::RiskDifferenceInput<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::policy_value::MultiActionLimits<'a>
 impl<'a> core::marker::Sync for antecedent_estimate::CellScoreSpec<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::ContinuousCellSpec<'a> [auto]
@@ -5175,6 +5662,7 @@ impl<'a> core::marker::Sync for antecedent_estimate::StaticMediationProblem<'a> 
 impl<'a> core::marker::Sync for antecedent_estimate::TemporalDesignInputs<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::TemporalIdentification<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::TemporalSlopeSpec<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_estimate::adaptive_inference::WeightedHistory<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::bayesian_iv::IvSample<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::bayesian_rd::RdSample<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::continuous_dose::DoseRows<'a> [auto]
@@ -5182,6 +5670,10 @@ impl<'a> core::marker::Sync for antecedent_estimate::continuous_dose::DoseRules<
 impl<'a> core::marker::Sync for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::latent_class_effects::LatentClassData<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_estimate::measurement::CategoricalFunctional<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_estimate::measurement::LinearMeasuredData<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_estimate::measurement::PosteriorLinearData<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_estimate::measurement::RiskDifferenceInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::nonlinear_mediation::NonlinearMediationInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::policy_value::BinaryIpwDesign<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::policy_value::BinaryPolicyDesign<'a> [auto]
@@ -5205,6 +5697,7 @@ impl<'a> core::marker::Unpin for antecedent_estimate::StaticMediationProblem<'a>
 impl<'a> core::marker::Unpin for antecedent_estimate::TemporalDesignInputs<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::TemporalIdentification<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::TemporalSlopeSpec<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_estimate::adaptive_inference::WeightedHistory<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::bayesian_iv::IvSample<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::bayesian_rd::RdSample<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::continuous_dose::DoseRows<'a> [auto]
@@ -5212,6 +5705,10 @@ impl<'a> core::marker::Unpin for antecedent_estimate::continuous_dose::DoseRules
 impl<'a> core::marker::Unpin for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::latent_class_effects::LatentClassData<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_estimate::measurement::CategoricalFunctional<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_estimate::measurement::LinearMeasuredData<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_estimate::measurement::PosteriorLinearData<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_estimate::measurement::RiskDifferenceInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::nonlinear_mediation::NonlinearMediationInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::policy_value::BinaryIpwDesign<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::policy_value::BinaryPolicyDesign<'a> [auto]
@@ -5232,6 +5729,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::Sequen
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::SharedCellInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TemporalIdentification<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TemporalSlopeSpec<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::adaptive_inference::WeightedHistory<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::bayesian_iv::IvSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::bayesian_rd::RdSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::continuous_dose::DoseRows<'a> [auto]
@@ -5239,6 +5737,10 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::contin
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::latent_class_effects::LatentClassData<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::measurement::CategoricalFunctional<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::measurement::LinearMeasuredData<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::measurement::PosteriorLinearData<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::measurement::RiskDifferenceInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_mediation::NonlinearMediationInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::policy_value::BinaryIpwDesign<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::policy_value::BinaryPolicyDesign<'a> [auto]
@@ -5259,6 +5761,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::Sequentia
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::SharedCellInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TemporalIdentification<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TemporalSlopeSpec<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::adaptive_inference::WeightedHistory<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::bayesian_iv::IvSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::bayesian_rd::RdSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuous_dose::DoseRows<'a> [auto]
@@ -5266,6 +5769,10 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuou
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::latent_class_effects::LatentClassData<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::measurement::CategoricalFunctional<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::measurement::LinearMeasuredData<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::measurement::PosteriorLinearData<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::measurement::RiskDifferenceInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_mediation::NonlinearMediationInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::policy_value::BinaryIpwDesign<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::policy_value::BinaryPolicyDesign<'a> [auto]
@@ -5366,10 +5873,30 @@ pub const antecedent_estimate::TEMPORAL_RESPONSE_BAND_WITHHELD: &str
 pub const antecedent_estimate::TEMPORAL_RESPONSE_BLOCK_LENGTH: &str
 pub const antecedent_estimate::TEMPORAL_RESPONSE_FEW_REPLICATES: &str
 pub const antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED: &str
+pub const antecedent_estimate::adaptive_inference::POSTERIOR_PREMISE: &str
 pub const antecedent_estimate::categorical_treatment::CATEGORICAL_INFERENCE_CLAIM: &str
 pub const antecedent_estimate::categorical_treatment::CATEGORICAL_OMNIBUS_NULL: &str
 pub const antecedent_estimate::categorical_treatment::MONOTONICITY_NON_DECREASING_NULL: &str
 pub const antecedent_estimate::categorical_treatment::MONOTONICITY_NON_INCREASING_NULL: &str
+pub const antecedent_estimate::counterfactual_transport_sampled::DETAIL_INTERVAL_NOT_LICENSED: &str
+pub const antecedent_estimate::counterfactual_transport_sampled::LABEL_ENVELOPE_ONLY: &str
+pub const antecedent_estimate::counterfactual_transport_sampled::LABEL_EXACT_ON_ESTIMATED_TABLES: &str
+pub const antecedent_estimate::counterfactual_transport_sampled::LABEL_IDENTIFIED: &str
+pub const antecedent_estimate::counterfactual_transport_sampled::LABEL_INFERENCE_WITHHELD: &str
+pub const antecedent_estimate::counterfactual_transport_sampled::LABEL_PLUG_IN: &str
+pub const antecedent_estimate::counterfactual_transport_sampled::LABEL_SMOOTHED_PLUG_IN: &str
+pub const antecedent_estimate::counterfactual_transport_sampled::SAMPLED_COUNT_IDENTITY_TAG: &str
+pub const antecedent_estimate::counterfactual_transport_sampled::SAMPLED_TRANSPORT_CONTRACT: &str
+pub const antecedent_estimate::counterfactual_transport_sampled::SAMPLED_TRANSPORT_DERIVATION_TAG: &str
+pub const antecedent_estimate::counterfactual_transport_sampled::SAMPLED_TRANSPORT_GRADIENT_RELATIVE_STEP: f64
+pub const antecedent_estimate::counterfactual_transport_sampled::SAMPLED_TRANSPORT_IDENTITY_TAG: &str
+pub const antecedent_estimate::counterfactual_transport_sampled::SAMPLED_TRANSPORT_MAX_AXES: usize
+pub const antecedent_estimate::counterfactual_transport_sampled::SAMPLED_TRANSPORT_MAX_ENVELOPE_EVALUATIONS: u32
+pub const antecedent_estimate::counterfactual_transport_sampled::SAMPLED_TRANSPORT_MAX_TABLES: usize
+pub const antecedent_estimate::counterfactual_transport_sampled::SAMPLED_TRANSPORT_MAX_TABLE_CELLS: usize
+pub const antecedent_estimate::counterfactual_transport_sampled::SAMPLED_TRANSPORT_UNCERTAINTY_METHOD: &str
+pub const antecedent_estimate::counterfactual_transport_sampled::STRUCTURAL_ENVELOPE_LABEL: &str
+pub const antecedent_estimate::counterfactual_transport_sampled::UNCALIBRATED_STANDARD_ERROR: &str
 pub const antecedent_estimate::effect_constancy::EFFECT_CONSTANCY_INFERENCE_CLAIM: &str
 pub const antecedent_estimate::effect_constancy::EFFECT_CONSTANCY_MAX_PARTITIONS: usize
 pub const antecedent_estimate::effect_constancy::EFFECT_CONSTANCY_NULL: &str
@@ -5512,6 +6039,9 @@ pub enum antecedent_estimate::TemporalInterventionPlan
 pub enum antecedent_estimate::TrialSampling
 pub enum antecedent_estimate::categorical_treatment::LevelScale
 pub enum antecedent_estimate::categorical_treatment::MonotonicityDirection
+pub enum antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
+pub enum antecedent_estimate::counterfactual_transport_sampled::SamplingDesign
+pub enum antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule
 pub enum antecedent_estimate::dose_grid_functional::DoseDesign
 pub enum antecedent_estimate::dose_grid_functional::DoseFunctional
 pub enum antecedent_estimate::dose_grid_functional::IntervalCalibration
@@ -5529,6 +6059,8 @@ pub enum antecedent_estimate::joint_bayesian_transport::SourceSharing
 pub enum antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 pub enum antecedent_estimate::joint_bayesian_transport::VaryingBlock
 pub enum antecedent_estimate::latent_class_effects::PremiseStatus
+pub enum antecedent_estimate::measurement::CategoricalFunctional<'a>
+pub enum antecedent_estimate::measurement::PosteriorCombination
 pub enum antecedent_estimate::mechanism_discrepancy::DiscrepancyConclusion
 pub enum antecedent_estimate::mechanism_discrepancy::SampleDependence
 pub enum antecedent_estimate::nested_markov_binary::ConstraintStatus
@@ -5758,6 +6290,18 @@ pub field antecedent_estimate::ContinuousResponseOptions::multiplier_seed: u64
 pub field antecedent_estimate::ContinuousResponseOptions::nuisance_basis: usize
 pub field antecedent_estimate::ContinuousResponseOptions::nuisance_lambda: f64
 pub field antecedent_estimate::ContinuousResponseOptions::simultaneous_replicates: core::option::Option<u32>
+pub field antecedent_estimate::CounterfactualTransportEvidence::content_identity: alloc::string::String
+pub field antecedent_estimate::CounterfactualTransportEvidence::interventions: alloc::vec::Vec<(antecedent_core::ids::VariableId, f64)>
+pub field antecedent_estimate::CounterfactualTransportEvidence::population: alloc::sync::Arc<str>
+pub field antecedent_estimate::CounterfactualTransportEvidence::regime: antecedent_core::ids::RegimeId
+pub field antecedent_estimate::CounterfactualTransportEvidence::snapshot_identity: alloc::string::String
+pub field antecedent_estimate::CounterfactualTransportPoint::cells_read: u64
+pub field antecedent_estimate::CounterfactualTransportPoint::conditioning_mass: core::option::Option<f64>
+pub field antecedent_estimate::CounterfactualTransportPoint::conditioning_mass_checked: bool
+pub field antecedent_estimate::CounterfactualTransportPoint::denominator: f64
+pub field antecedent_estimate::CounterfactualTransportPoint::evidence: alloc::vec::Vec<antecedent_estimate::CounterfactualTransportEvidence>
+pub field antecedent_estimate::CounterfactualTransportPoint::numerator: f64
+pub field antecedent_estimate::CounterfactualTransportPoint::probability: f64
 pub field antecedent_estimate::CrossfitCacheStats::outcome_fits: usize
 pub field antecedent_estimate::CrossfitCacheStats::outcome_reuses: usize
 pub field antecedent_estimate::CrossfitCacheStats::propensity_fits: usize
@@ -5994,6 +6538,9 @@ pub field antecedent_estimate::LinearAdjustmentAte::population_registry: core::o
 pub field antecedent_estimate::LinearAdjustmentAte::se_kind: antecedent_estimate::AnalyticSeKind
 pub field antecedent_estimate::LinearContrast::se: f64
 pub field antecedent_estimate::LinearContrast::value: f64
+pub field antecedent_estimate::LoweredCounterfactualItem::arena: antecedent_expr::CausalExprArena
+pub field antecedent_estimate::LoweredCounterfactualItem::root: antecedent_expr::ExprId
+pub field antecedent_estimate::LoweredCounterfactualItem::variables: alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub field antecedent_estimate::MatchedSetCounts::exposure_concordant: usize
 pub field antecedent_estimate::MatchedSetCounts::informative: usize
 pub field antecedent_estimate::MatchedSetCounts::outcome_degenerate: usize
@@ -6574,6 +7121,61 @@ pub field antecedent_estimate::WeightedSupport::n_eff: f64
 pub field antecedent_estimate::WeightedSupport::n_eff_by_arm: alloc::vec::Vec<f64>
 pub field antecedent_estimate::WeightedSupport::overlap_ok: bool
 pub field antecedent_estimate::WeightedSupport::propensity_range: core::option::Option<(f64, f64)>
+pub field antecedent_estimate::adaptive_inference::AdaptiveInferenceError::code: &'static str
+pub field antecedent_estimate::adaptive_inference::AdaptiveInferenceError::detail: &'static str
+pub field antecedent_estimate::adaptive_inference::AdaptiveInferenceError::message: alloc::string::String
+pub field antecedent_estimate::adaptive_inference::ArmCounts::failures: u64
+pub field antecedent_estimate::adaptive_inference::ArmCounts::successes: u64
+pub field antecedent_estimate::adaptive_inference::BayesianPosterior::arms: alloc::vec::Vec<antecedent_estimate::adaptive_inference::PosteriorArm>
+pub field antecedent_estimate::adaptive_inference::BayesianPosterior::guarantee: antecedent_estimate::adaptive_inference::WithheldGuarantee
+pub field antecedent_estimate::adaptive_inference::BayesianPosterior::premise: &'static str
+pub field antecedent_estimate::adaptive_inference::BayesianPosterior::prior: (f64, f64)
+pub field antecedent_estimate::adaptive_inference::GroupSequentialPlan::alpha: f64
+pub field antecedent_estimate::adaptive_inference::GroupSequentialPlan::fractions: alloc::vec::Vec<f64>
+pub field antecedent_estimate::adaptive_inference::GroupSequentialPlan::sidedness: antecedent_stats::adaptive_inference::group_sequential::Sidedness
+pub field antecedent_estimate::adaptive_inference::GroupSequentialPlan::spending: antecedent_stats::adaptive_inference::group_sequential::SpendingFunction
+pub field antecedent_estimate::adaptive_inference::GroupSequentialResult::critical: alloc::vec::Vec<f64>
+pub field antecedent_estimate::adaptive_inference::GroupSequentialResult::guarantee: antecedent_estimate::adaptive_inference::WithheldGuarantee
+pub field antecedent_estimate::adaptive_inference::GroupSequentialResult::spend_increments: alloc::vec::Vec<f64>
+pub field antecedent_estimate::adaptive_inference::GroupSequentialResult::statistics: alloc::vec::Vec<f64>
+pub field antecedent_estimate::adaptive_inference::GroupSequentialResult::stopped_at: core::option::Option<usize>
+pub field antecedent_estimate::adaptive_inference::PosteriorArm::alpha: f64
+pub field antecedent_estimate::adaptive_inference::PosteriorArm::beta: f64
+pub field antecedent_estimate::adaptive_inference::PosteriorArm::expected_loss: f64
+pub field antecedent_estimate::adaptive_inference::PosteriorArm::mean: f64
+pub field antecedent_estimate::adaptive_inference::PosteriorArm::probability_best: f64
+pub field antecedent_estimate::adaptive_inference::PosteriorArm::variance: f64
+pub field antecedent_estimate::adaptive_inference::SequenceResult::arm_alpha: f64
+pub field antecedent_estimate::adaptive_inference::SequenceResult::arms: alloc::vec::Vec<antecedent_stats::adaptive_inference::confidence_sequence::ArmSequence>
+pub field antecedent_estimate::adaptive_inference::SequenceResult::contrast: core::option::Option<(f64, f64)>
+pub field antecedent_estimate::adaptive_inference::SequenceResult::guarantee: antecedent_estimate::adaptive_inference::WithheldGuarantee
+pub field antecedent_estimate::adaptive_inference::SequenceResult::label: &'static str
+pub field antecedent_estimate::adaptive_inference::SequenceResult::tuning_samples: f64
+pub field antecedent_estimate::adaptive_inference::StoppingDecision::best_arm: usize
+pub field antecedent_estimate::adaptive_inference::StoppingDecision::expected_loss: f64
+pub field antecedent_estimate::adaptive_inference::StoppingDecision::guarantee: antecedent_estimate::adaptive_inference::WithheldGuarantee
+pub field antecedent_estimate::adaptive_inference::StoppingDecision::probability_best: f64
+pub field antecedent_estimate::adaptive_inference::StoppingDecision::stop: bool
+pub field antecedent_estimate::adaptive_inference::WeightedHistory::arms: usize
+pub field antecedent_estimate::adaptive_inference::WeightedHistory::assigned: &'a [usize]
+pub field antecedent_estimate::adaptive_inference::WeightedHistory::multiplier: core::option::Option<&'a [f64]>
+pub field antecedent_estimate::adaptive_inference::WeightedHistory::outcomes: &'a [f64]
+pub field antecedent_estimate::adaptive_inference::WeightedHistory::probabilities: &'a [f64]
+pub field antecedent_estimate::adaptive_inference::WeightedOptions::prior: antecedent_stats::adaptive_inference::weighting::OutcomeModelPrior
+pub field antecedent_estimate::adaptive_inference::WeightedOptions::probability_floor: f64
+pub field antecedent_estimate::adaptive_inference::WeightedOptions::scheme: antecedent_stats::adaptive_inference::weighting::WeightScheme
+pub field antecedent_estimate::adaptive_inference::WeightedResult::effective_units: f64
+pub field antecedent_estimate::adaptive_inference::WeightedResult::estimand: antecedent_stats::adaptive_inference::weighting::Estimand
+pub field antecedent_estimate::adaptive_inference::WeightedResult::estimate: f64
+pub field antecedent_estimate::adaptive_inference::WeightedResult::guarantee: antecedent_estimate::adaptive_inference::WithheldGuarantee
+pub field antecedent_estimate::adaptive_inference::WeightedResult::max_weight_share: f64
+pub field antecedent_estimate::adaptive_inference::WeightedResult::scheme: antecedent_stats::adaptive_inference::weighting::WeightScheme
+pub field antecedent_estimate::adaptive_inference::WeightedResult::uncalibrated_standard_error: f64
+pub field antecedent_estimate::adaptive_inference::WeightedResult::uncalibrated_variance: f64
+pub field antecedent_estimate::adaptive_inference::WeightedResult::units: usize
+pub field antecedent_estimate::adaptive_inference::WithheldGuarantee::code: &'static str
+pub field antecedent_estimate::adaptive_inference::WithheldGuarantee::detail: &'static str
+pub field antecedent_estimate::adaptive_inference::WithheldGuarantee::reason: &'static str
 pub field antecedent_estimate::adjustment::CheckedAdjustmentLowering::active: f64
 pub field antecedent_estimate::adjustment::CheckedAdjustmentLowering::adjustment: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
 pub field antecedent_estimate::adjustment::CheckedAdjustmentLowering::control: f64
@@ -6723,6 +7325,86 @@ pub field antecedent_estimate::continuous_dose::DoseRules::reference: &'a [(allo
 pub field antecedent_estimate::continuous_dose::DoseWindow::bandwidth: f64
 pub field antecedent_estimate::continuous_dose::DoseWindow::density_known: bool
 pub field antecedent_estimate::continuous_dose::DoseWindow::min_local_support: usize
+pub field antecedent_estimate::counterfactual_transport_sampled::OverlapPair::a: antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
+pub field antecedent_estimate::counterfactual_transport_sampled::OverlapPair::b: antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
+pub field antecedent_estimate::counterfactual_transport_sampled::OverlapPair::relation: antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledAxis::levels: alloc::vec::Vec<f64>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledAxis::variable: antecedent_core::ids::VariableId
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels::exact_finite_law_evaluation: &'static str
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels::point_estimate: &'static str
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels::statistical_inference: &'static str
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels::structural_identification: &'static str
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::cells_read: u64
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::datasets: alloc::vec::Vec<alloc::vec::Vec<antecedent_estimate::counterfactual_transport_sampled::SampledTableKey>>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::derivation_identity: alloc::string::String
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::envelope: core::option::Option<antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::evidence_identity: alloc::string::String
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::inference: antecedent_estimate::counterfactual_transport_sampled::SampledInference
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::labels: antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::point: core::option::Option<antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::point_withheld_reason: core::option::Option<&'static str>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::repairs: antecedent_estimate::counterfactual_transport_sampled::SampledRepairs
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::tables: alloc::vec::Vec<antecedent_estimate::counterfactual_transport_sampled::SampledTableReport>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::unseen_rule: antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledInference::interval: antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledInference::method: &'static str
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledInference::standard_error: core::option::Option<antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledInference::standard_error_withheld_reason: core::option::Option<&'static str>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate::conditioning_mass: core::option::Option<f64>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate::conditioning_mass_checked: bool
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate::denominator: f64
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate::numerator: f64
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate::probability: f64
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate::smoothed: bool
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts::axes: alloc::vec::Vec<antecedent_estimate::counterfactual_transport_sampled::SampledAxis>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts::counts: alloc::vec::Vec<u64>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts::design: antecedent_estimate::counterfactual_transport_sampled::SamplingDesign
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts::interventions: alloc::vec::Vec<(antecedent_core::ids::VariableId, f64)>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts::population: alloc::sync::Arc<str>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts::regime: antecedent_core::ids::RegimeId
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts::snapshot_identity: alloc::sync::Arc<str>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts::structural_zeros: alloc::vec::Vec<usize>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledRepairs::averaged_factors: u64
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledRepairs::complements_clamped: u64
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledRepairs::probability_clamped: bool
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableKey::interventions: alloc::vec::Vec<(antecedent_core::ids::VariableId, u64)>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableKey::population: alloc::sync::Arc<str>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableKey::regime: antecedent_core::ids::RegimeId
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::cells: usize
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::content_identity: alloc::string::String
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::dataset: usize
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::key: antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::observed_cells: usize
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::pseudo_count: core::option::Option<f64>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::smoothed: bool
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::structural_zeros: usize
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::total: u64
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::unseen_cells: usize
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits::evaluation: antecedent_expr::exact_plan::ExactEvaluationLimits
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits::max_envelope_evaluations: u32
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits::max_unseen_fraction: f64
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits::min_table_total: u64
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest::limits: antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest::overlap: antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest::tables: alloc::vec::Vec<antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest::unseen_rule: antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule
+pub field antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope::defined_members: u64
+pub field antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope::label: &'static str
+pub field antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope::lower: f64
+pub field antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope::members: u64
+pub field antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope::tables_with_unseen_cells: usize
+pub field antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope::undefined_members: u64
+pub field antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope::unseen_mass: f64
+pub field antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope::upper: f64
+pub field antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError::datasets: usize
+pub field antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError::gradient_evaluations: u64
+pub field antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError::gradient_relative_step: f64
+pub field antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError::label: &'static str
+pub field antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError::method: &'static str
+pub field antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError::value: f64
+pub field antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty::code: &'static str
+pub field antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty::detail: &'static str
+pub field antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty::reason: &'static str
 pub field antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry::detail: core::option::Option<alloc::string::String>
 pub field antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry::edges: alloc::sync::Arc<[(antecedent_core::ids::VariableId, antecedent_core::ids::VariableId)]>
 pub field antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry::evidence_identity: core::option::Option<alloc::sync::Arc<str>>
@@ -7040,6 +7722,50 @@ pub field antecedent_estimate::marginal_structural_model::MsmSummary::maximum_we
 pub field antecedent_estimate::marginal_structural_model::MsmSummary::observed_subjects: usize
 pub field antecedent_estimate::marginal_structural_model::MsmSummary::period_effects: alloc::vec::Vec<f64>
 pub field antecedent_estimate::marginal_structural_model::MsmSummary::standard_errors: alloc::vec::Vec<f64>
+pub field antecedent_estimate::measurement::CorrectedBinaryPrevalence::events: u64
+pub field antecedent_estimate::measurement::CorrectedBinaryPrevalence::record: antecedent_core::measurement_model::CorrectedFunctionalRecord
+pub field antecedent_estimate::measurement::CorrectedBinaryPrevalence::result: antecedent_stats::measurement_error::CorrectedProportion
+pub field antecedent_estimate::measurement::CorrectedBinaryPrevalence::total: u64
+pub field antecedent_estimate::measurement::CorrectedBinaryRiskDifference::differential: bool
+pub field antecedent_estimate::measurement::CorrectedBinaryRiskDifference::record: antecedent_core::measurement_model::CorrectedFunctionalRecord
+pub field antecedent_estimate::measurement::CorrectedBinaryRiskDifference::result: antecedent_stats::measurement_error::CorrectedRiskDifference
+pub field antecedent_estimate::measurement::CorrectedBinaryRiskDifference::table: antecedent_stats::measurement_error::TwoByTwoCounts
+pub field antecedent_estimate::measurement::CorrectedCategoricalOutcome::classes: alloc::vec::Vec<antecedent_stats::measurement_error::ObservedClassSummary>
+pub field antecedent_estimate::measurement::CorrectedCategoricalOutcome::data_identity: antecedent_core::identity::SemanticDigest
+pub field antecedent_estimate::measurement::CorrectedCategoricalOutcome::levels: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_estimate::measurement::CorrectedCategoricalOutcome::model_identity: antecedent_core::identity::SemanticDigest
+pub field antecedent_estimate::measurement::CorrectedCategoricalOutcome::parameter_uncertainty: antecedent_core::measurement_model::ParameterUncertainty
+pub field antecedent_estimate::measurement::CorrectedCategoricalOutcome::result: antecedent_stats::measurement_error::CorrectedCategorical
+pub field antecedent_estimate::measurement::CorrectedLinearEffect::components: core::option::Option<antecedent_stats::measurement_error::VarianceComponents>
+pub field antecedent_estimate::measurement::CorrectedLinearEffect::fit: antecedent_stats::measurement_error::CorrectedLinear
+pub field antecedent_estimate::measurement::CorrectedLinearEffect::moments: antecedent_stats::measurement_error::LinearMoments
+pub field antecedent_estimate::measurement::CorrectedLinearEffect::record: antecedent_core::measurement_model::CorrectedFunctionalRecord
+pub field antecedent_estimate::measurement::CorrectedPosteriorLinearEffect::coefficients: alloc::vec::Vec<f64>
+pub field antecedent_estimate::measurement::CorrectedPosteriorLinearEffect::combination: antecedent_estimate::measurement::PosteriorCombination
+pub field antecedent_estimate::measurement::CorrectedPosteriorLinearEffect::covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::measurement::CorrectedPosteriorLinearEffect::imputations: core::option::Option<antecedent_stats::measurement_error::CombinedImputations>
+pub field antecedent_estimate::measurement::CorrectedPosteriorLinearEffect::moments: core::option::Option<antecedent_stats::measurement_error::LinearMoments>
+pub field antecedent_estimate::measurement::CorrectedPosteriorLinearEffect::record: antecedent_core::measurement_model::CorrectedFunctionalRecord
+pub field antecedent_estimate::measurement::DataBinding::arm_id: core::option::Option<alloc::string::String>
+pub field antecedent_estimate::measurement::DataBinding::population_id: alloc::string::String
+pub field antecedent_estimate::measurement::DataBinding::regime_id: alloc::string::String
+pub field antecedent_estimate::measurement::DataBinding::representation: antecedent_core::measurement_model::RepresentationVersion
+pub field antecedent_estimate::measurement::LinearMeasuredData::covariate_count: usize
+pub field antecedent_estimate::measurement::LinearMeasuredData::covariates: &'a [f64]
+pub field antecedent_estimate::measurement::LinearMeasuredData::outcome: &'a [f64]
+pub field antecedent_estimate::measurement::LinearMeasuredData::regressor: &'a [f64]
+pub field antecedent_estimate::measurement::LinearMeasuredData::replicate_counts: core::option::Option<&'a [u32]>
+pub field antecedent_estimate::measurement::MeasurementError::code: &'static str
+pub field antecedent_estimate::measurement::MeasurementError::detail: &'static str
+pub field antecedent_estimate::measurement::MeasurementError::message: alloc::string::String
+pub field antecedent_estimate::measurement::PosteriorLinearData::covariate_count: usize
+pub field antecedent_estimate::measurement::PosteriorLinearData::covariates: &'a [f64]
+pub field antecedent_estimate::measurement::PosteriorLinearData::draw_count: usize
+pub field antecedent_estimate::measurement::PosteriorLinearData::draws: &'a [f64]
+pub field antecedent_estimate::measurement::PosteriorLinearData::outcome: &'a [f64]
+pub field antecedent_estimate::measurement::RiskDifferenceInput::exposed_arm_id: &'a str
+pub field antecedent_estimate::measurement::RiskDifferenceInput::table: antecedent_stats::measurement_error::TwoByTwoCounts
+pub field antecedent_estimate::measurement::RiskDifferenceInput::unexposed_arm_id: &'a str
 pub field antecedent_estimate::mechanism_discrepancy::CoefficientDiscrepancy::difference: f64
 pub field antecedent_estimate::mechanism_discrepancy::CoefficientDiscrepancy::minimal_detectable_difference: f64
 pub field antecedent_estimate::mechanism_discrepancy::CoefficientDiscrepancy::name: alloc::string::String
@@ -8170,6 +8896,7 @@ pub fn <antecedent_estimate::WaldIv>::fn rebind_checked(&self, checked: &anteced
 pub fn <antecedent_estimate::WaldIv>::fn with_cluster_ids(self, cluster_ids: alloc::vec::Vec<u32>) -> Self
 pub fn <antecedent_estimate::WaldIv>::fn with_multiway_ids(self, multiway_ids: alloc::vec::Vec<alloc::vec::Vec<u32>>) -> Self
 pub fn <antecedent_estimate::WaldIv>::fn with_panel_times(self, panel_times: alloc::vec::Vec<i64>) -> Self
+pub fn <antecedent_estimate::adaptive_inference::WithheldGuarantee>::fn refusal(&self, what: &str) -> antecedent_estimate::adaptive_inference::AdaptiveInferenceError
 pub fn <antecedent_estimate::adjustment_resume::AdjustedFit>::fn categorical(input: &antecedent_estimate::categorical_treatment::CategoricalTreatmentInput, spec: &antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::adjustment_resume::AdjustedFit>::fn categorical_arms(&self, from: &str, to: &str) -> core::result::Result<(alloc::vec::Vec<f64>, alloc::vec::Vec<f64>), antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::adjustment_resume::AdjustedFit>::fn contrast(&self, active: &[f64], control: &[f64], weights: core::option::Option<&[f64]>) -> core::result::Result<(f64, f64), antecedent_estimate::EstimationError>
@@ -8179,6 +8906,33 @@ pub fn <antecedent_estimate::adjustment_resume::AdjustedFit>::fn glm(input: &ant
 pub fn <antecedent_estimate::adjustment_resume::AdjustedFit>::fn linear(input: &antecedent_estimate::vector_treatment::VectorTreatmentInput, options: &antecedent_estimate::vector_treatment::VectorTreatmentOptions) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::adjustment_resume::AdjustedFit>::fn predict(&self, rows: &[alloc::vec::Vec<f64>]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::adjustment_resume::AdjustedFit>::fn prediction_refusal(&self, rows: &[alloc::vec::Vec<f64>]) -> core::option::Option<&'static str>
+pub fn <antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap>::const fn name(self) -> &'static str
+pub fn <antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap>::fn parse(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration>::const fn all_independent() -> Self
+pub fn <antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration>::const fn default_relation(&self) -> antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
+pub fn <antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration>::const fn undeclared() -> Self
+pub fn <antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration>::const fn with_default(default: antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap) -> Self
+pub fn <antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration>::fn pairs(&self) -> &[antecedent_estimate::counterfactual_transport_sampled::OverlapPair]
+pub fn <antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration>::fn relation(&self, a: &antecedent_estimate::counterfactual_transport_sampled::SampledTableKey, b: &antecedent_estimate::counterfactual_transport_sampled::SampledTableKey) -> antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
+pub fn <antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration>::fn with_pair(self, a: antecedent_estimate::counterfactual_transport_sampled::SampledTableKey, b: antecedent_estimate::counterfactual_transport_sampled::SampledTableKey, relation: antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts>::const fn design(&self) -> &antecedent_estimate::counterfactual_transport_sampled::SamplingDesign
+pub fn <antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts>::const fn regime(&self) -> antecedent_core::ids::RegimeId
+pub fn <antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts>::fn axes(&self) -> &[antecedent_estimate::counterfactual_transport_sampled::SampledAxis]
+pub fn <antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts>::fn cell_count(&self) -> usize
+pub fn <antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts>::fn content_identity(&self) -> alloc::string::String
+pub fn <antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts>::fn counts(&self) -> &[u64]
+pub fn <antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts>::fn interventions(&self) -> &[(antecedent_core::ids::VariableId, f64)]
+pub fn <antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts>::fn key(&self) -> antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
+pub fn <antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts>::fn observed_cells(&self) -> usize
+pub fn <antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts>::fn population(&self) -> &str
+pub fn <antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts>::fn same_observations(&self, other: &Self) -> bool
+pub fn <antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts>::fn snapshot_identity(&self) -> &str
+pub fn <antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts>::fn structural_zeros(&self) -> &[usize]
+pub fn <antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts>::fn total(&self) -> u64
+pub fn <antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts>::fn try_new(parts: antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts>::fn unseen_cells(&self) -> alloc::vec::Vec<usize>
+pub fn <antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule>::const fn name(self) -> &'static str
+pub fn <antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule>::const fn parameter(self) -> core::option::Option<f64>
 pub fn <antecedent_estimate::cpdag_scenarios::CpdagScenarioReport>::const fn is_exportable(&self) -> bool
 pub fn <antecedent_estimate::cpdag_scenarios::CpdagScenarioReport>::fn masses(&self) -> &[antecedent_estimate::transport_scenarios::StatusMass]
 pub fn <antecedent_estimate::cpdag_scenarios::CpdagScenarioReport>::fn status_count(&self, status: &str) -> usize
@@ -8202,6 +8956,9 @@ pub fn <antecedent_estimate::latent_class_effects::LatentClassConfig>::fn declar
 pub fn <antecedent_estimate::latent_class_effects::LatentClassConfig>::fn new(classes: usize, seed: u64) -> Self
 pub fn <antecedent_estimate::learned_joint_transport::LearnedJointFit>::fn effect_draws(&self) -> (alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<f64>)
 pub fn <antecedent_estimate::learned_joint_transport::LearnedJointFit>::fn target_calibration_basis(&self, level: f64) -> core::result::Result<antecedent_core::calibration_basis::CalibrationBasis, antecedent_estimate::joint_bayesian_transport::JointTransportRefusal>
+pub fn <antecedent_estimate::measurement::CorrectedCategoricalOutcome>::fn functional(&self, functional: &antecedent_estimate::measurement::CategoricalFunctional<'_>) -> core::result::Result<(f64, f64, f64), antecedent_estimate::measurement::MeasurementError>
+pub fn <antecedent_estimate::measurement::CorrectedCategoricalOutcome>::fn record(&self, functional: &antecedent_estimate::measurement::CategoricalFunctional<'_>) -> core::result::Result<antecedent_core::measurement_model::CorrectedFunctionalRecord, antecedent_estimate::measurement::MeasurementError>
+pub fn <antecedent_estimate::measurement::CorrectedLinearEffect>::fn downstream_linear_functional(&self, weights: &[f64]) -> core::result::Result<(f64, f64), antecedent_estimate::measurement::MeasurementError>
 pub fn <antecedent_estimate::nested_markov_binary::AdmgDeclaration>::fn is_selected(&self) -> bool
 pub fn <antecedent_estimate::nested_markov_binary::AdmgDeclaration>::fn selected() -> Self
 pub fn <antecedent_estimate::nested_markov_binary::BinaryCells>::const fn counts(&self) -> &[f64; 16]
@@ -8280,6 +9037,13 @@ pub fn <antecedent_estimate::vector_treatment::VectorCovariance>::const fn as_st
 pub fn <antecedent_estimate::vector_treatment::VectorTreatmentFit>::fn covariance_entry(&self, i: usize, j: usize) -> core::option::Option<f64>
 pub fn <antecedent_estimate::vector_treatment::VectorTreatmentFit>::fn dimension(&self) -> usize
 pub fn <antecedent_estimate::vector_treatment::VectorTreatmentFit>::fn wald_test(&self, contrasts: &[antecedent_estimate::vector_treatment::Contrast]) -> core::result::Result<antecedent_estimate::vector_treatment::JointWald, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::adaptive_inference::adaptively_weighted_estimate(history: &antecedent_estimate::adaptive_inference::WeightedHistory<'_>, estimand: antecedent_stats::adaptive_inference::weighting::Estimand, options: &antecedent_estimate::adaptive_inference::WeightedOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::adaptive_inference::WeightedResult, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::adaptive_inference::anytime_valid_arm_sequences(values_by_arm: &[alloc::vec::Vec<f64>], contrast: core::option::Option<(usize, usize)>, alpha: f64, tuning_samples: f64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::adaptive_inference::SequenceResult, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::adaptive_inference::bayesian_posterior(prior_alpha: f64, prior_beta: f64, counts: &[antecedent_estimate::adaptive_inference::ArmCounts], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::adaptive_inference::BayesianPosterior, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::adaptive_inference::expected_loss_stopping(posterior: &antecedent_estimate::adaptive_inference::BayesianPosterior, rule: antecedent_estimate::adaptive_inference::PosteriorRule) -> core::result::Result<antecedent_estimate::adaptive_inference::StoppingDecision, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::adaptive_inference::group_sequential_boundaries(plan: &antecedent_estimate::adaptive_inference::GroupSequentialPlan, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_stats::adaptive_inference::group_sequential::Boundaries, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::adaptive_inference::group_sequential_decision(plan: &antecedent_estimate::adaptive_inference::GroupSequentialPlan, statistics: &[f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::adaptive_inference::GroupSequentialResult, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::adaptive_inference::standardized_difference(control: &[f64], treatment: &[f64]) -> core::result::Result<f64, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_estimate::adjustment_resume::count_adjusted_model_fits<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, u64)
 pub fn antecedent_estimate::admg_conditional_transport::prepare_exact_admg_conditional_transport(functional: &antecedent_identify::sid::conditional::BoundConditionalTransportFunctional, data: antecedent_expr::exact::ExactTransportData, request: &antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::AdmgConditionalExactPlan, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::aggregate_effect_envelope(graphs: &antecedent_prob::graph_samples::WeightedGraphSamples, per_graph: &[antecedent_estimate::GraphEffectDraws], diagnostics: antecedent_prob::diagnostics::InferenceDiagnostics, options: antecedent_estimate::EnvelopeOptions) -> core::result::Result<antecedent_estimate::CausalPosterior, antecedent_estimate::EstimationError>
@@ -8335,6 +9099,11 @@ pub fn antecedent_estimate::compare_raw_adjusted(outcome: &[f64], treatment: &[f
 pub fn antecedent_estimate::conditional_odds_ratio(stratum: &[alloc::string::String], case: &[f64], exposed: &[f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::ConditionalOddsRatio, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::continuous_dose::conditional_dose_response(outcome: &[f64], dose: &[f64], groups: &[alloc::string::String], density: &[f64], target_doses: &[f64], bandwidth: f64, min_local_support: usize) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::continuous_dose::DoseResponsePoint>, alloc::string::String>
 pub fn antecedent_estimate::continuous_dose::fixed_dose_policy_value(rows: &antecedent_estimate::continuous_dose::DoseRows<'_>, rules: &antecedent_estimate::continuous_dose::DoseRules<'_>, window: &antecedent_estimate::continuous_dose::DoseWindow) -> core::result::Result<antecedent_estimate::continuous_dose::DosePolicyValue, alloc::string::String>
+pub fn antecedent_estimate::counterfactual_transport::evaluate_counterfactual_transport(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, data: &antecedent_expr::exact::ExactTransportData, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::CounterfactualTransportPoint, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::counterfactual_transport::lower_counterfactual_transport_items(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation) -> alloc::vec::Vec<antecedent_estimate::LoweredCounterfactualItem>
+pub fn antecedent_estimate::counterfactual_transport_sampled::cited_identities(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation) -> alloc::vec::Vec<(alloc::sync::Arc<str>, antecedent_core::ids::RegimeId)>
+pub fn antecedent_estimate::counterfactual_transport_sampled::default_evaluation_limits() -> antecedent_expr::exact_plan::ExactEvaluationLimits
+pub fn antecedent_estimate::counterfactual_transport_sampled::estimate_sampled_counterfactual_transport(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, request: &antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::cpdag_scenarios::prepare_cpdag_scenarios(decision: antecedent_identify::sid::cpdag_completion::CpdagCompletionDecision, data: antecedent_expr::exact::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::crossfit_aipw::crossfit_binary_scores(problem: &antecedent_estimate::PreparedPropensityProblem, query: &antecedent_core::query::average::AverageEffectQuery, folds: usize, glm_options: &antecedent_stats::glm::GlmOptions, backend: antecedent_stats::faer_backend::FaerBackend) -> core::result::Result<antecedent_estimate::ScoreTable, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::crossfit_influence_se(table: &antecedent_estimate::ScoreTable) -> core::result::Result<f64, antecedent_estimate::EstimationError>
@@ -8434,6 +9203,13 @@ pub fn antecedent_estimate::matched_case_control::parse_matched_estimand(name: &
 pub fn antecedent_estimate::matched_case_control::parse_matched_sampling(name: &str) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::matched_case_control::refuse_matched_interval() -> antecedent_estimate::EstimationError
 pub fn antecedent_estimate::max_deviation_band(center: &[f64], draws: &[alloc::vec::Vec<f64>], level: f64) -> core::result::Result<antecedent_estimate::MaxDeviationBand, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::measurement::binary::correct_binary_prevalence(model: &antecedent_core::measurement_model::MeasurementModel, binding: &antecedent_estimate::measurement::DataBinding, events: u64, total: u64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::measurement::CorrectedBinaryPrevalence, antecedent_estimate::measurement::MeasurementError>
+pub fn antecedent_estimate::measurement::binary::correct_binary_risk_difference(model: &antecedent_core::measurement_model::MeasurementModel, binding: &antecedent_estimate::measurement::DataBinding, input: &antecedent_estimate::measurement::RiskDifferenceInput<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::measurement::CorrectedBinaryRiskDifference, antecedent_estimate::measurement::MeasurementError>
+pub fn antecedent_estimate::measurement::categorical::correct_categorical(model: &antecedent_core::measurement_model::MeasurementModel, binding: &antecedent_estimate::measurement::DataBinding, classes: &[antecedent_stats::measurement_error::ObservedClassSummary], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::measurement::CorrectedCategoricalOutcome, antecedent_estimate::measurement::MeasurementError>
+pub fn antecedent_estimate::measurement::correct_classical_linear_effect(model: &antecedent_core::measurement_model::MeasurementModel, binding: &antecedent_estimate::measurement::DataBinding, data: &antecedent_estimate::measurement::LinearMeasuredData<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::measurement::CorrectedLinearEffect, antecedent_estimate::measurement::MeasurementError>
+pub fn antecedent_estimate::measurement::correct_latent_posterior_linear_effect(model: &antecedent_core::measurement_model::MeasurementModel, binding: &antecedent_estimate::measurement::DataBinding, data: &antecedent_estimate::measurement::PosteriorLinearData<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::measurement::CorrectedPosteriorLinearEffect, antecedent_estimate::measurement::MeasurementError>
+pub fn antecedent_estimate::measurement::correct_repeated_linear_effect(model: &antecedent_core::measurement_model::MeasurementModel, binding: &antecedent_estimate::measurement::DataBinding, outcome: &[f64], replicate_values: &[f64], replicate_counts: &[u32], covariates: &[f64], covariate_count: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::measurement::CorrectedLinearEffect, antecedent_estimate::measurement::MeasurementError>
+pub fn antecedent_estimate::measurement::interval_not_licensed() -> antecedent_estimate::measurement::MeasurementError
 pub fn antecedent_estimate::mechanism_discrepancy::normal_upper_quantile(tail: f64) -> f64
 pub fn antecedent_estimate::mechanism_discrepancy::summarize_population(sample: &antecedent_estimate::mechanism_discrepancy::PopulationSample) -> core::result::Result<antecedent_estimate::mechanism_discrepancy::MechanismSummary, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::mechanism_discrepancy::test_mechanism_discrepancy(source: &antecedent_estimate::mechanism_discrepancy::PopulationSample, target: &antecedent_estimate::mechanism_discrepancy::PopulationSample, options: &antecedent_estimate::mechanism_discrepancy::DiscrepancyOptions) -> core::result::Result<antecedent_estimate::mechanism_discrepancy::MechanismDiscrepancyResult, antecedent_estimate::EstimationError>
@@ -8574,6 +9350,7 @@ pub fn antecedent_estimate::vector_treatment::fit_vector_treatment(input: &antec
 pub fn antecedent_estimate::vector_treatment::fit_vector_treatment_from_summary(summary: &antecedent_estimate::vector_treatment::DesignSummary, names: &[alloc::string::String], options: &antecedent_estimate::vector_treatment::VectorTreatmentOptions) -> core::result::Result<antecedent_estimate::vector_treatment::VectorTreatmentFit, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::vector_treatment::full_coefficient_posterior_mean(summary: &antecedent_estimate::vector_treatment::DesignSummary, prior_scale: f64) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::vector_treatment::summarize_vector_design(input: &antecedent_estimate::vector_treatment::VectorTreatmentInput) -> core::result::Result<antecedent_estimate::vector_treatment::DesignSummary, antecedent_estimate::EstimationError>
+pub mod antecedent_estimate::adaptive_inference
 pub mod antecedent_estimate::adjustment
 pub mod antecedent_estimate::adjustment_resume
 pub mod antecedent_estimate::admg_conditional_transport
@@ -8592,6 +9369,8 @@ pub mod antecedent_estimate::cell_aipw
 pub mod antecedent_estimate::cluster_dml_aipw
 pub mod antecedent_estimate::conditional
 pub mod antecedent_estimate::continuous_dose
+pub mod antecedent_estimate::counterfactual_transport
+pub mod antecedent_estimate::counterfactual_transport_sampled
 pub mod antecedent_estimate::cpdag_scenarios
 pub mod antecedent_estimate::crossfit_aipw
 pub mod antecedent_estimate::crossfit_cache
@@ -8628,6 +9407,11 @@ pub mod antecedent_estimate::learned_trial
 pub mod antecedent_estimate::local_polynomial_ratio
 pub mod antecedent_estimate::marginal_structural_model
 pub mod antecedent_estimate::matched_case_control
+pub mod antecedent_estimate::measurement
+pub mod antecedent_estimate::measurement::binary
+pub mod antecedent_estimate::measurement::categorical
+pub mod antecedent_estimate::measurement::linear
+pub mod antecedent_estimate::measurement::posterior
 pub mod antecedent_estimate::mechanism_discrepancy
 pub mod antecedent_estimate::mixed_source
 pub mod antecedent_estimate::multi_arm
@@ -8736,6 +9520,8 @@ pub struct antecedent_estimate::ConditionalOddsRatio
 pub struct antecedent_estimate::ContinuousCellSpec<'a>
 pub struct antecedent_estimate::ContinuousResponseEstimator
 pub struct antecedent_estimate::ContinuousResponseOptions
+pub struct antecedent_estimate::CounterfactualTransportEvidence
+pub struct antecedent_estimate::CounterfactualTransportPoint
 pub struct antecedent_estimate::CrossfitCacheStats
 pub struct antecedent_estimate::CrossfitNuisanceCache
 pub struct antecedent_estimate::CrossfitNuisanceCache has private fields
@@ -8777,6 +9563,7 @@ pub struct antecedent_estimate::LearnedContinuousOptions
 pub struct antecedent_estimate::LearnedContinuousUncertainty
 pub struct antecedent_estimate::LinearAdjustmentAte
 pub struct antecedent_estimate::LinearContrast
+pub struct antecedent_estimate::LoweredCounterfactualItem
 pub struct antecedent_estimate::MatchedSetCounts
 pub struct antecedent_estimate::MaxDeviationBand
 pub struct antecedent_estimate::MeanPair
@@ -8898,6 +9685,18 @@ pub struct antecedent_estimate::TwoStageLeastSquaresWorkspace
 pub struct antecedent_estimate::Unavailable
 pub struct antecedent_estimate::WaldIv
 pub struct antecedent_estimate::WeightedSupport
+pub struct antecedent_estimate::adaptive_inference::AdaptiveInferenceError
+pub struct antecedent_estimate::adaptive_inference::ArmCounts
+pub struct antecedent_estimate::adaptive_inference::BayesianPosterior
+pub struct antecedent_estimate::adaptive_inference::GroupSequentialPlan
+pub struct antecedent_estimate::adaptive_inference::GroupSequentialResult
+pub struct antecedent_estimate::adaptive_inference::PosteriorArm
+pub struct antecedent_estimate::adaptive_inference::SequenceResult
+pub struct antecedent_estimate::adaptive_inference::StoppingDecision
+pub struct antecedent_estimate::adaptive_inference::WeightedHistory<'a>
+pub struct antecedent_estimate::adaptive_inference::WeightedOptions
+pub struct antecedent_estimate::adaptive_inference::WeightedResult
+pub struct antecedent_estimate::adaptive_inference::WithheldGuarantee
 pub struct antecedent_estimate::adjustment::CheckedAdjustmentLowering
 pub struct antecedent_estimate::adjustment_resume::AdjustedFit
 pub struct antecedent_estimate::adjustment_resume::AdjustedFit has private fields
@@ -8926,6 +9725,25 @@ pub struct antecedent_estimate::continuous_dose::DoseResponsePoint
 pub struct antecedent_estimate::continuous_dose::DoseRows<'a>
 pub struct antecedent_estimate::continuous_dose::DoseRules<'a>
 pub struct antecedent_estimate::continuous_dose::DoseWindow
+pub struct antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration
+pub struct antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration has private fields
+pub struct antecedent_estimate::counterfactual_transport_sampled::OverlapPair
+pub struct antecedent_estimate::counterfactual_transport_sampled::SampledAxis
+pub struct antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels
+pub struct antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate
+pub struct antecedent_estimate::counterfactual_transport_sampled::SampledInference
+pub struct antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate
+pub struct antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts
+pub struct antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCounts has private fields
+pub struct antecedent_estimate::counterfactual_transport_sampled::SampledRegimeCountsParts
+pub struct antecedent_estimate::counterfactual_transport_sampled::SampledRepairs
+pub struct antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
+pub struct antecedent_estimate::counterfactual_transport_sampled::SampledTableReport
+pub struct antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits
+pub struct antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest
+pub struct antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope
+pub struct antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError
+pub struct antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty
 pub struct antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry
 pub struct antecedent_estimate::cpdag_scenarios::CpdagScenarioReport
 pub struct antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios
@@ -8986,6 +9804,17 @@ pub struct antecedent_estimate::learned_trial::TrialNuisanceDiagnostics
 pub struct antecedent_estimate::local_polynomial_ratio::LocalPolynomialRatioFit
 pub struct antecedent_estimate::marginal_structural_model::MsmIntervals95
 pub struct antecedent_estimate::marginal_structural_model::MsmSummary
+pub struct antecedent_estimate::measurement::CorrectedBinaryPrevalence
+pub struct antecedent_estimate::measurement::CorrectedBinaryRiskDifference
+pub struct antecedent_estimate::measurement::CorrectedCategoricalOutcome
+pub struct antecedent_estimate::measurement::CorrectedCategoricalOutcome has private fields
+pub struct antecedent_estimate::measurement::CorrectedLinearEffect
+pub struct antecedent_estimate::measurement::CorrectedPosteriorLinearEffect
+pub struct antecedent_estimate::measurement::DataBinding
+pub struct antecedent_estimate::measurement::LinearMeasuredData<'a>
+pub struct antecedent_estimate::measurement::MeasurementError
+pub struct antecedent_estimate::measurement::PosteriorLinearData<'a>
+pub struct antecedent_estimate::measurement::RiskDifferenceInput<'a>
 pub struct antecedent_estimate::mechanism_discrepancy::CoefficientDiscrepancy
 pub struct antecedent_estimate::mechanism_discrepancy::DiscrepancyOptions
 pub struct antecedent_estimate::mechanism_discrepancy::DiscrepancyTest
@@ -9158,6 +9987,13 @@ pub use antecedent_estimate::NeuralSpec = antecedent_learn::NeuralSpec
 pub use antecedent_estimate::RidgeSpec = antecedent_learn::RidgeSpec
 pub use antecedent_estimate::ScoreColumn = scores::ScoreColumn
 pub use antecedent_estimate::ScoreTableWire = scores::ScoreTableWire
+pub use antecedent_estimate::adaptive_inference::ArmSequence = antecedent_stats::adaptive_inference::ArmSequence
+pub use antecedent_estimate::adaptive_inference::Boundaries = antecedent_stats::adaptive_inference::Boundaries
+pub use antecedent_estimate::adaptive_inference::Estimand = antecedent_stats::adaptive_inference::Estimand
+pub use antecedent_estimate::adaptive_inference::OutcomeModelPrior = antecedent_stats::adaptive_inference::OutcomeModelPrior
+pub use antecedent_estimate::adaptive_inference::Sidedness = antecedent_stats::adaptive_inference::Sidedness
+pub use antecedent_estimate::adaptive_inference::SpendingFunction = antecedent_stats::adaptive_inference::SpendingFunction
+pub use antecedent_estimate::adaptive_inference::WeightScheme = antecedent_stats::adaptive_inference::WeightScheme
 pub use antecedent_estimate::adjustment::AnalyticSe = antecedent_estimate::AnalyticSe
 pub use antecedent_estimate::adjustment::BlockResampling = antecedent_estimate::BlockResampling
 pub use antecedent_estimate::adjustment::BlockSeRecord = antecedent_estimate::BlockSeRecord
@@ -9216,6 +10052,9 @@ pub use antecedent_estimate::coefficient_covariance_from_draws = antecedent_esti
 pub use antecedent_estimate::conditional::ConditionalArmScores = antecedent_estimate::ConditionalArmScores
 pub use antecedent_estimate::conditional::ConditionalLinearAdjustment = antecedent_estimate::ConditionalLinearAdjustment
 pub use antecedent_estimate::contrast_named = antecedent_estimate::cell_aipw::contrast_named
+pub use antecedent_estimate::counterfactual_transport::CounterfactualTransportEvidence = antecedent_estimate::CounterfactualTransportEvidence
+pub use antecedent_estimate::counterfactual_transport::CounterfactualTransportPoint = antecedent_estimate::CounterfactualTransportPoint
+pub use antecedent_estimate::counterfactual_transport::LoweredCounterfactualItem = antecedent_estimate::LoweredCounterfactualItem
 pub use antecedent_estimate::crossfit_aipw::DEFAULT_AIPW_FOLDS = antecedent_estimate::DEFAULT_AIPW_FOLDS
 pub use antecedent_estimate::crossfit_aipw::WeightedSupport = antecedent_estimate::WeightedSupport
 pub use antecedent_estimate::crossfit_aipw::build_binary_scores = antecedent_estimate::build_binary_scores
@@ -9278,6 +10117,7 @@ pub use antecedent_estimate::estimator_menu::EstimatorMenu = antecedent_estimate
 pub use antecedent_estimate::estimator_menu::EstimatorMenuEntry = antecedent_estimate::EstimatorMenuEntry
 pub use antecedent_estimate::estimator_menu::MenuContext = antecedent_estimate::MenuContext
 pub use antecedent_estimate::estimator_menu::MenuRefusal = antecedent_estimate::MenuRefusal
+pub use antecedent_estimate::evaluate_counterfactual_transport = antecedent_estimate::counterfactual_transport::evaluate_counterfactual_transport
 pub use antecedent_estimate::family_cell_contrast = antecedent_estimate::cell_aipw::family_cell_contrast
 pub use antecedent_estimate::fit_empirical_joint = antecedent_estimate::empirical_table::fit_empirical_joint
 pub use antecedent_estimate::fit_plan::JointFitPlan = antecedent_estimate::JointFitPlan
@@ -9368,6 +10208,7 @@ pub use antecedent_estimate::licensed_iid_regimes = antecedent_estimate::empiric
 pub use antecedent_estimate::linear_path_product_restriction = antecedent_estimate::frontdoor::linear_path_product_restriction
 pub use antecedent_estimate::logit_probability_interval = antecedent_estimate::functional_distribution::logit_probability_interval
 pub use antecedent_estimate::longitudinal_regime = antecedent_stats::longitudinal_regime
+pub use antecedent_estimate::lower_counterfactual_transport_items = antecedent_estimate::counterfactual_transport::lower_counterfactual_transport_items
 pub use antecedent_estimate::matched_case_control::ConditionalOddsRatio = antecedent_estimate::ConditionalOddsRatio
 pub use antecedent_estimate::matched_case_control::MATCHED_ESTIMAND = antecedent_estimate::MATCHED_ESTIMAND
 pub use antecedent_estimate::matched_case_control::MATCHED_SAMPLING = antecedent_estimate::MATCHED_SAMPLING
@@ -9376,6 +10217,22 @@ pub use antecedent_estimate::matched_case_control::conditional_odds_ratio = ante
 pub use antecedent_estimate::max_t_critical = antecedent_estimate::joint_if::max_t_critical
 pub use antecedent_estimate::max_t_critical_polled = antecedent_estimate::joint_if::max_t_critical_polled
 pub use antecedent_estimate::max_t_critical_with_df_polled = antecedent_estimate::joint_if::max_t_critical_with_df_polled
+pub use antecedent_estimate::measurement::binary::CorrectedBinaryPrevalence = antecedent_estimate::measurement::CorrectedBinaryPrevalence
+pub use antecedent_estimate::measurement::binary::CorrectedBinaryRiskDifference = antecedent_estimate::measurement::CorrectedBinaryRiskDifference
+pub use antecedent_estimate::measurement::binary::RiskDifferenceInput = antecedent_estimate::measurement::RiskDifferenceInput
+pub use antecedent_estimate::measurement::categorical::CategoricalFunctional = antecedent_estimate::measurement::CategoricalFunctional
+pub use antecedent_estimate::measurement::categorical::CorrectedCategoricalOutcome = antecedent_estimate::measurement::CorrectedCategoricalOutcome
+pub use antecedent_estimate::measurement::correct_binary_prevalence = antecedent_estimate::measurement::binary::correct_binary_prevalence
+pub use antecedent_estimate::measurement::correct_binary_risk_difference = antecedent_estimate::measurement::binary::correct_binary_risk_difference
+pub use antecedent_estimate::measurement::correct_categorical = antecedent_estimate::measurement::categorical::correct_categorical
+pub use antecedent_estimate::measurement::linear::CorrectedLinearEffect = antecedent_estimate::measurement::CorrectedLinearEffect
+pub use antecedent_estimate::measurement::linear::LinearMeasuredData = antecedent_estimate::measurement::LinearMeasuredData
+pub use antecedent_estimate::measurement::linear::correct_classical_linear_effect = antecedent_estimate::measurement::correct_classical_linear_effect
+pub use antecedent_estimate::measurement::linear::correct_repeated_linear_effect = antecedent_estimate::measurement::correct_repeated_linear_effect
+pub use antecedent_estimate::measurement::posterior::CorrectedPosteriorLinearEffect = antecedent_estimate::measurement::CorrectedPosteriorLinearEffect
+pub use antecedent_estimate::measurement::posterior::PosteriorCombination = antecedent_estimate::measurement::PosteriorCombination
+pub use antecedent_estimate::measurement::posterior::PosteriorLinearData = antecedent_estimate::measurement::PosteriorLinearData
+pub use antecedent_estimate::measurement::posterior::correct_latent_posterior_linear_effect = antecedent_estimate::measurement::correct_latent_posterior_linear_effect
 pub use antecedent_estimate::mixed_source::evaluate_exact_mixed_source = antecedent_estimate::evaluate_exact_mixed_source
 pub use antecedent_estimate::monotone_increasing = antecedent_estimate::joint_if::monotone_increasing
 pub use antecedent_estimate::nonidentified_with_prior = antecedent_estimate::bayesian::nonidentified_with_prior
@@ -9738,10 +10595,20 @@ pub variant antecedent_estimate::TemporalMediationUncertainty::FrequentistPointw
 pub variant antecedent_estimate::TemporalMediationUncertainty::Unavailable
 pub variant antecedent_estimate::TrialSampling::IndependentSamples
 pub variant antecedent_estimate::TrialSampling::NestedCohort
+pub variant antecedent_estimate::adaptive_inference::PosteriorRule::ExpectedLoss { loss_threshold: f64 }
+pub variant antecedent_estimate::adaptive_inference::PosteriorRule::ProbabilityBest { threshold: f64 }
 pub variant antecedent_estimate::categorical_treatment::LevelScale::Ordered
 pub variant antecedent_estimate::categorical_treatment::LevelScale::Unordered
 pub variant antecedent_estimate::categorical_treatment::MonotonicityDirection::NonDecreasing
 pub variant antecedent_estimate::categorical_treatment::MonotonicityDirection::NonIncreasing
+pub variant antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap::Independent
+pub variant antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap::SharedUnits
+pub variant antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap::Unknown
+pub variant antecedent_estimate::counterfactual_transport_sampled::SamplingDesign::IndependentUnits
+pub variant antecedent_estimate::counterfactual_transport_sampled::SamplingDesign::Stratified { variables: alloc::vec::Vec<antecedent_core::ids::VariableId> }
+pub variant antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule::AdditiveSmoothing { pseudo_count: f64 }
+pub variant antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule::Refuse
+pub variant antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule::UnseenMassEnvelope { unseen_mass: f64 }
 pub variant antecedent_estimate::dose_grid_functional::DoseDesign::Observational
 pub variant antecedent_estimate::dose_grid_functional::DoseDesign::RandomizedDose
 pub variant antecedent_estimate::dose_grid_functional::DoseFunctional::Contrast { from: f64, to: f64 }
@@ -9777,6 +10644,11 @@ pub variant antecedent_estimate::joint_bayesian_transport::VaryingBlock::Interce
 pub variant antecedent_estimate::joint_bayesian_transport::VaryingBlock::InterceptAndCovariates
 pub variant antecedent_estimate::latent_class_effects::PremiseStatus::Checked
 pub variant antecedent_estimate::latent_class_effects::PremiseStatus::Declared
+pub variant antecedent_estimate::measurement::CategoricalFunctional::OutcomeContrast { first: &'a str, second: &'a str }
+pub variant antecedent_estimate::measurement::CategoricalFunctional::OutcomeMean(&'a str)
+pub variant antecedent_estimate::measurement::CategoricalFunctional::Proportion(&'a str)
+pub variant antecedent_estimate::measurement::PosteriorCombination::MultipleImputation
+pub variant antecedent_estimate::measurement::PosteriorCombination::PosteriorMeanSubstitution
 pub variant antecedent_estimate::mechanism_discrepancy::DiscrepancyConclusion::NotRejected
 pub variant antecedent_estimate::mechanism_discrepancy::DiscrepancyConclusion::Rejected
 pub variant antecedent_estimate::mechanism_discrepancy::SampleDependence::Independent
