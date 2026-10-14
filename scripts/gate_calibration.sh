@@ -66,6 +66,12 @@ grid_group() {
     mz_transport_calibration:*) return 0 ;;
     bayesian_basis_prior_precision:*|adjusted_recalc_precision:*|temporal_recalc_calibration:*|bayesian_recalc_calibration:*|posterior_summary_calibration:*|scenario_covariance_calibration:*|evsi_precision_calibration:*|design_ar_precision_calibration:*|generic_aipw_precision:*|nested_markov_fisher_calibration:*|nested_markov_bayesian_calibration:*|joint_bayesian_transport_calibration:*|learned_joint_calibration:*|quadratic_dose_calibration:*|treatment_inference_calibration:*|bootstrap_effect_precision:*|mechanism_discrepancy_calibration:*|retained_score_precision:*|temporal_unit_calibration:*|recovery_whole_method_calibration:*) return 0 ;;
     learned_continuous_calibration:*_mean_contrast) return 0 ;;
+    # Adaptive-procedure coverage records. The group-sequential power comparison is a
+    # pass/fail gate against the integrated crossing probability and runs once; the
+    # decision-reliability expectation prints diagnostics, emits no record and runs once.
+    adaptive_inference_calibration:group_sequential_power_matches_the_numerical_integration) return 1 ;;
+    adaptive_inference_calibration:*|adaptive_procedure_prior_predictive_calibration:*) return 0 ;;
+    decision_reliability_calibration:*) return 1 ;;
     # Smoothed dose-response transport: the two *_psi_h coverage records only.
     smoothed_dose_calibration:*_psi_h) return 0 ;;
     # Joint sensitivity: the zero-box (gated) and positive-box (one_sided) records.
@@ -368,6 +374,38 @@ run_learned_joint learned_degree2_gaussian_one_source_intercept_l95
 run_learned_joint learned_degree2_gaussian_two_independent_intercepts_l95
 run_learned_joint learned_degree2_gaussian_two_shared_intercepts_l95
 run_learned_joint learned_degree2_gaussian_two_varying_covariates_l95
+
+run_adaptive_inference() {
+  local name="$1"
+  check "adaptive_inference_calibration: ${name}" cargo test --release -p antecedent-estimate --features calibration-internal --test adaptive_inference_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== adaptive procedures: fixed-truth Thompson, epsilon-greedy, group-sequential, anytime-valid =="
+run_adaptive_inference thompson_posterior_whole_procedure_l95
+run_adaptive_inference thompson_posterior_equal_arms_boundary_l95
+run_adaptive_inference thompson_posterior_large_gap_boundary_l95
+run_adaptive_inference epsilon_greedy_weighted_contrast_whole_procedure_l95
+run_adaptive_inference epsilon_greedy_weighted_contrast_thin_exploration_boundary_l95
+run_adaptive_inference epsilon_greedy_weighted_contrast_delayed_outcomes_l95
+run_adaptive_inference epsilon_greedy_repeated_measures_weighted_contrast_l95
+run_adaptive_inference group_sequential_overall_type_one_error_is_alpha
+run_adaptive_inference group_sequential_power_matches_the_numerical_integration
+run_adaptive_inference anytime_valid_sequence_covers_the_arm_mean_at_every_look_l95
+
+run_adaptive_prior_predictive() {
+  local name="$1"
+  check "adaptive_procedure_prior_predictive_calibration: ${name}" cargo test --release -p antecedent-estimate --features calibration-internal --test adaptive_procedure_prior_predictive_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== adaptive procedure prior-predictive credible interval =="
+run_adaptive_prior_predictive thompson_posterior_prior_predictive_stop_090_l95
+run_adaptive_prior_predictive thompson_posterior_prior_predictive_stop_095_l95
+run_adaptive_prior_predictive thompson_posterior_prior_predictive_stop_099_boundary_l95
+
+run_decision_reliability_expectation() {
+  local name="$1"
+  check "decision_reliability_calibration: ${name}" cargo test --release -p antecedent-design --test decision_reliability_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== decision reliability winner's curse expectation =="
+run_decision_reliability_expectation winners_curse_bound_holds_on_average_and_held_out_value_is_unbiased
 
 run_quadratic_dose() {
   local name="$1"

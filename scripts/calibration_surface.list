@@ -957,3 +957,146 @@ suite.predictive_assessment_facade_oracle crates/antecedent/tests/predictive_ass
 
 # Read-only cached certificate encoding; this inspection path never fits or changes a measured value.
 allow design crates/antecedent/src/analysis/prepared/info.rs antecedent_io
+
+# ---- numeric paths of the uncertainty, transport and decision routes --------
+# Each file below is already covered by the directory line of its facet; it is named
+# here so the statistical surface states exactly which sources can move a derived or
+# transported number. The facet is the one the covering line assigns, so no record's
+# facets change; a narrower facet needs the `allow` review of every referencing file.
+
+# Adaptive-procedure derivations: the exact whole-procedure law, its derived reports and
+# the repeated-measures laws and simulation; each is a number a derived-uncertainty
+# record or an adaptive-procedure emitter reads.
+core crates/antecedent-stats/src/adaptive_inference/group_sequential.rs
+core crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs
+core crates/antecedent-stats/src/adaptive_inference/procedure_law.rs
+core crates/antecedent-stats/src/adaptive_inference/procedure_repeated_measures.rs
+core crates/antecedent-stats/src/adaptive_inference/procedure_simulation.rs
+core crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs
+core crates/antecedent/src/analysis/adaptive_inference.rs
+core crates/antecedent/src/analysis/adaptive_procedure_report.rs
+
+# Composed spread and transported synthesis: delta-method and aligned-draw spread, the
+# transported pooling variances and the discretized Gaussian composition.
+core crates/antecedent-stats/src/joint_law.rs
+core crates/antecedent-stats/src/synthesis_transport.rs
+core crates/antecedent/src/analysis/joint_law_propagation.rs
+core crates/antecedent/src/analysis/mechanism_composition.rs
+mechanism crates/antecedent-model/src/compose/uncertainty.rs
+mechanism crates/antecedent-model/src/discretized_scm.rs
+core crates/antecedent/src/analysis/discretized_composition.rs
+
+# Decision reliability and the decision, inverse and design routes that carry numbers
+# (intervals, selection correction, transported sources, preposterior values).
+design crates/antecedent-design/src/decision_reliability.rs
+design crates/antecedent-design/src/decision_reliability/calibration.rs
+design crates/antecedent-design/src/decision_reliability/coverage_design.rs
+design crates/antecedent-design/src/decision_reliability/draws.rs
+design crates/antecedent-design/src/decision_reliability/interval.rs
+design crates/antecedent-design/src/decision_reliability/producer.rs
+design crates/antecedent-design/src/decision_reliability/ranking.rs
+design crates/antecedent-design/src/cohort_decision_input.rs
+design crates/antecedent-design/src/decision_transported_source.rs
+design crates/antecedent-design/src/inverse_forward_source.rs
+design crates/antecedent-design/src/inverse_observational_scenarios.rs
+design crates/antecedent-design/src/inverse_query.rs
+design crates/antecedent-design/src/evsi.rs
+design crates/antecedent-design/src/preposterior.rs
+design crates/antecedent-design/src/prior_signal.rs
+design crates/antecedent-design/src/ranker.rs
+design crates/antecedent-design/src/sequential_evaluation/belief.rs
+design crates/antecedent-design/src/sequential_evaluation/offpolicy.rs
+core crates/antecedent/src/analysis/decision_reliability.rs
+core crates/antecedent/src/analysis/inverse_sources.rs
+
+# Transported values: policy, period, adaptive-trial, surrogate-bridge, synthesis,
+# mechanism, cohort, measurement and sensitivity ranges.
+design crates/antecedent-design/src/adaptive_trial_transport.rs
+design crates/antecedent-design/src/temporal_policy_transport.rs
+design crates/antecedent-design/src/transport_sensitivity.rs
+design crates/antecedent-design/src/transported_bridge.rs
+design crates/antecedent-design/src/transported_policy.rs
+design crates/antecedent-design/src/transported_synthesis.rs
+mechanism crates/antecedent-model/src/mechanism_transport.rs
+core crates/antecedent-learn/src/transported_effect.rs
+core crates/antecedent-estimate/src/measurement_transport.rs
+core crates/antecedent/src/analysis/transport_sensitivity.rs
+core crates/antecedent/src/analysis/transported_cohort.rs
+core crates/antecedent/src/analysis/transported_constructors.rs
+core crates/antecedent/src/analysis/transported_measurement.rs
+core crates/antecedent/src/analysis/transported_mechanism.rs
+
+# Whole-path cross-world spread and cross-world execution.
+mechanism crates/antecedent-counterfactual/src/selective/whole_path_uncertainty.rs
+mechanism crates/antecedent-counterfactual/src/engine.rs
+core crates/antecedent-identify/src/cross_world.rs
+core crates/antecedent/src/analysis/cross_world_execution.rs
+
+# Discovery: per-population and sample-split selective routes, the discovered-structure
+# transport envelope and the structure solver those routes call.
+core crates/antecedent-discovery/src/selective/populations.rs
+core crates/antecedent-discovery/src/selective/reuse.rs
+core crates/antecedent-discovery/src/notears/solver.rs
+core crates/antecedent-identify/src/discovered_transport.rs
+core crates/antecedent/src/analysis/discovered_transport.rs
+core crates/antecedent/src/analysis/per_population_discovery.rs
+core crates/antecedent/src/analysis/sample_split_analysis.rs
+core crates/antecedent/src/analysis/selective_discovery.rs
+
+# Predictive-assessment law and overlap numerics and the temporal-response posterior.
+core crates/antecedent-validate/src/predictive_assessment/law.rs
+core crates/antecedent-validate/src/predictive_assessment/overlap.rs
+estimator.temporal_response crates/antecedent-estimate/src/temporal_response/bayes.rs
+
+# Oracle suites of the uncertainty, transport and decision routes: closed-form,
+# enumerated or hand-computed values at predeclared tolerances, plus refusals and
+# artifact replay. They measure no coverage record; a measured route is its own suite.
+suite.adaptive_inversion_oracle crates/antecedent-stats/tests/adaptive_inversion_oracle.rs
+suite.adaptive_procedure_bounds_oracle crates/antecedent-stats/tests/adaptive_procedure_bounds.rs
+suite.adaptive_procedure_uncertainty_oracle crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs
+suite.adaptive_repeated_measures_oracle crates/antecedent-stats/tests/adaptive_repeated_measures_oracle.rs
+suite.decision_reliability_intervals_oracle crates/antecedent-design/tests/decision_reliability_intervals.rs
+suite.decision_reliability_producers_oracle crates/antecedent-design/tests/decision_reliability_producers.rs
+suite.cohort_decision_input_oracle crates/antecedent-design/tests/cohort_decision_input.rs
+suite.decision_transported_source_oracle crates/antecedent-design/tests/decision_transported_source.rs
+suite.evsi_oracle crates/antecedent-design/tests/evsi.rs
+suite.inverse_forward_source_oracle crates/antecedent-design/tests/inverse_forward_source.rs
+suite.inverse_observational_scenarios_oracle crates/antecedent-design/tests/inverse_observational_scenarios.rs
+suite.paired_draws_alignment_oracle crates/antecedent-design/tests/paired_draws_alignment.rs
+suite.transport_sensitivity_oracle crates/antecedent-design/tests/transport_sensitivity.rs
+suite.transported_bridge_oracle crates/antecedent-design/tests/transported_bridge.rs
+suite.transported_evaluation_oracle crates/antecedent-design/tests/transported_evaluation.rs
+suite.transported_route_variants_oracle crates/antecedent-design/tests/transported_route_variants.rs
+suite.transported_synthesis_oracle crates/antecedent-design/tests/transported_synthesis.rs
+suite.transported_verify_replay_oracle crates/antecedent-design/tests/transported_verify_replay.rs
+suite.discretized_scm_oracle crates/antecedent-model/tests/discretized_scm.rs
+suite.mechanism_transport_oracle crates/antecedent-model/tests/mechanism_transport.rs
+suite.transport_obstruction_agreement_oracle crates/antecedent-model/tests/transport_obstruction_agreement.rs
+suite.whole_path_uncertainty_oracle crates/antecedent-counterfactual/tests/whole_path_uncertainty.rs
+suite.selective_populations_and_split_oracle crates/antecedent-discovery/tests/selective_populations_and_split.rs
+suite.discovered_transport_oracle crates/antecedent-identify/tests/discovered_transport.rs
+suite.transport_exact_scm_oracle crates/antecedent-identify/tests/transport_exact_scm.rs
+suite.adaptive_procedure_facade_oracle crates/antecedent/tests/adaptive_procedure_facade.rs
+suite.adaptive_repeated_measures_facade_oracle crates/antecedent/tests/adaptive_repeated_measures_facade.rs
+suite.adaptive_repeated_measures_consumer_oracle crates/antecedent/tests/adaptive_repeated_measures_consumer.rs
+suite.composed_spread_consumers_facade_oracle crates/antecedent/tests/composed_spread_consumers_facade.rs
+suite.composed_uncertainty_facade_oracle crates/antecedent/tests/composed_uncertainty_facade.rs
+suite.decision_reliability_derived_facade_oracle crates/antecedent/tests/decision_reliability_derived_facade.rs
+suite.discovered_transport_facade_oracle crates/antecedent/tests/discovered_transport_facade.rs
+suite.discretized_composition_facade_oracle crates/antecedent/tests/discretized_composition_facade.rs
+suite.inverse_cohort_source_facade_oracle crates/antecedent/tests/inverse_cohort_source_facade.rs
+suite.inverse_forward_sources_facade_oracle crates/antecedent/tests/inverse_forward_sources_facade.rs
+suite.per_population_discovery_facade_oracle crates/antecedent/tests/per_population_discovery_facade.rs
+suite.sample_split_analysis_facade_oracle crates/antecedent/tests/sample_split_analysis_facade.rs
+suite.transport_sensitivity_facade_oracle crates/antecedent/tests/transport_sensitivity_facade.rs
+suite.transported_cohort_facade_oracle crates/antecedent/tests/transported_cohort_facade.rs
+suite.transported_constructors_facade_oracle crates/antecedent/tests/transported_constructors_facade.rs
+suite.transported_decision_facade_oracle crates/antecedent/tests/transported_decision_facade.rs
+suite.transported_measurement_facade_oracle crates/antecedent/tests/transported_measurement_facade.rs
+suite.transported_mechanism_facade_oracle crates/antecedent/tests/transported_mechanism_facade.rs
+suite.whole_path_account_facade_oracle crates/antecedent/tests/whole_path_account_facade.rs
+
+# Simulation-based calibration of the adaptive-procedure posterior report (ignored;
+# measured only at the final measurement step).
+suite.adaptive_procedure_prior_predictive_calibration crates/antecedent-estimate/tests/adaptive_procedure_prior_predictive_calibration.rs
+suite.decision_reliability_calibration crates/antecedent-design/tests/decision_reliability_calibration.rs

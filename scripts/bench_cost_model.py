@@ -41,6 +41,7 @@ from pathlib import Path
 
 from _repo import REPO_ROOT
 
+CAPACITY_MARKER = "# ---- calibration capacity:"
 BENCHMARK_NAME = "scripts/bench_cost_model.py"
 ESTIMATORS = ("linear.adjustment.ate", "aipw")
 DEFAULT_ROWS = (400, 800, 1600)
@@ -178,6 +179,12 @@ def main(argv: list[str]) -> int:
     )
     coefficients = {estimator: fit_coefficients(rows) for estimator, rows in samples.items()}
     text = format_toml(coefficients, args.rows, args.columns, args.bootstrap, args.repeats, samples)
+    # Carry the hand-maintained planning rows over: they start at CAPACITY_MARKER.
+    if args.out.exists():
+        previous = args.out.read_text(encoding="utf-8")
+        start = previous.find(CAPACITY_MARKER)
+        if start >= 0:
+            text = text.rstrip("\n") + "\n\n" + previous[start:]
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(text, encoding="utf-8", newline="\n")
     print(f"wrote {args.out}")

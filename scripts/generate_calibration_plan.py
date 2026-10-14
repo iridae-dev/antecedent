@@ -18,6 +18,8 @@ SOURCE = ROOT / "parity/support_licensed.toml"
 OUTPUT = ROOT / "parity/calibration_plan.md"
 PROMOTION = ROOT / "parity/promotion.toml"
 LEDGER = ROOT / "parity/evidence_ledger.toml"
+# Hand-maintained tail of the plan: the generator carries it over unchanged.
+CAPACITY_HEADING = "## Capacity plan for the uncertainty, transport and decision coordinates"
 AXES = ("query", "graph_class", "structure", "inference")
 
 
@@ -396,7 +398,12 @@ def render() -> str:
     ]
     lines += registered_inference()
     lines += per_output_inference(ledger_scope()[0])
-    return "\n".join(lines)
+    text = "\n".join(lines)
+    existing = OUTPUT.read_text(encoding="utf-8") if OUTPUT.exists() else ""
+    start = existing.find(CAPACITY_HEADING)
+    if start >= 0:
+        text = text.rstrip("\n") + "\n\n" + existing[start:]
+    return text
 
 
 

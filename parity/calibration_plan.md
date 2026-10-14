@@ -735,3 +735,166 @@ This is explicit method ownership and design allocation, not itself measurement 
 | provider_callback.consumers | no_new_inference_outputs | Original source diagnostics/standing remain source-bound | No new numerical inference method declared | Re-review if numerical scope changes |
 | discovery.selective_reuse | no_new_inference_outputs | Original source diagnostics/standing remain source-bound | No new numerical inference method declared | Re-review if numerical scope changes |
 | composition.release_boundary_fixture | no_new_inference_outputs | Original source diagnostics/standing remain source-bound | No new numerical inference method declared | Re-review if numerical scope changes |
+
+## Capacity plan for the uncertainty, transport and decision coordinates
+
+This section is a measurement plan, not a measurement and not a license. Every coordinate below is a calibration-bearing method whose derived or transported number is reported `derived_unmeasured`, point-only or as a labelled structural envelope today. Nothing here changes a record, a route status or a refusal; a route opens only when a coverage record (or, for an exact claim, a passing gate group) exists at its exact coordinate and construction.
+
+Common rules. Whole method means the procedure the user runs, from the data or draws through selection, stopping, estimation and the interval, never a component. Native, external, posterior, bootstrap and bridge constructions are never interchangeable and each is its own record. A first pass runs 400 replicates at each of three sample-size grid points (`grid_n`); a cell that lands more than two points from nominal inside its band is re-run at 2000 replicates by the gate. Pass criterion, fixed in advance: coverage inside `level +/- 3 MCSE` at the first pass and `+/- 2 MCSE` at 2000 or more replicates, per grid point, misses recorded as boundaries and never averaged. Where an exact law exists (finite enumeration, closed form) there is no Monte Carlo error and the claim is a deterministic gate over a declared grid, not a coverage rate. Cost rows for every coordinate are in `parity/cost_model.toml` under `calibration_capacity`, with their basis; one fix-and-remeasure cycle is reserved there.
+
+Order. Cheapest and most depended on first: the adaptive procedure (the facade, the Python object and the consumers read its law), then composition and decision reliability (every transported consumer composes through them), then the transported consumers, then whole-path cross-world spread, then discovery and anything that composes discovery with transport.
+
+### Emitter status
+
+| Coordinate | Emitter | Status |
+| --- | --- | --- |
+| thompson_prior_predictive_credible | `crates/antecedent-estimate/tests/adaptive_procedure_prior_predictive_calibration.rs` (3 ignored tests, record emitting) | written; needs `--features calibration-internal` and a gate group line |
+| decision_winners_curse_expectation | `crates/antecedent-design/tests/decision_reliability_calibration.rs` (1 ignored test, diagnostic lines, no record) | written; needs a gate group line |
+| adaptive_weighting_simulation_wald | `adaptive_inference_calibration.rs::epsilon_greedy_weighted_*` measures the estimate-level interval | derived-route emitter to be written: bind `procedure_simulation`'s summary to a hand-built `CalibrationBasis` as `basis()` in that file does |
+| adaptive_repeated_measures | `adaptive_inference_calibration.rs::epsilon_greedy_repeated_measures_*` is a different (unit-mean) estimator | to be written: random-intercept and AR(1) DGP, `derive_repeated_measures` interval, hand-built `CalibrationBasis`; host in antecedent-estimate tests (antecedent-stats has no `serde` dev-dependency for the shared harness) |
+| composed_* , transported_composition | none | to be written: a hand-built `Construction` keyed by `ComposedCoordinate::id` through `tally.bind`; no `CalibrationBasis` exists for composed readings; host in antecedent-contract or antecedent tests (needs `serde`, present) |
+| decision_utility_interval, ranking_probability_wilson, optimality_confidence_set, selection_corrected_and_held_out | `KnownOptimumDesign` / `simulate_replicate` supply the DGP; the harness include works in antecedent-design (it has `serde` and `serde_json`) | to be written: per-replicate `derive_uncertainty` call (a small addition) and a hand-built `Construction` per route; `coverage_design()` is the cell list |
+| whole_path_cross_world_spread | none | to be written: enumerated finite SCM with response-type law and per-unit posterior draws; antecedent-counterfactual has no `serde` dev-dependency, host in antecedent tests |
+| sample_split_joint_coverage, per_population_discovery_error_rates, cpdag_envelope_recovery | none | to be written: whole-method discovery + analysis loop; host in antecedent tests where `CoverageTally` already binds facade executions |
+| exact and deterministic rows | the oracle suites assert hand values already | to be written as ignored grid-loop tests registered as record-less gate groups (`parity/calibration_gates.toml`) |
+
+### Coordinates, in measurement order
+
+Each entry: claim; whole-method design; truth/DGP; nominal level; sampling and dependence model; grid; boundary probes; emitter; decision.
+
+**1. adaptive_procedure_exact_gates** (exact; one deterministic cell per row, no replicates).
+Claim: the exact whole-procedure law is correct and its derived functionals state what they say: the terminal posterior mean has martingale gap 0; the spent group-sequential boundaries cross with probability at most alpha under the null and match numerical integration under drift; the mixture-Hoeffding sequence at alpha/cells excludes the truth with probability at most alpha at the stopping time (`anytime_exclusion_probability`); the decision-theoretic stopping law (P(wrong), expected regret, expected N) equals the enumerated law.
+Design: `enumerate_law` and `crossing_probabilities` over the declared grid, nothing sampled. Truth: fixed Bernoulli arms in {0.05, 0.2, 0.5, 0.8, 0.95} and prior-predictive Polya law. Nominal: alpha 0.05 (0.025 per tail). Grid: N in {20, 50, 100, 250, 500}; looks at information fractions {1/4, 1/2, 3/4, 1} and batch of 1; lag {0, 1, 2}; loss none, 20% ignorable, outcome-dependent (retain success 1, failure 0.5; refused for decision-theoretic stopping); exposure failure {0, 10%, 30%}. Probes: means at 0 and 1, an arm unobserved at stop, stop at the first look, stop exactly at the horizon, threshold ties, outcomes arriving exactly at the horizon, minimum information fraction.
+Emitter: oracle values exist in `crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs` and `adaptive_inversion_oracle.rs`; the grid loop is to be written as an ignored gate group. Decision: exact / point-only; the result is a pass/fail gate, never an interval license.
+
+**2. adaptive_fixed_sample_exact_set** (exact).
+Claim: the unconditional (supremum over the nuisance grid) contrast confidence set of `inversion_interval` has exact coverage at least nominal for the fixed-randomization, single-outcome, final-analysis-only cell.
+Design: exact binomial law of the contrast, 1:1 and 2:1 allocation, delayed outcomes with a follow-up look, ignorable loss. Truth: nuisance grid 0.05 to 0.95 step 0.05, contrast {0, 0.05, 0.15, 0.4}. Nominal 0.95. Grid: N as above. Probes: empty arm, all successes, arm means at 0 and 1.
+Emitter: to be written (deterministic loop over the grid; min coverage over the nuisance grid is the statistic). Decision: exact conditional on the declared nuisance grid; guarantee is the minimum over that grid, not a sampling rate.
+
+**3. thompson_prior_predictive_credible** (posterior; interval; MC-ranked).
+Claim: the equal-tailed 95% credible interval of the treatment arm at the stopping look is calibrated under the prior predictive of the whole procedure, stopping rule included.
+Design: Beta-Bernoulli Thompson sampling, two arms, looks at n/2 and n, stop at probability-best threshold {0.90, 0.95, 0.99}; batch {1, 5, 20} and lag {0, 1, 2} are further cells once the single-unit cell passes. Truth: each arm's success probability drawn from the prior per replicate (simulation-based calibration); uniform and an informative Beta(2, 5) prior. Nominal 0.95. Sampling: independent units, assignment dependent on observed counts only. Grid: n around 200 (`grid_n`). Probes: threshold 0.99 (most replicates reach the horizon), prior shape 1, stop at the first look.
+Emitter: written, `adaptive_procedure_prior_predictive_calibration.rs`. Decision: interval/posterior, calibrated by construction if the posterior is valid under adaptive assignment; the measurement either confirms it or finds the defect; MC-ranked (record at the coordinate).
+
+**4. adaptive_weighting_simulation_wald** (frequentist; interval; MC-ranked).
+Claim: coverage of the plug-in Wald interval of the adaptively weighted contrast under the stopped procedure (the plug-in variance is a diagnostic until measured).
+Design: epsilon-greedy epsilon {0.1, 0.3, 0.5}, uniform and variance-stabilizing weights, stop at probability-best threshold, lag {0, 1, 2}, ignorable loss. Truth: Bernoulli arms, contrast {0, 0.1, 0.3}. Nominal 0.95. Grid: n around 200; at least 20000 fixed-seed replications at measurement for the Monte Carlo law, 400/2000 for coverage. Probes: epsilon at the floor, an arm never explored. Also the refused fixed-sample interval after adaptive assignment, to size the miscoverage the refusal prevents.
+Emitter: derived-route emitter to be written (the estimate-level interval is `adaptive_inference_calibration.rs::epsilon_greedy_weighted_*`). Decision: interval, MC-ranked; remains `derived_unmeasured` until a record exists.
+
+**5. adaptive_repeated_measures** (frequentist; interval; MC-ranked; exact for the fixed allocation).
+Claim: coverage of the cluster-robust Welch interval (fixed allocation; exact mixture law) and of the plug-in Wald interval of the weighted contrast (epsilon-greedy over unit summaries); design effect `1 + (m - 1) rho`.
+Design: `y_ij = mu_arm + b_i + e_ij` or multivariate normal with compound symmetry or AR(1); 1:1 and 2:1; Mean and GLS summaries; epsilon {0.1, 0.3, 0.5}, batch {1, 5, 20}, lag {0, 1, 3}. Truth: contrast {0, 0.1, 0.3} sd. Nominal 0.95, with t-reference for few clusters. Grid: units {10, 20, 50, 100, 250}, m {2, 5, 10}, rho/ICC {0, 0.2, 0.5, 0.8, 0.95}; at least 20000 replications for the exact-law comparison. Probes: rho at the positive-definite bound, ICC 0, m 2, one unit in an arm, a misdeclared correlation (declared 0.2, true 0.6), and the refused fixed-sample interval after adaptive assignment.
+Emitter: to be written. Decision: interval, MC-ranked; hierarchical cluster-robust interval with few clusters (6 to 12) reported separately with the t-reference.
+
+**6. composed_linear_interval** (delta method; normal construction; MC-ranked).
+Claim: the interval built by `normal_approximation` from the propagated variance covers `c'theta` at nominal level at the composed coordinate; shared evidence declared independent must under-cover (negative control).
+Design: two estimators from one data set (shared evidence) and from two independent data sets; covariance route and aligned-draw route. Truth: known estimand `c'theta`. Levels 0.80, 0.90, 0.95 scored on the same replicates (`emit` for the extra levels). Grid: n {30, 100, 1000}; correlation {-0.8, 0, 0.5, 0.9}; coefficients {1,-1}, {0.25,0.75}, {1,1,-1}; MC draws 1000 and 10000 to separate MC error; t5 errors. Probes: rho near +-1, unit-variance ratio 100:1, n 30 with t5, cross term cancelling the main term.
+Emitter: to be written. Decision: interval, MC-ranked.
+
+**7. composed_nonlinear_aligned** (aligned draws; percentile type 6 and 7; MC-ranked).
+Claim: the draw-based equal-tail interval and the exceedance probability of a nonlinear composition (product, ratio, min) cover the closed-form truth.
+Design: aligned posterior (conjugate) or bootstrap draws from one fit, and an MCMC posterior with effective size below n (separate cell). Truth: closed-form `E[g]`. Grid: n {50, 200, 1000}; correlation {0, 0.5, 0.9, -0.9}; ratio denominator mean at 1, 0.3, 0.1 sd; product mean 0. Probes: ratio denominator mass at zero, exceedance probability at 0 and 1, cutoff inside the MC band, effective size 5% of n, independent-pairing-by-index control (must fail).
+Emitter: to be written. Decision: interval, MC-ranked; the verdict reading (act/withhold/unresolved) is a separate frequency claim measured on the same replicates.
+
+**8. composed_mixture_exceedance** (known weights; MC-ranked).
+Claim: the exceedance probability `sum w_i p_i` and the equal-tail mixture interval cover the truth.
+Design: components fitted from independent samples, known weights. Grid: weights {0.5/0.5, 0.9/0.1, 0.99/0.01}, separation {0, 2, 6} sd, n {50, 200, 1000}. Probes: weight near 0, bimodal law (equal-tail interval spans the gap), a component with 10 draws.
+Emitter: to be written. Decision: interval, MC-ranked.
+
+**9. composed_transported_composition** (source + target + transport; MC-ranked).
+Claim: the composed transported interval covers the target truth only when all three evidence pieces are composed; dropping one must under-cover.
+Design: source and target samples with known density ratio, shared vs disjoint evidence, weights estimated vs known. Grid: source n {200, 2000}, target n {100, 1000}; shift 0.25, 0.5, 1.0 sd; overlap ratio up to 1:20. Probes: near-violated overlap, small target n, pieces with different alignment ids (refused, not computed).
+Emitter: to be written. Decision: interval, MC-ranked, the premise (invariance) inside the method boundary; a violation arm quantifies the loss.
+
+**10. decision_utility_interval** (Wald at effective sample size; MC-ranked).
+Claim: the Wald interval of a pre-specified candidate's functional covers it at nominal level.
+Design: `KnownOptimumDesign` draws; functional mean, threshold exceedance, lower-tail CVaR `mu - sigma phi(z_a)/a`. Truth: closed form. Levels 0.80, 0.90, 0.95. Grid: candidates {2, 8, 64, 512}, budget {100, 1000, 10000}, noise coupling {separate, 0.5, 0.9}. Probes: tail mass 0.01 at budget 100, autocorrelated batch means.
+Emitter: to be written (per-replicate `derive_uncertainty`). Decision: interval, MC-ranked.
+
+**11. decision_ranking_probability_wilson** (Wilson at effective sample size; MC-ranked).
+Claim: the Wilson interval at the effective sample size contains P(best), P(top-k), P(better than baseline) under the known law.
+Truth: independent Gaussians `P(best_j) = integral phi_j prod_{i != j} Phi_i` by quadrature; two candidates `Phi(delta / (sigma sqrt(2(1-rho))))`. At least 2000 replicates. Probes: all means equal (ties, 1/K), one dominant, gap `sigma / sqrt(n)`, effective size near 30 via an autocorrelated stream, Kish effective size 0.2 n.
+Emitter: to be written. Decision: interval, MC-ranked.
+
+**12. decision_optimality_confidence_set** (paired comparisons with the best, K at most 64; marginal Bonferroni otherwise).
+Claim: the set contains the true best retained candidate; set size is reported as power.
+Truth: fixed known optimum (and a tied-optimum variant). Probes: K 64 vs 65 (construction switch), runner-up one se below, all tied, an adaptive set from a known generator scored against best retained and best considered separately.
+Emitter: to be written. Decision: interval/set, MC-ranked.
+
+**13. decision_selection_corrected_and_held_out** (Bonferroni over considered; held-out Wald; MC-ranked).
+Claim: the selection-corrected and the held-out interval contain the true value of the selected candidate; the ordinary in-sample interval is scored beside them (it must under-cover under equal means).
+Probes: all means equal (maximal winner's curse), one far above, K 512 at budget 100, sample split with gap 0 on an autocorrelated stream (expected miss), reused validation stream (refusal, not coverage).
+Emitter: to be written; `simulate_replicate` supplies selected and validation values. Decision: interval, MC-ranked.
+
+**14. decision_winners_curse_expectation** (expectation check; no coverage).
+Claim: mean realized in-sample bias of the selected candidate is at most the reported bound within Monte Carlo error; the held-out value is unbiased. Independent oracle: Tippett's expected maximum of equal-mean Gaussians. At least 5000 replicates over candidates {2, 8, 64}, budget {100, 1000}, four couplings. Probes: negatively correlated noise (union bound must hold), padded unseen candidates.
+Emitter: written, `decision_reliability_calibration.rs`. Decision: expectation gate (pass/fail), not an interval license.
+
+**15. discretized_composition_bound** (deterministic; bound validity, not coverage).
+Claim: `|discretized - closed form| <= B` for the mean contrast of a linear-Gaussian composition; report `B / error` and the error slope in the level count.
+Design: random Markovian linear-Gaussian compositions, at most 8 variables, levels {2, 4, 8, 16, 32, 64}, arms at quantile positions 0.05 to 0.95 and tails. Truth: closed-form Gaussian contrast. Nominal: validity probability 1. Grid: |b| at most 3, sigma in [0.1, 3], depth at most 4. Probes: arms at outer cells, sigma tending to 0, near-collinear parents, n 2 and 64, joint space at the 2^20 bound.
+Emitter: to be written (deterministic grid). Decision: exact/point-only; a bound, never an interval.
+
+**16. transported_point_accuracy** (point-only; bias and RMSE, no interval).
+Claim: the transported cohort mean contrast and the transported corrected prevalence/linear functional are accurate for the target truth under the declared premises; the delta-method standard error is not a calibrated one.
+Design: source fit with the retained-support box, declaration, overlap check, transport; two populations differing only in the covariate law (selection into modifiers only); binary misclassification with fixed sensitivity and specificity and validation size {100, 500, 2000}; a linear-Gaussian chain with the mediator mechanism shifted. Grid: shift 0 to 2 sd, overlap fraction 0.5 to 1, Youden 0.1 to 0.9. Probes: box edge at 0.9 and 0.99 of width, just outside (must refuse), selection arrow into the outcome (must refuse), modifiers a strict subset (must refuse), differential error without a target model.
+Emitter: to be written. Decision: point-only; if an interval is ever offered it is a separate bootstrap or delta-method record with this design and a premise-violation arm.
+
+**17. transported_mechanism_and_synthesis_pool** (model variance; normal interval with declared tau; MC-ranked).
+Claim: nominal coverage of the target truth by the delta-method interval of a carried-mechanism contrast and by the GLS or borrowing pool, under a declared transport error.
+Design: fit source mechanisms, carry under the diagram, compose, contrast; native + transported estimates + declared tau^2, pool, normal interval. Truth: linear-Gaussian SCM, populations differing in mechanisms with a selection arrow; transport error `b_t ~ N(0, tau^2)`, one draw shared by all claims through one transport. At least 2000 replicates. Grid: n {50, 200, 1000}; tau {0, 0.5, 1} x sampling sd; coefficient {0.5, 2}; shared-transport cells of 1, 2, 4 claims; sampling covariance zero and moderate. Probes: tau 0 (must equal the native pool), tau much larger than sampling variance (pool collapses to native), shared error counted per claim (negative control, must under-cover), an arrow into the outcome (refused), a latent loading with and without invariance, a transported claim whose rows overlap native (ledger refusal).
+Emitter: to be written. Decision: interval, MC-ranked, licensed only for a declared tau; tau is never derived.
+
+**18. transported_policy_and_trial_exact** (exact; deterministic).
+Claim: the transported policy and period-shift values equal exact finite-law arithmetic on a target initial law; the adaptive-trial transported contrast is the stratum-weighted estimate.
+Design: enumerated finite SCM with a known target law; a simulated epsilon-greedy trial with known stratum-arm means, target law varied from the source law, total variation 0 to 0.8, minimum stratum-arm probability 0.02 to 0.5, n 100 to 5000. Probes: target mass on a rarely observed stratum, assignment probabilities at the floor, target support at the source support edge, near-violated invariance (a small outcome-mechanism shift, to size bias).
+Emitter: to be written. Decision: exact/point-only; the bootstrap interval (resampling whole trials) is a separate, undelivered route.
+
+**19. inverse_observational_consistency** (point accuracy; no interval).
+Claim: the observational-scenario ratios are consistent for the closed-form `P(S|E)`, `P(E|S)` and lift, and the reported effective event draws track the realized event count.
+Design: draw n rows from a known finite joint law, apply `evaluate_observational_scenarios`, record signed error; weighted variant with known importance weights (Kish effective size). Grid: n {200, 1000, 5000, 20000}, event mass {0.5, 0.1, 0.01}, scenario mass {0.5, 0.25, 0.05}. Probes: event mass 0 (refuses `event_has_no_mass`), scenario mass 0 (`event_given_scenario = None`), event mass so small the effective size is under 5.
+Emitter: to be written. Decision: point-only; bias and RMSE, no nominal level.
+
+**20. transport_assumption_range_bound** (deterministic; no probability).
+Claim: the additive or proportional assumption range contains the transported value whenever the premise violation is within the declared bound; at shift equal to the bound the range is tight, beyond it the claim is void.
+Design: a DGP whose selection mechanism shifts by a known amount; no sampling. Probes: shift at the bound, shift just beyond, a mixed multi-factor violation (outside the family; must not be claimed).
+Emitter: to be written. Decision: structural envelope; no coverage claim exists.
+
+**21. whole_path_cross_world_spread** (exact enumeration + sampling component; MC-ranked for the population mean).
+Claim: (i) the variance of the realized counterfactual outcome mean given the units equals `sum v_i / n^2`, checked against the Monte Carlo variance of simulated response types from each unit's posterior; (ii) coverage of `q-bar +/- z se` for the population mean unit probability.
+Design: enumerated finite Markovian SCM; units iid from a known population of evidence types. Quantity in {marginal probability, joint event, mean contrast}; evidence in {none, partial, full}. Grid: n {5, 20, 100}. Probes: unit values all 0 or all 1 (sampling variance 0), n 2, near-zero-probability evidence, a deterministic mechanism, a misspecified response-type law (structural premise violation: quantified, not repaired). Structural misspecification and mechanism-parameter uncertainty are not propagated by design and are outside the claim.
+Emitter: to be written. Decision: (i) exact/point-only variance identity; (ii) interval, MC-ranked.
+
+**22. sample_split_joint_coverage** (whole method; interval; MC-ranked; discovery last).
+Claim: for a declared discovery contract, graph acceptance rule, estimator and interval procedure at split fraction f, the analysis interval covers the true total effect, jointly over the random split, discovery and analysis; report `P(G_hat in G*)`, coverage given `G_hat in G*`, coverage given not, and unconditional coverage with Monte Carlo bounds.
+Design: random split, PC (declared CI test) on the discovery half, estimator and interval on the analysis half. Truth: linear-Gaussian SCMs with known graphs and total effects; vary variable count, density, effect sizes; weakly faithful (near-cancelling) members, a misspecified-test member, a nonlinear-additive member. Nominal 0.95 and 0.90. Sampling: iid rows. Grid: n bracketing support, f in {0.3, 0.5, 0.7}, at least 2000 replicates. Negative control: no-split reuse at the same n (expected anti-conservative; no under-coverage anywhere on the grid is a defect). Probes: smallest supported analysis n, weakly detectable parents at the discovery n, a class with non-unique completion. Support range: only inside the measured grid.
+Emitter: to be written. Decision: interval, conditional on the selected graph, MC-ranked; reuse without split stays `cell_not_licensed` (no tractable selective-inference correction exists).
+
+**23. per_population_discovery_error_rates** (record per population; no cross-population claim).
+Claim: per-population discovery error rates (false positive and power at the declared CI test and alpha) hold per population; no error rate is stated for agreement between populations.
+Design as coordinate 22 per population with independent populations and a shared contract. Probes: populations that differ in sample size by 10x, one population violating faithfulness.
+Emitter: to be written. Decision: pass/fail gates per population; cross-population agreement stays unmeasured and unlicensed.
+
+**24. cpdag_envelope_recovery** (structural envelope; recovery frequency).
+Claim: the frequency with which the true DAG is a member of the enumerated equivalence class under sufficiency, faithfulness and CI tests correct within bounds (`ENVELOPE_ASSUMPTIONS`).
+Design: PC recovery study over random DAGs; class enumeration with the member bound. Probes: classes at 64 undirected edges and at the member bound (partial/refused), non-unique completions.
+Emitter: to be written. Decision: a recovery frequency recorded as evidence about the assumptions, not as a coverage license; the envelope itself carries no probability.
+
+### Calibration decision per new route
+
+| Route | Decision | Reason |
+| --- | --- | --- |
+| adaptive procedure law, martingale gap, anytime exclusion, decision-theoretic report, ordered p-values, fixed-sample exact set | exact / point-only | exact finite-law arithmetic supplies no interval or calibration license; a gate confirms the law and bounds |
+| adaptive Bayesian credible interval (Thompson) | posterior, MC-ranked | calibrated by construction under the prior predictive; measured as a record |
+| adaptive weighting Wald interval and repeated-measures intervals | interval, MC-ranked | plug-in variance under adaptive assignment; no closed form |
+| composed linear spread and normal interval | interval, MC-ranked (spread stays labelled `uncalibrated_spread` until then) | delta method exact for linear, coverage depends on the estimators' sampling law |
+| composed nonlinear (aligned draws), mixture, transported composition | interval, MC-ranked | draw-based; covariance alone is not sufficient (rule) |
+| decision-reliability numerical, ranking, set, selection-corrected and held-out intervals | interval/set, MC-ranked per candidate-set size and budget | whole-procedure claims; component Monte Carlo error does not cover the selected decision |
+| winner's-curse bound | expectation gate | a bias bound, not a coverage claim |
+| discretized composition bound | exact / point-only (bound) | deterministic; validity and tightness only |
+| transported cohort, measurement, policy, period, trial, bridge, provider and inverse routes | point-only | every value is a point under declared premises; any later interval is a separate whole-method record |
+| mechanism transport delta variance and synthesis pools | interval, MC-ranked, declared tau only | model variance conditional on a caller-declared transport error |
+| transport assumption range | structural envelope | an assumption range on a declared bound; no probability |
+| whole-path cross-world spread | exact variance identity + interval for the population mean, MC-ranked | exact enumeration of unit posteriors; sampling component by declaration |
+| per-population discovery, sample-split analysis, class envelope | gates / interval conditional on the selected graph / structural | discovery error rates and joint coverage are measured; the envelope carries no probability |
