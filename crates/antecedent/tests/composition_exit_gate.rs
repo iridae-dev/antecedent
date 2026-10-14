@@ -1742,3 +1742,79 @@ fn story_6_mixed_source_proof_by_bounded_search_and_an_incomplete_search_stays_u
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Story 7: a corrected measured quantity, pooled evidence, a decision, a revision
+// ---------------------------------------------------------------------------
+
+#[path = "composition_release_fixture/scenario.rs"]
+mod release_boundary;
+
+/// The release-boundary scenario end to end (`conformance/composition/release_boundary`):
+/// a misclassified exposure corrected by its declared confusion model enters a
+/// finite causal model together with a pooled study effect; an affine decision reads
+/// the licensed mean; new observations make the claim graph classify the claim for
+/// recomputation and the decision flips; a fresh consumer holding only bytes
+/// recomputes both decisions against hand-written closed forms.
+#[test]
+fn story_7_release_boundary_corrected_measurement_pooled_evidence_decision_and_revision() {
+    use release_boundary::{
+        World, consume, fixture, gate, num, pool, revised_study_declarations, selected, text,
+        value_of,
+    };
+    let fx = fixture();
+    let (sc, v, rv) = (&fx["scenario"], &fx["values"], &fx["revised_values"]);
+    let near = |a: f64, b: f64| (a - b).abs() <= num(&fx["tolerance"]["decision"]);
+
+    // Producer scope: build, seal, drop every producer object.
+    let (bundle, plan_before) = {
+        let world = World::build(sc);
+        assert!(near(world.excess_risk, num(&v["excess_risk"])), "{}", world.excess_risk);
+        assert!(near(value_of(&world.result, "act"), num(&v["act"])));
+        assert_eq!(selected(&world.result), text(&v["selected"]));
+        (world.bundle(sc), world.plan_identity.clone())
+    };
+    // Consumer scope: bytes, retained identities and declarations only.
+    let report = consume(&bundle).expect("the sealed bundle is consumed");
+    assert!(near(report.excess_risk, num(&v["excess_risk"])));
+    assert!(near(report.act, num(&v["act"])) && near(report.hold, num(&v["hold"])));
+    assert_eq!(report.selected, text(&v["selected"]));
+    assert!(report.snapshot_bound && report.claim_graph_valid);
+
+    // New observations: the pooled claim is stale until recomputed with its
+    // predecessor named, then the decision is re-evaluated and flips.
+    let mut world = World::build(sc);
+    let before = world.pooled.result;
+    let step = world.revise(sc);
+    let stale = gate(&world.graph, &world.session, before).expect("a stale decision refuses");
+    assert_eq!(stale.code, text(&fx["variants"]["revalidation_pending"]["code"]));
+    let studies = sc["studies"].as_array().unwrap();
+    let pooled = pool(
+        &mut world.session,
+        "recomputed",
+        &[
+            (world.study_a, num(&studies[0]["estimate"]), num(&studies[0]["variance"])),
+            (step.grown, step.summary.0, step.summary.1),
+        ],
+        None,
+        Some(before),
+    )
+    .unwrap();
+    let (survey, study_a, measured) = (world.survey, world.study_a, world.measured);
+    let revised = World::downstream_of(
+        sc,
+        world.session,
+        (survey, study_a, step.grown),
+        pooled.clone(),
+        measured,
+    );
+    assert!(near(value_of(&revised.result, "act"), num(&rv["act"])));
+    assert_eq!(selected(&revised.result), text(&rv["selected"]));
+    assert_ne!(revised.plan_identity, plan_before);
+    assert!(gate(&revised.graph, &revised.session, pooled.result).is_none());
+    let mut sealed = revised.bundle(sc);
+    sealed.studies = revised_study_declarations(sc);
+    let report = consume(&sealed).expect("the revised bundle is consumed");
+    assert!(near(report.act, num(&rv["act"])));
+    assert_eq!(report.selected, text(&rv["selected"]));
+}

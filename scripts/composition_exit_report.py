@@ -10,13 +10,14 @@ story passed and whether the calibrated parts are measured:
     python3 scripts/composition_exit_report.py --self-test
 
 Per-story status:
-  PASS                   the Rust and the Python story both ran and passed
+  PASS                   the Rust and the Python story both ran and passed (story 7 is point-only:
+                         it makes no calibrated claim and has no pending state)
   FAIL                   a story failed, errored, or did not run
   PENDING_CALIBRATION    story 3's estimate/overlap/artifact parts pass, but its calibration
                          coverage records are absent (not pass, not fail)
 
 Exit status: 1 on any FAIL; PENDING_CALIBRATION exits 0 unless `--require-calibrated`.
-The multi-source coverage records (not one of the six stories, but part of "zero unmeasured
+The multi-source coverage records (not one of the seven stories, but part of "zero unmeasured
 interval coordinates") are reported as their own row and follow the same rule.
 """
 
@@ -37,6 +38,7 @@ STORIES = {
     4: "two-step temporal transport, history-support refusal ",
     5: "cross-world query, shared abduction, typed refusal ",
     6: "mixed-source proof by bounded search + incomplete search ",
+    7: "release boundary: corrected measurement, pooled evidence, decision, revision ",
 }
 RUST = re.compile(r"^test (?:\S+::)?story_(\d)_\w+ \.\.\. (ok|FAILED|ignored)\s*$", re.M)
 PYTHON = re.compile(r"(?:^|/)test_composition_exit_gate\.py::test_story_(\d)_\w+(?:\[[^\]]*\])?\s+(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)", re.M)
@@ -98,8 +100,8 @@ def evaluate(rust_log: str, python_log: str, intervals: dict, require_calibrated
 
 
 def self_test() -> int:
-    ok_rust = "".join(f"test story_{n}_x ... ok\n" for n in range(1, 7))
-    ok_py = "".join(f"tests/test_composition_exit_gate.py::test_story_{n}_x PASSED [ 10%]\n" for n in range(1, 7))
+    ok_rust = "".join(f"test story_{n}_x ... ok\n" for n in range(1, 8))
+    ok_py = "".join(f"tests/test_composition_exit_gate.py::test_story_{n}_x PASSED [ 10%]\n" for n in range(1, 8))
     ok_py += "tests/test_composition_exit_gate.py::test_story_3_x[nested_cohort] PASSED\n"
     pending = {
         "intervals": "PASS",
@@ -128,6 +130,8 @@ def self_test() -> int:
     expect("a failed Rust story fails", ok_rust.replace("story_4_x ... ok", "story_4_x ... FAILED"), ok_py, done, False, 1, "verdict: FAIL")
     expect("a failed Python story fails", ok_rust, ok_py.replace("story_2_x PASSED", "story_2_x FAILED"), done, False, 1, "verdict: FAIL")
     expect("a story that never ran fails", ok_rust.replace("test story_5_x ... ok\n", ""), ok_py, done, False, 1, "verdict: FAIL")
+    expect("the release-boundary story never ran", ok_rust.replace("test story_7_x ... ok\n", ""), ok_py, done, False, 1, "verdict: FAIL")
+    expect("a failed release-boundary Python story fails", ok_rust, ok_py.replace("story_7_x PASSED", "story_7_x FAILED"), done, False, 1, "verdict: FAIL")
     expect("one failed parametrization fails story 3",
            ok_rust, ok_py + "tests/test_composition_exit_gate.py::test_story_3_x[independent_samples] FAILED\n", done, False, 1, "verdict: FAIL")
     expect("a failed hard part outranks pending", ok_rust.replace("story_3_x ... ok", "story_3_x ... FAILED"), ok_py, pending, False, 1, "verdict: FAIL")

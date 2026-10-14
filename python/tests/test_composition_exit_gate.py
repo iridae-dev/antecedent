@@ -895,3 +895,74 @@ def test_story_6_mixed_source_proof_by_bounded_search_and_incomplete_search_stay
         )
         assert {c["study"] for c in consumed["cited_sources"]} == {"observational", "trial"}
         assert consumed["proof"]["rule_set"] == "mixed_source_proof_rules.v1"
+
+
+def test_story_7_release_boundary_corrected_measurement_pooled_evidence_decision_and_revision(
+    tmp_path,
+):
+    """A misclassified exposure, corrected by its declared confusion model, enters a finite
+    causal model together with a pooled study effect; an affine decision reads the licensed
+    mean; new observations make the claim graph classify the claim for recomputation and the
+    decision flips; a fresh process holding only files recomputes both decisions against
+    closed forms written in the consumer (``conformance/composition/release_boundary``)."""
+    import json as _json
+    import subprocess as _subprocess
+    import sys as _sys
+
+    import _release_boundary as rb
+    import pytest as _pytest
+    from antecedent import composition_verification as _cv
+
+    values, revised = rb.FIXTURE["values"], rb.FIXTURE["revised_values"]
+
+    def consume(directory):
+        done = _subprocess.run(
+            [_sys.executable, str(rb.CONSUMER), str(directory)],
+            capture_output=True,
+            text=True,
+            cwd=directory,
+            check=True,
+        )
+        return _json.loads(done.stdout.strip().splitlines()[-1])
+
+    # Producer scope: build, seal, drop every producer object.
+    world = rb.World.build()
+    assert world.excess_risk == _pytest.approx(values["excess_risk"], abs=rb.DECISION)
+    assert rb.value_of(world.result, "act") == _pytest.approx(values["act"], abs=rb.DECISION)
+    assert world.result.selected == (values["selected"],)
+    world.write_bundle(tmp_path / "base")
+    plan_before = world.plan_identity
+
+    # Consumer scope: files only, in another process.
+    outcome = consume(tmp_path / "base")
+    assert outcome["ok"], outcome
+    report = outcome["report"]
+    assert report["act"] == _pytest.approx(values["act"], abs=rb.DECISION)
+    assert report["excess_risk"] == _pytest.approx(values["excess_risk"], abs=rb.DECISION)
+    assert report["selected"] == values["selected"]
+    assert report["snapshot_bound"] and report["claim_graph_valid"]
+
+    # New observations: the pooled claim is stale until recomputed with its predecessor named,
+    # then the decision is re-evaluated and flips.
+    before = world.pooled.result
+    step = world.revise()
+    with _pytest.raises(_cv.CompositionVerificationRefusal) as stale:
+        world.gate()
+    assert stale.value.reason_code == rb.FIXTURE["variants"]["revalidation_pending"]["code"]
+    first = rb.SCENARIO["studies"][0]
+    pooled = rb.pool(
+        world.ledger,
+        "recomputed",
+        [(world.study_a, first["estimate"], first["variance"]), (step.grown, *step.summary)],
+        replaces=before,
+    )
+    new = world.downstream_of(pooled, step.grown)
+    assert rb.value_of(new.result, "act") == _pytest.approx(revised["act"], abs=rb.DECISION)
+    assert new.result.selected == (revised["selected"],)
+    assert new.plan_identity != plan_before
+    assert new.gate().classify("decision").klass == "still_valid"
+    new.write_bundle(tmp_path / "revised", studies=rb.revised_studies())
+    outcome = consume(tmp_path / "revised")
+    assert outcome["ok"], outcome
+    assert outcome["report"]["act"] == _pytest.approx(revised["act"], abs=rb.DECISION)
+    assert outcome["report"]["selected"] == revised["selected"]

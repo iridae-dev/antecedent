@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Composition exit gate: complete only when six end-to-end user stories pass from clean
+# Composition exit gate: complete only when seven end-to-end user stories pass from clean
 # preparation through independent artifact consumption, with zero newly introduced unmeasured
 # interval coordinates.
 #
@@ -7,7 +7,7 @@
 #   bash scripts/gate_composition_exit.sh --require-calibrated    # PENDING_CALIBRATION is a failure (release)
 #   bash scripts/gate_composition_exit.sh --self-test             # cheap: the checker and the verdict logic
 #
-# It runs the six Rust stories (crates/antecedent/tests/composition_exit_gate.rs), the Python stories
+# It runs the seven Rust stories (crates/antecedent/tests/composition_exit_gate.rs), the Python stories
 # (python/tests/test_composition_exit_gate.py, against the extension already built into python/.venv; build
 # it first with `cd python && uv run maturin develop --release`, or set COMPOSITION_EXIT_BUILD_PYTHON=1),
 # then scripts/check_interval_surfaces.py --run-refusals (which also executes the cited closed-route
@@ -44,10 +44,10 @@ fi
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-echo "== composition exit: six Rust stories =="
+echo "== composition exit: seven Rust stories =="
 cargo test -p antecedent --test composition_exit_gate 2>&1 | tee "$tmp/rust.log" || true
 
-echo "== composition exit: six Python stories =="
+echo "== composition exit: seven Python stories =="
 if [[ "${COMPOSITION_EXIT_BUILD_PYTHON:-0}" == "1" ]]; then
   (cd python && uv run maturin develop --release)
 fi

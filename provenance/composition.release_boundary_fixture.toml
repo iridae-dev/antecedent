@@ -1,0 +1,29 @@
+# Algorithm provenance for composition.release_boundary_fixture (see docs/composition-release-fixture.md).
+
+feature_id = "composition.release_boundary_fixture"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper and no new algorithm: the fixture is a test scenario that drives routes that
+# already carry their own provenance (binary misclassification correction, finite mechanism
+# composition, summary pooling, the joint-law rule, claim revalidation) and the expectation of an
+# affine utility. Nothing here computes a statistic that those routes do not.
+papers = [
+]
+
+implementation_deviations = [
+  "The fixture introduces no estimator. Every expected value is a closed form written in the test or the consumer from the declared inputs, so it evidences the composition and its refusals, not the statistical performance of any component.",
+  "The scenario is point-only: the standard error of the corrected prevalence and the variance of a pooled estimate are uncalibrated point quantities, and no interval, posterior decision or ranking guarantee is produced or measured.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "hand-derived closed forms: Rogan-Gladen prevalence 0.3, inverse-variance pool 0.15, excess risk 0.045, utility 15; revised pool 0.08 and utility -6; generalized least squares over shared rows 0.15 with variance 0.0003",
+  "an enumerated product lattice as the aligned joint law of two independent inputs",
+  "a fresh-process consumer holding only bytes, retained identities and declarations, with its own closed-form oracle",
+  "mutations of quantity, law, support, snapshot and evidence overlap, each refused with a recorded code and detail",
+]
