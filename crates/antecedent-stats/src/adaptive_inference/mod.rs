@@ -24,13 +24,26 @@
 //! * [`group_sequential`]: alpha-spending boundaries (Lan and `DeMets`) for a
 //!   pre-specified set of interim looks, by recursive numerical integration of
 //!   the canonical joint distribution of the interim statistics (Armitage,
-//!   `McPherson` and Rowe 1969; Lan and `DeMets` 1983; Jennison and Turnbull 2000).
+//!   `McPherson` and Rowe 1969; Lan and `DeMets` 1983; Jennison and Turnbull 2000),
+//!   and stagewise-ordered p-values and intervals for the stopped statistic.
+//!
+//! Those four are components. The uncertainty of a *procedure* is derived by
+//! the `procedure_*` modules: [`procedure_contract`] declares the whole
+//! data-collection procedure (policy, looks, delay and loss, exposure
+//! failures, stopping, selection) and refuses a missing element;
+//! [`procedure_law`] computes its exact law; [`procedure_simulation`] runs
+//! it end to end for order-dependent estimators; [`procedure_uncertainty`]
+//! derives each paradigm's statement from them, separately.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub mod beta_bernoulli;
 pub mod confidence_sequence;
 pub mod group_sequential;
+pub mod procedure_contract;
+pub mod procedure_law;
+pub mod procedure_simulation;
+pub mod procedure_uncertainty;
 pub mod weighting;
 
 use thiserror::Error;
@@ -44,8 +57,29 @@ pub use confidence_sequence::{
     mixture_hoeffding_radius,
 };
 pub use group_sequential::{
-    Boundaries, MAX_LOOKS, Sidedness, SpendingFunction, boundaries, crossing_probabilities,
-    first_crossing,
+    Boundaries, MAX_LOOKS, Sidedness, SpendingFunction, StagewiseInference, StagewiseLook,
+    boundaries, crossing_probabilities, first_crossing, stagewise_inference,
+    stagewise_upper_p_value,
+};
+pub use procedure_contract::{
+    AssignmentRule, Attribution, BetaPrior, ContractGap, DelayMechanism, ExposureModel,
+    FinalSelection, MAX_OUTCOME_LAG, MAX_PROCEDURE_ARMS, MAX_PROCEDURE_CELLS,
+    MAX_PROCEDURE_CONTEXTS, MAX_PROCEDURE_LOOKS, MAX_PROCEDURE_UNITS, OutcomeObservation,
+    ProcedureContractError, ProcedureDeclaration, ProcedureSpec, StoppingRule,
+};
+pub use procedure_law::{
+    MAX_LAW_STATES, MAX_LAW_WORK, OutcomeKernel, ProcedureLaw, TerminalAtom, enumerate_law,
+};
+pub use procedure_simulation::{
+    MAX_SIMULATION_REPLICATIONS, SimulatedLaw, SimulatedReplicate, SimulationRequest,
+    SimulationSummary, simulate_procedure,
+};
+pub use procedure_uncertainty::{
+    AnytimeCellBound, AnytimeReport, BayesianReport, DERIVED_UNMEASURED, DecisionReport,
+    EstimandStatement, EstimatorLaw, Functional, InversionGrid, InversionInterval,
+    MAX_INVERSION_LAWS, ObservedTerminal, OrderingPValues, PosteriorMeanGap, UncertaintyParadigm,
+    admit, anytime_exclusion_probability, anytime_valid_report, bayesian_report, decision_report,
+    inversion_interval, ordering_p_values, posterior_mean_gaps,
 };
 pub use weighting::{
     AdaptiveEstimate, Estimand, MAX_ADAPTIVE_UNITS, MAX_WEIGHTED_ARMS, OutcomeModelPrior,
@@ -76,6 +110,15 @@ pub enum AdaptiveInferenceError {
         probability: f64,
         /// The declared floor.
         floor: f64,
+    },
+    /// A paradigm's validity premise does not hold for the declared
+    /// procedure. `detail` is the namespaced `adaptive_inference.*` slug.
+    #[error("adaptive inference premise failed ({detail}): {message}")]
+    PremiseFailed {
+        /// Namespaced detail slug.
+        detail: &'static str,
+        /// Which premise failed and why.
+        message: &'static str,
     },
     /// A size or work bound was exceeded.
     #[error("adaptive inference limit exceeded: {0}")]

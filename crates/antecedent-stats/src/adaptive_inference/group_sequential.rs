@@ -44,6 +44,7 @@ const BISECTIONS: usize = 100;
 const BRACKET_HIGH: f64 = 12.0;
 const BRACKET_LOW_ONE_SIDED: f64 = -8.5;
 const BRACKET_WIDTH: f64 = 1e-14;
+const STAGEWISE_BRACKET: f64 = 20.0;
 
 /// How alpha is spent over the information fractions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -152,15 +153,23 @@ impl<'a> Recursion<'a> {
     /// Probability of stopping at look `k` for the first time, given the
     /// candidate critical value.
     fn crossing(&self, k: usize, critical: f64) -> f64 {
+        self.side_crossing(k, critical, false)
+    }
+
+    /// Probability of continuing to look `k` and then crossing upward, for a
+    /// symmetric two-sided rule (or of crossing, for a one-sided rule) at the
+    /// candidate critical value; with `upper_only` false, of crossing on
+    /// either side.
+    fn side_crossing(&self, k: usize, critical: f64, upper_only: bool) -> f64 {
         let t = self.fractions[k];
+        let both = self.sidedness == Sidedness::TwoSidedSymmetric && !upper_only;
         match &self.stage {
             None => {
                 let mean = self.drift * t.sqrt();
-                match self.sidedness {
-                    Sidedness::OneSidedUpper => norm_sf(critical - mean),
-                    Sidedness::TwoSidedSymmetric => {
-                        norm_cdf(-critical - mean) + norm_sf(critical - mean)
-                    }
+                if both {
+                    norm_cdf(-critical - mean) + norm_sf(critical - mean)
+                } else {
+                    norm_sf(critical - mean)
                 }
             }
             Some(previous) => {
@@ -174,10 +183,7 @@ impl<'a> Recursion<'a> {
                 {
                     let mean = u * ratio + shift;
                     let upper = norm_cdf((critical - mean) / sd);
-                    let lower = match self.sidedness {
-                        Sidedness::OneSidedUpper => 0.0,
-                        Sidedness::TwoSidedSymmetric => norm_cdf((-critical - mean) / sd),
-                    };
+                    let lower = if both { norm_cdf((-critical - mean) / sd) } else { 0.0 };
                     continuing += w * g * (upper - lower);
                 }
                 previous.mass - continuing
@@ -335,6 +341,131 @@ pub fn crossing_probabilities(
         recursion.advance(k, c);
     }
     Ok(out)
+}
+
+/// One observed stopped statistic of a group-sequential trial.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StagewiseLook {
+    /// Zero-based look at which the trial ended (stopped or ran out).
+    pub look: usize,
+    /// The standardized statistic at that look.
+    pub statistic: f64,
+}
+
+/// Stagewise-ordering upper p-value of an observed stopped statistic at the
+/// standardized drift `drift`: the probability, under `Z_k ~ N(drift
+/// sqrt(t_k), 1)`, of stopping upward at an earlier look, or of continuing to
+/// the observed look and there exceeding the observed statistic.
+///
+/// For a symmetric two-sided rule the earlier crossings counted are the upward
+/// ones only. The lower tail is this function evaluated at `-drift` and `-statistic`
+/// (the rule is symmetric).
+///
+/// # Errors
+/// Invalid fractions, a boundary or statistic that is not finite, a look
+/// outside the fractions, or cancellation.
+pub fn stagewise_upper_p_value(
+    fractions: &[f64],
+    critical: &[f64],
+    sidedness: Sidedness,
+    observed: StagewiseLook,
+    drift: f64,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<f64, Error> {
+    check_fractions(fractions)?;
+    if critical.len() != fractions.len() {
+        return Err(Error::Shape("one critical value per look"));
+    }
+    if observed.look >= fractions.len() {
+        return Err(Error::Shape("the observed look is outside the declared looks"));
+    }
+    if !(drift.is_finite() && observed.statistic.is_finite())
+        || critical.iter().any(|c| !c.is_finite())
+    {
+        return Err(Error::InvalidParameter("drift, statistic and critical values must be finite"));
+    }
+    let mut recursion = Recursion::new(fractions, sidedness, drift);
+    let mut p = 0.0;
+    for k in 0..=observed.look {
+        if cancelled() {
+            return Err(Error::Cancelled);
+        }
+        if k == observed.look {
+            p += recursion.side_crossing(k, observed.statistic, true);
+        } else {
+            p += recursion.side_crossing(k, critical[k], true);
+            recursion.advance(k, critical[k]);
+        }
+    }
+    Ok(p.clamp(0.0, 1.0))
+}
+
+/// Median-unbiased estimate and confidence limits of the standardized drift
+/// from the stagewise ordering.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StagewiseInference {
+    /// The drift at which the upper p-value is one half.
+    pub median_unbiased: f64,
+    /// Lower confidence limit: the drift at which the upper p-value is
+    /// `1 - level` over two.
+    pub lower: f64,
+    /// Upper confidence limit.
+    pub upper: f64,
+    /// Upper p-value at drift zero (the one-sided test of no effect).
+    pub p_value_at_null: f64,
+}
+
+/// Stagewise-ordered inference for the drift of an observed stopped
+/// statistic, at two-sided `level` (for example 0.95).
+///
+/// Jennison and Turnbull (2000, ch. 8): the upper p-value is increasing in
+/// the drift, so the limits solve `p(theta) = (1 - level) / 2` and
+/// `p(theta) = 1 - (1 - level) / 2` by bisection and the median-unbiased
+/// estimate solves `p(theta) = 1/2`. The inference is for the
+/// independent-increment normal model of the boundaries.
+///
+/// # Errors
+/// As [`stagewise_upper_p_value`], a `level` outside `(0, 1)`, or a root
+/// outside the search bracket of plus or minus twenty standard errors.
+pub fn stagewise_inference(
+    fractions: &[f64],
+    critical: &[f64],
+    sidedness: Sidedness,
+    observed: StagewiseLook,
+    level: f64,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<StagewiseInference, Error> {
+    if !(level.is_finite() && level > 0.0 && level < 1.0) {
+        return Err(Error::InvalidParameter("the confidence level must lie in (0, 1)"));
+    }
+    let p = |drift: f64| {
+        stagewise_upper_p_value(fractions, critical, sidedness, observed, drift, cancelled)
+    };
+    let solve = |target: f64| -> Result<f64, Error> {
+        let (mut low, mut high) = (-STAGEWISE_BRACKET, STAGEWISE_BRACKET);
+        if p(low)? > target || p(high)? < target {
+            return Err(Error::Numerical("a stagewise limit lies outside the search bracket"));
+        }
+        for _ in 0..BISECTIONS {
+            let mid = 0.5 * (low + high);
+            if p(mid)? < target {
+                low = mid;
+            } else {
+                high = mid;
+            }
+            if high - low < BRACKET_WIDTH {
+                break;
+            }
+        }
+        Ok(0.5 * (low + high))
+    };
+    let tail = (1.0 - level) / 2.0;
+    Ok(StagewiseInference {
+        median_unbiased: solve(0.5)?,
+        lower: solve(tail)?,
+        upper: solve(1.0 - tail)?,
+        p_value_at_null: p(0.0)?,
+    })
 }
 
 /// The first look at which the statistic crosses its boundary.
