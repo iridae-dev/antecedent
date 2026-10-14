@@ -68,6 +68,8 @@ from antecedent import composition_bundle as cb
 from antecedent import decision_reliability as dreliab
 from antecedent import design as dr
 from antecedent import evidence_ledger as el
+from antecedent import cross_world_execution as cwx
+from antecedent import joint_law_propagation as jlp
 from antecedent import sequential_evaluation as seqeval
 from antecedent import inverse_query as iq
 from antecedent import measurement_models as mm
@@ -125,10 +127,17 @@ PRODUCERS: tuple[str, ...] = (
     "decision_reliability_report",
     "adaptive_monitoring_contract",
     "adaptive_inference_result",
+    "interface_contract_artifact",
+    "composition_verification_result",
     "observation_query_claim",
     "predictive_assessment",
     "scientific_bridge_claim",
     "sequential_policy_evaluation",
+    "propagated_claim",
+    "dependence_envelope",
+    "selective_discovery_result",
+    "cross_world_execution_result",
+    "callback_result",
 )
 CONSUMERS: tuple[str, ...] = (
     "decision",
@@ -1002,6 +1011,8 @@ def _object(producer: str, o: Objs) -> object:
         "composed_model": o.composition,
         "evidence_ledger": o.ledgered.ledger,
         "scientific_bridge_claim": _bridged().claim,
+        "interface_contract_artifact": _contracted().contract,
+        "composition_verification_result": _verified().result,
         "counterfactual_transport_result": o.transported.treated,
         "cohort_decision_source": o.cohort,
         "decision_reliability_report": o.reliability,
@@ -1010,6 +1021,11 @@ def _object(producer: str, o: Objs) -> object:
         "adaptive_inference_result": o.adaptive.result,
         "predictive_assessment": _assessed(),
         "sequential_policy_evaluation": _sequential().artifact,
+        "propagated_claim": _propagated(),
+        "dependence_envelope": _envelope(),
+        "selective_discovery_result": _discovered().outcome,
+        "cross_world_execution_result": _crossed(),
+        "callback_result": _callbacked().execution,
     }[producer]
 
 
@@ -1025,6 +1041,8 @@ def _companions(producer: str, o: Objs) -> tuple[object, ...]:
             _bridged().exported,
             _bridged().consumed,
         ),
+        "interface_contract_artifact": (_contracted().exported, _contracted().consumed),
+        "composition_verification_result": (_verified().exported, _verified().consumed),
         "adaptive_monitoring_contract": (o.adaptive.session,),
         "adaptive_inference_result": (o.adaptive.consumed, o.adaptive.session),
         "predictive_assessment": (_assessed().report, _assessed().identity),
@@ -1038,6 +1056,8 @@ def _companions(producer: str, o: Objs) -> tuple[object, ...]:
             o.transported.sampled_treated,
             o.transported.sampled_control,
         ),
+        "selective_discovery_result": (_discovered().adapter, _discovered().exported),
+        "callback_result": (_callbacked().exported, _callbacked().consumed),
     }.get(producer, ())
 
 
@@ -1057,6 +1077,10 @@ def _bundle_payload(producer: str, o: Objs) -> object:
         return o.ledgered.export.artifact
     if producer == "scientific_bridge_claim":
         return _bridged().exported.artifact
+    if producer == "interface_contract_artifact":
+        return _contracted().exported.artifact
+    if producer == "composition_verification_result":
+        return _verified().exported.artifact
     if producer == "counterfactual_transport_result":
         return o.transported.treated.export()
     if producer == "cohort_decision_source":
@@ -1073,6 +1097,16 @@ def _bundle_payload(producer: str, o: Objs) -> object:
         return _assessed().export()
     if producer == "sequential_policy_evaluation":
         return _sequential().artifact.export()
+    if producer == "propagated_claim":
+        return _propagated().export()
+    if producer == "dependence_envelope":
+        return _envelope().export()
+    if producer == "selective_discovery_result":
+        return _discovered().exported.artifact
+    if producer == "cross_world_execution_result":
+        return _crossed().to_bytes()
+    if producer == "callback_result":
+        return _callbacked().exported.artifact
     return _object(producer, o)
 
 
@@ -1690,6 +1724,8 @@ def _recalc_stage(producer: str, o: Objs) -> tuple[Stage, str]:
         "composed_model": (Stage.SCORE_ARTIFACT, o.composition.plan_identity),
         "evidence_ledger": (Stage.EVIDENCE, o.ledgered.export.identity),
         "scientific_bridge_claim": (Stage.EVIDENCE, _bridged().exported.identity),
+        "interface_contract_artifact": (Stage.EVIDENCE, _contracted().exported.identity),
+        "composition_verification_result": (Stage.EVIDENCE, _verified().exported.identity),
         "counterfactual_transport_result": (
             Stage.IDENTIFICATION,
             str(o.transported.treated.premises_digest) + str(o.transported.treated.data_digest),
@@ -1704,6 +1740,14 @@ def _recalc_stage(producer: str, o: Objs) -> tuple[Stage, str]:
             Stage.EVIDENCE,
             _sequential().artifact.identities["evaluation"],
         ),
+        "propagated_claim": (Stage.EVIDENCE, _propagated().identity),
+        "dependence_envelope": (Stage.EVIDENCE, _envelope().identity),
+        "selective_discovery_result": (Stage.EVIDENCE, _discovered().outcome.result_identity),
+        "cross_world_execution_result": (
+            Stage.EVIDENCE,
+            _crossed().identity["receipt_digest"],
+        ),
+        "callback_result": (Stage.EVIDENCE, _callbacked().exported.identity),
     }[producer]
 
 
@@ -2429,6 +2473,139 @@ def _check_observation_inverse(o: Objs) -> None:
     _check_raw_rejected(o.observation, o.observation_pair, feeders=_INVERSE_FEEDERS)
 
 
+# --------------------------------------------------------------------- interface contract
+
+
+@lru_cache(maxsize=1)
+def _contracted() -> Any:
+    """One interface contract (an estimator producing a mean effect), exported and consumed.
+
+    A contract declares scientific compatibility; it carries no estimand value, so it is not a
+    numeric source for any decision consumer.
+    """
+    from types import SimpleNamespace
+
+    from antecedent import interface_contract as ic
+
+    effect = ScientificQuantity(
+        variable_id="schema:ldl_change",
+        variable_name="ldl_change",
+        role="outcome",
+        units="mg/dL",
+        population_id="adults",
+        regime_id="do(statin=1)",
+        horizon=0,
+        functional_id="mean",
+    )
+    contract = ic.InterfaceContract(
+        "estimator",
+        produces=[
+            ic.ProducedPort(
+                "effect", effect, "estimand:ate", ic.SupportDomain.real(), operations=("mean",)
+            )
+        ],
+    )
+    exported = ic.export_interface_contract(contract, "matrix-interface-contract")
+    consumed = ic.consume_interface_contract_artifact(exported.artifact, exported.identity)
+    return SimpleNamespace(contract=contract, exported=exported, consumed=consumed)
+
+
+@lru_cache(maxsize=1)
+def _callbacked() -> Any:
+    """One executed callback result (a Gaussian law's mean), its export and its consumption.
+
+    A callback result is a declared quantity and a value the provider computed: it carries no
+    units-bound response, estimand or decision source for any consumer, and its identity is only
+    evidence a caller may declare into a recalculation plan.
+    """
+    from types import SimpleNamespace
+
+    from antecedent import provider_callbacks as pcb
+    from antecedent.joint_distribution import ScientificQuantity as Quantity
+
+    quantity = Quantity.of(
+        "outcome", "matrix_outcome", units="u", population="matrix-population", regime="do(a=1)"
+    )
+    declaration = pcb.CallbackDeclaration(
+        "matrix_law",
+        "law",
+        pcb.ProviderIdentity("matrix", "gaussian", "1", "snap", "req"),
+        quantity,
+        "estimand:matrix_law",
+        "interventional_predictive",
+        pcb.Support.real(),
+        operations=("mean",),
+        dependencies=pcb.Dependencies.complete([pcb.Dependency("model", "parameters", "mu=2")]),
+        replay=pcb.Replay.deterministic_pure(),
+        trust=pcb.Trust.externally_attested("matrix"),
+        evidence=(),
+    )
+    provider = pcb.FunctionProvider(declaration.provider, lambda query, ctx: pcb.Output.mean(2.0))
+    session = pcb.CallbackSession()
+    execution = session.execute(provider, declaration, pcb.Request(pcb.Query.mean()))
+    exported = session.export(execution, "matrix-callback-result")
+    consumed = pcb.consume_callback_result(exported.artifact, exported.identity)
+    return SimpleNamespace(execution=execution, exported=exported, consumed=consumed)
+
+
+@lru_cache(maxsize=1)
+def _discovered() -> Any:
+    """One selective discovery of a small collider table: the structure, its export and adapter.
+
+    A discovered structure carries no response, value or units, so it is a numeric source for no
+    consumer; its result identity is only evidence a caller may declare into a recalculation plan.
+    """
+    from types import SimpleNamespace
+
+    from antecedent import selective_discovery as sd_
+
+    rng = np.random.default_rng(7)
+    a = rng.normal(size=400)
+    b = rng.normal(size=400)
+    c = 0.9 * a + 0.9 * b + 0.5 * rng.normal(size=400)
+    data = {"a": a, "b": b, "c": c}
+    contract = sd_.StaticContract(("a", "b", "c"), alpha=0.01, seed=0)
+    adapter = sd_.SelectiveDiscovery("static")
+    adapter.run(contract, data)
+    outcome = adapter.outcome
+    assert outcome is not None
+    return SimpleNamespace(
+        adapter=adapter, outcome=outcome, exported=adapter.export_state("matrix-selective-discovery")
+    )
+
+
+@lru_cache(maxsize=1)
+def _verified() -> Any:
+    """One composition verification: a cohort's data replaced under a small hand-built graph.
+
+    ``cohort`` feeds ``estimate`` (data) which feeds ``decision_claim`` (data); ``other`` stands
+    alone. Replacing the cohort recomputes the first three and leaves ``other`` valid. The
+    classification carries no estimand value, so it is not a numeric source for any consumer.
+    """
+    from types import SimpleNamespace
+
+    from antecedent import composition_verification as cv
+
+    def node(key: str, kind: str, version: str) -> cv.Node:
+        return cv.Node(key, kind, identity=cv.digest(key, version))
+
+    def graph(cohort: str) -> cv.CompositionGraph:
+        return cv.CompositionGraph(
+            [
+                node("cohort", "cohort_source", cohort),
+                node("estimate", "claim", "v1"),
+                node("decision_claim", "decision", "v1"),
+                node("other", "claim", "v1"),
+            ],
+            [cv.Edge("estimate", "cohort", "data"), cv.Edge("decision_claim", "estimate", "data")],
+        )
+
+    result = cv.verify_composition(graph("v2"), previous=graph("v1"))
+    exported = result.export("matrix-composition-verification")
+    consumed = cv.consume_composition_verification_artifact(exported.artifact, exported.identity)
+    return SimpleNamespace(cv=cv, result=result, exported=exported, consumed=consumed)
+
+
 # --------------------------------------------------------------------- scientific bridge
 
 
@@ -2599,6 +2776,142 @@ def _check_sequential_inverse(o: Objs) -> None:
     _check_raw_rejected(*_sequential_objects(o), feeders=_INVERSE_FEEDERS)
 
 
+# ------------------------------------------------------------ composed uncertain quantities
+
+
+@lru_cache(maxsize=1)
+def _propagated() -> jlp.PropagationClaim:
+    """E[P Q] of the aligned joint draws p = (1, 3, 2, 0), q = (4, 0, 2, 6): products (4, 0, 4, 0)."""
+    law = gen.decision_source()
+    p = jlp.PropagationDraws.from_artifact_column("p", law, 0)
+    q = jlp.PropagationDraws.from_artifact_column("q", law, 1)
+    return jlp.aligned_functional("product", p, q, "product")
+
+
+@lru_cache(maxsize=1)
+def _envelope() -> jlp.PropagationClaim:
+    """Bernoulli(1/4) and Bernoulli(1/2) marginals as four equal-mass draws each."""
+    x = jlp.PropagationDraws.independent_marginal("x", [1.0, 0.0, 0.0, 0.0], evidence_id="s1")
+    y = jlp.PropagationDraws.independent_marginal("y", [1.0, 1.0, 0.0, 0.0], evidence_id="s2")
+    return jlp.dependence_envelope("product", jlp.EnvelopeQuery.product_moment(), x, y)
+
+
+def _declared_propagated(o: Objs) -> Declared:
+    claim = _propagated()
+    # Oracle by hand: E[P Q] = (4 + 0 + 4 + 0) / 4 = 2 under the aligned joint law.
+    assert claim.value("mean") == pytest.approx(2.0, abs=1e-12)
+    assert claim.label == "point_only" and not claim.is_envelope
+    consumed = jlp.consume_joint_law_propagation_artifact(
+        claim.export(), expected_identity=claim.identity
+    )
+    assert consumed.values["mean"] == claim.value("mean")
+    for closed in (claim.interval, claim.posterior):
+        with pytest.raises(jlp.JointLawPropagationRefusal) as refused:
+            closed()
+        assert refused.value.reason_code == "cell_not_licensed"
+    quantity = _declared_quantity("pq", "composed", units="utility", population="cohort")
+    return Declared(
+        (quantity,),
+        (claim.value("mean"),),
+        f"joint_law_propagation:{claim.identity}",
+        f"alignment:{claim.alignment_id}",
+        "declared:joint_law_propagation",
+    )
+
+
+def _check_propagated_decision(o: Objs) -> None:
+    declared = _declared_propagated(o)
+    # Utilities 4 m - 1 and 2 m at m = 2.
+    _check_declared_decision(declared, act=7.0, hold=4.0, selected="act")
+    _check_raw_rejected(_propagated(), feeders=_DECISION_FEEDERS)
+
+
+def _check_propagated_inverse(o: Objs) -> None:
+    declared = _declared_propagated(o)
+    _check_declared_inverse(declared, target=5.0, feasible=("act",))
+    _check_raw_rejected(_propagated(), feeders=_INVERSE_FEEDERS)
+
+
+def _check_envelope_is_not_a_source(o: Objs) -> None:
+    """E[XY] over every coupling of Bernoulli(1/4), Bernoulli(1/2) is [0, 1/4]: no point."""
+    claim = _envelope()
+    assert claim.label == "structural_envelope" and claim.is_envelope
+    assert claim.value("product_moment_lower") == pytest.approx(0.0, abs=1e-12)
+    assert claim.value("product_moment_upper") == pytest.approx(0.25, abs=1e-12)
+    with pytest.raises(jlp.JointLawPropagationRefusal) as refused:
+        claim.interval()
+    assert refused.value.reason_code == "cell_not_licensed"
+    _check_raw_rejected(claim, feeders=_DECISION_FEEDERS + _INVERSE_FEEDERS)
+
+
+# ------------------------------------------------------------ cross-world execution
+
+
+@lru_cache(maxsize=1)
+def _crossed() -> cwx.CrossWorldExecution:
+    """Natural direct effect of a mediation model: E[Y_{x1,M_x0}] - E[Y_{x0}] = 0.475 - 0.225."""
+    scm = cwx.FiniteSCM(
+        population="matrix-population",
+        history="matrix-regime",
+        exogenous=(
+            cwx.ExogenousTerm("u_x", (0.5, 0.5)),
+            cwx.ExogenousTerm("u_m", (0.3, 0.4, 0.1, 0.2)),
+            cwx.ExogenousTerm("u_y", (0.75, 0.25)),
+        ),
+        variables=(
+            cwx.FiniteVariable("x", 2, (), "u_x", (0, 1)),
+            cwx.FiniteVariable("m", 2, ("x",), "u_m", (0, 0, 0, 1, 1, 0, 1, 1)),
+            cwx.FiniteVariable("y", 2, ("x", "m"), "u_y", (0, 1, 0, 1, 0, 0, 1, 1)),
+        ),
+    )
+    request = cwx.CrossWorldRequest(
+        scm=scm,
+        units=(cwx.FactualUnit("cohort-mean"),),
+        worlds=(
+            cwx.World("x1_m_of_x0", {"x": 1}, (cwx.WorldRoute("m", "y", "x0"),)),
+            cwx.World("x0", {"x": 0}),
+        ),
+        quantity=cwx.mean_contrast(("x1_m_of_x0", "y"), ("x0", "y")),
+    )
+    return cwx.seal(request)
+
+
+def _declared_crossed(o: Objs) -> Declared:
+    claim = _crossed()
+    # Oracle by hand: 0.75 * 0.3 + 0.25 - 0.75 * 0.3 = 0.25 from coupled worlds.
+    assert claim.value == pytest.approx(0.25, abs=1e-12)
+    assert claim.result.label == "point_only"
+    consumed = cwx.consume_cross_world_execution_artifact(
+        claim.to_bytes(), expected_identity=claim.identity
+    )
+    assert consumed.result.value == claim.value
+    for closed in (claim.interval, claim.posterior):
+        with pytest.raises(cwx.CrossWorldExecutionRefusal) as refused:
+            closed()
+        assert refused.value.reason_code == "cell_not_licensed"
+    quantity = _declared_quantity("nde", "natural", units="utility", population="cohort")
+    return Declared(
+        (quantity,),
+        (claim.value,),
+        f"cross_world_execution:{claim.identity['receipt_digest']}",
+        f"abduction:{claim.identity['abduction_digest']}",
+        "declared:cross_world_execution",
+    )
+
+
+def _check_crossed_decision(o: Objs) -> None:
+    declared = _declared_crossed(o)
+    # Utilities 4 m - 1 and 2 m at m = 1/4.
+    _check_declared_decision(declared, act=0.0, hold=0.5, selected="hold")
+    _check_raw_rejected(_crossed(), feeders=_DECISION_FEEDERS)
+
+
+def _check_crossed_inverse(o: Objs) -> None:
+    declared = _declared_crossed(o)
+    _check_declared_inverse(declared, target=0.25, feasible=("hold",))
+    _check_raw_rejected(_crossed(), feeders=_INVERSE_FEEDERS)
+
+
 CHECKS: dict[tuple[str, str], Check] = {
     ("native_response", "decision"): _check_native_decision,
     ("native_response", "inverse_query"): _check_native_inverse,
@@ -2640,6 +2953,10 @@ CHECKS: dict[tuple[str, str], Check] = {
     ("adaptive_inference_result", "inverse_query"): _check_adaptive_inverse,
     ("sequential_policy_evaluation", "decision"): _check_sequential_decision,
     ("sequential_policy_evaluation", "inverse_query"): _check_sequential_inverse,
+    ("propagated_claim", "decision"): _check_propagated_decision,
+    ("propagated_claim", "inverse_query"): _check_propagated_inverse,
+    ("cross_world_execution_result", "decision"): _check_crossed_decision,
+    ("cross_world_execution_result", "inverse_query"): _check_crossed_inverse,
 }
 #: Further checks of a REFUSED cell, beyond feeding every entry point of the consumer.
 REFUSED_EXTRAS: dict[tuple[str, str], Check] = {
@@ -2659,8 +2976,15 @@ REFUSED_EXTRAS: dict[tuple[str, str], Check] = {
         "predictive_assessment",
         "scientific_bridge_claim",
         "sequential_policy_evaluation",
+        "interface_contract_artifact",
+        "composition_verification_result",
+        "propagated_claim",
+        "dependence_envelope",
+        "cross_world_execution_result",
+        "callback_result",
     )
 }
+REFUSED_EXTRAS[("dependence_envelope", "decision")] = _check_envelope_is_not_a_source
 
 
 def _run_cell(producer: str, consumer: str, o: Objs) -> None:
@@ -2684,10 +3008,10 @@ def test_producer_consumer_matrix_declares_every_cell_once_and_counts_them() -> 
     assert set(STATUS) == set(PRODUCERS)
     assert all(len(row) == len(CONSUMERS) for row in STATUS.values())
     cells = [status for row in STATUS.values() for status in row]
-    assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 184
+    assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 240
     assert cells.count("DIRECT") == 16
-    assert cells.count("ADAPTER") == 46
-    assert cells.count("REFUSED") == 122
+    assert cells.count("ADAPTER") == 57
+    assert cells.count("REFUSED") == 167
     assert set(cells) == {"DIRECT", "ADAPTER", "REFUSED"}
     # Every non-refused cell has a check; the only shared one is the recalc adapter.
     for producer in PRODUCERS:
@@ -2818,8 +3142,80 @@ def test_producer_consumer_matrix_predictive_assessment_row(consumer: str, objs:
 
 
 @pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_interface_contract_artifact_row(
+    consumer: str, objs: Objs
+) -> None:
+    _run_cell("interface_contract_artifact", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_composition_verification_result_row(
+    consumer: str, objs: Objs
+) -> None:
+    _run_cell("composition_verification_result", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
 def test_producer_consumer_matrix_scientific_bridge_claim_row(consumer: str, objs: Objs) -> None:
     _run_cell("scientific_bridge_claim", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_propagated_claim_row(consumer: str, objs: Objs) -> None:
+    _run_cell("propagated_claim", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_dependence_envelope_row(consumer: str, objs: Objs) -> None:
+    _run_cell("dependence_envelope", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_selective_discovery_result_row(
+    consumer: str, objs: Objs
+) -> None:
+    _run_cell("selective_discovery_result", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_cross_world_execution_result_row(
+    consumer: str, objs: Objs
+) -> None:
+    _run_cell("cross_world_execution_result", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_callback_result_row(consumer: str, objs: Objs) -> None:
+    _run_cell("callback_result", consumer, objs)
+
+
+def test_producer_consumer_matrix_a_classification_is_not_a_decision_source() -> None:
+    """A verification says which claims survive; it carries no value and no consumer reads one.
+
+    Hand oracle: replacing ``cohort`` recomputes ``cohort``, ``estimate`` and ``decision_claim``
+    (every claim reading it through data) and leaves ``other`` valid; no license is withdrawn.
+    """
+    verified = _verified()
+    cvm, result = verified.cv, verified.result
+    assert result.keys_of("recompute") == ("cohort", "decision_claim", "estimate")
+    assert result.keys_of("still_valid") == ("other",)
+    assert result.keys_of("withdrawn") == ()
+    assert all(not c.authority_retained for k, c in result.claims.items() if k != "other")
+    replayed = verified.consumed
+    assert replayed.identity == result.identity == verified.exported.identity
+    assert {k: c.klass for k, c in replayed.claims.items()} == {
+        k: c.klass for k, c in result.claims.items()
+    }
+    with pytest.raises(cvm.CompositionVerificationRefusal) as stale:
+        result.require_valid("decision_claim")
+    assert stale.value.reason_code == "claim_revalidation_required"
+    assert stale.value.detail == "composition_verification.recompute_required"
+    assert_registered_refusal(stale.value)
+    assert result.require_valid("other").klass == "still_valid"
+    with pytest.raises(CausalTypeError):
+        gen.decision_contract().evaluate(result)  # type: ignore[arg-type]
+    with pytest.raises(CausalTypeError):
+        gen.decision_contract().evaluate(verified.exported.artifact)  # type: ignore[arg-type]
 
 
 def test_producer_consumer_matrix_a_good_score_is_not_a_decision_source() -> None:

@@ -8593,7 +8593,7 @@ functional = "still_valid_recompute_or_withdrawn_class_of_every_claim_with_its_r
 guarantee = "classification_relative_to_declared_dependencies_numerical_invalidation_kept_apart_from_license_withdrawal"
 evidence_test = "crates/antecedent-contract/tests/composition_verification.rs"
 evidence_assertion = "a_change_leaves_the_sibling_valid_and_recomputes_every_dependent"
-notes = "Rust contract and facade route; no interval, posterior or calibration record. The Python surface is a later step."
+notes = "Rust contract and facade route; no interval, posterior or calibration record. The Python surface is wired in python/antecedent/composition_verification.py."
 
 [[routes]]
 route = "antecedent.composition_verification.lineage"
@@ -8605,7 +8605,7 @@ functional = "upstream_claims_bridges_shared_data_versions_unsupported_coordinat
 guarantee = "lineage_read_from_the_declared_graph_unknown_overlap_never_independent"
 evidence_test = "crates/antecedent-contract/tests/composition_verification.rs"
 evidence_assertion = "the_view_reports_lineage_boundaries_versions_and_unsupported_coordinates"
-notes = "Rust contract and facade route; no interval, posterior or calibration record. The Python surface is a later step."
+notes = "Rust contract and facade route; no interval, posterior or calibration record. The Python surface is wired in python/antecedent/composition_verification.py."
 
 [[routes]]
 route = "antecedent.composition_verification.consume_composition_verification_artifact"
@@ -8617,7 +8617,7 @@ functional = "replayed_classification_and_lineage_identity_of_every_claim"
 guarantee = "stored_graphs_and_effects_classified_again_and_compared_to_every_stored_field"
 evidence_test = "crates/antecedent-io-core/tests/composition_verification_artifact.rs"
 evidence_assertion = "a_fresh_consumer_sees_the_classification_and_the_lineage"
-notes = "Rust contract and facade route; no interval, posterior or calibration record. The Python surface is a later step."
+notes = "Rust contract and facade route; no interval, posterior or calibration record. The Python surface is wired in python/antecedent/composition_verification.py."
 
 [[routes]]
 route = "antecedent.composition_verification.revalidated_interval"
@@ -9073,3 +9073,806 @@ guarantee = "formats_consumed_independently_no_numerical_claim"
 evidence_test = "crates/antecedent/tests/specification_conformance.rs"
 evidence_assertion = "the_clean_room_consumer_accepts_and_rejects_the_committed_fixtures"
 notes = "Python standard library consumer run as a subprocess; the ledger is checked by artifact identity and structure, not replayed."
+
+[[routes]]
+route = "antecedent.python.joint_law_propagation.aligned_linear"
+stage = "evaluate"
+status = "licensed"
+graph = "none_declared_quantities_only"
+evidence = "declared_moments_aligned_draws_or_marginals"
+functional = "joint_law.linear_moment_propagation"
+guarantee = "point_only_no_interval"
+evidence_test = "python/tests/test_joint_law_propagation.py"
+evidence_assertion = "test_covariance_aware_contrast_matches_the_closed_form"
+notes = "Python route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.python.joint_law_propagation.linear_moments"
+stage = "evaluate"
+status = "licensed"
+graph = "none_declared_quantities_only"
+evidence = "declared_moments_aligned_draws_or_marginals"
+functional = "joint_law.linear_moment_propagation"
+guarantee = "point_only_no_interval"
+evidence_test = "python/tests/test_joint_law_propagation.py"
+evidence_assertion = "test_covariance_aware_contrast_matches_the_closed_form"
+notes = "Python route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.python.joint_law_propagation.consume_joint_law_propagation_artifact"
+stage = "consume"
+status = "licensed"
+graph = "none_declared_quantities_only"
+evidence = "declared_moments_aligned_draws_or_marginals"
+functional = "joint_law.linear_moment_propagation"
+guarantee = "point_only_no_interval"
+evidence_test = "python/tests/test_joint_law_propagation.py"
+evidence_assertion = "test_covariance_aware_contrast_matches_the_closed_form"
+notes = "Python route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.joint_law_aligned_linear"
+stage = "evaluate"
+status = "licensed"
+graph = "none_declared_quantities_only"
+evidence = "declared_moments_aligned_draws_or_marginals"
+functional = "joint_law.linear_moment_propagation"
+guarantee = "point_only_no_interval"
+evidence_test = "python/tests/test_joint_law_propagation.py"
+evidence_assertion = "test_covariance_aware_contrast_matches_the_closed_form"
+notes = "Python route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.joint_law_linear_moments"
+stage = "evaluate"
+status = "licensed"
+graph = "none_declared_quantities_only"
+evidence = "declared_moments_aligned_draws_or_marginals"
+functional = "joint_law.linear_moment_propagation"
+guarantee = "point_only_no_interval"
+evidence_test = "python/tests/test_joint_law_propagation.py"
+evidence_assertion = "test_covariance_aware_contrast_matches_the_closed_form"
+notes = "Python route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.joint_law_consume"
+stage = "consume"
+status = "licensed"
+graph = "none_declared_quantities_only"
+evidence = "declared_moments_aligned_draws_or_marginals"
+functional = "joint_law.linear_moment_propagation"
+guarantee = "point_only_no_interval"
+evidence_test = "python/tests/test_joint_law_propagation.py"
+evidence_assertion = "test_covariance_aware_contrast_matches_the_closed_form"
+notes = "Python route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.joint_law_column"
+stage = "prepare"
+status = "licensed"
+graph = "none_declared_quantities_only"
+evidence = "declared_moments_aligned_draws_or_marginals"
+functional = "joint_law.linear_moment_propagation"
+guarantee = "labelled_envelope_or_semantic_check_no_point_no_interval"
+evidence_test = "python/tests/test_joint_law_propagation.py"
+evidence_assertion = "test_covariance_aware_contrast_matches_the_closed_form"
+notes = "Python route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.python.joint_law_propagation.aligned_functional"
+stage = "evaluate"
+status = "licensed"
+graph = "none_declared_quantities_only"
+evidence = "declared_moments_aligned_draws_or_marginals"
+functional = "joint_law.aligned_nonlinear_functional"
+guarantee = "point_only_no_interval"
+evidence_test = "python/tests/test_joint_law_propagation.py"
+evidence_assertion = "test_aligned_product_matches_the_joint_moment_within_the_predeclared_band"
+notes = "Python route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.joint_law_aligned_functional"
+stage = "evaluate"
+status = "licensed"
+graph = "none_declared_quantities_only"
+evidence = "declared_moments_aligned_draws_or_marginals"
+functional = "joint_law.aligned_nonlinear_functional"
+guarantee = "point_only_no_interval"
+evidence_test = "python/tests/test_joint_law_propagation.py"
+evidence_assertion = "test_aligned_product_matches_the_joint_moment_within_the_predeclared_band"
+notes = "Python route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.python.joint_law_propagation.mixture"
+stage = "evaluate"
+status = "licensed"
+graph = "none_declared_quantities_only"
+evidence = "declared_moments_aligned_draws_or_marginals"
+functional = "joint_law.known_weight_mixture"
+guarantee = "point_only_no_interval"
+evidence_test = "python/tests/test_joint_law_propagation.py"
+evidence_assertion = "test_known_weight_mixture_matches_the_closed_form"
+notes = "Python route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.joint_law_mixture"
+stage = "evaluate"
+status = "licensed"
+graph = "none_declared_quantities_only"
+evidence = "declared_moments_aligned_draws_or_marginals"
+functional = "joint_law.known_weight_mixture"
+guarantee = "point_only_no_interval"
+evidence_test = "python/tests/test_joint_law_propagation.py"
+evidence_assertion = "test_known_weight_mixture_matches_the_closed_form"
+notes = "Python route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.joint_law_mixture_undeclared"
+stage = "prepare"
+status = "closed"
+reason_code = "invalid_argument"
+notes = "Closed with a typed refusal; the remedy names the dependence information or measurement that would license the request."
+
+[[routes]]
+route = "antecedent.python.joint_law_propagation.dependence_envelope"
+stage = "evaluate"
+status = "licensed"
+graph = "none_declared_quantities_only"
+evidence = "declared_moments_aligned_draws_or_marginals"
+functional = "joint_law.dependence_envelope"
+guarantee = "labelled_envelope_or_semantic_check_no_point_no_interval"
+evidence_test = "python/tests/test_joint_law_propagation.py"
+evidence_assertion = "test_bernoulli_envelope_endpoints_are_the_closed_form"
+notes = "Python route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.python.joint_law_propagation.correlation_range"
+stage = "evaluate"
+status = "licensed"
+graph = "none_declared_quantities_only"
+evidence = "declared_moments_aligned_draws_or_marginals"
+functional = "joint_law.dependence_envelope"
+guarantee = "labelled_envelope_or_semantic_check_no_point_no_interval"
+evidence_test = "python/tests/test_joint_law_propagation.py"
+evidence_assertion = "test_bernoulli_envelope_endpoints_are_the_closed_form"
+notes = "Python route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.joint_law_envelope"
+stage = "evaluate"
+status = "licensed"
+graph = "none_declared_quantities_only"
+evidence = "declared_moments_aligned_draws_or_marginals"
+functional = "joint_law.dependence_envelope"
+guarantee = "labelled_envelope_or_semantic_check_no_point_no_interval"
+evidence_test = "python/tests/test_joint_law_propagation.py"
+evidence_assertion = "test_bernoulli_envelope_endpoints_are_the_closed_form"
+notes = "Python route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent._native.joint_law_correlation_range"
+stage = "evaluate"
+status = "licensed"
+graph = "none_declared_quantities_only"
+evidence = "declared_moments_aligned_draws_or_marginals"
+functional = "joint_law.dependence_envelope"
+guarantee = "labelled_envelope_or_semantic_check_no_point_no_interval"
+evidence_test = "python/tests/test_joint_law_propagation.py"
+evidence_assertion = "test_bernoulli_envelope_endpoints_are_the_closed_form"
+notes = "Python route; point-only or accounting, no interval."
+
+[[routes]]
+route = "antecedent.python.joint_law_propagation.PropagationClaim.interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed with a typed refusal; the remedy names the dependence information or measurement that would license the request."
+
+[[routes]]
+route = "antecedent.python.joint_law_propagation.PropagationClaim.posterior"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed with a typed refusal; the remedy names the dependence information or measurement that would license the request."
+
+[[routes]]
+route = "antecedent._native.joint_law_closed_reading"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed with a typed refusal; the remedy names the dependence information or measurement that would license the request."
+
+[[routes]]
+route = "antecedent_counterfactual.selective.finite_scm_executor.execute"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_markovian_scm_or_two_slice_temporal"
+evidence = "declared_mechanisms_and_factual_evidence"
+functional = "cross_world_execution.finite_markovian_scm"
+guarantee = "exact_enumeration_point_only_conditional_on_declared_model"
+evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs"
+evidence_assertion = "an_action_only_change_reuses_abduction_and_matches_a_full_rerun_bit_for_bit"
+notes = "Point-only from exact enumeration; no interval, no transported guarantee."
+
+[[routes]]
+route = "antecedent_io_core.cross_world_execution_artifact.seal"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_markovian_scm_or_two_slice_temporal"
+evidence = "declared_mechanisms_and_factual_evidence"
+functional = "cross_world_execution.finite_markovian_scm"
+guarantee = "exact_enumeration_point_only_conditional_on_declared_model"
+evidence_test = "crates/antecedent-io-core/tests/cross_world_execution_artifact.rs"
+evidence_assertion = "sealing_and_consuming_replays_the_enumerated_truth"
+notes = "Point-only from exact enumeration; no interval, no transported guarantee."
+
+[[routes]]
+route = "antecedent_io_core.cross_world_execution_artifact.consume"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_markovian_scm_or_two_slice_temporal"
+evidence = "declared_mechanisms_and_factual_evidence"
+functional = "cross_world_execution.finite_markovian_scm"
+guarantee = "exact_enumeration_point_only_conditional_on_declared_model"
+evidence_test = "crates/antecedent-io-core/tests/cross_world_execution_artifact.rs"
+evidence_assertion = "resealed_semantic_mutations_are_refused"
+notes = "Point-only from exact enumeration; no interval, no transported guarantee."
+
+[[routes]]
+route = "antecedent.cross_world_execution.seal"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_markovian_scm_or_two_slice_temporal"
+evidence = "declared_mechanisms_and_factual_evidence"
+functional = "cross_world_execution.finite_markovian_scm"
+guarantee = "exact_enumeration_point_only_conditional_on_declared_model"
+evidence_test = "crates/antecedent/tests/cross_world_execution_facade.rs"
+evidence_assertion = "a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle"
+notes = "Point-only from exact enumeration; no interval, no transported guarantee."
+
+[[routes]]
+route = "antecedent_counterfactual.temporal_cross_world.staged.execute"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_markovian_scm_or_two_slice_temporal"
+evidence = "declared_mechanisms_and_factual_evidence"
+functional = "cross_world_execution.temporal_selective"
+guarantee = "exact_enumeration_point_only_conditional_on_declared_model"
+evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution_temporal.rs"
+evidence_assertion = "a_changed_action_history_reuses_the_abduction"
+notes = "Point-only from exact enumeration; no interval, no transported guarantee."
+
+[[routes]]
+route = "antecedent_counterfactual.selective.matrix.semi_markovian"
+stage = "prepare"
+status = "closed"
+reason_code = "cross_world_not_identified"
+notes = "Closed with a typed refusal; the remedy names the declaration or measurement that would license the request."
+
+[[routes]]
+route = "antecedent_counterfactual.selective.matrix.incompatible_history"
+stage = "prepare"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Closed with a typed refusal; the remedy names the declaration or measurement that would license the request."
+
+[[routes]]
+route = "antecedent_counterfactual.selective.matrix.soft_intervention"
+stage = "prepare"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Closed with a typed refusal; the remedy names the declaration or measurement that would license the request."
+
+[[routes]]
+route = "antecedent_counterfactual.selective.matrix.fit_from_data"
+stage = "prepare"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Closed with a typed refusal; the remedy names the declaration or measurement that would license the request."
+
+[[routes]]
+route = "antecedent_counterfactual.selective.coupling_independent_world_noise"
+stage = "prepare"
+status = "closed"
+reason_code = "joint_law_required"
+notes = "Closed with a typed refusal; the remedy names the declaration or measurement that would license the request."
+
+[[routes]]
+route = "antecedent_counterfactual.selective.transported_cross_world"
+stage = "prepare"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed with a typed refusal; the remedy names the declaration or measurement that would license the request."
+
+[[routes]]
+route = "antecedent_counterfactual.selective.matrix.transported_prerequisites"
+stage = "prepare"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed with a typed refusal; the remedy names the declaration or measurement that would license the request."
+
+[[routes]]
+route = "antecedent_counterfactual.selective.sampled_abduction"
+stage = "prepare"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed with a typed refusal; the remedy names the declaration or measurement that would license the request."
+
+[[routes]]
+route = "antecedent.cross_world_execution.interval_posterior"
+stage = "prepare"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed with a typed refusal; the remedy names the declaration or measurement that would license the request."
+
+[[routes]]
+route = "antecedent.provider_callback.negotiate_operation"
+stage = "prepare"
+status = "licensed"
+graph = "not_applicable_declared_callback_contracts"
+evidence = "declared_callback_provider_object_operations_support_dependencies_replay_trust"
+functional = "callback.law_posterior_nested"
+guarantee = "declared_operations_negotiated_one_by_one"
+evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs"
+evidence_assertion = "operations_are_negotiated_separately_and_none_implies_another"
+notes = "Rust route; point values or draws of an external provider, no interval, posterior guarantee or native trust. The Python surface is a later step."
+
+[[routes]]
+route = "antecedent.provider_callback.execute"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_declared_callback_contracts"
+evidence = "declared_callback_provider_object_operations_support_dependencies_replay_trust"
+functional = "callback.law_posterior_nested"
+guarantee = "declared_callback_executed_once_per_request_with_counts"
+evidence_test = "crates/antecedent/tests/provider_callbacks.rs"
+evidence_assertion = "the_gaussian_reference_callback_matches_tabulated_values"
+notes = "Rust route; point values or draws of an external provider, no interval, posterior guarantee or native trust. The Python surface is a later step."
+
+[[routes]]
+route = "antecedent.provider_callback.validate_output"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_declared_callback_contracts"
+evidence = "declared_callback_provider_object_operations_support_dependencies_replay_trust"
+functional = "callback.law_posterior_nested"
+guarantee = "output_accepted_only_as_a_well_formed_law"
+evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs"
+evidence_assertion = "a_well_formed_law_is_accepted_and_every_malformed_law_is_refused"
+notes = "Rust route; point values or draws of an external provider, no interval, posterior guarantee or native trust. The Python surface is a later step."
+
+[[routes]]
+route = "antecedent.provider_callback.register_evidence"
+stage = "prepare"
+status = "licensed"
+graph = "not_applicable_declared_callback_contracts"
+evidence = "declared_callback_provider_object_operations_support_dependencies_replay_trust"
+functional = "callback.law_posterior_nested"
+guarantee = "callback_and_inner_evidence_registered_in_the_one_ledger"
+evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs"
+evidence_assertion = "nested_callbacks_are_registered_with_their_evidence_overlap"
+notes = "Rust route; point values or draws of an external provider, no interval, posterior guarantee or native trust. The Python surface is a later step."
+
+[[routes]]
+route = "antecedent.provider_callback.plan_reuse"
+stage = "prepare"
+status = "licensed"
+graph = "not_applicable_declared_callback_contracts"
+evidence = "declared_dependency_versions_replay_contract_request_identity_state_identity"
+functional = "callback.replay_policy"
+guarantee = "reuse_decided_from_identities_alone"
+evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs"
+evidence_assertion = "reuse_follows_the_replay_contract_and_every_identity"
+notes = "Rust route; point values or draws of an external provider, no interval, posterior guarantee or native trust. The Python surface is a later step."
+
+[[routes]]
+route = "antecedent.provider_callback.execution_policy"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_declared_callback_contracts"
+evidence = "declared_dependency_versions_replay_contract_request_identity_state_identity"
+functional = "callback.replay_policy"
+guarantee = "effects_only_under_explicit_policy"
+evidence_test = "crates/antecedent/tests/provider_callbacks.rs"
+evidence_assertion = "a_side_effecting_callback_is_never_invoked_outside_execution_or_retried_outside_its_policy"
+notes = "Rust route; point values or draws of an external provider, no interval, posterior guarantee or native trust. The Python surface is a later step."
+
+[[routes]]
+route = "antecedent.provider_callback.export_result"
+stage = "prepare"
+status = "licensed"
+graph = "not_applicable_declared_callback_contracts"
+evidence = "callback_result_artifact_declaration_request_output_identities"
+functional = "callback.portable_result"
+guarantee = "declaration_and_output_exported_not_a_runnable_closure"
+evidence_test = "crates/antecedent-io-core/tests/callback_result_artifact.rs"
+evidence_assertion = "a_sealed_result_round_trips_with_stable_identities"
+notes = "Rust route; point values or draws of an external provider, no interval, posterior guarantee or native trust. The Python surface is a later step."
+
+[[routes]]
+route = "antecedent.provider_callback.consume_result"
+stage = "consume"
+status = "licensed"
+graph = "not_applicable_declared_callback_contracts"
+evidence = "callback_result_artifact_declaration_request_output_identities"
+functional = "callback.portable_result"
+guarantee = "identities_recomputed_and_bounds_checked"
+evidence_test = "crates/antecedent-io-core/tests/callback_result_artifact.rs"
+evidence_assertion = "resealed_semantic_edits_are_refused_by_recomputed_identities"
+notes = "Rust route; point values or draws of an external provider, no interval, posterior guarantee or native trust. The Python surface is a later step."
+
+[[routes]]
+route = "antecedent.provider_callback.resume_result"
+stage = "consume"
+status = "licensed"
+graph = "not_applicable_declared_callback_contracts"
+evidence = "callback_result_artifact_declaration_request_output_identities"
+functional = "callback.portable_result"
+guarantee = "resume_only_by_declared_provider_else_unavailable_stage"
+evidence_test = "crates/antecedent/tests/provider_callbacks.rs"
+evidence_assertion = "a_result_resumes_with_a_compatible_provider_and_is_unavailable_without_one"
+notes = "Rust route; point values or draws of an external provider, no interval, posterior guarantee or native trust. The Python surface is a later step."
+
+[[routes]]
+route = "antecedent.provider_callback.interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed with a typed refusal; a callback supplies values, not coverage, trust, identification or a joint law."
+
+[[routes]]
+route = "antecedent.provider_callback.posterior_guarantee"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed with a typed refusal; a callback supplies values, not coverage, trust, identification or a joint law."
+
+[[routes]]
+route = "antecedent.provider_callback.native_trust"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed with a typed refusal; a callback supplies values, not coverage, trust, identification or a joint law."
+
+[[routes]]
+route = "antecedent.provider_callback.identification_licence"
+stage = "identify"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed with a typed refusal; a callback supplies values, not coverage, trust, identification or a joint law."
+
+[[routes]]
+route = "antecedent.provider_callback.joint_law"
+stage = "uncertainty"
+status = "closed"
+reason_code = "joint_law_required"
+notes = "Closed with a typed refusal; a callback supplies values, not coverage, trust, identification or a joint law."
+
+[[routes]]
+route = "antecedent.provider_callback.connect_to_consumer"
+stage = "prepare"
+status = "licensed"
+graph = "not_applicable_declared_callback_contracts"
+evidence = "declared_callback_and_consumer_interface_contracts"
+functional = "callback.consumers"
+guarantee = "connection_decided_before_invocation"
+evidence_test = "crates/antecedent/tests/provider_callbacks.rs"
+evidence_assertion = "a_provider_output_feeds_transport_only_for_the_declared_population_and_regime"
+notes = "Rust route; point values or draws of an external provider, no interval, posterior guarantee or native trust. The Python surface is a later step."
+
+[[routes]]
+route = "antecedent.provider_callback.claim_to_callback"
+stage = "prepare"
+status = "licensed"
+graph = "not_applicable_declared_callback_contracts"
+evidence = "declared_callback_and_consumer_interface_contracts"
+functional = "callback.consumers"
+guarantee = "claim_connected_for_declared_population_only"
+evidence_test = "crates/antecedent/tests/provider_callbacks.rs"
+evidence_assertion = "a_transported_claim_reaches_a_callback_only_as_the_population_it_declares"
+notes = "Rust route; point values or draws of an external provider, no interval, posterior guarantee or native trust. The Python surface is a later step."
+
+[[routes]]
+route = "antecedent.provider_callback.predictive_law_source"
+stage = "prepare"
+status = "licensed"
+graph = "not_applicable_declared_callback_contracts"
+evidence = "declared_callback_and_consumer_interface_contracts"
+functional = "callback.consumers"
+guarantee = "replayable_attested_callbacks_only"
+evidence_test = "crates/antecedent/tests/provider_callbacks.rs"
+evidence_assertion = "a_callback_law_reaches_the_predictive_assessment_only_as_a_replayable_provider_law"
+notes = "Rust route; point values or draws of an external provider, no interval, posterior guarantee or native trust. The Python surface is a later step."
+
+[[routes]]
+route = "antecedent.discovery.selective.static"
+stage = "evaluate"
+status = "licensed"
+graph = "constraint_based_discovery_cpdag_or_pag_equivalence_class_kept_unresolved"
+evidence = "ci_statistics_at_identical_input_coordinates_and_canonical_stage_identities"
+functional = "structure_unresolved_edges_bounded_search_receipts_and_observed_work_units"
+guarantee = "selective_run_equals_full_run_bit_for_bit_no_recovery_or_error_control_claim"
+evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs"
+evidence_assertion = "threshold_change_reruns_decisions_over_retained_statistics_and_matches_a_full_run"
+notes = "Rust adapter over PC and FCI; algorithmic match only. The Python surface is a later step."
+
+[[routes]]
+route = "antecedent.discovery.selective.temporal"
+stage = "evaluate"
+status = "licensed"
+graph = "constraint_based_temporal_discovery_dag_or_cpdag_with_lag_bounds"
+evidence = "ci_statistics_at_identical_lagged_frame_coordinates_and_canonical_stage_identities"
+functional = "structure_unresolved_edges_bounded_search_receipts_and_observed_work_units"
+guarantee = "selective_run_equals_full_run_bit_for_bit_no_recovery_or_error_control_claim"
+evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs"
+evidence_assertion = "temporal_threshold_lag_and_mask_changes_match_full_runs"
+notes = "Rust adapter over PCMCI and PCMCI+; algorithmic match only. The Python surface is a later step."
+
+[[routes]]
+route = "antecedent.discovery.selective.accept_graph"
+stage = "prepare"
+status = "licensed"
+graph = "a_declared_graph_accepted_from_a_resolved_structure_or_an_explicit_completion"
+evidence = "the_discovered_structure_identity_and_the_declared_completion"
+functional = "stage_planner_graph_input_identity"
+guarantee = "refused_for_unresolved_edges_without_a_declared_completion_and_for_exhausted_bounds"
+evidence_test = "crates/antecedent/tests/selective_discovery_facade.rs"
+evidence_assertion = "a_resolved_structure_is_accepted_and_a_class_needs_a_declared_completion"
+notes = "Facade route; the representative member of an equivalence class never becomes a known graph."
+
+[[routes]]
+route = "antecedent.discovery.selective.claim_graph"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_a_declared_acyclic_dependency_graph_of_claims"
+evidence = "discovery_stage_identities_and_downstream_claim_declarations"
+functional = "still_valid_recompute_or_withdrawn_class_of_every_downstream_claim"
+guarantee = "classification_relative_to_declared_dependencies_search_incomplete_withdraws"
+evidence_test = "crates/antecedent/tests/selective_discovery_facade.rs"
+evidence_assertion = "a_changed_structure_recomputes_and_a_changed_completion_reaches_the_anchor"
+notes = "Facade route over the one claim-level invalidation graph; no interval, posterior or calibration record."
+
+[[routes]]
+route = "antecedent.discovery.selective.resume"
+stage = "consume"
+status = "licensed"
+graph = "replay_of_the_algorithm_over_retained_statistics_only"
+evidence = "portable_receipts_and_the_raw_data"
+functional = "reproduced_result_and_graph_identity"
+guarantee = "replay_must_equal_the_recorded_result_identity_missing_data_refused"
+evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs"
+evidence_assertion = "resume_replays_over_receipts_only_and_reproduces_the_result"
+notes = "Rust route; absence of raw data is a refusal, never a waiver."
+
+[[routes]]
+route = "antecedent.discovery.selective.consume_selective_discovery_artifact"
+stage = "consume"
+status = "licensed"
+graph = "recomputed_receipt_graph_contract_and_artifact_identities"
+evidence = "selective_discovery_v1_container_and_a_retained_identity"
+functional = "stored_identities_recomputed_and_compared"
+guarantee = "stored_state_equals_recomputation_no_new_inference"
+evidence_test = "crates/antecedent-io-core/tests/selective_discovery_artifact.rs"
+evidence_assertion = "a_sealed_state_round_trips_and_binds_its_identities"
+notes = "Rust route; the artifact states one label, algorithmic_match_only."
+
+[[routes]]
+route = "antecedent.discovery.selective.recovery_claim"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route: a recovery, false-discovery or error-control statement for a discovered graph is refused with a typed reason; no whole-method calibration has been measured."
+
+[[routes]]
+route = "antecedent.discovery.selective.downstream_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route: an interval for an estimate resting on a discovered graph is refused; it needs a calibration of discovery plus analysis including reuse or splitting of the discovery rows."
+
+[[routes]]
+route = "antecedent.discovery.selective.score_search"
+stage = "evaluate"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Closed adjacent route: score-based search has no score-cache injection seam; reuse is constraint based."
+
+[[routes]]
+route = "antecedent.discovery.selective.multi_population"
+stage = "evaluate"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "Closed adjacent route: discovery pooling several source datasets is out; its assumptions belong to the transport contract."
+
+[[routes]]
+route = "antecedent.discovery.selective.transport_of_discovered_structure"
+stage = "identify"
+status = "closed"
+reason_code = "discovered_structure_unresolved"
+notes = "Closed adjacent route: a discovered structure supplies no selection diagram; the refusal names the unresolved edges and exhausted bounds, and no envelope across the equivalence class is offered."
+
+[[routes]]
+route = "antecedent.python.selective_discovery.run"
+stage = "evaluate"
+status = "licensed"
+graph = "constraint_based_discovery_equivalence_class_kept_unresolved"
+evidence = "ci_statistics_at_identical_input_coordinates_and_portable_receipts"
+functional = "structure_unresolved_edges_bounded_search_receipts_and_observed_work_units"
+guarantee = "selective_run_equals_full_run_bit_for_bit_no_recovery_or_error_control_claim"
+evidence_test = "python/tests/test_selective_discovery.py"
+evidence_assertion = "test_threshold_change_reuses_statistics_and_equals_a_full_run"
+notes = "Python surface of selective discovery (python/antecedent/selective_discovery.py); algorithmic match only, no recovery or interval claim."
+
+[[routes]]
+route = "antecedent.python.selective_discovery.resume"
+stage = "consume"
+status = "licensed"
+graph = "constraint_based_discovery_equivalence_class_kept_unresolved"
+evidence = "ci_statistics_at_identical_input_coordinates_and_portable_receipts"
+functional = "structure_unresolved_edges_bounded_search_receipts_and_observed_work_units"
+guarantee = "selective_run_equals_full_run_bit_for_bit_no_recovery_or_error_control_claim"
+evidence_test = "python/tests/test_selective_discovery.py"
+evidence_assertion = "test_a_fresh_process_resumes_only_with_the_raw_data"
+notes = "Python resume: replay over receipts with the raw data; absence of data is a refusal."
+
+[[routes]]
+route = "antecedent.python.selective_discovery.consume_selective_discovery_artifact"
+stage = "consume"
+status = "licensed"
+graph = "constraint_based_discovery_equivalence_class_kept_unresolved"
+evidence = "ci_statistics_at_identical_input_coordinates_and_portable_receipts"
+functional = "structure_unresolved_edges_bounded_search_receipts_and_observed_work_units"
+guarantee = "selective_run_equals_full_run_bit_for_bit_no_recovery_or_error_control_claim"
+evidence_test = "python/tests/test_selective_discovery.py"
+evidence_assertion = "test_export_consume_inspect_and_resume"
+notes = "Python consumer of selective_discovery_v1: identities recomputed, retained identity enforced."
+
+[[routes]]
+route = "antecedent.python.cross_world_execution.CrossWorldExecutor.execute"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_markovian_scm_or_two_slice_temporal"
+evidence = "declared_mechanisms_and_factual_evidence"
+functional = "cross_world_execution.finite_markovian_scm"
+guarantee = "exact_enumeration_point_only_conditional_on_declared_model"
+evidence_test = "python/tests/test_cross_world_execution.py"
+evidence_assertion = "test_artifact_round_trip_mutation_resume_and_fresh_process"
+notes = "Python route; point-only from exact enumeration, no interval."
+
+[[routes]]
+route = "antecedent.python.cross_world_execution.seal"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_markovian_scm_or_two_slice_temporal"
+evidence = "declared_mechanisms_and_factual_evidence"
+functional = "cross_world_execution.finite_markovian_scm"
+guarantee = "exact_enumeration_point_only_conditional_on_declared_model"
+evidence_test = "python/tests/test_cross_world_execution.py"
+evidence_assertion = "test_artifact_round_trip_mutation_resume_and_fresh_process"
+notes = "Python route; point-only from exact enumeration, no interval."
+
+[[routes]]
+route = "antecedent.python.cross_world_execution.consume_cross_world_execution_artifact"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_markovian_scm_or_two_slice_temporal"
+evidence = "declared_mechanisms_and_factual_evidence"
+functional = "cross_world_execution.finite_markovian_scm"
+guarantee = "exact_enumeration_point_only_conditional_on_declared_model"
+evidence_test = "python/tests/test_cross_world_execution.py"
+evidence_assertion = "test_artifact_round_trip_mutation_resume_and_fresh_process"
+notes = "Python route; point-only from exact enumeration, no interval."
+
+[[routes]]
+route = "antecedent._native.cross_world_seal"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_markovian_scm_or_two_slice_temporal"
+evidence = "declared_mechanisms_and_factual_evidence"
+functional = "cross_world_execution.finite_markovian_scm"
+guarantee = "exact_enumeration_point_only_conditional_on_declared_model"
+evidence_test = "python/tests/test_cross_world_execution.py"
+evidence_assertion = "test_artifact_round_trip_mutation_resume_and_fresh_process"
+notes = "Python route; point-only from exact enumeration, no interval."
+
+[[routes]]
+route = "antecedent.python.provider_callbacks.CallbackSession.execute"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_declared_callback_contracts"
+evidence = "declared_callback_provider_object_operations_support_dependencies_replay_trust"
+functional = "callback.python_surface"
+guarantee = "same_rust_decisions_python_declares_and_supplies_the_callable"
+evidence_test = "python/tests/test_provider_callbacks.py"
+evidence_assertion = "test_gaussian_callback_mean_cdf_quantile_match_closed_forms"
+notes = "Python route; the supplied callable runs only inside execute or resume. Point values or draws of an external provider, no interval, posterior guarantee or native trust."
+
+[[routes]]
+route = "antecedent.python.provider_callbacks.CallbackSession.plan"
+stage = "prepare"
+status = "licensed"
+graph = "not_applicable_declared_callback_contracts"
+evidence = "declared_callback_provider_object_operations_support_dependencies_replay_trust"
+functional = "callback.python_surface"
+guarantee = "same_rust_decisions_python_declares_and_supplies_the_callable"
+evidence_test = "python/tests/test_provider_callbacks.py"
+evidence_assertion = "test_deterministic_replay_does_not_invoke_and_a_changed_dependency_recomputes"
+notes = "Python route; the supplied callable runs only inside execute or resume. Point values or draws of an external provider, no interval, posterior guarantee or native trust."
+
+[[routes]]
+route = "antecedent.python.provider_callbacks.consume_callback_result"
+stage = "consume"
+status = "licensed"
+graph = "not_applicable_declared_callback_contracts"
+evidence = "declared_callback_provider_object_operations_support_dependencies_replay_trust"
+functional = "callback.python_surface"
+guarantee = "same_rust_decisions_python_declares_and_supplies_the_callable"
+evidence_test = "python/tests/test_provider_callbacks.py"
+evidence_assertion = "test_exported_result_round_trips_and_mutations_are_refused"
+notes = "Python route; the supplied callable runs only inside execute or resume. Point values or draws of an external provider, no interval, posterior guarantee or native trust."
+
+[[routes]]
+route = "antecedent.python.provider_callbacks.CallbackSession.resume"
+stage = "consume"
+status = "licensed"
+graph = "not_applicable_declared_callback_contracts"
+evidence = "declared_callback_provider_object_operations_support_dependencies_replay_trust"
+functional = "callback.python_surface"
+guarantee = "same_rust_decisions_python_declares_and_supplies_the_callable"
+evidence_test = "python/tests/test_provider_callbacks.py"
+evidence_assertion = "test_fresh_process_resume_with_and_without_a_provider"
+notes = "Python route; the supplied callable runs only inside execute or resume. Point values or draws of an external provider, no interval, posterior guarantee or native trust."
+
+[[routes]]
+route = "antecedent.python.provider_callbacks.refuse_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed with a typed refusal; a callback supplies values, not coverage, trust, identification or a joint law."
+
+[[routes]]
+route = "antecedent.python.provider_callbacks.refuse_posterior_guarantee"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed with a typed refusal; a callback supplies values, not coverage, trust, identification or a joint law."
+
+[[routes]]
+route = "antecedent.python.provider_callbacks.refuse_native_trust"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed with a typed refusal; a callback supplies values, not coverage, trust, identification or a joint law."
+
+[[routes]]
+route = "antecedent.python.provider_callbacks.refuse_identification_licence"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed with a typed refusal; a callback supplies values, not coverage, trust, identification or a joint law."
+
+[[routes]]
+route = "antecedent.python.provider_callbacks.refuse_joint_law"
+stage = "uncertainty"
+status = "closed"
+reason_code = "joint_law_required"
+notes = "Closed with a typed refusal; a callback supplies values, not coverage, trust, identification or a joint law."
+
+[[routes]]
+route = "antecedent.composition_release_fixture.evaluate"
+stage = "evaluate"
+status = "licensed"
+graph = "finite_two_variable_structural_model_declared_tables"
+evidence = "declared_confusion_model_recorded_counts_study_summaries_with_row_identities_and_a_declared_baseline"
+functional = "attributable_excess_risk_and_the_expected_utility_of_an_affine_decision_over_its_mean"
+guarantee = "point_only_closed_forms_checked_by_an_independent_consumer_no_interval_posterior_or_ranking_guarantee"
+evidence_test = "crates/antecedent/tests/composition_release_fixture.rs"
+evidence_assertion = "the_decision_reads_the_licensed_mean_and_matches_the_hand_computed_utilities"
+notes = "Release-boundary fixture over existing routes; the Python surface is python/tests/test_composition_release_fixture.py."
+
+[[routes]]
+route = "antecedent.composition_release_fixture.composed_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route of the release-boundary fixture: no interval, posterior decision or ranking guarantee is produced; no whole-method coverage has been measured at the composed coordinate."

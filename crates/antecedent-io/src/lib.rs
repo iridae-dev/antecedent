@@ -175,10 +175,13 @@ pub mod transport_interference_wire;
 pub mod transport_scenario_artifact;
 pub mod z_transport_artifact;
 pub use antecedent_io_core::adaptive_monitoring_contract_artifact;
+pub use antecedent_io_core::callback_result_artifact;
 pub use antecedent_io_core::cohort_decision;
 pub use antecedent_io_core::composition_verification_artifact;
+pub use antecedent_io_core::cross_world_execution_artifact;
 pub use antecedent_io_core::joint_law_propagation_artifact;
 pub use antecedent_io_core::observation_query_artifact;
+pub use antecedent_io_core::selective_discovery_artifact;
 pub use antecedent_io_core::{
     bridge_artifact, evidence_ledger_artifact, interface_contract_artifact, measurement_model_wire,
     mechanism_composition_artifact,

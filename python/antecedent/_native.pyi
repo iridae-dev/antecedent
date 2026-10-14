@@ -6382,6 +6382,85 @@ def scientific_bridge_consume(
     artifact: bytes, expected_identity: str | None = None
 ) -> tuple[ConsumedBridgeHandle | None, str | None]: ...
 
+class CompositionVerificationHandle:
+    def summary_json(self) -> str: ...
+    def view_json(self, key: str) -> tuple[str | None, str | None]: ...
+    def require_valid(self, key: str) -> str | None: ...
+    def export(self, artifact_id: str) -> tuple[tuple[bytes, str] | None, str | None]: ...
+
+def composition_verification_verify(
+    request_json: str,
+) -> tuple[CompositionVerificationHandle | None, str | None]: ...
+def composition_verification_consume(
+    artifact: bytes, expected_identity: str | None = None
+) -> tuple[CompositionVerificationHandle | None, str | None]: ...
+
+def interface_contract_identity(contract_json: str) -> tuple[str | None, str | None]: ...
+def interface_contract_check_connection(
+    producer_json: str, produced_port: str, consumer_json: str, consumed_port: str
+) -> tuple[str | None, str | None]: ...
+def interface_contract_check_composition(
+    components_json: str, connections_json: str
+) -> tuple[str | None, str | None]: ...
+def interface_contract_export(
+    contract_json: str, artifact_id: str
+) -> tuple[tuple[bytes, str, str] | None, str | None]: ...
+def interface_contract_consume(
+    artifact: bytes, expected_identity: str | None = None
+) -> tuple[str | None, str | None]: ...
+def interface_contract_inspect(artifact: bytes) -> tuple[str | None, str | None]: ...
+
+class CallbackToken:
+    def __init__(self) -> None: ...
+    def cancel(self) -> None: ...
+    def is_cancelled(self) -> bool: ...
+
+class CallbackSessionHandle:
+    def __init__(self) -> None: ...
+    def invocations(self) -> int: ...
+    def state_probes(self) -> int: ...
+    def request_attempts(self, request_identity: str) -> int: ...
+    def history_len(self) -> int: ...
+    def record_json(self, index: int) -> str: ...
+    def dependents_of(self, identity: str) -> list[int]: ...
+    def plan(
+        self, declaration_json: str, request_json: str, current_state: str | None = None
+    ) -> tuple[str | None, str | None]: ...
+    def execute(
+        self,
+        identity_json: str,
+        invoke: object,
+        state: object | None,
+        declaration_json: str,
+        request_json: str,
+        inputs_json: str,
+        policy_json: str,
+        token: CallbackToken,
+    ) -> tuple[str | None, str | None]: ...
+    def resume(
+        self,
+        artifact: bytes,
+        expected_identity: str | None,
+        identity_json: str | None,
+        invoke: object | None,
+        state: object | None,
+        inputs_json: str,
+        policy_json: str,
+        token: CallbackToken,
+    ) -> tuple[str | None, str | None]: ...
+    def export_record(
+        self, index: int, artifact_id: str
+    ) -> tuple[tuple[bytes, str] | None, str | None]: ...
+
+def callback_declaration_identity(declaration_json: str) -> tuple[str | None, str | None]: ...
+def callback_request_identity(declaration_json: str, request_json: str) -> str: ...
+def callback_values_digest(values: list[float]) -> str: ...
+def callback_result_consume(
+    artifact: bytes, expected_identity: str | None = None
+) -> tuple[str | None, str | None]: ...
+def callback_result_inspect(artifact: bytes) -> tuple[str | None, str | None]: ...
+def callback_closed_refusal(route: str) -> str: ...
+
 class PreparedCompositionHandle:
     def plan_identity(self) -> str: ...
     def family(self) -> str: ...
@@ -6650,6 +6729,81 @@ def decision_reliability_digests(
 ) -> tuple[tuple[str, str] | None, str | None]: ...
 def decision_reliability_publish(route: str, coordinate_json: str) -> str | None: ...
 
+def joint_law_column(
+    input_id: str, artifact: JointDistributionArtifact, column: int
+) -> tuple[str | None, str | None]: ...
+def joint_law_aligned_functional(
+    operation_name: str,
+    x_id: str,
+    x: JointDistributionArtifact,
+    x_column: int,
+    y_id: str,
+    y: JointDistributionArtifact,
+    y_column: int,
+    functional: str,
+    cancel: CancellationToken | None = None,
+) -> tuple[tuple[bytes, str] | None, str | None]: ...
+def joint_law_aligned_linear(
+    operation_name: str,
+    a: float,
+    b: float,
+    x_id: str,
+    x: JointDistributionArtifact,
+    x_column: int,
+    y_id: str,
+    y: JointDistributionArtifact,
+    y_column: int,
+    cancel: CancellationToken | None = None,
+) -> tuple[tuple[bytes, str] | None, str | None]: ...
+def joint_law_linear_moments(
+    operation_name: str,
+    inputs_json: str,
+    coefficients: list[float],
+    covariance: list[float],
+    dependence: str,
+    covariance_id: str | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[tuple[bytes, str] | None, str | None]: ...
+def joint_law_mixture(
+    components_json: str, cancel: CancellationToken | None = None
+) -> tuple[tuple[bytes, str] | None, str | None]: ...
+def joint_law_mixture_undeclared(
+    ids_json: str, weights: list[float], means: list[float], variances: list[float]
+) -> tuple[tuple[bytes, str] | None, str | None]: ...
+def joint_law_envelope(
+    operation_name: str,
+    query_json: str,
+    x_id: str,
+    x_evidence: str,
+    x_values: list[float],
+    y_id: str,
+    y_evidence: str,
+    y_values: list[float],
+    cancel: CancellationToken | None = None,
+) -> tuple[tuple[bytes, str] | None, str | None]: ...
+def joint_law_correlation_range(
+    operation_name: str,
+    x_id: str,
+    x_evidence: str,
+    y_id: str,
+    y_evidence: str,
+    x_mean: float,
+    x_sd: float,
+    y_mean: float,
+    y_sd: float,
+    a: float,
+    b: float,
+    rho_lo: float,
+    rho_hi: float,
+    cancel: CancellationToken | None = None,
+) -> tuple[tuple[bytes, str] | None, str | None]: ...
+def joint_law_consume(
+    artifact: bytes,
+    expected_identity: str | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def joint_law_closed_reading(reading: str) -> str: ...
+
 class SequentialBeliefSession:
     @staticmethod
     def start(
@@ -6747,3 +6901,84 @@ def sequential_check_request(model_json: str, request_json: str) -> str | None: 
 def sequential_resolve_policy(spec_json: str) -> tuple[str | None, str | None]: ...
 def sequential_request_interval() -> str: ...
 def sequential_stream_uniform(seed: int, rollout: int, time: int, role: str) -> float: ...
+
+class SelectiveDiscoveryHandle:
+    def __init__(self, kind: str) -> None: ...
+    def run(
+        self,
+        contract_json: str,
+        names: list[str],
+        columns: list[Any],
+        *,
+        threads: int | None = None,
+        cancel: Any = None,
+    ) -> tuple[str | None, str | None]: ...
+    def plan(
+        self,
+        contract_json: str,
+        names: list[str],
+        columns: list[Any],
+        *,
+        threads: int | None = None,
+        cancel: Any = None,
+    ) -> tuple[str | None, str | None]: ...
+    def outcome_json(self) -> str | None: ...
+    def retained_statistics(self) -> int: ...
+    def export(
+        self, artifact_id: str
+    ) -> tuple[tuple[str, bytes, str] | None, str | None]: ...
+    def request_recovery_claim(self) -> str: ...
+    def request_downstream_interval(self) -> str: ...
+    def request_selection_diagram(self, targets: list[int]) -> str: ...
+
+def selective_discovery_resume(
+    kind: str,
+    contract_json: str,
+    names: list[str],
+    columns: list[Any] | None,
+    artifact: bytes,
+    expected_identity: str | None = None,
+    *,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> tuple[SelectiveDiscoveryHandle | None, str | None, str | None]: ...
+def selective_discovery_inspect(artifact: bytes) -> tuple[str | None, str | None]: ...
+def selective_discovery_consume(
+    artifact: bytes, expected_identity: str | None = None
+) -> tuple[str | None, str | None]: ...
+def selective_discovery_score_search_refusal() -> str: ...
+
+class CrossWorldExecutor:
+    def __init__(self) -> None: ...
+    def execute(
+        self, request_json: str, cancel: Any = None
+    ) -> tuple[str | None, str | None]: ...
+    def retained_len(self) -> int: ...
+    def counters(self) -> str: ...
+    def clear(self) -> None: ...
+    @staticmethod
+    def from_artifact(
+        data: bytes,
+        expected_identity_json: str | None = None,
+        cancel: Any = None,
+    ) -> tuple[tuple[CrossWorldExecutor, str] | None, str | None]: ...
+
+def cross_world_capability_matrix() -> str: ...
+def cross_world_decide(
+    quantity: str,
+    model: str,
+    conditioning: str,
+    interventions: str,
+    population: str,
+    history: str,
+    evidence: str,
+) -> tuple[str | None, str | None]: ...
+def cross_world_seal(
+    request_json: str, artifact_id: str, cancel: Any = None
+) -> tuple[tuple[bytes, str] | None, str | None]: ...
+def cross_world_consume(
+    data: bytes,
+    expected_identity_json: str | None = None,
+    cancel: Any = None,
+) -> tuple[str | None, str | None]: ...
+def cross_world_closed_reading(reading: str) -> str: ...

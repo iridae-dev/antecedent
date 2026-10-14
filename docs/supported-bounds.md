@@ -234,6 +234,29 @@ markers below and compares it. Prose outside those markers is not read.
 | predictive_assessment.proper_scores | max_predictors | 32 | `crates/antecedent-validate/src/predictive_assessment/law.rs` |
 | predictive_assessment.proper_scores | max_law_atoms | 65536 | `crates/antecedent-validate/src/predictive_assessment/law.rs` |
 | predictive_assessment.proper_scores | max_joint_dimension | 64 | `crates/antecedent-validate/src/predictive_assessment/law.rs` |
+| composition_verification.claim_revalidation | max_nodes | 512 | `crates/antecedent-contract/src/composition_verification/graph.rs` |
+| composition_verification.claim_revalidation | max_edges | 4096 | `crates/antecedent-contract/src/composition_verification/graph.rs` |
+| composition_verification.claim_revalidation | max_overlap_checks | 250000 | `crates/antecedent-contract/src/composition_verification/view.rs` |
+| interface_contract.scientific_interface | max_ports | 256 | `crates/antecedent-contract/src/interface_contract/declaration.rs` |
+| interface_contract.scientific_interface | max_port_set_items | 1024 | `crates/antecedent-contract/src/interface_contract/declaration.rs` |
+| interface_contract.scientific_interface | max_components | 1024 | `crates/antecedent-contract/src/interface_contract/composition.rs` |
+| interface_contract.scientific_interface | max_connections | 8192 | `crates/antecedent-contract/src/interface_contract/composition.rs` |
+| interface_contract.cyclic_composition | max_components | 1024 | `crates/antecedent-contract/src/interface_contract/composition.rs` |
+| interface_contract.cyclic_composition | max_connections | 8192 | `crates/antecedent-contract/src/interface_contract/composition.rs` |
+| joint_law.dependence_envelope | max_marginal_atoms | 100000 | `crates/antecedent-stats/src/joint_law.rs` |
+| joint_law.dependence_envelope | max_lattice_checks | 4000000 | `crates/antecedent-stats/src/joint_law.rs` |
+| joint_law.linear_moment_propagation | max_terms | 256 | `crates/antecedent-stats/src/joint_law.rs` |
+| joint_law.aligned_nonlinear_functional | max_draws | 100000 | `crates/antecedent-io-core/src/distribution_artifact.rs` |
+| cross_world_execution.finite_markovian_scm | max_variables | 12 | `crates/antecedent-counterfactual/src/selective/finite_scm.rs` |
+| cross_world_execution.finite_markovian_scm | max_worlds | 8 | `crates/antecedent-counterfactual/src/selective/finite_scm.rs` |
+| cross_world_execution.finite_markovian_scm | max_units | 1024 | `crates/antecedent-counterfactual/src/selective/finite_scm.rs` |
+| cross_world_execution.finite_markovian_scm | max_joint_exogenous_states | 65536 | `crates/antecedent-counterfactual/src/selective/finite_scm.rs` |
+| provider_callback.law_posterior_protocol | max_dependencies | 1024 | `crates/antecedent-contract/src/callback_protocol/declaration.rs` |
+| provider_callback.law_posterior_protocol | max_inputs | 256 | `crates/antecedent-contract/src/callback_protocol/declaration.rs` |
+| provider_callback.law_posterior_protocol | max_draws | 1000000 | `crates/antecedent-contract/src/callback_protocol/query.rs` |
+| provider_callback.law_posterior_protocol | max_points | 65536 | `crates/antecedent-contract/src/callback_protocol/query.rs` |
+| discovery.selective_reuse | max_portable_receipts | 250000 | `crates/antecedent-discovery/src/selective/store.rs` |
+| discovery.selective_reuse | max_structure_items | 65536 | `crates/antecedent-io-core/src/selective_discovery_artifact.rs` |
 <!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.

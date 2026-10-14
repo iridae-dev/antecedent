@@ -20,12 +20,13 @@ use super::{
     ScoreTableSection, ValidationFailureSection, ValidationSection, adaptive_inference_api,
     artifact_api, ate_api, attribution_api, bayesian, bounds_api, candidate_screen_api,
     categorical_treatment_api, closed_pilot_api, cohort_decision_api, compact_export_api,
-    composition_api, composition_bundle_api, counterfactual_id_api, cpdag_scenario_api,
-    cross_world_api, decision_api, decision_reliability_api, default_user_threads,
-    derived_treatment_api, descriptive_api, design_api, design_ranking_api, discovery_api,
-    distribution_api, dose_grid_api, effect_constancy_api, effect_constancy_review_api,
-    evidence_ledger_api, execution_attempt_api, experiment_api, external_api, factorial_api,
-    gcm_api, graph_io, graphs, interference_saturation_api, inverse_outcome_api, inverse_query_api,
+    composition_api, composition_bundle_api, composition_verification_api, counterfactual_id_api,
+    cpdag_scenario_api, cross_world_api, cross_world_execution_api, decision_api,
+    decision_reliability_api, default_user_threads, derived_treatment_api, descriptive_api,
+    design_api, design_ranking_api, discovery_api, distribution_api, dose_grid_api,
+    effect_constancy_api, effect_constancy_review_api, evidence_ledger_api, execution_attempt_api,
+    experiment_api, external_api, factorial_api, gcm_api, graph_io, graphs, interface_contract_api,
+    interference_saturation_api, inverse_outcome_api, inverse_query_api, joint_law_propagation_api,
     joint_transport_api, latent_class_api, learned_continuous_api, learned_joint_api,
     learned_trial_api, load_float64_arrow_c_columns, load_float64_columns,
     matched_case_control_api, measured_inference_api, measurement_model_api,
@@ -33,13 +34,14 @@ use super::{
     nested_fisher_api, nonlinear_mediation_api, observation_api, observation_query_api,
     observational_interference_api, policy_api, predictive_assessment_api, preflight_api,
     prepared_api, prior_bank, prior_signal_api, program_claims_api, proposal_arrival_api,
-    provider_api, quasi_api, recalc_adjusted_api, recalc_api, recalc_bayesian_api, recalc_cell_api,
-    recalc_composite_api, recalc_design_api, recalc_dr_api, recalc_external_api, recalc_static_api,
-    recalc_temporal_api, recovery_api, recovery_chain_api, regimes_api, repair_api, response_api,
-    scenario_invariance_api, scientific_bridge_api, sensitivity_decision_api,
-    sensitivity_source_api, set_not_identified_error_class, set_review_error_class,
-    set_unsupported_error_class, set_value_error_class, smoothed_dose_api, source_evidence_api,
-    source_projection_api, stability, state_api, study_planning_api, survival_api, temporal_api,
+    provider_api, provider_callbacks_api, quasi_api, recalc_adjusted_api, recalc_api,
+    recalc_bayesian_api, recalc_cell_api, recalc_composite_api, recalc_design_api, recalc_dr_api,
+    recalc_external_api, recalc_static_api, recalc_temporal_api, recovery_api, recovery_chain_api,
+    regimes_api, repair_api, response_api, scenario_invariance_api, scientific_bridge_api,
+    selective_discovery_api, sensitivity_decision_api, sensitivity_source_api,
+    set_not_identified_error_class, set_review_error_class, set_unsupported_error_class,
+    set_value_error_class, smoothed_dose_api, source_evidence_api, source_projection_api,
+    stability, state_api, study_planning_api, survival_api, temporal_api,
     temporal_counterfactual_api, temporal_extension_api, temporal_license, temporal_transport_api,
     transport_admg_conditional_api, transport_counterfactual_api,
     transport_counterfactual_sampled_api, transport_exact_api, transport_grid_api,
@@ -76,6 +78,8 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     nested_bayesian_api::register(m)?;
     learned_joint_api::register(m)?;
     measured_inference_api::register(m)?;
+    joint_law_propagation_api::register(m)?;
+    cross_world_execution_api::register(m)?;
     joint_transport_api::register(m)?;
     msm_sensitivity_api::register(m)?;
     mechanism_discrepancy_api::register(m)?;
@@ -143,6 +147,10 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     evidence_ledger_api::register(m)?;
     sequential_evaluation_api::register(m)?;
     scientific_bridge_api::register(m)?;
+    composition_verification_api::register(m)?;
+    interface_contract_api::register(m)?;
+    provider_callbacks_api::register(m)?;
+    selective_discovery_api::register(m)?;
     predictive_assessment_api::register(m)?;
     adaptive_inference_api::register(m)?;
     decision_reliability_api::register(m)?;

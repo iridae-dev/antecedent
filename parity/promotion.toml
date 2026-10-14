@@ -13484,7 +13484,17 @@ refusals = [
   { code = "invalid_argument", detail = "composition_verification.unknown_claim", when = "The named claim is not in the current graph.", remedy = "Name a claim declared in the current composition graph." },
   { code = "invalid_argument", detail = "composition_verification.replay_mismatch", when = "A stored classification, report identity or relation of an artifact does not replay.", remedy = "Regenerate the artifact from the graphs and observed effects." },
   { code = "invalid_argument", detail = "composition_verification.ledger_mismatch", when = "The consumer's evidence ledger is at another state or its overlap differs from the declared relations.", remedy = "Verify against the ledger the relations were read from, or regenerate the verification." },
-  { code = "route_not_supported", detail = "composition_verification.identity_mismatch", when = "The artifact's identity differs from the identity the consumer retained.", remedy = "Supply the artifact whose recomputed identity equals the retained identity." },
+  { code = "route_not_supported", detail = "composition_verification.identity_mismatch", when = "The artifact's identity differs from the identity the consumer retained.", remedy = "Supply the artifact whose recomputed identity equals the retained identity." },  { code = "invalid_argument", detail = "composition_verification.duplicate_node", when = "A node key is declared twice.", remedy = "Declare every node once under a unique key." },
+  { code = "invalid_argument", detail = "composition_verification.unknown_node", when = "A dependency or an inherited calibration names a node that is not declared.", remedy = "Declare the node before the dependency that names it." },
+  { code = "invalid_argument", detail = "composition_verification.self_dependency", when = "A node is declared to depend on itself.", remedy = "Remove the dependency of the node on itself." },
+  { code = "invalid_argument", detail = "composition_verification.cycle", when = "A dependency would close a cycle.", remedy = "Declare dependencies that form an acyclic graph." },
+  { code = "invalid_argument", detail = "composition_verification.invalid_text", when = "A key, version, assumption or coordinate is blank or longer than the byte bound.", remedy = "Name every field in at most the declared number of bytes." },
+  { code = "invalid_argument", detail = "composition_verification.empty_unsupported", when = "A node is declared unsupported but names no coordinate.", remedy = "Name the coordinates outside the support, or declare the node supported." },
+  { code = "invalid_argument", detail = "composition_verification.inherited_without_edge", when = "A node inherits calibration from a node it has no calibration dependency on.", remedy = "Declare a calibration dependency from the node to the source of the record." },
+  { code = "invalid_argument", detail = "composition_verification.limit_exceeded", when = "The graph, a node's declarations or the overlap query exceeds its bound.", remedy = "Verify a smaller composition or fewer evidence sources." },
+  { code = "invalid_argument", detail = "composition_verification.unknown_result", when = "A node is bound to a result the evidence ledger does not hold.", remedy = "Bind nodes to results registered in the evidence ledger." },
+  { code = "invalid_argument", detail = "composition_verification.artifact_invalid", when = "The bytes are not an intact composition_verification_v1 container or do not decode.", remedy = "Supply an intact composition_verification_v1 artifact." },
+  { code = "cancelled_no_claim", detail = "composition_verification.cancelled", when = "The shared-data query was cancelled before a classification was made.", remedy = "Rerun the verification without cancelling." },
 ]
 routes = [
   { name = "antecedent.composition_verification.verify", stage = "evaluate", status = "licensed", claim = "none" },
@@ -13501,7 +13511,11 @@ fixtures = [
   { id = "composition_verification.claim_revalidation.declaration_order.invariance", role = "invariance", intent = "All 720 declaration orders of a six-node graph, with the edge list forward and reversed, give one graph identity, one topological order and one classification.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "declaration_order_never_changes_identity_order_or_classification" },
   { id = "composition_verification.claim_revalidation.lineage.truth", role = "truth", intent = "The lineage of a transported claim lists its upstream objects, boundary transformations, assumptions in dependency order, versions and unsupported coordinates.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "the_view_reports_lineage_boundaries_versions_and_unsupported_coordinates" },
   { id = "composition_verification.claim_revalidation.shared_data.truth", role = "truth", intent = "Rows 50..100 shared by two cohorts are reported as shared data with fifty observations, a disjoint cohort is not listed and an undeclared source is an unknown dependence, never independent.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "shared_data_comes_from_the_ledger_overlap_and_unknown_is_never_independent" },
-  { id = "composition_verification.claim_revalidation.planner_integration.truth", role = "truth", intent = "A data-snapshot change in the recalculation plan recomputes the score artifact, law and decision and leaves identification valid; a target change recomputes the law and withdraws a calibration held at the old target.", evidence_test = "crates/antecedent/tests/composition_verification_facade.rs", evidence_assertion = "a_target_change_recomputes_the_law_and_never_inherits_its_calibration" },
+  { id = "composition_verification.claim_revalidation.planner_integration.truth", role = "truth", intent = "A data-snapshot change in the recalculation plan recomputes the score artifact, law and decision and leaves identification valid; a target change recomputes the law and withdraws a calibration held at the old target.", evidence_test = "crates/antecedent/tests/composition_verification_facade.rs", evidence_assertion = "a_target_change_recomputes_the_law_and_never_inherits_its_calibration", shared_evidence = true },
+  { id = "composition_verification.claim_revalidation.unchanged_graph.positive", role = "positive", intent = "An unchanged composition classifies every claim still valid with its earlier fit and uncertainty authority retained.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "an_unchanged_graph_is_still_valid_and_keeps_its_authority" },
+  { id = "composition_verification.claim_revalidation.python_classification.truth", role = "truth", intent = "Python surface: replacing the cohort data recomputes exactly the claims that read it, leaves the sibling, provider and target valid and withdraws no license.", evidence_test = "python/tests/test_composition_verification.py", evidence_assertion = "test_a_change_leaves_the_sibling_valid_and_recomputes_every_dependent" },
+  { id = "composition_verification.claim_revalidation.python_inherited_calibration.negative", role = "negative", intent = "Python surface: a claim whose inherited calibration no longer holds raises cell_not_licensed and its point value is untouched; a transported claim never inherits a record of another target.", evidence_test = "python/tests/test_composition_verification.py", evidence_assertion = "test_calibration_inherited_from_an_object_that_no_longer_holds_it_is_refused" },
+  { id = "composition_verification.claim_revalidation.python_fresh_process.artifact", role = "artifact", intent = "Python surface: a fresh process consumes the export under the retained identity, refuses a wrong identity and refuses mutated bytes.", evidence_test = "python/tests/test_composition_verification.py", evidence_assertion = "test_a_fresh_process_consumes_the_export_and_refuses_tampering" },
   { id = "composition_verification.claim_revalidation.fresh_consumer.artifact", role = "artifact", intent = "A fresh consumer replays the classification and lineage of the sealed verification and refuses a flipped byte and a wrong retained identity.", evidence_test = "crates/antecedent-io-core/tests/composition_verification_artifact.rs", evidence_assertion = "a_fresh_consumer_sees_the_classification_and_the_lineage" },
   { id = "composition_verification.claim_revalidation.semantic_mutation.artifact", role = "artifact", intent = "A resealed edit of a stored class, authority, reason, calibration state or lineage identity, and a resealed edit of a node, dependency or effect, does not replay or is refused.", evidence_test = "crates/antecedent-io-core/tests/composition_verification_artifact.rs", evidence_assertion = "a_resealed_edit_of_a_stored_classification_does_not_replay" },
 ]
@@ -13534,13 +13548,15 @@ refusals = [
   { code = "cell_not_licensed", detail = "composition_verification.calibration_not_held", when = "An interval, posterior or coverage statement is requested for a claim whose calibration record does not hold at its coordinate, or is inherited from an upstream object that does not hold it.", remedy = "None available yet: the verification reports the point value; an uncertainty statement needs a calibration measured at the claim's own coordinate." },
 ]
 routes = [
-  { name = "antecedent.composition_verification.revalidated_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent-contract/tests/composition_verification.rs", refusal_assertion = "calibration_inherited_from_an_object_that_no_longer_holds_it_is_refused" },
-  { name = "antecedent.composition_verification.calibration_across_targets", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent-contract/tests/composition_verification.rs", refusal_assertion = "transported_calibration_is_never_inherited_by_a_different_target" },
+  { name = "antecedent.composition_verification.revalidated_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_composition_verification.py", refusal_assertion = "test_calibration_inherited_from_an_object_that_no_longer_holds_it_is_refused" },
+  { name = "antecedent.composition_verification.calibration_across_targets", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_composition_verification.py", refusal_assertion = "test_transported_calibration_never_inherits_to_a_different_target" },
 ]
 fixtures = [
+  { id = "composition_verification.revalidated_interval.point_value.positive", role = "positive", intent = "The point value and classification of an unchanged composition stand; no interval is attached.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "an_unchanged_graph_is_still_valid_and_keeps_its_authority", shared_evidence = true },
+  { id = "composition_verification.revalidated_interval.exported_classification.artifact", role = "artifact", intent = "A consumed verification replays the withdrawal of a calibration record and carries no interval license.", evidence_test = "crates/antecedent-io-core/tests/composition_verification_artifact.rs", evidence_assertion = "a_first_verification_has_nothing_stale_and_a_withdrawn_calibration_is_carried" },
   { id = "composition_verification.revalidated_interval.inherited_record.negative", role = "negative", intent = "A claim that inherits a calibration record from an upstream object that dropped it is refused as cell_not_licensed.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "calibration_inherited_from_an_object_that_no_longer_holds_it_is_refused" },
   { id = "composition_verification.revalidated_interval.other_target.negative", role = "negative", intent = "A record established for one target population is refused for a claim about another, and a different record is not inherited.", evidence_test = "crates/antecedent-contract/tests/composition_verification.rs", evidence_assertion = "transported_calibration_is_never_inherited_by_a_different_target" },
-  { id = "composition_verification.revalidated_interval.retargeted_law.negative", role = "negative", intent = "Through the facade, a recalculation plan that changes the target population withdraws the calibration the law held at the old target.", evidence_test = "crates/antecedent/tests/composition_verification_facade.rs", evidence_assertion = "a_target_change_recomputes_the_law_and_never_inherits_its_calibration" },
+  { id = "composition_verification.revalidated_interval.retargeted_law.negative", role = "negative", intent = "Through the facade, a recalculation plan that changes the target population withdraws the calibration the law held at the old target.", evidence_test = "crates/antecedent/tests/composition_verification_facade.rs", evidence_assertion = "a_target_change_recomputes_the_law_and_never_inherits_its_calibration", shared_evidence = true },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -13566,10 +13582,13 @@ compatibility = "Additive. No existing claim, artifact, route or reason code cha
 search = false
 prerequisite_records = ["distribution.joint_alignment", "evidence_ledger.overlap_accounting"]
 prerequisite_reason = "Uses the distribution artifact's alignment declaration and the evidence ledger's shared-evidence accounting for who shares evidence; no interval or coverage statement is inherited."
-bounds = { cancellation = true }
+bounds = { max_terms = 256, cancellation = true }
 inference_inventory_disposition = "point_output_listed_unmeasured"
 surface_rust = ["crates/antecedent/src/analysis/joint_law_propagation.rs"]
-surface_values = ["JointLawPropagationRefusal", "PropagationDraws", "MomentInput", "MixtureComponent", "LinearDependence", "CorrelationRangeSummary", "PropagationClaim", "EnvelopeQueryWire", "MarginalWire", "ValueFunctional"]
+surface_values = ["JointLawPropagationRefusal", "PropagationDraws", "MomentInput", "MixtureComponent", "LinearDependence", "CorrelationRangeSummary", "PropagationClaim", "EnvelopeQueryWire", "MarginalWire", "ValueFunctional", "EnvelopeQuery", "ConsumedJointLawPropagation"]
+surface_exports = ["python/antecedent/joint_law_propagation.py"]
+owned_exports = ["ConsumedJointLawPropagation", "EnvelopeQuery", "JointLawPropagationRefusal", "MixtureComponent", "MomentInput", "PropagationClaim", "PropagationDraws", "aligned_functional", "aligned_linear", "consume_joint_law_propagation_artifact", "correlation_range", "dependence_envelope", "linear_moments", "mixture"]
+surface_pyo3 = ["python/src/joint_law_propagation_api.rs"]
 refusals = [
   { code = "invalid_argument", detail = "joint_law_propagation.invalid_request", when = "A request names too few inputs, a blank or repeated input, a blank covariance declaration, an envelope reading without a declared range, or numbers that do not fit the licensed route.", remedy = "Name every input once with its evidence identity, declare the dependence, and supply the numbers the licensed route consumes." },
   { code = "sampling_dependence_unknown", detail = "joint_law_propagation.dependence_unknown", when = "A linear or nonlinear operation is requested with no dependence information; independence is never assumed.", remedy = "Declare a covariance when the inputs share evidence, an aligned joint law (draws with one alignment identity), or distinct evidence with a declared independence." },
@@ -13583,7 +13602,7 @@ routes = [
   { name = "antecedent_stats.joint_law.linear_combination_moments", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent_stats.joint_law.paired_moments", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.joint_law_propagation.alignment_identity", stage = "prepare", status = "licensed", claim = "none" },
-  { name = "antecedent.joint_law_propagation.propagate", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.joint_law_propagation.propagate", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["propagate_aligned_functional", "propagate_mixture", "propagate_dependence_envelope", "propagate_correlation_range"] },
   { name = "antecedent.joint_law_propagation.propagate_linear_moments", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.joint_law_propagation.propagate_aligned_linear", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.joint_law_propagation.consume_joint_law_propagation_artifact", stage = "consume", status = "licensed", claim = "point_only" },
@@ -13591,6 +13610,13 @@ routes = [
   { name = "antecedent_contract.joint_law_rule.dependence_unknown", stage = "prepare", status = "closed", reason_code = "sampling_dependence_unknown", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "linear_operations_take_a_covariance_or_distinct_evidence" },
   { name = "antecedent_contract.joint_law_rule.shared_evidence_declared_independent", stage = "prepare", status = "closed", reason_code = "evidence_double_counted", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "linear_operations_take_a_covariance_or_distinct_evidence" },
   { name = "antecedent_io_core.joint_law_propagation_artifact.cancelled", stage = "consume", status = "closed", reason_code = "cancelled_no_claim", permanent_in_release = true, refusal_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", refusal_assertion = "a_cancelled_context_produces_no_claim" },
+  { name = "antecedent.python.joint_law_propagation.aligned_linear", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.python.joint_law_propagation.linear_moments", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.python.joint_law_propagation.consume_joint_law_propagation_artifact", stage = "consume", status = "licensed", claim = "point_only", covers = ["aligned_functional", "correlation_range", "dependence_envelope", "mixture"] },
+  { name = "antecedent._native.joint_law_aligned_linear", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent._native.joint_law_linear_moments", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent._native.joint_law_consume", stage = "consume", status = "licensed", claim = "point_only", covers = ["joint_law_aligned_functional", "joint_law_mixture", "joint_law_mixture_undeclared", "joint_law_envelope", "joint_law_correlation_range", "joint_law_closed_reading"] },
+  { name = "antecedent._native.joint_law_column", stage = "prepare", status = "licensed", claim = "none" },
 ]
 fixtures = [
   { id = "joint_law.linear_moment_propagation.covariance_contrast.positive", role = "positive", intent = "Var(X-Y)=4+9-6=7 and mean 3 replay from a sealed artifact.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_covariance_aware_contrast_replays_to_the_closed_form", shared_evidence = true },
@@ -13602,6 +13628,9 @@ fixtures = [
   { id = "joint_law.linear_moment_propagation.semantic_mutation.artifact", role = "artifact", intent = "Unresealed and resealed edits of numbers, rule, label, alignment and version are refused.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "semantic_mutations_are_refused", shared_evidence = true },
   { id = "joint_law.linear_moment_propagation.contrast_replay.artifact", role = "artifact", intent = "A consumer replays the contrast artifact against the retained identity.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_covariance_aware_contrast_replays_to_the_closed_form", shared_evidence = true },
   { id = "joint_law.linear_moment_propagation.input_order.invariance", role = "invariance", intent = "Input order and relabelling do not change the numbers.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "values_are_invariant_to_input_order_and_relabelling", shared_evidence = true },
+  { id = "joint_law.linear_moment_propagation.python_contrast.positive", role = "positive", intent = "Python surface: Var(X-Y) and the weighted-sum variance equal the closed forms.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_covariance_aware_contrast_matches_the_closed_form", shared_evidence = true },
+  { id = "joint_law.linear_moment_propagation.python_undeclared_dependence.negative", role = "negative", intent = "Python surface: shared evidence declared independent and unknown dependence raise typed refusals.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_undeclared_or_shared_evidence_dependence_is_refused", shared_evidence = true },
+  { id = "joint_law.linear_moment_propagation.python_round_trip.artifact", role = "artifact", intent = "Python surface: the artifact replays against the retained identity, sampled byte edits are refused and a fresh process consumes it.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_artifact_round_trip_mutation_and_fresh_process", shared_evidence = true },
 ]
 [[record.inference_outputs]]
 id = "joint_law.linear_moment_propagation.values.1"
@@ -13648,7 +13677,7 @@ compatibility = "Additive. No existing claim, artifact, route or reason code cha
 search = false
 prerequisite_records = ["distribution.joint_alignment"]
 prerequisite_reason = "Reads the alignment declaration of the distribution artifact; an artifact of independent marginals has no alignment identity and is refused. No interval is inherited."
-bounds = { cancellation = true }
+bounds = { max_draws = 100000, cancellation = true }
 inference_inventory_disposition = "point_output_listed_unmeasured"
 refusals = [
   { code = "joint_law_required", detail = "joint_law_propagation.nonlinear_needs_aligned_joint_law", when = "A product, nonlinear functional or chained transformation is requested over inputs declared independent.", remedy = "Supply the draws of one joint law (one alignment identity for every input); independent marginals are never paired by index." },
@@ -13661,6 +13690,8 @@ routes = [
   { name = "antecedent.joint_law_propagation.propagate_aligned_functional", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent_contract.joint_law_rule.index_pairing", stage = "prepare", status = "closed", reason_code = "joint_law_required", permanent_in_release = true, refusal_test = "crates/antecedent/tests/joint_law_propagation_facade.rs", refusal_assertion = "index_pairing_of_unrelated_marginal_artifacts_is_refused" },
   { name = "antecedent_contract.joint_law_rule.nonlinear_without_aligned_law", stage = "prepare", status = "closed", reason_code = "joint_law_required", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "nonlinear_operations_need_one_alignment_identity" },
+  { name = "antecedent.python.joint_law_propagation.aligned_functional", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent._native.joint_law_aligned_functional", stage = "evaluate", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
   { id = "joint_law.aligned_nonlinear_functional.finite_enumeration.positive", role = "positive", intent = "E[XY]=0.4 and E[min]=0.2 on an enumerated joint law replay from a sealed artifact.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "an_aligned_nonlinear_functional_matches_the_finite_joint_law_enumeration", shared_evidence = true },
@@ -13673,6 +13704,11 @@ fixtures = [
   { id = "joint_law.aligned_nonlinear_functional.semantic_mutation.artifact", role = "artifact", intent = "A resealed alignment identity or operation edit is refused.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "semantic_mutations_are_refused", shared_evidence = true },
   { id = "joint_law.aligned_nonlinear_functional.fresh_consumer.artifact", role = "artifact", intent = "A consumer replays the artifact and sampled byte changes are refused.", evidence_test = "crates/antecedent/tests/joint_law_propagation_facade.rs", evidence_assertion = "the_artifact_replays_in_a_fresh_consumer_and_every_mutation_is_refused", shared_evidence = true },
   { id = "joint_law.aligned_nonlinear_functional.relabelling.invariance", role = "invariance", intent = "Swapping the two columns of a symmetric functional leaves the result.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "values_are_invariant_to_input_order_and_relabelling", shared_evidence = true },
+  { id = "joint_law.aligned_nonlinear_functional.python_correlated_gaussian.truth", role = "truth", intent = "Python surface: aligned draws recover rho s1 s2 + mu1 mu2 inside a predeclared band that an unrelated shift misses.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_aligned_product_matches_the_joint_moment_within_the_predeclared_band", shared_evidence = true },
+  { id = "joint_law.aligned_nonlinear_functional.python_enumerated_law.positive", role = "positive", intent = "Python surface: product, minimum and the contrast variance of an enumerated joint law.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_enumerated_joint_law_nonlinear_functionals", shared_evidence = true },
+  { id = "joint_law.aligned_nonlinear_functional.python_unrelated_artifacts.negative", role = "negative", intent = "Python surface: rows of unrelated joint artifacts are refused with joint_law_required.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_index_pairing_of_unrelated_joint_artifacts_is_refused", shared_evidence = true },
+  { id = "joint_law.aligned_nonlinear_functional.python_independent_marginals.negative", role = "negative", intent = "Python surface: independent-marginal artifacts are never paired by index.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_independent_marginal_artifacts_are_never_paired_by_index", shared_evidence = true },
+  { id = "joint_law.aligned_nonlinear_functional.python_replay.artifact", role = "artifact", intent = "Python surface: the aligned claim replays and refuses edits.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_artifact_round_trip_mutation_and_fresh_process", shared_evidence = true },
 ]
 [[record.inference_outputs]]
 id = "joint_law.aligned_nonlinear_functional.values.1"
@@ -13726,6 +13762,9 @@ routes = [
   { name = "antecedent_stats.joint_law.mixture_moments", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.joint_law_propagation.propagate_mixture", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent_contract.joint_law_rule.mixture_weights_unknown", stage = "prepare", status = "closed", reason_code = "invalid_argument", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "mixtures_need_known_weights_and_no_joint_law" },
+  { name = "antecedent.python.joint_law_propagation.mixture", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent._native.joint_law_mixture", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent._native.joint_law_mixture_undeclared", stage = "prepare", status = "closed", reason_code = "invalid_argument", permanent_in_release = true, refusal_test = "python/tests/test_joint_law_propagation.py", refusal_assertion = "test_known_weight_mixture_matches_the_closed_form" },
 ]
 fixtures = [
   { id = "joint_law.known_weight_mixture.closed_form.positive", role = "positive", intent = "Weights (0.25, 0.75), means (0, 4), variances (1, 4) give mean 3 and variance 6.25.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_known_weight_mixture_replays_to_the_closed_form", shared_evidence = true },
@@ -13733,6 +13772,8 @@ fixtures = [
   { id = "joint_law.known_weight_mixture.missing_weights.negative", role = "negative", intent = "A mixture without declared weights is refused.", evidence_test = "crates/antecedent/tests/joint_law_propagation_facade.rs", evidence_assertion = "known_weight_mixture_and_missing_weights", shared_evidence = true },
   { id = "joint_law.known_weight_mixture.rule.negative", role = "negative", intent = "The rule refuses a mixture without known weights and accepts one with.", evidence_test = "crates/antecedent-contract/src/joint_law_rule.rs", evidence_assertion = "mixtures_need_known_weights_and_no_joint_law", shared_evidence = true },
   { id = "joint_law.known_weight_mixture.replay.artifact", role = "artifact", intent = "A consumer replays the mixture artifact.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_known_weight_mixture_replays_to_the_closed_form", shared_evidence = true },
+  { id = "joint_law.known_weight_mixture.python_closed_form.positive", role = "positive", intent = "Python surface: mean 3, variance 6.25 and the undeclared-weights refusal.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_known_weight_mixture_matches_the_closed_form", shared_evidence = true },
+  { id = "joint_law.known_weight_mixture.python_replay.artifact", role = "artifact", intent = "Python surface: a mixture claim replays through the artifact round trip test.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_artifact_round_trip_mutation_and_fresh_process", shared_evidence = true },
 ]
 [[record.inference_outputs]]
 id = "joint_law.known_weight_mixture.values.1"
@@ -13779,7 +13820,7 @@ compatibility = "Additive. No existing claim, artifact, route or reason code cha
 search = false
 prerequisite_records = ["evidence_ledger.dependence_range"]
 prerequisite_reason = "Extends the ledger's equicorrelated pooled envelope (an assumption range) with Frechet-Hoeffding bounds of unpaired marginals; both are ranges and neither is an interval."
-bounds = { cancellation = true }
+bounds = { max_marginal_atoms = 100000, max_lattice_checks = 4000000, cancellation = true }
 inference_inventory_disposition = "point_output_listed_unmeasured"
 refusals = [
   { code = "cell_not_licensed", detail = "joint_law_propagation.envelope_is_not_a_point", when = "A dependence envelope is read as a point.", remedy = "Request the envelope reading, or supply the aligned joint law for a point value." },
@@ -13801,6 +13842,10 @@ routes = [
   { name = "antecedent_contract.joint_law_rule.envelope_is_not_a_point", stage = "prepare", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "the_envelope_is_labelled_and_never_a_point" },
   { name = "antecedent_contract.joint_law_rule.envelope_not_available", stage = "prepare", status = "closed", reason_code = "route_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "the_envelope_is_labelled_and_never_a_point" },
   { name = "antecedent_io_core.joint_law_propagation_artifact.structure_not_verified", stage = "evaluate", status = "closed", reason_code = "route_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent/tests/joint_law_propagation_facade.rs", refusal_assertion = "the_dependence_envelope_is_labelled_and_never_a_point_or_an_interval" },
+  { name = "antecedent.python.joint_law_propagation.dependence_envelope", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.python.joint_law_propagation.correlation_range", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent._native.joint_law_envelope", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent._native.joint_law_correlation_range", stage = "evaluate", status = "licensed", claim = "none" },
 ]
 fixtures = [
   { id = "joint_law.dependence_envelope.bernoulli_closed_form.positive", role = "positive", intent = "Bernoulli(0.3), Bernoulli(0.6): E[XY] in [0, 0.3], P(X+Y<=0) in [0.1, 0.4], Var(X+Y) in [0.09, 0.69].", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "bernoulli_envelopes_equal_the_closed_form_endpoints", shared_evidence = true },
@@ -13815,6 +13860,11 @@ fixtures = [
   { id = "joint_law.dependence_envelope.facade_assumption_range.artifact", role = "artifact", intent = "Through the facade the range carries the assumption_range label.", evidence_test = "crates/antecedent/tests/joint_law_propagation_facade.rs", evidence_assertion = "a_declared_correlation_range_is_an_assumption_range", shared_evidence = true },
   { id = "joint_law.dependence_envelope.listing_order.invariance", role = "invariance", intent = "Listing order, relabelling and swapping the variables leave the envelope.", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "envelopes_are_invariant_to_listing_order_and_relabelling", shared_evidence = true },
   { id = "joint_law.dependence_envelope.cancellation.negative", role = "negative", intent = "Cancellation is observed in the coupling walk.", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "cancellation_is_observed_in_the_coupling_walk", shared_evidence = true },
+  { id = "joint_law.dependence_envelope.python_bernoulli.positive", role = "positive", intent = "Python surface: Bernoulli endpoints equal the closed forms.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_bernoulli_envelope_endpoints_are_the_closed_form", shared_evidence = true },
+  { id = "joint_law.dependence_envelope.python_permutations.truth", role = "truth", intent = "Python surface: equal-mass envelope equals enumeration over permutations.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_equal_mass_envelope_equals_enumeration_over_permutations", shared_evidence = true },
+  { id = "joint_law.dependence_envelope.python_uniform.truth", role = "truth", intent = "Python surface: uniform marginals match Makarov and the monotone couplings.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_uniform_marginals_makarov_and_monotone_couplings", shared_evidence = true },
+  { id = "joint_law.dependence_envelope.python_labels.negative", role = "negative", intent = "Python surface: an envelope is never a point or an interval and an unverified sign structure is refused.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_envelope_is_never_a_point_or_an_interval_and_ranges_are_labelled", shared_evidence = true },
+  { id = "joint_law.dependence_envelope.python_replay.artifact", role = "artifact", intent = "Python surface: an envelope artifact keeps its label through replay.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_artifact_round_trip_mutation_and_fresh_process", shared_evidence = true },
 ]
 [[record.inference_outputs]]
 id = "joint_law.dependence_envelope.values.1"
@@ -13874,6 +13924,8 @@ fixtures = [
   { id = "joint_law.transported_composition.without_dependence.negative", role = "negative", intent = "Unknown, independent and marginals-only declarations are refused with transported_dependence_required.", evidence_test = "crates/antecedent-contract/src/joint_law_rule.rs", evidence_assertion = "a_transported_interval_needs_an_aligned_law_or_a_covariance", shared_evidence = true },
   { id = "joint_law.transported_composition.sealed_refusal.negative", role = "negative", intent = "Sealing a transported composition without dependence is refused.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_transported_interval_is_composed_only_under_a_covariance_or_an_aligned_law", shared_evidence = true },
   { id = "joint_law.transported_composition.sealed_composition.artifact", role = "artifact", intent = "A transported composition under a covariance seals and replays.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_transported_interval_is_composed_only_under_a_covariance_or_an_aligned_law", shared_evidence = true },
+  { id = "joint_law.transported_composition.python_needs_dependence.negative", role = "negative", intent = "Python surface: a transported interval needs an aligned law or a covariance.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_transported_composition_needs_an_aligned_law_or_a_covariance", shared_evidence = true },
+  { id = "joint_law.transported_composition.python_covariance_replay.artifact", role = "artifact", intent = "Python surface: a composed claim under a covariance replays.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_artifact_round_trip_mutation_and_fresh_process", shared_evidence = true },
 ]
 inference_outputs = []
 
@@ -13907,12 +13959,17 @@ refusals = [
 routes = [
   { name = "antecedent.joint_law_propagation.PropagationClaim.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "interval_and_posterior_readings_are_closed" },
   { name = "antecedent.joint_law_propagation.PropagationClaim.posterior", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "interval_and_posterior_readings_are_closed" },
+  { name = "antecedent.python.joint_law_propagation.PropagationClaim.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_joint_law_propagation.py", refusal_assertion = "test_envelope_is_never_a_point_or_an_interval_and_ranges_are_labelled" },
+  { name = "antecedent.python.joint_law_propagation.PropagationClaim.posterior", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_joint_law_propagation.py", refusal_assertion = "test_envelope_is_never_a_point_or_an_interval_and_ranges_are_labelled" },
+  { name = "antecedent._native.joint_law_closed_reading", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_joint_law_propagation.py", refusal_assertion = "test_envelope_is_never_a_point_or_an_interval_and_ranges_are_labelled" },
 ]
 fixtures = [
   { id = "joint_law.composed_interval.point_value_is_the_result.positive", role = "positive", intent = "The labelled point value under a licensed route is what a composed claim reports.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_covariance_aware_contrast_replays_to_the_closed_form", shared_evidence = true },
   { id = "joint_law.composed_interval.interval_and_posterior.negative", role = "negative", intent = "Interval and posterior readings are refused with cell_not_licensed and their details.", evidence_test = "crates/antecedent-contract/src/joint_law_rule.rs", evidence_assertion = "interval_and_posterior_readings_are_closed", shared_evidence = true },
   { id = "joint_law.composed_interval.facade_closed.negative", role = "negative", intent = "Through the facade the claim's interval and posterior refuse.", evidence_test = "crates/antecedent/tests/joint_law_propagation_facade.rs", evidence_assertion = "the_dependence_envelope_is_labelled_and_never_a_point_or_an_interval", shared_evidence = true },
   { id = "joint_law.composed_interval.no_interval_in_artifact.artifact", role = "artifact", intent = "The artifact carries no interval or posterior field and replays.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_covariance_aware_contrast_replays_to_the_closed_form", shared_evidence = true },
+  { id = "joint_law.composed_interval.python_closed.negative", role = "negative", intent = "Python surface: interval and posterior raise cell_not_licensed with their details.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_envelope_is_never_a_point_or_an_interval_and_ranges_are_labelled", shared_evidence = true },
+  { id = "joint_law.composed_interval.python_no_interval.artifact", role = "artifact", intent = "Python surface: the replayed artifact carries no interval.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_artifact_round_trip_mutation_and_fresh_process", shared_evidence = true },
 ]
 [[record.inference_outputs]]
 id = "joint_law.composed_interval.values.1"
@@ -14042,6 +14099,13 @@ fixtures = [
   { id = "interface_contract.scientific_interface.semantic_mutation.artifact", role = "artifact", intent = "A resealed declaration the library refuses, a wrong paradigm and unsorted ports are refused.", evidence_test = "crates/antecedent-io-core/tests/interface_contract_artifact.rs", evidence_assertion = "a_resealed_declaration_the_library_refuses_is_refused_with_its_detail" },
   { id = "interface_contract.scientific_interface.container.artifact", role = "artifact", intent = "An unknown field and a corrupted byte do not decode.", evidence_test = "crates/antecedent-io-core/tests/interface_contract_artifact.rs", evidence_assertion = "an_unknown_field_and_a_corrupted_byte_do_not_decode" },
   { id = "interface_contract.scientific_interface.facade_export_consume.artifact", role = "artifact", intent = "Rust facade: export, independent inspection and consumption against a retained identity.", evidence_test = "crates/antecedent/tests/interface_contract_facade.rs", evidence_assertion = "an_exported_contract_is_inspected_and_consumed_against_a_retained_identity" },
+  { id = "interface_contract.scientific_interface.python_pair.positive", role = "positive", intent = "Python surface: a compatible pair connects and keeps the producer's measured label, operations and evidence.", evidence_test = "python/tests/test_interface_contract.py", evidence_assertion = "test_a_compatible_pair_connects_and_keeps_the_producers_label" },
+  { id = "interface_contract.scientific_interface.python_syntactic_match.negative", role = "negative", intent = "Python surface: the same variable, units and shape in another population, with a mean offered for a law, is refused with coded, remedied details.", evidence_test = "python/tests/test_interface_contract.py", evidence_assertion = "test_a_pair_that_matches_syntactically_fails_scientifically" },
+  { id = "interface_contract.scientific_interface.python_operations.negative", role = "negative", intent = "Python surface: a mean is not a law and a sampling interval is not a posterior.", evidence_test = "python/tests/test_interface_contract.py", evidence_assertion = "test_a_mean_does_not_supply_a_law_and_a_sampling_interval_is_not_a_posterior" },
+  { id = "interface_contract.scientific_interface.python_malformed.negative", role = "negative", intent = "Python surface: a malformed declaration is refused alone with its own detail and a non-finite support bound is an input error.", evidence_test = "python/tests/test_interface_contract.py", evidence_assertion = "test_a_malformed_declaration_is_refused_alone" },
+  { id = "interface_contract.scientific_interface.python_disjoint_evidence.negative", role = "negative", intent = "Python surface: inputs required disjoint that share an evidence source are refused.", evidence_test = "python/tests/test_interface_contract.py", evidence_assertion = "test_inputs_required_disjoint_cannot_share_evidence" },
+  { id = "interface_contract.scientific_interface.python_round_trip.artifact", role = "artifact", intent = "Python surface: export, inspection and consumption against a retained identity; the artifact is deterministic.", evidence_test = "python/tests/test_interface_contract.py", evidence_assertion = "test_an_exported_contract_round_trips_and_is_inspectable" },
+  { id = "interface_contract.scientific_interface.python_fresh_process.artifact", role = "artifact", intent = "Python surface: a fresh process consumes the artifact against a retained identity and refuses another.", evidence_test = "python/tests/test_interface_contract.py", evidence_assertion = "test_a_fresh_process_consumes_the_artifact_against_a_retained_identity" },
 ] 
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -14079,6 +14143,7 @@ fixtures = [
   { id = "interface_contract.cyclic_composition.facade_loop.negative", role = "negative", intent = "Rust facade: a feedback loop is refused before execution with its path, and the same components compose feed-forward without the closing edge.", evidence_test = "crates/antecedent/tests/interface_contract_facade.rs", evidence_assertion = "a_feedback_loop_is_refused_before_execution_with_the_path" },
   { id = "interface_contract.cyclic_composition.feed_forward.positive", role = "positive", intent = "The adjacent feed-forward composition is accepted and ordered producers first.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "a_feed_forward_composition_is_ordered_producers_first" },
   { id = "interface_contract.cyclic_composition.no_loop_in_artifact.artifact", role = "artifact", intent = "A per-component contract artifact carries no composition: cyclic composition is a property of a set of components checked before execution and is not carried by the artifact.", evidence_test = "crates/antecedent-io-core/tests/interface_contract_artifact.rs", evidence_assertion = "a_sealed_contract_round_trips_with_stable_identities" },
+  { id = "interface_contract.cyclic_composition.python_cycle.negative", role = "negative", intent = "Python surface: a three-component cycle is refused with the path a -> b -> c -> a and the same components compose feed-forward.", evidence_test = "python/tests/test_interface_contract.py", evidence_assertion = "test_a_feed_forward_composition_is_ordered_and_a_cycle_is_refused_with_its_path" },
 ] 
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -14120,6 +14185,7 @@ fixtures = [
   { id = "interface_contract.calibration_inheritance.upstream_not_held.negative", role = "negative", intent = "An output inheriting calibration from an upstream that no longer holds a measured record is refused, and so is the downstream that relies on it; a measured upstream resolves the same record through.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "inherited_calibration_resolves_against_the_upstream_that_holds_it" },
   { id = "interface_contract.calibration_inheritance.label_carried.positive", role = "positive", intent = "A point-only producer stays point-only across a connection; the label is carried, never raised.", evidence_test = "crates/antecedent-contract/tests/interface_contract.rs", evidence_assertion = "point_only_stays_point_only_across_a_connection" },
   { id = "interface_contract.calibration_inheritance.label_in_artifact.artifact", role = "artifact", intent = "The calibration label travels in the artifact as declared, with its record identity, and is recomputed into the identity.", evidence_test = "crates/antecedent-io-core/tests/interface_contract_artifact.rs", evidence_assertion = "a_sealed_contract_round_trips_with_stable_identities" },
+  { id = "interface_contract.calibration_inheritance.python_not_measured.negative", role = "negative", intent = "Python surface: a consumer relying on measured calibration is refused for none and unmeasured labels.", evidence_test = "python/tests/test_interface_contract.py", evidence_assertion = "test_measured_calibration_is_required_not_assumed" },
 ] 
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -14160,6 +14226,727 @@ fixtures = [
   { id = "interface_contract.portable_specification.schema_vocabularies.invariance", role = "invariance", intent = "The vocabularies written in the schemas equal the implementation's enumerations.", evidence_test = "crates/antecedent/tests/specification_conformance.rs", evidence_assertion = "schema_vocabularies_equal_the_implementations" },
   { id = "interface_contract.portable_specification.specification_text.invariance", role = "invariance", intent = "The tables and domain tags written in the specification text equal the implementation's.", evidence_test = "crates/antecedent/tests/specification_conformance.rs", evidence_assertion = "the_specification_text_states_the_implementations_tables_and_tags" },
   { id = "interface_contract.portable_specification.consumer_tables.invariance", role = "invariance", intent = "The clean-room consumer's vocabulary tables equal the implementation's.", evidence_test = "crates/antecedent/tests/specification_conformance.rs", evidence_assertion = "the_clean_room_consumers_vocabulary_tables_equal_the_implementations" },
+  { id = "interface_contract.portable_specification.python_clean_room.positive", role = "positive", intent = "Python surface: an artifact exported from Python is accepted by the clean-room consumer in a subprocess and a corrupted copy and a wrong retained identity are rejected.", evidence_test = "python/tests/test_interface_contract.py", evidence_assertion = "test_the_clean_room_consumer_accepts_an_exported_artifact_and_rejects_mutations" },
 ] 
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
+
+[[record]]
+id = "cross_world_execution.finite_markovian_scm"
+capability = "cross_world_execution.finite_markovian_scm"
+status = "in_progress"
+consumer_question = "What would the same observed unit have had under another action, and what do worlds that share its exogenous history jointly do, in a declared finite Markovian SCM?"
+theorem = "In a Markovian SCM over finite variables with independent finite exogenous terms and declared mechanisms, the counterfactual law over worlds given a unit's factual evidence is the push-forward of the exogenous posterior P(u | e) through the intervened equations, every world reading the same posterior state (abduction-action-prediction; Pearl 2009 ch. 7; Balke and Pearl 1994; natural effects as nested counterfactuals, Pearl 2001). The posterior is enumerated exactly. Independently drawn world noise gives an interventional, not a counterfactual, joint law and is never paired; pairing is decided only by the joint-law rule. Mechanism adequacy is a premise, not a check."
+reference = "provenance/cross_world_execution.finite_markovian_scm.toml"
+guarantee = "exact_enumeration_point_only_conditional_on_declared_model"
+graph_class = "Static Markovian SCM over finite variables (at most 12, 4 levels, independent finite exogenous terms); semi-Markovian and nonparametric ADMG requests are refused."
+population_semantics = "One population and one history, those the mechanisms are declared for; another target population or history is refused with its prerequisites."
+evidence_family = "Declared mechanism tables and exogenous laws; per-unit factual evidence (possibly none)."
+provider = "antecedent_counterfactual::selective::FiniteScmExecutor; antecedent_io_core::cross_world_execution_artifact; antecedent::analysis::cross_world_execution."
+estimand = "Per-unit counterfactual probability, mean contrast, joint event or natural/path-specific contrast, and their mean over units."
+inference_claim = "point_only"
+owners = ["antecedent-counterfactual", "antecedent-contract", "antecedent-io-core", "antecedent"]
+identity_inputs = ["the mechanism tables, exogenous laws, population and history (reals as IEEE bits)", "per-unit factual evidence", "world definitions: interventions and cross-world routes, in order", "the quantity and declared coupling", "the inference method (exact enumeration) and reading"]
+wire_changes = ["Additive: cross_world_execution_v1 artifact v1 (new kind, at most 64 MiB) holding the declarations, shared exogenous states and numbers; the consumer replays everything with a fresh executor."]
+compatibility = "Additive. No existing counterfactual route, artifact or reason code changes; existing theorem-scoped routes keep their boundaries."
+search = false
+prerequisite_records = ["counterfactual.path_specific_edge", "joint_law.aligned_nonlinear_functional"]
+prerequisite_reason = "Reuses the path-specific cross-world semantics and routes every pairing of worlds through the one joint-law rule; no interval or transported guarantee is inherited."
+bounds = { max_variables = 12, max_worlds = 8, max_units = 1024, max_joint_exogenous_states = 65536, cancellation = true }
+inference_inventory_disposition = "point_output_listed_unmeasured"
+surface = ["python/antecedent/cross_world_execution.py"]
+surface_pyo3 = ["python/src/cross_world_execution_api.rs"]
+surface_exports = ["python/antecedent/cross_world_execution.py"]
+owned_exports = ["CapabilityRow", "ConsumedCrossWorldExecution", "CrossWorldExecution", "CrossWorldExecutionRefusal", "CrossWorldExecutor", "CrossWorldRequest", "ExecutionResult", "ExogenousTerm", "FactualUnit", "FiniteSCM", "FiniteVariable", "World", "WorldRoute", "capability_matrix", "consume_cross_world_execution_artifact", "decide", "joint_probability", "mean_contrast", "probability", "seal"]
+surface_values = ["CapabilityRow", "ConsumedCrossWorldExecution", "ExecutionResult", "ExogenousTerm", "FactualUnit", "FiniteSCM", "FiniteVariable", "World", "WorldRoute"]
+refusals = [
+  { code = "invalid_argument", detail = "cross_world_execution.invalid_request", when = "A request or matrix coordinate handed over the bridge is not a well-formed declaration or names an unknown option.", remedy = "Supply a well-formed declaration." },
+  { code = "invalid_argument", detail = "cross_world_execution.invalid_identity", when = "A retained identity is not a well-formed identity.", remedy = "Pass the identity the producer exported." },
+  { code = "invalid_argument", detail = "cross_world_execution.invalid_artifact", when = "Artifact bytes are corrupt, truncated, another version or unsupported semantics.", remedy = "Consume the exported artifact bytes." },
+  { code = "transport_budget_cancel", detail = "cross_world_execution.cancelled", when = "Cancellation stopped the execution; no partial result is reported and retained state is unchanged.", remedy = "Retry without cancellation." },
+  { code = "cross_world_not_identified", detail = "cross_world_execution.mechanisms_not_declared", when = "A nonparametric graph is given with no declared mechanisms or exogenous law.", remedy = "Declare the mechanisms and the exogenous law." },
+  { code = "route_not_supported", detail = "cross_world_execution.cell_not_in_matrix", when = "The quantity, model, conditioning, history or evidence source matches no executed matrix row.", remedy = "Match an executed row of parity/cross_world_capability.toml." },
+  { code = "cross_world_not_identified", detail = "cross_world_execution.non_markovian", when = "An exogenous term feeds more than one endogenous variable (latent confounding).", remedy = "Declare one independent exogenous term per mechanism or use an identification route that accepts the latent structure." },
+  { code = "route_not_supported", detail = "cross_world_execution.incompatible_history", when = "The factual evidence was gathered under a history other than the one the mechanisms are declared for.", remedy = "Declare the mechanisms for that history or supply their invariance across histories." },
+  { code = "route_not_supported", detail = "cross_world_execution.evidence_outside_model_support", when = "The factual evidence has probability zero under the declared mechanisms.", remedy = "Revise the mechanisms or the evidence." },
+  { code = "invalid_argument", detail = "cross_world_execution.invalid_scm", when = "The SCM declaration is malformed.", remedy = "Supply a well-formed declaration; the offending field is named." },
+  { code = "invalid_argument", detail = "cross_world_execution.invalid_world", when = "A world's intervention or route is not valid for the model.", remedy = "Name known variables, parent edges and other worlds." },
+  { code = "invalid_argument", detail = "cross_world_execution.invalid_evidence", when = "A unit's evidence names an unknown variable or level or repeats a variable.", remedy = "Supply valid evidence." },
+  { code = "invalid_argument", detail = "cross_world_execution.invalid_quantity", when = "The quantity names an unknown world, variable or level.", remedy = "Name declared worlds, variables and levels." },
+  { code = "invalid_argument", detail = "cross_world_execution.bounds_exceeded", when = "A declaration exceeds a documented bound.", remedy = "Reduce the declaration below the bound." },
+  { code = "route_not_supported", detail = "cross_world_execution.soft_intervention", when = "A world is defined by a stochastic or policy intervention.", remedy = "Express the world as hard interventions." },
+  { code = "route_not_supported", detail = "cross_world_execution.finite_fitting_not_executed", when = "The mechanisms are requested to be fitted from data.", remedy = "Declare the mechanisms and the exogenous law." },
+  { code = "route_not_supported", detail = "cross_world_execution.artifact_changed", when = "A consumer retained an identity and the artifact's declarations differ.", remedy = "Consume the exported artifact or retain the intended identity." },
+]
+routes = [
+  { name = "antecedent_counterfactual.selective.finite_scm_executor.execute", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_io_core.cross_world_execution_artifact.seal", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_io_core.cross_world_execution_artifact.consume", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.cross_world_execution.seal", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_counterfactual.selective.matrix.semi_markovian", stage = "prepare", status = "closed", reason_code = "cross_world_not_identified", permanent_in_release = true, refusal_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", refusal_assertion = "unsupported_requests_are_scientific_refusals_that_do_no_work" },
+  { name = "antecedent_counterfactual.selective.matrix.incompatible_history", stage = "prepare", status = "closed", reason_code = "route_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", refusal_assertion = "unsupported_requests_are_scientific_refusals_that_do_no_work" },
+  { name = "antecedent_counterfactual.selective.matrix.soft_intervention", stage = "prepare", status = "closed", reason_code = "route_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent-counterfactual/src/selective/matrix.rs", refusal_assertion = "executed_cells_resolve_and_every_closed_cell_names_its_row" },
+  { name = "antecedent_counterfactual.selective.matrix.fit_from_data", stage = "prepare", status = "closed", reason_code = "route_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent-counterfactual/src/selective/matrix.rs", refusal_assertion = "executed_cells_resolve_and_every_closed_cell_names_its_row" },
+  { name = "antecedent_counterfactual.selective.coupling_independent_world_noise", stage = "prepare", status = "closed", reason_code = "joint_law_required", permanent_in_release = true, refusal_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", refusal_assertion = "a_cross_world_joint_event_uses_the_coupled_worlds_only" },
+  { name = "antecedent.python.cross_world_execution.CrossWorldExecutor.execute", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["cross_world_capability_matrix", "cross_world_decide", "cross_world_consume", "cross_world_closed_reading", "CrossWorldExecutor", "retained_len", "counters", "clear", "from_artifact"] },
+  { name = "antecedent.python.cross_world_execution.seal", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["CrossWorldExecution", "CrossWorldExecutionRefusal", "CrossWorldRequest", "capability_matrix", "decide", "joint_probability", "mean_contrast", "probability"] },
+  { name = "antecedent.python.cross_world_execution.consume_cross_world_execution_artifact", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent._native.cross_world_seal", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "cross_world_execution.finite_markovian_scm.necessity_5_7.truth", role = "truth", intent = "P(Y_x0 = 0 | X = 1, Y = 1) = 0.5 / 0.7 = 5/7 and P(evidence) = 0.28 from response-type masses.", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", evidence_assertion = "probability_of_necessity_is_the_abduced_posterior_mass", shared_evidence = true },
+  { id = "cross_world_execution.finite_markovian_scm.coupled_joint_event.positive", role = "positive", intent = "P(Y_x1 = 1, Y_x0 = 0) is the complier mass 0.5 under the shared exogenous term (the product of marginals, 0.49, is refused as a joint law).", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", evidence_assertion = "a_cross_world_joint_event_uses_the_coupled_worlds_only" },
+  { id = "cross_world_execution.finite_markovian_scm.natural_effects.truth", role = "truth", intent = "NDE 0.25, NIE 0.225, total 0.475 and the joint 0.25 from a hand-computed mediation model.", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", evidence_assertion = "natural_effects_are_recomputed_from_coupled_worlds" },
+  { id = "cross_world_execution.finite_markovian_scm.action_only_reuse.lifecycle", role = "lifecycle", intent = "An action-only change reuses abduction (counters show none redone) and equals a full rerun bit for bit.", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", evidence_assertion = "an_action_only_change_reuses_abduction_and_matches_a_full_rerun_bit_for_bit" },
+  { id = "cross_world_execution.finite_markovian_scm.changed_inputs.lifecycle", role = "lifecycle", intent = "Changed evidence or a mechanism parameter at unchanged shape rebuilds abduction and gives the independently computed value.", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", evidence_assertion = "changed_evidence_or_mechanism_invalidates_abduction" },
+  { id = "cross_world_execution.finite_markovian_scm.unit_order.invariance", role = "invariance", intent = "Permuting units and evidence order leaves values and receipts bit-identical.", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", evidence_assertion = "units_keep_their_identity_and_the_order_of_units_does_not_matter" },
+  { id = "cross_world_execution.finite_markovian_scm.unsupported.negative", role = "negative", intent = "Latent confounding, another population, incompatible history, sampled abduction, refuted evidence, bad routes and bounds are typed refusals that do no work.", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", evidence_assertion = "unsupported_requests_are_scientific_refusals_that_do_no_work" },
+  { id = "cross_world_execution.finite_markovian_scm.cancellation.budget", role = "budget", intent = "A cancelled execution leaves retained abductions and counters unchanged.", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", evidence_assertion = "a_cancelled_execution_leaves_the_retained_state_unchanged" },
+  { id = "cross_world_execution.finite_markovian_scm.sealed_replay.artifact", role = "artifact", intent = "Seal, export and independent consume replay the enumerated truth and shared states.", evidence_test = "crates/antecedent-io-core/tests/cross_world_execution_artifact.rs", evidence_assertion = "sealing_and_consuming_replays_the_enumerated_truth" },
+  { id = "cross_world_execution.finite_markovian_scm.resume.lifecycle", role = "lifecycle", intent = "A consumer resumes an action-only change from the verified abduction.", evidence_test = "crates/antecedent-io-core/tests/cross_world_execution_artifact.rs", evidence_assertion = "the_consumer_resumes_an_action_only_change_from_the_verified_abduction" },
+  { id = "cross_world_execution.finite_markovian_scm.resealed_mutations.negative", role = "negative", intent = "Resealed edits of numbers, mechanisms, evidence, worlds, shared states, coupling, claim and version are refused.", evidence_test = "crates/antecedent-io-core/tests/cross_world_execution_artifact.rs", evidence_assertion = "a_different_declared_identity_is_refused_even_for_a_valid_artifact" },
+  { id = "cross_world_execution.finite_markovian_scm.fresh_process.artifact", role = "artifact", intent = "A fresh process consumes only the bytes and matches the natural direct effect 0.25.", evidence_test = "crates/antecedent/tests/cross_world_execution_facade.rs", evidence_assertion = "a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle" },
+  { id = "cross_world_execution.finite_markovian_scm.facade_independent_noise.negative", role = "negative", intent = "Independent world noise is never a counterfactual joint law through the facade.", evidence_test = "crates/antecedent/tests/cross_world_execution_facade.rs", evidence_assertion = "independent_world_noise_is_never_a_counterfactual_joint_law" },
+  { id = "cross_world_execution.finite_markovian_scm.python_truth.truth", role = "truth", intent = "Python surface: the necessity 5/7 and coupled joint 0.5 equal the enumerated truth computed in the test.", evidence_test = "python/tests/test_cross_world_execution.py", evidence_assertion = "test_probability_of_necessity_and_coupled_joint_event_match_enumerated_truth" },
+  { id = "cross_world_execution.finite_markovian_scm.python_natural_effects.truth", role = "truth", intent = "Python surface: NDE 0.25, NIE 0.225, total 0.475 and the nested joint equal an independent brute-force enumeration.", evidence_test = "python/tests/test_cross_world_execution.py", evidence_assertion = "test_natural_effects_use_coupled_worlds_and_match_enumeration" },
+  { id = "cross_world_execution.finite_markovian_scm.python_reuse.lifecycle", role = "lifecycle", intent = "Python surface: an action-only change shows abductions 0 and abductions_reused 1; changed evidence or parameters rebuild.", evidence_test = "python/tests/test_cross_world_execution.py", evidence_assertion = "test_action_only_change_reuses_abduction_and_changed_evidence_rebuilds" },
+  { id = "cross_world_execution.finite_markovian_scm.python_unsupported.negative", role = "negative", intent = "Python surface: latent confounding, another population or history, closed readings and sampled abduction raise typed refusals.", evidence_test = "python/tests/test_cross_world_execution.py", evidence_assertion = "test_unsupported_requests_are_scientific_refusals" },
+  { id = "cross_world_execution.finite_markovian_scm.python_independent_noise.negative", role = "negative", intent = "Python surface: independent or undeclared world noise raises joint_law_required and does no work.", evidence_test = "python/tests/test_cross_world_execution.py", evidence_assertion = "test_independent_or_undeclared_coupling_is_never_a_joint_law" },
+  { id = "cross_world_execution.finite_markovian_scm.python_artifact.artifact", role = "artifact", intent = "Python surface: export, consume, byte-edit mutation, resume from the verified abduction and fresh-process replay.", evidence_test = "python/tests/test_cross_world_execution.py", evidence_assertion = "test_artifact_round_trip_mutation_resume_and_fresh_process" },
+]
+inference_outputs = []
+
+[[record]]
+id = "cross_world_execution.temporal_selective"
+capability = "cross_world_execution.temporal_selective"
+status = "in_progress"
+consumer_question = "Can the fixed-population temporal counterfactual reuse its abduction when only the named action histories change?"
+theorem = "The fixed two-slice additive linear-Gaussian temporal theorem is unchanged; the staged executor runs the same arithmetic as separate abduction and replay stages, retaining each factual history's abduction under the digest of snapshot, graph, mechanism fit and factual histories. Results are bit-identical to the one-shot evaluator."
+reference = "provenance/cross_world_execution.temporal_selective.toml"
+guarantee = "shared_exogenous_history_counterfactual_linear_additive_noise_point_only_with_reuse"
+graph_class = "Fully observed two-slice Markovian temporal DAG; no latent confounding."
+population_semantics = "One fixed population and snapshot; a changed snapshot, graph, fit or factual value is a different abduction."
+evidence_family = "Complete two-slice unit trajectories and a supplied fitted mechanism identity."
+provider = "antecedent_counterfactual::temporal_cross_world::staged::TemporalExecutor."
+estimand = "Per-unit final outcomes under two named action histories and their mean contrast."
+inference_claim = "point_only"
+owners = ["antecedent-counterfactual", "antecedent-contract", "antecedent-io-core", "antecedent"]
+identity_inputs = ["snapshot, graph, mechanism fit and factual histories (abduction key)", "the named action histories (prediction identity)"]
+wire_changes = ["Additive: cross_world_execution_v1 artifact v1 (new kind, at most 64 MiB) holding the declarations, shared exogenous states and numbers; the consumer replays everything with a fresh executor."]
+compatibility = "Additive; the one-shot evaluator and temporal_counterfactual_v1 are unchanged."
+search = false
+prerequisite_records = ["counterfactual.temporal_fixed_population"]
+prerequisite_reason = "Extends the promoted fixed-population row with stage reuse; the theorem and its refusals are inherited unchanged."
+bounds = { cancellation = true }
+inference_inventory_disposition = "point_output_listed_unmeasured"
+refusals = [
+  { code = "route_not_supported", detail = "temporal_counterfactual.unpaired_histories", when = "Factual and world units do not pair.", remedy = "Pair every factual unit with every world." },
+  { code = "route_not_supported", detail = "temporal_counterfactual.refuting_history", when = "A factual history lies outside a declared noise halfwidth.", remedy = "Revise the mechanisms or the evidence." },
+]
+routes = [
+  { name = "antecedent_counterfactual.temporal_cross_world.staged.execute", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "cross_world_execution.temporal_selective.bit_identical.truth", role = "truth", intent = "Staged execution equals the one-shot evaluator bit for bit on a closed-form SCM.", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution_temporal.rs", evidence_assertion = "staged_execution_is_bit_identical_to_the_one_shot_evaluator", shared_evidence = true },
+  { id = "cross_world_execution.temporal_selective.action_only_reuse.lifecycle", role = "lifecycle", intent = "New action histories reuse the abduction (counters) and equal a full rerun.", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution_temporal.rs", evidence_assertion = "a_changed_action_history_reuses_the_abduction", shared_evidence = true },
+  { id = "cross_world_execution.temporal_selective.changed_inputs.lifecycle", role = "lifecycle", intent = "Changed evidence, fit or snapshot rebuilds the abduction.", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution_temporal.rs", evidence_assertion = "changed_factual_evidence_or_fit_invalidates_the_abduction", shared_evidence = true },
+  { id = "cross_world_execution.temporal_selective.refusal_atomicity.negative", role = "negative", intent = "A refusal or cancellation leaves retained state unchanged.", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution_temporal.rs", evidence_assertion = "refusals_and_cancellation_leave_the_retained_state_unchanged", shared_evidence = true },
+  { id = "cross_world_execution.temporal_selective.reuse.positive", role = "positive", intent = "New action histories reuse the abduction and give the hand-simulated outcomes.", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution_temporal.rs", evidence_assertion = "a_changed_action_history_reuses_the_abduction", shared_evidence = true },
+  { id = "cross_world_execution.temporal_selective.one_shot_artifact.artifact", role = "artifact", intent = "The staged result equals the one-shot evaluator whose answer the independent temporal_counterfactual_v1 consumer replays.", evidence_test = "crates/antecedent-io/tests/temporal_counterfactual_artifact.rs", evidence_assertion = "artifact_matches_hand_abduction_and_replays_both_worlds", shared_evidence = true },
+]
+inference_outputs = []
+
+[[record]]
+id = "cross_world_execution.transported_row"
+capability = "cross_world_execution.transported_row"
+status = "in_progress"
+consumer_question = "May a cross-world quantity be executed in a target population other than the one the mechanisms are declared for?"
+theorem = "No joint theorem composes a transport license with factual abduction in a target population. A transport identification supplies no abduction, shared-noise or per-world receipts, and abduction in the source population is not abduction of a target unit. The row stays closed; the static additive linear path-specific case keeps its own theorem-scoped route."
+reference = "provenance/cross_world_execution.transported_row.toml"
+guarantee = "closed_with_named_prerequisites"
+graph_class = "Not applicable (closed)."
+population_semantics = "Source and target populations differ; no target unit is abduced."
+evidence_family = "None accepted."
+provider = "antecedent_counterfactual::selective::matrix::decide (refusal only)."
+estimand = "none"
+inference_claim = "none"
+owners = ["antecedent-counterfactual", "antecedent-contract", "antecedent-io-core", "antecedent"]
+identity_inputs = ["the declared population and the requested target population"]
+wire_changes = ["Additive: cross_world_execution_v1 artifact v1 (new kind, at most 64 MiB) holding the declarations, shared exogenous states and numbers; the consumer replays everything with a fresh executor."]
+compatibility = "Additive; closed."
+search = false
+prerequisite_records = ["counterfactual.transport_general", "counterfactual.transported_path_specific"]
+prerequisite_reason = "Would require the transport license, a fixed-population cross-world license, cross-population invariance of the exogenous law and target-population abduction receipts."
+bounds = { cancellation = true }
+inference_inventory_disposition = "no_new_inference_outputs"
+refusals = [
+  { code = "cell_not_licensed", detail = "cross_world_execution.transported_row_closed", when = "A target population other than the declared one is requested.", remedy = "Supply a transport license, a fixed-population cross-world license, the cross-population invariance of the exogenous law and target-population factual evidence, or use the static additive linear transported route." },
+]
+routes = [
+  { name = "antecedent_counterfactual.selective.transported_cross_world", stage = "prepare", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", refusal_assertion = "unsupported_requests_are_scientific_refusals_that_do_no_work" },
+  { name = "antecedent_counterfactual.selective.matrix.transported_prerequisites", stage = "prepare", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-counterfactual/src/selective/matrix.rs", refusal_assertion = "a_transported_request_names_every_unmet_prerequisite" },
+]
+fixtures = [
+  { id = "cross_world_execution.transported_row.names_prerequisites.negative", role = "negative", intent = "A transported request refuses with the unmet gates and receipts named.", evidence_test = "crates/antecedent-counterfactual/src/selective/matrix.rs", evidence_assertion = "a_transported_request_names_every_unmet_prerequisite" },
+  { id = "cross_world_execution.transported_row.registry_equals_code.invariance", role = "invariance", intent = "The registry matrix rows equal the code rows.", evidence_test = "crates/antecedent-counterfactual/tests/capability_matrix_registry.rs", evidence_assertion = "the_registry_rows_are_exactly_the_code_rows" },
+  { id = "cross_world_execution.transported_row.matrix_resolves.positive", role = "positive", intent = "Executed cells resolve, closed cells name their row; the static additive route keeps its own route.", evidence_test = "crates/antecedent-counterfactual/src/selective/matrix.rs", evidence_assertion = "executed_cells_resolve_and_every_closed_cell_names_its_row" },
+  { id = "cross_world_execution.transported_row.unsealable.artifact", role = "artifact", intent = "A transported request cannot be sealed: it refuses with the named prerequisites.", evidence_test = "crates/antecedent-io-core/tests/cross_world_execution_artifact.rs", evidence_assertion = "unsupported_requests_cannot_be_sealed" },
+]
+inference_outputs = []
+
+[[record]]
+id = "cross_world_execution.sampled_and_interval_readings"
+capability = "cross_world_execution.sampled_and_interval_readings"
+status = "in_progress"
+consumer_question = "May a cross-world value carry an interval, a posterior or a sampled abduction?"
+theorem = "No: the whole abduction-action-prediction path has no measured coverage record; component intervals do not cover the composition. Only the exact-enumeration point value is licensed. The calibration design (whole-path, response-type finite SCMs, nominal 0.95, 2-4 levels, up to 3 variables) is recorded in docs/cross-world-execution.md and not measured."
+reference = "provenance/cross_world_execution.sampled_and_interval_readings.toml"
+guarantee = "closed_pending_measurement"
+graph_class = "Finite Markovian SCM."
+population_semantics = "As the finite Markovian row."
+evidence_family = "None accepted."
+provider = "antecedent::analysis::cross_world_execution::CrossWorldExecution (refusal only)."
+estimand = "none"
+inference_claim = "none"
+owners = ["antecedent-counterfactual", "antecedent-contract", "antecedent-io-core", "antecedent"]
+identity_inputs = ["the reading requested"]
+wire_changes = ["Additive: cross_world_execution_v1 artifact v1 (new kind, at most 64 MiB) holding the declarations, shared exogenous states and numbers; the consumer replays everything with a fresh executor."]
+compatibility = "Additive; closed."
+search = false
+prerequisite_records = ["cross_world_execution.finite_markovian_scm"]
+prerequisite_reason = "Closed readings of an executed point route."
+bounds = { cancellation = true }
+inference_inventory_disposition = "no_new_inference_outputs"
+refusals = [
+  { code = "cell_not_licensed", detail = "cross_world_execution.sampled_abduction_not_licensed", when = "Posterior sampling of the exogenous terms is requested.", remedy = "Request exact enumeration." },
+  { code = "cell_not_licensed", detail = "cross_world_execution.interval_route_closed", when = "An interval is requested.", remedy = "Use the point value; the calibration design is recorded in docs/cross-world-execution.md." },
+  { code = "cell_not_licensed", detail = "cross_world_execution.posterior_route_closed", when = "A posterior statement is requested.", remedy = "Use the point value." },
+]
+routes = [
+  { name = "antecedent_counterfactual.selective.sampled_abduction", stage = "prepare", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", refusal_assertion = "unsupported_requests_are_scientific_refusals_that_do_no_work" },
+  { name = "antecedent.cross_world_execution.interval_posterior", stage = "prepare", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/cross_world_execution_facade.rs", refusal_assertion = "natural_direct_effect_seals_replays_and_resumes" },
+]
+fixtures = [
+  { id = "cross_world_execution.sampled_and_interval_readings.closed_readings.negative", role = "negative", intent = "Interval and posterior readings refuse with cell_not_licensed and a remedy.", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", evidence_assertion = "marginal_contrasts_need_no_coupling_and_interval_readings_are_closed" },
+  { id = "cross_world_execution.sampled_and_interval_readings.point_remains.positive", role = "positive", intent = "The exact-enumeration point value stays licensed (5/7).", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", evidence_assertion = "probability_of_necessity_is_the_abduced_posterior_mass", shared_evidence = true },
+  { id = "cross_world_execution.sampled_and_interval_readings.facade_closed.artifact", role = "artifact", intent = "The sealed facade result refuses interval and posterior readings.", evidence_test = "crates/antecedent/tests/cross_world_execution_facade.rs", evidence_assertion = "natural_direct_effect_seals_replays_and_resumes" },
+]
+inference_outputs = []
+
+[[record]]
+id = "provider_callback.law_posterior_protocol"
+capability = "provider_callback.law_posterior_protocol"
+status = "in_progress"
+consumer_question = "May a law, posterior or nested callback that Antecedent does not own be asked for its mean, draws, distribution function, quantile function or posterior update, each negotiated on its own, with the answer accepted only as a well-formed law of the declared quantity?"
+theorem = "A callback declaration is well formed exactly when its provider object identity is complete, its quantity, semantic identity and numeric support are valid, its operation set is non-empty and every operation belongs to its kind (a law or nested callback answers mean, sample, cdf and quantile; a posterior callback answers mean, sample and posterior update), its meaning belongs to its kind, a posterior update is declared exactly with its candidate, prior and observation and with the observation law, a nested callback has an input supplied by a callback and no other does, and the projection to the interface contract is itself valid. Each operation is a distinct provider capability: a requested operation that is not declared is refused and no other operation substitutes. An answer is accepted by validate_output exactly when it has the number and operation of the query, every value is finite and inside the declared support, a distribution function is in [0, 1], non-decreasing in the threshold, zero below the support and one at and above a bounded support's upper end, and a quantile function is non-decreasing in the level; an accepted answer is a well-formed object of the declared quantity and nothing about the provider's numerical truth. The reference Gaussian callback is compared with tabulated standard-normal values and the conjugate-normal posterior mean. NOT inherited: numerical correctness of any provider, any interval, posterior guarantee, joint law, identification licence or native trust."
+reference = "docs/provider-callbacks.md"
+guarantee = "declared_operations_negotiated_separately_output_accepted_only_as_a_well_formed_law_no_interval_no_native_trust"
+graph_class = "Not applicable. A callback is a declared provider object; the check does not identify."
+population_semantics = "A callback names the population and regime of its quantity; a consumer connects only for the same population and regime. Carrying it to another population is a declared transport, never an implicit conversion."
+evidence_family = "Declared callbacks (provider object identity, quantity, operations, dependencies, replay contract, trust) and the outputs the supplied provider returns."
+provider = "antecedent_contract::callback_protocol (declaration, query and output validation, plan_reuse, standing, ledger registration); antecedent_io_core::callback_result_artifact (artifact); antecedent::analysis::provider_callbacks (executor)."
+estimand = "none: the callback's own declared quantity; no causal estimand is identified."
+inference_claim = "none"
+owners = ["antecedent-contract", "antecedent-io-core", "antecedent"]
+identity_inputs = [
+  "component, kind, provider/object/version/snapshot/request identity",
+  "quantity coordinate, semantic identity, meaning, support with interval bounds as bit patterns",
+  "operations by tag, update declaration, inputs sorted by name with supplier and evidence",
+  "dependencies sorted (kind, name, version) or the opaque/undeclared marker, replay contract, trust, own evidence",
+]
+wire_changes = [
+  "Additive: callback_result_v1 (new artifact kind), carrying the declaration as the interface_contract_v1 contract wire plus execution facts.",
+]
+compatibility = "Additive. No existing claim, artifact or provider contract changes; six reason codes are added."
+search = false
+prerequisite_records = ["interface_contract.scientific_interface", "evidence_ledger.overlap_accounting", "external.scientific_providers"]
+prerequisite_reason = "A callback is an instance of the interface contract and a provider object of the one provider contract; its evidence is registered in the one evidence ledger. None of them supplies coverage."
+bounds = { cancellation = true, max_dependencies = 1024, max_inputs = 256, max_draws = 1000000, max_points = 65536 }
+refusals = [
+  { code = "callback_protocol_invalid", detail = "callback_protocol.blank_field", when = "An identity or name is blank or over the byte bound.", remedy = "Name every provider, object, version, snapshot, request, dependency and input identity." },
+  { code = "callback_protocol_invalid", detail = "callback_protocol.too_many_items", when = "More dependencies, inputs or evidence sources than the bound.", remedy = "Declare at most the bounded number." },
+  { code = "callback_protocol_invalid", detail = "callback_protocol.invalid_quantity", when = "The output or an input quantity has an incomplete coordinate.", remedy = "Name the variable, units, population, regime, functional and transform." },
+  { code = "callback_protocol_invalid", detail = "callback_protocol.invalid_support", when = "The support is not well formed or is categorical.", remedy = "Declare finite ordered bounds; a numeric law has a numeric support." },
+  { code = "callback_protocol_invalid", detail = "callback_protocol.no_operations", when = "No operation is declared.", remedy = "Declare the operations the callback answers; none implies another." },
+  { code = "callback_protocol_invalid", detail = "callback_protocol.operation_not_for_kind", when = "The operation does not belong to the callback kind.", remedy = "Declare only operations the kind answers." },
+  { code = "callback_protocol_invalid", detail = "callback_protocol.meaning_not_for_kind", when = "The distribution meaning does not belong to the kind.", remedy = "Declare a posterior meaning for a posterior callback and a non-posterior meaning for a law." },
+  { code = "callback_protocol_invalid", detail = "callback_protocol.update_declaration_mismatch", when = "A posterior update lacks its declaration or observation law, or a declaration has no update.", remedy = "Declare candidate, prior, observation and the observation law exactly when the update is answered." },
+  { code = "callback_protocol_invalid", detail = "callback_protocol.duplicate_name", when = "Two inputs or two dependencies share a name.", remedy = "Give each its own name." },
+  { code = "callback_protocol_invalid", detail = "callback_protocol.replay_contract_incomplete", when = "A seeded callback has no stream identity or an idempotent retry no attempt bound.", remedy = "Declare the stream identity and a positive attempt bound." },
+  { code = "callback_protocol_invalid", detail = "callback_protocol.nested_inputs_mismatch", when = "A nested callback has no callback input, or another kind has one.", remedy = "Declare a callback input exactly for a nested callback." },
+  { code = "callback_protocol_invalid", detail = "callback_protocol.trust_incomplete", when = "An attested callback names no attestor or a verified one no receipt digest.", remedy = "Name the attestor or the receipt digest." },
+  { code = "external_capability_missing", detail = "callback_protocol.operation_not_declared", when = "The requested operation is not declared; no other operation substitutes.", remedy = "Declare the exact operation on the callback." },
+  { code = "external_binding_mismatch", detail = "callback_protocol.provider_identity_mismatch", when = "The supplied provider is not the declared object, version, snapshot and request.", remedy = "Declare the replacement as its own callback and verify it." },
+  { code = "external_binding_mismatch", detail = "callback_protocol.request_mismatch", when = "An input is missing, of another operation or its digest differs.", remedy = "Supply every declared input once with its digest." },
+  { code = "callback_output_invalid", detail = "callback_protocol.output_shape", when = "The answer is not the shape or count of the query.", remedy = "Return exactly the values the query asks for." },
+  { code = "callback_output_invalid", detail = "callback_protocol.output_not_finite", when = "A value is not finite.", remedy = "Return finite values." },
+  { code = "callback_output_invalid", detail = "callback_protocol.output_outside_support", when = "A value lies outside the declared support.", remedy = "Return values inside the support or declare the support." },
+  { code = "callback_output_invalid", detail = "callback_protocol.output_not_a_law", when = "A distribution or quantile function is not a law.", remedy = "A distribution function is in [0, 1] and non-decreasing; a quantile function is non-decreasing." },
+  { code = "callback_output_invalid", detail = "callback_protocol.query_invalid", when = "The query is malformed.", remedy = "Ask for bounded draws, finite increasing thresholds and levels inside (0, 1)." },
+  { code = "callback_limit_exceeded", detail = "callback_protocol.output_too_large", when = "More values than the declared bound.", remedy = "Raise the output bound or ask for fewer values." },
+  { code = "callback_limit_exceeded", detail = "callback_protocol.invocation_limit", when = "The invocation bound is zero or reached.", remedy = "Raise the invocation bound of the execution policy." },
+  { code = "callback_limit_exceeded", detail = "callback_protocol.wall_limit_exceeded", when = "The provider returned after the wall-clock bound; the result is discarded.", remedy = "A hard preemptible limit needs a declared isolated runtime." },
+  { code = "cancelled_no_claim", detail = "callback_protocol.cancelled", when = "Cancellation was observed before or after the invocation.", remedy = "Rerun without cancellation." },
+  { code = "callback_provider_unavailable", detail = "callback_protocol.provider_failed", when = "The provider reported a failure.", remedy = "Repair the provider and execute again; no claim is issued." },
+]
+routes = [
+  { name = "antecedent.provider_callback.negotiate_operation", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent.provider_callback.execute", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.provider_callback.validate_output", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.provider_callback.register_evidence", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent.python.provider_callbacks.CallbackSession.execute", stage = "evaluate", status = "licensed", claim = "none" },
+]
+fixtures = [
+  { id = "provider_callback.law_posterior_protocol.gaussian_reference.positive", role = "positive", intent = "The Gaussian reference callback's mean, distribution function, quantile function and draws match tabulated standard-normal values and predeclared five-sigma bands.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "the_gaussian_reference_callback_matches_tabulated_values" },
+  { id = "provider_callback.law_posterior_protocol.posterior_update_conjugate.truth", role = "truth", intent = "A posterior update equals the conjugate-normal posterior mean 1.6 and its draws match mean 1.6 and variance 0.8; an undeclared operation is refused before any invocation.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "a_posterior_update_matches_the_conjugate_normal_posterior" },
+  { id = "provider_callback.law_posterior_protocol.interface_instance.positive", role = "positive", intent = "A declaration validates and projects to a valid interface contract with mean, draws and law operations, unmeasured calibration and the declared meaning.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "a_complete_declaration_validates_and_is_an_instance_of_the_interface_contract" },
+  { id = "provider_callback.law_posterior_protocol.separate_negotiation.negative", role = "negative", intent = "Sampling does not supply a distribution function, quantile function or mean; a mean supplies no law or draws; a distribution function does not supply a quantile function; another request identity is refused.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "operations_are_negotiated_separately_and_none_implies_another" },
+  { id = "provider_callback.law_posterior_protocol.malformed_declarations.negative", role = "negative", intent = "Each malformed declaration is refused alone with its registered code, detail and remedy.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "malformed_declarations_are_refused_with_registered_details" },
+  { id = "provider_callback.law_posterior_protocol.malformed_laws.negative", role = "negative", intent = "Decreasing, out-of-range, non-finite, wrong-shape and mass-below-support distribution functions are each refused.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "a_well_formed_law_is_accepted_and_every_malformed_law_is_refused" },
+  { id = "provider_callback.law_posterior_protocol.support_checks.negative", role = "negative", intent = "Quantiles, draws and means are checked against interval, non-negative and binary supports.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "quantiles_draws_and_means_are_checked_against_the_support" },
+  { id = "provider_callback.law_posterior_protocol.query_bounds.negative", role = "negative", intent = "Malformed queries and answers over the declared size are refused with their own codes.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "queries_and_sizes_are_bounded_and_checked" },
+  { id = "provider_callback.law_posterior_protocol.executed_malformed_law.negative", role = "negative", intent = "An executed callback that returns a decreasing distribution function, NaN draws or the wrong shape is refused and leaves no result record.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "malformed_laws_are_refused_whole_and_leave_no_record" },
+  { id = "provider_callback.law_posterior_protocol.failure_cancellation_limits.negative", role = "negative", intent = "A provider failure, cancellation before and during the call, a zero invocation bound, a wall-clock bound and an oversized output are typed and counted.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "failure_cancellation_and_limits_are_typed_and_counted" },
+  { id = "provider_callback.law_posterior_protocol.identity_binding.invariance", role = "invariance", intent = "The declaration identity binds dependency versions, replay contract, provider request and trust and ignores dependency order.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "identity_binds_dependency_versions_replay_and_provider_but_not_order" },
+  { id = "provider_callback.law_posterior_protocol.nested_overlap.positive", role = "positive", intent = "Outer callbacks over one inner callback share its observations; disjoint evidence is independent; undeclared evidence is unknown.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "nested_callbacks_are_registered_with_their_evidence_overlap" },
+  { id = "provider_callback.law_posterior_protocol.unregistered_inner.negative", role = "negative", intent = "An inner callback that is not registered is refused rather than assumed independent.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "an_unregistered_inner_callback_is_refused_not_assumed_independent" },
+  { id = "provider_callback.law_posterior_protocol.ledger_registration.positive", role = "positive", intent = "Facade registration in the evidence ledger exposes shared and independent overlap.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "registered_callbacks_expose_their_overlap_through_the_ledger" },
+  { id = "provider_callback.law_posterior_protocol.nested_wire.artifact", role = "artifact", intent = "A nested callback declaration survives the artifact with its inner evidence.", evidence_test = "crates/antecedent-io-core/tests/callback_result_artifact.rs", evidence_assertion = "a_nested_callback_declaration_survives_the_wire_with_its_inner_evidence" },
+  { id = "provider_callback.law_posterior_protocol.python_gaussian_reference.positive", role = "positive", intent = "Python surface: the Gaussian callback's mean, distribution function, quantile function and draws match closed forms computed in the test (math.erf, tabulated z quantiles, five-sigma bands).", evidence_test = "python/tests/test_provider_callbacks.py", evidence_assertion = "test_gaussian_callback_mean_cdf_quantile_match_closed_forms" },
+  { id = "provider_callback.law_posterior_protocol.python_posterior_update.truth", role = "truth", intent = "Python surface: a posterior update equals the conjugate-normal posterior mean 1.6; an undeclared operation is refused before any invocation.", evidence_test = "python/tests/test_provider_callbacks.py", evidence_assertion = "test_conjugate_posterior_update_matches_closed_form" },
+  { id = "provider_callback.law_posterior_protocol.python_separate_negotiation.negative", role = "negative", intent = "Python surface: sampling supplies no mean, distribution function or quantile; a distribution function supplies no quantile function; an update needs its declaration and observation law.", evidence_test = "python/tests/test_provider_callbacks.py", evidence_assertion = "test_operations_are_negotiated_separately" },
+  { id = "provider_callback.law_posterior_protocol.python_malformed_laws.negative", role = "negative", intent = "Python surface: a decreasing distribution function, NaN draws and a wrong-operation answer are refused whole and leave no record.", evidence_test = "python/tests/test_provider_callbacks.py", evidence_assertion = "test_malformed_laws_are_refused_whole" },
+  { id = "provider_callback.law_posterior_protocol.python_failure_cancellation.negative", role = "negative", intent = "Python surface: provider failure, cancellation before and during the call, a zero invocation bound and an oversized output are typed and counted.", evidence_test = "python/tests/test_provider_callbacks.py", evidence_assertion = "test_failure_cancellation_and_limits_are_typed_and_counted" },
+  { id = "provider_callback.law_posterior_protocol.python_nested_inputs.positive", role = "positive", intent = "Python surface: a nested callback binds its input by digest, refuses a tampered or missing input before it runs, reports dependents and the union of inner evidence.", evidence_test = "python/tests/test_provider_callbacks.py", evidence_assertion = "test_nested_callback_binds_inputs_and_reports_dependents_and_overlap" },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "provider_callback.replay_policy"
+capability = "provider_callback.replay_policy"
+status = "in_progress"
+consumer_question = "When may a stored answer of a callback be reused for a request, when must it be recomputed, and when is the request refused: for deterministic pure, seeded stochastic, stateful and side-effecting callbacks, with dependencies changed, a provider replaced or hidden state changed?"
+theorem = "Reuse is a predicate on identities, with no provider in scope. A stored result answers a request exactly when the dependency declaration is complete, the declaration identity (which binds every dependency version and the provider request) and the request identity (which binds the query as bit patterns, the seed unless the callback is deterministic, the digest of every supplied input and the idempotency key) are equal, and the replay contract licenses it: a deterministic or seeded result is reused; a stateful result is reused only when the callback exposes a state identity through the protocol and it equals the stored one; a side-effecting result only under a declared idempotent contract with the same key. An opaque or undeclared dependency set gives no stable identity: the result is recomputed, or refused for a side-effecting callback, never reused. Stochastic callbacks draw from a stream determined by the master seed and the semantic stream identity alone. A side-effecting callback is invoked only with an explicit opt-in, never while planning or verifying, and never retried outside its declared idempotent contract; a stateful callback is not invoked while verifying. A result is licensed-external only when replayable, complete and attested or confirmed verified; otherwise it is diagnostic. NOT inherited: that a declared dependency set is complete, that a provider honours its stream or reports its state truthfully, any interval or native trust."
+reference = "docs/provider-callbacks.md"
+guarantee = "reuse_only_under_matching_identity_and_replay_contract_effects_never_invoked_outside_execution_or_retried_outside_policy"
+graph_class = "Not applicable. A callback is a declared provider object; the check does not identify."
+population_semantics = "A callback names the population and regime of its quantity; a consumer connects only for the same population and regime. Carrying it to another population is a declared transport, never an implicit conversion."
+evidence_family = "Declared dependency versions, replay contracts, request identities, reported state identities and stored result records."
+provider = "antecedent_contract::callback_protocol (declaration, query and output validation, plan_reuse, standing, ledger registration); antecedent_io_core::callback_result_artifact (artifact); antecedent::analysis::provider_callbacks (executor)."
+estimand = "none: reuse and execution policy; no estimand."
+inference_claim = "none"
+owners = ["antecedent-contract", "antecedent-io-core", "antecedent"]
+identity_inputs = [
+  "declaration identity (dependency versions, replay contract, provider request, trust)",
+  "request identity: query bit patterns, seed unless deterministic, input digests by name, idempotency key",
+  "semantic stream identity text and master seed",
+]
+wire_changes = [
+  "None: the policy is carried by the callback_result_v1 declaration.",
+]
+compatibility = "Additive. No existing claim, artifact or provider contract changes; six reason codes are added."
+search = false
+prerequisite_records = ["provider_callback.law_posterior_protocol"]
+prerequisite_reason = "The replay policy applies to the declared callback of the protocol record and adds no new object."
+bounds = { cancellation = true }
+refusals = [
+  { code = "callback_reuse_ineligible", detail = "callback_protocol.opaque_dependencies", when = "A side-effecting callback has opaque or undeclared dependencies.", remedy = "Declare every dependency at a version or digest." },
+  { code = "callback_reuse_ineligible", detail = "callback_protocol.hidden_state_unobservable", when = "A stateful callback exposes no state identity.", remedy = "Expose a state identity through the protocol or recompute on every use." },
+  { code = "callback_reuse_ineligible", detail = "callback_protocol.no_idempotency_contract", when = "A side-effecting callback has no idempotent contract or key.", remedy = "Declare an idempotent retry contract and supply the key." },
+  { code = "callback_reuse_ineligible", detail = "callback_protocol.diagnostic_only", when = "A diagnostic result is offered where a licensed external claim is required.", remedy = "Declare complete dependencies, a replayable contract and attest or verify the provider." },
+  { code = "callback_side_effect_forbidden", detail = "callback_protocol.invocation_outside_execution", when = "A callback is invoked while planning or verifying.", remedy = "Run it through an explicit execution." },
+  { code = "callback_side_effect_forbidden", detail = "callback_protocol.side_effects_not_allowed", when = "The execution policy does not allow side effects.", remedy = "Opt in for this one request." },
+  { code = "callback_side_effect_forbidden", detail = "callback_protocol.retry_outside_policy", when = "A repeated call is outside the declared idempotent contract.", remedy = "Declare the contract and key and stay within the attempt bound." },
+]
+routes = [
+  { name = "antecedent.provider_callback.plan_reuse", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent.provider_callback.execution_policy", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.python.provider_callbacks.CallbackSession.plan", stage = "prepare", status = "licensed", claim = "none" },
+]
+fixtures = [
+  { id = "provider_callback.replay_policy.deterministic_replay.positive", role = "positive", intent = "A deterministic result is reused with zero invocations, bit for bit, until a model parameter changes; the change recomputes and names the dependency.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "deterministic_replay_reuses_without_invoking_until_a_dependency_changes" },
+  { id = "provider_callback.replay_policy.stochastic_streams.invariance", role = "invariance", intent = "The same seed replays bit for bit, earlier calls do not move a stream, another seed or another semantic stream gives other draws, and a deterministic callback gets no generator.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "stochastic_draws_follow_the_semantic_stream_rules" },
+  { id = "provider_callback.replay_policy.semantic_stream_identity.invariance", role = "invariance", intent = "A semantic stream depends on the seed and the identity text, not on call order.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "semantic_streams_depend_on_the_seed_and_the_identity_not_on_call_order" },
+  { id = "provider_callback.replay_policy.hidden_state.negative", role = "negative", intent = "A changed reported state recomputes; state that is not exposed is never shown current.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "a_changed_hidden_state_is_detected_through_the_protocol_and_never_guessed" },
+  { id = "provider_callback.replay_policy.provider_replacement.negative", role = "negative", intent = "A replacement provider is refused under the old declaration with zero invocations and is a different callback with its own history.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "a_replacement_provider_is_a_different_callback_and_the_history_stays" },
+  { id = "provider_callback.replay_policy.side_effect_retry.negative", role = "negative", intent = "Side-effecting callbacks are not invoked while planning or verifying, need an opt-in, are not retried outside the declared contract and are reused under an idempotent key.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "a_side_effecting_callback_is_never_invoked_outside_execution_or_retried_outside_its_policy" },
+  { id = "provider_callback.replay_policy.opaque_dependencies.negative", role = "negative", intent = "Opaque dependencies are recomputed every time and diagnostic; a side-effecting callback with undeclared dependencies is not run.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "opaque_dependencies_make_reuse_ineligible_and_the_result_diagnostic" },
+  { id = "provider_callback.replay_policy.reuse_table.truth", role = "truth", intent = "Reuse for a pure callback by identity: no prior result, equal identities, a changed dependency version, a replaced provider and another request.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "reuse_follows_the_replay_contract_and_every_identity" },
+  { id = "provider_callback.replay_policy.opaque_plan.negative", role = "negative", intent = "Opaque and undeclared dependency sets recompute and refuse a side-effecting callback.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "opaque_or_undeclared_dependencies_make_reuse_ineligible" },
+  { id = "provider_callback.replay_policy.seeded_reuse.positive", role = "positive", intent = "A seeded result is reused only for the same seed.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "a_seeded_callback_is_reused_only_for_the_same_seed" },
+  { id = "provider_callback.replay_policy.stateful_plan.negative", role = "negative", intent = "A stateful result is reused only while the reported state is unchanged.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "a_stateful_callback_is_reused_only_while_its_reported_state_is_unchanged" },
+  { id = "provider_callback.replay_policy.side_effect_plan.negative", role = "negative", intent = "A side-effecting result is reused only under an idempotent contract with a key.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "a_side_effecting_callback_is_reused_only_under_an_idempotent_contract_and_key" },
+  { id = "provider_callback.replay_policy.standing.negative", role = "negative", intent = "A result is diagnostic unless replayable, complete and attested; declared verification is believed only when confirmed.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "standing_is_diagnostic_unless_replayable_complete_and_attested" },
+  { id = "provider_callback.replay_policy.request_identity.invariance", role = "invariance", intent = "The seed does not enter a deterministic request identity; the query bits, input digests and key do.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "request_identity_ignores_the_seed_of_a_deterministic_callback_only" },
+  { id = "provider_callback.replay_policy.dependents.negative", role = "negative", intent = "The stored results that consumed a callback are found transitively; inputs are digest-bound and a tampered input is refused before the provider runs.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "a_changed_inner_callback_invalidates_the_dependent_results" },
+  { id = "provider_callback.replay_policy.unavailable_stage.artifact", role = "artifact", intent = "An unavailable stage round trips and carries no output.", evidence_test = "crates/antecedent-io-core/tests/callback_result_artifact.rs", evidence_assertion = "an_unavailable_stage_round_trips_and_carries_no_output" },
+  { id = "provider_callback.replay_policy.python_deterministic_replay.positive", role = "positive", intent = "Python surface: a deterministic result is reused with zero invocations until a dependency changes, then recomputes naming the dependency.", evidence_test = "python/tests/test_provider_callbacks.py", evidence_assertion = "test_deterministic_replay_does_not_invoke_and_a_changed_dependency_recomputes" },
+  { id = "provider_callback.replay_policy.python_stochastic_streams.invariance", role = "invariance", intent = "Python surface: the same seed replays bit for bit, earlier calls do not move a stream, another seed or semantic stream differs, a deterministic callback gets none.", evidence_test = "python/tests/test_provider_callbacks.py", evidence_assertion = "test_stochastic_stream_rules" },
+  { id = "provider_callback.replay_policy.python_hidden_state.negative", role = "negative", intent = "Python surface: a changed reported state recomputes; unexposed state is never shown current.", evidence_test = "python/tests/test_provider_callbacks.py", evidence_assertion = "test_hidden_state_change_is_detected_and_unexposed_state_is_never_reused" },
+  { id = "provider_callback.replay_policy.python_provider_replacement.negative", role = "negative", intent = "Python surface: a replacement provider is refused with zero invocations and is a new callback with its own history.", evidence_test = "python/tests/test_provider_callbacks.py", evidence_assertion = "test_provider_replacement_is_refused_and_is_a_new_callback" },
+  { id = "provider_callback.replay_policy.python_side_effect_retry.negative", role = "negative", intent = "Python surface: side effects need opt-in, are never run while planning or verifying and are retried only under the declared idempotent contract.", evidence_test = "python/tests/test_provider_callbacks.py", evidence_assertion = "test_side_effect_retry_is_refused_and_never_invoked_outside_execution" },
+  { id = "provider_callback.replay_policy.python_opaque_dependencies.negative", role = "negative", intent = "Python surface: opaque dependencies recompute every time and stay diagnostic; a side-effecting callback with undeclared dependencies is not run.", evidence_test = "python/tests/test_provider_callbacks.py", evidence_assertion = "test_opaque_dependencies_make_reuse_ineligible_and_the_result_diagnostic" },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "provider_callback.portable_result"
+capability = "provider_callback.portable_result"
+status = "in_progress"
+consumer_question = "Can a callback result be carried to another process as a declaration and a portable output, consumed with every identity recomputed and every bound checked, resumed only by a supplied compatible provider, and otherwise recorded as an unavailable stage while the historical result stays inspectable?"
+theorem = "callback_result_v1 holds the declaration as the interface-contract wire plus its execution facts, the request (query values as bit patterns), the stage (computed or unavailable), the output as little-endian IEEE words, a standing and its identities. A consumer rebuilds the declaration, requires the stored contract to be the declaration's own projection, recomputes the declaration, request, output and artifact identities, re-runs the output check against the declared support and recomputes the standing; it refuses any change a reseal does not repair (a dependency version, the replay contract, the provider, the seed, a value), a stored native trust level, a malformed stored law and every collection above its bound. Resume imports the historical result and answers a request only through a supplied provider that is the declared object (reuse under the replay contract, or recomputation); with no provider the stage is recorded unavailable. The artifact is not a promise that a closure runs elsewhere. NOT inherited: numerical truth of the stored output and any interval or native trust."
+reference = "docs/provider-callbacks.md"
+guarantee = "portable_declaration_and_output_identities_recomputed_resume_only_by_declared_provider_else_unavailable"
+graph_class = "Not applicable. A callback is a declared provider object; the check does not identify."
+population_semantics = "A callback names the population and regime of its quantity; a consumer connects only for the same population and regime. Carrying it to another population is a declared transport, never an implicit conversion."
+evidence_family = "callback_result_v1 artifacts produced by executed callbacks."
+provider = "antecedent_contract::callback_protocol (declaration, query and output validation, plan_reuse, standing, ledger registration); antecedent_io_core::callback_result_artifact (artifact); antecedent::analysis::provider_callbacks (executor)."
+estimand = "none: transport of a declared callback result."
+inference_claim = "none"
+owners = ["antecedent-contract", "antecedent-io-core", "antecedent"]
+identity_inputs = [
+  "feature marker, required features, declaration identity, request identity",
+  "stage status, reason, invocation count, state identity, value count, standing, output digest",
+]
+wire_changes = [
+  "Additive: callback_result_v1 (new artifact kind): CBOR meta and one values section; version, feature marker and required features gate every reader.",
+]
+compatibility = "Additive. No existing claim, artifact or provider contract changes; six reason codes are added."
+search = false
+prerequisite_records = ["provider_callback.law_posterior_protocol", "interface_contract.scientific_interface"]
+prerequisite_reason = "The artifact carries an interface-contract wire of a protocol declaration."
+bounds = { cancellation = true }
+refusals = [
+  { code = "callback_provider_unavailable", detail = "callback_protocol.provider_unavailable", when = "No compatible provider was supplied for a resume.", remedy = "Supply a compatible provider of this exact object, version, snapshot and request or a declared portable runtime." },
+  { code = "callback_protocol_invalid", detail = "callback_protocol.native_trust_claimed", when = "Stored metadata claims native licence.", remedy = "Declare the callback unverified, attested or verified; native licence is never conferred by metadata." },
+  { code = "route_not_supported", detail = "callback_protocol.identity_mismatch", when = "A stored or retained identity differs from the recomputed one.", remedy = "Supply the artifact whose recomputed identity equals the retained identity." },
+  { code = "invalid_argument", detail = "callback_protocol.artifact_invalid", when = "The artifact is corrupt or of another layout.", remedy = "Supply an intact callback_result_v1 artifact." },
+]
+routes = [
+  { name = "antecedent.provider_callback.export_result", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent.provider_callback.consume_result", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent.provider_callback.resume_result", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent.python.provider_callbacks.consume_callback_result", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent.python.provider_callbacks.CallbackSession.resume", stage = "consume", status = "licensed", claim = "none" },
+]
+fixtures = [
+  { id = "provider_callback.portable_result.resume.positive", role = "positive", intent = "A result resumes with a supplied compatible provider (reused, no invocation), is recorded unavailable without one, refuses a replaced provider, a wrong retained identity and a corrupted byte.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "a_result_resumes_with_a_compatible_provider_and_is_unavailable_without_one" },
+  { id = "provider_callback.portable_result.round_trip.artifact", role = "artifact", intent = "A sealed result round trips with stable identities, deterministic bytes and a retained identity.", evidence_test = "crates/antecedent-io-core/tests/callback_result_artifact.rs", evidence_assertion = "a_sealed_result_round_trips_with_stable_identities" },
+  { id = "provider_callback.portable_result.resealed_edits.artifact", role = "artifact", intent = "Resealed edits of a dependency, replay contract, provider, population, contract, seed, value and standing are refused by recomputed identities.", evidence_test = "crates/antecedent-io-core/tests/callback_result_artifact.rs", evidence_assertion = "resealed_semantic_edits_are_refused_by_recomputed_identities" },
+  { id = "provider_callback.portable_result.native_trust.negative", role = "negative", intent = "A stored native trust level is refused, not downgraded.", evidence_test = "crates/antecedent-io-core/tests/callback_result_artifact.rs", evidence_assertion = "metadata_cannot_mint_native_trust" },
+  { id = "provider_callback.portable_result.stored_law.negative", role = "negative", intent = "A stored malformed law is refused although its digest is resealed.", evidence_test = "crates/antecedent-io-core/tests/callback_result_artifact.rs", evidence_assertion = "a_stored_output_is_revalidated_as_a_law" },
+  { id = "provider_callback.portable_result.bounds.negative", role = "negative", intent = "Over-large collections, another version or feature and oversized or arbitrary bytes are refused before use.", evidence_test = "crates/antecedent-io-core/tests/callback_result_artifact.rs", evidence_assertion = "collections_and_versions_are_bounded_and_checked_before_use" },
+  { id = "provider_callback.portable_result.container.artifact", role = "artifact", intent = "Flipped bytes and truncation are detected.", evidence_test = "crates/antecedent-io-core/tests/callback_result_artifact.rs", evidence_assertion = "a_corrupted_container_is_refused" },
+  { id = "provider_callback.portable_result.python_round_trip.artifact", role = "artifact", intent = "Python surface: export is deterministic, consumption recomputes identities against a retained one, flipped bytes, truncation and a wrong identity refuse.", evidence_test = "python/tests/test_provider_callbacks.py", evidence_assertion = "test_exported_result_round_trips_and_mutations_are_refused" },
+  { id = "provider_callback.portable_result.python_fresh_process_resume.positive", role = "positive", intent = "Python surface: resume with a compatible provider reuses without invocation, without one records an unavailable stage, a replaced provider is refused, and a fresh interpreter consumes the same bytes.", evidence_test = "python/tests/test_provider_callbacks.py", evidence_assertion = "test_fresh_process_resume_with_and_without_a_provider" },
+  { id = "provider_callback.portable_result.python_untrusted_artifact.negative", role = "negative", intent = "Python surface: consuming, inspecting, planning and resuming without a provider never call a supplied callable; a corrupted artifact is refused.", evidence_test = "python/tests/test_provider_callbacks.py", evidence_assertion = "test_untrusted_artifact_never_executes_code" },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "provider_callback.closed_claims"
+capability = "provider_callback.closed_claims"
+status = "in_progress"
+consumer_question = "Can a callback supply an interval, a posterior or probability guarantee, native trust, an identification licence or a joint law?"
+theorem = "Closed adjacent variant of provider_callback.law_posterior_protocol. A callback supplies values the provider computed; coverage is a property of a whole method at a coordinate and none was measured. An interval from a callback law, a posterior or probability guarantee, native trust conferred by metadata, an identification licence and a joint law of independently produced draws each refuse with a typed reason and a remedy; the produced interface port is point-only or unmeasured and the artifact carries no calibration record. The calibration design for any composed interval (whole method including the provider's own estimation, data-generating process, nominal level, support range, probes) is a recorded decision only. NOT inherited: any coverage statement."
+reference = "docs/provider-callbacks.md"
+guarantee = "no_interval_no_posterior_guarantee_no_native_trust_no_identification_no_joint_law_from_a_callback"
+graph_class = "Not applicable. A callback is a declared provider object; the check does not identify."
+population_semantics = "A callback names the population and regime of its quantity; a consumer connects only for the same population and regime. Carrying it to another population is a declared transport, never an implicit conversion."
+evidence_family = "Declared callbacks and their results."
+provider = "antecedent_contract::callback_protocol (declaration, query and output validation, plan_reuse, standing, ledger registration); antecedent_io_core::callback_result_artifact (artifact); antecedent::analysis::provider_callbacks (executor)."
+estimand = "none: the request is refused."
+inference_claim = "none"
+owners = ["antecedent-contract", "antecedent-io-core", "antecedent"]
+identity_inputs = [
+  "declaration identity",
+  "calibration label of the interface projection",
+]
+wire_changes = [
+  "None.",
+]
+compatibility = "Additive. No existing claim, artifact or provider contract changes; six reason codes are added."
+search = false
+prerequisite_records = ["provider_callback.law_posterior_protocol"]
+prerequisite_reason = "Closed adjacent route: the request is refused with a typed reason; no coverage is inherited from the callback."
+bounds = { cancellation = true }
+refusals = [
+  { code = "cell_not_licensed", detail = "callback_protocol.interval_not_licensed", when = "An interval is requested from a callback law.", remedy = "A callback supplies values, not coverage: record whole-method coverage measured at this coordinate." },
+  { code = "cell_not_licensed", detail = "callback_protocol.posterior_guarantee_not_licensed", when = "A posterior or probability guarantee is requested from a callback.", remedy = "Measure coverage for the whole method." },
+  { code = "cell_not_licensed", detail = "callback_protocol.native_trust_not_conferred", when = "Native trust is requested for a callback by its metadata.", remedy = "Implement and license the method natively, or keep the result an external claim." },
+  { code = "cell_not_licensed", detail = "callback_protocol.identification_not_conferred", when = "An identification licence is requested from a callback.", remedy = "Bind the output to a checked causal contract." },
+  { code = "joint_law_required", detail = "callback_protocol.joint_law_not_conferred", when = "A joint law is requested from independently produced draws.", remedy = "Declare an aligned joint law or covariance with a shared alignment identity." },
+]
+routes = [
+  { name = "antecedent.provider_callback.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/provider_callbacks.rs", refusal_assertion = "interval_posterior_guarantee_native_trust_identification_and_joint_law_stay_closed" },
+  { name = "antecedent.provider_callback.posterior_guarantee", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/provider_callbacks.rs", refusal_assertion = "interval_posterior_guarantee_native_trust_identification_and_joint_law_stay_closed" },
+  { name = "antecedent.provider_callback.native_trust", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/provider_callbacks.rs", refusal_assertion = "interval_posterior_guarantee_native_trust_identification_and_joint_law_stay_closed" },
+  { name = "antecedent.provider_callback.identification_licence", stage = "identify", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/provider_callbacks.rs", refusal_assertion = "interval_posterior_guarantee_native_trust_identification_and_joint_law_stay_closed" },
+  { name = "antecedent.provider_callback.joint_law", stage = "uncertainty", status = "closed", reason_code = "joint_law_required", permanent_in_release = true, refusal_test = "crates/antecedent/tests/provider_callbacks.rs", refusal_assertion = "interval_posterior_guarantee_native_trust_identification_and_joint_law_stay_closed" },
+  { name = "antecedent.python.provider_callbacks.refuse_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_provider_callbacks.py", refusal_assertion = "test_closed_routes_refuse_with_registered_codes_and_remedies" },
+  { name = "antecedent.python.provider_callbacks.refuse_posterior_guarantee", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_provider_callbacks.py", refusal_assertion = "test_closed_routes_refuse_with_registered_codes_and_remedies" },
+  { name = "antecedent.python.provider_callbacks.refuse_native_trust", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_provider_callbacks.py", refusal_assertion = "test_closed_routes_refuse_with_registered_codes_and_remedies" },
+  { name = "antecedent.python.provider_callbacks.refuse_identification_licence", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_provider_callbacks.py", refusal_assertion = "test_closed_routes_refuse_with_registered_codes_and_remedies" },
+  { name = "antecedent.python.provider_callbacks.refuse_joint_law", stage = "uncertainty", status = "closed", reason_code = "joint_law_required", permanent_in_release = true, refusal_test = "python/tests/test_provider_callbacks.py", refusal_assertion = "test_closed_routes_refuse_with_registered_codes_and_remedies" },
+]
+fixtures = [
+  { id = "provider_callback.closed_claims.closed_claims.negative", role = "negative", intent = "Interval, posterior guarantee, native trust, identification licence and joint law each refuse with their registered code, detail and remedy; the interface projection is never measured.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "interval_posterior_guarantee_native_trust_identification_and_joint_law_stay_closed" },
+  { id = "provider_callback.closed_claims.point_only_label.positive", role = "positive", intent = "A mean-only callback is point-only and carries no uncertainty meaning.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "a_mean_only_callback_is_point_only_and_carries_no_uncertainty" },
+  { id = "provider_callback.closed_claims.no_calibration_in_artifact.artifact", role = "artifact", intent = "An exported result carries an unmeasured or point-only label, no calibration record and no interval or posterior operation.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "an_exported_callback_result_carries_no_calibration_record_and_no_interval" },
+  { id = "provider_callback.closed_claims.python_closed_claims.negative", role = "negative", intent = "Python surface: interval, posterior guarantee, native trust, identification licence and joint law refuse with registered codes and remedies; there is no native trust level.", evidence_test = "python/tests/test_provider_callbacks.py", evidence_assertion = "test_closed_routes_refuse_with_registered_codes_and_remedies" },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "provider_callback.consumers"
+capability = "provider_callback.consumers"
+status = "in_progress"
+consumer_question = "May an external provider's output be used as source evidence for a transport, a transported claim be handed to an external consumer, and a callback law be scored by the predictive assessment, each through the interface contract?"
+theorem = "A callback's output is connected to a consumer exactly when the interface contract accepts the produced port of its declaration for the consumed port (same variable, units, population, regime, horizon, functional, conditioning, transform and semantic identity, support containment, offered operations and uncertainty meaning); a mismatch is refused before the provider is invoked. A transported claim reaches a callback input exactly when the claim's produced port equals the input's declared quantity (population, regime) and declares its evidence. A callback law is offered to the predictive assessment as a provider law with its declared provider identity and trust label exactly when it is replayable, complete and attested or confirmed verified; an accepted sample is scored as its empirical distribution. NOT inherited: any property of the declared populations, equivalence of populations without a declared transport, any interval."
+reference = "docs/provider-callbacks.md"
+guarantee = "connection_decided_from_declarations_before_invocation_diagnostic_callbacks_not_offered_to_assessment"
+graph_class = "Not applicable. A callback is a declared provider object; the check does not identify."
+population_semantics = "A callback names the population and regime of its quantity; a consumer connects only for the same population and regime. Carrying it to another population is a declared transport, never an implicit conversion."
+evidence_family = "Declared callbacks, consumer and producer interface contracts, accepted sample outputs."
+provider = "antecedent_contract::callback_protocol (declaration, query and output validation, plan_reuse, standing, ledger registration); antecedent_io_core::callback_result_artifact (artifact); antecedent::analysis::provider_callbacks (executor)."
+estimand = "none: connection of declared quantities."
+inference_claim = "none"
+owners = ["antecedent-contract", "antecedent-io-core", "antecedent"]
+identity_inputs = [
+  "declaration identity",
+  "interface contract identity of each side",
+  "connection identity",
+]
+wire_changes = [
+  "None: uses interface_contract_v1 and callback_result_v1.",
+]
+compatibility = "Additive. No existing claim, artifact or provider contract changes; six reason codes are added."
+search = false
+prerequisite_records = ["provider_callback.law_posterior_protocol", "interface_contract.scientific_interface"]
+prerequisite_reason = "Connection is decided by the interface contract and the callback protocol; the predictive assessment's own scoring rules are unchanged."
+bounds = { cancellation = true }
+refusals = [
+  { code = "callback_reuse_ineligible", detail = "callback_protocol.diagnostic_only", when = "A diagnostic callback is offered to the predictive assessment.", remedy = "Declare complete dependencies, a replayable contract and attest or verify the provider." },
+]
+routes = [
+  { name = "antecedent.provider_callback.connect_to_consumer", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent.provider_callback.claim_to_callback", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent.provider_callback.predictive_law_source", stage = "prepare", status = "licensed", claim = "none" },
+]
+fixtures = [
+  { id = "provider_callback.consumers.transport_source.positive", role = "positive", intent = "A callback output feeds a transport source only for its declared population and regime: the executed route invokes once; another population is refused with the provider's counter unchanged.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "a_provider_output_feeds_transport_only_for_the_declared_population_and_regime" },
+  { id = "provider_callback.consumers.transported_claim.negative", role = "negative", intent = "A transported claim is accepted by a callback input for the population it declares and refused for another.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "a_transported_claim_reaches_a_callback_only_as_the_population_it_declares" },
+  { id = "provider_callback.consumers.connection.negative", role = "negative", intent = "A callback connects to a consumer only for its declared quantity; a mean-only callback cannot feed draws.", evidence_test = "crates/antecedent-contract/tests/callback_protocol.rs", evidence_assertion = "a_callback_connects_to_a_consumer_only_for_its_declared_quantity" },
+  { id = "provider_callback.consumers.predictive_law.positive", role = "positive", intent = "A replayable attested callback is a provider law for the assessment; opaque, unverified and stateful callbacks are refused; a sample becomes its empirical law.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "a_callback_law_reaches_the_predictive_assessment_only_as_a_replayable_provider_law" },
+  { id = "provider_callback.consumers.connected_result.artifact", role = "artifact", intent = "A connected result exports and is consumed against its retained identity; its contract connects only for the declared population.", evidence_test = "crates/antecedent/tests/provider_callbacks.rs", evidence_assertion = "a_connected_result_exports_and_is_consumed_against_its_retained_identity" },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "discovery.selective_reuse"
+capability = "discovery.selective_reuse"
+status = "in_progress"
+consumer_question = "When a discovery request is repeated with a different threshold, multiplicity rule, background knowledge, orientation budget, lag window, CI test or data, which conditional-independence statistics of the earlier run are reused, which stages are recomputed, what does the result carry about the equivalence class and exhausted bounds, and which downstream claims are still valid, recomputed or withdrawn?"
+theorem = "Let T be a conditional-independence test that is a function of its request (x, y, z, the column contents, the significance and confidence settings, the context seed and the kernel policy), and let a discovery algorithm A access T only through its batch interface. Define the coordinate of a request as the digest of the test identity, the settings, the seed, the kernel flags, the column indexes it is handed and the bit patterns of every column it reads. A store that answers a request from the value T returned for an identical coordinate and otherwise evaluates T on exactly that request makes A's every observed T-value equal to its value without the store; A is deterministic given its inputs and its sequence of T-values, therefore A with the store returns the same result as A without it, bit for bit. A request whose coordinate differs in any component is not served from the store. The stage identities (statistics, search, orientation, graph output) are canonical digests of declared inputs and the identity of the upstream stage; equal identities mean the retained artifact was produced from equal declared inputs. NOT inherited: any property of the output graph with respect to a true graph (recovery, false-discovery or type-I error rate, faithfulness adequacy), any interval for a downstream estimate, any statement about a test that is not a function of its request, and reuse across data, seeds or kernel policies."
+reference = "docs/selective-discovery.md"
+guarantee = "algorithmic_match_with_full_run_bit_for_bit_no_recovery_or_error_control_claim"
+graph_class = "Discovered structures keep their class: CPDAG, PAG, temporal DAG or temporal CPDAG. An equivalence class is never reported as one graph; unresolved edges and exhausted bounds are carried to every consumer."
+population_semantics = "Exactly one declared population per contract. A second population or multi-dataset constraints are refused; multi-population discovery is out."
+evidence_family = "Conditional-independence statistics at identical input coordinates, canonical stage identities, observed work units at CI-test, orientation and search-pass boundaries, a portable receipt state with raw-data replay."
+provider = "antecedent_discovery::selective (contracts, store, adapters, portable state); antecedent_io_core::selective_discovery_artifact (artifact); antecedent::analysis::selective_discovery (stage planner, claim graph, ledger, transport refusal)."
+estimand = "none: the discovered structure and its reuse accounting, not a statistical estimand."
+inference_claim = "none"
+owners = ["antecedent-discovery", "antecedent-io-core", "antecedent-io", "antecedent"]
+identity_inputs = [
+  "searched variables in search order and the declared population",
+  "CI test identity, significance method, confidence method, context seed and kernel policy",
+  "content of every column read as bit patterns, names and value types, analysis mask and weights, sampling index",
+  "threshold, multiplicity method, background knowledge (required, forbidden, tiers, vector groups), conditioning-set and parent limits, lag bounds",
+  "Possible-D-Sep and discriminating-path budgets",
+  "statistic receipts keyed by coordinate digest, structure identity, result identity",
+]
+wire_changes = [
+  "Additive: selective_discovery_v1 (new artifact kind) holding the declared stage inputs, statistic receipts as bit patterns, the structure, the structure and result identities and the producer's work counters; no raw data.",
+]
+compatibility = "Additive. No existing algorithm, stage, artifact or result changes; two reason codes are registered and the orientation driver gains an observation hook that records counts and changes no result."
+search = false
+prerequisite_records = ["evidence_ledger.overlap_accounting", "composition_verification.claim_revalidation"]
+prerequisite_reason = "Reuse of the discovery rows in a later analysis is the ledger's observation-overlap case, and a graph change reaches downstream claims through the one claim-level invalidation graph; the searches themselves are the existing algorithms' own records."
+bounds = { cancellation = true, max_portable_receipts = 250000, max_structure_items = 65536 }
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+refusals = [
+  { code = "invalid_argument", detail = "selective_discovery.test_identity_missing", when = "A declared CI test carries a blank identity.", remedy = "Declare an identity naming the test and every setting that changes its result." },
+  { code = "invalid_argument", detail = "selective_discovery.population_missing", when = "The contract names no population.", remedy = "Declare the one population the data were drawn from." },
+  { code = "invalid_argument", detail = "selective_discovery.invalid_contract", when = "The contract has no variables, repeated variables, a threshold outside (0, 1), an empty lag window or inconsistent constraints.", remedy = "Declare distinct searched variables, a threshold strictly between 0 and 1 and a lag window with 1 <= max_lag and min_lag <= max_lag." },
+  { code = "invalid_argument", detail = "selective_discovery.rng_mismatch", when = "The execution context's master seed is not the seed frozen in the contract.", remedy = "Build the context from the contract's seed or change the contract." },
+  { code = "invalid_argument", detail = "selective_discovery.nothing_retained", when = "An export was requested before any run.", remedy = "Run discovery before exporting its state." },
+  { code = "route_not_supported", detail = "selective_discovery.multi_population", when = "The contract names more than one population or multi-dataset constraints.", remedy = "Run discovery on one declared population; cross-population assumptions belong to the transport contract." },
+  { code = "route_not_supported", detail = "selective_discovery.contemporaneous_links", when = "PCMCI is asked for contemporaneous links.", remedy = "Use PCMCI+, which orients contemporaneous links up to an equivalence class." },
+  { code = "route_not_supported", detail = "selective_discovery.score_search_closed", when = "Reuse is requested for a score-based search.", remedy = "Use constraint-based discovery with a retained statistic store, or run the score-based algorithm directly." },
+  { code = "cell_not_licensed", detail = "selective_discovery.recovery_claim_not_licensed", when = "A recovery, false-discovery or error-control statement is requested for a discovered graph.", remedy = "Report the structure with its unresolved edges and bounded-search receipts, or measure the whole-method calibration for this contract's variable count and sample size." },
+  { code = "cell_not_licensed", detail = "selective_discovery.downstream_interval_not_licensed", when = "An interval for an estimate resting on a discovered graph is requested on account of discovery.", remedy = "Use disjoint discovery and analysis rows, condition on a declared graph, or measure the whole-method calibration; the point estimate needs no interval." },
+  { code = "discovered_structure_unresolved", detail = "selective_discovery.search_incomplete", when = "A transport request or graph acceptance rests on a search that exhausted a bound.", remedy = "Rerun with larger bounds, then declare and review the graph." },
+  { code = "discovered_structure_unresolved", detail = "selective_discovery.unresolved_structure", when = "A transport request or graph acceptance rests on a structure with unresolved edges.", remedy = "Orient the named edges with background knowledge or declare a completion; transport is not computed across the equivalence class." },
+  { code = "discovered_structure_unresolved", detail = "selective_discovery.unaccepted_discovery", when = "A transport request rests on a discovered structure that was never accepted as the causal graph.", remedy = "Review and accept the structure as the causal graph, then declare the selection diagram." },
+  { code = "discovery_statistics_invalid", detail = "selective_discovery.raw_data_missing", when = "Resume is requested without the raw data.", remedy = "Supply the raw data the statistics were computed from, or rerun discovery." },
+  { code = "discovery_statistics_invalid", detail = "selective_discovery.data_mismatch", when = "The supplied data differ from the data the statistics were computed from.", remedy = "New data invalidates the statistics: rerun discovery on the new data." },
+  { code = "discovery_statistics_invalid", detail = "selective_discovery.contract_mismatch", when = "The request differs from the retained state in a declared input.", remedy = "Resume with the contract and kernel policy the state was produced under, or rerun discovery." },
+  { code = "discovery_statistics_invalid", detail = "selective_discovery.replay_miss", when = "A replay requested a statistic the state does not hold.", remedy = "Supply the receipts of a run of this exact contract on this data." },
+  { code = "discovery_statistics_invalid", detail = "selective_discovery.replay_diverged", when = "Replaying over the receipts did not reproduce the recorded result.", remedy = "Recompute from the raw data; a receipt or the recorded result was changed." },
+  { code = "discovery_statistics_invalid", detail = "selective_discovery.receipt_invalid", when = "A retained statistic is not finite or its p-value is outside [0, 1].", remedy = "Recompute the statistic from the raw data." },
+  { code = "discovery_statistics_invalid", detail = "selective_discovery.receipt_repeated", when = "Receipts repeat a coordinate or are not strictly ascending.", remedy = "Export the state of one run." },
+  { code = "discovery_statistics_invalid", detail = "selective_discovery.receipt_limit", when = "A state carries more receipts than the portable bound.", remedy = "Export a smaller search or recompute from the raw data." },
+  { code = "discovery_statistics_invalid", detail = "selective_discovery.receipts_identity", when = "The receipt identity does not match the receipts.", remedy = "Regenerate the state from the run." },
+  { code = "discovery_statistics_invalid", detail = "selective_discovery.contract_identity", when = "The contract identity does not match the declared inputs.", remedy = "Regenerate the state from the run." },
+  { code = "discovery_statistics_invalid", detail = "selective_discovery.components_incomplete", when = "The state does not declare every stage input exactly once.", remedy = "Regenerate the state from the run." },
+  { code = "discovery_statistics_invalid", detail = "selective_discovery.identity_mismatch", when = "A stored or retained artifact identity differs from the recomputed one.", remedy = "Supply the artifact whose recomputed identity equals the retained identity." },
+  { code = "invalid_argument", detail = "selective_discovery.artifact_invalid", when = "The bytes are not an intact selective_discovery_v1 container or do not decode.", remedy = "Supply an intact selective_discovery_v1 artifact." },
+]
+routes = [
+  { name = "antecedent.discovery.selective.static", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.discovery.selective.temporal", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.discovery.selective.accept_graph", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent.discovery.selective.claim_graph", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.discovery.selective.resume", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent.discovery.selective.consume_selective_discovery_artifact", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent.python.selective_discovery.run", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.python.selective_discovery.resume", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent.python.selective_discovery.consume_selective_discovery_artifact", stage = "consume", status = "licensed", claim = "none" },
+]
+fixtures = [
+  { id = "discovery.selective_reuse.collider_cpdag.positive", role = "positive", intent = "A d-separation oracle over the hand-written DAG 0->2<-1, 2->3 drives PC to the CPDAG derived by hand (v-structure then Meek rule 1): exactly the directed edges (0,2), (1,2), (2,3), no unresolved edge, with CI tests, orientation rounds and applied orientations observed and no score evaluation.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "oracle_recovers_the_hand_derived_cpdag_of_a_collider_with_a_descendant" },
+  { id = "discovery.selective_reuse.chain_equivalence_class.truth", role = "truth", intent = "A chain has no v-structure: the discovered structure keeps both edges undirected within the equivalence class and reports each as unresolved with its reason; no member is chosen.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "oracle_chain_stays_an_equivalence_class_with_two_unresolved_edges" },
+  { id = "discovery.selective_reuse.search_order.invariance", role = "invariance", intent = "The oracle-driven result is the same CPDAG under every tested permutation of the searched variables.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "oracle_result_is_invariant_to_the_search_order_of_the_variables" },
+  { id = "discovery.selective_reuse.pure_reuse.truth", role = "truth", intent = "A repeated request is served from the retained identities: every stage is reused, no statistic is computed and the algorithm is not entered.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "repeated_request_is_pure_reuse_with_no_executed_work" },
+  { id = "discovery.selective_reuse.threshold_change.truth", role = "truth", intent = "A threshold change keeps the statistics stage, reruns the search stage and its decisions over retained statistics, executes fewer tests than a full run and returns the full run's result bit for bit.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "threshold_change_reruns_decisions_over_retained_statistics_and_matches_a_full_run" },
+  { id = "discovery.selective_reuse.background_knowledge.truth", role = "truth", intent = "A forbidden-edge change reuses the statistics, reruns search and orientation and matches a full run bit for bit with fewer executed tests.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "background_knowledge_change_reuses_statistics_and_matches_a_full_run" },
+  { id = "discovery.selective_reuse.permutation_and_test.truth", role = "truth", intent = "A permuted variable order and a changed CI test each retain no statistic and match a full run on the same request.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "permuted_variable_order_and_a_changed_ci_test_match_full_runs" },
+  { id = "discovery.selective_reuse.stochastic_null.truth", role = "truth", intent = "A permutation-null CI test (p-value a function of seed and query) is reused across a threshold change and reproduces a full run exactly.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "permutation_test_statistics_reuse_matches_a_full_run" },
+  { id = "discovery.selective_reuse.changed_input_unchanged_shape.negative", role = "negative", intent = "One value of one column changes at an unchanged schema and size: the data identity names that variable, no retained statistic is served and the result equals a fresh run.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "changed_input_at_unchanged_shape_retains_nothing_and_matches_a_fresh_run" },
+  { id = "discovery.selective_reuse.atomic_update.negative", role = "negative", intent = "A cancelled candidate and a seed-mismatch refusal leave the retained state, outcome, identities and statistics untouched, and the next identical request is pure reuse.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "failed_or_cancelled_update_leaves_the_retained_state_untouched" },
+  { id = "discovery.selective_reuse.multi_population.negative", role = "negative", intent = "A contract naming a second population or multi-dataset constraints is refused with route_not_supported and a remedy; multi-population discovery is out.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "closed_routes_are_refused_with_a_remedy" },
+  { id = "discovery.selective_reuse.exhausted_budget.truth", role = "truth", intent = "A zero Possible-D-Sep budget and a one-path discriminating budget give selective and full runs the same typed failure or the same structure with the same bounded-search receipts.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "exhausted_search_bound_is_preserved_identically_by_selective_and_full_runs" },
+  { id = "discovery.selective_reuse.temporal_planted_link.positive", role = "positive", intent = "PCMCI on a simulated VAR(1) with a planted lagged cause finds the directed lagged edge x at lag 1 into y and observes its search passes.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "temporal_run_finds_the_planted_lagged_link_and_counts_search_work" },
+  { id = "discovery.selective_reuse.temporal_changes.truth", role = "truth", intent = "Threshold, minimum-lag, maximum-lag and mask-type changes on a series with missing rows each match a full run; only the first two reuse statistics.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "temporal_threshold_lag_and_mask_changes_match_full_runs" },
+  { id = "discovery.selective_reuse.resume.artifact", role = "artifact", intent = "Resume replays PC over the receipts only: zero CI tests are executed, the recorded result and graph identities are reproduced and the resumed adapter serves the same request as pure reuse.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "resume_replays_over_receipts_only_and_reproduces_the_result" },
+  { id = "discovery.selective_reuse.resume_refusals.artifact", role = "artifact", intent = "Resume without raw data, with other data of the same shape, and under another contract is refused with discovery_statistics_invalid.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "resume_refuses_missing_data_other_data_and_another_contract" },
+  { id = "discovery.selective_reuse.semantic_mutation.artifact", role = "artifact", intent = "An unusable receipt, a dropped receipt, a resealed rewrite of every statistic and an unsealed rewrite are each refused: by receipt validity, by the missing statistic, by replay divergence and by the receipt identity.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "resume_refuses_invalid_receipts_and_a_resealed_semantic_mutation" },
+  { id = "discovery.selective_reuse.temporal_resume.artifact", role = "artifact", intent = "Temporal resume reproduces the recorded result with no executed test; other data and absent data are refused; new data retains nothing and equals a fresh run.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "temporal_resume_and_data_change_follow_the_static_rules" },
+  { id = "discovery.selective_reuse.accepted_graph.truth", role = "truth", intent = "A resolved structure is accepted into the stage planner; a class needs a declared completion whose label and identity are part of the result; an exhausted bound is refused.", evidence_test = "crates/antecedent/tests/selective_discovery_facade.rs", evidence_assertion = "a_resolved_structure_is_accepted_and_a_class_needs_a_declared_completion" },
+  { id = "discovery.selective_reuse.planner_integration.truth", role = "truth", intent = "A changed accepted graph recomputes exactly the graph, identification, score artifact, law and decision stages and leaves query and data snapshot reused.", evidence_test = "crates/antecedent/tests/selective_discovery_facade.rs", evidence_assertion = "a_changed_discovered_graph_reaches_identification_fit_law_and_decision_only" },
+  { id = "discovery.selective_reuse.claim_graph_unchanged.truth", role = "truth", intent = "An unchanged discovery leaves every downstream claim still valid.", evidence_test = "crates/antecedent/tests/selective_discovery_facade.rs", evidence_assertion = "unchanged_discovery_leaves_every_downstream_claim_valid" },
+  { id = "discovery.selective_reuse.claim_graph_new_data.truth", role = "truth", intent = "New data recomputes the statistics, the graph and every claim resting on it without withdrawing any license, with the structure reused and the fit not retained.", evidence_test = "crates/antecedent/tests/selective_discovery_facade.rs", evidence_assertion = "new_data_recomputes_the_graph_and_everything_that_rests_on_it_without_withdrawing" },
+  { id = "discovery.selective_reuse.claim_graph_threshold.truth", role = "truth", intent = "A threshold change keeps data and statistics valid and recomputes the graph and everything resting on it.", evidence_test = "crates/antecedent/tests/selective_discovery_facade.rs", evidence_assertion = "a_threshold_change_keeps_the_statistics_and_recomputes_what_rests_on_the_graph" },
+  { id = "discovery.selective_reuse.claim_graph_structure.truth", role = "truth", intent = "A changed structure or a changed declared completion recomputes the downstream claims; the declared completion is recorded as a declaration.", evidence_test = "crates/antecedent/tests/selective_discovery_facade.rs", evidence_assertion = "a_changed_structure_recomputes_and_a_changed_completion_reaches_the_anchor" },
+  { id = "discovery.selective_reuse.claim_graph_bounded_search.negative", role = "negative", intent = "An exhausted search bound makes the graph unsupported and withdraws every downstream claim for support.", evidence_test = "crates/antecedent/tests/selective_discovery_facade.rs", evidence_assertion = "an_exhausted_search_bound_withdraws_every_downstream_claim" },
+  { id = "discovery.selective_reuse.ledger_overlap.truth", role = "truth", intent = "Reusing discovery rows in an analysis is a shared-observation overlap of exactly the shared rows; a held-out split and another snapshot are independent.", evidence_test = "crates/antecedent/tests/selective_discovery_facade.rs", evidence_assertion = "reusing_the_discovery_rows_in_an_analysis_is_a_shared_observation_overlap" },
+  { id = "discovery.selective_reuse.fresh_process.artifact", role = "artifact", intent = "A fresh consumer loads the artifact under the retained identity, resumes only with the raw data, refuses other data and a resealed mutation.", evidence_test = "crates/antecedent/tests/selective_discovery_facade.rs", evidence_assertion = "a_fresh_process_resumes_from_the_artifact_only_with_the_raw_data" },
+  { id = "discovery.selective_reuse.artifact_round_trip.artifact", role = "artifact", intent = "A sealed state round-trips with stable identities, a retained identity is enforced and the metadata is inspectable without raw data.", evidence_test = "crates/antecedent-io-core/tests/selective_discovery_artifact.rs", evidence_assertion = "a_sealed_state_round_trips_and_binds_its_identities" },
+  { id = "discovery.selective_reuse.artifact_edit.artifact", role = "artifact", intent = "An unsealed receipt edit is refused by the receipt identity and a resealed edit is caught by a retained identity.", evidence_test = "crates/antecedent-io-core/tests/selective_discovery_artifact.rs", evidence_assertion = "an_unsealed_edit_is_refused_and_a_resealed_edit_is_caught_by_a_retained_identity" },
+  { id = "discovery.selective_reuse.python_collider_cpdag.positive", role = "positive", intent = "Python surface: on 6000 rows of the linear-Gaussian collider SCM, the discovered directed edges equal the CPDAG derived by hand from a d-separation oracle whose separations are confirmed by exact population partial correlations; work counters are observed.", evidence_test = "python/tests/test_selective_discovery.py", evidence_assertion = "test_discovered_structure_is_the_hand_derived_cpdag" },
+  { id = "discovery.selective_reuse.python_threshold_reuse.truth", role = "truth", intent = "Python surface: a threshold change reuses statistics, reruns search, executes fewer tests than a full run and equals it bit for bit.", evidence_test = "python/tests/test_selective_discovery.py", evidence_assertion = "test_threshold_change_reuses_statistics_and_equals_a_full_run" },
+  { id = "discovery.selective_reuse.python_atomic_failure.negative", role = "negative", intent = "Python surface: a cancelled candidate and a multi-population refusal leave the retained outcome, identities and statistics untouched.", evidence_test = "python/tests/test_selective_discovery.py", evidence_assertion = "test_failed_or_cancelled_update_leaves_the_retained_state_untouched" },
+  { id = "discovery.selective_reuse.python_selection_diagram.negative", role = "negative", intent = "Python surface: a transport request over an equivalence class is refused with discovered_structure_unresolved and the unresolved edges; a resolved structure is refused as unaccepted.", evidence_test = "python/tests/test_selective_discovery.py", evidence_assertion = "test_a_discovered_structure_never_supplies_a_selection_diagram" },
+  { id = "discovery.selective_reuse.python_fresh_process.artifact", role = "artifact", intent = "Python surface: a subprocess resumes from the artifact with the raw data at zero executed tests, and is refused without the raw data.", evidence_test = "python/tests/test_selective_discovery.py", evidence_assertion = "test_a_fresh_process_resumes_only_with_the_raw_data" },
+]
+
+[[record]]
+id = "discovery.selective_reuse_guarantees_closed"
+capability = "discovery.selective_reuse_guarantees_closed"
+status = "frozen"
+consumer_question = "Can a recovery or error-control statement, an interval for a downstream estimate, score-search reuse, multi-population discovery or transport of a discovered structure be offered from selective discovery?"
+theorem = "Closed adjacent variant of discovery.selective_reuse. No recovery, false-discovery, type-I or interval statement is licensed for a discovered graph: none has measured whole-method calibration over discovery, graph acceptance and the downstream analysis with the discovery rows reused or split. A discovered structure is an estimate, not a declared causal graph, so it supplies no selection diagram; an envelope across an equivalence class is not offered. Score-based reuse and multi-population discovery are not delivered."
+reference = "provenance/discovery.selective_reuse_guarantees_closed.toml"
+guarantee = "closed_pending_whole_method_calibration_and_declared_assumptions"
+graph_class = "As discovery.selective_reuse."
+population_semantics = "As discovery.selective_reuse."
+evidence_family = "A discovered structure asked for a claim it does not carry."
+provider = "antecedent_discovery::selective::claims, antecedent_discovery::selective::transport"
+estimand = "none: the request is refused"
+inference_claim = "none"
+owners = ["antecedent-discovery", "antecedent"]
+identity_inputs = ["the discovered structure identity and its unresolved edges"]
+wire_changes = ["None. The selective_discovery_v1 artifact states one inference label, algorithmic_match_only, and its consumer refuses any other."]
+compatibility = "Additive; opening any of these routes later is its own record with whole-method calibration or a declared-assumption contract."
+search = false
+prerequisite_records = ["discovery.selective_reuse"]
+prerequisite_reason = "Closed adjacent variant: it refuses requests of the discovery it is adjacent to and inherits no statement from it."
+bounds = { cancellation = true }
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+refusals = [
+  { code = "cell_not_licensed", detail = "selective_discovery.recovery_claim_not_licensed", when = "A recovery, false-discovery or error-control statement is requested for a discovered graph.", remedy = "Measure the whole-method calibration for this contract, or report the structure with its unresolved edges." },
+  { code = "cell_not_licensed", detail = "selective_discovery.downstream_interval_not_licensed", when = "An interval for an estimate resting on a discovered graph is requested on account of discovery.", remedy = "Use disjoint discovery and analysis rows and a declared graph, or measure the whole-method calibration." },
+  { code = "route_not_supported", detail = "selective_discovery.score_search_closed", when = "Reuse is requested for a score-based search.", remedy = "Use constraint-based discovery with a retained statistic store." },
+  { code = "discovered_structure_unresolved", detail = "selective_discovery.unresolved_structure", when = "Transport is requested over a structure with unresolved edges.", remedy = "Orient or declare the graph, then declare the selection diagram." },
+]
+routes = [
+  { name = "antecedent.discovery.selective.recovery_claim", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-discovery/tests/selective_discovery.rs", refusal_assertion = "closed_claims_are_refused_with_cell_not_licensed_and_a_remedy" },
+  { name = "antecedent.discovery.selective.downstream_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-discovery/tests/selective_discovery.rs", refusal_assertion = "closed_claims_are_refused_with_cell_not_licensed_and_a_remedy" },
+  { name = "antecedent.discovery.selective.score_search", stage = "evaluate", status = "closed", reason_code = "route_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent-discovery/tests/selective_discovery.rs", refusal_assertion = "closed_claims_are_refused_with_cell_not_licensed_and_a_remedy" },
+  { name = "antecedent.discovery.selective.multi_population", stage = "evaluate", status = "closed", reason_code = "route_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent-discovery/tests/selective_discovery.rs", refusal_assertion = "closed_routes_are_refused_with_a_remedy" },
+  { name = "antecedent.discovery.selective.transport_of_discovered_structure", stage = "identify", status = "closed", reason_code = "discovered_structure_unresolved", permanent_in_release = true, refusal_test = "crates/antecedent-discovery/tests/selective_discovery.rs", refusal_assertion = "a_discovered_structure_never_supplies_a_selection_diagram" },
+]
+fixtures = [
+  { id = "discovery.selective_reuse_guarantees_closed.unresolved_structure_reported.positive", role = "positive", intent = "A transport request over a discovered equivalence class returns the three unresolved edges with their reasons through the refusal surface.", evidence_test = "crates/antecedent/tests/selective_discovery_facade.rs", evidence_assertion = "a_discovered_structure_transport_request_returns_the_unresolved_edges" },
+  { id = "discovery.selective_reuse_guarantees_closed.claims_refused.negative", role = "negative", intent = "A recovery claim, a downstream interval and score-search reuse are each refused with their registered code, detail and a remedy that states the whole-method calibration needed.", evidence_test = "crates/antecedent-discovery/tests/selective_discovery.rs", evidence_assertion = "closed_claims_are_refused_with_cell_not_licensed_and_a_remedy" },
+  { id = "discovery.selective_reuse_guarantees_closed.artifact_states_no_claim.artifact", role = "artifact", intent = "A resealed artifact that states a stronger inference label than algorithmic match, an inconsistent structure or an unusable receipt is refused.", evidence_test = "crates/antecedent-io-core/tests/selective_discovery_artifact.rs", evidence_assertion = "graph_receipt_and_label_mutations_are_refused" },
+]
+
+[[record]]
+id = "composition.release_boundary_fixture"
+capability = "composition.release_boundary_fixture"
+status = "in_progress"
+consumer_question = "Does one scenario that corrects a measured exposure, composes mechanisms, pools shared study evidence, decides from the resulting causal claim and revalidates it after new observations hold together through the public Rust and Python surfaces, with every unsupported conversion, withdrawal and dependence gap refused?"
+theorem = "No new theorem. The scenario composes existing routes: Rogan-Gladen correction of a misclassified binary prevalence (Rogan and Gladen 1978), truncated-factorization execution of declared finite mechanisms, inverse-variance and generalized-least-squares pooling, the joint-law rule, and the expectation of an affine utility of a declared mean. Every number is a closed form: prevalence (0.41+0.8-1)/0.7 = 0.3, pooled effect 0.15, excess risk 0.3*0.15 = 0.045, utility 1000*0.045-30 = 15. The claim graph classifies each downstream claim still_valid, recompute or withdrawn; a fresh consumer recomputes the decision against closed forms written in the consumer."
+reference = "docs/composition-release-fixture.md"
+guarantee = "point_only_composition_checked_against_closed_forms_by_an_independent_consumer_with_typed_refusals_for_every_mutation"
+graph_class = "A finite two-variable structural model (exposure X, outcome Y) with declared tables; no graph search and no identification claim beyond the declared mechanisms."
+population_semantics = "One declared population named by the measurement model, the mechanisms and the decision; a different population, regime or units refuses."
+evidence_family = "A declared confusion model with 410 recorded exposures of 1000, two study summaries with row-level observation identities, a declared baseline risk and a declared affine utility."
+provider = "antecedent::analysis::measurement_model, mechanism_composition, evidence_ledger, joint_law_propagation, interface_contract and composition_verification through the public facade; antecedent_design::decision_eval::evaluate_contract_on_means; the Python modules of the same names."
+estimand = "Attributable excess risk P(Y=1) - P(Y=1 | do(X=0)) of a declared finite model, and the expected utility of two actions read from its mean."
+inference_claim = "point_only"
+inference_notes = "No interval, posterior decision or ranking guarantee ships. The standard error of the corrected prevalence and the variance of a pooled estimate are labelled uncalibrated point quantities; every interval request is refused with cell_not_licensed. A mean source answers only the expectation of an affine utility: no regret, EVPI or standard error."
+owners = ["antecedent", "antecedent-py", "python/antecedent"]
+identity_inputs = ["the declared measurement model and its recorded counts", "the study summaries with their observation identities and the ledger head", "the declared finite mechanisms and the plan identity they compile under", "the decision contract identity and the declared mean's quantity, snapshot and plan", "the claim graph's node identities and dependencies"]
+wire_changes = ["None. The fixture adds no format; every artifact is an existing kind (measurement_model_v1, evidence_ledger_v1, mechanism_composition_v1, composition_verification_v1)."]
+compatibility = "Additive: a fixture and its gate wiring."
+search = false
+prerequisite_records = ["measurement.binary_misclassification", "mechanism_composition.acyclic_joint_model", "evidence_ledger.statistical_pooling", "evidence_ledger.revision", "evidence_ledger.overlap_accounting", "joint_law.linear_moment_propagation", "joint_law.aligned_nonlinear_functional", "interface_contract.scientific_interface", "composition_verification.claim_revalidation", "decision.contract"]
+prerequisite_reason = "The fixture exercises each route through its public surface and adds no semantics of its own; each parent record keeps its own boundary and evidence."
+bounds = { cancellation = true }
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+refusals = [
+  { code = "evidence_double_counted", detail = "evidence_ledger.shared_observations", when = "Two contributions of the pooled evidence share observations and are declared independent.", remedy = "Declare the covariance of the shared studies or drop one contribution; shared rows are counted once." },
+]
+routes = [
+  { name = "antecedent.composition_release_fixture.evaluate", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.composition_release_fixture.composed_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/composition_release_fixture.rs", refusal_assertion = "every_stage_is_point_only_and_no_interval_or_posterior_decision_ships" },
+]
+fixtures = [
+  { id = "composition.release_boundary_fixture.measured_exposure_enters_composed_model.positive", role = "positive", intent = "A misclassified exposure (Se 0.9, Sp 0.8, 410 of 1000 recorded) is corrected by its declared confusion model to prevalence 0.3 and enters a finite causal model with a pooled study effect 0.15; the composed model gives P(Y=1)=0.145 and excess risk 0.045 against closed forms.", evidence_test = "crates/antecedent/tests/composition_release_fixture.rs", evidence_assertion = "a_measured_exposure_enters_the_causal_model_through_the_declared_confusion_model" },
+  { id = "composition.release_boundary_fixture.shared_evidence_and_declared_dependence.positive", role = "positive", intent = "Studies sharing 200 rows are counted once (1000 declared, 800 distinct), refused when declared independent and accepted with a declared covariance, pooling to 0.15 with variance 0.0003; the joint-law rule agrees.", evidence_test = "crates/antecedent/tests/composition_release_fixture.rs", evidence_assertion = "shared_evidence_is_counted_once_and_dependence_is_declared_or_refused" },
+  { id = "composition.release_boundary_fixture.unpaired_marginals_and_aligned_lattice.negative", role = "negative", intent = "Index pairing of unpaired marginals is refused (joint_law_required); the enumerated product lattice is one aligned joint law with E[pi d]=0.045.", evidence_test = "crates/antecedent/tests/composition_release_fixture.rs", evidence_assertion = "unpaired_marginals_are_never_paired_by_index_and_an_enumerated_joint_law_is" },
+  { id = "composition.release_boundary_fixture.decision_matches_hand_computed_utilities.truth", role = "truth", intent = "The affine decision 1000*excess-30 reads the licensed mean through a caller-declared mean source: act 15, hold 0, act uniquely optimal; no standard error, regret or EVPI.", evidence_test = "crates/antecedent/tests/composition_release_fixture.rs", evidence_assertion = "the_decision_reads_the_licensed_mean_and_matches_the_hand_computed_utilities" },
+  { id = "composition.release_boundary_fixture.revision_recomputes_and_flips_the_decision.positive", role = "positive", intent = "A larger second study makes the claim graph classify pool, mechanisms, claim and decision for recomputation (measurement and study A still valid); after the pool is recomputed with its predecessor named the pool is 0.08, act is worth -6 and hold is selected.", evidence_test = "crates/antecedent/tests/composition_release_fixture.rs", evidence_assertion = "new_observations_revalidate_the_claim_graph_and_the_decision_is_reevaluated" },
+  { id = "composition.release_boundary_fixture.duplicated_evidence_refused.negative", role = "negative", intent = "A duplicate re-entering through lineage and a source listed twice are refused as evidence_double_counted and register nothing.", evidence_test = "crates/antecedent/tests/composition_release_fixture.rs", evidence_assertion = "duplicated_evidence_cannot_be_counted_twice" },
+  { id = "composition.release_boundary_fixture.unsupported_conversions_fail_closed.negative", role = "negative", intent = "The measured column as the construct, a value used without its measurement model, a mean offered where a law is required and a mean source asked for a law are each refused with their typed code and detail.", evidence_test = "crates/antecedent/tests/composition_release_fixture.rs", evidence_assertion = "unsupported_semantic_conversions_fail_closed" },
+  { id = "composition.release_boundary_fixture.upstream_withdrawal_refuses_decision.negative", role = "negative", intent = "Withdrawing study A withdraws the pool, mechanisms, claim and decision with no numerical reason; the decision refuses with claim_license_withdrawn and no number is served.", evidence_test = "crates/antecedent/tests/composition_release_fixture.rs", evidence_assertion = "an_upstream_withdrawal_makes_the_downstream_decision_refuse_end_to_end" },
+  { id = "composition.release_boundary_fixture.dependence_gap_refuses_decision.negative", role = "negative", intent = "A second contribution with undeclared observations is an unknown overlap: the ledger and the joint-law rule refuse and no decision exists; a declared covariance is what licenses the combination.", evidence_test = "crates/antecedent/tests/composition_release_fixture.rs", evidence_assertion = "a_dependence_gap_makes_the_downstream_decision_refuse_end_to_end" },
+  { id = "composition.release_boundary_fixture.fresh_consumer_recomputes_decision.artifact", role = "artifact", intent = "A consumer holding only bytes, retained identities and declarations recomputes the decision against closed forms; mutations of quantity, law, support, snapshot and evidence overlap are each refused with the expected code and detail.", evidence_test = "crates/antecedent/tests/composition_release_fixture.rs", evidence_assertion = "a_fresh_consumer_recomputes_the_decision_and_every_mutation_is_refused_as_expected" },
+  { id = "composition.release_boundary_fixture.python_pipeline.positive", role = "positive", intent = "Python surface: corrected measurement, pooled evidence, composed model and the joint-law rule match the hand values.", evidence_test = "python/tests/test_composition_release_fixture.py", evidence_assertion = "test_a_measured_exposure_enters_the_causal_model_through_the_declared_confusion_model" },
+  { id = "composition.release_boundary_fixture.python_revision_flips_decision.positive", role = "positive", intent = "Python surface: the claim graph classifies the stale decision for recomputation and the recomputed decision flips to hold.", evidence_test = "python/tests/test_composition_release_fixture.py", evidence_assertion = "test_new_observations_revalidate_the_claim_graph_and_the_decision_is_reevaluated" },
+  { id = "composition.release_boundary_fixture.python_conversions_fail_closed.negative", role = "negative", intent = "Python surface: unsupported semantic conversions fail closed.", evidence_test = "python/tests/test_composition_release_fixture.py", evidence_assertion = "test_unsupported_semantic_conversions_fail_closed" },
+  { id = "composition.release_boundary_fixture.python_withdrawal_refuses_decision.negative", role = "negative", intent = "Python surface: an upstream withdrawal makes the downstream decision refuse.", evidence_test = "python/tests/test_composition_release_fixture.py", evidence_assertion = "test_an_upstream_withdrawal_makes_the_downstream_decision_refuse_end_to_end" },
+  { id = "composition.release_boundary_fixture.python_fresh_process_consumer.artifact", role = "artifact", intent = "Python surface: a fresh-process consumer recomputes the decision and every mutation is refused as expected.", evidence_test = "python/tests/test_composition_release_fixture.py", evidence_assertion = "test_a_fresh_process_consumer_recomputes_the_decision_and_every_mutation_is_refused" },
+  { id = "composition.release_boundary_fixture.exit_story_rust.positive", role = "positive", intent = "The scenario is the seventh composition exit story (Rust).", evidence_test = "crates/antecedent/tests/composition_exit_gate.rs", evidence_assertion = "story_7_release_boundary_corrected_measurement_pooled_evidence_decision_and_revision" },
+  { id = "composition.release_boundary_fixture.exit_story_python.positive", role = "positive", intent = "The scenario is the seventh composition exit story (Python).", evidence_test = "python/tests/test_composition_exit_gate.py", evidence_assertion = "test_story_7_release_boundary_corrected_measurement_pooled_evidence_decision_and_revision" },
+]

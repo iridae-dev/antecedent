@@ -139,6 +139,14 @@ class InterfaceContractRefusal(StructuredRefusal):
 
     refusals: tuple[InterfaceContractRefusal, ...]
 
+    def __init__(self, refusal: Mapping[str, Any], *, text: str | None = None) -> None:
+        super().__init__(refusal, text=text)
+        #: What the consumer expects, when a comparison failed.
+        self.expected: str | None = refusal.get("expected")
+        #: What the producer declares, when a comparison failed.
+        self.supplied: str | None = refusal.get("supplied")
+        self.refusals = (self,)
+
 
 def _raise(payload: str | None) -> None:
     if payload is None:

@@ -136,6 +136,102 @@ consumer = "recalc_plan"
 status = "ADAPTER"
 detail = "`stage_identity(Stage.EVIDENCE, draws digest plus candidate-set digest)` declared by the caller"
 
+[[cell]]
+producer = "interface_contract_artifact"
+consumer = "decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; a contract declares scientific compatibility and carries no estimand value, so there is nothing to declare as a source (recorded exception in `parity/carryover_disposition.md`)"
+
+[[cell]]
+producer = "interface_contract_artifact"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "`CausalTypeError`; no value to declare as a mean claim (recorded exception in `parity/carryover_disposition.md`)"
+
+[[cell]]
+producer = "interface_contract_artifact"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`); a contract is neither a prior nor a signal"
+
+[[cell]]
+producer = "interface_contract_artifact"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "interface_contract_artifact"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "interface_contract_artifact"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`"
+
+[[cell]]
+producer = "interface_contract_artifact"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no node kind: the `interface_contract_v1` container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the contract object raises `CausalTypeError`"
+
+[[cell]]
+producer = "interface_contract_artifact"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, contract artifact identity)` declared by the caller"
+
+[[cell]]
+producer = "composition_verification_result"
+consumer = "decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; a classification of claims carries no estimand value, units or population, so there is nothing to declare as a mean source; the value belongs to the claim classified (recorded exception in `parity/carryover_disposition.md`)"
+
+[[cell]]
+producer = "composition_verification_result"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "`CausalTypeError`; no value to declare as a mean claim (recorded exception in `parity/carryover_disposition.md`)"
+
+[[cell]]
+producer = "composition_verification_result"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`); a classification is neither a prior nor a signal"
+
+[[cell]]
+producer = "composition_verification_result"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "composition_verification_result"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "composition_verification_result"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`; a classification is not a failed identification contract"
+
+[[cell]]
+producer = "composition_verification_result"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no node kind: the `composition_verification_v1` container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the verification raises `CausalTypeError`"
+
+[[cell]]
+producer = "composition_verification_result"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, verification identity digest)` declared by the caller; the plan reads the digest only"
+
 [[refusal]]
 code = "`cell_not_licensed`"
 detail = "`decision_reliability.cell_not_licensed`"
@@ -185,6 +281,16 @@ built_from = "`adaptive_inference.AdaptiveInferenceSession.export_contract(...)`
 key = "adaptive_inference_result"
 object = "an adaptive-experiment inference result (point-only; one paradigm, its procedure and stopping rule named)"
 built_from = "`adaptive_inference.AdaptiveInferenceSession.analyse(...)` (`AdaptiveResult`), its `export_result` and `consume_adaptive_inference_result_artifact`"
+
+[[producer]]
+key = "interface_contract_artifact"
+object = "an interface contract (what a component produces and consumes: quantity, support, operations, uncertainty meaning, calibration label, measurement and evidence assumptions; no value)"
+built_from = "`interface_contract.export_interface_contract(...)` (`InterfaceContractExport`) and `consume_interface_contract_artifact` (`ConsumedInterfaceContract`)"
+
+[[producer]]
+key = "composition_verification_result"
+object = "a composition verification (the still-valid, recompute or withdrawn classification of every downstream claim of a composed analysis, with each claim's lineage and calibration standing; no value)"
+built_from = "`composition_verification.verify_composition(...)` (`CompositionVerification`), its `export` and `consume_composition_verification_artifact`"
 
 [[consumer]]
 key = "decision"
@@ -1461,3 +1567,298 @@ where = "`sequential_evaluation.evaluate` for a policy that takes an action in a
 code = "`transport_missing_evidence`"
 detail = "`sequential_evaluation.transported_policy_contract_missing`"
 where = "`sequential_evaluation.check_request` and `compare` for another population than the model's"
+
+[[producer]]
+key = "propagated_claim"
+object = "a composed uncertain quantity under a licensed dependence route (labelled point-only)"
+built_from = "`joint_law_propagation.aligned_functional(...)`, `aligned_linear(...)`, `linear_moments(...)` or `mixture(...)` (`PropagationClaim`) and its `joint_law_propagation_v1` export"
+
+[[producer]]
+key = "dependence_envelope"
+object = "a dependence envelope of unpaired marginals (a structural envelope or an assumption range, never a point)"
+built_from = "`joint_law_propagation.dependence_envelope(...)` or `correlation_range(...)` (`PropagationClaim`, label `structural_envelope` or `assumption_range`) and its `joint_law_propagation_v1` export"
+
+[[cell]]
+producer = "propagated_claim"
+consumer = "decision"
+status = "ADAPTER"
+detail = "the caller declares one `MeanSource` coordinate for the claim's mean (E[PQ] = 2 from the aligned draws p = (1, 3, 2, 0), q = (4, 0, 2, 6)), carrying the claim identity as provider and the artifact identity as snapshot; `Contract.evaluate` then answers an affine utility only (act 4m - 1 = 7, hold 2m = 4), mean-only with no standard error; a quantile or probability is REFUSED `decision_evaluation.mean_source_insufficient`; the claim itself raises `CausalTypeError`"
+
+[[cell]]
+producer = "propagated_claim"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "the same declared mean as a `MeanClaim` into `InverseQuery.evaluate` (target mean 5 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the claim itself raises `CausalTypeError`"
+
+[[cell]]
+producer = "propagated_claim"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`); a composed claim is neither a prior nor a signal"
+
+[[cell]]
+producer = "propagated_claim"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "propagated_claim"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "propagated_claim"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`"
+
+[[cell]]
+producer = "propagated_claim"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no node kind: the `joint_law_propagation_v1` container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the claim raises `CausalTypeError` or `CompositionBundleRefusal`"
+
+[[cell]]
+producer = "propagated_claim"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, claim identity)` declared by the caller"
+
+[[cell]]
+producer = "dependence_envelope"
+consumer = "decision"
+status = "REFUSED"
+detail = "a structural envelope or assumption range is never a decision source: `Contract.evaluate` and `evaluate_with_support` raise `CausalTypeError`; no endpoint is read as a mean, a law or a point"
+
+[[cell]]
+producer = "dependence_envelope"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "`CausalTypeError` from `InverseQuery.evaluate`; an envelope is not a `MeanClaim`"
+
+[[cell]]
+producer = "dependence_envelope"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`)"
+
+[[cell]]
+producer = "dependence_envelope"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "dependence_envelope"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "dependence_envelope"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`"
+
+[[cell]]
+producer = "dependence_envelope"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no node kind: the `joint_law_propagation_v1` container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`"
+
+[[cell]]
+producer = "dependence_envelope"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, claim identity)` declared by the caller; the identity covers the label, so a point and an envelope never share one"
+
+[[refusal]]
+code = "`claim_revalidation_required`"
+detail = "`composition_verification.recompute_required`"
+where = "`CompositionVerification.require_valid` and the consumed verification for a claim whose data, evidence, version or structural derivation changed"
+
+[[refusal]]
+code = "`claim_license_withdrawn`"
+detail = "`composition_verification.provider_trust_withdrawn`"
+where = "`CompositionVerification.require_valid` for a claim resting on a provider whose trust no longer holds"
+
+[[refusal]]
+code = "`claim_license_withdrawn`"
+detail = "`composition_verification.support_withdrawn`"
+where = "`CompositionVerification.require_valid` for a claim answering coordinates outside a support it rests on"
+
+[[refusal]]
+code = "`claim_license_withdrawn`"
+detail = "`composition_verification.input_retired`"
+where = "`CompositionVerification.require_valid` for a claim whose input was retired, replaced or removed"
+
+[[refusal]]
+code = "`cell_not_licensed`"
+detail = "`composition_verification.calibration_not_held`"
+where = "`CompositionVerification.require_valid` for calibration inherited from an object that no longer holds it or established at another coordinate"
+
+[[refusal]]
+code = "`invalid_argument`"
+detail = "`composition_verification.graph_invalid`"
+where = "`verify_composition` for a duplicate node, an unknown dependency, a cycle or inherited calibration without a calibration dependency"
+
+[[producer]]
+key = "selective_discovery_result"
+object = "a selective discovery result (a discovered structure kept in its equivalence class with its unresolved edges, bounded-search receipts, retained-statistic receipts and observed work; no response, no recovery or error-control claim)"
+built_from = "`selective_discovery.SelectiveDiscovery.run(...)` (`Outcome`, `RunReport`), its `export_state` and `consume_selective_discovery_artifact`"
+
+[[producer]]
+key = "cross_world_execution_result"
+object = "a cross-world execution result (point-only, exact enumeration of a declared finite Markovian SCM; coupled worlds sharing each unit's exogenous posterior)"
+built_from = "`cross_world_execution.seal(...)` (`CrossWorldExecution`) and `CrossWorldExecutor.execute(...)` (`ExecutionResult`) with its `cross_world_execution_v1` export"
+
+[[producer]]
+key = "callback_result"
+object = "an executed callback result (a provider's mean, draws, distribution or quantile function or posterior update accepted as a well-formed law of a declared quantity; external, diagnostic or licensed-external, never native; no interval)"
+built_from = "`provider_callbacks.CallbackSession.execute(...)` (`CallbackExecution`), its `export` and `consume_callback_result`"
+
+[[cell]]
+producer = "selective_discovery_result"
+consumer = "decision"
+status = "REFUSED"
+detail = "a discovered structure is never a decision source: it carries no response, value or units. `Contract.evaluate` and `evaluate_with_support` raise `CausalTypeError`; the structure reaches a decision only through an accepted graph into identification, which the stage planner and the claim graph track"
+
+[[cell]]
+producer = "selective_discovery_result"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "`CausalTypeError` from `InverseQuery.evaluate`; a discovered structure is not a `MeanClaim`"
+
+[[cell]]
+producer = "selective_discovery_result"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` from `rank_designs(prior=)`; a structure is not a prior"
+
+[[cell]]
+producer = "selective_discovery_result"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError` from `sensitivity_decision.decide`; a structure is not a sensitivity artifact"
+
+[[cell]]
+producer = "selective_discovery_result"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError` from `decide_from_scenarios` and `ScenarioDecisionRefusal` from `decide_from_cpdag_completions`; an estimated equivalence class is not an identified set or a prepared completion stage"
+
+[[cell]]
+producer = "selective_discovery_result"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `repair.obligations` and `repair.repair`; a structure is not a failed identification contract"
+
+[[cell]]
+producer = "selective_discovery_result"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "`add_artifact` refuses the `selective_discovery_v1` bytes and the result object: the bundle protocol has no discovery node kind, so a structure never enters a bundle as a graph or a claim"
+
+[[cell]]
+producer = "selective_discovery_result"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, result identity)` declared by the caller; it is evidence, never the accepted graph (`Stage.GRAPH` needs `accepted_graph_stage_identity`)"
+
+[[cell]]
+producer = "cross_world_execution_result"
+consumer = "decision"
+status = "ADAPTER"
+detail = "the caller declares one `MeanSource` coordinate for the result's mean (natural direct effect 0.25 from coupled worlds of a hand-computed mediation SCM), carrying the receipt digest as provider and the abduction digest as snapshot; `Contract.evaluate` then answers an affine utility only (act 4m - 1 = 0, hold 2m = 0.5), mean-only with no standard error; a quantile or probability is REFUSED `decision_evaluation.mean_source_insufficient`; the result itself raises `CausalTypeError`"
+
+[[cell]]
+producer = "cross_world_execution_result"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "the same declared mean as a `MeanClaim` into `InverseQuery.evaluate` (target mean 0.25 keeps `hold`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the result itself raises `CausalTypeError`"
+
+[[cell]]
+producer = "cross_world_execution_result"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`); a counterfactual value is neither a prior nor a signal"
+
+[[cell]]
+producer = "cross_world_execution_result"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "cross_world_execution_result"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "cross_world_execution_result"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`"
+
+[[cell]]
+producer = "cross_world_execution_result"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no node kind: the `cross_world_execution_v1` container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the result raises `CausalTypeError` or `CompositionBundleRefusal`"
+
+[[cell]]
+producer = "cross_world_execution_result"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, receipt digest)` declared by the caller"
+
+[[cell]]
+producer = "callback_result"
+consumer = "decision"
+status = "REFUSED"
+detail = "a callback result is a provider's declared law output, not a decision source: `Contract.evaluate` and `evaluate_with_support` raise `CausalTypeError`; the output reaches a decision only through a caller-declared source bound to a checked contract"
+
+[[cell]]
+producer = "callback_result"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "`CausalTypeError` from `InverseQuery.evaluate`; an execution result is not a `MeanClaim`"
+
+[[cell]]
+producer = "callback_result"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` from `rank_designs(prior=)`; a provider output is not a prior"
+
+[[cell]]
+producer = "callback_result"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError` from `sensitivity_decision.decide`; not a sensitivity artifact"
+
+[[cell]]
+producer = "callback_result"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError` from `decide_from_scenarios` and `ScenarioDecisionRefusal` from `decide_from_cpdag_completions`; not an identified set"
+
+[[cell]]
+producer = "callback_result"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `repair.obligations` and `repair.repair`; not a failed identification contract"
+
+[[cell]]
+producer = "callback_result"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "`add_artifact` refuses the `callback_result_v1` bytes and the result object: the bundle protocol has no callback node kind (`detect_kind` is `None`)"
+
+[[cell]]
+producer = "callback_result"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, artifact identity)` declared by the caller; it is evidence the provider supplied, not a native stage"

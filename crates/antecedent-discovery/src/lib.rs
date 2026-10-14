@@ -73,6 +73,7 @@ pub mod result;
 pub mod rfci;
 pub mod rpcmci;
 pub mod rule_scheduling;
+pub mod selective;
 mod static_skeleton;
 pub mod structure_mcmc;
 #[cfg(test)]

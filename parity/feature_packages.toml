@@ -638,3 +638,87 @@ purpose = "Can a party that does not use Antecedent read and check the interface
 depends_on = ["interface_contract.scientific_interface", "evidence_ledger.overlap_accounting"]
 record = "interface_contract.portable_specification"
 record_state = "frozen"
+
+[[feature]]
+id = "cross_world_execution.finite_markovian_scm"
+purpose = "What would an observed unit have had under another action, and what do worlds sharing its exogenous history jointly do, in a declared finite Markovian SCM?"
+depends_on = []
+record = "cross_world_execution.finite_markovian_scm"
+record_state = "frozen"
+
+[[feature]]
+id = "cross_world_execution.temporal_selective"
+purpose = "Can the fixed-population temporal counterfactual reuse its abduction when only the action histories change?"
+depends_on = []
+record = "cross_world_execution.temporal_selective"
+record_state = "frozen"
+
+[[feature]]
+id = "cross_world_execution.transported_row"
+purpose = "closed: a cross-world quantity in a target population other than the declared one"
+depends_on = ["cross_world_execution.finite_markovian_scm", "counterfactual.transport_general"]
+record = "cross_world_execution.transported_row"
+record_state = "frozen"
+
+[[feature]]
+id = "cross_world_execution.sampled_and_interval_readings"
+purpose = "closed: intervals, posteriors and sampled abduction for a cross-world value"
+depends_on = ["cross_world_execution.finite_markovian_scm"]
+record = "cross_world_execution.sampled_and_interval_readings"
+record_state = "frozen"
+
+[[feature]]
+id = "provider_callback.law_posterior_protocol"
+purpose = "May a law, posterior or nested callback be asked for its mean, draws, distribution function, quantile function or posterior update, each negotiated separately, and its answer accepted only as a well-formed law?"
+depends_on = ["interface_contract.scientific_interface", "evidence_ledger.overlap_accounting", "external.scientific_providers"]
+record = "provider_callback.law_posterior_protocol"
+record_state = "frozen"
+
+[[feature]]
+id = "provider_callback.replay_policy"
+purpose = "When may a stored callback answer be reused, recomputed or refused for deterministic, seeded, stateful and side-effecting callbacks?"
+depends_on = ["provider_callback.law_posterior_protocol"]
+record = "provider_callback.replay_policy"
+record_state = "frozen"
+
+[[feature]]
+id = "provider_callback.portable_result"
+purpose = "Can a callback result be exported as a declaration and portable output, consumed with identities recomputed, and resumed only by a compatible provider?"
+depends_on = ["provider_callback.law_posterior_protocol", "interface_contract.scientific_interface"]
+record = "provider_callback.portable_result"
+record_state = "frozen"
+
+[[feature]]
+id = "provider_callback.closed_claims"
+purpose = "closed: interval, posterior guarantee, native trust, identification licence or joint law supplied by a callback"
+depends_on = ["provider_callback.law_posterior_protocol"]
+record = "provider_callback.closed_claims"
+record_state = "frozen"
+
+[[feature]]
+id = "provider_callback.consumers"
+purpose = "May a provider output feed a transport source, a transported claim reach a callback, and a callback law be scored by the predictive assessment, each through the interface contract?"
+depends_on = ["provider_callback.law_posterior_protocol", "interface_contract.scientific_interface"]
+record = "provider_callback.consumers"
+record_state = "frozen"
+
+[[feature]]
+id = "discovery.selective_reuse"
+purpose = "When a discovery request is repeated with a different threshold, background knowledge, orientation budget, lag window, test or data, which statistics are reused and what do the unresolved edges and exhausted bounds say downstream"
+depends_on = ["evidence_ledger.overlap_accounting", "composition_verification.claim_revalidation"]
+record = "discovery.selective_reuse"
+record_state = "frozen"
+
+[[feature]]
+id = "discovery.selective_reuse_guarantees_closed"
+purpose = "closed: a recovery or error-control claim, a downstream interval, score-search reuse, multi-population discovery or transport of a discovered structure from selective discovery"
+depends_on = ["discovery.selective_reuse"]
+record = "discovery.selective_reuse_guarantees_closed"
+record_state = "frozen"
+
+[[feature]]
+id = "composition.release_boundary_fixture"
+purpose = "Do a corrected measured exposure, composed mechanisms, pooled shared evidence, a downstream decision and its revalidation hold together end to end, with every unsupported conversion, withdrawal and dependence gap refused?"
+depends_on = ["measurement.binary_misclassification", "mechanism_composition.acyclic_joint_model", "evidence_ledger.statistical_pooling", "evidence_ledger.revision", "joint_law.linear_moment_propagation", "interface_contract.scientific_interface", "composition_verification.claim_revalidation", "decision.contract"]
+record = "composition.release_boundary_fixture"
+record_state = "frozen"

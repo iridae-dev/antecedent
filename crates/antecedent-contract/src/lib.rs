@@ -16,6 +16,7 @@
 
 pub mod adaptive_design;
 pub mod bridge;
+pub mod callback_protocol;
 pub mod capability;
 pub mod claim;
 pub mod composition_provenance;

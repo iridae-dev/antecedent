@@ -53,6 +53,7 @@ mod contract_identity;
 mod cost;
 mod counterfactual_transport;
 mod cpdag_scenarios;
+pub mod cross_world_execution;
 pub mod decision_claims;
 mod decision_contract_facade;
 pub mod decision_reliability;
@@ -87,6 +88,7 @@ pub mod observation_posterior;
 pub mod observation_query;
 pub mod predictive_assessment;
 mod preflight;
+pub mod provider_callbacks;
 pub(crate) mod query_license;
 mod rank_drop_estimate;
 pub mod recalc_adjusted;
@@ -101,6 +103,7 @@ mod recovery;
 pub mod recovery_chain;
 pub mod repair;
 pub mod scientific_bridge;
+pub mod selective_discovery;
 pub mod sensitivity_decision;
 pub mod sequential_evaluation;
 mod smoothed_dose;
@@ -248,6 +251,15 @@ pub use preflight::{
     FittedPropensity, NuisanceFitDiagnostics, PreflightFinding, PreflightInput, PreflightReport,
     PropensityOutcome, RankDropPlan, RankDropPolicy, RankReport, ScoreQuantile, SpanCheck,
     fit_diagnostics_design, plan_rank_drop, preflight_design,
+};
+pub use provider_callbacks::{
+    CallbackConnectionError, CallbackExecution, CallbackExecutionError, CallbackExecutionPolicy,
+    CallbackRegistrationError, CallbackResume, CallbackSession, FnCallback, ProviderCallback,
+    check_callback_connection, check_claim_to_callback, consume_callback_result,
+    export_callback_result, forecast_law_from_sample, inspect_callback_result,
+    predictive_law_source, refuse_identification_licence, refuse_interval, refuse_joint_law,
+    refuse_native_trust, refuse_posterior_guarantee, register_callback_source,
+    supersede_callback_source, verification_holds,
 };
 pub use rank_drop_estimate::{RankDropEstimate, estimate_with_rank_drop};
 pub use recovery::{

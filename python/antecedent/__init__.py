@@ -87,9 +87,17 @@ a latent construct measured with error under a declared model (point and uncalib
 error, never an interval); ``mechanism_composition`` composes independently fitted mechanisms into
 one executable joint model with declared dependence; ``evidence_ledger`` accounts the overlap of
 evidence sources before any pooling, borrowing or reuse and reclassifies stale results.
+``interface_contract`` declares what a component produces and consumes and decides, before any
+number is computed, whether two components may be connected (cycles are refused with their path).
 ``scientific_bridge`` states the assumptions under which a claim about one quantity answers a
 question about another (surrogate to terminal outcome, measured to latent, predictive to causal)
-as a new, separately identified, point-only claim.
+as a new, separately identified, point-only claim. ``composition_verification`` classifies every
+downstream claim of a composed analysis as still valid, recompute or withdrawn when an upstream
+object changes, and reports the lineage and calibration standing behind each claim.
+``provider_callbacks`` declares an arbitrary law, posterior or nested callback you supply, negotiates
+mean, draws, distribution function, quantile and posterior update separately, reuses a stored answer
+only under its declared replay contract and accepts an answer only as a well-formed law; a callback
+supplies no interval, native trust, joint law or identification licence.
 
 ``observation_query`` asks what an observation says: the outcome probability given a recorded
 signal kept distinct from the probability under an intervention on the same model, a measured
@@ -360,8 +368,10 @@ _LAZY_MODULES: tuple[str, ...] = (
     "compact_export",
     "composition",
     "composition_bundle",
+    "composition_verification",
     "counterfactual_id",
     "cross_world",
+    "cross_world_execution",
     "decision_reliability",
     "decision_robust",
     "descriptive",
@@ -370,9 +380,11 @@ _LAZY_MODULES: tuple[str, ...] = (
     "evidence_ledger",
     "execution_attempt",
     "functional_source",
+    "interface_contract",
     "inverse",
     "inverse_query",
     "joint_distribution",
+    "joint_law_propagation",
     "latent_class",
     "measurement_models",
     "mechanism_composition",
@@ -385,6 +397,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "program_claims",
     "proposal_arrival",
     "proposals",
+    "provider_callbacks",
     "recalc",
     "recalc_adjusted",
     "recalc_bayesian",
@@ -401,6 +414,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "scenario_decision",
     "scenario_invariance",
     "scientific_bridge",
+    "selective_discovery",
     "sensitivity_decision",
     "sequential_evaluation",
     "source_evidence",

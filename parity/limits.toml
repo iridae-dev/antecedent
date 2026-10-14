@@ -1909,3 +1909,115 @@ implementation = [{ path = "crates/antecedent-contract/src/interface_contract/co
 documentation = [{ path = "crates/antecedent-contract/src/interface_contract/composition.rs", constant = "MAX_COMPOSITION_CONNECTIONS" }]
 guard = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'connections\.len\(\) > MAX_COMPOSITION_CONNECTIONS' }
 refusal = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'connections\.len\(\) > MAX_COMPOSITION_CONNECTIONS \{\s+return Err\(vec!\[composition_too_large' }
+
+[[bound]]
+record = "joint_law.dependence_envelope"
+key = "max_marginal_atoms"
+implementation = [{ path = "crates/antecedent-stats/src/joint_law.rs", constant = "MAX_MARGINAL_ATOMS" }]
+documentation = [{ path = "docs/joint-law-propagation.md", pattern = "Marginal atoms: (\\d+)" }]
+guard = { path = "crates/antecedent-stats/src/joint_law.rs", pattern = "values\\.len\\(\\) > MAX_MARGINAL_ATOMS" }
+refusal = { path = "crates/antecedent-stats/src/joint_law.rs", pattern = "values\\.len\\(\\) > MAX_MARGINAL_ATOMS \\{\\s*return Err\\(" }
+
+[[bound]]
+record = "joint_law.dependence_envelope"
+key = "max_lattice_checks"
+implementation = [{ path = "crates/antecedent-stats/src/joint_law.rs", constant = "MAX_LATTICE_CHECKS" }]
+documentation = [{ path = "docs/joint-law-propagation.md", pattern = "lattice: (\\d+) adjacent" }]
+guard = { path = "crates/antecedent-stats/src/joint_law.rs", pattern = "> MAX_LATTICE_CHECKS" }
+refusal = { path = "crates/antecedent-stats/src/joint_law.rs", pattern = "> MAX_LATTICE_CHECKS \\{\\s*return Err\\(" }
+
+[[bound]]
+record = "joint_law.linear_moment_propagation"
+key = "max_terms"
+implementation = [{ path = "crates/antecedent-stats/src/joint_law.rs", constant = "MAX_COMPONENTS" }]
+documentation = [{ path = "docs/joint-law-propagation.md", pattern = "mixture components: (\\d+)\\." }]
+guard = { path = "crates/antecedent-stats/src/joint_law.rs", pattern = "k > MAX_COMPONENTS" }
+refusal = { path = "crates/antecedent-stats/src/joint_law.rs", pattern = "k > MAX_COMPONENTS \\{\\s*return Err\\(" }
+
+[[bound]]
+record = "joint_law.aligned_nonlinear_functional"
+key = "max_draws"
+implementation = [{ path = "crates/antecedent-io-core/src/distribution_artifact.rs", constant = "MAX_DISTRIBUTION_DRAWS" }]
+documentation = [{ path = "docs/joint-law-propagation.md", pattern = "Aligned draws:\\s+(\\d+) per column" }]
+guard = { path = "crates/antecedent-io-core/src/joint_law_propagation_artifact.rs", pattern = "n > MAX_DISTRIBUTION_DRAWS" }
+refusal = { path = "crates/antecedent-io-core/src/joint_law_propagation_artifact.rs", pattern = "n > MAX_DISTRIBUTION_DRAWS \\{\\s*Err\\(too_large" }
+
+[[bound]]
+record = "cross_world_execution.finite_markovian_scm"
+key = "max_variables"
+implementation = [{ path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs", constant = "MAX_VARIABLES" }]
+documentation = [{ path = "docs/cross-world-execution.md", pattern = "Variables: (\\d+)" }]
+guard = { path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs", pattern = "n > MAX_VARIABLES" }
+refusal = { path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs", pattern = "n > MAX_VARIABLES \\|\\| self\\.exogenous\\.len\\(\\) > MAX_VARIABLES \\{\\s*return Err\\(" }
+
+[[bound]]
+record = "cross_world_execution.finite_markovian_scm"
+key = "max_worlds"
+implementation = [{ path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs", constant = "MAX_WORLDS" }]
+documentation = [{ path = "docs/cross-world-execution.md", pattern = "Worlds: (\\d+)" }]
+guard = { path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs", pattern = "worlds\\.len\\(\\) > MAX_WORLDS" }
+refusal = { path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs", pattern = "worlds\\.len\\(\\) > MAX_WORLDS \\{\\s*return Err\\(" }
+
+[[bound]]
+record = "cross_world_execution.finite_markovian_scm"
+key = "max_units"
+implementation = [{ path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs", constant = "MAX_UNITS" }]
+documentation = [{ path = "docs/cross-world-execution.md", pattern = "Units: (\\d+)" }]
+guard = { path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs", pattern = "units\\.len\\(\\) > MAX_UNITS" }
+refusal = { path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs", pattern = "units\\.len\\(\\) > MAX_UNITS \\{\\s*return Err\\(" }
+
+[[bound]]
+record = "cross_world_execution.finite_markovian_scm"
+key = "max_joint_exogenous_states"
+implementation = [{ path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs", constant = "MAX_JOINT_STATES" }]
+documentation = [{ path = "docs/cross-world-execution.md", pattern = "Joint exogenous states: (\\d+)" }]
+guard = { path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs", pattern = "<= MAX_JOINT_STATES" }
+refusal = { path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs", pattern = "<= MAX_JOINT_STATES\\)[\\s\\S]{0,200}?\\.ok_or_else\\s*\\(" }
+
+[[bound]]
+record = "provider_callback.law_posterior_protocol"
+key = "max_dependencies"
+implementation = [{ path = "crates/antecedent-contract/src/callback_protocol/declaration.rs", constant = "MAX_CALLBACK_DEPENDENCIES" }]
+documentation = [{ path = "crates/antecedent-contract/src/callback_protocol/declaration.rs", constant = "MAX_CALLBACK_DEPENDENCIES" }]
+guard = { path = "crates/antecedent-contract/src/callback_protocol/declaration.rs", pattern = 'dependencies\.len\(\) > MAX_CALLBACK_DEPENDENCIES' }
+refusal = { path = "crates/antecedent-contract/src/callback_protocol/declaration.rs", pattern = 'dependencies\.len\(\) > MAX_CALLBACK_DEPENDENCIES \{\s+return Err\(too_many_items' }
+
+[[bound]]
+record = "provider_callback.law_posterior_protocol"
+key = "max_inputs"
+implementation = [{ path = "crates/antecedent-contract/src/callback_protocol/declaration.rs", constant = "MAX_CALLBACK_INPUTS" }]
+documentation = [{ path = "crates/antecedent-contract/src/callback_protocol/declaration.rs", constant = "MAX_CALLBACK_INPUTS" }]
+guard = { path = "crates/antecedent-contract/src/callback_protocol/declaration.rs", pattern = 'self\.inputs\.len\(\) > MAX_CALLBACK_INPUTS' }
+refusal = { path = "crates/antecedent-contract/src/callback_protocol/declaration.rs", pattern = 'self\.inputs\.len\(\) > MAX_CALLBACK_INPUTS \{\s+return Err\(too_many_items' }
+
+[[bound]]
+record = "provider_callback.law_posterior_protocol"
+key = "max_draws"
+implementation = [{ path = "crates/antecedent-contract/src/callback_protocol/query.rs", constant = "MAX_CALLBACK_DRAWS" }]
+documentation = [{ path = "crates/antecedent-contract/src/callback_protocol/query.rs", constant = "MAX_CALLBACK_DRAWS" }]
+guard = { path = "crates/antecedent-contract/src/callback_protocol/query.rs", pattern = '\*draws > MAX_CALLBACK_DRAWS' }
+refusal = { path = "crates/antecedent-contract/src/callback_protocol/query.rs", pattern = '\*draws > MAX_CALLBACK_DRAWS \{\s+return Err\(query_invalid' }
+
+[[bound]]
+record = "provider_callback.law_posterior_protocol"
+key = "max_points"
+implementation = [{ path = "crates/antecedent-contract/src/callback_protocol/query.rs", constant = "MAX_CALLBACK_POINTS" }]
+documentation = [{ path = "crates/antecedent-contract/src/callback_protocol/query.rs", constant = "MAX_CALLBACK_POINTS" }]
+guard = { path = "crates/antecedent-contract/src/callback_protocol/query.rs", pattern = 'thresholds\.len\(\) > MAX_CALLBACK_POINTS' }
+refusal = { path = "crates/antecedent-contract/src/callback_protocol/query.rs", pattern = 'thresholds\.len\(\) > MAX_CALLBACK_POINTS \{\s+return Err\(query_invalid' }
+
+[[bound]]
+record = "discovery.selective_reuse"
+key = "max_portable_receipts"
+implementation = [{ path = "crates/antecedent-discovery/src/selective/store.rs", constant = "MAX_PORTABLE_RECEIPTS" }]
+documentation = [{ path = "docs/selective-discovery.md", pattern = "Portable receipts: (\\d+)" }]
+guard = { path = "crates/antecedent-discovery/src/selective/store.rs", pattern = "receipts\\.len\\(\\) > MAX_PORTABLE_RECEIPTS" }
+refusal = { path = "crates/antecedent-discovery/src/selective/store.rs", pattern = "receipts\\.len\\(\\) > MAX_PORTABLE_RECEIPTS \\{\\s+return Err\\(" }
+
+[[bound]]
+record = "discovery.selective_reuse"
+key = "max_structure_items"
+implementation = [{ path = "crates/antecedent-io-core/src/selective_discovery_artifact.rs", constant = "MAX_STRUCTURE_ITEMS" }]
+documentation = [{ path = "docs/selective-discovery.md", pattern = "Structure items: (\\d+)" }]
+guard = { path = "crates/antecedent-io-core/src/selective_discovery_artifact.rs", pattern = "wire\\.nodes\\.len\\(\\) > MAX_STRUCTURE_ITEMS" }
+refusal = { path = "crates/antecedent-io-core/src/selective_discovery_artifact.rs", pattern = "wire\\.edges\\.len\\(\\) > MAX_STRUCTURE_ITEMS \\{\\s+return Err\\(Failure::LimitsExceeded" }

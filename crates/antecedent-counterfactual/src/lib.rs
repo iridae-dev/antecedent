@@ -8,6 +8,7 @@
 pub mod cross_world;
 pub mod engine;
 pub mod error;
+pub mod selective;
 pub mod temporal_cross_world;
 pub mod transported_gate;
 pub mod transported_path_specific;

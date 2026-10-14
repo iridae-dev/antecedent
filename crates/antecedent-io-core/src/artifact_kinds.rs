@@ -8,11 +8,13 @@
 
 pub(crate) const ADAPTIVE_MONITORING_CONTRACT: &str = "adaptive_monitoring_contract_v1";
 pub(crate) const ANALYSIS_RESULT: &str = "analysis_result";
+pub(crate) const CALLBACK_RESULT: &str = "callback_result_v1";
 pub(crate) const CAUSAL_PAYLOAD: &str = "causal_payload";
 pub(crate) const COHORT_DECISION_SOURCE: &str = "cohort_decision_source_v1";
 pub(crate) const COMPACT_RUNTIME_EXPORT: &str = "compact_runtime_export_v1";
 pub(crate) const COMPOSITION_VERIFICATION: &str = "composition_verification_v1";
 pub(crate) const COUNTERFACTUAL_TRANSPORT: &str = "counterfactual_transport_v1";
+pub(crate) const CROSS_WORLD_EXECUTION: &str = "cross_world_execution_v1";
 pub(crate) const EVIDENCE_LEDGER: &str = "evidence_ledger_v1";
 pub(crate) const EXTERNAL_CALLBACK: &str = "external_callback_v1";
 pub(crate) const EXTERNAL_COLUMN_CLAIM: &str = "external_column_claim_v1";
@@ -26,6 +28,7 @@ pub(crate) const PROVIDER_RESULT: &str = "provider_result_v1";
 pub(crate) const PROVIDER_VERIFICATION_RECEIPT: &str = "provider_verification_receipt_v1";
 pub(crate) const RECALC_RECEIPT: &str = "recalc_receipt_v1";
 pub(crate) const SCIENTIFIC_BRIDGE: &str = "scientific_bridge_v1";
+pub(crate) const SELECTIVE_DISCOVERY: &str = "selective_discovery_v1";
 pub(crate) const SENSITIVITY_DECISION: &str = "sensitivity_decision_v1";
 pub(crate) const TEMPORAL_COUNTERFACTUAL: &str = "temporal_counterfactual_v1";
 pub(crate) const TRANSPORT_CERTIFICATE: &str = "transport_certificate";
@@ -34,12 +37,13 @@ pub(crate) const TRANSPORTED_COUNTERFACTUAL: &str = "transported_counterfactual_
 #[cfg(test)]
 mod tests {
     use super::{
-        ADAPTIVE_MONITORING_CONTRACT, ANALYSIS_RESULT, CAUSAL_PAYLOAD, COHORT_DECISION_SOURCE,
-        COMPACT_RUNTIME_EXPORT, COMPOSITION_VERIFICATION, COUNTERFACTUAL_TRANSPORT,
-        EVIDENCE_LEDGER, EXTERNAL_CALLBACK, EXTERNAL_COLUMN_CLAIM, EXTERNAL_RESPONSE_CLAIM,
-        FROZEN_SCORES, INTERFACE_CONTRACT, JOINT_DISTRIBUTION, JOINT_MECHANISM_SENSITIVITY,
-        MEASUREMENT_MODEL, PROVIDER_RESULT, PROVIDER_VERIFICATION_RECEIPT, RECALC_RECEIPT,
-        SCIENTIFIC_BRIDGE, SENSITIVITY_DECISION, TEMPORAL_COUNTERFACTUAL, TRANSPORT_CERTIFICATE,
+        ADAPTIVE_MONITORING_CONTRACT, ANALYSIS_RESULT, CALLBACK_RESULT, CAUSAL_PAYLOAD,
+        COHORT_DECISION_SOURCE, COMPACT_RUNTIME_EXPORT, COMPOSITION_VERIFICATION,
+        COUNTERFACTUAL_TRANSPORT, EVIDENCE_LEDGER, EXTERNAL_CALLBACK, EXTERNAL_COLUMN_CLAIM,
+        EXTERNAL_RESPONSE_CLAIM, FROZEN_SCORES, INTERFACE_CONTRACT, JOINT_DISTRIBUTION,
+        JOINT_MECHANISM_SENSITIVITY, MEASUREMENT_MODEL, PROVIDER_RESULT,
+        PROVIDER_VERIFICATION_RECEIPT, RECALC_RECEIPT, SCIENTIFIC_BRIDGE, SELECTIVE_DISCOVERY,
+        SENSITIVITY_DECISION, TEMPORAL_COUNTERFACTUAL, TRANSPORT_CERTIFICATE,
         TRANSPORTED_COUNTERFACTUAL,
     };
 
@@ -48,6 +52,7 @@ mod tests {
         let mut kinds = vec![
             ADAPTIVE_MONITORING_CONTRACT,
             ANALYSIS_RESULT,
+            CALLBACK_RESULT,
             CAUSAL_PAYLOAD,
             COHORT_DECISION_SOURCE,
             COMPACT_RUNTIME_EXPORT,
@@ -66,11 +71,13 @@ mod tests {
             PROVIDER_VERIFICATION_RECEIPT,
             RECALC_RECEIPT,
             SCIENTIFIC_BRIDGE,
+            SELECTIVE_DISCOVERY,
             SENSITIVITY_DECISION,
             TEMPORAL_COUNTERFACTUAL,
             TRANSPORT_CERTIFICATE,
             TRANSPORTED_COUNTERFACTUAL,
             "adaptive_inference_result_v1",
+            "cross_world_execution_v1",
             "categorical_treatment_v1",
             "effect_constancy_v1",
             "joint_law_propagation_v1",

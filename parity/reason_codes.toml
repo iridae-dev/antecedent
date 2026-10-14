@@ -597,3 +597,46 @@ meaning = "A claim rests on an upstream object (data, evidence, a model or repre
 id = "claim_license_withdrawn"
 applies_to = ["runtime_refusal"]
 meaning = "A claim rests on an upstream object whose license no longer holds: an input that was retired, replaced or removed, coordinates outside the support, a provider whose trust was withdrawn, or a stage that cannot be executed. This is distinct from stale numbers: recomputation alone does not restore the license. The refusal names the origin and the declaration that would restore it."
+
+# Arbitrary law, posterior and nested callbacks (promotion record: provider_callback.protocol in parity/promotion.toml).
+
+[[code]]
+id = "callback_protocol_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "A callback declaration is not well formed: a blank provider, object, version, snapshot or request identity, an operation the callback kind does not answer, a meaning that does not belong to the kind, a posterior update without its candidate, prior and observation or without the observation law, a seeded callback without a semantic stream identity, an idempotent retry without an attempt bound, a nested callback with no callback input, or a trust level metadata cannot confer (native licence). The refusal names the declaration that would make the callback well formed."
+
+[[code]]
+id = "callback_reuse_ineligible"
+applies_to = ["runtime_refusal"]
+meaning = "A stored callback result is not eligible for reuse, or a request cannot be answered without running the callback: a dependency (data, model, file, remote service, environment, closure state) is opaque or undeclared, a stateful callback exposes no state identity through the protocol, or a side-effecting callback has no idempotent retry contract. Without a stable identity the callback is recomputed or the request is refused, never silently reused. The refusal names the declaration that would make reuse sound."
+
+[[code]]
+id = "callback_side_effect_forbidden"
+applies_to = ["runtime_refusal"]
+meaning = "A callback with effects outside the process would be invoked where the protocol forbids it: during planning or verification, without an explicit opt-in in the execution policy, or as a retry outside its declared idempotent contract. The callback is not run. The refusal names the policy or contract that would allow the execution."
+
+[[code]]
+id = "callback_output_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "A callback returned a value the protocol does not accept as an answer of the declared quantity: the wrong shape for the query, a non-finite value, a value outside the declared support, a distribution function outside [0, 1] or decreasing in the threshold, a quantile function decreasing in the level, or a query that is itself malformed. Nothing is repaired, clipped or sorted; the whole answer is refused."
+
+[[code]]
+id = "callback_provider_unavailable"
+applies_to = ["runtime_refusal"]
+meaning = "No compatible provider can answer a callback request in this process: none was supplied for a fresh-process resume, or the provider failed. The historical result stays inspectable and the stage is recorded as unavailable; no claim is issued. The refusal names the provider object, version, snapshot and request, or the declared portable runtime with resolved dependencies, that would license execution."
+
+[[code]]
+id = "callback_limit_exceeded"
+applies_to = ["runtime_refusal"]
+meaning = "A callback request exceeds a declared resource bound: the invocation count, the output size, or the wall-clock bound. The in-process executor enforces the wall-clock bound only after the call returns and discards the late result; a hard preemptible limit needs a declared isolated runtime. The refusal names the bound and the policy field to change."
+
+# Selective discovery (promotion record: discovery.selective_reuse in parity/promotion.toml).
+[[code]]
+id = "discovered_structure_unresolved"
+applies_to = ["runtime_refusal"]
+meaning = "A request needs one declared causal graph (a selection diagram, an identification, a transport binding) but was given a discovered structure: an equivalence class with undirected edges or circle endpoints, orientation conflicts, or a search that exhausted a bound. The refusal names every unresolved edge and exhausted bound; the remedy is to resolve or declare the graph, never to pick a representative member of the class."
+
+[[code]]
+id = "discovery_statistics_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "Retained discovery statistics cannot be used: the raw data they were computed from are absent or differ, the contract differs, a receipt is not a usable statistic or does not cover a requested test, or replaying them does not reproduce the recorded result. Statistics are bound to the content they were computed from; the remedy is to rerun discovery on the raw data."
