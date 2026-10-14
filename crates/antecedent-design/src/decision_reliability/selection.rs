@@ -6,10 +6,12 @@
 //!
 //! * a **bound** on the expected upward bias: for Gaussian Monte Carlo noise with known
 //!   standard errors `s_j`, `E[e_selected] <= E[max_j e_j]`, evaluated exactly by
-//!   quadrature when the noise is independent or nonnegatively correlated (Sudakov-
-//!   Fernique), and by the dependence-free union bound `s_max * sqrt(2 ln N)`
-//!   otherwise. It is an expectation over repetitions of the whole selection, not an
-//!   interval for this realization;
+//!   quadrature when the noise is declared independent, and by the dependence-free
+//!   union bound `s_max * sqrt(2 ln N)` otherwise. An observed nonnegative sample
+//!   covariance is only a diagnostic; it does not establish nonnegative population
+//!   covariance and cannot license the Sudakov-Fernique comparison. The bound is an
+//!   expectation over repetitions of the whole selection, not an interval for this
+//!   realization;
 //! * a **held-out re-evaluation** of the selected candidate on a stream independent of
 //!   every selection stream, which is unbiased for the selected candidate's value;
 //! * **sample splitting**: select on one segment of the draws, validate on a disjoint
@@ -210,7 +212,7 @@ pub fn noise_dependence(draws: &DecisionDraws) -> NoiseDependence {
 #[serde(rename_all = "snake_case")]
 pub enum BoundKind {
     /// The exact expected maximum of independent Gaussian noise with the supplied
-    /// standard errors, valid for independent or nonnegatively correlated noise.
+    /// standard errors, valid for declared independent noise.
     GaussianExpectedMaximum,
     /// `s_max * sqrt(2 ln N)`, valid for any dependence of Gaussian noise.
     UnionBound,
@@ -338,10 +340,10 @@ pub fn winners_curse_bound(
     }
     let gaussian =
         (groups.len() <= MAX_QUADRATURE_GROUPS).then(|| expected_maximum_independent(&groups));
-    let gaussian_valid = matches!(
-        noise_dependence,
-        NoiseDependence::IndependentStreams | NoiseDependence::SampleCovariancesNonNegative
-    );
+    // The sample covariance route is descriptive only. Its sign does not establish
+    // the population covariance ordering required by Sudakov-Fernique, so only an
+    // independent-stream declaration licenses the exact independent Gaussian maximum.
+    let gaussian_valid = noise_dependence == NoiseDependence::IndependentStreams;
     let (bound, bound_kind) = match gaussian {
         Some(g) if gaussian_valid && g <= union_bound => (g, BoundKind::GaussianExpectedMaximum),
         _ => (union_bound, BoundKind::UnionBound),

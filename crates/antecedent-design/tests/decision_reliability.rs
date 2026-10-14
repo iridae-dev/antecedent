@@ -538,6 +538,21 @@ fn winners_curse_bound_uses_the_search_record_count_and_the_dependence() {
     .unwrap();
     assert!((unassessed.bound - unassessed.union_bound).abs() < 1e-12);
     assert!(unassessed.bound > independent.bound);
+    // A nonnegative covariance in the observed sample does not establish the
+    // population covariance ordering required by Sudakov-Fernique. Keep the
+    // empirical diagnostic, but use the dependence-free bound.
+    let sample_positive = winners_curse_bound(
+        &two,
+        2,
+        antecedent_design::decision_reliability::NoiseDependence::SampleCovariancesNonNegative,
+        0.0,
+    )
+    .unwrap();
+    assert_eq!(
+        sample_positive.bound_kind,
+        antecedent_design::decision_reliability::BoundKind::UnionBound
+    );
+    assert!((sample_positive.bound - sample_positive.union_bound).abs() < 1e-12);
     // 100 candidates were considered though two are retained: the bound grows and the
     // padding is reported.
     let padded = winners_curse_bound(
