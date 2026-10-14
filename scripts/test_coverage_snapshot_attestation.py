@@ -10,6 +10,8 @@ from unittest.mock import patch
 import calibration_facets
 import generate_support_matrix_docs as generator
 
+write_generated = generator.write_text  # the generator's own writer, not pathlib's
+
 
 class GeneratedWriteTests(unittest.TestCase):
     def setUp(self):
@@ -25,24 +27,24 @@ class GeneratedWriteTests(unittest.TestCase):
         content = "known truth: α\n"
         self.destination.write_bytes(content.encode("utf-8"))
         before = self.pin_mtime(self.destination)
-        self.assertEqual(generator.write_text(self.destination, content), len(content))
+        self.assertEqual(write_generated(self.destination, content), len(content))
         self.assertEqual(self.destination.stat().st_mtime_ns, before)
         self.assertEqual(self.destination.read_bytes(), content.encode("utf-8"))
 
     def test_changed_content_is_written(self):
         self.destination.write_text("old\n", encoding="utf-8")
         before = self.pin_mtime(self.destination)
-        self.assertEqual(generator.write_text(self.destination, "new\n"), 4)
+        self.assertEqual(write_generated(self.destination, "new\n"), 4)
         self.assertEqual(self.destination.read_bytes(), b"new\n")
         self.assertNotEqual(self.destination.stat().st_mtime_ns, before)
 
     def test_missing_output_is_created(self):
-        generator.write_text(str(self.destination), "α\n")
+        write_generated(str(self.destination), "α\n")
         self.assertEqual(self.destination.read_bytes(), "α\n".encode())
 
     def test_line_ending_differences_are_not_treated_as_identical(self):
         self.destination.write_bytes(b"value\r\n")
-        generator.write_text(self.destination, "value\n")
+        write_generated(self.destination, "value\n")
         self.assertEqual(self.destination.read_bytes(), b"value\n")
 
     def test_snapshot_format_is_deterministic_and_unchanged_mtime_is_preserved(self):
