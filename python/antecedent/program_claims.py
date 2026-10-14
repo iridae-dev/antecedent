@@ -340,6 +340,8 @@ class NativeDecisionSource:
                 causal_contract_id=str(mean["causal_contract_id"]),
                 rng_id=str(mean["rng_id"]),
                 _original_native=original,
+                trust=str(body["trust"]),
+                lineage=tuple(original.lineage) if original is not None else (),
             ),
         )
 

@@ -56,7 +56,10 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from . import _native
+from ._artifact_protocol import ExportedArtifact, bytes_export
+from ._freeze import thaw
 from ._refusal import StructuredRefusal, raise_refusal
+from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError
 
 __all__ = [
@@ -165,7 +168,7 @@ def _texts(values: Iterable[str], what: str) -> tuple[str, ...]:
 
 
 def _dumps(value: object) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+    return json.dumps(thaw(value), sort_keys=True, separators=(",", ":"))
 
 
 def _unwrap(pair: tuple[Any, str | None]) -> Any:
@@ -641,8 +644,8 @@ class VerificationExport:
     identity: str
 
 
-@dataclass(frozen=True, slots=True, eq=False)
-class CompositionVerification:
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class CompositionVerification(ScientificResult):
     """A sealed classification of a composed analysis."""
 
     claims: Mapping[str, ClaimClassification]
@@ -652,6 +655,14 @@ class CompositionVerification:
     ledger_state: str | None
     shared_data: tuple[SharedData, ...]
     _handle: Any = field(repr=False, compare=False)
+
+    def artifact(
+        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
+    ) -> ExportedArtifact[CompositionVerification]:
+        """Bytes and producer metadata; load returns the typed consumed result."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self, artifact_id)
 
     def classify(self, key: str) -> ClaimClassification:
         """The classification of one claim."""
@@ -687,6 +698,7 @@ class CompositionVerification:
         raise_refusal(self._handle.require_valid(_name(key, "key")), CompositionVerificationRefusal)
         return self.classify(key)
 
+    @bytes_export
     def export(self, artifact_id: str = _DEFAULT_ARTIFACT_ID) -> VerificationExport:
         """Write ``composition_verification_v1``."""
         pair = _unwrap(self._handle.export(_name(artifact_id, "artifact_id")))

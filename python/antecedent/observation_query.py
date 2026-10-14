@@ -46,7 +46,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import _native
+from ._artifact_protocol import ExportedArtifact
+from ._freeze import thaw
+from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
+from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError
 
 __all__ = [
@@ -129,7 +133,7 @@ def _choice(value: str, what: str, allowed: Sequence[str]) -> str:
 
 
 def _dumps(value: object) -> str:
-    return json.dumps(value, allow_nan=False, separators=(",", ":"))
+    return json.dumps(thaw(value), allow_nan=False, separators=(",", ":"))
 
 
 def _unwrap(pair: tuple[Any, str | None]) -> Any:
@@ -278,8 +282,8 @@ def _levels(pairs: Any) -> dict[str, float]:
     return {str(level): float(p) for level, p in pairs}
 
 
-@dataclass(frozen=True, slots=True, eq=False)
-class ObservationClaim:
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class ObservationClaim(ScientificResult):
     """One answered query: the value, how to read it, and the identity binding the operation.
 
     ``operation`` is one of ``conditioning``, ``intervention``, ``conditioning_and_intervention``,
@@ -289,11 +293,29 @@ class ObservationClaim:
     value; the others are ``None``.
     """
 
+    _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
+
     identity: str
     operation: str
     inference_basis: str
-    artifact: bytes
+    _artifact_bytes: bytes
     _result: Mapping[str, Any] = field(repr=False, compare=False)
+
+    def artifact(self) -> ExportedArtifact[ConsumedObservationClaim]:
+        """Bytes and producer metadata; load returns the typed consumed result."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self)
+
+    def to_dict(self) -> dict[str, Any]:
+        from ._freeze import thaw
+
+        return {
+            "identity": self.identity,
+            "operation": self.operation,
+            "inference_basis": self.inference_basis,
+            **thaw(self._result),
+        }
 
     @property
     def kind(self) -> str:
@@ -413,9 +435,11 @@ class ObservationClaim:
         )
 
 
-@dataclass(frozen=True, slots=True)
-class ConsumedObservationClaim:
+@dataclass(repr=False, frozen=True, slots=True)
+class ConsumedObservationClaim(ScientificResult):
     """A consumed artifact: the verified identity, operation, reading and replayed result."""
+
+    _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
 
     identity: str
     operation: str
@@ -423,6 +447,7 @@ class ConsumedObservationClaim:
     claim: ObservationClaim
 
 
+@bind_mean_reading
 def _claim(pair: tuple[Any, str | None]) -> ObservationClaim:
     payload, artifact = _unwrap(pair)
     wire = json.loads(payload)
@@ -430,7 +455,7 @@ def _claim(pair: tuple[Any, str | None]) -> ObservationClaim:
         identity=wire["identity"],
         operation=wire["operation"],
         inference_basis=wire["inference_basis"],
-        artifact=bytes(artifact),
+        _artifact_bytes=bytes(artifact),
         _result=wire["result"],
     )
 
@@ -675,6 +700,7 @@ def required_observations_conjugate(
 # --------------------------------------------------------------------------- consume
 
 
+@bind_mean_reading
 def consume_observation_query_artifact(
     artifact: bytes,
     expected_identity: str | None = None,
@@ -703,7 +729,7 @@ def consume_observation_query_artifact(
         identity=wire["identity"],
         operation=wire["operation"],
         inference_basis=wire["inference_basis"],
-        artifact=bytes(artifact),
+        _artifact_bytes=bytes(artifact),
         _result=wire["result"],
     )
     return ConsumedObservationClaim(

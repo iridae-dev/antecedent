@@ -354,7 +354,7 @@ def _run_route(kind: str, data: str, structure: str, options: str = "") -> None:
     assert study is not None
     encoded = result.export()
     loaded = ant.load(encoded)
-    assert loaded.artifact.payload_kind == "analysis_result"
+    assert loaded.decoded_artifact.payload_kind == "analysis_result"
     assert_answer_kept(loaded)
 
     again = study.estimate()
@@ -367,7 +367,7 @@ def _run_route(kind: str, data: str, structure: str, options: str = "") -> None:
     if options == "callbacks":
         assert seen, "on_progress never fired"
     if options == "validators":
-        attested = ant.load(result.export()).artifact.contract["claim"]["attested"]
+        attested = ant.load(result.export()).decoded_artifact.contract["claim"]["attested"]
         assert [item["name"] for item in attested] == ["matrix.finite_effect"]
 
 

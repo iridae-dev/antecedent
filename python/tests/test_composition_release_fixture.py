@@ -542,8 +542,10 @@ def test_a_fresh_process_consumer_recomputes_the_decision_and_every_mutation_is_
 def test_a_claim_graph_verified_at_another_ledger_state_is_refused_by_the_consumer():
     world = World.build()
     verification = rb.verify(world.graph, world.graph, world.ledger, world.pooled.result)
-    exported = verification.export()
-    consumed = cv.consume_composition_verification_artifact(exported.artifact, exported.identity)
+    exported = verification.artifact()
+    consumed = cv.consume_composition_verification_artifact(
+        exported.data, exported.expectation.identity
+    )
     consumed.verify_ledger(world.graph, world.ledger)  # the same state: accepted
     world.ledger.add_source(rb.study("late_arrival", "late", [0, 10]))
     error = refused(

@@ -72,7 +72,11 @@ from typing import Any
 import numpy as np
 
 from . import _native
+from ._artifact_protocol import ExportedArtifact
+from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
+from ._scientific import ScientificResult
+from ._validate import count as _shared_count
 from .errors import CausalTypeError, CausalValueError
 
 __all__ = [
@@ -173,13 +177,10 @@ def _number(value: object, what: str) -> float:
     return number
 
 
-def _count(value: object, what: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
-        raise CausalTypeError(f"{what} must be a non-negative integer")
-    number = int(value)
-    if number < 0:
-        raise CausalValueError(f"{what} must be a non-negative integer")
-    return number
+def _count(value: object, what: str, **kwargs: Any) -> int:
+    kwargs.setdefault("minimum", 0)
+    kwargs.setdefault("maximum", 2**64 - 1)
+    return _shared_count(value, what, **kwargs)
 
 
 def _vector(values: object, what: str) -> list[float]:
@@ -245,7 +246,16 @@ class RepresentationVersion:
 
     def to_wire(self) -> dict[str, Any]:
         """The declaration the native layer reads."""
-        return {"coordinate_system_id": self.coordinate_system_id, "version": int(self.version)}
+        return {
+            "coordinate_system_id": self.coordinate_system_id,
+            "version": _count(
+                self.version,
+                "version",
+                minimum=0,
+                maximum=2**64 - 1,
+                reason_code="invalid_argument",
+            ),
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -865,7 +875,13 @@ class LatentPosteriorData:
             "kind": "latent_posterior",
             "outcome": outcome,
             "draws": [float(v) for v in draws.reshape(-1)],
-            "draw_count": int(draws.shape[0]),
+            "draw_count": _count(
+                draws.shape[0],
+                "draws.shape[0]",
+                minimum=0,
+                maximum=2**64 - 1,
+                reason_code="invalid_argument",
+            ),
             "covariates": covariates,
             "covariate_count": k,
         }
@@ -929,7 +945,13 @@ class ProviderObject:
                     "units": self.units,
                     "population_id": self.population_id,
                     "regime_id": self.regime_id,
-                    "horizon": int(self.horizon),
+                    "horizon": _count(
+                        self.horizon,
+                        "horizon",
+                        minimum=0,
+                        maximum=2**64 - 1,
+                        reason_code="invalid_argument",
+                    ),
                     "functional_id": self.functional_id,
                     "conditioning": [],
                     "transform_id": self.transform_id,
@@ -977,14 +999,16 @@ def model_identities(model: MeasurementModel) -> MeasurementIdentities:
     return MeasurementIdentities(**wire)
 
 
-@dataclass(frozen=True, slots=True, eq=False)
-class MeasurementEstimate:
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class MeasurementEstimate(ScientificResult):
     """A corrected functional bound to its model, with the inputs to replay it.
 
     ``standard_error`` is an uncalibrated delta-method estimate (``inference`` says whether one is
     reported); ``parameter_uncertainty`` says whether the measurement parameters' uncertainty is in
     it. There is no interval: :meth:`interval` raises ``cell_not_licensed``.
     """
+
+    _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
 
     model_identity: str
     route: str
@@ -1001,6 +1025,21 @@ class MeasurementEstimate:
     provider_trust: str | None
     representation_mapping_id: str | None
     _handle: Any = field(repr=False, compare=False)
+
+    _model: MeasurementModel | None = field(default=None, repr=False, compare=False)
+
+    @property
+    def model(self) -> MeasurementModel | None:
+        """The retained measurement declaration, when produced by a prepared model."""
+        return self._model
+
+    def artifact(
+        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
+    ) -> ExportedArtifact[ConsumedMeasurement]:
+        """Bytes and producer metadata; load returns the typed consumed result."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self, artifact_id)
 
     @property
     def variance(self) -> float | None:
@@ -1034,6 +1073,7 @@ class MeasurementEstimate:
         return bytes(_unwrap(self._handle.export(_name(artifact_id, "artifact_id"))))
 
 
+@bind_mean_reading
 def _estimate(handle: Any) -> MeasurementEstimate:
     summary = json.loads(handle.summary_json())
     return MeasurementEstimate(
@@ -1103,7 +1143,11 @@ class PreparedMeasurementModel:
 
     def estimate(self, *, cancel: Any = None) -> MeasurementEstimate:
         """Form the corrected functional from the retained data."""
-        return _estimate(_unwrap(self._handle.estimate(cancel=cancel)))
+        result = _estimate(_unwrap(self._handle.estimate(cancel=cancel)))
+        from ._freeze import freeze
+
+        object.__setattr__(result, "_model", freeze(self.model))
+        return result
 
     def refresh(self, data: MeasurementData, *, cancel: Any = None) -> MeasurementRefresh:
         """Recompute with new outcome-only data of the same question.
@@ -1166,7 +1210,12 @@ def _prepared(handle: Any) -> PreparedMeasurementModel:
 def _refreshed(triple: tuple[Any, Any, str | None]) -> MeasurementRefresh:
     prepared, estimate, refusal = triple
     raise_refusal(refusal, MeasurementModelRefusal)
-    return MeasurementRefresh(prepared=_prepared(prepared), estimate=_estimate(estimate))
+    prepared_model = _prepared(prepared)
+    result = _estimate(estimate)
+    from ._freeze import freeze
+
+    object.__setattr__(result, "_model", freeze(prepared_model.model))
+    return MeasurementRefresh(prepared=prepared_model, estimate=result)
 
 
 def prepare_measurement_model(
@@ -1205,14 +1254,16 @@ def prepare_measurement_model(
 # --------------------------------------------------------------------------- consume
 
 
-@dataclass(frozen=True, slots=True, eq=False)
-class ConsumedMeasurement:
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class ConsumedMeasurement(ScientificResult):
     """A consumed artifact: the model, the stored record and the values a recomputation produced.
 
     ``point``, ``standard_error`` and ``rows`` are recomputed from the stored sufficient inputs
     with the statistics layer only; a stored number that does not recompute is refused at
     consumption. ``stored_point`` is what the producer wrote.
     """
+
+    _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
 
     model: MeasurementModel
     model_identity: str
@@ -1241,6 +1292,7 @@ class ConsumedMeasurement:
         )
 
 
+@bind_mean_reading
 def consume_measurement_model_artifact(
     artifact: bytes, expected_identity: str
 ) -> ConsumedMeasurement:

@@ -54,7 +54,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import _native
+from ._artifact_protocol import ExportedArtifact
+from ._freeze import thaw
 from ._refusal import StructuredRefusal, raise_refusal
+from ._scientific import ScientificResult
+from ._validate import count as _count
 from .errors import CausalTypeError, CausalValueError
 
 __all__ = [
@@ -116,7 +120,7 @@ def _unwrap(pair: tuple[Any, str | None]) -> Any:
 
 def _dumps(value: object) -> str:
     try:
-        return json.dumps(value, allow_nan=False, separators=(",", ":"))
+        return json.dumps(thaw(value), allow_nan=False, separators=(",", ":"))
     except ValueError as error:
         raise CausalValueError("a predictive assessment declares only finite numbers") from error
 
@@ -140,12 +144,10 @@ def _floats(values: Iterable[object], what: str) -> list[float]:
 
 
 def _counts(values: Iterable[object], what: str) -> list[int]:
-    out: list[int] = []
-    for value in values:
-        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            raise CausalTypeError(f"{what} must hold non-negative integers")
-        out.append(int(value))
-    return out
+    return [
+        _count(value, f"{what}[{i}]", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument")
+        for i, value in enumerate(values)
+    ]
 
 
 def _key(value: object) -> str:
@@ -204,17 +206,16 @@ class Target:
 
     def to_wire(self) -> dict[str, Any]:
         """The declaration as sent to the contract."""
-        if self.horizon_steps is not None and (
-            isinstance(self.horizon_steps, bool)
-            or not isinstance(self.horizon_steps, int)
-            or self.horizon_steps < 0
-        ):
-            raise CausalTypeError("horizon_steps must be a non-negative integer or None")
+        horizon = (
+            None
+            if self.horizon_steps is None
+            else _count(self.horizon_steps, "horizon_steps", minimum=0, maximum=2**64 - 1)
+        )
         return {
             "quantity": _name(self.quantity, "quantity"),
             "population": _name(self.population, "population"),
             "units": _name(self.units, "units"),
-            "horizon_steps": self.horizon_steps,
+            "horizon_steps": horizon,
         }
 
 
@@ -502,7 +503,13 @@ class ValidationDesign:
             {
                 "kind": "rolling_origin",
                 "origins": _counts(origins, "origins"),
-                "horizon_steps": int(horizon_steps),
+                "horizon_steps": _count(
+                    horizon_steps,
+                    "horizon_steps",
+                    minimum=0,
+                    maximum=2**64 - 1,
+                    reason_code="invalid_argument",
+                ),
             }
         )
 
@@ -535,7 +542,13 @@ class Dependence:
             {
                 "kind": "serial",
                 "time_index": _counts(time_index, "time_index"),
-                "truncation_lag": int(truncation_lag),
+                "truncation_lag": _count(
+                    truncation_lag,
+                    "truncation_lag",
+                    minimum=0,
+                    maximum=2**64 - 1,
+                    reason_code="invalid_argument",
+                ),
             }
         )
 
@@ -601,8 +614,8 @@ class Predictor:
 # --------------------------------------------------------------------------- results
 
 
-@dataclass(frozen=True, slots=True)
-class Identity:
+@dataclass(repr=False, frozen=True, slots=True)
+class Identity(ScientificResult):
     """The identity digests of one assessment; retain it to refuse a resealed artifact."""
 
     wire: dict[str, Any]
@@ -697,8 +710,8 @@ class DistributionDrift:
     route: str
 
 
-@dataclass(frozen=True, slots=True)
-class Diagnostics:
+@dataclass(repr=False, frozen=True, slots=True)
+class Diagnostics(ScientificResult):
     """Calibration and sharpness diagnostics: labelled ``diagnostic``, calibration ``unmeasured``."""
 
     label: str
@@ -711,8 +724,8 @@ class Diagnostics:
     drift: DistributionDrift | None
 
 
-@dataclass(frozen=True, slots=True)
-class PredictorAssessment:
+@dataclass(repr=False, frozen=True, slots=True)
+class PredictorAssessment(ScientificResult):
     """The assessment of one predictor."""
 
     name: str
@@ -729,8 +742,8 @@ class PredictorAssessment:
         raise CausalValueError(f"score `{kind}` was not requested")
 
 
-@dataclass(frozen=True, slots=True)
-class ScoreDifference:
+@dataclass(repr=False, frozen=True, slots=True)
+class ScoreDifference(ScientificResult):
     """The paired difference of one score between a candidate and a reference predictor.
 
     ``mean_difference`` is ``score(candidate) - score(reference)``: negative favours the candidate.
@@ -753,8 +766,8 @@ class ScoreDifference:
     interval: str
 
 
-@dataclass(frozen=True, slots=True)
-class PredictiveReport:
+@dataclass(repr=False, frozen=True, slots=True)
+class PredictiveReport(ScientificResult):
     """The scores, paired differences and diagnostics of an assessment."""
 
     family: str
@@ -905,10 +918,18 @@ def _report(wire: Mapping[str, Any]) -> PredictiveReport:
     )
 
 
-class PredictiveAssessment:
+class PredictiveAssessment(ScientificResult):
     """A sealed predictive assessment: the report, its identity and its artifact."""
 
     __slots__ = ("_handle", "_report")
+
+    def artifact(
+        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
+    ) -> ExportedArtifact[PredictiveAssessment]:
+        """Bytes and producer metadata; load returns the typed consumed result."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self, artifact_id)
 
     def __init__(self, handle: Any) -> None:
         self._handle = handle
@@ -999,8 +1020,16 @@ def assess(
         "dependence": None if dependence is None else dependence.wire,
         "scores": list(scores),
         "ensemble_crps": "fair" if fair else "empirical_law",
-        "pit_bins": int(pit_bins),
-        "reliability_bins": int(reliability_bins),
+        "pit_bins": _count(
+            pit_bins, "pit_bins", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"
+        ),
+        "reliability_bins": _count(
+            reliability_bins,
+            "reliability_bins",
+            minimum=0,
+            maximum=2**64 - 1,
+            reason_code="invalid_argument",
+        ),
         "interval_levels": _floats(interval_levels, "interval_levels"),
         "comparisons": [[str(a), str(b)] for a, b in comparisons],
         "overlap_policy": "require_held_out" if require_held_out else "label_only",
@@ -1008,7 +1037,12 @@ def assess(
         if score_interval is None
         else {"level": float(score_interval[0]), "method": str(score_interval[1])},
     }
-    handle = _unwrap(_native.predictive_assessment_assess(_dumps(spec), seed=int(seed)))
+    handle = _unwrap(
+        _native.predictive_assessment_assess(
+            _dumps(spec),
+            seed=_count(seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"),
+        )
+    )
     return PredictiveAssessment(handle)
 
 
@@ -1096,7 +1130,9 @@ def distribution_drift(
     wire = json.loads(
         _unwrap(
             _native.predictive_assessment_drift(
-                _floats(reference, "reference"), _floats(comparison, "comparison"), int(bins)
+                _floats(reference, "reference"),
+                _floats(comparison, "comparison"),
+                _count(bins, "bins", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"),
             )
         )
     )

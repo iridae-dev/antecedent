@@ -110,7 +110,9 @@ def test_compact_one_hot_terms_select_the_level_with_hand_values() -> None:
     assert a.point == pytest.approx(3.0, abs=1e-12)
     assert a.standard_error == pytest.approx(math.sqrt(0.05), abs=1e-12)
     # Levels were canonicalised even though supplied as c, a, b.
-    group = next(i for i in export.body["inputs"] if i["quantity"]["variable_id"] == "g")
+    group = next(
+        i for i in export.to_dict()["body"]["inputs"] if i["quantity"]["variable_id"] == "g"
+    )
     assert group["support"] == {"levels": {"levels": ["a", "b", "c"]}}
 
 
@@ -193,7 +195,9 @@ def test_compact_wrong_expected_identity_is_refused() -> None:
     assert swapped.value.detail == "compact_export.identity_unexpected"
     # An export that evaluates under a swapped artifact keeps refusing: the retained identity
     # binds every evaluation.
-    forged = CompactExport(identity=export.identity, body=other.body, artifact=other.export())
+    forged = CompactExport(
+        identity=export.identity, body=other.body, _artifact_bytes=other.export()
+    )
     with pytest.raises(CompactExportRefusal) as evaluated:
         forged.evaluate({"x": 2.0})
     assert evaluated.value.detail == "compact_export.identity_unexpected"

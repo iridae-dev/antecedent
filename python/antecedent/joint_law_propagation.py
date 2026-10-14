@@ -38,7 +38,10 @@ from typing import Any
 import numpy as np
 
 from . import _native
+from ._artifact_protocol import ExportedArtifact
+from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
+from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError
 from .joint_distribution import JointDistributionArtifact
 
@@ -102,8 +105,8 @@ def _floats(values: Sequence[float] | np.ndarray, what: str) -> list[float]:
     return [float(v) for v in array]
 
 
-@dataclass(frozen=True)
-class PropagationDraws:
+@dataclass(repr=False, frozen=True)
+class PropagationDraws(ScientificResult):
     """The draws of one uncertain input with the identities the rule reads.
 
     Build with :meth:`from_artifact_column` (a column of a joint distribution artifact: its
@@ -267,9 +270,11 @@ class EnvelopeQuery:
         return json.dumps(body)
 
 
-@dataclass(frozen=True)
-class PropagationClaim:
+@dataclass(repr=False, frozen=True)
+class PropagationClaim(ScientificResult):
     """A composed uncertain quantity: the licensed route, the labelled values and the artifact."""
+
+    _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
 
     identity: str
     operation: str
@@ -280,6 +285,12 @@ class PropagationClaim:
     n_rows: int | None
     values: Mapping[str, float]
     _bytes: bytes = field(repr=False, compare=False)
+
+    def artifact(self) -> ExportedArtifact[ConsumedJointLawPropagation]:
+        """Bytes and producer metadata; load returns the typed consumed result."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self)
 
     @classmethod
     def _from(cls, parts: tuple[bytes, str]) -> PropagationClaim:
@@ -319,9 +330,11 @@ class PropagationClaim:
         _refuse(_native.joint_law_closed_reading("posterior"))
 
 
-@dataclass(frozen=True)
-class ConsumedJointLawPropagation:
+@dataclass(repr=False, frozen=True)
+class ConsumedJointLawPropagation(ScientificResult):
     """A replayed artifact; every value equals the stored bits."""
+
+    _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
 
     identity: str
     operation: str
@@ -333,6 +346,7 @@ class ConsumedJointLawPropagation:
     values: Mapping[str, float]
 
 
+@bind_mean_reading
 def _claim(result: tuple[tuple[bytes, str] | None, str | None]) -> PropagationClaim:
     parts, refusal = result
     _refuse(refusal)
@@ -507,6 +521,7 @@ def correlation_range(
     )
 
 
+@bind_mean_reading
 def consume_joint_law_propagation_artifact(
     data: bytes, *, expected_identity: str | None = None, cancel: Any = None
 ) -> ConsumedJointLawPropagation:

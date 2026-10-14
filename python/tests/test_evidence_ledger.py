@@ -466,10 +466,10 @@ def test_a_prior_built_from_the_likelihoods_data_is_double_counting():
     assert sum(outcome.value.tau_posterior) == pytest.approx(1.0, abs=TOL)
     # The numbers are the session's; the artifact format carries one summary per source, so this
     # result's numbers are listed as not carried rather than dropped silently.
-    export = ledger.export("borrowing")
-    assert export.carried == ()
-    assert list(export.not_carried) == [outcome.result]
-    assert "prior" in export.not_carried[outcome.result]
+    export = ledger.artifact("borrowing")
+    assert export.metadata["carried"] == ()
+    assert list(export.metadata["not_carried"]) == [outcome.result]
+    assert "prior" in export.metadata["not_carried"][outcome.result]
 
 
 def envelope_oracle(estimates, standard_errors, lo, hi, points=40_001):
@@ -805,11 +805,11 @@ def test_refresh_is_all_or_nothing_and_keeps_untouched_results():
 
 def test_the_artifact_replays_and_a_consumer_refuses_another_history():
     s = Scenario()
-    export = s.ledger.export("ledger-1")
-    assert len(export.carried) == 4
-    assert export.not_carried == {}
-    consumed = el.consume_evidence_ledger_artifact(export.artifact, export.identity)
-    assert consumed.identity == export.identity
+    export = s.ledger.artifact("ledger-1")
+    assert len(export.metadata["carried"]) == 4
+    assert export.metadata["not_carried"] == {}
+    consumed = el.consume_evidence_ledger_artifact(export.data, export.expectation.identity)
+    assert consumed.identity == export.expectation.identity
     assert consumed.head == s.ledger.head
     assert consumed.state_digest == s.ledger.state_digest
     assert [r.id for r in consumed.results] == [r.id for r in s.ledger.results]
@@ -826,17 +826,17 @@ def test_the_artifact_replays_and_a_consumer_refuses_another_history():
 
     # A consumer that retained another identity refuses these bytes.
     other = s.ledger.refresh([el.SourceChange.add(data("extra", 900, 910))])
-    other_export = other.session.export("ledger-2")
-    assert other_export.identity != export.identity
+    other_export = other.session.artifact("ledger-2")
+    assert other_export.expectation.identity != export.expectation.identity
     error = refused(
-        lambda: el.consume_evidence_ledger_artifact(export.artifact, other_export.identity)
+        lambda: el.consume_evidence_ledger_artifact(export.data, other_export.expectation.identity)
     )
     assert error.detail == "evidence_ledger.identity_mismatch"
     # One that holds none still refuses a damaged container, and truncated bytes.
-    damaged = bytearray(export.artifact)
+    damaged = bytearray(export.data)
     damaged[len(damaged) // 2] ^= 0x55
     refused(lambda: el.consume_evidence_ledger_artifact(bytes(damaged)))
-    refused(lambda: el.consume_evidence_ledger_artifact(export.artifact[:30]))
+    refused(lambda: el.consume_evidence_ledger_artifact(export.data[:30]))
     with pytest.raises(CausalTypeError):
         el.consume_evidence_ledger_artifact("not bytes")  # type: ignore[arg-type]
 
@@ -847,19 +847,21 @@ def test_a_stored_value_that_differs_is_a_different_history():
     original = el.EvidenceLedger()
     studies = three_studies(original, y=(0.0, 2.0, 6.0))
     original.pool_summaries("p", studies)
-    export = original.export("ledger")
+    export = original.artifact("ledger")
 
     edited = el.EvidenceLedger()
     studies = three_studies(edited, y=(0.0, 2.0, 7.0))  # same sources, another stored number
     edited.pool_summaries("p", studies)
-    forged = edited.export("ledger")
-    assert forged.identity != export.identity
+    forged = edited.artifact("ledger")
+    assert forged.expectation.identity != export.expectation.identity
     expect(
-        refused(lambda: el.consume_evidence_ledger_artifact(forged.artifact, export.identity)),
+        refused(
+            lambda: el.consume_evidence_ledger_artifact(forged.data, export.expectation.identity)
+        ),
         "route_not_supported",
         "evidence_ledger.identity_mismatch",
     )
-    own = el.consume_evidence_ledger_artifact(forged.artifact, forged.identity)
+    own = el.consume_evidence_ledger_artifact(forged.data, forged.expectation.identity)
     values = own.syntheses[0].values
     assert values[0] == pytest.approx(
         inverse_variance([0.0, 2.0, 7.0], [1.0, 2.0, 4.0])[0], abs=TOL
@@ -867,7 +869,7 @@ def test_a_stored_value_that_differs_is_a_different_history():
     # The same history and numbers give the same identity, bit for bit.
     again = el.EvidenceLedger()
     again.pool_summaries("p", three_studies(again, y=(0.0, 2.0, 6.0)))
-    assert again.export("ledger").identity == export.identity
+    assert again.artifact("ledger").expectation.identity == export.expectation.identity
     assert again.head == original.head
 
 
@@ -910,10 +912,10 @@ def test_a_range_outside_the_definite_interval_or_non_finite_is_refused_and_regi
 
 def test_an_exported_dependence_range_is_replayed_as_an_assumption_range():
     ledger, result, claim = range_ledger()
-    export = ledger.export("range-ledger")
-    assert export.carried == (result,)
-    assert export.not_carried == {}
-    consumed = el.consume_evidence_ledger_artifact(export.artifact, export.identity)
+    export = ledger.artifact("range-ledger")
+    assert export.metadata["carried"] == (result,)
+    assert export.metadata["not_carried"] == {}
+    consumed = el.consume_evidence_ledger_artifact(export.data, export.expectation.identity)
     # The consumer recomputed the envelope in the method's fixed order: estimate min, rho at
     # min, estimate max, rho at max, variance min, rho at min, variance max, rho at max.
     # Hand values: -1/7 at 0.9, 7/5 at 0, 19/35 at 0.9, and the interior maximum 1 at 1/2.
@@ -935,16 +937,21 @@ def test_an_exported_dependence_range_is_replayed_as_an_assumption_range():
     assert claim in record.mass.unknown_sources
     # The same history gives the same identity; another range is another artifact, so a
     # consumer that retained the original refuses it.
-    assert range_ledger()[0].export("range-ledger").identity == export.identity
+    assert (
+        range_ledger()[0].artifact("range-ledger").expectation.identity
+        == export.expectation.identity
+    )
     widened, _, _ = range_ledger(rho_hi=0.95)
-    forged = widened.export("range-ledger")
-    assert forged.identity != export.identity
+    forged = widened.artifact("range-ledger")
+    assert forged.expectation.identity != export.expectation.identity
     expect(
-        refused(lambda: el.consume_evidence_ledger_artifact(forged.artifact, export.identity)),
+        refused(
+            lambda: el.consume_evidence_ledger_artifact(forged.data, export.expectation.identity)
+        ),
         "route_not_supported",
         "evidence_ledger.identity_mismatch",
     )
-    own = el.consume_evidence_ledger_artifact(forged.artifact, forged.identity)
+    own = el.consume_evidence_ledger_artifact(forged.data, forged.expectation.identity)
     widened_replay = own.syntheses[0]
     assert widened_replay.method == "dependence_envelope"
     assert widened_replay.values[0] == pytest.approx((7 - 8 * 0.95) / (5 - 4 * 0.95), abs=TOL)
@@ -952,9 +959,9 @@ def test_an_exported_dependence_range_is_replayed_as_an_assumption_range():
 
 def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp_path):
     s = Scenario()
-    export = s.ledger.export("fresh")
+    export = s.ledger.artifact("fresh")
     path = tmp_path / "artifact.bin"
-    path.write_bytes(export.artifact)
+    path.write_bytes(export.data)
     script = (
         "import json, sys\n"
         "from antecedent import evidence_ledger as el\n"
@@ -963,14 +970,14 @@ def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp
         "'syntheses': [[s.result, s.method, list(s.values)] for s in c.syntheses]}))\n"
     )
     done = subprocess.run(
-        [sys.executable, "-c", script, str(path), export.identity],
+        [sys.executable, "-c", script, str(path), export.expectation.identity],
         capture_output=True,
         text=True,
         cwd=tmp_path,
         check=True,
     )
     wire = json.loads(done.stdout)
-    assert wire["identity"] == export.identity
+    assert wire["identity"] == export.expectation.identity
     assert wire["head"] == s.ledger.head
     by_result = {r: (m, v) for r, m, v in wire["syntheses"]}
     assert by_result[s.r_all][0] == "fixed_effect_inverse_variance"

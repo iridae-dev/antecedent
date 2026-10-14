@@ -42,12 +42,14 @@ from .response import (
     SupportStatus,
     UncertaintyKind,
 )
+from .sources import MeanSource
 
 #: Shared analyze() result. Both classes implement :class:`ResultAPI`
 #: (``answer``, ``claim``, ``inspect``, ``as_point``, ``as_response``).
 Analysis: TypeAlias = AnalysisResult | CausalResponseView | ProviderAnalysisResult
 
 __all__ = [
+    "MeanSource",
     "Analysis",
     "Answer",
     "CalibrationInfo",

@@ -555,27 +555,27 @@ def exported():
     session = pc.CallbackSession()
     decl = declaration()
     done = session.execute(gaussian(), decl, pc.Request(pc.Query.cdf([0.5, 2.0, 3.5]), seed=9))
-    return session, decl, done, session.export(done, "callback-result-1")
+    return session, decl, done, done.artifact("callback-result-1")
 
 
 def test_exported_result_round_trips_and_mutations_are_refused():
     _, decl, done, result = exported()
-    assert result.artifact == exported()[3].artifact
-    consumed = pc.consume_callback_result(result.artifact, result.identity)
+    assert result.data == exported()[3].data
+    consumed = pc.consume_callback_result(result.data, result.expectation.identity)
     assert consumed.declaration_identity == decl.identity
     assert consumed.stage == "computed"
     assert consumed.values == pytest.approx(done.output.values, abs=0)
-    meta = pc.inspect_callback_result(result.artifact)
+    meta = pc.inspect_callback_result(result.data)
     assert meta["stage"]["status"] == "computed" and meta["standing"] == "licensed_external"
     assert meta["contract"]["produces"][0]["calibration"]["status"] == "unmeasured"
     assert meta["contract"]["produces"][0]["calibration"]["record_id"] is None
-    error = refusal_of(pc.consume_callback_result, result.artifact, "0" * 64)
+    error = refusal_of(pc.consume_callback_result, result.data, "0" * 64)
     assert error.detail == "callback_protocol.identity_mismatch"
-    for offset in (len(result.artifact) // 3, len(result.artifact) // 2, len(result.artifact) - 5):
-        corrupt = bytearray(result.artifact)
+    for offset in (len(result.data) // 3, len(result.data) // 2, len(result.data) - 5):
+        corrupt = bytearray(result.data)
         corrupt[offset] ^= 0x01
         refusal_of(pc.consume_callback_result, bytes(corrupt))
-    refusal_of(pc.consume_callback_result, result.artifact[:-17])
+    refusal_of(pc.consume_callback_result, result.data[:-17])
     refusal_of(pc.consume_callback_result, b"not an artifact")
     with pytest.raises(pc.CallbackRefusal):
         pc.inspect_callback_result(b"\x00\x01\x02")
@@ -590,14 +590,14 @@ def test_untrusted_artifact_never_executes_code():
 
     provider = pc.FunctionProvider(identity(), boom)
     session, decl, _, result = exported()
-    pc.consume_callback_result(result.artifact)
-    pc.inspect_callback_result(result.artifact)
+    pc.consume_callback_result(result.data)
+    pc.inspect_callback_result(result.data)
     session.plan(decl, pc.Request(pc.Query.mean()))
     fresh = pc.CallbackSession()
-    resumed = fresh.resume(result.artifact, expected_identity=result.identity)
+    resumed = fresh.resume(result.data, expected_identity=result.expectation.identity)
     assert resumed.kind == "unavailable"
     # A hostile artifact: corrupted bytes with the sentinel nearby are refused and nothing runs.
-    corrupt = bytearray(result.artifact)
+    corrupt = bytearray(result.data)
     corrupt[len(corrupt) // 2] ^= 0xFF
     refusal_of(fresh.resume, bytes(corrupt), provider=provider)
     assert sentinel == []
@@ -606,7 +606,7 @@ def test_untrusted_artifact_never_executes_code():
 def test_fresh_process_resume_with_and_without_a_provider():
     _, _, done, result = exported()
     fresh = pc.CallbackSession()
-    unavailable = fresh.resume(result.artifact, expected_identity=result.identity)
+    unavailable = fresh.resume(result.data, expected_identity=result.expectation.identity)
     assert unavailable.kind == "unavailable"
     assert unavailable.refusal.reason_code == "callback_provider_unavailable"
     assert fresh.invocations == 0
@@ -616,7 +616,7 @@ def test_fresh_process_resume_with_and_without_a_provider():
     calls = []
     compatible = gaussian(calls=calls)
     answered = pc.CallbackSession().resume(
-        result.artifact, expected_identity=result.identity, provider=compatible
+        result.data, expected_identity=result.expectation.identity, provider=compatible
     )
     assert answered.kind == "answered" and answered.execution.reused
     assert answered.execution.output.values == done.output.values
@@ -624,7 +624,7 @@ def test_fresh_process_resume_with_and_without_a_provider():
     # A replaced provider is refused, not substituted.
     error = refusal_of(
         pc.CallbackSession().resume,
-        result.artifact,
+        result.data,
         provider=gaussian("2.0", mu=7.0),
     )
     assert error.reason_code == "external_binding_mismatch"
@@ -640,7 +640,7 @@ def test_fresh_process_resume_with_and_without_a_provider():
         """
     )
     out = subprocess.run(  # noqa: S603
-        [sys.executable, "-c", script, result.artifact.hex(), result.identity],
+        [sys.executable, "-c", script, result.data.hex(), result.expectation.identity],
         capture_output=True,
         text=True,
         check=True,

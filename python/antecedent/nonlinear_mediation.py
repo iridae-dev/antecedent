@@ -46,7 +46,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import partial
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -54,8 +54,12 @@ from ._columns import coerce_fields
 from ._native import consume_nonlinear_mediation_artifact as _consume
 from ._native import evaluate_nonlinear_mediation as _evaluate
 from ._refusal import raise_refusal
+from ._scientific import ScientificResult
 from ._validate import count, non_finite_refusal, real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
 
 __all__ = [
     "DEFAULT_SEED",
@@ -220,7 +224,7 @@ class MediationIdentity:
 
 
 @dataclass(frozen=True, slots=True)
-class MediationEffects:
+class MediationEffects(ScientificResult):
     """Natural effects, their diagnostics and the portable artifact.
 
     ``natural_direct``, ``natural_indirect`` and ``total`` are the claim; ``*_se`` are bootstrap
@@ -257,11 +261,17 @@ class MediationEffects:
     inference_claim: str
     caveats: tuple[str, ...]
     identity: MediationIdentity
-    artifact: bytes
+    _artifact_bytes: bytes
+
+    def artifact(self) -> ExportedArtifact[MediationEffects]:
+        """Typed bytes envelope for shared scientific consumption."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self)
 
     def export(self) -> bytes:
         """The checksummed ``nonlinear_mediation_v1`` artifact."""
-        return self.artifact
+        return self._artifact_bytes
 
     def to_dict(self) -> dict[str, Any]:
         """A plain, JSON-serializable summary (no artifact bytes)."""
@@ -360,7 +370,7 @@ def _result(report_json: str, artifact: bytes) -> MediationEffects:
         inference_claim=meta["inference_claim"],
         caveats=tuple(meta["caveats"]),
         identity=MediationIdentity(**meta["identity"]),
-        artifact=artifact,
+        _artifact_bytes=artifact,
     )
 
 

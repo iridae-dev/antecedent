@@ -58,10 +58,15 @@ import math
 import numbers
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from . import _native
+from ._artifact_protocol import ExportedArtifact, bytes_export
+from ._freeze import thaw
+from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
+from ._scientific import ScientificResult
+from ._validate import count as _count
 from .errors import CausalTypeError, CausalValueError
 from .measurement_models import MeasurementModel
 
@@ -150,6 +155,50 @@ _DOMAIN_STATUSES = (
 )
 
 
+BridgeKindsName = Literal[
+    "latent_measured_outcome",
+    "preference_realized_behavior",
+    "surrogate_terminal_outcome",
+    "predictive_causal_quantity",
+    "parameter_intervention_response",
+    "scientific_decision_utility",
+]
+QuantityClassesName = Literal[
+    "latent_construct",
+    "measured_outcome",
+    "stated_preference",
+    "realized_behavior",
+    "surrogate_endpoint",
+    "terminal_outcome",
+    "predictive_quantity",
+    "predictive_importance",
+    "model_score",
+    "causal_quantity",
+    "model_parameter",
+    "intervention_response",
+    "scientific_endpoint",
+    "decision_utility",
+]
+AssumptionKindsName = Literal[
+    "measurement_model",
+    "behavioral_linkage",
+    "surrogate_validation",
+    "identification",
+    "parameter_interpretation",
+    "utility_mapping",
+    "additional",
+]
+ValueKindsName = Literal[
+    "mean", "predictive_law", "posterior", "identified_set", "joint_outcome_law"
+]
+ClaimKindsName = Literal[
+    "point", "bounds", "mixture", "response", "policy_value", "refusal", "incomplete"
+]
+DomainStatusesName = Literal[
+    "identified", "supported", "evaluated", "outside_scope", "contradicted", "unknown"
+]
+
+
 class ScientificBridgeRefusal(StructuredRefusal):
     """A typed refusal of the scientific-bridge route.
 
@@ -185,7 +234,7 @@ def _number(value: object, what: str) -> float:
 
 
 def _dumps(value: object) -> str:
-    return json.dumps(value, allow_nan=False, separators=(",", ":"))
+    return json.dumps(thaw(value), allow_nan=False, separators=(",", ":"))
 
 
 def _digest(*parts: str) -> str:
@@ -375,7 +424,13 @@ class TrialLevelMapping:
         return {
             "kind": "trial_level_linear",
             "trials": [[float(s), float(t)] for s, t in self.trials],
-            "min_trials": int(self.min_trials),
+            "min_trials": _count(
+                self.min_trials,
+                "min_trials",
+                minimum=0,
+                maximum=2**64 - 1,
+                reason_code="invalid_argument",
+            ),
             "min_r_squared": float(self.min_r_squared),
         }
 
@@ -408,17 +463,17 @@ class BridgeContract:
     for; when it is not the claim's, ``transport`` must state the premise.
     """
 
-    kind: str
+    kind: BridgeKindsName
     source: Any
-    source_class: str
+    source_class: QuantityClassesName
     target: Any
-    target_class: str
+    target_class: QuantityClassesName
     evidence_scope: Scope
     mapping: _MappingDeclaration
     assumptions: Sequence[Assumption] = ()
     transport: TransportabilityPremise | None = None
-    source_value: str = "mean"
-    target_value: str = "mean"
+    source_value: ValueKindsName = "mean"
+    target_value: ValueKindsName = "mean"
 
     def __post_init__(self) -> None:
         _choice(self.kind, "kind", BRIDGE_KINDS)
@@ -568,8 +623,8 @@ class TrialFit:
     surrogate_max: float
 
 
-@dataclass(frozen=True, slots=True)
-class Freshness:
+@dataclass(repr=False, frozen=True, slots=True)
+class Freshness(ScientificResult):
     """Applicability of a bridged claim given the standing of its source."""
 
     historically_valid: bool
@@ -584,8 +639,8 @@ class BridgeExport:
     identity: str
 
 
-@dataclass(frozen=True, slots=True, eq=False)
-class BridgedClaim:
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class BridgedClaim(ScientificResult):
     """A claim derived across a bridge.
 
     ``claim_id`` is not ``source_claim_id``: the derived claim is a different claim whose identity
@@ -594,6 +649,8 @@ class BridgedClaim:
     lists what the claim cannot offer. Identification, support and uncertainty are never
     established for the target quantity by the bridge itself.
     """
+
+    _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
 
     kind: str
     value: float
@@ -617,6 +674,13 @@ class BridgedClaim:
     uncertainty_available: bool
     provenance: tuple[Mapping[str, Any], ...]
     _handle: Any = field(repr=False, compare=False)
+    quantity: Any = None
+
+    def artifact(self, artifact_id: str = "scientific_bridge") -> ExportedArtifact[ConsumedBridge]:
+        """Bytes and producer metadata; load returns the typed consumed result."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self, artifact_id)
 
     def require_value_kind(self, requested: str) -> None:
         """Raise the refusal when a consumer requires another kind of object than a mean.
@@ -650,6 +714,7 @@ class BridgedClaim:
         """The source claim as the derivation saw it."""
         return dict(json.loads(self._handle.source_json()))
 
+    @bytes_export
     def export(self, artifact_id: str = "scientific_bridge") -> BridgeExport:
         """Write the ``scientific_bridge_v1`` artifact.
 
@@ -679,7 +744,10 @@ def _fit(wire: Mapping[str, Any] | None) -> TrialFit | None:
     )
 
 
+@bind_mean_reading
 def _claim(summary: Mapping[str, Any], handle: Any) -> BridgedClaim:
+    from .joint_distribution import ScientificQuantity
+
     contract = summary["contract"]
     transport = contract["transport"]
     return BridgedClaim(
@@ -708,6 +776,7 @@ def _claim(summary: Mapping[str, Any], handle: Any) -> BridgedClaim:
         uncertainty_available=bool(summary["uncertainty_available"]),
         provenance=tuple(summary["provenance"]),
         _handle=handle,
+        quantity=ScientificQuantity.from_wire(contract["target"]["quantity"]),
     )
 
 
@@ -792,14 +861,16 @@ def contract_identity(contract: BridgeContract) -> str:
 # --------------------------------------------------------------------------- consume
 
 
-@dataclass(frozen=True, slots=True, eq=False)
-class ConsumedBridge:
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class ConsumedBridge(ScientificResult):
     """A consumed artifact: the replayed derivation and the source claim as the bridge saw it.
 
     ``source`` reports the identity layers, value, units and evidence the bridge depended on;
     the replayed source never claims identification or support it cannot show
     (``identification_domain`` and ``support_domain`` are ``unknown``).
     """
+
+    _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
 
     claim: BridgedClaim
     source: Mapping[str, Any]
@@ -815,6 +886,7 @@ class ConsumedBridge:
         raise_refusal(self._handle.interval(), ScientificBridgeRefusal)
 
 
+@bind_mean_reading
 def consume_scientific_bridge_artifact(
     artifact: bytes, expected_identity: str | None = None
 ) -> ConsumedBridge:

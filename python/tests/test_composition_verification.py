@@ -437,9 +437,11 @@ def test_shared_data_comes_from_the_ledger_and_unknown_is_never_independent():
 
 def test_a_fresh_process_consumes_the_export_and_refuses_tampering(tmp_path):
     result = cv.verify_composition(build(cohort="v2"), previous=build())
-    exported = result.export("composition-python")
-    consumed = cv.consume_composition_verification_artifact(exported.artifact, exported.identity)
-    assert consumed.identity == exported.identity == result.identity
+    exported = result.artifact("composition-python")
+    consumed = cv.consume_composition_verification_artifact(
+        exported.data, exported.expectation.identity
+    )
+    assert consumed.identity == exported.expectation.identity == result.identity
     assert consumed.keys_of("recompute") == result.keys_of("recompute")
     assert consumed.view("decision").identity == result.view("decision").identity
     assert refused(lambda: consumed.require_valid("decision")).reason_code == (
@@ -447,7 +449,7 @@ def test_a_fresh_process_consumes_the_export_and_refuses_tampering(tmp_path):
     )
 
     path = tmp_path / "composition.bin"
-    path.write_bytes(exported.artifact)
+    path.write_bytes(exported.data)
     script = (
         "import json, sys\n"
         "from antecedent import composition_verification as cv\n"
@@ -457,11 +459,11 @@ def test_a_fresh_process_consumes_the_export_and_refuses_tampering(tmp_path):
         "'valid': list(c.keys_of('still_valid'))}))\n"
     )
     done = subprocess.run(
-        [sys.executable, "-c", script, str(path), exported.identity],
+        [sys.executable, "-c", script, str(path), exported.expectation.identity],
         capture_output=True, text=True, cwd=tmp_path, check=True,
     )  # fmt: skip
     wire = json.loads(done.stdout)
-    assert wire["identity"] == exported.identity
+    assert wire["identity"] == exported.expectation.identity
     assert wire["recompute"] == list(result.keys_of("recompute"))
     assert wire["valid"] == ["provider", "sibling_claim", "sibling_data", "target"]
     wrong = subprocess.run(
@@ -473,22 +475,24 @@ def test_a_fresh_process_consumes_the_export_and_refuses_tampering(tmp_path):
 
 
 def test_a_mutated_artifact_is_refused():
-    exported = cv.verify_composition(build(cohort="v2"), previous=build()).export()
-    data = exported.artifact
+    exported = cv.verify_composition(build(cohort="v2"), previous=build()).artifact()
+    data = exported.data
     for position in range(0, len(data), max(1, len(data) // 25)):
         mutated = bytearray(data)
         mutated[position] ^= 0x55
         error = refused(
             lambda m=bytes(mutated): cv.consume_composition_verification_artifact(
-                m, exported.identity
+                m, exported.expectation.identity
             )
         )
         assert error.reason_code in {"invalid_argument", "route_not_supported"}
     error = refused(lambda: cv.consume_composition_verification_artifact(data[: len(data) // 2]))
     assert error.reason_code == "invalid_argument"
-    other = cv.verify_composition(build(cohort="v3"), previous=build()).export()
+    other = cv.verify_composition(build(cohort="v3"), previous=build()).artifact()
     error = refused(
-        lambda: cv.consume_composition_verification_artifact(other.artifact, exported.identity)
+        lambda: cv.consume_composition_verification_artifact(
+            other.data, exported.expectation.identity
+        )
     )
     assert error.reason_code == "route_not_supported"
     assert error.detail == "composition_verification.identity_mismatch"

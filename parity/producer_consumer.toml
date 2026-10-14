@@ -285,7 +285,7 @@ built_from = "`adaptive_inference.AdaptiveInferenceSession.analyse(...)` (`Adapt
 [[producer]]
 key = "interface_contract_artifact"
 object = "an interface contract (what a component produces and consumes: quantity, support, operations, uncertainty meaning, calibration label, measurement and evidence assumptions; no value)"
-built_from = "`interface_contract.export_interface_contract(...)` (`InterfaceContractExport`) and `consume_interface_contract_artifact` (`ConsumedInterfaceContract`)"
+built_from = "`interface_contract.export_interface_contract(...)` (bytes) or `InterfaceContract.artifact(...)` (`ExportedArtifact[ConsumedInterfaceContract]`) and `consume_interface_contract_artifact` (`ConsumedInterfaceContract`)"
 
 [[producer]]
 key = "composition_verification_result"
@@ -864,7 +864,7 @@ detail = "`stage_identity(Stage.QUERY, contract_id)` declared by the caller"
 producer = "measurement_result"
 consumer = "decision"
 status = "ADAPTER"
-detail = "the caller declares one `MeanSource` coordinate for the latent construct (the model's population and regime) carrying the independently consumed point, with the model identity as provider and the data identity as snapshot; `Contract.evaluate` and `evaluate_with_support` then answer an affine utility only (prevalence 0.3: act 0.2, hold 0.6), mean-only with no standard error and no export; a quantile contract REFUSED `decision_evaluation.mean_source_insufficient`; the estimate and the prepared model themselves raise `CausalTypeError`"
+detail = "the caller declares one `MeanSource` coordinate for the latent construct (the model's population and regime) carrying the independently consumed point, with the model identity as provider and the data identity as snapshot; `Contract.evaluate` and `evaluate_with_support` then answer an affine utility only (prevalence 0.3: act 0.2, hold 0.6), mean-only with no standard error and no export; a quantile contract REFUSED `decision_evaluation.mean_source_insufficient`; `estimate.as_mean_source(quantity=...)` checks the explicit coordinate; the prepared model is not a mean producer"
 
 [[cell]]
 producer = "measurement_result"
@@ -912,13 +912,13 @@ detail = "`stage_identity(Stage.EVIDENCE, model identity plus data identity)` de
 producer = "composed_model"
 consumer = "decision"
 status = "ADAPTER"
-detail = "the caller declares two `MeanSource` coordinates, the outcome mean under `do(X=1)` and under `do(X=0)` read from `intervention_law`, with the plan identity as provider; the Gaussian law, its variance and its samples are not carried, so only an affine utility is answered (act 27, hold 1); a quantile contract REFUSED `decision_evaluation.mean_source_insufficient`; the prepared composition itself raises `CausalTypeError`"
+detail = "the caller declares two `MeanSource` coordinates, the outcome mean under `do(X=1)` and under `do(X=0)` read from `intervention_law`, with the plan identity as provider; the Gaussian law, its variance and its samples are not carried, so only an affine utility is answered (act 27, hold 1); a quantile contract REFUSED `decision_evaluation.mean_source_insufficient`; `prepared.as_mean_source(quantity=..., contrast=...)` requires the scientific coordinate and selected contrast"
 
 [[cell]]
 producer = "composed_model"
 consumer = "inverse_query"
 status = "ADAPTER"
-detail = "the same declared means as a `MeanClaim` into `InverseQuery.evaluate` (target mean 5 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the prepared composition itself raises `CausalTypeError`"
+detail = "the same declared means as a `MeanClaim` into `InverseQuery.evaluate` (target mean 5 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; `prepared.as_mean_source(quantity=..., contrast=...)` requires the scientific coordinate and selected contrast"
 
 [[cell]]
 producer = "composed_model"
@@ -966,7 +966,7 @@ detail = "the caller declares the pooled quantity (the ledger carries no estiman
 producer = "evidence_ledger"
 consumer = "inverse_query"
 status = "ADAPTER"
-detail = "the same declared mean as a `MeanClaim` into `InverseQuery.evaluate` (target mean 3 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the ledger, the outcome and the envelope themselves raise `CausalTypeError`"
+detail = "the same declared mean as a `MeanClaim` into `InverseQuery.evaluate` (target mean 3 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; `outcome.as_mean_source(quantity=...)` requires the pooled scientific coordinate; an envelope has no mean"
 
 [[cell]]
 producer = "evidence_ledger"
@@ -996,7 +996,7 @@ detail = "`CausalTypeError` from `obligations` and `repair`"
 producer = "evidence_ledger"
 consumer = "bundle_node"
 status = "REFUSED"
-detail = "no node kind: the artifact container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the ledger session, whose `export` returns a `LedgerExport` rather than bytes, raises `CausalTypeError`"
+detail = "no node kind: the artifact container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the ledger now exports bytes, but the bundle still refuses its unsupported scientific node kind; `ledger.artifact()` preserves carried/not-carried receipts in immutable metadata"
 
 [[cell]]
 producer = "evidence_ledger"
@@ -1044,7 +1044,7 @@ detail = "`CausalTypeError` from `obligations` and `repair`"
 producer = "counterfactual_transport_result"
 consumer = "bundle_node"
 status = "REFUSED"
-detail = "no node kind: the artifact container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; a result object whose `export` takes no `artifact_id` raises `CausalTypeError`"
+detail = "no node kind: the artifact container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the bundle accepts the export protocol but refuses this unsupported scientific node kind"
 
 [[cell]]
 producer = "counterfactual_transport_result"
@@ -1092,7 +1092,7 @@ detail = "`CausalTypeError` from `obligations` and `repair`"
 producer = "cohort_decision_source"
 consumer = "bundle_node"
 status = "REFUSED"
-detail = "no node kind: the `cohort_decision_source_v1` container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the source, whose `export` takes no artifact id, raises `CausalTypeError`"
+detail = "no node kind: the `cohort_decision_source_v1` container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the bundle accepts the export protocol but refuses this unsupported scientific node kind"
 
 [[cell]]
 producer = "cohort_decision_source"
@@ -1296,7 +1296,7 @@ detail = "the caller declares two `MeanSource` coordinates, the probability of t
 producer = "observation_query_claim"
 consumer = "inverse_query"
 status = "ADAPTER"
-detail = "the same declared means as a `MeanClaim` into `InverseQuery.evaluate` (target mean 1.5 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the claim itself raises `CausalTypeError`"
+detail = "the same declared means as a `MeanClaim` into `InverseQuery.evaluate` (target mean 1.5 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; `claim.as_mean_source(quantity=...)` requires the complete mean coordinate"
 
 [[cell]]
 producer = "observation_query_claim"
@@ -1326,7 +1326,7 @@ detail = "`CausalTypeError` from `obligations` and `repair`"
 producer = "observation_query_claim"
 consumer = "bundle_node"
 status = "REFUSED"
-detail = "no node kind: the `observation_query_v1` artifact is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the claim has no bundle exporter and raises `CausalTypeError`"
+detail = "no node kind: the `observation_query_v1` artifact is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the claim exports bytes, but the bundle refuses this unsupported scientific node kind"
 
 [[cell]]
 producer = "observation_query_claim"
@@ -1435,14 +1435,14 @@ built_from = "`scientific_bridge.prepare_scientific_bridge(contract).derive(sour
 [[cell]]
 producer = "scientific_bridge_claim"
 consumer = "decision"
-status = "ADAPTER"
-detail = "the caller declares the bridged quantity (the claim is a point mean, no law) as one `MeanSource` coordinate carrying the bridged value (0.796 from a validated surrogate effect 0.8), with the bridged claim identity as provider and the contract identity as snapshot; an affine utility only (act 2.184, hold 1.592), mean-only with no variance and no export; a quantile contract REFUSED `decision_evaluation.mean_source_insufficient`; a law, posterior, identified set or joint law REFUSED `scientific_bridge.value_kind_substitution`; the claim and its prepared bridge themselves raise `CausalTypeError`"
+status = "DIRECT"
+detail = "`Contract.evaluate(claim)` accepts a mean-valued bridge claim with retained compatible scientific quantity; `claim.as_mean_source()` exposes the same canonical `results.MeanSource` carrying the point (0.796 from a validated surrogate effect 0.8), identity, evidence and lineage; an affine utility only (act 2.184, hold 1.592), with no variance or export license; incompatible coordinates refuse; a quantile contract REFUSED `decision_evaluation.mean_source_insufficient`; a law, posterior, identified set or joint law REFUSED `scientific_bridge.value_kind_substitution`; a prepared bridge or export envelope is not a mean producer"
 
 [[cell]]
 producer = "scientific_bridge_claim"
 consumer = "inverse_query"
-status = "ADAPTER"
-detail = "the same declared mean as a `MeanClaim` into `InverseQuery.evaluate` (target mean 2 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the claim and its prepared bridge raise `CausalTypeError`"
+status = "DIRECT"
+detail = "`InverseQuery.evaluate(claim)` consumes the compatible retained bridge mean, or the same canonical `results.MeanSource` returned by `claim.as_mean_source()` (target mean 2 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; a prepared bridge or export envelope is not a mean producer"
 
 [[cell]]
 producer = "scientific_bridge_claim"
@@ -1582,13 +1582,13 @@ built_from = "`joint_law_propagation.dependence_envelope(...)` or `correlation_r
 producer = "propagated_claim"
 consumer = "decision"
 status = "ADAPTER"
-detail = "the caller declares one `MeanSource` coordinate for the claim's mean (E[PQ] = 2 from the aligned draws p = (1, 3, 2, 0), q = (4, 0, 2, 6)), carrying the claim identity as provider and the artifact identity as snapshot; `Contract.evaluate` then answers an affine utility only (act 4m - 1 = 7, hold 2m = 4), mean-only with no standard error; a quantile or probability is REFUSED `decision_evaluation.mean_source_insufficient`; the claim itself raises `CausalTypeError`"
+detail = "the caller declares one `MeanSource` coordinate for the claim's mean (E[PQ] = 2 from the aligned draws p = (1, 3, 2, 0), q = (4, 0, 2, 6)), carrying the claim identity as provider and the artifact identity as snapshot; `Contract.evaluate` then answers an affine utility only (act 4m - 1 = 7, hold 2m = 4), mean-only with no standard error; a quantile or probability is REFUSED `decision_evaluation.mean_source_insufficient`; `claim.as_mean_source(quantity=...)` requires the complete mean coordinate"
 
 [[cell]]
 producer = "propagated_claim"
 consumer = "inverse_query"
 status = "ADAPTER"
-detail = "the same declared mean as a `MeanClaim` into `InverseQuery.evaluate` (target mean 5 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; the claim itself raises `CausalTypeError`"
+detail = "the same declared mean as a `MeanClaim` into `InverseQuery.evaluate` (target mean 5 keeps `act`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; `claim.as_mean_source(quantity=...)` requires the complete mean coordinate"
 
 [[cell]]
 producer = "propagated_claim"

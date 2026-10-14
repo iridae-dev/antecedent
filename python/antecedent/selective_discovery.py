@@ -48,18 +48,25 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from . import _native
+from ._freeze import freeze
 from ._refusal import StructuredRefusal, raise_refusal
+from ._scientific import ScientificResult
+from ._validate import count as _shared_count
 from .errors import CausalTypeError, CausalValueError
+
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
 
 __all__ = [
     "ALGORITHMS",
     "Edge",
     "ExportedState",
+    "ConsumedSelectiveDiscovery",
     "Fdr",
     "Link",
     "Node",
@@ -111,10 +118,10 @@ def _name(value: object, what: str) -> str:
     return value
 
 
-def _count(value: object, what: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        raise CausalValueError(f"{what} must be a non-negative integer")
-    return value
+def _count(value: object, what: str, **kwargs: Any) -> int:
+    kwargs.setdefault("minimum", 0)
+    kwargs.setdefault("maximum", 2**64 - 1)
+    return _shared_count(value, what, **kwargs)
 
 
 @dataclass(frozen=True, slots=True)
@@ -370,8 +377,8 @@ class PlanEntry:
     identity: str
 
 
-@dataclass(frozen=True, slots=True)
-class RunReport:
+@dataclass(repr=False, frozen=True, slots=True)
+class RunReport(ScientificResult):
     """What one request did: the stage plan, the observed work and what was retained."""
 
     stages: tuple[PlanEntry, ...]
@@ -392,8 +399,8 @@ class RunReport:
         return all(e.status == "reused" for e in self.stages)
 
 
-@dataclass(frozen=True, slots=True)
-class Outcome:
+@dataclass(repr=False, frozen=True, slots=True)
+class Outcome(ScientificResult):
     """A discovered structure with its unresolved edges, evidence and bounded-search receipts."""
 
     structure_class: str
@@ -511,7 +518,7 @@ def _kind_of(contract: object) -> str:
 # --------------------------------------------------------------------------- the adapter
 
 
-class SelectiveDiscovery:
+class SelectiveDiscovery(ScientificResult):
     """A selective-discovery adapter: retains the last successful run and reuses its statistics.
 
     ``kind`` is ``"static"`` (PC, FCI over a table) or ``"temporal"`` (PCMCI, PCMCI+ over a
@@ -589,6 +596,22 @@ class SelectiveDiscovery:
         return tuple(
             PlanEntry(e["stage"], e["status"], tuple(e["because"]), e["identity"])
             for e in wire["stages"]
+        )
+
+    def export(self, artifact_id: str = "selective_discovery") -> bytes:
+        return self.export_state(artifact_id).artifact
+
+    def artifact(
+        self, artifact_id: str = "selective_discovery"
+    ) -> ExportedArtifact[ConsumedSelectiveDiscovery]:
+        from ._artifact_protocol import ArtifactExpectation, ExportedArtifact
+
+        receipt = self.export_state(artifact_id)
+        return ExportedArtifact(
+            receipt.artifact,
+            "selective_discovery_v1",
+            ArtifactExpectation("selective_discovery_v1", receipt.identity),
+            receipt.summary,
         )
 
     def export_state(self, artifact_id: str = "selective_discovery") -> ExportedState:
@@ -707,12 +730,34 @@ def inspect_selective_discovery_artifact(artifact: bytes) -> Mapping[str, Any]:
     text, refusal = _native.selective_discovery_inspect(bytes(artifact))
     _raise(refusal)
     assert text is not None
-    return dict(json.loads(text))
+    return ConsumedSelectiveDiscovery(freeze(json.loads(text)), bytes(artifact))
+
+
+@dataclass(repr=False, frozen=True)
+class ConsumedSelectiveDiscovery(ScientificResult, Mapping[str, Any]):
+    """Validated retained discovery receipts; resumption remains explicit."""
+
+    summary: Mapping[str, Any]
+    _artifact_bytes: bytes
+
+    def __getitem__(self, key: str) -> Any:
+        return self.summary[key]
+
+    def __iter__(self) -> Any:
+        return iter(self.summary)
+
+    def __len__(self) -> int:
+        return len(self.summary)
+
+    def to_dict(self) -> dict[str, Any]:
+        from ._freeze import thaw
+
+        return thaw(self.summary)
 
 
 def consume_selective_discovery_artifact(
     artifact: bytes, expected_identity: str | None = None
-) -> Mapping[str, Any]:
+) -> ConsumedSelectiveDiscovery:
     """Validate an artifact (every identity recomputed) and return its identity and summary.
 
     ``expected_identity`` is an identity the consumer retained independently; a consistently
@@ -727,7 +772,7 @@ def consume_selective_discovery_artifact(
     text, refusal = _native.selective_discovery_consume(bytes(artifact), expected_identity)
     _raise(refusal)
     assert text is not None
-    return dict(json.loads(text))
+    return ConsumedSelectiveDiscovery(freeze(json.loads(text)), bytes(artifact))
 
 
 def request_score_search_reuse() -> None:

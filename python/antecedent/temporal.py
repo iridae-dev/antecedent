@@ -46,7 +46,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import partial
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -54,8 +54,12 @@ from ._columns import coerce_fields
 from ._native import consume_effect_constancy_artifact as _consume
 from ._native import evaluate_effect_constancy as _evaluate
 from ._refusal import raise_refusal
+from ._scientific import ScientificResult
 from ._validate import non_finite_refusal, real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
 
 __all__ = [
     "ConstancyConclusion",
@@ -249,7 +253,7 @@ class EffectConstancyIdentity:
 
 
 @dataclass(frozen=True, slots=True)
-class EffectConstancyResult:
+class EffectConstancyResult(ScientificResult):
     """The global constancy test, its per-partition table and its portable artifact.
 
     ``partitions`` carries each partition's effect (canonical label order) so transport
@@ -277,11 +281,17 @@ class EffectConstancyResult:
     calibration: str
     inference_claim: str
     identity: EffectConstancyIdentity
-    artifact: bytes
+    _artifact_bytes: bytes
+
+    def artifact(self) -> ExportedArtifact[EffectConstancyResult]:
+        """Typed bytes envelope for shared scientific consumption."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self)
 
     def export(self) -> bytes:
         """The checksummed ``effect_constancy_v1`` artifact."""
-        return self.artifact
+        return self._artifact_bytes
 
     def table(self) -> list[dict[str, Any]]:
         """The per-partition table: label, coordinate, support, effect and standard error."""
@@ -371,7 +381,7 @@ def _result(report_json: str, artifact: bytes) -> EffectConstancyResult:
         calibration=report["calibration"],
         inference_claim=report["inference_claim"],
         identity=EffectConstancyIdentity(**report["identity"]),
-        artifact=artifact,
+        _artifact_bytes=artifact,
     )
 
 

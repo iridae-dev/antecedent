@@ -137,7 +137,7 @@ def test_original_point_policy_handles_disagreement_ties_and_semantic_refusals()
 def test_fresh_process_recomputes_original_artifact_before_policy_consumption(tmp_path):
     actual = source((-1, 2))
     artifact = tmp_path / "source.bin"
-    artifact.write_bytes(actual.artifact)
+    artifact.write_bytes(actual.export())
     payload = tmp_path / "identity.json"
     payload.write_text(json.dumps(actual.identity._wire()), encoding="utf-8")
     script = """

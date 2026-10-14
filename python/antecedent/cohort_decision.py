@@ -43,6 +43,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from ._columns import coerce_fields
+from ._freeze import thaw
 from ._native import build_cohort_decision_source as _build
 from ._native import cohort_decision_forward_claim as _forward_claim
 from ._native import cohort_decision_law_refusal as _law_refusal
@@ -50,10 +51,12 @@ from ._native import consume_cohort_decision_source as _consume
 from ._native import normalize_cohort_weights as _normalize
 from ._native import validate_cohort_binding as _validate
 from ._refusal import StructuredRefusal
+from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError
 from .joint_distribution import ScientificQuantity
 
 if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
     from .compact_export import CompactExport
     from .decision import MeanSource
     from .inverse_query import MeanClaim
@@ -293,7 +296,7 @@ def _options(shift: CovariateShift | None, expected_contrast: str | None) -> str
 
 
 @dataclass(frozen=True, slots=True, eq=False)
-class CohortDecisionSource:
+class CohortDecisionSource(ScientificResult):
     """One native cohort-mean treatment-contrast source.
 
     ``identity`` is what a consumer retains out of band. ``quantity`` is the scientific
@@ -305,7 +308,7 @@ class CohortDecisionSource:
 
     identity: str
     summary: Mapping[str, Any] = field(repr=False)
-    artifact: bytes = field(repr=False)
+    _artifact_bytes: bytes = field(repr=False)
     extrapolative_accepted: bool = field(default=False, repr=False)
 
     # -- values ------------------------------------------------------------------------------
@@ -346,7 +349,7 @@ class CohortDecisionSource:
     @property
     def support(self) -> Mapping[str, Any]:
         """The support receipt: basis, rows checked, rows outside (always 0), fitted rows."""
-        return dict(self.summary["support"])
+        return thaw(self.summary["support"])
 
     @property
     def support_status(self) -> str:
@@ -391,7 +394,7 @@ class CohortDecisionSource:
 
     def _verified_mean_source(self) -> Mapping[str, Any]:
         """The mean source as Rust replays it from the artifact under this identity."""
-        summary, refusal = _consume(self.artifact, self._expectation())
+        summary, refusal = _consume(self._artifact_bytes, self._expectation())
         if refusal is not None:
             raise CohortDecisionRefusal(json.loads(refusal))
         assert summary is not None
@@ -423,6 +426,8 @@ class CohortDecisionSource:
             causal_contract_id=wire["causal_contract_id"],
             rng_id=wire["rng_id"],
             _original_cohort=self,
+            trust="native_licensed" if self.is_native else "externally_attested",
+            evidence=(self.parent_claim,),
         )
 
     def accept_extrapolative(self) -> CohortDecisionSource:
@@ -444,7 +449,7 @@ class CohortDecisionSource:
         """
         from .inverse_query import MeanClaim
 
-        text, refusal = _forward_claim(self.artifact, self._expectation())
+        text, refusal = _forward_claim(self._artifact_bytes, self._expectation())
         if refusal is not None:
             raise CohortDecisionRefusal(json.loads(refusal))
         assert text is not None
@@ -458,9 +463,15 @@ class CohortDecisionSource:
             rng_id=wire["rng_id"],
         )
 
+    def artifact(self) -> ExportedArtifact[CohortDecisionSource]:
+        """Typed bytes envelope for shared scientific consumption."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self)
+
     def export(self) -> bytes:
         """The checksummed ``cohort_decision_source_v1`` artifact."""
-        return self.artifact
+        return self._artifact_bytes
 
     @classmethod
     def consume(
@@ -492,13 +503,13 @@ class CohortDecisionSource:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return dict(self.summary)
+        return thaw(self.summary)
 
 
 def _source_of(summary: str, artifact: bytes) -> CohortDecisionSource:
     parsed = json.loads(summary)
     return CohortDecisionSource(
-        identity=str(parsed["identity"]), summary=parsed, artifact=bytes(artifact)
+        identity=str(parsed["identity"]), summary=parsed, _artifact_bytes=bytes(artifact)
     )
 
 

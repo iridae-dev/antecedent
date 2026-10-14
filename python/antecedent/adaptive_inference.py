@@ -51,13 +51,26 @@ import math
 import struct
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, overload
 
 from . import _native
 from ._refusal import StructuredRefusal, raise_refusal
+from ._scientific import ScientificResult
+from ._validate import count as _count
 from .errors import CausalTypeError, CausalValueError
 
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
+
 __all__ = [
+    "ArmPosterior",
+    "PosteriorSummary",
+    "StoppingSummary",
+    "WeightingSummary",
+    "ArmSequence",
+    "SequenceSummary",
+    "SequentialLook",
+    "SequentialSummary",
     "AdaptiveDesign",
     "AdaptiveInferenceRefusal",
     "AdaptiveInferenceSession",
@@ -225,6 +238,21 @@ class StoppingRule:
         }
 
 
+AssignmentName = Literal[
+    "fixed_randomization",
+    "thompson_beta_bernoulli",
+    "epsilon_greedy",
+    "upper_confidence_bound",
+    "contextual_bandit",
+    "batched_adaptive",
+]
+OutcomeName = Literal["single_outcome", "repeated_measures", "hierarchical_clustered"]
+MonitoringName = Literal[
+    "final_analysis_only", "fixed_interim_looks", "group_sequential", "continuous_monitoring"
+]
+StoppingName = Literal["no_stopping", "efficacy", "futility", "resource", "decision_theoretic"]
+
+
 @dataclass(frozen=True)
 class AdaptiveDesign:
     """The retained analysis contract of one adaptive experiment.
@@ -236,10 +264,10 @@ class AdaptiveDesign:
     """
 
     label: str
-    assignment: str
-    outcome: str
-    monitoring: str
-    stopping: str
+    assignment: AssignmentName
+    outcome: OutcomeName
+    monitoring: MonitoringName
+    stopping: StoppingName
     arm_labels: Sequence[str]
     assigned_arm: Sequence[int]
     outcomes: Sequence[Sequence[float]]
@@ -260,22 +288,43 @@ class AdaptiveDesign:
             "monitoring": self.monitoring,
             "stopping": self.stopping,
             "arm_labels": list(self.arm_labels),
-            "assigned_arm": [int(a) for a in self.assigned_arm],
+            "assigned_arm": [
+                _count(a, "a", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument")
+                for a in self.assigned_arm
+            ],
             "policy_history": None
             if self.policy_history is None
             else [
-                {"first_unit": int(e.first_unit), "identity": e.identity}
+                {
+                    "first_unit": _count(
+                        e.first_unit,
+                        "e.first_unit",
+                        minimum=0,
+                        maximum=2**64 - 1,
+                        reason_code="invalid_argument",
+                    ),
+                    "identity": e.identity,
+                }
                 for e in self.policy_history
             ],
             "assignment_probability_bits": None
             if self.assignment_probabilities is None
             else [[_bits(p) for p in row] for row in self.assignment_probabilities],
-            "exposure": None if self.exposure is None else [int(a) for a in self.exposure],
+            "exposure": None
+            if self.exposure is None
+            else [
+                _count(a, "a", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument")
+                for a in self.exposure
+            ],
             "availability": None
             if self.availability is None
             else {
                 "available_at_look": [
-                    None if look is None else int(look)
+                    None
+                    if look is None
+                    else _count(
+                        look, "look", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"
+                    )
                     for look in self.availability.available_at_look
                 ],
                 "delay": self.availability.delay,
@@ -285,7 +334,13 @@ class AdaptiveDesign:
             if self.interim_analyses is None
             else [
                 {
-                    "units_enrolled": int(a.units_enrolled),
+                    "units_enrolled": _count(
+                        a.units_enrolled,
+                        "a.units_enrolled",
+                        minimum=0,
+                        maximum=2**64 - 1,
+                        reason_code="invalid_argument",
+                    ),
                     "information_fraction_bits": _bits(a.information_fraction),
                 }
                 for a in self.interim_analyses
@@ -309,7 +364,9 @@ class BayesianPosterior:
     def _wire(self) -> dict[str, Any]:
         return {
             "kind": "bayesian_posterior",
-            "look": int(self.look),
+            "look": _count(
+                self.look, "look", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"
+            ),
             "prior_alpha": float(self.prior_alpha),
             "prior_beta": float(self.prior_beta),
         }
@@ -326,7 +383,9 @@ class PosteriorStopping:
     def _wire(self) -> dict[str, Any]:
         return {
             "kind": "posterior_stopping",
-            "look": int(self.look),
+            "look": _count(
+                self.look, "look", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"
+            ),
             "prior_alpha": float(self.prior_alpha),
             "prior_beta": float(self.prior_beta),
         }
@@ -351,9 +410,25 @@ class AdaptiveWeighting:
     def _wire(self) -> dict[str, Any]:
         return {
             "kind": "adaptive_weighting",
-            "look": int(self.look),
-            "plus_arm": int(self.plus_arm),
-            "minus_arm": None if self.minus_arm is None else int(self.minus_arm),
+            "look": _count(
+                self.look, "look", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"
+            ),
+            "plus_arm": _count(
+                self.plus_arm,
+                "plus_arm",
+                minimum=0,
+                maximum=2**64 - 1,
+                reason_code="invalid_argument",
+            ),
+            "minus_arm": None
+            if self.minus_arm is None
+            else _count(
+                self.minus_arm,
+                "minus_arm",
+                minimum=0,
+                maximum=2**64 - 1,
+                reason_code="invalid_argument",
+            ),
             "scheme": self.scheme,
             "prior_mean": float(self.prior_mean),
             "prior_strength": float(self.prior_strength),
@@ -373,12 +448,17 @@ class ConfidenceSequence:
     def _wire(self) -> dict[str, Any]:
         wire: dict[str, Any] = {
             "kind": "confidence_sequence",
-            "look": int(self.look),
+            "look": _count(
+                self.look, "look", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"
+            ),
             "alpha": float(self.alpha),
             "tuning_samples": float(self.tuning_samples),
         }
         if self.contrast is not None:
-            wire["plus_arm"], wire["minus_arm"] = (int(a) for a in self.contrast)
+            wire["plus_arm"], wire["minus_arm"] = (
+                _count(a, "a", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument")
+                for a in self.contrast
+            )
         return wire
 
 
@@ -393,9 +473,23 @@ class GroupSequential:
     def _wire(self) -> dict[str, Any]:
         return {
             "kind": "group_sequential",
-            "look": int(self.look),
-            "control_arm": int(self.control_arm),
-            "treatment_arm": int(self.treatment_arm),
+            "look": _count(
+                self.look, "look", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"
+            ),
+            "control_arm": _count(
+                self.control_arm,
+                "control_arm",
+                minimum=0,
+                maximum=2**64 - 1,
+                reason_code="invalid_argument",
+            ),
+            "treatment_arm": _count(
+                self.treatment_arm,
+                "treatment_arm",
+                minimum=0,
+                maximum=2**64 - 1,
+                reason_code="invalid_argument",
+            ),
         }
 
 
@@ -414,27 +508,139 @@ def _request_json(request: Request) -> str:
 # --------------------------------------------------------------------------- results
 
 
-@dataclass(frozen=True)
-class AdaptiveResult:
-    """One result: the values in the route's fixed order, labelled with paradigm and procedure.
+@dataclass(repr=False, frozen=True, slots=True)
+class ArmPosterior(ScientificResult):
+    alpha: float
+    beta: float
+    mean: float
+    variance: float
+    probability_best: float
+    expected_loss: float
 
-    ``values`` order: Bayesian posterior ``alpha, beta, mean, variance, probability_best,
-    expected_loss`` per arm; posterior stopping ``best_arm, probability_best, expected_loss,
-    stop``; adaptive weighting ``estimate, variance, units, effective_units, max_weight_share``;
-    confidence sequence ``count, mean, lower, upper`` per arm then the contrast ``lower, upper``;
-    group sequential ``stopped_at`` (``-1`` for none) then ``critical, statistic, spent`` per look.
-    """
+
+@dataclass(repr=False, frozen=True, slots=True)
+class PosteriorSummary(ScientificResult):
+    arms: tuple[ArmPosterior, ...]
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class StoppingSummary(ScientificResult):
+    best_arm: int
+    probability_best: float
+    expected_loss: float
+    stop: bool
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class WeightingSummary(ScientificResult):
+    estimate: float
+    variance: float
+    units: int
+    effective_units: float
+    max_weight_share: float
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class ArmSequence(ScientificResult):
+    count: int
+    mean: float
+    lower: float
+    upper: float
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class SequenceSummary(ScientificResult):
+    arms: tuple[ArmSequence, ...]
+    contrast_lower: float
+    contrast_upper: float
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class SequentialLook(ScientificResult):
+    critical: float
+    statistic: float
+    spent: float
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class SequentialSummary(ScientificResult):
+    stopped_at: int | None
+    looks: tuple[SequentialLook, ...]
+
+
+AdaptivePayload = (
+    PosteriorSummary | StoppingSummary | WeightingSummary | SequenceSummary | SequentialSummary
+)
+PayloadT = TypeVar("PayloadT", bound=AdaptivePayload)
+
+
+@dataclass(repr=False, frozen=True)
+class AdaptiveResult(ScientificResult, Generic[PayloadT]):
+    """A named method result; all readings retain the whole-procedure point-only label."""
 
     paradigm: str
     procedure: str
     method: str
-    values: tuple[float, ...]
+    payload: PayloadT
     closed_guarantee: str
     contract_identity: str
-    look: int
+    look: int | None
     stopping_rule: dict[str, Any] | None
-    #: Always ``point_only``: no interval or coverage statement is licensed.
     claim: str = "point_only"
+    _wire_values: tuple[float, ...] = field(default=(), repr=False, compare=False)
+    _export_session: Any = field(default=None, repr=False, compare=False)
+    _export_request: Request | None = field(default=None, repr=False, compare=False)
+
+    def export(self, artifact_id: str = "adaptive-result", *, cancel: Any = None) -> bytes:
+        """Export this request under the immutable prepared adaptive contract."""
+        if self._export_session is None or self._export_request is None:
+            raise CausalValueError(
+                "this detached adaptive reading has no retained request to export"
+            )
+        return bytes(
+            self._export_session.export_result(self._export_request, artifact_id, cancel=cancel)
+        )
+
+    def artifact(
+        self, artifact_id: str = "adaptive-result", *, cancel: Any = None
+    ) -> ExportedArtifact[ConsumedAdaptiveResult]:
+        from ._artifact_protocol import ExportedArtifact
+
+        return ExportedArtifact(
+            self.export(artifact_id, cancel=cancel),
+            "adaptive_inference_result_v1",
+            metadata={"contract_identity": self.contract_identity, "method": self.method},
+        )
+
+    def to_rows(self) -> list[dict[str, Any]]:
+        return [
+            {**row, "paradigm": self.paradigm, "method": self.method, "claim": self.claim}
+            for row in self.payload.to_rows()
+        ]
+
+
+def _payload(paradigm: str, method: str, values: tuple[float, ...]) -> AdaptivePayload:
+    if "posterior" in paradigm and "stopp" not in method:
+        return PosteriorSummary(
+            tuple(ArmPosterior(*values[i : i + 6]) for i in range(0, len(values), 6))
+        )
+    if "stopp" in method or "stopp" in paradigm:
+        return StoppingSummary(int(values[0]), values[1], values[2], bool(values[3]))
+    if "weight" in paradigm:
+        return WeightingSummary(values[0], values[1], int(values[2]), values[3], values[4])
+    if "anytime" in paradigm:
+        return SequenceSummary(
+            tuple(
+                ArmSequence(int(values[i]), *values[i + 1 : i + 4])
+                for i in range(0, len(values) - 2, 4)
+            ),
+            values[-2],
+            values[-1],
+        )
+    return SequentialSummary(
+        None if values[0] < 0 else int(values[0]),
+        tuple(SequentialLook(*values[i : i + 3]) for i in range(1, len(values), 3)),
+    )
 
 
 @dataclass(frozen=True)
@@ -480,8 +686,8 @@ def procedure_matrix() -> tuple[ProcedureCell, ...]:
 # --------------------------------------------------------------------------- session
 
 
-@dataclass(frozen=True)
-class InterimEvidence:
+@dataclass(repr=False, frozen=True)
+class InterimEvidence(ScientificResult):
     """The observations behind each interim analysis, counted once."""
 
     look_sizes: tuple[int, ...]
@@ -499,7 +705,12 @@ def _result(wire: dict[str, Any]) -> AdaptiveResult:
         paradigm=wire["paradigm"],
         procedure=wire["procedure"],
         method=wire["method"],
-        values=tuple(float("nan") if v is None else float(v) for v in wire["values"]),
+        payload=_payload(
+            wire["paradigm"],
+            wire["method"],
+            tuple(float("nan") if v is None else float(v) for v in wire["values"]),
+        ),
+        _wire_values=tuple(float("nan") if v is None else float(v) for v in wire["values"]),
         closed_guarantee=wire["closed_guarantee"],
         contract_identity=wire["contract_identity"],
         look=int(wire["look"]),
@@ -547,7 +758,32 @@ class AdaptiveInferenceSession:
         """Whether the design adapted, was looked at or stopped."""
         return bool(self._summary["adaptive"])
 
-    def analyse(self, request: Request, *, cancel: Any = None) -> AdaptiveResult:
+    @overload
+    def analyze(
+        self, request: BayesianPosterior, *, cancel: Any = None
+    ) -> AdaptiveResult[PosteriorSummary]: ...
+
+    @overload
+    def analyze(
+        self, request: PosteriorStopping, *, cancel: Any = None
+    ) -> AdaptiveResult[StoppingSummary]: ...
+
+    @overload
+    def analyze(
+        self, request: AdaptiveWeighting, *, cancel: Any = None
+    ) -> AdaptiveResult[WeightingSummary]: ...
+
+    @overload
+    def analyze(
+        self, request: ConfidenceSequence, *, cancel: Any = None
+    ) -> AdaptiveResult[SequenceSummary]: ...
+
+    @overload
+    def analyze(
+        self, request: GroupSequential, *, cancel: Any = None
+    ) -> AdaptiveResult[SequentialSummary]: ...
+
+    def analyze(self, request: Request, *, cancel: Any = None) -> AdaptiveResult:
         """Run the paradigm a request names.
 
         Raises:
@@ -556,7 +792,16 @@ class AdaptiveInferenceSession:
                 or a probability below the floor, ``cancelled_no_claim`` on cancellation.
         """
         wire = _unwrap(self._handle.analyse(_request_json(request), cancel=cancel))
-        return _result(json.loads(wire))
+        result = _result(json.loads(wire))
+        from ._freeze import freeze
+
+        object.__setattr__(result, "_export_session", self)
+        object.__setattr__(result, "_export_request", freeze(request))
+        return result
+
+    def analyse(self, request: Request, *, cancel: Any = None) -> AdaptiveResult[Any]:
+        """British spelling of :meth:`analyze`."""
+        return self.analyze(request, cancel=cancel)
 
     def fixed_sample(self) -> None:
         """Analyse as if the design had been fixed in advance.
@@ -590,6 +835,37 @@ class AdaptiveInferenceSession:
             else (str(pooling["code"]), str(pooling["detail"])),
         )
 
+    def export(
+        self, request: Request, artifact_id: str = "adaptive-result", *, cancel: Any = None
+    ) -> bytes:
+        """Export a selected adaptive request with its whole-procedure declarations."""
+        return self.export_result(request, artifact_id, cancel=cancel)
+
+    def artifact(
+        self, request: Request, artifact_id: str = "adaptive-result", *, cancel: Any = None
+    ) -> ExportedArtifact[ConsumedAdaptiveResult]:
+        from ._artifact_protocol import ExportedArtifact
+
+        return ExportedArtifact(
+            self.export_result(request, artifact_id, cancel=cancel),
+            "adaptive_inference_result_v1",
+            metadata={
+                "contract_identity": self.contract_identity,
+                "request": json.loads(_request_json(request)),
+            },
+        )
+
+    def artifact_contract(
+        self, paradigm: str, artifact_id: str = "adaptive-monitoring"
+    ) -> ExportedArtifact[ConsumedMonitoringContract]:
+        from ._artifact_protocol import ExportedArtifact
+
+        return ExportedArtifact(
+            self.export_contract(paradigm, artifact_id),
+            "adaptive_monitoring_contract_v1",
+            metadata={"contract_identity": self.contract_identity, "paradigm": paradigm},
+        )
+
     def export_contract(self, paradigm: str, artifact_id: str = "adaptive-monitoring") -> bytes:
         """Write ``adaptive_monitoring_contract_v1`` for a paradigm."""
         return bytes(_unwrap(self._handle.export_contract(paradigm, artifact_id)))
@@ -606,8 +882,8 @@ class AdaptiveInferenceSession:
 # --------------------------------------------------------------------------- consumers
 
 
-@dataclass(frozen=True)
-class ConsumedMonitoringContract:
+@dataclass(repr=False, frozen=True)
+class ConsumedMonitoringContract(ScientificResult):
     """A replayed monitoring contract: the procedure, the stopping rule and the paradigm."""
 
     identity: str
@@ -623,8 +899,8 @@ class ConsumedMonitoringContract:
     declaration: dict[str, Any] = field(repr=False, default_factory=dict)
 
 
-@dataclass(frozen=True)
-class ConsumedAdaptiveResult:
+@dataclass(repr=False, frozen=True)
+class ConsumedAdaptiveResult(ScientificResult):
     """A replayed result: procedure, rule, paradigm and the values recomputed by the consumer."""
 
     identity: str
@@ -632,7 +908,8 @@ class ConsumedAdaptiveResult:
     paradigm: str
     stopping_rule: dict[str, Any] | None
     method: str
-    values: tuple[float, ...]
+    payload: AdaptivePayload
+    _wire_values: tuple[float, ...]
     closed_guarantee: str
 
 
@@ -696,6 +973,11 @@ def consume_adaptive_inference_result_artifact(
         paradigm=wire["paradigm"],
         stopping_rule=wire.get("stopping_rule"),
         method=wire["method"],
-        values=tuple(float("nan") if v is None else float(v) for v in wire["values"]),
+        payload=_payload(
+            wire["paradigm"],
+            wire["method"],
+            tuple(float("nan") if v is None else float(v) for v in wire["values"]),
+        ),
+        _wire_values=tuple(float("nan") if v is None else float(v) for v in wire["values"]),
         closed_guarantee=wire["closed_guarantee"],
     )

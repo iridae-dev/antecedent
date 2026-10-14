@@ -45,13 +45,19 @@ import math
 import struct
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from . import _native
+from ._artifact_protocol import bytes_export
+from ._freeze import thaw
 from ._refusal import StructuredRefusal
+from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError
-from .joint_distribution import QuantityCondition, ScientificQuantity
+from .joint_distribution import DistributionMeaning, QuantityCondition, ScientificQuantity
 from .scientific_bridge import _quantity_wire
+
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
 
 __all__ = [
     "CALIBRATION_STATUSES",
@@ -128,6 +134,26 @@ _STAGES = (
     "study_ranking_provider",
     "claim",
 )
+
+
+OperationsName = Literal[
+    "point", "mean", "law", "draws", "joint_draws", "covariance", "interval", "posterior"
+]
+CalibrationStatusesName = Literal["none", "point_only", "unmeasured", "measured", "inherited"]
+DependenceRequirementsName = Literal["unconstrained", "declared_evidence", "disjoint_evidence"]
+CalibrationRequirementsName = Literal["not_required", "measured"]
+StagesName = Literal[
+    "causal_contract",
+    "evidence",
+    "data",
+    "external_provider",
+    "distribution_artifact",
+    "transformation",
+    "decision_contract",
+    "sensitivity_input",
+    "study_ranking_provider",
+    "claim",
+]
 
 
 class InterfaceContractRefusal(StructuredRefusal):
@@ -268,7 +294,7 @@ class Calibration:
     names the consumed port the calibration is inherited from.
     """
 
-    status: str = "none"
+    status: CalibrationStatusesName = "none"
     record_id: str | None = None
     input: str | None = None
 
@@ -317,8 +343,8 @@ class ProducedPort:
     quantity: ScientificQuantity
     semantic_identity: str
     support: SupportDomain
-    operations: tuple[str, ...]
-    uncertainty: str | None = None
+    operations: tuple[OperationsName, ...]
+    uncertainty: DistributionMeaning | None = None
     calibration: Calibration = field(default_factory=Calibration)
     measurement_models: tuple[str, ...] = ()
     evidence: tuple[str, ...] | None = None
@@ -357,11 +383,11 @@ class ConsumedPort:
     quantity: ScientificQuantity
     semantic_identity: str
     support: SupportDomain
-    operations: tuple[str, ...]
-    uncertainty: str | None = None
-    calibration: str = "not_required"
+    operations: tuple[OperationsName, ...]
+    uncertainty: DistributionMeaning | None = None
+    calibration: CalibrationRequirementsName = "not_required"
     measurement_models: tuple[str, ...] = ()
-    dependence: str = "unconstrained"
+    dependence: DependenceRequirementsName = "unconstrained"
     provenance: tuple[str, ...] = ()
 
     def _wire(self) -> dict[str, Any]:
@@ -390,6 +416,23 @@ class InterfaceContract:
     produces: Sequence[ProducedPort] = ()
     consumes: Sequence[ConsumedPort] = ()
 
+    def export(self, artifact_id: str = "interface-contract") -> bytes:
+        return export_interface_contract(self, artifact_id=artifact_id)
+
+    def artifact(
+        self, artifact_id: str = "interface-contract"
+    ) -> ExportedArtifact[ConsumedInterfaceContract]:
+        from ._artifact_protocol import ArtifactExpectation, ExportedArtifact
+
+        original_export = getattr(export_interface_contract, "__wrapped__")  # noqa: B009
+        receipt = original_export(self, artifact_id=artifact_id)
+        return ExportedArtifact(
+            receipt.artifact,
+            "interface_contract_v1",
+            ArtifactExpectation("interface_contract_v1", receipt.identity),
+            {"identity": receipt.identity, "contract_identity": receipt.contract_identity},
+        )
+
     def _wire(self) -> dict[str, Any]:
         produced = sorted((p._wire() for p in self.produces), key=lambda w: w["name"])
         consumed = sorted((c._wire() for c in self.consumes), key=lambda w: w["name"])
@@ -417,8 +460,8 @@ class InterfaceContract:
                 transform_id=q["transform_id"],
             )
 
-        def meaning(u: Mapping[str, Any] | None) -> str | None:
-            return None if u is None else str(u["meaning"])
+        def meaning(u: Mapping[str, Any] | None) -> DistributionMeaning | None:
+            return None if u is None else cast(DistributionMeaning, str(u["meaning"]))
 
         produces = tuple(
             ProducedPort(
@@ -458,7 +501,7 @@ class InterfaceContract:
 
 
 def _dumps(value: object) -> str:
-    return json.dumps(value, allow_nan=False, separators=(",", ":"))
+    return json.dumps(thaw(value), allow_nan=False, separators=(",", ":"))
 
 
 def contract_identity(contract: InterfaceContract) -> str:
@@ -472,15 +515,15 @@ def contract_identity(contract: InterfaceContract) -> str:
 # --------------------------------------------------------------------------- decisions
 
 
-@dataclass(frozen=True, slots=True)
-class Connection:
+@dataclass(repr=False, frozen=True, slots=True)
+class Connection(ScientificResult):
     """An accepted connection; it carries the producer's label and evidence unchanged."""
 
     producer: str
     produced_port: str
     consumer: str
     consumed_port: str
-    operations: tuple[str, ...]
+    operations: tuple[OperationsName, ...]
     uncertainty: str | None
     uncertainty_paradigm: str | None
     calibration: Calibration
@@ -527,8 +570,8 @@ def check_connection(
     return _connection(json.loads(wire))
 
 
-@dataclass(frozen=True, slots=True)
-class ComposedInterfaces:
+@dataclass(repr=False, frozen=True, slots=True)
+class ComposedInterfaces(ScientificResult):
     """A composition every connection of which is licensed and which has no cycle."""
 
     order: tuple[str, ...]
@@ -573,6 +616,7 @@ class InterfaceContractExport:
     contract_identity: str
 
 
+@bytes_export
 def export_interface_contract(
     contract: InterfaceContract, artifact_id: str
 ) -> InterfaceContractExport:
@@ -586,8 +630,8 @@ def export_interface_contract(
     return InterfaceContractExport(bytes(artifact), identity, contract_id)
 
 
-@dataclass(frozen=True, slots=True)
-class ConsumedInterfaceContract:
+@dataclass(repr=False, frozen=True, slots=True)
+class ConsumedInterfaceContract(ScientificResult):
     """A contract consumed from an artifact, re-validated, ports in name order."""
 
     contract: InterfaceContract

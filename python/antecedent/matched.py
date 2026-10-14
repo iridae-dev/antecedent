@@ -31,12 +31,16 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ._digest import canonical_digest
 from ._native import CancellationToken
 from ._native import matched_case_control_odds_ratio as _matched_case_control_odds_ratio
+from ._scientific import ScientificResult
 from .errors import CausalResourceError, CausalSerializationError, CausalTypeError
+
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
 
 __all__ = [
     "MatchedCaseControlResult",
@@ -65,7 +69,7 @@ class MatchedSetCounts:
 
 
 @dataclass(frozen=True, slots=True)
-class MatchedCaseControlResult:
+class MatchedCaseControlResult(ScientificResult):
     """The conditional odds ratio; ``claim`` is ``point_only`` and no interval exists.
 
     ``set_types`` is the sufficient statistic of the declared sets: one
@@ -81,7 +85,18 @@ class MatchedCaseControlResult:
     sampling: str = "matched_case_control"
     claim: str = "point_only"
 
-    def export(self) -> str:
+    @property
+    def identity(self) -> str:
+        """Content identity retained independently for artifact consumption."""
+        return str(json.loads(self.export())["digest"])
+
+    def artifact(self) -> ExportedArtifact[MatchedCaseControlResult]:
+        """Typed bytes envelope for shared scientific consumption."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self)
+
+    def export(self) -> bytes:
         """A self-describing JSON artifact that :func:`replay_matched_case_control` re-derives."""
         body: dict[str, Any] = {
             "format": _FORMAT,
@@ -93,7 +108,7 @@ class MatchedCaseControlResult:
             "log_odds_ratio": self.log_odds_ratio,
             "odds_ratio": self.odds_ratio,
         }
-        return json.dumps({**body, "digest": _digest(body)}, sort_keys=True)
+        return json.dumps({**body, "digest": _digest(body)}, sort_keys=True).encode("utf-8")
 
 
 def _counts_dict(counts: MatchedSetCounts) -> dict[str, int]:
@@ -215,8 +230,9 @@ def _expanded_rows(set_types: object, max_rows: int) -> tuple[list[str], list[fl
 
 
 def replay_matched_case_control(
-    artifact: str,
+    artifact: bytes | str,
     *,
+    expected_identity: str | None = None,
     max_rows: int = _MAX_REPLAY_ROWS,
     cancel: CancellationToken | None = None,
 ) -> MatchedCaseControlResult:
@@ -237,6 +253,8 @@ def replay_matched_case_control(
     stored = body.pop("digest", None)
     if stored != _digest(body):
         raise _bad("digest does not match the content")
+    if expected_identity is not None and stored != expected_identity:
+        raise _bad("identity differs from independently retained expected_identity")
     expected_keys = {
         "format",
         "sampling",

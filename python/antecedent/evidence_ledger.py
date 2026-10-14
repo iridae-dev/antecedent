@@ -55,7 +55,12 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import _native
+from ._artifact_protocol import ExportedArtifact, bytes_export
+from ._freeze import thaw
+from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
+from ._scientific import ScientificResult
+from ._validate import count
 from .errors import CausalTypeError, CausalValueError
 
 __all__ = [
@@ -136,7 +141,7 @@ def _number(value: object, what: str) -> float:
 
 
 def _dumps(value: object) -> str:
-    return json.dumps(value, allow_nan=False, separators=(",", ":"))
+    return json.dumps(thaw(value), allow_nan=False, separators=(",", ":"))
 
 
 def _unwrap(pair: tuple[Any, str | None]) -> Any:
@@ -148,10 +153,9 @@ def _unwrap(pair: tuple[Any, str | None]) -> Any:
 def _key_hex(key: ObservationKey) -> str:
     if isinstance(key, bool):
         raise CausalTypeError("an observation key is an int, a str or bytes")
-    if isinstance(key, int):
-        if key < 0:
-            raise CausalValueError("an integer observation key must be non-negative")
-        return key.to_bytes(8, "little").hex()
+    if not isinstance(key, (str, bytes, bytearray)):
+        number = count(key, "observation key", minimum=0, maximum=2**64 - 1)
+        return number.to_bytes(8, "little").hex()
     if isinstance(key, str):
         return key.encode("utf-8").hex()
     if isinstance(key, (bytes, bytearray)):
@@ -563,22 +567,27 @@ def _value(wire: dict[str, Any]) -> SynthesisValue:
     raise CausalValueError(f"unknown synthesis value {kind!r}")
 
 
-@dataclass(frozen=True, slots=True)
-class SynthesisOutcome:
+@dataclass(repr=False, frozen=True, slots=True)
+class SynthesisOutcome(ScientificResult):
     """A registered combination and its numbers.
 
     ``claim_class`` and ``claim_label`` are ``"point_only"`` or ``"assumption_range"``: the ledger
     licenses nothing stronger.
     """
 
+    _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
+
     result: str
     value: SynthesisValue
     mass: MassAccount
     claim_class: str
     claim_label: str
+    source_identity: str | None = None
+    evidence: tuple[str, ...] = ()
 
 
-def _outcome(text: str) -> SynthesisOutcome:
+@bind_mean_reading
+def _outcome(text: str, ledger: Any = None) -> SynthesisOutcome:
     wire = json.loads(text)
     return SynthesisOutcome(
         result=wire["result"],
@@ -586,11 +595,13 @@ def _outcome(text: str) -> SynthesisOutcome:
         mass=_mass(wire["mass"]),
         claim_class=wire["claim_class"],
         claim_label=wire["claim_label"],
+        source_identity=ledger.head if ledger is not None else None,
+        evidence=tuple(ledger.result(wire["result"]).sources) if ledger is not None else (),
     )
 
 
-@dataclass(frozen=True, slots=True)
-class ResultRecord:
+@dataclass(repr=False, frozen=True, slots=True)
+class ResultRecord(ScientificResult):
     """The ledger's record of one registered combination, valid or not.
 
     ``standing`` is ``still_valid``, ``recompute`` or ``withdrawn``; ``status`` is the finer
@@ -632,8 +643,8 @@ def _record(wire: dict[str, Any]) -> ResultRecord:
     )
 
 
-@dataclass(frozen=True, slots=True)
-class SourceRecord:
+@dataclass(repr=False, frozen=True, slots=True)
+class SourceRecord(ScientificResult):
     """One source of the ledger with its current standing.
 
     ``effective_observations`` is the number of distinct observations after lineage is resolved,
@@ -667,8 +678,8 @@ def _source(wire: dict[str, Any]) -> SourceRecord:
     )
 
 
-@dataclass(frozen=True, slots=True)
-class RevisionReport:
+@dataclass(repr=False, frozen=True, slots=True)
+class RevisionReport(ScientificResult):
     """What one applied operation did downstream."""
 
     operation: str
@@ -706,8 +717,8 @@ class LedgerExport:
     not_carried: dict[str, str]
 
 
-@dataclass(frozen=True, slots=True, eq=False)
-class LedgerRefresh:
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class LedgerRefresh(ScientificResult):
     """The refreshed session, one report per applied change and the classification of every
     result after the batch."""
 
@@ -716,8 +727,8 @@ class LedgerRefresh:
     classification: dict[str, str]
 
 
-@dataclass(frozen=True, slots=True)
-class SynthesisReplay:
+@dataclass(repr=False, frozen=True, slots=True)
+class SynthesisReplay(ScientificResult):
     """A synthesis a consumer recomputed: the method and its values in the method's fixed order."""
 
     result: str
@@ -725,8 +736,8 @@ class SynthesisReplay:
     values: tuple[float, ...]
 
 
-@dataclass(frozen=True, slots=True)
-class ConsumedEvidenceLedger:
+@dataclass(repr=False, frozen=True, slots=True)
+class ConsumedEvidenceLedger(ScientificResult):
     """A consumed ``evidence_ledger_v1`` artifact: the replayed ledger and recomputed syntheses."""
 
     identity: str
@@ -753,7 +764,7 @@ def _ids(values: Iterable[str], what: str) -> list[str]:
 # --------------------------------------------------------------------------- the session
 
 
-class EvidenceLedger:
+class EvidenceLedger(ScientificResult):
     """The evidence ledger with the numbers computed over it.
 
     A mutable session: ``add_source`` and the combination methods change it, and a request that is
@@ -763,6 +774,14 @@ class EvidenceLedger:
 
     __slots__ = ("_handle",)
 
+    def artifact(
+        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
+    ) -> ExportedArtifact[ConsumedEvidenceLedger]:
+        """Bytes and producer metadata; load returns the typed consumed result."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self, artifact_id)
+
     def __init__(self) -> None:
         self._handle = _native.EvidenceLedgerHandle()
 
@@ -771,6 +790,11 @@ class EvidenceLedger:
         session = cls.__new__(cls)
         session._handle = handle
         return session
+
+    def to_dict(self) -> dict[str, Any]:
+        from ._freeze import thaw
+
+        return thaw(self._ledger())
 
     def __repr__(self) -> str:
         return f"EvidenceLedger(head={self.head[:12]}...)"
@@ -886,7 +910,10 @@ class EvidenceLedger:
             }
         )
         return _outcome(
-            _unwrap(self._handle.pool_summaries(_dumps(request), _dumps(dependence), cancel=cancel))
+            _unwrap(
+                self._handle.pool_summaries(_dumps(request), _dumps(dependence), cancel=cancel)
+            ),
+            ledger=self,
         )
 
     def random_effects(
@@ -909,7 +936,8 @@ class EvidenceLedger:
             "replaces": replaces,
         }
         return _outcome(
-            _unwrap(self._handle.random_effects(_dumps(request), method, cancel=cancel))
+            _unwrap(self._handle.random_effects(_dumps(request), method, cancel=cancel)),
+            ledger=self,
         )
 
     def hierarchical_borrowing(
@@ -938,7 +966,8 @@ class EvidenceLedger:
             "replaces": replaces,
         }
         return _outcome(
-            _unwrap(self._handle.hierarchical_borrowing(_dumps(request), cancel=cancel))
+            _unwrap(self._handle.hierarchical_borrowing(_dumps(request), cancel=cancel)),
+            ledger=self,
         )
 
     def dependence_range(
@@ -964,7 +993,9 @@ class EvidenceLedger:
             "rho_hi": _number(rho_hi, "rho_hi"),
             "replaces": replaces,
         }
-        return _outcome(_unwrap(self._handle.dependence_range(_dumps(request), cancel=cancel)))
+        return _outcome(
+            _unwrap(self._handle.dependence_range(_dumps(request), cancel=cancel)), ledger=self
+        )
 
     def transport_claim(
         self,
@@ -1041,6 +1072,7 @@ class EvidenceLedger:
             classification={r["result"]: r["class"] for r in json.loads(classification)},
         )
 
+    @bytes_export
     def export(self, artifact_id: str = _DEFAULT_ARTIFACT_ID) -> LedgerExport:
         """Write the ledger and the syntheses bound to its results as ``evidence_ledger_v1``."""
         artifact, identity, carried, not_carried = _unwrap(

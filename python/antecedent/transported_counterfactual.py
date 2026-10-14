@@ -48,7 +48,9 @@ from dataclasses import asdict, dataclass, field
 from functools import partial
 from typing import Any
 
+from ._artifact_protocol import ExportedArtifact
 from ._columns import coerce_fields
+from ._mean_binding import bind_mean_reading
 from ._native import (
     consume_transported_counterfactual_artifact as _consume,
 )
@@ -56,6 +58,7 @@ from ._native import (
     evaluate_transported_counterfactual as _evaluate,
 )
 from ._refusal import raise_refusal
+from ._scientific import ScientificResult
 from ._validate import real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
@@ -461,8 +464,8 @@ class TransportedCounterfactualRefusal(StructuredRefusal):
         self.missing_factors: tuple[str, ...] = tuple(refusal.get("missing_factors", ()))
 
 
-@dataclass(frozen=True, slots=True)
-class TransportedPathSpecificEffect:
+@dataclass(repr=False, frozen=True, slots=True)
+class TransportedPathSpecificEffect(ScientificResult):
     """The transported path-specific mean contrast, its derivation and its artifact.
 
     ``target_contrast`` is ``sum_z P_T(z) G(z)``; ``source_contrast`` is the same contrast
@@ -471,17 +474,25 @@ class TransportedPathSpecificEffect:
     ``inference_claim`` is ``"point_only"``: no interval, and calibration is unmeasured.
     """
 
+    _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
+
     target_contrast: float
     source_contrast: float
     unit_contrasts: tuple[UnitContrast, ...]
     derivation: Derivation
     inference_claim: str
     identity: TransportedCounterfactualIdentity
-    artifact: bytes
+    _artifact_bytes: bytes
+
+    def artifact(self) -> ExportedArtifact[TransportedPathSpecificEffect]:
+        """Bytes and producer metadata; load returns the typed consumed result."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self)
 
     def export(self) -> bytes:
         """The checksummed ``transported_counterfactual_v1`` artifact."""
-        return self.artifact
+        return self._artifact_bytes
 
     def __repr__(self) -> str:
         return (
@@ -511,7 +522,7 @@ class TransportedPathSpecificEffect:
             },
             "inference_claim": self.inference_claim,
             "identity": asdict(self.identity),
-            "artifact_bytes": len(self.artifact),
+            "artifact_bytes": len(self._artifact_bytes),
         }
 
     def explain(self) -> str:
@@ -540,6 +551,7 @@ class TransportedPathSpecificEffect:
         )
 
 
+@bind_mean_reading
 def _effect(report_json: str, artifact: bytes) -> TransportedPathSpecificEffect:
     report = json.loads(report_json)
     result = report["result"]
@@ -563,7 +575,7 @@ def _effect(report_json: str, artifact: bytes) -> TransportedPathSpecificEffect:
         ),
         inference_claim=report["inference_claim"],
         identity=TransportedCounterfactualIdentity(**report["identity"]),
-        artifact=artifact,
+        _artifact_bytes=artifact,
     )
 
 
@@ -643,6 +655,7 @@ def transported_path_specific_effect(
     return _effect(report, bytes(artifact))
 
 
+@bind_mean_reading
 def consume_transported_counterfactual_artifact(
     artifact: bytes,
     *,

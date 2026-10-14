@@ -33,7 +33,7 @@ import json
 import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal, NoReturn
+from typing import TYPE_CHECKING, Any, Literal, NoReturn
 
 from ._digest import canonical_digest
 from ._native import CancellationToken
@@ -41,7 +41,11 @@ from ._native import attribute_gap_to_columns as _attribute_gap_to_columns
 from ._native import raw_vs_adjusted as _raw_vs_adjusted
 from ._native import transform_mean_pair as _transform_mean_pair
 from ._native import transform_raw_arms as _transform_raw_arms
+from ._scientific import ScientificResult
 from .errors import CausalSerializationError, CausalTypeError
+
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
 
 __all__ = [
     "ArmSummary",
@@ -85,7 +89,7 @@ def _variance_of_mean(arm: ArmSummary) -> float | None:
 
 
 @dataclass(frozen=True, slots=True)
-class DescriptiveComparison:
+class DescriptiveComparison(ScientificResult):
     """The raw contrast beside an adjusted estimate; ``claim`` is ``point_only``.
 
     ``gap`` is ``raw_difference - adjusted_estimate``. It is descriptive: it mixes
@@ -144,7 +148,18 @@ class DescriptiveComparison:
             f"adjusted={self.adjusted_estimate:.4g} gap={self.gap:.4g} {self.claim}>"
         )
 
-    def export(self) -> str:
+    @property
+    def identity(self) -> str:
+        """Content identity retained independently for artifact consumption."""
+        return str(json.loads(self.export())["digest"])
+
+    def artifact(self) -> ExportedArtifact[DescriptiveComparison]:
+        """Typed bytes envelope for shared scientific consumption."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self)
+
+    def export(self) -> bytes:
         """A self-describing JSON artifact that :func:`replay_descriptive_comparison` re-derives."""
         body: dict[str, Any] = {
             "format": _FORMAT,
@@ -159,7 +174,7 @@ class DescriptiveComparison:
             "raw_standard_error": self.raw_standard_error,
             "gap": self.gap,
         }
-        return json.dumps({**body, "digest": _digest(body)}, sort_keys=True)
+        return json.dumps({**body, "digest": _digest(body)}, sort_keys=True).encode("utf-8")
 
 
 @dataclass(frozen=True, slots=True)
@@ -392,7 +407,9 @@ def _arm_stats(name: str, value: object) -> ArmSummary:
     return ArmSummary(n=value[0], mean=float(value[1]), sum_squares=float(value[2]))
 
 
-def replay_descriptive_comparison(artifact: str) -> DescriptiveComparison:
+def replay_descriptive_comparison(
+    artifact: bytes | str, *, expected_identity: str | None = None
+) -> DescriptiveComparison:
     """Re-derive an exported comparison from its stored arm sufficient statistics.
 
     The digest is checked, then the raw difference, the Welch standard error and the gap are
@@ -409,6 +426,8 @@ def replay_descriptive_comparison(artifact: str) -> DescriptiveComparison:
     stored = body.pop("digest", None)
     if stored != _digest(body):
         raise _bad("digest does not match the content")
+    if expected_identity is not None and stored != expected_identity:
+        raise _bad("identity differs from independently retained expected_identity")
     expected_keys = {
         "format",
         "scale",

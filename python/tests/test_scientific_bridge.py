@@ -183,7 +183,7 @@ def test_the_surrogate_bridge_is_the_numpy_trial_level_regression():
         "source_claim",
         "scientific_bridge:surrogate_terminal_outcome",
     ]
-    assert claim.provenance[1]["parents"] == [source.claim_id]
+    assert claim.provenance[1]["parents"] == (source.claim_id,)
     assert claim.assumptions[0].evidence == "meta-analysis:ckd-2024"
 
 
@@ -799,7 +799,7 @@ def test_no_interval_posterior_or_joint_law_is_licensed():
     claim = sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
     error = refused(claim.interval, "cell_not_licensed", "scientific_bridge.interval_not_licensed")
     assert error.stage == "scientific_bridge"
-    consumed = sb.consume_scientific_bridge_artifact(claim.export("closed").artifact)
+    consumed = sb.consume_scientific_bridge_artifact(claim.export("closed"))
     refused(consumed.interval, "cell_not_licensed", "scientific_bridge.interval_not_licensed")
     refused(
         lambda: consumed.claim.require_value_kind("posterior"),
@@ -813,10 +813,10 @@ def test_no_interval_posterior_or_joint_law_is_licensed():
 
 def test_the_artifact_replays_independently_and_refuses_corruption_and_a_wrong_identity():
     claim = sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
-    exported = claim.export("surrogate-bridge")
+    exported = claim.artifact("surrogate-bridge")
 
-    consumed = sb.consume_scientific_bridge_artifact(exported.artifact, exported.identity)
-    assert consumed.identity == exported.identity
+    consumed = sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
+    assert consumed.identity == exported.expectation.identity
     assert consumed.claim.value == claim.value
     assert consumed.claim.claim_id == claim.claim_id
     assert consumed.claim.contract_identity == claim.contract_identity
@@ -830,28 +830,28 @@ def test_the_artifact_replays_independently_and_refuses_corruption_and_a_wrong_i
 
     # Another identity is another artifact.
     refused(
-        lambda: sb.consume_scientific_bridge_artifact(exported.artifact, "0" * 64),
+        lambda: sb.consume_scientific_bridge_artifact(exported.data, "0" * 64),
         "route_not_supported",
         "scientific_bridge.identity_mismatch",
     )
     other = sb.prepare_scientific_bridge(surrogate_contract()).derive(
         surrogate_source(1.0, label="another")
     )
-    assert other.export("another").identity != exported.identity
+    assert other.artifact("another").expectation.identity != exported.expectation.identity
 
     # A flipped byte anywhere in the body, and truncation, are refused.
     for position in (
-        len(exported.artifact) // 3,
-        len(exported.artifact) // 2,
-        len(exported.artifact) - 8,
+        len(exported.data) // 3,
+        len(exported.data) // 2,
+        len(exported.data) - 8,
     ):
-        damaged = bytearray(exported.artifact)
+        damaged = bytearray(exported.data)
         damaged[position] ^= 0xFF
         with pytest.raises(ScientificBridgeRefusal) as caught:
-            sb.consume_scientific_bridge_artifact(bytes(damaged), exported.identity)
+            sb.consume_scientific_bridge_artifact(bytes(damaged), exported.expectation.identity)
         assert_registered_refusal(caught.value)
     with pytest.raises(ScientificBridgeRefusal):
-        sb.consume_scientific_bridge_artifact(exported.artifact[: len(exported.artifact) // 3])
+        sb.consume_scientific_bridge_artifact(exported.data[: len(exported.data) // 3])
     with pytest.raises(CausalTypeError):
         sb.consume_scientific_bridge_artifact("not bytes")
 
@@ -859,8 +859,8 @@ def test_the_artifact_replays_independently_and_refuses_corruption_and_a_wrong_i
 def test_a_measurement_correction_artifact_carries_its_model_and_replays():
     bridge = sb.prepare_scientific_bridge(correction_contract())
     claim = bridge.derive(sb.SourceClaim.declared("flag", 0.31, prevalence("schema:flag")))
-    exported = claim.export("flag-bridge")
-    consumed = sb.consume_scientific_bridge_artifact(exported.artifact, exported.identity)
+    exported = claim.artifact("flag-bridge")
+    consumed = sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
     assert consumed.claim.value == pytest.approx(11 / 70, abs=1e-12)
     assert consumed.claim.mapping == "measurement_correction"
     assert consumed.claim.fit is None
@@ -869,9 +869,9 @@ def test_a_measurement_correction_artifact_carries_its_model_and_replays():
 
 def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp_path):
     claim = sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
-    exported = claim.export("fresh")
+    exported = claim.artifact("fresh")
     path = tmp_path / "bridge.bin"
-    path.write_bytes(exported.artifact)
+    path.write_bytes(exported.data)
     script = (
         "import json, sys\n"
         "from antecedent import scientific_bridge as sb\n"
@@ -881,7 +881,7 @@ def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp
         "                  'transported': c.claim.transported}))\n"
     )
     done = subprocess.run(
-        [sys.executable, "-c", script, str(path), exported.identity],
+        [sys.executable, "-c", script, str(path), exported.expectation.identity],
         capture_output=True,
         text=True,
         cwd=tmp_path,
@@ -891,7 +891,7 @@ def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp
     assert wire["value"] == pytest.approx(0.796, abs=1e-12)
     assert wire["slope"] == pytest.approx(0.92, abs=1e-12)
     assert wire["claim_id"] == claim.claim_id
-    assert wire["identity"] == exported.identity
+    assert wire["identity"] == exported.expectation.identity
     assert wire["transported"] is False
     refused_run = subprocess.run(
         [sys.executable, "-c", script, str(path), "0" * 64],

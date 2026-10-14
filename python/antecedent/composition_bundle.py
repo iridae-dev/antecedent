@@ -62,6 +62,7 @@ from typing import Any, Literal, TypeAlias
 
 from . import _native
 from ._refusal import raise_refusal
+from ._scientific import ScientificResult
 from .decision import Contract
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
@@ -367,18 +368,34 @@ class SuppliedSources:
 
 
 def _bytes(data: object) -> bytes:
-    if isinstance(data, (bytes, bytearray, memoryview)):
-        return bytes(data)
+    from ._artifact_protocol import ExportedArtifact, container_bytes
+
+    if isinstance(data, (bytes, bytearray, memoryview, ExportedArtifact)):
+        return container_bytes(data)
+    from ._scientific import ScientificResult
+
+    if (
+        isinstance(data, ScientificResult)
+        and type(data).export is ScientificResult.export
+        and getattr(data, "_artifact_bytes", None) is None
+    ):
+        raise CausalTypeError(
+            "this scientific object has no portable artifact; export its owning session or selected record"
+        )
     export = getattr(data, "export", None)
     if callable(export):
         try:
             _signature(export).bind(artifact_id="composition-bundle-node")
-        except (TypeError, ValueError) as error:
-            raise CausalTypeError("artifact export must accept an artifact_id keyword") from error
-        exported = export(artifact_id="composition-bundle-node")
-        if isinstance(exported, bytes):
-            return exported
-    raise CausalTypeError("an artifact is its container bytes (or an object that exports them)")
+        except (TypeError, ValueError):
+            try:
+                _signature(export).bind()
+            except (TypeError, ValueError) as error:
+                raise CausalTypeError(
+                    "artifact export requires explicit query or record arguments; pass its bytes"
+                ) from error
+            return container_bytes(export())
+        return container_bytes(export(artifact_id="composition-bundle-node"))
+    raise CausalTypeError("an artifact is bytes, ExportedArtifact, or an exporting object")
 
 
 def _kind(kind: str, *, allow_auto: bool) -> str:
@@ -680,8 +697,8 @@ class Failed:
 NodeStatus: TypeAlias = Verified | ReferenceUnresolved | Failed
 
 
-@dataclass(frozen=True)
-class ConsumedNode:
+@dataclass(repr=False, frozen=True)
+class ConsumedNode(ScientificResult):
     """One consumed node."""
 
     id: str
@@ -731,7 +748,7 @@ def _label(value: str | None) -> ClaimLabel | None:
     return None
 
 
-class ConsumedBundle:
+class ConsumedBundle(ScientificResult):
     """A consumed bundle: every node's status, with inspected results preserved."""
 
     def __init__(self, wire: Mapping[str, Any]) -> None:

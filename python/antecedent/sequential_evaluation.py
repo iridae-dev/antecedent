@@ -59,12 +59,16 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from . import _native
 from ._refusal import raise_refusal
+from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .measurement_models import MeasurementModel
+
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
 
 __all__ = [
     "Action",
@@ -1040,11 +1044,14 @@ class BeliefSession:
         return int(self._handle.recorded)
 
 
-class EvaluationArtifact:
+class EvaluationArtifact(ScientificResult):
     """A sealed, replayable ``sequential_evaluation_v1`` evaluation."""
 
     def __init__(self, handle: Any) -> None:
         self._handle = handle
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"value": self.value, "identities": self.identities, "summary": self.summary}
 
     @property
     def value(self) -> float:
@@ -1080,6 +1087,14 @@ class EvaluationArtifact:
     def policy(self) -> Policy:
         """The policy (with its version) the artifact replays."""
         return _policy_from_wire(json.loads(self._handle.policy_json))
+
+    def artifact(
+        self, artifact_id: str = "sequential_evaluation"
+    ) -> ExportedArtifact[EvaluationArtifact]:
+        """Typed bytes envelope for shared scientific consumption."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self, artifact_id)
 
     def export(self, artifact_id: str = "sequential_evaluation") -> bytes:
         """The bounded checksummed container bytes."""

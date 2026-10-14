@@ -772,26 +772,26 @@ def contrast_query() -> mc.MeanContrast:
 
 def test_the_artifact_replays_and_refuses_semantic_mutation():
     prepared = compose(uncertain_chain(), dependence=independent())
-    export = prepared.export(contrast_query())
-    consumed = mc.consume_mechanism_composition_artifact(export.artifact, export.premises_digest)
+    export = prepared.artifact(contrast_query())
+    consumed = mc.consume_mechanism_composition_artifact(export.data, export.expectation.identity)
     assert consumed.family == "linear_gaussian"
-    assert consumed.premises_digest == export.premises_digest
+    assert consumed.premises_digest == export.expectation.identity
     result = consumed.result
     assert isinstance(result, mc.GaussianFunctionalResult)
     assert result.point == pytest.approx(13.5, abs=TOL)
     assert result.variance == pytest.approx(0.540625, abs=1e-12)
     assert result.dependence == "declared_independent_by_design"
     assert result.method == "first_order_delta_method"
-    assert result == export.result
+    assert result == export.metadata["result"]
 
     # A retained identity that is not the artifact's is refused, typed.
-    error = refusal_of(lambda: mc.consume_mechanism_composition_artifact(export.artifact, "0" * 64))
+    error = refusal_of(lambda: mc.consume_mechanism_composition_artifact(export.data, "0" * 64))
     assert error.details == ("mechanism_composition.premises_mismatch",)
     # Damaged and truncated bytes are refused.
-    damaged = bytearray(export.artifact)
+    damaged = bytearray(export.data)
     damaged[len(damaged) // 2] ^= 0xFF
     refusal_of(lambda: mc.consume_mechanism_composition_artifact(bytes(damaged)))
-    refusal_of(lambda: mc.consume_mechanism_composition_artifact(export.artifact[:40]))
+    refusal_of(lambda: mc.consume_mechanism_composition_artifact(export.data[:40]))
     with pytest.raises(CausalTypeError):
         mc.consume_mechanism_composition_artifact("not bytes")  # type: ignore[arg-type]
 
@@ -805,23 +805,25 @@ def test_the_artifact_replays_and_refuses_semantic_mutation():
         [("X", 2.0)],
         uncertainty=marginal([INTERCEPT, coef("X")], [0.04, -0.01, -0.01, 0.01]),
     )
-    mutated = compose(mutated_numbers, dependence=independent()).export(contrast_query())
-    own = mc.consume_mechanism_composition_artifact(mutated.artifact, mutated.premises_digest)
+    mutated = compose(mutated_numbers, dependence=independent()).artifact(contrast_query())
+    own = mc.consume_mechanism_composition_artifact(mutated.data, mutated.expectation.identity)
     assert own.result.point == pytest.approx(13.8, abs=TOL)  # -1 + 1 + 3 * (0.6 + 4)
-    assert mutated.premises_digest != export.premises_digest
+    assert mutated.expectation.identity != export.expectation.identity
     error = refusal_of(
-        lambda: mc.consume_mechanism_composition_artifact(mutated.artifact, export.premises_digest)
+        lambda: mc.consume_mechanism_composition_artifact(mutated.data, export.expectation.identity)
     )
     assert error.details == ("mechanism_composition.premises_mismatch",)
 
-    other_query = prepared.export(mc.MeanContrast.mean_at("Y", {"X": 3.0}))
-    assert other_query.premises_digest != export.premises_digest
+    other_query = prepared.artifact(mc.MeanContrast.mean_at("Y", {"X": 3.0}))
+    assert other_query.expectation.identity != export.expectation.identity
     refusal_of(
         lambda: mc.consume_mechanism_composition_artifact(
-            other_query.artifact, export.premises_digest
+            other_query.data, export.expectation.identity
         )
     )
-    assert other_query.result.point == pytest.approx(20.0, abs=TOL)  # -1 + 1.5 + 3 * (0.5 + 6)
+    assert other_query.metadata["result"].point == pytest.approx(
+        20.0, abs=TOL
+    )  # -1 + 1.5 + 3 * (0.5 + 6)
 
     # An uncertainty claim without a declared joint law is not exported.
     unknown = compose(uncertain_chain())
@@ -831,8 +833,8 @@ def test_the_artifact_replays_and_refuses_semantic_mutation():
 
 def test_a_finite_artifact_matches_the_enumerated_truth_and_a_law_artifact_replays():
     prepared = compose(finite_chain())
-    export = prepared.export({"X": "1"}, outcome="Y")
-    consumed = mc.consume_mechanism_composition_artifact(export.artifact)
+    export = prepared.artifact({"X": "1"}, outcome="Y")
+    consumed = mc.consume_mechanism_composition_artifact(export.data)
     assert consumed.family == "tabular"
     oracle = finite_joint({"X": "1"})
     expected = {level: prob(oracle, {"Y": level}) for level in "01"}
@@ -842,17 +844,17 @@ def test_a_finite_artifact_matches_the_enumerated_truth_and_a_law_artifact_repla
     assert levels["1"] == pytest.approx(0.72, abs=TOL)
 
     gaussian = compose(chain())
-    law = gaussian.export({"X": 2.0}, outcome="Y")
-    replayed = mc.consume_mechanism_composition_artifact(law.artifact, law.premises_digest)
+    law = gaussian.artifact({"X": 2.0}, outcome="Y")
+    replayed = mc.consume_mechanism_composition_artifact(law.data, law.metadata["premises_digest"])
     assert isinstance(replayed.result, mc.GaussianLawResult)
     assert replayed.result.mean == pytest.approx(13.5, abs=TOL)
     assert replayed.result.variance == pytest.approx(9.25, abs=TOL)
 
 
 def test_a_fresh_process_consumes_the_artifact_against_the_retained_digest(tmp_path):
-    export = compose(chain()).export({"X": 2.0}, outcome="Y")
+    export = compose(chain()).artifact({"X": 2.0}, outcome="Y")
     path = tmp_path / "artifact.bin"
-    path.write_bytes(export.artifact)
+    path.write_bytes(export.data)
     script = (
         "import json, sys\n"
         "from antecedent import mechanism_composition as mc\n"
@@ -861,7 +863,7 @@ def test_a_fresh_process_consumes_the_artifact_against_the_retained_digest(tmp_p
         "'family': c.family}))\n"
     )
     done = subprocess.run(
-        [sys.executable, "-c", script, str(path), export.premises_digest],
+        [sys.executable, "-c", script, str(path), export.expectation.identity],
         capture_output=True,
         text=True,
         cwd=tmp_path,

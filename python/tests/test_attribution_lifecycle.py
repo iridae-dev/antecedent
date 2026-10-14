@@ -93,7 +93,7 @@ def _assert_identities(result, study, updated, report, loaded, *, fresh, coordin
     assert report["support"]["payload"]["matrix_coordinate"] == coordinate
 
     assert_answer_kept(loaded)
-    assert loaded.artifact.payload_kind == "analysis_result"
+    assert loaded.decoded_artifact.payload_kind == "analysis_result"
     assert loaded.answer == result.answer
     assert loaded.program_id == result.program_id
     assert loaded.claim_id == result.claim_id

@@ -51,15 +51,32 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
 from . import _native
+from ._freeze import freeze, thaw
 from ._refusal import StructuredRefusal, raise_refusal
+from ._reliability_records import (
+    CalibrationCoordinate,
+    CandidateRankStatement,
+    DependenceStatement,
+    MonteCarloErrorReport,
+    SelectionUncertainty,
+    SourceUncertainty,
+)
+from ._scientific import ScientificResult
+from ._validate import count as _count
 from .errors import CausalTypeError, CausalValueError
 
 __all__ = [
+    "MonteCarloErrorReport",
+    "SourceUncertainty",
+    "SelectionUncertainty",
+    "CandidateRankStatement",
+    "DependenceStatement",
+    "CalibrationCoordinate",
     "BatchPlan",
     "CandidateSearchRecord",
     "ConsumedDecisionReliability",
@@ -90,6 +107,18 @@ _ROUTES = (
     "selection_corrected_interval",
 )
 _DEFAULT_ARTIFACT_ID = "decision_reliability"
+
+
+PurposesName = Literal["source", "selection", "validation", "evaluation"]
+SourcesName = Literal["posterior", "sampling_distribution", "known_law"]
+CouplingsName = Literal["shared_simulation", "declared_independent", "unknown"]
+WithinName = Literal["independent", "autocorrelated", "unknown"]
+RoutesName = Literal[
+    "ranking_probability",
+    "optimality_confidence_set",
+    "utility_interval",
+    "selection_corrected_interval",
+]
 
 
 class DecisionReliabilityRefusal(StructuredRefusal):
@@ -123,7 +152,7 @@ def _real(value: object, what: str) -> float:
 
 
 def _dumps(value: object) -> str:
-    return json.dumps(value, allow_nan=False, separators=(",", ":"))
+    return json.dumps(thaw(value), allow_nan=False, separators=(",", ":"))
 
 
 # --------------------------------------------------------------------------- streams
@@ -269,8 +298,16 @@ class CandidateSearchRecord:
         )
         return {
             "generator": self.generator,
-            "budget": int(self.budget),
-            "n_evaluated": int(self.n_evaluated),
+            "budget": _count(
+                self.budget, "budget", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"
+            ),
+            "n_evaluated": _count(
+                self.n_evaluated,
+                "n_evaluated",
+                minimum=0,
+                maximum=2**64 - 1,
+                reason_code="invalid_argument",
+            ),
             "selection_rule": rule,
             "generator_stream": None
             if self.generator_stream is None
@@ -353,7 +390,13 @@ class DecisionDraws:
                 "coupling": coupling,
                 "within_stream": within_stream,
                 "weights": weight_list,
-                "repeated_evaluations": int(repeated_evaluations),
+                "repeated_evaluations": _count(
+                    repeated_evaluations,
+                    "repeated_evaluations",
+                    minimum=0,
+                    maximum=2**64 - 1,
+                    reason_code="invalid_argument",
+                ),
                 "origin": origin,
                 "search_record": None if search_record is None else search_record.to_wire(),
                 "candidates": candidates,
@@ -392,7 +435,10 @@ class RankingRequest:
         """The request as a wire mapping."""
         return {
             "baseline": self.baseline,
-            "top_k": [int(k) for k in self.top_k],
+            "top_k": [
+                _count(k, "k", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument")
+                for k in self.top_k
+            ],
             "batch_plan": self.batch_plan.to_wire(),
         }
 
@@ -430,12 +476,29 @@ class ReliabilityRequest:
                 ("independent_simulation_stream", "split_of_selection_stream", "held_out_data"),
                 "validation_kind",
             )
-            validation = {"provided_stream": {"kind": self.validation_kind, "gap": int(self.gap)}}
+            validation = {
+                "provided_stream": {
+                    "kind": self.validation_kind,
+                    "gap": _count(
+                        self.gap,
+                        "gap",
+                        minimum=0,
+                        maximum=2**64 - 1,
+                        reason_code="invalid_argument",
+                    ),
+                }
+            }
         elif self.validation == "split":
             validation = {
                 "split_selection_draws": {
                     "selection_fraction": _real(self.selection_fraction, "selection_fraction"),
-                    "gap": int(self.gap),
+                    "gap": _count(
+                        self.gap,
+                        "gap",
+                        minimum=0,
+                        maximum=2**64 - 1,
+                        reason_code="invalid_argument",
+                    ),
                 }
             }
         else:
@@ -456,14 +519,14 @@ class ReliabilityRequest:
 # --------------------------------------------------------------------------- results
 
 
-class ReliabilityReport:
+class ReliabilityReport(ScientificResult):
     """The report: three uncertainty components as separate attributes.
 
     The attributes are plain decoded mappings; :attr:`raw` is the full wire report.
     """
 
     def __init__(self, wire: Mapping[str, Any]) -> None:
-        self.raw: dict[str, Any] = dict(wire)
+        self.raw: Mapping[str, Any] = freeze(wire)
 
     @property
     def decided_id(self) -> str:
@@ -471,35 +534,37 @@ class ReliabilityReport:
         return str(self.raw["decided_id"])
 
     @property
-    def source_uncertainty(self) -> Any:
+    def source_uncertainty(self) -> SourceUncertainty | str:
         """Component one: spread under the supplied law (``"known_law"`` when declared known)."""
-        return self.raw["source_uncertainty"]
+        value = self.raw["source_uncertainty"]
+        return SourceUncertainty.from_wire(value) if isinstance(value, Mapping) else value
 
     @property
-    def monte_carlo_error(self) -> dict[str, Any]:
+    def monte_carlo_error(self) -> MonteCarloErrorReport:
         """Component two: numerical error of the reported values."""
-        return dict(self.raw["monte_carlo_error"])
+        return MonteCarloErrorReport.from_wire(self.raw["monte_carlo_error"])
 
     @property
-    def selection_uncertainty(self) -> Any:
+    def selection_uncertainty(self) -> SelectionUncertainty | str:
         """Component three: selection-induced uncertainty (``"not_selected"`` or a mapping)."""
-        return self.raw["selection_uncertainty"]
+        value = self.raw["selection_uncertainty"]
+        return SelectionUncertainty.from_wire(value) if isinstance(value, Mapping) else value
 
     @property
-    def ranking(self) -> dict[str, Any] | None:
+    def ranking(self) -> RankingReport | None:
         """Ranking statements, when requested."""
         value = self.raw.get("ranking")
-        return None if value is None else dict(value)
+        return None if value is None else RankingReport(value)
 
     @property
-    def dependence(self) -> dict[str, Any]:
+    def dependence(self) -> DependenceStatement:
         """The dependence the claim rests on."""
-        return dict(self.raw["dependence"])
+        return DependenceStatement.from_wire(self.raw["dependence"])
 
     @property
-    def coordinate(self) -> dict[str, Any]:
+    def coordinate(self) -> CalibrationCoordinate:
         """The calibration coordinate the report sits at."""
-        return dict(self.raw["coordinate"])
+        return CalibrationCoordinate.from_wire(self.raw["coordinate"])
 
     @property
     def closed_routes(self) -> list[dict[str, Any]]:
@@ -515,11 +580,11 @@ class ReliabilityReport:
         return f"ReliabilityReport(decided_id={self.decided_id!r}, label={self.label})"
 
 
-class RankingReport:
+class RankingReport(ScientificResult):
     """Ranking statements over a finite candidate set (uncalibrated diagnostics)."""
 
     def __init__(self, wire: Mapping[str, Any]) -> None:
-        self.raw: dict[str, Any] = dict(wire)
+        self.raw: Mapping[str, Any] = freeze(wire)
 
     @property
     def label(self) -> dict[str, Any]:
@@ -532,16 +597,18 @@ class RankingReport:
         return str(self.raw["best_by_expected_utility"])
 
     @property
-    def statements(self) -> dict[str, dict[str, Any]]:
+    def statements(self) -> Mapping[str, CandidateRankStatement]:
         """Per-candidate statements, keyed by candidate id."""
-        return {s["id"]: dict(s) for s in self.raw["statements"]}
+        return freeze(
+            {s["id"]: CandidateRankStatement.from_wire(s) for s in self.raw["statements"]}
+        )
 
     def probability_best(self, candidate: str) -> float:
         """Monte Carlo probability that ``candidate`` is best (ties shared)."""
         return float(self.statements[candidate]["probability_best"]["value"])
 
 
-class DecisionReliability:
+class DecisionReliability(ScientificResult):
     """An assessed decision with the draws it was computed from."""
 
     def __init__(
@@ -556,7 +623,7 @@ class DecisionReliability:
         #: The three-component report.
         self.report = report
         #: Plain-data summary of the assessment.
-        self.inspection: dict[str, Any] = dict(inspection)
+        self.inspection: Mapping[str, Any] = freeze(inspection)
         self._artifact = artifact
         self._draws = draws
         self._request = request
@@ -595,8 +662,8 @@ class DecisionReliability:
         raise AssertionError("a combined request is always refused")  # pragma: no cover
 
 
-@dataclass(frozen=True)
-class ConsumedDecisionReliability:
+@dataclass(repr=False, frozen=True)
+class ConsumedDecisionReliability(ScientificResult):
     """A consumed ``decision_reliability_v1`` artifact: the report recomputed from its draws."""
 
     report: ReliabilityReport
@@ -633,7 +700,7 @@ def assess(
         None if validation is None else _dumps(validation.to_wire()),
         _dumps(request.to_wire()),
         artifact_id,
-        int(seed),
+        _count(seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"),
         cancel,
     )
     _refuse(refusal)
@@ -663,7 +730,10 @@ def rank(
     """
     request = request or RankingRequest()
     report, refusal = _native.decision_reliability_rank(
-        _dumps(draws.to_wire()), _dumps(request.to_wire()), int(seed), cancel
+        _dumps(draws.to_wire()),
+        _dumps(request.to_wire()),
+        _count(seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"),
+        cancel,
     )
     _refuse(refusal)
     assert report is not None
@@ -712,7 +782,10 @@ def consume_decision_reliability_artifact(
         "decided_id": decided_id,
     }
     result, refusal = _native.decision_reliability_consume(
-        bytes(artifact), _dumps(expected), int(seed), None
+        bytes(artifact),
+        _dumps(expected),
+        _count(seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"),
+        None,
     )
     _refuse(refusal)
     assert result is not None

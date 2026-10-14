@@ -46,7 +46,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 
@@ -58,10 +58,12 @@ from ._validate import real
 from .decision import Contract
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .external import BoundExternalClaim
-from .joint_distribution import JointDistributionArtifact, ScientificQuantity
+from .joint_distribution import JointDistributionArtifact
+from .results.sources import MeanSource, adapt_mean_source, is_mean_producer
 
 if TYPE_CHECKING:
     from .program_claims import NativeClaim
+    from .scientific_bridge import BridgedClaim, ConsumedBridge
 
 Direction = Literal["at_least", "at_most"]
 Tail = Literal["lower", "upper"]
@@ -218,56 +220,21 @@ def probability_threshold(
 # ------------------------------------------------------------------------ claims
 
 
-@dataclass(frozen=True, slots=True)
-class MeanClaim:
-    """A forward claim that supplies only the mean of each coordinate.
-
-    It answers an affine target mean and nothing else.
-    """
-
-    coordinates: tuple[ScientificQuantity, ...]
-    means: tuple[float, ...]
-    provider_id: str
-    snapshot_id: str
-    causal_contract_id: str
-    rng_id: str = "none:mean_grid"
-    _original_external: BoundExternalClaim | None = field(default=None, repr=False, compare=False)
-    _original_native: Any = field(default=None, repr=False, compare=False)
-
-    def __post_init__(self) -> None:
-        coerce_fields(self, coordinates=tuple(self.coordinates))
-        coerce_fields(self, means=tuple(float(m) for m in self.means))
-
-    @classmethod
-    def from_external(cls, claim: BoundExternalClaim) -> MeanClaim:
-        """The mean grid of a bound external response."""
-        identity = claim.identity_fields
-        return cls(
-            coordinates=tuple(claim.quantities),
-            means=tuple(float(v) for v in claim.values),
-            provider_id=str(identity["provider_id"]),
-            snapshot_id=str(identity["snapshot_id"]),
-            causal_contract_id=str(identity["causal_contract_id"]),
-            _original_external=claim,
-        )
-
-    def _wire(self) -> dict[str, Any]:
-        return {
-            "coordinates": [q._wire() for q in self.coordinates],
-            "means": list(self.means),
-            "provider_id": self.provider_id,
-            "snapshot_id": self.snapshot_id,
-            "causal_contract_id": self.causal_contract_id,
-            "rng_id": self.rng_id,
-        }
+# The canonical source is shared with decision consumers.
+MeanClaim = MeanSource
 
 
 if TYPE_CHECKING:
     ForwardClaim: TypeAlias = (
-        JointDistributionArtifact | MeanClaim | BoundExternalClaim | NativeClaim
+        JointDistributionArtifact
+        | MeanClaim
+        | BoundExternalClaim
+        | NativeClaim
+        | BridgedClaim
+        | ConsumedBridge
     )
 else:
-    ForwardClaim = "JointDistributionArtifact | MeanClaim | BoundExternalClaim | NativeClaim"
+    ForwardClaim = "JointDistributionArtifact | MeanClaim | BoundExternalClaim | NativeClaim | BridgedClaim | ConsumedBridge"
 
 
 def _claim(claim: ForwardClaim) -> Any:
@@ -279,7 +246,10 @@ def _claim(claim: ForwardClaim) -> Any:
         return claim._native
     if isinstance(claim, BoundExternalClaim):
         return claim._native
-    if isinstance(claim, MeanClaim):
+    if is_mean_producer(claim):
+        claim = adapt_mean_source(claim)
+    if isinstance(claim, MeanSource):
+        claim._validated_original()
         if claim._original_native is not None:
             from . import _native
 

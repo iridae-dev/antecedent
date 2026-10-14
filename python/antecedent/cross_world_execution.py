@@ -28,11 +28,15 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from . import _native
 from ._refusal import StructuredRefusal, raise_refusal
+from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError
+
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
 
 __all__ = [
     "CapabilityRow",
@@ -340,8 +344,8 @@ def decide(
     return dict(json.loads(row))
 
 
-@dataclass(frozen=True)
-class UnitAnswer:
+@dataclass(repr=False, frozen=True)
+class UnitAnswer(ScientificResult):
     """One unit's value and ``P(evidence)``."""
 
     unit: str
@@ -349,8 +353,8 @@ class UnitAnswer:
     evidence_probability: float
 
 
-@dataclass(frozen=True)
-class ExecutionResult:
+@dataclass(repr=False, frozen=True)
+class ExecutionResult(ScientificResult):
     """The answer of one execution.
 
     ``work`` holds the observed counters of *this* call (``abductions``, ``abductions_reused``,
@@ -426,8 +430,8 @@ class CrossWorldExecutor:
         return cls(parsed[0])
 
 
-@dataclass(frozen=True)
-class ConsumedCrossWorldExecution:
+@dataclass(repr=False, frozen=True)
+class ConsumedCrossWorldExecution(ScientificResult):
     """A consumed artifact: replayed result, identity and shared exogenous states."""
 
     result: ExecutionResult
@@ -448,12 +452,15 @@ def _consumed(summary: str) -> ConsumedCrossWorldExecution:
     )
 
 
-class CrossWorldExecution:
+class CrossWorldExecution(ScientificResult):
     """A sealed execution: the answer, its identities and the exportable artifact."""
 
     def __init__(self, data: bytes, consumed: ConsumedCrossWorldExecution) -> None:
         self._data = data
         self._consumed = consumed
+
+    def to_dict(self) -> dict[str, Any]:
+        return self._consumed.to_dict()
 
     @property
     def result(self) -> ExecutionResult:
@@ -474,6 +481,16 @@ class CrossWorldExecution:
     def shared_draws(self) -> tuple[Mapping[str, Any], ...]:
         """Each unit's shared exogenous states."""
         return self._consumed.shared_draws
+
+    def artifact(self) -> ExportedArtifact[ConsumedCrossWorldExecution]:
+        """Typed bytes envelope for shared scientific consumption."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self)
+
+    def export(self) -> bytes:
+        """The sealed execution container, suitable for shared artifact dispatch."""
+        return self._data
 
     def to_bytes(self) -> bytes:
         """The ``cross_world_execution_v1`` artifact bytes."""

@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from ._columns import coerce_fields
 from ._native import (
@@ -29,9 +29,13 @@ from ._native import (
     transported_path_specific_refusal as _transported_refusal,
 )
 from ._refusal import raise_refusal
+from ._scientific import ScientificResult
 from ._validate import non_finite_refusal, real
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .temporal import TemporalRefusal
+
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
 
 __all__ = [
     "AbductionReceipt",
@@ -314,7 +318,7 @@ class TemporalCounterfactualIdentity:
 
 
 @dataclass(frozen=True, slots=True)
-class TemporalCounterfactualEffect:
+class TemporalCounterfactualEffect(ScientificResult):
     """Per-unit counterfactual outcomes, their mean contrast, the receipt and the artifact.
 
     ``contrast`` is the sample mean of ``plus - minus`` over units; each unit's contrast
@@ -333,11 +337,17 @@ class TemporalCounterfactualEffect:
     snapshot: str
     receipt: AbductionReceipt
     identity: TemporalCounterfactualIdentity
-    artifact: bytes
+    _artifact_bytes: bytes
+
+    def artifact(self) -> ExportedArtifact[TemporalCounterfactualEffect]:
+        """Typed bytes envelope for shared scientific consumption."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self)
 
     def export(self) -> bytes:
         """The checksummed ``temporal_counterfactual_v1`` artifact."""
-        return self.artifact
+        return self._artifact_bytes
 
 
 def _temporal_effect(report_json: str, artifact: bytes) -> TemporalCounterfactualEffect:
@@ -378,7 +388,7 @@ def _temporal_effect(report_json: str, artifact: bytes) -> TemporalCounterfactua
             digest=receipt["digest"],
         ),
         identity=TemporalCounterfactualIdentity(**report["identity"]),
-        artifact=artifact,
+        _artifact_bytes=artifact,
     )
 
 

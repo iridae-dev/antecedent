@@ -76,7 +76,12 @@ from typing import Any
 import numpy as np
 
 from . import _native
+from ._artifact_protocol import ExportedArtifact, bytes_export
+from ._freeze import thaw
+from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
+from ._scientific import ScientificResult
+from ._validate import count as _count
 from .errors import CausalTypeError, CausalValueError
 
 __all__ = [
@@ -149,7 +154,7 @@ def _number(value: object, what: str) -> float:
 
 
 def _dumps(value: object) -> str:
-    return json.dumps(value, allow_nan=False, separators=(",", ":"))
+    return json.dumps(thaw(value), allow_nan=False, separators=(",", ":"))
 
 
 def _unwrap(pair: tuple[Any, str | None]) -> Any:
@@ -200,7 +205,13 @@ class Quantity:
             "units": self.units,
             "population_id": self.population_id,
             "regime_id": self.regime_id,
-            "horizon": int(self.horizon),
+            "horizon": _count(
+                self.horizon,
+                "horizon",
+                minimum=0,
+                maximum=2**64 - 1,
+                reason_code="invalid_argument",
+            ),
             "functional_id": self.functional_id,
             "conditioning": [
                 {"variable_id": variable, "value_id": value}
@@ -704,8 +715,8 @@ class MeanContrast:
 # --------------------------------------------------------------------------- results
 
 
-@dataclass(frozen=True, slots=True, eq=False)
-class JointGaussianLaw:
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class JointGaussianLaw(ScientificResult):
     """Joint Gaussian law of all variables under one regime."""
 
     variables: tuple[str, ...]
@@ -732,8 +743,8 @@ class JointGaussianLaw:
         return float(self.covariance[self._index(first), self._index(second)])
 
 
-@dataclass(frozen=True, slots=True)
-class FunctionalUncertainty:
+@dataclass(repr=False, frozen=True, slots=True)
+class FunctionalUncertainty(ScientificResult):
     """Parameter-uncertainty propagation for a contrast of interventional means.
 
     The variance of the functional induced by the declared parameter covariance alone, by the
@@ -749,8 +760,8 @@ class FunctionalUncertainty:
     method: str
 
 
-@dataclass(frozen=True, slots=True, eq=False)
-class FiniteLaw:
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class FiniteLaw(ScientificResult):
     """The exact joint law of a finite composition under one regime.
 
     ``probabilities`` lists every joint state with the last variable varying fastest.
@@ -782,16 +793,16 @@ class FiniteLaw:
         return {level: self.probability({variable: level}) for level in self.levels[i]}
 
 
-@dataclass(frozen=True, slots=True)
-class GaussianLawResult:
+@dataclass(repr=False, frozen=True, slots=True)
+class GaussianLawResult(ScientificResult):
     """Mean and variance of one outcome of a linear-Gaussian composition under intervention."""
 
     mean: float
     variance: float
 
 
-@dataclass(frozen=True, slots=True)
-class GaussianFunctionalResult:
+@dataclass(repr=False, frozen=True, slots=True)
+class GaussianFunctionalResult(ScientificResult):
     """Point, parameter-covariance variance, dependence label and method of a contrast."""
 
     point: float
@@ -800,8 +811,8 @@ class GaussianFunctionalResult:
     method: str
 
 
-@dataclass(frozen=True, slots=True)
-class FiniteDistributionResult:
+@dataclass(repr=False, frozen=True, slots=True)
+class FiniteDistributionResult(ScientificResult):
     """``(level, probability)`` of one outcome of a finite composition under intervention."""
 
     probabilities: tuple[tuple[str, float], ...]
@@ -841,31 +852,49 @@ class CompositionExport:
     result: QueryResult
 
 
-@dataclass(frozen=True, slots=True)
-class ConsumedComposition:
+@dataclass(repr=False, frozen=True, slots=True)
+class ConsumedComposition(ScientificResult):
     """A consumed artifact: the verified identity, the family and the replayed result."""
+
+    _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
 
     premises_digest: str
     family: str
     result: QueryResult
+    _scope: Mapping[str, Any] | None = field(default=None, repr=False, compare=False)
 
 
 # --------------------------------------------------------------------------- the prepared object
 
 
-@dataclass(frozen=True, slots=True, eq=False)
-class PreparedMechanismComposition:
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class PreparedMechanismComposition(ScientificResult):
     """A composition that compiled: one executable joint model with the plan it compiled under.
 
     Every method that changes it returns a new object and leaves this one untouched, whether it
     succeeds or refuses.
     """
 
+    _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
+
     plan_identity: str
     family: str
     variables: tuple[str, ...]
     declared_mechanisms: tuple[str, ...]
     _handle: Any = field(repr=False, compare=False)
+    _scope: Mapping[str, Any] | None = field(default=None, repr=False, compare=False)
+
+    def artifact(
+        self,
+        query: MeanContrast | Mapping[str, Any],
+        *,
+        outcome: str | None = None,
+        cancel: Any = None,
+    ) -> ExportedArtifact[ConsumedComposition]:
+        """Bytes and producer metadata; load returns the typed consumed result."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self, query, outcome=outcome, cancel=cancel)
 
     def interval(self) -> None:
         """Always raises ``cell_not_licensed``: the variance carries no measured coverage."""
@@ -937,7 +966,14 @@ class PreparedMechanismComposition:
         for pair in wire["interventions"]:
             pair[1] = _number(pair[1], "intervention value")
         variables, columns = _unwrap(
-            self._handle.sample(_dumps(wire), int(n_rows), int(seed), cancel=cancel)
+            self._handle.sample(
+                _dumps(wire),
+                _count(
+                    n_rows, "n_rows", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"
+                ),
+                _count(seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"),
+                cancel=cancel,
+            )
         )
         return {
             name: np.asarray(column, dtype=np.float64)
@@ -977,8 +1013,9 @@ class PreparedMechanismComposition:
                 cancel=cancel,
             )
         )
-        return _prepared(handle)
+        return _prepared(handle, self._scope)
 
+    @bytes_export
     def export(
         self,
         query: MeanContrast | Mapping[str, Any],
@@ -1028,13 +1065,15 @@ class PreparedMechanismComposition:
         )
 
 
-def _prepared(handle: Any) -> PreparedMechanismComposition:
+@bind_mean_reading
+def _prepared(handle: Any, scope: Mapping[str, Any] | None = None) -> PreparedMechanismComposition:
     return PreparedMechanismComposition(
         plan_identity=handle.plan_identity(),
         family=handle.family(),
         variables=tuple(handle.variables()),
         declared_mechanisms=tuple(handle.declared_mechanisms()),
         _handle=handle,
+        _scope=scope,
     )
 
 
@@ -1080,9 +1119,16 @@ def compose_mechanisms(
         "admit_declared_mechanisms": bool(admit_declared_mechanisms),
     }
     handle = _unwrap(_native.mechanism_composition_prepare(_dumps(wire), cancel=cancel))
-    return _prepared(handle)
+    return _prepared(
+        handle,
+        {
+            "population": target_population_id,
+            "units": {m.variable: m.declaration.output.units for m in listed},
+        },
+    )
 
 
+@bind_mean_reading
 def consume_mechanism_composition_artifact(
     artifact: bytes,
     expected_identity: str | None = None,
@@ -1109,7 +1155,15 @@ def consume_mechanism_composition_artifact(
             _native.mechanism_composition_consume(bytes(artifact), expected_identity, cancel=cancel)
         )
     )
+    from ._artifact_protocol import inspect_artifact
+
+    body = inspect_artifact(bytes(artifact)).metadata["body"]
+    premises = body["premises"]
     return ConsumedComposition(
+        _scope={
+            "population": premises["target_population"],
+            "units": {m["variable"]: m["output_units"] for m in premises["mechanisms"]},
+        },
         premises_digest=wire["premises_digest"],
         family=wire["family"],
         result=_result(wire["result"]),

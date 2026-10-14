@@ -300,7 +300,7 @@ def test_the_posterior_is_the_conjugate_closed_form_of_the_counts():
         list(design.assigned_arm), [list(o) for o in design.outcomes], list(range(n))
     )
     shapes = posterior_shapes(counts)
-    v = result.values
+    v = result._wire_values
     for arm, (a, b) in enumerate(shapes):
         assert v[arm * 6] == a and v[arm * 6 + 1] == b
         assert v[arm * 6 + 2] == pytest.approx(a / (a + b), abs=1e-14)
@@ -316,7 +316,7 @@ def test_the_posterior_is_the_conjugate_closed_form_of_the_counts():
     first = counts_of(
         list(design.assigned_arm), [list(o) for o in design.outcomes], list(range(30))
     )
-    assert early.values[0] == 1 + first[0][0]
+    assert early._wire_values[0] == 1 + first[0][0]
 
 
 def two_step_design(path: tuple[tuple[int, int], tuple[int, int]]) -> ai.AdaptiveDesign:
@@ -362,7 +362,7 @@ def test_an_enumerated_thompson_tree_has_a_martingale_posterior():
             probability = 0.5 * (0.5 if y1 else 0.5) * arm2_prob[arm2] * p_y2
             # P(arm1) = 1/2; P(y1) is 1/2 under the uniform prior.
             session = prepare(two_step_design(((arm1, y1), (arm2, y2))))
-            v = session.analyse(ai.BayesianPosterior(look=1)).values
+            v = session.analyse(ai.BayesianPosterior(look=1))._wire_values
             total += probability
             mean_zero += probability * v[2]
             mean_one += probability * v[8]
@@ -405,7 +405,7 @@ def test_fixed_sample_inference_of_adaptive_data_is_refused_but_the_posterior_ru
     error = refused(session.fixed_sample)
     assert error.reason_code == "adaptive_design_ignored"
     assert error.detail == "adaptive_inference.fixed_sample_on_adaptive_data"
-    assert session.analyse(ai.BayesianPosterior(look=1)).values
+    assert session.analyse(ai.BayesianPosterior(look=1))._wire_values
 
 
 def test_no_interval_is_licensed_for_any_route():
@@ -470,9 +470,9 @@ def test_adaptive_weighting_matches_an_independent_calculation(scheme):
         (1, 0),
         scheme,
     )
-    assert result.values[0] == pytest.approx(estimate, abs=1e-10)
-    assert result.values[1] == pytest.approx(variance, abs=1e-10)
-    assert result.values[2] == len(y)
+    assert result._wire_values[0] == pytest.approx(estimate, abs=1e-10)
+    assert result._wire_values[1] == pytest.approx(variance, abs=1e-10)
+    assert result._wire_values[2] == len(y)
     assert result.closed_guarantee == "adaptive_inference.interval_closed"
 
 
@@ -502,8 +502,8 @@ def test_repeated_measures_use_the_subject_mean_as_the_unit():
         (1, 0),
         "uniform",
     )
-    assert result.values[0] == pytest.approx(estimate, abs=1e-10)
-    assert result.values[1] == pytest.approx(variance, abs=1e-10)
+    assert result._wire_values[0] == pytest.approx(estimate, abs=1e-10)
+    assert result._wire_values[1] == pytest.approx(variance, abs=1e-10)
     # Reordering the measurements within each subject changes the data identity, not the estimate.
     reversed_design = replace(design, outcomes=[list(reversed(o)) for o in design.outcomes])
     other = prepare(reversed_design)
@@ -511,7 +511,7 @@ def test_repeated_measures_use_the_subject_mean_as_the_unit():
     again = other.analyse(
         ai.AdaptiveWeighting(look=0, plus_arm=1, minus_arm=0, scheme="uniform", prior_mean=0.5)
     )
-    assert again.values[0] == pytest.approx(result.values[0], abs=1e-12)
+    assert again._wire_values[0] == pytest.approx(result._wire_values[0], abs=1e-12)
 
 
 def test_the_hierarchical_cluster_cell_is_carried_forward():
@@ -539,7 +539,7 @@ def test_the_confidence_sequence_matches_the_closed_form_and_union_bounds_a_cont
         for arm in (0, 1)
     ]
     bounds = [sequence_bounds(v, 0.025, 50.0) for v in by_arm]
-    v = result.values
+    v = result._wire_values
     for arm in (0, 1):
         assert v[arm * 4] == len(by_arm[arm])
         assert v[arm * 4 + 1] == pytest.approx(sum(by_arm[arm]) / len(by_arm[arm]), abs=1e-12)
@@ -558,7 +558,7 @@ def test_group_sequential_boundaries_and_decisions_match_published_values():
     session = prepare(design)
     assert session.status["class"] == "licensed"
     result = session.analyse(ai.GroupSequential(look=2))
-    v = result.values
+    v = result._wire_values
     published = (3.7103, 2.5114, 1.9930)
     sizes = (40, 80, 120)
     arms, y = list(design.assigned_arm), [o[0] for o in design.outcomes]
@@ -694,7 +694,7 @@ def test_the_result_artifact_is_recomputed_by_the_consumer_and_refuses_other_exp
     assert consumed.procedure == produced.procedure
     assert consumed.stopping_rule["spec"] == "posterior_probability_best"
     assert consumed.closed_guarantee == "adaptive_inference.posterior_interval_closed"
-    for a, b in zip(consumed.values, produced.values, strict=True):
+    for a, b in zip(consumed._wire_values, produced._wire_values, strict=True):
         assert a == pytest.approx(b, abs=1e-9)
     # A different experiment (one outcome changed) is another identity: the consumer that
     # retained the first identity refuses the second artifact.
@@ -731,7 +731,7 @@ def test_a_fresh_process_consumes_both_artifacts_against_the_retained_identity(t
         "r = ai.consume_adaptive_inference_result_artifact(open(sys.argv[2], 'rb').read(), sys.argv[3])\n"
         "print(json.dumps({'procedure': c.procedure, 'paradigm': c.paradigm, "
         "'rule': c.stopping_rule['spec'], 'critical': list(c.boundaries['critical']), "
-        "'identity': r.identity, 'values': list(r.values)}))\n"
+        "'identity': r.identity, 'values': list(r._wire_values)}))\n"
     )
     done = subprocess.run(
         [
@@ -753,7 +753,7 @@ def test_a_fresh_process_consumes_both_artifacts_against_the_retained_identity(t
     assert wire["rule"] == "alpha_spending"
     assert wire["identity"] == retained
     assert wire["critical"][0] == pytest.approx(3.7103, abs=2e-4)
-    produced = session.analyse(request).values
+    produced = session.analyse(request)._wire_values
     assert wire["values"] == pytest.approx(list(produced), abs=1e-9)
     refusal = subprocess.run(
         [

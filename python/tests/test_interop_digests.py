@@ -185,10 +185,12 @@ def test_a_provider_result_loads_through_artifacts_as_its_declared_header() -> N
     loaded = artifacts.loads(result.host_artifact)
     assert loaded.payload_kind == "provider_result"
     assert loaded.artifact_id == "provider-result:mean"
-    assert loaded.payload["provider"] == "mean"
-    assert loaded.payload["estimate"] == [2.0]
-    assert loaded.payload["trust"] == "externally_attested"
-    assert loaded.payload["external_artifact_digest"] == _native.blake3_digest_hex(b"receipt")
+    assert loaded.to_dict()["payload"]["provider"] == "mean"
+    assert loaded.to_dict()["payload"]["estimate"] == [2.0]
+    assert loaded.to_dict()["payload"]["trust"] == "externally_attested"
+    assert loaded.to_dict()["payload"]["external_artifact_digest"] == _native.blake3_digest_hex(
+        b"receipt"
+    )
     assert result.host_artifact.startswith(b"CAUSAL\0\0"), "new results use the shared container"
     tampered = bytearray(result.host_artifact)
     tampered[-1] ^= 1

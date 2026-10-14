@@ -284,27 +284,25 @@ def rich_contract():
 
 def test_an_exported_contract_round_trips_and_is_inspectable():
     contract = rich_contract()
-    exported = ic.export_interface_contract(contract, "estimator-contract")
-    assert exported.contract_identity == ic.contract_identity(contract)
-    consumed = ic.consume_interface_contract_artifact(exported.artifact, exported.identity)
-    assert consumed.identity == exported.identity
+    exported = contract.artifact("estimator-contract")
+    assert exported.metadata["contract_identity"] == ic.contract_identity(contract)
+    consumed = ic.consume_interface_contract_artifact(exported.data, exported.expectation.identity)
+    assert consumed.identity == exported.expectation.identity
     assert [p.name for p in consumed.contract.produces] == ["effect", "selection"]
     assert consumed.contract.produces[0].support == ic.SupportDomain.interval(-0.0, 1.0)
-    assert (
-        ic.export_interface_contract(contract, "estimator-contract").artifact == exported.artifact
-    )
-    meta = ic.inspect_interface_contract_artifact(exported.artifact)
+    assert contract.artifact("estimator-contract").data == exported.data
+    meta = ic.inspect_interface_contract_artifact(exported.data)
     assert meta["feature"] == "interface_contract_v1"
-    assert meta["identity"] == exported.identity
+    assert meta["identity"] == exported.expectation.identity
     assert meta["contract"]["produces"][0]["name"] == "effect"
-    error = refusal_of(lambda: ic.consume_interface_contract_artifact(exported.artifact, "0" * 64))
+    error = refusal_of(lambda: ic.consume_interface_contract_artifact(exported.data, "0" * 64))
     assert error.detail == "interface_contract.identity_mismatch"
 
 
 def test_the_clean_room_consumer_accepts_an_exported_artifact_and_rejects_mutations(tmp_path):
-    exported = ic.export_interface_contract(rich_contract(), "estimator-contract")
+    exported = rich_contract().artifact("estimator-contract")
     path = tmp_path / "contract.artifact"
-    path.write_bytes(exported.artifact)
+    path.write_bytes(exported.data)
 
     def run(file, *extra):
         return subprocess.run(
@@ -321,13 +319,13 @@ def test_the_clean_room_consumer_accepts_an_exported_artifact_and_rejects_mutati
             text=True,
         )
 
-    accepted = run(path, "--retained-identity", exported.identity)
+    accepted = run(path, "--retained-identity", exported.expectation.identity)
     assert accepted.returncode == 0, accepted.stdout + accepted.stderr
-    assert exported.identity in accepted.stdout
+    assert exported.expectation.identity in accepted.stdout
     assert run(path, "--retained-identity", "0" * 64).returncode != 0
     # A flipped payload byte is a checksum failure; a flipped byte of the identity text, once
     # the container is rewritten consistently, is an identity failure.
-    mutated = bytearray(exported.artifact)
+    mutated = bytearray(exported.data)
     mutated[-1] ^= 0x01
     bad = tmp_path / "corrupt.artifact"
     bad.write_bytes(bytes(mutated))
@@ -337,9 +335,9 @@ def test_the_clean_room_consumer_accepts_an_exported_artifact_and_rejects_mutati
 
 
 def test_a_fresh_process_consumes_the_artifact_against_a_retained_identity(tmp_path):
-    exported = ic.export_interface_contract(rich_contract(), "estimator-contract")
+    exported = rich_contract().artifact("estimator-contract")
     path = tmp_path / "contract.artifact"
-    path.write_bytes(exported.artifact)
+    path.write_bytes(exported.data)
     script = (
         "import sys, json, pathlib\n"
         "from antecedent import interface_contract as ic\n"
@@ -348,14 +346,14 @@ def test_a_fresh_process_consumes_the_artifact_against_a_retained_identity(tmp_p
         "print(json.dumps({'identity': c.identity, 'ports': [p.name for p in c.contract.produces]}))\n"
     )
     done = subprocess.run(
-        [sys.executable, "-c", script, str(path), exported.identity],
+        [sys.executable, "-c", script, str(path), exported.expectation.identity],
         capture_output=True,
         text=True,
         cwd=tmp_path,
         check=True,
     )
     wire = json.loads(done.stdout)
-    assert wire == {"identity": exported.identity, "ports": ["effect", "selection"]}
+    assert wire == {"identity": exported.expectation.identity, "ports": ["effect", "selection"]}
     refused = subprocess.run(
         [sys.executable, "-c", script, str(path), "0" * 64],
         capture_output=True,

@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, Literal, get_args
 
@@ -49,6 +49,7 @@ from ._validate import real, text
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
 from .external import BoundExternalClaim, LineageLink
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
+from .results.sources import MeanSource
 
 if TYPE_CHECKING:
     from ._native import AteAnalysisResult
@@ -345,88 +346,6 @@ def _expr_from_wire(wire: Any) -> Expr:
     return Expr(wire)
 
 
-@dataclass(frozen=True, slots=True)
-class MeanSource:
-    """One mean per coordinate, with the provenance the decision records.
-
-    It answers only the expectation of an affine utility: any other criterion refuses
-    with ``decision_contract_unsatisfied``, because a mean is never an outcome law.
-    Build it from a native response with
-    :meth:`antecedent.program_claims.NativeClaim.as_decision_source`.
-    """
-
-    coordinates: tuple[ScientificQuantity, ...]
-    means: tuple[float, ...]
-    provider_id: str
-    snapshot_id: str
-    causal_contract_id: str
-    rng_id: str = "none:mean_grid"
-    _original_native: Any = field(default=None, repr=False, compare=False)
-    _original_effect: Any = field(default=None, repr=False, compare=False)
-    _original_cohort: Any = field(default=None, repr=False, compare=False)
-
-    def __post_init__(self) -> None:
-        coerce_fields(self, coordinates=tuple(self.coordinates))
-        coerce_fields(self, means=tuple(float(m) for m in self.means))
-
-    def _validated_original(self):
-        if self._original_cohort is not None:
-            actual = self._original_cohort._verified_mean_source()
-            supplied = {
-                "coordinates": [q._wire() for q in self.coordinates],
-                "means": list(self.means),
-                "provider_id": self.provider_id,
-                "snapshot_id": self.snapshot_id,
-                "causal_contract_id": self.causal_contract_id,
-                "rng_id": self.rng_id,
-            }
-            if json.loads(json.dumps(supplied)) != json.loads(json.dumps(actual)):
-                raise CausalValueError(
-                    "a cohort mean source must retain the fields its source replays to"
-                )
-            return None
-        if self._original_effect is not None:
-            original, value, units, population = self._original_effect
-            raw = original._raw
-            wire, refusal = raw.effect_source_json(units, population, value)
-            if refusal is not None:
-                from .external import ExternalRefusal
-
-                raise ExternalRefusal(json.loads(refusal))
-            actual = json.loads(wire)
-            actual.pop("query", None)
-            supplied = {
-                "coordinates": [q._wire() for q in self.coordinates],
-                "means": list(self.means),
-                "provider_id": self.provider_id,
-                "snapshot_id": self.snapshot_id,
-                "causal_contract_id": self.causal_contract_id,
-                "rng_id": self.rng_id,
-            }
-            if json.loads(json.dumps(supplied)) != actual:
-                raise CausalValueError(
-                    "a native effect mean source must retain its original fields"
-                )
-            return raw
-        if self._original_native is None:
-            return None
-        from . import _native
-
-        return _native.source_backed_native_mean(
-            self._original_native._native,
-            json.dumps(
-                {
-                    "coordinates": [q._wire() for q in self.coordinates],
-                    "means": list(self.means),
-                    "provider_id": self.provider_id,
-                    "snapshot_id": self.snapshot_id,
-                    "causal_contract_id": self.causal_contract_id,
-                    "rng_id": self.rng_id,
-                }
-            ),
-        )
-
-
 def _result_mean_source(
     contract: Contract,
     source: object,
@@ -485,6 +404,7 @@ def _result_mean_source(
             causal_contract_id=fields["causal_contract_id"],
             rng_id=fields["rng_id"],
             _original_effect=(source, value, outcome_units, population),
+            trust="native_licensed",
         )
     from .results.response import CausalResponseView
 
@@ -638,6 +558,10 @@ class Contract:
         ``decision_contract_unsatisfied`` (``decision_evaluation.mean_source_insufficient``).
         Regret and EVPI are unavailable for such a decision.
         """
+        from .results.sources import adapt_mean_source, is_mean_producer
+
+        if is_mean_producer(source):
+            source = adapt_mean_source(source)
         cohort_source = getattr(source, "_cohort_mean_source", None)
         if cohort_source is not None:
             source = cohort_source()
@@ -747,6 +671,11 @@ class Decision:
         self._body = body
 
     @property
+    def source(self) -> Any:
+        """The immutable scientific source, including retained adapter provenance."""
+        return self._source
+
+    @property
     def contract_identity(self) -> str:
         return str(self._body["contract_identity"])
 
@@ -851,11 +780,16 @@ class Decision:
         re-chained natively so every link, including the two appended ones, has
         its Merkle digest (Python cannot hash).
         """
-        if isinstance(self._source, BoundExternalClaim):
+        if isinstance(self._source, (BoundExternalClaim, MeanSource)) and self._source.lineage:
             decision_id = f"decision:{self.contract_identity}"
-            rows = [[link.id, link.stage, list(link.parents)] for link in self._source.lineage]
+            rows = [
+                [link["id"], link["stage"], list(link["parents"])]
+                if isinstance(link, Mapping)
+                else [link.id, link.stage, list(link.parents)]
+                for link in self._source.lineage
+            ]
             rows.append([decision_id, "decision_contract", []])
-            rows.append([RESULT_LINK_ID, "claim", ["claim", decision_id]])
+            rows.append([RESULT_LINK_ID, "claim", [rows[-2][0], decision_id]])
             return tuple(
                 LineageLink(
                     item["id"],

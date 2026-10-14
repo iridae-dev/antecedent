@@ -59,12 +59,19 @@ import random
 import struct
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 from . import _native
+from ._artifact_protocol import bytes_export
+from ._freeze import thaw
 from ._refusal import StructuredRefusal
+from ._scientific import ScientificResult
+from ._validate import count as _count
 from .errors import CausalTypeError, CausalValueError
 from .scientific_bridge import _quantity_wire
+
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
 
 __all__ = [
     "CallbackConsumed",
@@ -127,6 +134,23 @@ MEANINGS = (
 _UNCERTAIN_OPERATIONS = frozenset({"sample", "cdf", "quantile", "posterior_update"})
 
 
+KindsName = Literal["law", "posterior", "nested"]
+OperationsName = Literal["mean", "sample", "cdf", "quantile", "posterior_update"]
+DependencyKindsName = Literal[
+    "data", "model", "environment", "file", "remote_service", "closure_state"
+]
+PhasesName = Literal["planning", "verification", "execution"]
+MeaningsName = Literal[
+    "parameter_posterior",
+    "causal_functional_posterior",
+    "posterior_predictive",
+    "interventional_predictive",
+    "estimator_sampling",
+    "bootstrap",
+    "empirical_outcome",
+]
+
+
 class CallbackRefusal(StructuredRefusal):
     """A typed refusal of the callback route (registered ``reason_code``, ``detail``, ``remedy``)."""
 
@@ -183,7 +207,7 @@ def _bits(value: float) -> int:
 
 
 def _dumps(value: object) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return json.dumps(thaw(value), sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
 # -- declaration -------------------------------------------------------------------------------
@@ -313,7 +337,17 @@ class Replay:
         """Has effects outside the process. ``max_attempts`` declares an idempotent retry."""
         if max_attempts is None:
             return cls("side_effecting", retry="no_retry")
-        return cls("side_effecting", retry="idempotent_key", max_attempts=int(max_attempts))
+        return cls(
+            "side_effecting",
+            retry="idempotent_key",
+            max_attempts=_count(
+                max_attempts,
+                "max_attempts",
+                minimum=0,
+                maximum=2**64 - 1,
+                reason_code="invalid_argument",
+            ),
+        )
 
     def _wire(self) -> dict[str, Any]:
         _choice(
@@ -521,7 +555,12 @@ class Query:
     @classmethod
     def sample(cls, draws: int) -> Query:
         """Marginal draws."""
-        return cls("sample", draws=int(draws))
+        return cls(
+            "sample",
+            draws=_count(
+                draws, "draws", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"
+            ),
+        )
 
     @classmethod
     def cdf(cls, thresholds: Sequence[float]) -> Query:
@@ -536,7 +575,13 @@ class Query:
     @classmethod
     def posterior_update(cls, observation: float, draws: int = 0) -> Query:
         """The posterior after one possible observation."""
-        return cls("posterior_update", draws=int(draws), observation=float(observation))
+        return cls(
+            "posterior_update",
+            draws=_count(
+                draws, "draws", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"
+            ),
+            observation=float(observation),
+        )
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -557,11 +602,19 @@ class Request:
     idempotency_key: str | None = None
 
     def _wire(self) -> dict[str, Any]:
-        if not 0 <= int(self.seed) < 2**64:
+        if (
+            not 0
+            <= _count(
+                self.seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"
+            )
+            < 2**64
+        ):
             raise CausalValueError("seed must be an unsigned 64-bit integer")
         return {
             "query": self.query._wire(),
-            "seed": int(self.seed),
+            "seed": _count(
+                self.seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"
+            ),
             "input_digests": {str(k): str(v) for k, v in self.input_digests.items()},
             "idempotency_key": self.idempotency_key,
         }
@@ -583,8 +636,20 @@ class ExecutionPolicy:
 
     def _wire(self) -> dict[str, Any]:
         return {
-            "max_invocations": int(self.max_invocations),
-            "max_output_values": int(self.max_output_values),
+            "max_invocations": _count(
+                self.max_invocations,
+                "max_invocations",
+                minimum=0,
+                maximum=2**64 - 1,
+                reason_code="invalid_argument",
+            ),
+            "max_output_values": _count(
+                self.max_output_values,
+                "max_output_values",
+                minimum=0,
+                maximum=2**64 - 1,
+                reason_code="invalid_argument",
+            ),
             "wall_limit_ms": self.wall_limit_ms,
             "allow_side_effects": bool(self.allow_side_effects),
             "phase": _choice(self.phase, "phase", PHASES),
@@ -694,8 +759,8 @@ class FunctionProvider:
 # -- results -----------------------------------------------------------------------------------
 
 
-@dataclass(frozen=True, slots=True)
-class CallbackExecution:
+@dataclass(repr=False, frozen=True, slots=True)
+class CallbackExecution(ScientificResult):
     """An accepted answer."""
 
     output: Output
@@ -708,6 +773,19 @@ class CallbackExecution:
     request_identity: str
     state_identity: str | None
     history_index: int | None
+    _session: Any = field(default=None, repr=False, compare=False)
+    _owner_token: Any = field(default=None, repr=False, compare=False)
+
+    @bytes_export
+    def export(self, artifact_id: str = "callback-result") -> bytes:
+        if self._session is None:
+            raise CausalValueError("this execution has no owning session; use artifact resume")
+        return self._session.export(self, artifact_id)
+
+    def artifact(self, artifact_id: str = "callback-result") -> ExportedArtifact[CallbackConsumed]:
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self._session, self, artifact_id=artifact_id)
 
 
 @dataclass(frozen=True, slots=True)
@@ -737,8 +815,8 @@ class ExportedCallbackResult:
     identity: str
 
 
-@dataclass(frozen=True, slots=True)
-class CallbackConsumed:
+@dataclass(repr=False, frozen=True, slots=True)
+class CallbackConsumed(ScientificResult):
     """A consumed artifact: every identity recomputed. Nothing was executed."""
 
     identity: str
@@ -753,7 +831,7 @@ class CallbackConsumed:
     request: Mapping[str, Any]
 
 
-def _execution(wire: Mapping[str, Any]) -> CallbackExecution:
+def _execution(wire: Mapping[str, Any], session: Any = None) -> CallbackExecution:
     output = wire["output"]
     return CallbackExecution(
         output=Output(output["operation"], tuple(float(v) for v in output["values"])),
@@ -766,6 +844,8 @@ def _execution(wire: Mapping[str, Any]) -> CallbackExecution:
         request_identity=wire["request_identity"],
         state_identity=wire["state_identity"],
         history_index=wire["history_index"],
+        _session=session,
+        _owner_token=None if session is None else session._owner_token,
     )
 
 
@@ -813,6 +893,7 @@ class CallbackSession:
     """Execution state of one process: the history of results and the invocation counts."""
 
     def __init__(self) -> None:
+        self._owner_token = object()
         self._handle = _native.CallbackSessionHandle()
 
     @property
@@ -886,13 +967,13 @@ class CallbackSession:
             state_fn,
             _dumps(declaration._wire()),
             _dumps(request._wire()),
-            _dumps(_input_indices(inputs)),
+            _dumps(self._input_indices(inputs)),
             _dumps((policy or ExecutionPolicy())._wire()),
             token if token is not None else CallbackToken(),
         )
         _raise(refusal)
         assert wire is not None
-        return _execution(json.loads(wire))
+        return _execution(json.loads(wire), self)
 
     def resume(
         self,
@@ -923,7 +1004,7 @@ class CallbackSession:
             identity_json,
             invoke,
             state_fn,
-            _dumps(_input_indices(inputs)),
+            _dumps(self._input_indices(inputs)),
             _dumps((policy or ExecutionPolicy())._wire()),
             token if token is not None else CallbackToken(),
         )
@@ -931,34 +1012,75 @@ class CallbackSession:
         assert wire is not None
         decoded = json.loads(wire)
         if decoded["resume"] == "answered":
-            return CallbackResume("answered", execution=_execution(decoded["execution"]))
+            return CallbackResume("answered", execution=_execution(decoded["execution"], self))
         return CallbackResume(
             "unavailable",
             record=int(decoded["record"]),
             refusal=CallbackRefusal(decoded["refusal"]),
         )
 
+    def _check_execution(self, execution: CallbackExecution) -> int:
+        if (
+            execution._session is not self
+            or execution._owner_token is not self._owner_token
+            or execution.history_index is None
+        ):
+            raise CallbackRefusal(
+                {
+                    "code": "invalid_argument",
+                    "stage": "callback",
+                    "detail": "provider_callbacks.foreign_execution",
+                    "offending": "execution",
+                    "remedy": "export and resume the execution in this session",
+                }
+            )
+        index = _count(execution.history_index, "history_index", minimum=0, maximum=2**64 - 1)
+        record = self.record(index)
+        for name in ("declaration_identity", "request_identity", "output_digest", "state_identity"):
+            if record.get(name) != getattr(execution, name):
+                raise CallbackRefusal(
+                    {
+                        "code": "invalid_argument",
+                        "stage": "callback",
+                        "detail": "provider_callbacks.execution_identity_mismatch",
+                        "offending": name,
+                        "remedy": "use the execution returned by this session",
+                    }
+                )
+        if values_digest(execution.output.values) != execution.output_digest:
+            raise CallbackRefusal(
+                {
+                    "code": "invalid_argument",
+                    "stage": "callback",
+                    "detail": "provider_callbacks.execution_output_mismatch",
+                    "offending": "output",
+                    "remedy": "use the immutable execution returned by this session",
+                }
+            )
+        return index
+
+    def _input_indices(self, inputs: Mapping[str, CallbackExecution] | None) -> dict[str, int]:
+        return {
+            name: self._check_execution(execution) for name, execution in (inputs or {}).items()
+        }
+
+    @bytes_export
     def export(self, result: CallbackExecution | int, artifact_id: str) -> ExportedCallbackResult:
         """Seal one history record as ``callback_result_v1``.
 
         A declaration and a portable output, not a promise that a callable runs elsewhere.
         """
-        index = result if isinstance(result, int) else result.history_index
+        index = (
+            _count(result, "history_index", minimum=0, maximum=2**64 - 1)
+            if isinstance(result, int)
+            else self._check_execution(result)
+        )
         if index is None:
             raise CausalValueError("the result has no history record to export")
         done, refusal = self._handle.export_record(int(index), artifact_id)
         _raise(refusal)
         assert done is not None
         return ExportedCallbackResult(bytes(done[0]), done[1])
-
-
-def _input_indices(inputs: Mapping[str, CallbackExecution] | None) -> dict[str, int]:
-    out: dict[str, int] = {}
-    for name, execution in (inputs or {}).items():
-        if execution.history_index is None:
-            raise CausalValueError(f"input {name!r} has no history record in this session")
-        out[str(name)] = int(execution.history_index)
-    return out
 
 
 # -- artifacts and closed routes ---------------------------------------------------------------

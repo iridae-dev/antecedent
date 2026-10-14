@@ -479,30 +479,30 @@ class World:
         The consumer reads only these files.
         """
         directory.mkdir(parents=True, exist_ok=True)
-        exported = self.ledger.export("release-boundary-ledger")
-        exposed = self.composition.export({"X": "1"}, outcome="Y")
-        unexposed = self.composition.export({"X": "0"}, outcome="Y")
-        verification = verify(self.graph, self.graph, self.ledger, self.pooled.result).export(
+        exported = self.ledger.artifact("release-boundary-ledger")
+        exposed = self.composition.artifact({"X": "1"}, outcome="Y")
+        unexposed = self.composition.artifact({"X": "0"}, outcome="Y")
+        verification = verify(self.graph, self.graph, self.ledger, self.pooled.result).artifact(
             "release-boundary-verification"
         )
         files = {
-            "ledger.bin": exported.artifact,
+            "ledger.bin": exported.data,
             "measurement.bin": self.measured.artifact,
-            "exposed.bin": exposed.artifact,
-            "unexposed.bin": unexposed.artifact,
-            "verification.bin": verification.artifact,
+            "exposed.bin": exposed.data,
+            "unexposed.bin": unexposed.data,
+            "verification.bin": verification.data,
         }
         for name, data in files.items():
             (directory / name).write_bytes(data)
         manifest = {
             "scenario": self.sc,
             "files": sorted(files),
-            "ledger_identity": exported.identity,
+            "ledger_identity": exported.expectation.identity,
             "pooled": self.pooled.result,
             "measurement_identity": self.measured.identity,
-            "exposed_digest": exposed.premises_digest,
-            "unexposed_digest": unexposed.premises_digest,
-            "verification_identity": verification.identity,
+            "exposed_digest": exposed.metadata["premises_digest"],
+            "unexposed_digest": unexposed.metadata["premises_digest"],
+            "verification_identity": verification.expectation.identity,
             "snapshot_id": self.ledger.state_digest,
             "reported": {
                 "act": value_of(self.result, "act"),

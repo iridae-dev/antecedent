@@ -717,7 +717,7 @@ def _ledgered() -> Ledgered:
         rho_lo=0.0,
         rho_hi=0.9,
     )
-    return Ledgered(ledger, pooled, envelope, ledger.export())
+    return Ledgered(ledger, pooled, envelope, ledger.artifact())
 
 
 @dataclass(frozen=True)
@@ -904,7 +904,7 @@ def _build_objects() -> Objs:
         measurement_prepared=prepared,
         measurement=prepared.estimate(),
         composition=composition,
-        composition_export=composition.export({"X": 1.0}, outcome="Y"),
+        composition_export=composition.artifact({"X": 1.0}, outcome="Y"),
         ledgered=_ledgered(),
         adaptive=_adaptive(),
         transported=_transported(),
@@ -1066,15 +1066,15 @@ def _bundle_payload(producer: str, o: Objs) -> object:
     if producer == "measurement_result":
         return o.measurement.export()
     if producer == "composed_model":
-        return o.composition_export.artifact
+        return o.composition_export.data
     if producer == "evidence_ledger":
-        return o.ledgered.export.artifact
+        return o.ledgered.export.data
     if producer == "scientific_bridge_claim":
-        return _bridged().exported.artifact
+        return _bridged().exported.data
     if producer == "interface_contract_artifact":
-        return _contracted().exported.artifact
+        return _contracted().exported.data
     if producer == "composition_verification_result":
-        return _verified().exported.artifact
+        return _verified().exported.data
     if producer == "counterfactual_transport_result":
         return o.transported.treated.export()
     if producer == "cohort_decision_source":
@@ -1082,7 +1082,7 @@ def _bundle_payload(producer: str, o: Objs) -> object:
     if producer == "decision_reliability_report":
         return o.reliability.export()
     if producer == "observation_query_claim":
-        return o.observation.artifact
+        return o.observation.export()
     if producer == "adaptive_monitoring_contract":
         return o.adaptive.contract_bytes
     if producer == "adaptive_inference_result":
@@ -1096,11 +1096,11 @@ def _bundle_payload(producer: str, o: Objs) -> object:
     if producer == "dependence_envelope":
         return _envelope().export()
     if producer == "selective_discovery_result":
-        return _discovered().exported.artifact
+        return _discovered().exported.data
     if producer == "cross_world_execution_result":
         return _crossed().to_bytes()
     if producer == "callback_result":
-        return _callbacked().exported.artifact
+        return _callbacked().exported.data
     return _object(producer, o)
 
 
@@ -1216,10 +1216,15 @@ def _check_refused(producer: str, consumer: str, o: Objs) -> None:
     """No entry point of ``consumer`` accepts ``producer``; typed where the consumer types it."""
     for payload in _payloads(producer, consumer, o):
         for label, feed, expected in FEEDERS[consumer]:
+            if producer == "dependence_envelope" and feed in (_feed_evaluate, _feed_inverse):
+                expected = CausalUnsupportedError
             with pytest.raises(Exception) as caught:  # noqa: PT011
                 feed(payload)
             if expected is not None:
-                assert isinstance(caught.value, expected), (producer, label, type(caught.value))
+                assert isinstance(caught.value, expected) or (
+                    isinstance(caught.value, CausalValueError)
+                    and "as_mean_source" in str(caught.value)
+                ), (producer, label, type(caught.value))
 
 
 # --------------------------------------------------------------------------- recalc adapter
@@ -1716,10 +1721,16 @@ def _recalc_stage(producer: str, o: Objs) -> tuple[Stage, str]:
             o.measurement.model_identity + o.measurement.data_identity,
         ),
         "composed_model": (Stage.SCORE_ARTIFACT, o.composition.plan_identity),
-        "evidence_ledger": (Stage.EVIDENCE, o.ledgered.export.identity),
-        "scientific_bridge_claim": (Stage.EVIDENCE, _bridged().exported.identity),
-        "interface_contract_artifact": (Stage.EVIDENCE, _contracted().exported.identity),
-        "composition_verification_result": (Stage.EVIDENCE, _verified().exported.identity),
+        "evidence_ledger": (Stage.EVIDENCE, o.ledgered.export.expectation.identity),
+        "scientific_bridge_claim": (Stage.EVIDENCE, _bridged().exported.expectation.identity),
+        "interface_contract_artifact": (
+            Stage.EVIDENCE,
+            _contracted().exported.expectation.identity,
+        ),
+        "composition_verification_result": (
+            Stage.EVIDENCE,
+            _verified().exported.expectation.identity,
+        ),
         "counterfactual_transport_result": (
             Stage.IDENTIFICATION,
             str(o.transported.treated.premises_digest) + str(o.transported.treated.data_digest),
@@ -1741,7 +1752,7 @@ def _recalc_stage(producer: str, o: Objs) -> tuple[Stage, str]:
             Stage.EVIDENCE,
             _crossed().identity["receipt_digest"],
         ),
-        "callback_result": (Stage.EVIDENCE, _callbacked().exported.identity),
+        "callback_result": (Stage.EVIDENCE, _callbacked().exported.expectation.identity),
     }[producer]
 
 
@@ -1907,7 +1918,7 @@ def _check_raw_rejected(*objects: object, feeders: tuple[Callable[[Any], object]
     """The producer's own objects are no source: every entry point of the slot types them."""
     for obj in objects:
         for feed in feeders:
-            with pytest.raises(CausalTypeError):
+            with pytest.raises((CausalTypeError, CausalValueError)):
                 feed(obj)
 
 
@@ -1977,7 +1988,7 @@ def _declared_composition(o: Objs) -> Declared:
     assert contrast == pytest.approx(6.5, abs=1e-12)
     # The independent consumer replays the premises and the stored query to the same law.
     replayed = mc.consume_mechanism_composition_artifact(
-        o.composition_export.artifact, o.composition_export.premises_digest
+        o.composition_export.data, o.composition_export.metadata["premises_digest"]
     )
     assert isinstance(replayed.result, mc.GaussianLawResult)
     assert replayed.result.mean == pytest.approx(7.0, abs=1e-12)
@@ -1993,7 +2004,7 @@ def _declared_composition(o: Objs) -> Declared:
         (treated_q, control_q),
         (treated.mean_of("Y"), control.mean_of("Y")),
         f"mechanism_composition:{composition.plan_identity}",
-        f"premises:{o.composition_export.premises_digest}",
+        f"premises:{o.composition_export.metadata['premises_digest']}",
         "declared:mechanism_composition",
     )
 
@@ -2023,9 +2034,9 @@ def _declared_ledger(o: Objs) -> Declared:
     assert value.estimate == pytest.approx(7.0 / 5.0, abs=1e-12)
     assert value.variance == pytest.approx(4.0 / 5.0, abs=1e-12)
     # An independent consumer replays the operations and recomputes the pooled values.
-    assert pooled.result in ledgered.export.carried
+    assert pooled.result in ledgered.export.metadata["carried"]
     replayed = el.consume_evidence_ledger_artifact(
-        ledgered.export.artifact, ledgered.export.identity
+        ledgered.export.data, ledgered.export.expectation.identity
     )
     replay = replayed.synthesis_of(pooled.result)
     assert replay is not None
@@ -2316,9 +2327,9 @@ def _declared_adaptive(o: Objs) -> Declared:
     # scores are (1/2, -1/2, 37/28, 1/2), whose mean is 51/112 = 0.455357142857...
     assert a.result.paradigm == "frequentist_adaptive_weighting"
     assert a.result.claim == "point_only"
-    assert a.result.values[0] == pytest.approx(51.0 / 112.0, abs=1e-12)
+    assert a.result.payload.estimate == pytest.approx(51.0 / 112.0, abs=1e-12)
     # An independent consumer recomputes the value from the retained history.
-    assert a.consumed.values[0] == pytest.approx(51.0 / 112.0, abs=1e-12)
+    assert a.consumed.payload.estimate == pytest.approx(51.0 / 112.0, abs=1e-12)
     assert a.consumed.paradigm == "frequentist_adaptive_weighting"
     assert a.consumed.stopping_rule["spec"] == "posterior_probability_best"
     # The contract artifact names the procedure, the rule and the paradigm.
@@ -2339,7 +2350,7 @@ def _declared_adaptive(o: Objs) -> Declared:
     )
     return Declared(
         (quantity,),
-        (a.result.values[0],),
+        (a.result.payload.estimate,),
         f"adaptive_inference_result:{a.consumed.identity}",
         f"adaptive_contract:{a.contract.contract_identity}",
         "declared:adaptive_arm_mean",
@@ -2432,7 +2443,7 @@ def _declared_observation(o: Objs) -> Declared:
     assert claim.identity != pair.identity
     assert claim.inference_basis == "exact_given_declared_model"
     # The independent consumer replays the premises and the stored query to the same law.
-    replayed = oq.consume_observation_query_artifact(claim.artifact, claim.identity)
+    replayed = oq.consume_observation_query_artifact(claim.export(), claim.identity)
     assert replayed.claim.distribution["1"] == pytest.approx(0.78, abs=1e-12)
     with pytest.raises(oq.ObservationQueryRefusal) as closed:
         claim.interval()
@@ -2497,8 +2508,8 @@ def _contracted() -> Any:
             )
         ],
     )
-    exported = ic.export_interface_contract(contract, "matrix-interface-contract")
-    consumed = ic.consume_interface_contract_artifact(exported.artifact, exported.identity)
+    exported = contract.artifact("matrix-interface-contract")
+    consumed = ic.consume_interface_contract_artifact(exported.data, exported.expectation.identity)
     return SimpleNamespace(contract=contract, exported=exported, consumed=consumed)
 
 
@@ -2535,8 +2546,8 @@ def _callbacked() -> Any:
     provider = pcb.FunctionProvider(declaration.provider, lambda query, ctx: pcb.Output.mean(2.0))
     session = pcb.CallbackSession()
     execution = session.execute(provider, declaration, pcb.Request(pcb.Query.mean()))
-    exported = session.export(execution, "matrix-callback-result")
-    consumed = pcb.consume_callback_result(exported.artifact, exported.identity)
+    exported = execution.artifact("matrix-callback-result")
+    consumed = pcb.consume_callback_result(exported.data, exported.expectation.identity)
     return SimpleNamespace(execution=execution, exported=exported, consumed=consumed)
 
 
@@ -2564,7 +2575,7 @@ def _discovered() -> Any:
     return SimpleNamespace(
         adapter=adapter,
         outcome=outcome,
-        exported=adapter.export_state("matrix-selective-discovery"),
+        exported=adapter.artifact("matrix-selective-discovery"),
     )
 
 
@@ -2595,8 +2606,10 @@ def _verified() -> Any:
         )
 
     result = cv.verify_composition(graph("v2"), previous=graph("v1"))
-    exported = result.export("matrix-composition-verification")
-    consumed = cv.consume_composition_verification_artifact(exported.artifact, exported.identity)
+    exported = result.artifact("matrix-composition-verification")
+    consumed = cv.consume_composition_verification_artifact(
+        exported.data, exported.expectation.identity
+    )
     return SimpleNamespace(cv=cv, result=result, exported=exported, consumed=consumed)
 
 
@@ -2646,8 +2659,8 @@ def _bridged() -> Any:
     )
     prepared = sb.prepare_scientific_bridge(contract)
     claim = prepared.derive(sb.SourceClaim.declared("biomarker-effect", 0.8, surrogate))
-    exported = claim.export("matrix-bridge")
-    consumed = sb.consume_scientific_bridge_artifact(exported.artifact, exported.identity)
+    exported = claim.artifact("matrix-bridge")
+    consumed = sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
     return SimpleNamespace(
         sb=sb, prepared=prepared, claim=claim, exported=exported, consumed=consumed
     )
@@ -2699,13 +2712,16 @@ def _check_bridge_decision(o: Objs) -> None:
     declared = _declared_bridge()
     value = declared.means[0]
     _check_declared_decision(declared, act=4 * value - 1.0, hold=2 * value, selected="act")
-    _check_raw_rejected(*_bridge_objects(), feeders=_DECISION_FEEDERS)
+    _check_raw_rejected(_bridged().prepared, _bridged().exported, feeders=_DECISION_FEEDERS)
+    with pytest.raises(decision.DecisionRefusal, match="mean_source_insufficient"):
+        _feed_evaluate(_bridged().claim)
 
 
 def _check_bridge_inverse(o: Objs) -> None:
     declared = _declared_bridge()
     _check_declared_inverse(declared, target=2.0, feasible=("act",))
-    _check_raw_rejected(*_bridge_objects(), feeders=_INVERSE_FEEDERS)
+    _check_raw_rejected(_bridged().prepared, _bridged().exported, feeders=_INVERSE_FEEDERS)
+    assert _feed_inverse(_bridged().claim) is not None
 
 
 # ------------------------------------------------------------------------- the check registry
@@ -2836,7 +2852,13 @@ def _check_envelope_is_not_a_source(o: Objs) -> None:
     with pytest.raises(jlp.JointLawPropagationRefusal) as refused:
         claim.interval()
     assert refused.value.reason_code == "cell_not_licensed"
-    _check_raw_rejected(claim, feeders=_DECISION_FEEDERS + _INVERSE_FEEDERS)
+    for feed in (_feed_evaluate, _feed_inverse):
+        with pytest.raises(
+            CausalUnsupportedError, match="envelope is not a mean source"
+        ) as refused:
+            feed(claim)
+        assert refused.value.reason_code == "cell_not_licensed"
+    _check_raw_rejected(claim, feeders=(_feed_support,))
 
 
 # ------------------------------------------------------------ cross-world execution
@@ -3004,8 +3026,8 @@ def test_producer_consumer_matrix_declares_every_cell_once_and_counts_them() -> 
     assert all(len(row) == len(CONSUMERS) for row in STATUS.values())
     cells = [status for row in STATUS.values() for status in row]
     assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 240
-    assert cells.count("DIRECT") == 16
-    assert cells.count("ADAPTER") == 57
+    assert cells.count("DIRECT") == 18
+    assert cells.count("ADAPTER") == 55
     assert cells.count("REFUSED") == 167
     assert set(cells) == {"DIRECT", "ADAPTER", "REFUSED"}
     # Every non-refused cell has a check; the only shared one is the recalc adapter.
@@ -3195,7 +3217,7 @@ def test_producer_consumer_matrix_a_classification_is_not_a_decision_source() ->
     assert result.keys_of("withdrawn") == ()
     assert all(not c.authority_retained for k, c in result.claims.items() if k != "other")
     replayed = verified.consumed
-    assert replayed.identity == result.identity == verified.exported.identity
+    assert replayed.identity == result.identity == verified.exported.expectation.identity
     assert {k: c.klass for k, c in replayed.claims.items()} == {
         k: c.klass for k, c in result.claims.items()
     }
@@ -3208,7 +3230,7 @@ def test_producer_consumer_matrix_a_classification_is_not_a_decision_source() ->
     with pytest.raises(CausalTypeError):
         gen.decision_contract().evaluate(result)  # type: ignore[arg-type]
     with pytest.raises(CausalTypeError):
-        gen.decision_contract().evaluate(verified.exported.artifact)  # type: ignore[arg-type]
+        gen.decision_contract().evaluate(verified.exported.data)  # type: ignore[arg-type]
 
 
 def test_producer_consumer_matrix_a_good_score_is_not_a_decision_source() -> None:
@@ -3255,7 +3277,15 @@ def test_producer_consumer_matrix_every_boundary_rejects_neighbours_with_typed_e
             for payload in _payloads(producer, consumer, objs):
                 for label, feed, expected in FEEDERS[consumer]:
                     assert expected is not None, (producer, label)
-                    with pytest.raises(expected):
+                    if producer == "dependence_envelope" and feed in (
+                        _feed_evaluate,
+                        _feed_inverse,
+                    ):
+                        expected = CausalUnsupportedError
+                    with pytest.raises(
+                        (expected if isinstance(expected, tuple) else (expected,))
+                        + (CausalValueError,)
+                    ):
                         feed(payload)
 
 
@@ -3264,7 +3294,7 @@ def test_producer_consumer_matrix_invalid_export_signatures_are_typed_but_callba
 ) -> None:
     # The fitted export's no-argument callback is outside the bundle exporter
     # protocol. Refuse before invoking it rather than leaking a binding TypeError.
-    with pytest.raises(CausalTypeError, match="artifact_id"):
+    with pytest.raises(cb.UnknownNodeKindRefusal):
         cb.Bundle.builder().add_artifact("auto", objs.compact)
 
     class BrokenExporter:
