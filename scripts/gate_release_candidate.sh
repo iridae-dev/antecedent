@@ -176,7 +176,7 @@ echo "== release candidate: local wheel, full suite against the installed wheel 
   fi
   uv venv "$venv_dir/venv"
   uv pip install --python "$venv_dir/venv/bin/python" "${wheels[0]}" \
-    numpy pandas pyarrow pytest
+    numpy pandas pyarrow pytest 'mypy>=1.17.0'
   # Run outside python/ so the source tree cannot shadow the installed wheel.
   cd "$run_dir"
   "$venv_dir/venv/bin/python" "$ROOT/scripts/gate_release_candidate_2.py" "$venv_dir"

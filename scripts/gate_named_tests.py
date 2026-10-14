@@ -88,7 +88,7 @@ def problems(listings: dict[str, dict], named=NAMED) -> list[str]:
 def nextest(args: list[str]) -> dict:
     command = ["cargo", "nextest", "list", *args, "--message-format", "json"]
     print("==", " ".join(command), flush=True)
-    proc = subprocess.run(command, capture_output=True, text=True)
+    proc = subprocess.run(command, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
         sys.stderr.write(proc.stderr[-4000:])
         sys.exit(f"`{' '.join(command)}` failed")
@@ -138,7 +138,10 @@ if sys.argv[1:] == ["--self-test"]:
 
 if sys.argv[1:3] == ["--shard", "facade"] and len(sys.argv) == 3:
     named = [entry for entry in NAMED if entry[1] == "antecedent"]
-    listings = {"workspace": ["-p", "antecedent", "--features", FACADE_FEATURES]}
+    # Match the feature set of the preceding facade test step exactly. Listing
+    # without calibration-internal builds a second set of facade binaries.
+    listings = {"workspace": ["-p", "antecedent", "--features",
+                               f"{FACADE_FEATURES},calibration-internal"]}
 elif sys.argv[1:3] == ["--shard", "rest"] and len(sys.argv) == 3:
     named = [entry for entry in NAMED if entry[1] != "antecedent"]
     listings = {"workspace": ["--workspace", "--exclude", "antecedent", "--features",

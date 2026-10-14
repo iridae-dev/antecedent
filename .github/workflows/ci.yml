@@ -149,23 +149,27 @@ jobs:
       - name: Test
         if: matrix.suite != 'facade' && (matrix.os != 'macos-latest' || github.event_name != 'pull_request')
         run: |
-          trap 'df -h /' EXIT
+          set -euo pipefail
+          trap 'if [[ -f target/nextest/ci/junit.xml ]]; then mkdir -p target/ci-test-results; cp target/nextest/ci/junit.xml target/ci-test-results/rest.xml; fi; df -h /' EXIT
           # The facade's dev-dependencies enabled these features in the former
           # full-workspace command. The calibration-internal self dev-dependencies
           # are gone, so this shard passes the same feature set explicitly.
           cargo test --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES" --no-run --timings
-          cargo nextest run --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES"
+          rm -f target/nextest/ci/junit.xml
+          cargo nextest run -P ci --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES"
           cargo test --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES" --doc
 
       - name: Test facade
         if: matrix.suite == 'facade' && (matrix.os != 'macos-latest' || github.event_name != 'pull_request')
         run: |
-          trap 'df -h /' EXIT
+          set -euo pipefail
+          trap 'if [[ -f target/nextest/ci/junit.xml ]]; then mkdir -p target/ci-test-results; cp target/nextest/ci/junit.xml target/ci-test-results/facade.xml; fi; df -h /' EXIT
           # Python's default features activate ml-gbdt, ml-forest, ml-neural and
           # data/arrow in the former full-workspace command. calibration-internal
           # is not a default feature; the closed-estimator targets opt into it here.
           cargo test -p antecedent --features "$RUST_CI_FACADE_FEATURES,calibration-internal" --no-run --timings
-          cargo nextest run -p antecedent --features "$RUST_CI_FACADE_FEATURES,calibration-internal"
+          rm -f target/nextest/ci/junit.xml
+          cargo nextest run -P ci -p antecedent --features "$RUST_CI_FACADE_FEATURES,calibration-internal"
           cargo test -p antecedent --features "$RUST_CI_FACADE_FEATURES,calibration-internal" --doc
 
       - name: Upload Cargo timings
@@ -183,9 +187,21 @@ jobs:
       - name: Test optional learner and Gaussian-process features
         if: matrix.os == 'macos-latest' && matrix.suite == 'rest' && github.event_name != 'pull_request'
         run: |
-          cargo nextest run -p antecedent-learn --features ml-full,ml-neural
+          set -euo pipefail
+          mkdir -p target/ci-test-results
+          run_nextest() {
+            local report="$1" status=0
+            shift
+            rm -f target/nextest/ci/junit.xml
+            cargo nextest run -P ci "$@" || status=$?
+            if [[ -f target/nextest/ci/junit.xml ]]; then
+              cp target/nextest/ci/junit.xml "target/ci-test-results/$report.xml"
+            fi
+            return "$status"
+          }
+          run_nextest learner -p antecedent-learn --features ml-full,ml-neural
           cargo test -p antecedent-learn --features ml-full,ml-neural --doc
-          cargo nextest run -p antecedent-model --features gaussian-process
+          run_nextest gaussian-process -p antecedent-model --features gaussian-process
           cargo test -p antecedent-model --features gaussian-process --doc
 
       # The feature gates no longer re-run these suites; this lists the binaries
@@ -193,6 +209,14 @@ jobs:
       - name: Named tests still exist
         if: matrix.os == 'ubuntu-latest'
         run: bash scripts/gate_named_tests.sh --shard '${{ matrix.suite }}'
+
+      - name: Upload Rust test durations
+        if: always() && (matrix.os != 'macos-latest' || github.event_name != 'pull_request')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rust-test-results-${{ matrix.os }}-${{ matrix.suite }}
+          path: target/ci-test-results/*.xml
+          if-no-files-found: warn
 
   # `fuzz/` is its own package (empty `[workspace]`), so the Rust job never
   # builds it. This job only typechecks and links the libFuzzer binaries.
@@ -307,10 +331,29 @@ jobs:
       - name: Test optional learner and Gaussian-process features
         run: |
           set -euo pipefail
-          cargo nextest run -p antecedent-learn --features ml-full,ml-neural
+          mkdir -p target/ci-test-results
+          run_nextest() {
+            local report="$1" status=0
+            shift
+            rm -f target/nextest/ci/junit.xml
+            cargo nextest run -P ci "$@" || status=$?
+            if [[ -f target/nextest/ci/junit.xml ]]; then
+              cp target/nextest/ci/junit.xml "target/ci-test-results/$report.xml"
+            fi
+            return "$status"
+          }
+          run_nextest learner -p antecedent-learn --features ml-full,ml-neural
           cargo test -p antecedent-learn --features ml-full,ml-neural --doc
-          cargo nextest run -p antecedent-model --features gaussian-process
+          run_nextest gaussian-process -p antecedent-model --features gaussian-process
           cargo test -p antecedent-model --features gaussian-process --doc
+
+      - name: Upload optional-feature test durations
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rust-test-results-optional-features
+          path: target/ci-test-results/*.xml
+          if-no-files-found: warn
 
       - name: Compiler cache statistics
         if: always()
@@ -407,6 +450,65 @@ jobs:
             echo "No crate manifest changes; skipping publish dry-run"
           fi
 
+  # Linux source-tree Python checks all use one native extension from this run.
+  # Keep the full release wheel matrix independent: it checks packaged installs
+  # across every supported platform and interpreter.
+  python-native:
+    name: Python native extension
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Calibration attestation (coverage records match the code)
+        run: bash scripts/gate_calibration_attestation.sh
+
+      - name: Install Rust 1.85
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
+        with:
+          toolchain: "1.85"
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: Install uv and CPython 3.12
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Sync native build environment
+        working-directory: python
+        run: uv sync --locked --python 3.12 --group dev --no-install-project
+
+      - name: Build native extension once
+        working-directory: python
+        run: |
+          set -euo pipefail
+          uv run --no-sync maturin develop --locked --release --skip-install --timings
+          uv run --no-sync python ../scripts/ci_python_native.py stage ../target/ci-python-native "$GITHUB_SHA"
+
+      - name: Upload same-run native extension
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-python-native-linux-cp312
+          path: target/ci-python-native/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+      - name: Upload native build timings
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cargo-timings-python-native
+          path: target/cargo-timings/*.html
+          if-no-files-found: warn
+
   # Domain-correctness gates. `gate_release.sh` is the umbrella for the parity
   # schema check, the provenance schema check, and the feature gates
   # (estimate_ci, bayesian, gcm, pag, context, attribution, design_state,
@@ -418,19 +520,24 @@ jobs:
   # (scripts/measure_calibration.sh) and never runs here.
   gate-sections:
     name: Domain ${{ matrix.section }}
+    needs: python-native
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    env:
+    env: &domain_test_env
+      # Cited tests exercise the same numeric kernels as the Rust suites.
+      # Keep their test profile aligned and avoid large debug-info links.
+      CARGO_PROFILE_TEST_OPT_LEVEL: ${{ inputs.rust_test_opt_level || '2' }}
+      CARGO_PROFILE_TEST_DEBUG: "0"
       CARGO_INCREMENTAL: "0"
       SCCACHE_GHA_ENABLED: "true"
-      # Debug-profile libtest threads otherwise overflow on cited CPDAG pins.
+      # Libtest threads otherwise overflow on cited CPDAG pins.
       RUST_MIN_STACK: "67108864"
     strategy:
       fail-fast: false
       matrix:
-        section: [inventory, promotion-python, promotion-facade-0, promotion-facade-1, promotion-estimate, promotion-identify, promotion-other, graphless, matrix-0, matrix-1, matrix-2, matrix-3, matrix-4, matrix-5, matrix-6, matrix-7, transport-contracts, checked-0, checked-1, checked-2, checked-3, feature-core, feature-composition, feature-transport, feature-exits, benches]
-    steps:
+        section: [inventory, promotion-python, matrix-0, matrix-1, matrix-2, matrix-3, matrix-4, matrix-5, matrix-6, matrix-7, transport-contracts, feature-core, feature-composition, feature-transport, feature-exits]
+    steps: &domain_test_steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The calibration attestation diffs against each record's
@@ -466,21 +573,25 @@ jobs:
       - name: Install uv
         if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.12"
 
       - name: Sync Python dependencies
         if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         working-directory: python
-        run: uv sync --group dev --no-install-project
+        run: uv sync --locked --python 3.12 --group dev --no-install-project
 
-      - name: Build native extension
+      - name: Download same-run native extension
+        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ci-python-native-linux-cp312
+          path: target/ci-python-native
+
+      - name: Install and verify same-run native extension
         if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         working-directory: python
-        # A cold compiler-cache backend made this dev-profile build take 8-9m;
-        # use Cargo's incremental build here, then cache test compilations.
-        env:
-          RUSTC_WRAPPER: ""
-          CARGO_INCREMENTAL: "1"
-        run: uv run --no-sync maturin develop
+        run: uv run --no-sync python ../scripts/ci_python_native.py install ../target/ci-python-native "$GITHUB_SHA"
 
       - name: Release gate section
         env:
@@ -492,23 +603,42 @@ jobs:
         if: always()
         run: sccache --show-stats
 
+  # These sections need only Rust, so they can start while the shared Python
+  # extension builds. Reuse the setup/check steps to keep the gates identical.
+  gate-rust-sections:
+    name: Domain ${{ matrix.section }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env: *domain_test_env
+    strategy:
+      fail-fast: false
+      matrix:
+        section: [promotion-facade-0, promotion-facade-1, promotion-estimate, promotion-identify, promotion-other, graphless, checked-0, checked-1, checked-2, checked-3, benches]
+    steps: *domain_test_steps
+
   # Retain the required Domain gates check: every section must pass.
   gates:
     name: Domain gates
-    needs: gate-sections
+    needs: [gate-sections, gate-rust-sections]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Require every domain section
         env:
-          RESULT: ${{ needs.gate-sections.result }}
-        run: test "$RESULT" = success
+          PYTHON_RESULT: ${{ needs.gate-sections.result }}
+          RUST_RESULT: ${{ needs.gate-rust-sections.result }}
+        run: |
+          set -euo pipefail
+          test "$PYTHON_RESULT" = success
+          test "$RUST_RESULT" = success
 
   # Python lint / type check. `uv sync` creates python/.venv, which is what
   # scripts/gate_python_lint.sh requires, so CI runs the very script the release
   # candidate does and the two cannot drift.
   python-lint:
     name: Python lint and types
+    needs: python-native
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -534,17 +664,22 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.12"
 
       - name: Sync dev environment
         working-directory: python
-        run: uv sync --group dev --no-install-project
+        run: uv sync --locked --python 3.12 --group dev --no-install-project
 
-      - name: Build native extension
+      - name: Download same-run native extension
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ci-python-native-linux-cp312
+          path: target/ci-python-native
+
+      - name: Install and verify same-run native extension
         working-directory: python
-        env:
-          RUSTC_WRAPPER: ""
-          CARGO_INCREMENTAL: "1"
-        run: uv run --no-sync maturin develop
+        run: uv run --no-sync python ../scripts/ci_python_native.py install ../target/ci-python-native "$GITHUB_SHA"
 
       - name: ruff, ruff format, mypy
         env:
@@ -553,6 +688,7 @@ jobs:
 
       - name: script unit tests
         run: |
+          python3 scripts/test_ci_python_native.py
           python3 scripts/test_calibration_key_aliases.py
           python3 scripts/test_collect_coverage_records.py
           python3 scripts/test_promotion_refusal_helpers.py
@@ -563,7 +699,7 @@ jobs:
 
       - name: pytest with coverage floor
         working-directory: python
-        run: uv run --no-sync pytest -q --cov=antecedent --cov-report=term-missing --cov-fail-under=85
+        run: uv run --no-sync pytest -q --durations=30 --cov=antecedent --cov-report=term-missing --cov-fail-under=85
 
       - name: Compiler cache statistics
         if: always()
@@ -681,14 +817,14 @@ jobs:
           set -euo pipefail
           # Install from repo root, then import/test outside python/ so the
           # source tree does not shadow the wheel on sys.path.
-          pip install python/dist/*.whl numpy pandas pyarrow pytest
+          pip install python/dist/*.whl numpy pandas pyarrow pytest mypy
           cd "$(mktemp -d)"
           python -c "import antecedent; print(antecedent.__version__)"
           # Run the WHOLE suite against the installed wheel. Do not reintroduce a
           # hand-maintained file allowlist here: the previous 11-of-56 list silently
           # excluded every test added by the 0.4.0 refactor.
           ROOT="${{ github.workspace }}"
-          pytest -q "$ROOT/python/tests"
+          pytest -q --durations=30 "$ROOT/python/tests"
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

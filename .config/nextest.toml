@@ -8,3 +8,11 @@ test-threads = "num-cpus"
 [[profile.default.overrides]]
 filter = 'binary(transport_exact_scm) and test(/three_node_selection|every_treatment_position|four_node_branch/)'
 threads-required = "num-cpus"
+
+# Keep per-test durations and failures for local profiling and CI artifacts.
+# No retries or default filters: all ordinary tests still run once.
+[profile.ci]
+fail-fast = false
+
+[profile.ci.junit]
+path = "junit.xml"

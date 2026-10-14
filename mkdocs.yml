@@ -111,6 +111,7 @@ nav:
       - API naming: api_naming.md
   - Evidence and development:
       - Development: development.md
+      - Test performance: guides/test-performance.md
       - Refactor verification: refactor-verification.md
       - Conformance: conformance/README.md
       - Hot paths: hot_paths.md

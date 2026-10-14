@@ -59,3 +59,11 @@ In project docs, "port" means capability parity, not source translation.
 
 - Rust **1.85**, edition **2024** (see `rust-toolchain.toml`).
 - Format with `cargo fmt --all` from the repo root, or `cargo fmt -p <crate>` for one crate. Do not invoke `rustfmt` directly and do not pass `--edition`: `rustfmt.toml` sets edition 2024, and `--edition` overrides it and rewrites imports. Format only crates you changed. Lint with `cargo clippy -- -D warnings`.
+
+For focused Rust edits, use `bash scripts/test.sh dev -p <crate> --test <target>`
+or `--lib`. Python-only edits can use `bash scripts/test.sh python-test` against
+the current native extension. Run optimized numerical tests with
+`bash scripts/test.sh`; use
+`bash scripts/test.sh all` for Rust tests, doctests, optional feature tests and
+the Python suite. See [test performance](docs/guides/test-performance.md) for
+focused runs, build settings and timing reports.

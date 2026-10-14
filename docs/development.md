@@ -6,6 +6,9 @@ day-1 facade: `antecedent` (`cargo add antecedent`). Supporting crates are
 
 ## CI vs local gates
 
+For optimized local test commands, measured bottlenecks and the CI build
+strategy, see [test performance](guides/test-performance.md).
+
 GitHub Actions CI (`ci.yml`) runs the following checks on every PR:
 
 - **`rust`** — fmt, DCO, and the workspace Rust tests and doctests. The facade
