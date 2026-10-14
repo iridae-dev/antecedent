@@ -76,6 +76,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "antecedent-design"
+version = "2.4.0"
+dependencies = [
+ "antecedent-contract",
+ "antecedent-core",
+ "antecedent-graph",
+ "antecedent-identify",
+ "antecedent-io-core",
+ "antecedent-kernels",
+ "antecedent-prob",
+ "antecedent-stats",
+ "ciborium",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "antecedent-discovery"
 version = "2.4.0"
 dependencies = [
@@ -120,9 +138,11 @@ version = "0.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
+ "antecedent-design",
  "antecedent-expr",
  "antecedent-graph",
  "antecedent-io",
+ "antecedent-io-core",
  "antecedent-kernels",
  "arrow-array",
  "arrow-schema",
