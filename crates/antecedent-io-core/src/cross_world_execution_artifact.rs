@@ -408,7 +408,9 @@ fn quantity_of(q: &QuantityWire) -> Result<FiniteQuantity, CrossWorldExecutionAr
     }
 }
 
-fn request_wire(request: &FiniteExecutionRequest) -> CrossWorldRequestWire {
+/// The declarations of a request as their wire form.
+#[must_use]
+pub fn request_wire(request: &FiniteExecutionRequest) -> CrossWorldRequestWire {
     let mut units: Vec<&FactualUnit> = request.units.iter().collect();
     units.sort_by(|a, b| a.unit.cmp(&b.unit));
     CrossWorldRequestWire {
@@ -469,7 +471,11 @@ fn request_wire(request: &FiniteExecutionRequest) -> CrossWorldRequestWire {
     }
 }
 
-fn request_of(
+/// Rebuild a request from its wire form, refusing unknown names.
+///
+/// # Errors
+/// An unknown coupling, inference or reading name, a malformed quantity or a bound.
+pub fn request_of(
     wire: &CrossWorldRequestWire,
 ) -> Result<FiniteExecutionRequest, CrossWorldExecutionArtifactError> {
     if wire.units.len() > MAX_UNITS {
@@ -723,6 +729,12 @@ impl CrossWorldExecutionArtifact {
     #[must_use]
     pub fn request(&self) -> &FiniteExecutionRequest {
         &self.request
+    }
+
+    /// Take the executor holding the verified abductions.
+    #[must_use]
+    pub fn into_executor(self) -> FiniteScmExecutor {
+        self.executor
     }
 
     /// The executor holding the verified abductions: an action-only change

@@ -514,7 +514,7 @@ fn closed(id: &'static str) -> MatrixRefusal {
     let row = ROWS.iter().find(|r| r.id == id).unwrap_or(&ROWS[5]);
     MatrixRefusal {
         code: row.refusal_code.unwrap_or(antecedent_core::reason_code!("cell_not_licensed")),
-        detail: row.refusal_detail.unwrap_or("cross_world_execution.cell_closed"),
+        detail: row.refusal_detail.unwrap_or("cross_world_execution.cell_not_in_matrix"),
         subject: row.id,
         remedy: row.remedy,
         missing: Vec::new(),
