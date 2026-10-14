@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable, Sequence
+from decimal import Decimal
 from numbers import Complex, Real
 from typing import Any
 
@@ -22,7 +23,7 @@ from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 __all__ = ["choice", "count", "names", "non_finite_refusal", "real", "text"]
 
 _REAL_TYPES: tuple[type, ...] = (int, float, np.floating, np.integer)
-_INT_TYPES: tuple[type, ...] = (int, np.integer)
+_INT_TYPES: tuple[type, ...] = (int, float, np.integer, np.floating, Real, Decimal)
 
 
 def _message(template: str, what: str, value: object) -> str:
@@ -122,8 +123,14 @@ def count(
     ``maximum``; the default names whichever bounds are set.
     """
     if isinstance(value, bool | np.bool_) or not isinstance(value, types):
-        raise type_error(_message(type_message, what, value))
-    number = int(value)  # type: ignore[call-overload]
+        raise type_error(_message(type_message, what, value), reason_code=reason_code)
+    try:
+        number = int(value)  # type: ignore[call-overload]
+        integral = value == number
+    except (ValueError, TypeError, OverflowError):
+        integral = False
+    if not integral:
+        raise type_error(_message(type_message, what, value), reason_code=reason_code)
     if (minimum is not None and number < minimum) or (maximum is not None and number > maximum):
         if range_message is None:
             if maximum is None:

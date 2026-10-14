@@ -9,14 +9,19 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
-from typing import Any, Literal, get_args
+from typing import TYPE_CHECKING, Any, Literal, get_args
 
 import numpy as np
 from numpy.typing import NDArray
 
 from ._native import JointDistributionArtifact as _NativeJointDistributionArtifact
+from ._scientific import ScientificResult
+from ._validate import count as _count
+
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
 from .errors import CausalTypeError, CausalValueError
 from .extensibility import ProviderTrust
 
@@ -51,6 +56,37 @@ class ScientificQuantity:
     functional_id: str
     conditioning: tuple[QuantityCondition, ...] = ()
     transform_id: str = "identity"
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "horizon",
+            _count(
+                self.horizon,
+                "horizon",
+                minimum=0,
+                maximum=2**32 - 1,
+                type_error=CausalValueError,
+                reason_code="invalid_argument",
+            ),
+        )
+        object.__setattr__(self, "conditioning", tuple(self.conditioning))
+
+    @classmethod
+    def from_wire(cls, wire: Mapping[str, Any]) -> ScientificQuantity:
+        """Restore a quantity from its native descriptor without changing semantics."""
+        return cls(
+            wire["variable_id"],
+            wire["variable_name"],
+            wire["role"],
+            wire["units"],
+            wire["population_id"],
+            wire["regime_id"],
+            wire["horizon"],
+            wire["functional_id"],
+            tuple(QuantityCondition(**item) for item in wire.get("conditioning", ())),
+            wire.get("transform_id", "identity"),
+        )
 
     @classmethod
     def of(
@@ -95,8 +131,14 @@ class ScientificQuantity:
                 raise CausalValueError(f"{name}= must be a non-empty string")
         if variable_id is not None and (not isinstance(variable_id, str) or not variable_id):
             raise CausalValueError("variable_id= must be a non-empty string when given")
-        if isinstance(horizon, bool) or not isinstance(horizon, int) or horizon < 0:
-            raise CausalValueError("horizon= must be a non-negative integer")
+        horizon = _count(
+            horizon,
+            "horizon",
+            minimum=0,
+            maximum=2**32 - 1,
+            type_error=CausalValueError,
+            reason_code="invalid_argument",
+        )
         if isinstance(conditioning, (str, bytes)) or not isinstance(conditioning, Iterable):
             raise CausalTypeError("conditioning= must contain QuantityCondition values")
         conditions = tuple(conditioning)
@@ -327,7 +369,7 @@ class DistributionIdentity:
         )
 
 
-class JointDistributionArtifact:
+class JointDistributionArtifact(ScientificResult):
     """Finite draws with typed scientific coordinates and portable identity.
 
     ``claimed_trust`` is a caller label, not a grant. ``native_licensed`` and
@@ -465,6 +507,18 @@ class JointDistributionArtifact:
             raise CausalValueError("JointDistributionArtifact requires one bounded copy into NumPy")
         array = self._native.draws_copy()
         return np.asarray(array, dtype=dtype)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            **json.loads(self._native.metadata_json),
+            "shape": list(self.shape),
+            "n_draws": self.n_draws,
+        }
+
+    def artifact(self, artifact_id: str) -> ExportedArtifact[JointDistributionArtifact]:
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self, artifact_id)
 
     def export(self, artifact_id: str) -> bytes:
         return self._native.export(artifact_id)

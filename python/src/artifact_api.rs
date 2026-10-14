@@ -182,6 +182,106 @@ fn decode_external_frame(bytes: &[u8]) -> PyResult<Option<DecodedCausalArtifact>
     Ok(None)
 }
 
+/// Inspect and checksum a container without invoking any scientific consumer.
+#[pyfunction]
+fn inspect_artifact_container(bytes: &[u8]) -> PyResult<String> {
+    inspect_container_metadata(bytes, 0)
+}
+
+fn inspect_container_metadata(bytes: &[u8], depth: usize) -> PyResult<String> {
+    use antecedent_io::container::EncodedArtifact;
+    use antecedent_io::reader::ArtifactReader;
+    use std::io::Cursor;
+    if depth > 8 {
+        return Err(serialization_error("artifact framing exceeds the inspection depth limit"));
+    }
+    if bytes.starts_with(b"ANTECEDENT-") {
+        let delimiter = bytes
+            .iter()
+            .position(|byte| *byte == 1)
+            .ok_or_else(|| serialization_error("artifact frame has no version delimiter"))?;
+        let marker = std::str::from_utf8(&bytes[..delimiter]).map_err(serialization_error)?;
+        if !marker.bytes().all(|byte| byte.is_ascii_uppercase() || byte == b'-') {
+            return Err(serialization_error("invalid artifact frame marker"));
+        }
+        let payload = &bytes[delimiter + 1..];
+        // Temporal extension frames contain their container directly. Other
+        // released frames carry the schema names and an inner container as CBOR.
+        if marker == "ANTECEDENT-TRANSPORT-VIEW" {
+            let metadata: serde_json::Value =
+                serde_json::from_slice(payload).map_err(serialization_error)?;
+            if !metadata.is_object() {
+                return Err(serialization_error("transported view artifact is not a JSON object"));
+            }
+            return json(&serde_json::json!({
+                "manifest": {"artifact_kind": {"other": marker}, "frame_version": 1},
+                "metadata": {"envelope": metadata},
+            }));
+        }
+        let (names, inner) =
+            if marker.starts_with("ANTECEDENT-TEMPORAL-") || marker == "ANTECEDENT-LEARNED-TRIAL" {
+                (Vec::<String>::new(), payload.to_vec())
+            } else {
+                antecedent_io::convert::from_cbor::<(Vec<String>, Vec<u8>)>(payload)
+                    .map_err(serialization_error)?
+            };
+        let inspected: serde_json::Value =
+            serde_json::from_str(&inspect_container_metadata(&inner, depth + 1)?)
+                .map_err(serialization_error)?;
+        return json(&serde_json::json!({
+            "manifest": {"artifact_kind": {"other": marker}, "frame_version": 1},
+            "metadata": {"variable_names": names, "inner": inspected},
+        }));
+    }
+    if !bytes.starts_with(antecedent_io::container::MAGIC) {
+        let metadata: serde_json::Value =
+            antecedent_io::convert::from_cbor(bytes).map_err(serialization_error)?;
+        let kind = metadata
+            .get("required_features")
+            .and_then(|v| v.as_array())
+            .and_then(|features| features.first())
+            .and_then(|v| v.as_str())
+            .or_else(|| metadata.get("format").and_then(serde_json::Value::as_str))
+            .or_else(|| {
+                metadata
+                    .get("version")
+                    .filter(|version| version.is_number())
+                    .map(|_| "unregistered_cbor")
+            })
+            .ok_or_else(|| {
+                serialization_error("CBOR artifact has no format or required feature discriminator")
+            })?;
+        return json(&serde_json::json!({
+            "manifest": {"artifact_kind": {"other": kind}, "format_version": metadata.get("version")},
+            "metadata": {"body": metadata},
+        }));
+    }
+    let reader = ArtifactReader::open_seek(Cursor::new(bytes)).map_err(serialization_error)?;
+    let wanted = reader
+        .manifest()
+        .sections
+        .iter()
+        .filter(|section| section.id.contains("meta") || section.id.contains("header"))
+        .map(|section| section.id.as_str())
+        .collect::<std::collections::HashSet<_>>();
+    let mut cursor = Cursor::new(bytes);
+    let artifact =
+        EncodedArtifact::read_selective(&mut cursor, &wanted).map_err(serialization_error)?;
+    if cursor.position() != bytes.len() as u64 {
+        return Err(serialization_error("trailing bytes after artifact container"));
+    }
+    let metadata = artifact
+        .sections
+        .iter()
+        .filter_map(|section| {
+            antecedent_io::convert::from_cbor::<serde_json::Value>(&section.data)
+                .ok()
+                .map(|value| (section.id.clone(), value))
+        })
+        .collect::<serde_json::Map<_, _>>();
+    json(&serde_json::json!({"manifest": artifact.manifest, "metadata": metadata}))
+}
+
 #[pyfunction]
 fn decode_causal_artifact(bytes: &[u8]) -> PyResult<DecodedCausalArtifact> {
     if let Some(external) = decode_external_frame(bytes)? {
@@ -410,6 +510,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<FittedEffectModel>()?;
     m.add_function(wrap_pyfunction!(encode_causal_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(decode_causal_artifact, m)?)?;
+    m.add_function(wrap_pyfunction!(inspect_artifact_container, m)?)?;
     m.add_function(wrap_pyfunction!(accept_analysis_result_contract, m)?)?;
     m.add_function(wrap_pyfunction!(encode_external_estimate_claim_py, m)?)?;
     Ok(())
