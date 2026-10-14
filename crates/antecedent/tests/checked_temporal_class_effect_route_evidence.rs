@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 use antecedent::{AcceptedGraph, InferenceMode, RefuteSuite, Study};

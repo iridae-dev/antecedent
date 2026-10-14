@@ -13,6 +13,7 @@ use antecedent_contract::{SlotAvailability, TransformIntent};
 use antecedent_core::{ExecutionContext, IdentificationStatus};
 use antecedent_graph::{Admg, DenseNodeId};
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 use common::fixtures::confounded_scm;

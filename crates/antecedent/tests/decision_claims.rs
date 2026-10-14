@@ -46,6 +46,7 @@ use antecedent_identify::{
     },
 };
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 use antecedent_test_support::near_lt_1e9 as near;

@@ -27,6 +27,7 @@ use antecedent_data::{
 use antecedent_graph::{Admg, Dag, DenseNodeId, Pag, TemporalDag, ensure_lagged};
 use antecedent_io::{causal_query_to_wire, consume_analysis_result, executed_functional_labels};
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 // The confounded static ATE study five suites run, in one owner.

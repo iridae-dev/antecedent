@@ -13,6 +13,7 @@ use antecedent_core::ExecutionContext;
 use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy};
 use antecedent_validate::{PlaceboTreatment, RefutationProblem};
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 // The confounded static ATE study five suites run, in one owner.

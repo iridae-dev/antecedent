@@ -13,6 +13,7 @@ use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_io::consume_analysis_result;
 use antecedent_prob::BayesLikelihood;
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 use common::fixtures::confounded_scm;

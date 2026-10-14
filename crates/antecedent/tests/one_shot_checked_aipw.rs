@@ -4,6 +4,7 @@
 use antecedent::{EstimatorId, EstimatorSpec, RefuteSuite, Study};
 use antecedent_core::ExecutionContext;
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 use common::fixtures::confounded_scm;

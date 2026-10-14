@@ -12,6 +12,7 @@ use std::sync::{Arc, Mutex};
 use antecedent::{LatencyMode, RefuteSuite, StageEvent, StageResultSink, Study};
 use antecedent_core::{ExecutionContext, ProgressSink, VariableId};
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 // The confounded static ATE study five suites run, in one owner.

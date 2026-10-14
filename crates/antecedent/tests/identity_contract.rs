@@ -60,6 +60,7 @@ use antecedent_io::{
 };
 use antecedent_prob::InferenceDiagnostics;
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 // The confounded static ATE study five suites run, in one owner.

@@ -4,6 +4,7 @@
 
 #![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};

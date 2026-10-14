@@ -11,6 +11,7 @@ use antecedent_core::{ExecutionContext, OutcomeFunctional};
 use antecedent_data::TabularData;
 use antecedent_estimate::{AipwAte, CrossfitCacheStats, CrossfitNuisanceCache};
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 use common::fixtures::confounded_scm;
 

@@ -8,6 +8,7 @@ use antecedent_core::ExecutionContext;
 use antecedent_data::TableView;
 use antecedent_io::consume_analysis_result;
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 use common::fixtures::confounded_scm;

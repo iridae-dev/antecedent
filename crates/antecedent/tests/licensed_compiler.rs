@@ -40,6 +40,7 @@ use antecedent_graph::{
 use antecedent_io::consume_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 // The pinned temporal-PAG law and structure, in one owner.

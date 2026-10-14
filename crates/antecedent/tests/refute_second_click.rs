@@ -8,6 +8,7 @@ use antecedent_core::{
     VariableId,
 };
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 // The confounded static ATE study five suites run, in one owner.

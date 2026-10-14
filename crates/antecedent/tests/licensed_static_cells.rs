@@ -29,6 +29,7 @@ use antecedent_core::{
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 // The three-atom static graph posterior, in one owner.
