@@ -390,6 +390,10 @@ fn invalid(offending: impl Into<String>, remedy: &'static str) -> ExternalRefusa
     )
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn validate(request: &PropagationRequest) -> Result<(), ExternalRefusal> {
     let needed = request.operation.min_inputs();
     if request.inputs.len() < needed {
@@ -441,6 +445,10 @@ fn shared_evidence(inputs: &[PropagationInput]) -> Vec<String> {
 
 /// The alignment identity every input shares, or the refusal that says why
 /// the rows may not be paired.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn common_alignment(inputs: &[PropagationInput]) -> Result<String, ExternalRefusal> {
     let joint = antecedent_core::reason_code!("joint_law_required");
     let mut identity: Option<&str> = None;
@@ -520,6 +528,10 @@ fn dependence_unknown(operation: PropagationOperation) -> ExternalRefusal {
     )
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn check_transported(
     request: &PropagationRequest,
     shared: Vec<String>,
@@ -547,6 +559,10 @@ fn check_transported(
     }
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn check_envelope(
     request: &PropagationRequest,
     shared: Vec<String>,
@@ -642,6 +658,10 @@ pub fn check_propagation(request: &PropagationRequest) -> Result<PropagationPlan
     }
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn check_linear(
     request: &PropagationRequest,
     shared: Vec<String>,
@@ -675,6 +695,10 @@ fn check_linear(
     }
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 fn check_nonlinear(
     request: &PropagationRequest,
     shared: Vec<String>,

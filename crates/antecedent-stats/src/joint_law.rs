@@ -445,18 +445,24 @@ impl Marginal {
         if masses.iter().any(|&m| m < 0.0) {
             return Err(JointLawError::InvalidWeights("masses must be non-negative"));
         }
-        let total: f64 = masses.iter().sum();
-        if (total - 1.0).abs() > MASS_TOLERANCE {
-            return Err(JointLawError::InvalidWeights("masses must sum to one"));
-        }
+        // Canonical order (value, then mass) before any summation, so the
+        // atoms, their masses and every bound derived from them are the same
+        // bits for any listing order of the input.
         let mut pairs: Vec<(f64, f64)> = values
             .iter()
             .zip(masses)
             .filter(|(_, m)| **m > 0.0)
             // `+ 0.0` turns negative zero into positive zero.
-            .map(|(v, m)| (v + 0.0, m / total))
+            .map(|(v, m)| (v + 0.0, *m))
             .collect();
-        pairs.sort_by(|a, b| a.0.total_cmp(&b.0));
+        pairs.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)));
+        let total: f64 = pairs.iter().map(|(_, m)| m).sum();
+        if (total - 1.0).abs() > MASS_TOLERANCE {
+            return Err(JointLawError::InvalidWeights("masses must sum to one"));
+        }
+        for pair in &mut pairs {
+            pair.1 /= total;
+        }
         let mut atoms: Vec<(f64, f64)> = Vec::with_capacity(pairs.len());
         for (value, mass) in pairs {
             match atoms.last_mut() {
@@ -533,7 +539,7 @@ fn coupled_expectation(
 ) -> Result<f64, JointLawError> {
     let (mut i, mut j) = (0_usize, 0_usize);
     let (mut rx, mut ry) = (x[0].1, y[0].1);
-    let mut total = 0.0;
+    let mut terms: Vec<f64> = Vec::new();
     let mut steps = 0_usize;
     loop {
         steps += 1;
@@ -545,7 +551,7 @@ fn coupled_expectation(
         if !v.is_finite() {
             return Err(JointLawError::NonFiniteValue);
         }
-        total += m * v;
+        terms.push(m * v);
         rx -= m;
         ry -= m;
         if rx <= MERGE_EPSILON {
@@ -563,7 +569,10 @@ fn coupled_expectation(
             ry = y[j].1;
         }
     }
-    Ok(total)
+    // Sum the cell contributions in a total order so the value does not depend
+    // on the direction the coupling was walked.
+    terms.sort_by(f64::total_cmp);
+    Ok(terms.iter().sum())
 }
 
 /// `E[g(X, Y)]` under the comonotone and countermonotone couplings.
@@ -574,8 +583,24 @@ fn monotone_couplings(
     cancel: &CancellationToken,
 ) -> Result<(f64, f64), JointLawError> {
     let comonotone = coupled_expectation(&x.atoms, &y.atoms, value, cancel)?;
-    let reversed: Vec<(f64, f64)> = y.atoms.iter().rev().copied().collect();
-    let countermonotone = coupled_expectation(&x.atoms, &reversed, value, cancel)?;
+    // The countermonotone coupling is one coupling however it is walked; walk it
+    // from the canonically smaller marginal so that swapping the two arguments
+    // visits the same cells in the same order with the same masses.
+    let swap = x
+        .atoms
+        .iter()
+        .zip(&y.atoms)
+        .map(|(a, b)| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)))
+        .find(|o| o.is_ne())
+        .unwrap_or_else(|| x.atoms.len().cmp(&y.atoms.len()))
+        == std::cmp::Ordering::Greater;
+    let countermonotone = if swap {
+        let reversed: Vec<(f64, f64)> = x.atoms.iter().rev().copied().collect();
+        coupled_expectation(&y.atoms, &reversed, &|a, b| value(b, a), cancel)?
+    } else {
+        let reversed: Vec<(f64, f64)> = y.atoms.iter().rev().copied().collect();
+        coupled_expectation(&x.atoms, &reversed, value, cancel)?
+    };
     Ok((comonotone, countermonotone))
 }
 
