@@ -438,7 +438,7 @@ class CausalResponseView(ResultModel, ResultAPI):
     allowlist_reason: str | None = None
     allowlist_parent: str | None = None
     diagnostics: Sequence[str] = ()
-    certificate: dict[str, Any] | None = None
+    certificate: Mapping[str, Any] | None = None
     reasoning: ReasoningSlots | None = None
     #: Compiled program identity. Distinct from ``claim_id``.
     program_id: str | None = None

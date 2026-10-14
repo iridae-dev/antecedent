@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 
 import antecedent as ant
 import numpy as np
@@ -54,7 +55,7 @@ HEX64 = re.compile(r"[0-9a-f]{64}")
 def _contract_value(section: dict, key_path: str):
     cur = section
     for key in key_path.split("."):
-        assert isinstance(cur, dict) and key in cur, f"{key_path} missing from the contract"
+        assert isinstance(cur, Mapping) and key in cur, f"{key_path} missing from the contract"
         cur = cur[key]
     return cur
 

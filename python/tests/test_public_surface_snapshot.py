@@ -425,6 +425,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "vector_treatment",
     },
     "AnalysisResult": {
+        "artifact",
         "fitted_model",
         # The five-line API (`ResultAPI`)
         "answer",
@@ -501,6 +502,10 @@ SNAPSHOT: dict[str, set[str]] = {
         "change_attribution",
     },
     "PreparedAnalysis": {
+        "identification",
+        "inspect_plan",
+        "last_result",
+        "reprepare",
         "replace_snapshot",
         # One-factor mechanism sensitivity on the retained fixed-graph plan
         "mechanism_sensitivity",
@@ -541,6 +546,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "checked_temporal_response_info",
     },
     "LoadedResult": {
+        "decoded_artifact",
         "fitted_model",
         "acceptance",
         "answer",

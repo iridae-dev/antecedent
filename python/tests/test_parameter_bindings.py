@@ -59,7 +59,7 @@ def _analyze(**kwargs: Any):
 def _contract(result: Any) -> dict[str, Any]:
     loaded = ant.load(result.export())
     assert_answer_kept(loaded)
-    return loaded.artifact.contract
+    return loaded.decoded_artifact.to_dict()["contract"]
 
 
 def _resolve(contract: dict[str, Any], key: str) -> Any:

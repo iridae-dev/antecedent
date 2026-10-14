@@ -199,4 +199,6 @@ def test_prepared_multi_horizon_mediation_retains_every_slice_and_artifact_axis(
 
     artifact = antecedent.artifacts.loads(prepared.export_artifact())
     assert artifact.payload_kind == "analysis_result"
-    assert [slice_["horizon"] for slice_ in artifact.payload["mediation_grid"]["slices"]] == [1, 2]
+    assert [
+        slice_["horizon"] for slice_ in artifact.to_dict()["payload"]["mediation_grid"]["slices"]
+    ] == [1, 2]

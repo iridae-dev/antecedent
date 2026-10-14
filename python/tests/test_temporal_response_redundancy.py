@@ -126,7 +126,7 @@ def test_confounded_multi_horizon_keeps_z_at_short_horizon():
     )
     mean = _means(result)
     expected = spec["surface"]["mean"]
-    assert result.identification.adjustment_set == ["z"]
+    assert result.identification.adjustment_set == tuple(["z"])
     assert result.identification.horizon_adjustment_sets == (("z@-1",), ())
     np.testing.assert_allclose(mean[0], expected[0], atol=atol)
     np.testing.assert_allclose(mean[2], expected[2], atol=atol)

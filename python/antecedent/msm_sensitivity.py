@@ -656,7 +656,7 @@ def from_analysis(
         or query.outcome != basis["outcome"]
         or query.control_level != basis["control"]
         or query.active_level != basis["active"]
-        or result.identification.adjustment_set != basis["adjustment"]
+        or tuple(result.identification.adjustment_set) != tuple(basis["adjustment"])
     ):
         raise CausalValueError("MSM query and adjustment must retain the original native source")
     names, columns = as_columns(data)

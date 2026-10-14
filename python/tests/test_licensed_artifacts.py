@@ -376,11 +376,11 @@ def test_licensed_query_artifact_round_trips(query: str) -> None:
     payload, names = _QUERY_PAYLOADS[query]
     encoded = artifacts.dumps("query", payload, variable_names=names, artifact_id=query)
     decoded = artifacts.loads(encoded)
-    assert decoded.payload == payload
+    assert decoded.to_dict()["payload"] == payload
     again = artifacts.loads(
         artifacts.dumps(
             decoded.payload_kind,
-            decoded.payload,
+            decoded.to_dict()["payload"],
             variable_names=decoded.variable_names,
             artifact_id=decoded.artifact_id,
         )
@@ -396,9 +396,9 @@ def test_temporal_response_attachment_round_trips(query: str) -> None:
         "query", payload, variable_names=["t", "y"], artifact_id=f"{query}_temporal"
     )
     decoded = artifacts.loads(encoded)
-    assert decoded.payload == payload
-    assert decoded.payload["response"]["temporal"]["horizons"] == [1, 2]
-    assert decoded.payload["response"]["temporal"]["policy"] == {"pulse": {"at": 0}}
+    assert decoded.to_dict()["payload"] == payload
+    assert decoded.to_dict()["payload"]["response"]["temporal"]["horizons"] == [1, 2]
+    assert decoded.to_dict()["payload"]["response"]["temporal"]["policy"] == {"pulse": {"at": 0}}
 
 
 def test_response_without_temporal_field_decodes_as_static() -> None:
@@ -407,5 +407,5 @@ def test_response_without_temporal_field_decodes_as_static() -> None:
     decoded = artifacts.loads(
         artifacts.dumps("query", static_payload, variable_names=names, artifact_id="static")
     )
-    assert "temporal" not in decoded.payload["response"]
-    assert decoded.payload == static_payload
+    assert "temporal" not in decoded.to_dict()["payload"]["response"]
+    assert decoded.to_dict()["payload"] == static_payload

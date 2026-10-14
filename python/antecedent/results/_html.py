@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import html
 import logging
+from collections.abc import Sequence
 from functools import wraps
 from typing import TYPE_CHECKING, Any
 
@@ -151,7 +152,7 @@ def _refutation_table_html(validation: ValidationView) -> str:
     )
 
 
-def _adjustment_chips_html(adjustment_set: list[str]) -> str:
+def _adjustment_chips_html(adjustment_set: Sequence[str]) -> str:
     if not adjustment_set:
         return '<span class="antecedent-ar-muted">(none)</span>'
     chips = "".join(f'<span class="antecedent-ar-chip">{_esc(v)}</span>' for v in adjustment_set)

@@ -457,6 +457,43 @@ impl PyPreparedAnalysis {
         Ok(pyo3::types::PyBytes::new(py, &bytes))
     }
 
+    /// Refute against the retained immutable execution and table.
+    #[pyo3(signature = (suite, *, seed=1, threads=None, cancel=None))]
+    fn refute_bound(
+        &mut self,
+        py: Python<'_>,
+        suite: Bound<'_, PyAny>,
+        seed: u64,
+        threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<AteAnalysisResult> {
+        let prior = self
+            .last
+            .clone()
+            .ok_or_else(|| crate::value_err("call estimate/refresh before refute"))?;
+        let refute_suite = crate::suite_from_refute(Some(&suite))?;
+        let bound = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));
+        let inner = Arc::clone(&bound);
+        let names = self.names.clone();
+        let (mapped, result) = crate::detach_catch(py, move || {
+            let ctx = crate::py_execution_context_ext(
+                seed,
+                crate::resolve_user_threads(threads),
+                cancel.map(|c| c.inner),
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let result = inner.refute_bound(&prior, refute_suite, &ctx).map_err(crate::py_err)?;
+            let mapped = crate::ate_result_from_analysis(&names, result.clone(), false)?;
+            Ok((mapped, result))
+        })?;
+        self.last_study = Some(bound);
+        self.last = Some(Arc::new(result));
+        self.last_seed = seed;
+        self.last_threads = crate::resolve_user_threads(threads);
+        Ok(mapped)
+    }
+
     /// Second-click refute against the last estimate (same schema data).
     #[pyo3(signature = (names, columns, suite, *, seed=1, threads=None, cancel=None))]
     fn refute(

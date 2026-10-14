@@ -194,7 +194,7 @@ def test_partial_id_refuses() -> None:
         seed=1,
     )
     assert result.plan.structure_source == "explicit"
-    assert result.identification.adjustment_set == []
+    assert result.identification.adjustment_set == tuple([])
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="point identification"):
         antecedent.handoff.econml(result, treatment="t", outcome="y")
     spec = antecedent.handoff.EconMLSpec(
@@ -238,7 +238,7 @@ def test_frequentist_graph_posterior_refuses() -> None:
     )
     assert result.plan.structure_source == "graph_posterior"
     assert result.identification.status == "GraphDependent"
-    assert result.identification.adjustment_set == []
+    assert result.identification.adjustment_set == tuple([])
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="graph-posterior"):
         antecedent.handoff.econml(result, treatment="t", outcome="y")
     spec = antecedent.handoff.EconMLSpec(
@@ -382,22 +382,22 @@ def test_attach_export_load_keeps_attested_external_estimate() -> None:
     )
     loaded = antecedent.load(attached.export())
     forwarded = antecedent.load(loaded.export())
-    attested = loaded.artifact.contract["claim"]["attested"]
+    attested = loaded.decoded_artifact.contract["claim"]["attested"]
     assert attested
     assert attested[0]["kind"] == "external_estimate"
     assert attested[0]["reverifiable"] is False
     assert attested[0]["name"] == "econml.dml.CausalForestDML"
     assert attested[0]["payload_digest"]
     assert attested[0]["name"] == "econml.dml.CausalForestDML"
-    identities = loaded.artifact.contract["identities"]
+    identities = loaded.decoded_artifact.contract["identities"]
     assert identities["identification"]
     assert identities["data_snapshot"]
-    assert forwarded.artifact.contract["identities"] == identities
+    assert forwarded.decoded_artifact.contract["identities"] == identities
     assert (
-        forwarded.artifact.contract["claim"]["claim_id"]
-        == loaded.artifact.contract["claim"]["claim_id"]
+        forwarded.decoded_artifact.contract["claim"]["claim_id"]
+        == loaded.decoded_artifact.contract["claim"]["claim_id"]
     )
-    assert forwarded.artifact.contract["claim"]["attested"] == attested
+    assert forwarded.decoded_artifact.contract["claim"]["attested"] == attested
     assert loaded.calibration.status == "unavailable"
     assert loaded.calibration.reason == "attested_not_reverifiable"
     inspect = loaded.inspect()
@@ -418,7 +418,7 @@ def test_attach_export_load_keeps_attested_external_estimate() -> None:
         data=data,
     )
     assert again.claim_id == attached.claim_id
-    contract = loaded.artifact.contract
+    contract = loaded.decoded_artifact.contract
     assert contract.get("estimator") not in {"econml", "econml.dml.CausalForestDML"}
     assert contract.get("score_reuse") in (None, {})
 
@@ -441,7 +441,7 @@ def test_attach_from_analyzed_parent_does_not_claim_native_calibration() -> None
     loaded = antecedent.load(attached.export())
     assert loaded.calibration.status == "unavailable"
     assert loaded.calibration.reason == "attested_not_reverifiable"
-    claim = loaded.artifact.contract["claim"]
+    claim = loaded.decoded_artifact.contract["claim"]
     assert claim["kind"] == "point"
     assert claim["attested"][0]["kind"] == "external_estimate"
 

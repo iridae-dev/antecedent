@@ -69,7 +69,7 @@ def test_validation_view_getitem_missing_key_raises_keyerror():
 
 def test_validation_view_getitem_out_of_range_raises_indexerror():
     view = ValidationView(passed=True, ran=True, count=1, reports=[_refutation("placebo", True)])
-    with pytest.raises(IndexError, match="list index out of range"):
+    with pytest.raises(IndexError, match="tuple index out of range"):
         view[5]
 
 

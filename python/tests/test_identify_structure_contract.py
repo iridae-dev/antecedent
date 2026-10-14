@@ -15,7 +15,7 @@ def test_sustained_identification_preserves_explicit_window() -> None:
     sustained = antecedent.identify(
         graph=graph, query=antecedent.SustainedEffect("t", "y", window=(-2, -2))
     )
-    assert sustained.adjustment_set == pulse.adjustment_set == ["z"]
+    assert sustained.adjustment_set == pulse.adjustment_set == tuple(["z"])
     assert sustained.status == pulse.status
 
 
@@ -49,7 +49,7 @@ def test_native_certificate_keeps_temporal_coordinates_and_derivation():
     identified = antecedent.identify(
         graph=graph, query=antecedent.PulseEffect("t", "y", treatment_lag=1)
     )
-    certificate = identified.certificate
+    certificate = identified.to_dict()["certificate"]
     assert certificate["treatments"] == [{"name": "t", "variable": 0, "offset": -1}]
     assert certificate["outcome"] == {"name": "y", "variable": 1, "offset": 0}
     case = certificate["cases"][0]

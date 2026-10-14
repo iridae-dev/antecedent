@@ -954,3 +954,6 @@ suite.decision_reliability_facade_oracle crates/antecedent/tests/decision_reliab
 suite.predictive_assessment_oracle crates/antecedent-validate/tests/predictive_assessment.rs
 suite.predictive_assessment_artifact_oracle crates/antecedent-io/tests/predictive_assessment_artifact.rs
 suite.predictive_assessment_facade_oracle crates/antecedent/tests/predictive_assessment_facade.rs
+
+# Read-only cached certificate encoding; this inspection path never fits or changes a measured value.
+allow design crates/antecedent/src/analysis/prepared/info.rs antecedent_io

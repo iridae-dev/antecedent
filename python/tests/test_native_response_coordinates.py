@@ -210,7 +210,7 @@ def test_declared_response_coordinates_survive_a_fresh_checked_artifact_consumer
     )
     encoded = result.export()
     decoded = artifacts.loads(encoded)
-    assert decoded.payload["response"]["coordinates"] == json.loads(
+    assert decoded.to_dict()["payload"]["response"]["coordinates"] == json.loads(
         json.dumps([quantity._wire() for quantity in result.quantities])
     )
     acceptance = artifacts.accept(encoded)
@@ -227,7 +227,7 @@ import json, sys
 from antecedent import artifacts
 payload = open(sys.argv[1], 'rb').read()
 print(json.dumps({'acceptance': artifacts.accept(payload),
-                  'coordinates': artifacts.loads(payload).payload['response']['coordinates']}))
+                  'coordinates': artifacts.loads(payload).to_dict()['payload']['response']['coordinates']}))
 """,
             str(artifact_path),
         ],
@@ -237,14 +237,14 @@ print(json.dumps({'acceptance': artifacts.accept(payload),
     )
     fresh = json.loads(consumer.stdout)
     assert fresh["acceptance"] == acceptance
-    assert fresh["coordinates"] == decoded.payload["response"]["coordinates"]
+    assert fresh["coordinates"] == decoded.to_dict()["payload"]["response"]["coordinates"]
     import copy
 
-    changed_payload = copy.deepcopy(decoded.payload)
+    changed_payload = copy.deepcopy(decoded.to_dict()["payload"])
     changed_payload["response"]["coordinates"][0]["units"] = "kg"
     repacked = artifacts.dumps(
         decoded.payload_kind,
-        decoded.payload,
+        decoded.to_dict()["payload"],
         variable_names=decoded.variable_names,
         artifact_id=decoded.artifact_id,
         contract=decoded.contract,
@@ -263,12 +263,15 @@ print(json.dumps({'acceptance': artifacts.accept(payload),
     response = artifacts.loads(
         artifacts.dumps(
             "response_result",
-            decoded.payload["response"],
+            decoded.to_dict()["payload"]["response"],
             variable_names=decoded.variable_names,
             artifact_id="coordinate-response",
         )
     )
-    assert response.payload["coordinates"] == decoded.payload["response"]["coordinates"]
+    assert (
+        response.to_dict()["payload"]["coordinates"]
+        == decoded.to_dict()["payload"]["response"]["coordinates"]
+    )
 
 
 def test_response_export_refuses_semantic_relabeling_of_the_executed_response():

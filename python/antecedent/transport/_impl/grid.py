@@ -38,6 +38,8 @@ class TransportResponseGridQuery:
 class TransportResponseGrid:
     """Native-authorized response family with explicit point-local failures."""
 
+    acceptance: Any = field(default=None, init=False, repr=False, compare=False)
+
     points: tuple[TransportGridPoint, ...]
     execution_id: str
     _execution: Any = field(repr=False, compare=False)

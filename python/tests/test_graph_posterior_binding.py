@@ -163,7 +163,7 @@ def test_supplied_posterior_attests_custom_validators():
         refute=False,
         validators={"posterior.finite": records},
     )
-    attested = antecedent.load(result.export()).artifact.contract["claim"]["attested"]
+    attested = antecedent.load(result.export()).decoded_artifact.contract["claim"]["attested"]
     assert {item["name"] for item in attested} == {"posterior.finite"}
     assert attested
     assert calls

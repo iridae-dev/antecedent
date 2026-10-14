@@ -66,6 +66,8 @@ class ExactTransportData:
 class ExactTransportDistribution:
     """Complete target distribution with no sampling uncertainty claim."""
 
+    acceptance: Any = field(default=None, init=False, repr=False, compare=False)
+
     outcomes: tuple[str, ...]
     atoms: tuple[tuple[float, ...], ...]
     probabilities: tuple[float, ...]
@@ -128,6 +130,8 @@ class ClassicalTransportIdentification:
     Display fields cannot authorize execution. The retained native derivation
     remains authoritative; catalog binding is a separate, incomplete search.
     """
+
+    acceptance: Any = field(default=None, init=False, repr=False, compare=False)
 
     outcome: str
     formula: str | None
@@ -388,10 +392,12 @@ def inspect_catalog(
     """
     import json
 
+    from ..._study_lifecycle import replay_declaration
+
     return dict(
         json.loads(
             identification._native.catalog_search(
-                catalog,
+                replay_declaration(catalog),
                 max_steps=max_steps,
                 max_depth=max_depth,
                 memory_bytes=memory_bytes,

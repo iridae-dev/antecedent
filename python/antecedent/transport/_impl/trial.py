@@ -116,6 +116,8 @@ class TrialNuisanceDiagnostics:
 
 @dataclass(frozen=True, slots=True)
 class LearnedTrialEstimate:
+    acceptance: Any = field(default=None, init=False, repr=False, compare=False)
+
     estimate: float
     interval: tuple[float, float] | None
     uncertainty_reason: str | None

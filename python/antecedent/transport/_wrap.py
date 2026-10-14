@@ -301,7 +301,9 @@ def _identification_snapshot(stage: Mapping[str, Any]) -> bytes | None:
         or catalog is None
     ):
         return None
-    return bytes(identified.stage.failure_snapshot(catalog))
+    from .._study_lifecycle import replay_declaration
+
+    return bytes(identified.stage.failure_snapshot(replay_declaration(catalog)))
 
 
 def _specialist_artifacts(distribution: Any) -> list[bytes]:

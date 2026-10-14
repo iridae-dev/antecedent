@@ -385,7 +385,7 @@ def test_path_functional_and_query_artifact(accepted, suite):
         artifacts.loads(
             artifacts.dumps(
                 "query",
-                artifact.payload,
+                artifact.to_dict()["payload"],
                 variable_names=artifact.variable_names,
                 artifact_id=artifact.artifact_id,
             )
@@ -553,7 +553,7 @@ def test_query_export_preserves_outer_kind_and_original_variable_ids(accepted, f
     prepared = prepare(data, graph, query, accepted=accepted)
     prepared.estimate(data)
     artifact = artifacts.loads(prepared.export_artifact(payload="query"))
-    payload = artifact.payload
+    payload = artifact.to_dict()["payload"]
     if family == "conditional":
         assert set(payload) == {"conditional_effect"}
         q = payload["conditional_effect"]["inner"]["average_effect"]

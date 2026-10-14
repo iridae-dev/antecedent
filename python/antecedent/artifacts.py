@@ -12,6 +12,17 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
+from ._artifact_protocol import (
+    ArtifactAcceptance,
+    ArtifactExpectation,
+    ArtifactInspection,
+    ExportedArtifact,
+    LoadContext,
+)
+from ._artifact_protocol import (
+    inspect_artifact as inspect,
+)
+from ._freeze import freeze, thaw
 from ._native import (
     accept_analysis_result_contract as _accept_analysis_result_contract,
 )
@@ -21,6 +32,7 @@ from ._native import (
 from ._native import (
     encode_causal_artifact as _encode_causal_artifact,
 )
+from ._scientific import ScientificResult
 from .joint_distribution import (
     DistributionIdentity,
     DistributionMeaning,
@@ -44,7 +56,7 @@ PayloadKind = Literal[
 
 
 @dataclass(frozen=True, slots=True)
-class CausalArtifact:
+class CausalArtifact(ScientificResult):
     """Decoded causal payload plus its format and variable-name table."""
 
     artifact_id: str
@@ -53,6 +65,14 @@ class CausalArtifact:
     variable_names: Sequence[str]
     payload: Mapping[str, Any]
     contract: Mapping[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "variable_names", tuple(self.variable_names))
+        object.__setattr__(self, "payload", freeze(self.payload))
+        object.__setattr__(self, "contract", freeze(self.contract))
+
+    def to_dict(self) -> dict[str, Any]:
+        return thaw(self)
 
 
 def dumps(
@@ -74,13 +94,13 @@ def dumps(
     arguments = (
         payload_kind,
         list(variable_names),
-        json.dumps(payload, allow_nan=False, separators=(",", ":")),
+        json.dumps(thaw(payload), allow_nan=False, separators=(",", ":")),
         artifact_id,
     )
     if contract is None:
         return _encode_causal_artifact(*arguments)
     return _encode_causal_artifact(
-        *arguments, json.dumps(contract, allow_nan=False, separators=(",", ":"))
+        *arguments, json.dumps(thaw(contract), allow_nan=False, separators=(",", ":"))
     )
 
 
@@ -122,6 +142,12 @@ def accept(data: bytes) -> dict[str, str]:
 
 
 __all__ = [
+    "ArtifactAcceptance",
+    "ArtifactExpectation",
+    "ArtifactInspection",
+    "ExportedArtifact",
+    "LoadContext",
+    "inspect",
     "CausalArtifact",
     "DistributionIdentity",
     "DistributionMeaning",

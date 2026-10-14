@@ -74,12 +74,12 @@ def test_every_response_functional_crosses_rust_and_python(functional: object) -
     )
     decoded = artifacts.loads(encoded)
     assert decoded.format_version == (0, 5)
-    assert decoded.payload == payload
+    assert decoded.to_dict()["payload"] == payload
     assert (
         artifacts.loads(
             artifacts.dumps(
                 decoded.payload_kind,
-                decoded.payload,
+                decoded.to_dict()["payload"],
                 variable_names=decoded.variable_names,
                 artifact_id=decoded.artifact_id,
             )
@@ -132,7 +132,7 @@ def test_every_observation_mechanism_and_assumption_variant(
             artifact_id="observation-query",
         )
     )
-    assert decoded.payload == payload
+    assert decoded.to_dict()["payload"] == payload
 
 
 @pytest.mark.parametrize(
@@ -197,7 +197,7 @@ def test_every_grid_weighting_and_derivative_scale_wire_variant(functional: obje
             artifacts.dumps(
                 "query", payload, variable_names=["a", "y"], artifact_id="response-options"
             )
-        ).payload
+        ).to_dict()["payload"]
         == payload
     )
 
@@ -230,7 +230,7 @@ def test_every_licensed_temporal_response_policy_crosses_rust_and_python(
     decoded = artifacts.loads(
         artifacts.dumps("query", payload, variable_names=["a", "y"], artifact_id="temporal-query")
     )
-    assert decoded.payload == payload
+    assert decoded.to_dict()["payload"] == payload
 
 
 def test_dynamic_temporal_effect_policy_is_not_accepted_as_response_query() -> None:
@@ -293,7 +293,7 @@ def test_artifacts_dumps_round_trips_through_public_api_and_returns_bytes() -> N
     assert isinstance(encoded, bytes)
 
     decoded = artifacts.loads(encoded)
-    assert decoded.payload == payload
+    assert decoded.to_dict()["payload"] == payload
     assert decoded.artifact_id == "response-query"
 
 
@@ -312,7 +312,7 @@ def test_transport_query_crosses_rust_and_python() -> None:
     decoded = artifacts.loads(
         artifacts.dumps("query", payload, variable_names=["a", "y"], artifact_id="q")
     )
-    assert decoded.payload == payload
+    assert decoded.to_dict()["payload"] == payload
 
 
 @pytest.mark.parametrize(
@@ -353,7 +353,7 @@ def test_every_interference_assignment_and_exposure_query_variant(
     decoded = artifacts.loads(
         artifacts.dumps("query", payload, variable_names=["a", "y"], artifact_id="q")
     )
-    assert decoded.payload == payload
+    assert decoded.to_dict()["payload"] == payload
 
 
 def _response_result(
@@ -564,7 +564,7 @@ def test_every_response_result_wire_variant_round_trips(
             artifact_id="response",
         )
     )
-    assert decoded.payload == payload
+    assert decoded.to_dict()["payload"] == payload
 
 
 def test_response_assumption_evidence_crosses_rust_and_python_without_loss() -> None:
@@ -595,7 +595,7 @@ def test_response_assumption_evidence_crosses_rust_and_python_without_loss() -> 
             artifact_id="parametric-response",
         )
     )
-    assert decoded.payload == payload
+    assert decoded.to_dict()["payload"] == payload
 
 
 def test_temporal_response_result_crosses_rust_and_python() -> None:
@@ -644,7 +644,7 @@ def test_temporal_response_result_crosses_rust_and_python() -> None:
         )
     )
     assert decoded.format_version == (0, 5)
-    assert decoded.payload == payload
+    assert decoded.to_dict()["payload"] == payload
 
 
 def test_temporal_response_result_rejects_horizon_id_outside_name_table() -> None:
@@ -820,7 +820,7 @@ def test_transport_and_interference_result_artifacts(
     decoded = artifacts.loads(
         artifacts.dumps(kind, payload, variable_names=variable_names, artifact_id="result")  # type: ignore[arg-type]
     )
-    assert decoded.payload == payload
+    assert decoded.to_dict()["payload"] == payload
 
 
 def test_composite_analysis_artifact_can_be_reencoded() -> None:
@@ -896,7 +896,7 @@ def test_identified_set_interval_survives_export_and_reencode() -> None:
 
     decoded = artifacts.loads(prepared.export_artifact())
     assert decoded.format_version == (0, 5)
-    interval = decoded.payload["structural_response"]["identified_set_interval"]
+    interval = decoded.to_dict()["payload"]["structural_response"]["identified_set_interval"]
     assert interval["method"] == "imbens_manski_shared_block"
     # A complete CPDAG enumeration: the truncation flag is omitted (false).
     assert "truncated" not in interval
@@ -911,14 +911,14 @@ def test_identified_set_interval_survives_export_and_reencode() -> None:
     again = artifacts.loads(
         artifacts.dumps(
             decoded.payload_kind,
-            decoded.payload,
+            decoded.to_dict()["payload"],
             variable_names=decoded.variable_names,
             artifact_id="again",
         )
     )
-    assert again.payload == decoded.payload
+    assert again.to_dict()["payload"] == decoded.to_dict()["payload"]
 
-    corrupt = json.loads(json.dumps(decoded.payload))
+    corrupt = json.loads(json.dumps(decoded.to_dict()["payload"]))
     corrupt["structural_response"]["identified_set_interval"]["level"] = 1.5
     with pytest.raises(CausalSerializationError, match="identified-set interval"):
         artifacts.dumps(

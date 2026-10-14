@@ -1,4 +1,4 @@
-"""Staged identify() -> estimate() -> validate() surface (antecedent.identify)."""
+"""Staged identify() -> estimate() -> refute() surface (antecedent.identify)."""
 
 from __future__ import annotations
 
@@ -29,8 +29,9 @@ def test_identify_returns_identification_and_bool():
     assert isinstance(result, Identification)
     assert "z" in result.adjustment_set
     assert bool(result) is True
-    assert result.graph is edges
-    assert result.query is query
+    assert result.graph == tuple(edges)
+    assert result.graph is not edges
+    assert result.query == query
     assert result.verdict == "identified"
     assert result.statement == (
         "AverageEffect of y from t is identified by backdoor.adjustment, adjusting for z."
@@ -60,7 +61,8 @@ def test_response_curve_identify_then_estimate_matches_analyze():
     query = antecedent.ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5])
     identification = identify(graph=edges, query=query, names=["z", "t", "y"])
     assert isinstance(identification, Identification)
-    assert identification.query is query
+    assert tuple(identification.query.grid) == tuple(query.grid)
+    assert identification.query is not query
     assert "z" in identification.adjustment_set
     staged = identification.estimate(data, refute=False, bootstrap=0, seed=1)
     direct = antecedent.analyze(
@@ -75,10 +77,10 @@ def test_response_curve_identify_then_estimate_matches_analyze():
     assert staged.response is not None
     assert direct.response is not None
     assert staged.response.values == direct.response.values
-    assert list(staged.response.points) == [[-0.5], [0.0], [0.5]]
+    assert [list(point) for point in staged.response.points] == [[-0.5], [0.0], [0.5]]
 
 
-def test_response_curve_staged_validate_refuses_scalar_suite_by_default():
+def test_response_curve_combined_refutation_refuses_scalar_suite_by_default():
     rng = np.random.default_rng(23)
     t = rng.normal(size=320)
     y = 1.5 * t + rng.normal(scale=0.2, size=320)
@@ -91,14 +93,14 @@ def test_response_curve_staged_validate_refuses_scalar_suite_by_default():
     )
 
     with pytest.raises(CausalUnsupportedError, match="not_applicable:"):
-        identification.validate({"t": t, "y": y}, seed=3)
+        identification.estimate({"t": t, "y": y}, refute="cheap", seed=3)
 
 
-def test_identification_validate_runs_refutation_suite():
+def test_identification_estimate_runs_requested_refutation_suite():
     data, edges = confounded_scm(n=500, seed=11)
     query = antecedent.AverageEffect(treatment="t", outcome="y")
     identification = identify(graph=edges, query=query, names=["z", "t", "y"])
-    validated = identification.validate(data, refute="cheap", seed=1, threads=1)
+    validated = identification.estimate(data, refute="cheap", seed=1, threads=1)
     assert validated.validation.ran is True
     assert validated.validation.count >= 1
 
@@ -111,7 +113,7 @@ def test_identification_to_identify_result_projects_fields():
     assert isinstance(legacy, IdentifyResult)
     assert legacy.status == identification.status
     assert legacy.method == identification.method
-    assert legacy.adjustment_set == identification.adjustment_set
+    assert tuple(legacy.adjustment_set) == identification.adjustment_set
 
 
 def test_module_level_estimate_and_validate_mirror_methods():
@@ -160,3 +162,7 @@ def test_from_view_carries_assumption_counts():
     assert identification.status == result.identification.status
     assert identification.assumption_count == result.identification.assumption_count
     assert identification.derivation_step_count == result.identification.derivation_step_count
+
+
+def test_identification_has_no_ambiguous_staged_validation():
+    assert not hasattr(Identification, "validate")

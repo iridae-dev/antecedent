@@ -39,7 +39,7 @@ def test_inspect_is_pydantic_and_to_dict_matches_dump() -> None:
     live = prepared.estimate(_data())
     live_report = live.inspect()
     assert isinstance(live_report, InspectionReport)
-    assert live_report.to_dict()["contract"] == live.inspect().contract
+    assert live_report.to_dict()["contract"] == live.inspect().to_dict()["contract"]
 
 
 def test_point_only_uncertainty_reason_survives_artifact_loading() -> None:

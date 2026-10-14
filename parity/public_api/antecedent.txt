@@ -6668,6 +6668,7 @@ pub fn <antecedent::CandidateProcedure>::const fn as_str(self) -> &'static str
 pub fn <antecedent::CandidateScreen>::fn from_units(screen_id: &str, procedure: antecedent::CandidateProcedure, units: antecedent::ScreenUnits<'_>, screen_fraction: f64, seed: u64) -> core::result::Result<(Self, antecedent::ScreenSplitReceipt), antecedent::CausalError>
 pub fn <antecedent::CausalContract>::fn capability(&self) -> antecedent_contract::capability::OperationReport
 pub fn <antecedent::CausalContract>::fn capability_for(&self, operation: antecedent_contract::capability::OperationKind) -> antecedent_contract::capability::OperationReport
+pub fn <antecedent::CausalContract>::fn identification_details(&self) -> core::result::Result<serde_json::value::Value, antecedent::CausalError>
 pub fn <antecedent::CausalContract>::fn preview_transform(&self, intent: antecedent_contract::transform::TransformIntent) -> antecedent_contract::transform::TransformationReport
 pub fn <antecedent::CausalError>::const fn remedy(&self) -> core::option::Option<&'static str>
 pub fn <antecedent::CausalError>::fn blocker_id(&self) -> core::option::Option<antecedent_contract::capability::BlockedOperation>
@@ -7085,6 +7086,7 @@ pub fn <antecedent::PreparedStudy>::fn has_checked_static_class_effect_operation
 pub fn <antecedent::PreparedStudy>::fn has_checked_static_class_response_operation(&self) -> bool
 pub fn <antecedent::PreparedStudy>::fn has_checked_temporal_graph_posterior_effect_operation(&self) -> bool
 pub fn <antecedent::PreparedStudy>::fn has_checked_transport_trial_operation(&self) -> bool
+pub fn <antecedent::PreparedStudy>::fn identification_details(&self) -> core::result::Result<serde_json::value::Value, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn inspect(&self) -> core::result::Result<antecedent::CausalContract, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn plan(&self) -> &antecedent::planner::PhysicalExecutionPlan
 pub fn <antecedent::PreparedStudy>::fn plan_rank_drop(&self, policy: &antecedent::RankDropPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::RankDropPlan, antecedent::CausalError>
@@ -7101,6 +7103,7 @@ pub fn <antecedent::PreparedStudy>::fn refresh_multi_env(&mut self, data: antece
 pub fn <antecedent::PreparedStudy>::fn refresh_panel(&mut self, data: antecedent_data::panel::PanelData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn refresh_series(&mut self, data: antecedent_data::dataset::TimeSeriesData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn refute(&self, prior: &antecedent::StudyResult, data: &antecedent_data::dataset::TabularData, suite: antecedent::RefuteSuite, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
+pub fn <antecedent::PreparedStudy>::fn refute_bound(&self, result: &antecedent::StudyResult, suite: antecedent::RefuteSuite, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn retarget(&self, weights: &[f64], depends_on: &[antecedent_core::ids::VariableId], _ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn schema(&self) -> &antecedent_core::schema::CausalSchema
 pub fn <antecedent::PreparedStudy>::fn score_reuse_identity(&self) -> core::result::Result<core::option::Option<antecedent_core::identity::SemanticDigest>, antecedent::CausalError>

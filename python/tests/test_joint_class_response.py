@@ -39,7 +39,7 @@ def test_joint_response_identify_prepare_and_estimate(kind, accepted, bayesian):
         "y", intervention=[antecedent.intervention.Set("t", 1), antecedent.intervention.Set("z", 1)]
     )
     identified = antecedent.identify(graph=graph, query=query)
-    assert identified.adjustment_set == ["w"]
+    assert identified.adjustment_set == tuple(["w"])
     kwargs = {"refute": False, "bootstrap": 0, "seed": 7}
     if bayesian:
         kwargs["inference"] = antecedent.Bayesian()

@@ -5,8 +5,8 @@ row-aligned input by the data column that holds it instead of passing the array
 inline: ``PolicyValue("y", assignment="arm", ...)`` rather than
 ``PolicyValue("y", assignment=[...], ...)``. This keeps the query readable. The
 design is read once, at prepare, and frozen into the prepared study: a later
-``refresh(new_data)`` drops the named design columns if the table still carries
-them and never re-reads the design from the new table.
+``refresh(new_data)`` checks any supplied named design columns against the frozen
+bindings before numeric ingest. Changed values or order require explicit repreparation.
 
 A class opts in by declaring ``_COLUMN_FIELDS`` (row-aligned field name → element
 kind) and, in its ``__post_init__``, calling :func:`defer_columns` first: while any
@@ -26,6 +26,7 @@ from typing import Any, TypeVar, cast, overload
 
 import numpy as np
 
+from ._validate import count as _count
 from .errors import CausalValueError
 
 _T = TypeVar("_T")
@@ -155,36 +156,23 @@ def _cast_bool(arr: np.ndarray, field: str, name: str) -> tuple[bool, ...]:
 
 
 def _cast_int(arr: np.ndarray, field: str, name: str) -> tuple[int, ...]:
-    """Finite integral numbers; a fractional, non-finite, or non-numeric value is refused."""
-    if arr.dtype.kind in "iu":
-        return tuple(arr.tolist())
-    if arr.dtype.kind == "f":
-        integral = np.isfinite(arr) & (arr == np.trunc(arr))
-        if not np.all(integral):
-            bad = _first_bad(~integral, arr)
-            raise CausalValueError(
-                f"{field}={name!r}: column values must be finite integers; got {bad!r}"
-            )
-        if arr.size == 0:
-            return ()
-        if float(np.max(np.abs(arr))) <= float(np.iinfo(np.int64).max):
-            return tuple(arr.astype(np.int64).tolist())
-        return tuple(int(value) for value in arr.tolist())
+    """Normalize each design integer exactly, with its location and native bounds."""
     out: list[int] = []
-    for value in arr:
-        if isinstance(value, (bool, np.bool_)) or not isinstance(
-            value, (int, float, np.integer, np.floating)
-        ):
-            raise CausalValueError(
-                f"{field}={name!r}: column values must be integers; got {value!r}"
+    for index, value in enumerate(arr):
+        numeric = isinstance(value, (int, float, np.integer, np.floating))
+        message = (
+            "column values must be finite integers" if numeric else "column values must be integers"
+        )
+        out.append(
+            _count(
+                value,
+                f"{field}={name!r}[{index}]",
+                minimum=0,
+                maximum=2**64 - 1,
+                type_error=CausalValueError,
+                type_message=f"{{what}}: {message}; got {{value!r}}",
             )
-        if isinstance(value, (float, np.floating)) and not (
-            np.isfinite(value) and float(value).is_integer()
-        ):
-            raise CausalValueError(
-                f"{field}={name!r}: column values must be finite integers; got {value!r}"
-            )
-        out.append(int(value))
+        )
     return tuple(out)
 
 

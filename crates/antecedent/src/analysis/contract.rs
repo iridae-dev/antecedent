@@ -305,6 +305,20 @@ pub(crate) struct BodyFrame {
 }
 
 impl CausalContract {
+    /// The cached identification wire and temporal products, without numerical execution.
+    ///
+    /// # Errors
+    /// A certificate whose canonical wire cannot be serialized.
+    pub fn identification_details(&self) -> Result<serde_json::Value, CausalError> {
+        Ok(serde_json::json!({
+            "status": self.body.identification.as_ref().map(|r| r.status.as_str()),
+            "method": self.identifier.as_deref(),
+            "graph_class": self.graph_class.as_str(),
+            "cases": self.body.identification.as_ref().map(|r| vec![serde_json::json!({"identification": r, "weight": 1.0})]).unwrap_or_default(),
+            "temporal_identification": self.body.temporal_identification,
+            "reasoning": reasoning_section(&self.reasoning),
+        }))
+    }
     /// Preview a transformation against this contract's identities.
     #[must_use]
     pub fn preview_transform(&self, intent: TransformIntent) -> TransformationReport {

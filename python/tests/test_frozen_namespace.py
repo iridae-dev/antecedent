@@ -549,6 +549,9 @@ _EXPECTED_STAGE_ALL = {
         "validate_synthetic_null_calibration",
     },
     "transport.advanced": {
+        "AugmentedResponseGrid",
+        "SelectionOverlap",
+        "estimate_augmented_response_grid",
         "AdjustedContrast",
         "ClassicalTransportIdentification",
         "CompletionCounts",
@@ -774,7 +777,20 @@ def _deliberate_unlisted_reachable_imports_from_init_py() -> set[str]:
     source = read_text(Path(antecedent.__file__))
     tree = ast.parse(source, filename=antecedent.__file__)
     names: set[str] = set()
-    for node in ast.walk(tree):
+    for node in ast.walk(
+        ast.Module(
+            body=[
+                node
+                for node in tree.body
+                if not (
+                    isinstance(node, ast.If)
+                    and isinstance(node.test, ast.Name)
+                    and node.test.id == "_TYPE_CHECKING"
+                )
+            ],
+            type_ignores=[],
+        )
+    ):
         if not isinstance(node, ast.ImportFrom):
             continue
         if node.module is not None or node.level != 1:
@@ -894,3 +910,20 @@ def test_attribute_paths_discovered_runs_end_to_end():
     assert edges
     assert result is not None
     assert hasattr(result, "total_change")
+
+
+def test_every_lazy_module_has_a_static_type_declaration():
+    tree = ast.parse(read_text(Path(antecedent.__file__)))
+    declarations = {
+        alias.name
+        for node in tree.body
+        if isinstance(node, ast.If)
+        and isinstance(node.test, ast.Name)
+        and node.test.id == "_TYPE_CHECKING"
+        for statement in node.body
+        if isinstance(statement, ast.ImportFrom)
+        and statement.level == 1
+        and statement.module is None
+        for alias in statement.names
+    }
+    assert set(antecedent._LAZY_MODULES) <= declarations

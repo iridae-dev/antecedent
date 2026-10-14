@@ -43,7 +43,7 @@ def test_panel_pooled_pcmci_smoke():
     )
     assert result.answer.kind == "point"
     assert result.answer.value == pytest.approx(0.55, abs=0.05)
-    assert result.identification.adjustment_set == ["x"]
+    assert result.identification.adjustment_set == tuple(["x"])
     product = (
         antecedent.load(result.export()).inspect().to_dict()["contract"]["identification_product"]
     )

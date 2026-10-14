@@ -42,6 +42,7 @@ from ._native import (
 from ._native import (
     identify_ate_admg as _identify_ate_admg,
 )
+from ._study_lifecycle import guard_design, replay_declaration, retain, retain_preparation
 from .discovery import (
     DbnPosterior,
     ExactDagPosterior,
@@ -940,10 +941,12 @@ class PreparedAnalysis(Generic[ResultT]):
         # re-derive identification (inspect()) or re-bind data (refresh())
         # without one. Absent for every non-transport study.
         self._transport_stage: TransportStage | None = None
+        self._last_result: ResultT | None = None
+        self._identification_view: Any = None
 
     def _frozen(self, execution: Any) -> PreparedAnalysis[ResultT]:
         """A handle over one retained execution with this study's seed and controls."""
-        return PreparedAnalysis(
+        frozen: PreparedAnalysis[ResultT] = PreparedAnalysis(
             execution,
             kind=self._kind,
             query=self._query,
@@ -954,6 +957,15 @@ class PreparedAnalysis(Generic[ResultT]):
             design_columns=self._design_columns,
             named_design_columns=self._named_design_columns,
         )
+        for name in (
+            "_preparation_request",
+            "_named_design_bindings",
+            "_declared_query",
+            "_resolved_design_query",
+        ):
+            if hasattr(self, name):
+                setattr(frozen, name, getattr(self, name))
+        return frozen
 
     @property
     def validator_names(self) -> tuple[str, ...]:
@@ -976,6 +988,7 @@ class PreparedAnalysis(Generic[ResultT]):
         self._native.rebind_validators(dict(validators))
 
     @classmethod
+    @retain_preparation
     @describe_refusal
     def prepare(
         cls,
@@ -1538,7 +1551,62 @@ class PreparedAnalysis(Generic[ResultT]):
         raw = self._native.plan_summary().get("allowlist_parent")
         return str(raw) if raw is not None else None
 
+    @property
+    def last_result(self) -> ResultT | None:
+        """Latest successful execution; failures preserve the previous result."""
+        return self._last_result
+
+    @property
+    def identification(self) -> Any:
+        """The retained identification product; reading it performs no fitting."""
+        if self._identification_view is None:
+            from .identify import Identification
+
+            if self._transport is not None:
+                from .transport._day1 import identification_from_transport
+
+                stage: Any = self._transport_stage or {}
+                self._identification_view = identification_from_transport(
+                    cast(Any, stage.get("graph")),
+                    cast(Any, self._query),
+                    catalog=stage.get("catalog"),
+                    identified=stage.get("identified"),
+                )
+            else:
+                payload = json.loads(self._native.identification_json())
+                self._identification_view = Identification.from_prepared(
+                    payload,
+                    query=self._display_query,
+                    graph=getattr(self, "_preparation_request", {}).get("graph"),
+                )
+        return self._identification_view
+
+    @describe_refusal
+    def reprepare(self, data: Any, *, query: Any = _UNSET) -> PreparedAnalysis[Any]:
+        """Resolve the original declarations against a new table into a new study."""
+        request = replay_declaration(getattr(self, "_preparation_request", {}))
+        if not request:
+            raise CausalValueError(
+                "this consumed study has no original preparation request; use antecedent.prepare"
+            )
+        if query is not _UNSET:
+            request["query"] = query
+        return type(self).prepare(data, **request)
+
     def inspect(self) -> InspectionReport:
+        """Inspect the latest successful execution, or the prepared plan before execution."""
+        if self._last_result is not None:
+            report = cast(Any, self._last_result).inspect()
+            return report.model_copy(update={"stage": "executed"})
+        return self.inspect_plan()
+
+    def __repr__(self) -> str:
+        return f"PreparedAnalysis(query={type(self._display_query).__name__}, stage={'executed' if self._last_result is not None else 'prepared'})"
+
+    def _repr_html_(self) -> str:
+        return self.inspect()._repr_html_()
+
+    def inspect_plan(self) -> InspectionReport:
         """Everything known about this study, including cached identification.
 
         ``to_dict()`` gives the structured report; its ``contract`` field is the
@@ -1586,13 +1654,18 @@ class PreparedAnalysis(Generic[ResultT]):
         from .results._execution import Answer, CalibrationInfo
         from .results._report import as_inspection
 
-        return as_inspection(
+        report = as_inspection(
             replace(
                 ReasoningSlots.from_contract(dict(self._native.contract())),
                 answer=Answer("unavailable", detail="not_executed"),
                 calibration=CalibrationInfo(status="unavailable", reason="not_executed"),
             )
         )
+        identification = self.identification
+        updates: dict[str, Any] = {"stage": "prepared", "details": identification.to_dict()}
+        if identification.design is not None:
+            updates["identification"] = identification.inspect().identification
+        return report.model_copy(update=updates)
 
     def preflight(self) -> InspectionReport:
         """Cheap structural-only inspection; identification and fitting are not run."""
@@ -1681,11 +1754,13 @@ class PreparedAnalysis(Generic[ResultT]):
 
     def replace_snapshot(self, data: Any, *, cancel: Any = _UNSET) -> None:
         """Replace exact-law providers and invalidate execution claims atomically."""
+        guard_design(self, data)
         if self._transport is not None:
             self._native.replace_snapshot(
                 self._transport.payload(data),
                 cancel=self._controls.cancel if cancel is _UNSET else cancel,
             )
+            self._last_result = None
             return
         raise ValueError("Use refresh for this sampled-data modality")
 
@@ -1714,6 +1789,7 @@ class PreparedAnalysis(Generic[ResultT]):
     def _click_payload(self, data: Any) -> tuple[list[str], list[Any], dict[str, Any] | None]:
         from ._columns import drop_columns
 
+        guard_design(self, data)
         data = drop_columns(data, self._named_design_columns)
         query = self._query
         if isinstance(query, ConditionalDoseResponse):
@@ -1774,7 +1850,13 @@ class PreparedAnalysis(Generic[ResultT]):
             return _wrap_prepared_response(raw, query=cast(Any, query), prepared=self)
         return _wrap_ate(raw, query=self._display_query, prepared=self)
 
-    def _click(
+    def _click(self, data: Any, **kwargs: Any) -> Any:
+        guard_design(self, data)
+        result = self._execute_click(data, **kwargs)
+        self._last_result = cast(ResultT, result)
+        return result
+
+    def _execute_click(
         self,
         data: Any,
         *,
@@ -1806,6 +1888,15 @@ class PreparedAnalysis(Generic[ResultT]):
             if isinstance(self._query, Transport):
                 from .transport._wrap import wrap_transport_result
 
+                if self._kind == "z_transport":
+                    stage: Mapping[str, Any] = self._transport_stage or {}
+                    self._transport_stage = retain(
+                        {
+                            **stage,
+                            "catalog": self._native.catalog,
+                            "bound": data if data is not None else stage.get("bound"),
+                        }
+                    )
                 return wrap_transport_result(self, raw)
             return raw
         seed = self._seed if seed is None else seed
@@ -2024,32 +2115,38 @@ class PreparedAnalysis(Generic[ResultT]):
         observations and keep those buffers, including writable NumPy aliases,
         unchanged while the refreshed handle retains them.
         """
+        previous_stage = self._transport_stage
         if isinstance(self._query, Transport):
             from .transport._day1 import catalog_from_evidence
 
-            stage = getattr(self, "_transport_stage", None) or {}
-            _catalog, bound = catalog_from_evidence(self._query, data, graph=stage.get("graph"))
+            stage: Mapping[str, Any] = previous_stage or {}
+            catalog, bound = catalog_from_evidence(self._query, data, graph=stage.get("graph"))
             if bound is not None:
                 data = bound
-            if self._transport is not None and getattr(self, "_native", None) is not None:
-                self.replace_snapshot(data)
-        return cast(
-            ResultT,
-            self._click(
-                data,
-                refresh=True,
-                seed=seed,
-                threads=threads,
-                controls=self._click_controls(cancel, on_progress, on_stage),
-            ),
-        )
+            self._transport_stage = retain({**stage, "catalog": catalog, "bound": bound})
+        try:
+            # TransportLifecycle.refresh already commits its native snapshot atomically.
+            # Keep the Python evidence view in the same transaction as that execution.
+            return cast(
+                ResultT,
+                self._click(
+                    data,
+                    refresh=True,
+                    seed=seed,
+                    threads=threads,
+                    controls=self._click_controls(cancel, on_progress, on_stage),
+                ),
+            )
+        except BaseException:
+            self._transport_stage = previous_stage
+            raise
 
     @describe_refusal
     def refute(
         self,
-        data: Mapping[str, Any] | Any,
-        suite: Refute | Literal["placebo", "full", "cheap"] | bool | str = "placebo",
+        data: Mapping[str, Any] | Any = None,
         *,
+        suite: Refute | Literal["placebo", "full", "cheap"] | bool | str = "placebo",
         seed: int | None = None,
         threads: int | None = None,
         cancel: Any = _UNSET,
@@ -2088,7 +2185,11 @@ class PreparedAnalysis(Generic[ResultT]):
             suite = str(suite)
         from ._columns import drop_columns
 
-        names, columns, arrow = _prepared_columns(drop_columns(data, self._named_design_columns))
+        guard_design(self, data)
+        if data is not None:
+            names, columns, arrow = _prepared_columns(
+                drop_columns(data, self._named_design_columns)
+            )
         kwargs: dict[str, Any] = dict(
             seed=self._seed if seed is None else seed,
             threads=self._threads if threads is None else threads,
@@ -2096,9 +2197,14 @@ class PreparedAnalysis(Generic[ResultT]):
         token = self._controls.cancel if cancel is _UNSET else cancel
         if token is not None:
             kwargs["cancel"] = token
-        fn = self._native.refute_arrow_c if arrow else self._native.refute
-        raw = fn(names, columns, suite, **kwargs)
-        return _wrap_ate(raw, prepared=self)
+        if data is None:
+            raw = self._native.refute_bound(suite, **kwargs)
+        else:
+            fn = self._native.refute_arrow_c if arrow else self._native.refute
+            raw = fn(names, columns, suite, **kwargs)
+        result = _wrap_ate(raw, prepared=self)
+        self._last_result = cast(ResultT, result)
+        return result
 
 
 __all__ = [

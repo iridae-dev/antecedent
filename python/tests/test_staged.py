@@ -110,7 +110,7 @@ def test_counterfactual_stages_and_artifact():
     wire = artifacts.loads(prepared.export_artifact())
     assert wire.payload["control_level"] == pin["control"]
     assert wire.payload["standard_error"] is None
-    assert wire.payload["unit_effects"] == result.unit_effects
+    assert tuple(wire.payload["unit_effects"]) == result.unit_effects
     assert wire.payload["support"]
     # An accepted DAG runs the same GCM path as the explicit one.
     accepted = PreparedAnalysis.prepare(data, graph=ac.AcceptedGraph(dag), query=q).estimate(data)

@@ -16,6 +16,7 @@ from typing import Literal
 
 from ._columns import coerce_fields
 from ._native import temporal_response_spec as _native_temporal_response_spec
+from ._validate import count as _count
 from .errors import CausalUnsupportedError, CausalValueError
 
 # Rust names the capability. Python appends the call.
@@ -49,7 +50,7 @@ def _require_name(field_name: str, value: str) -> None:
 
 
 def _require_names(field_name: str, values: Sequence[str]) -> None:
-    if not values:
+    if len(values) == 0:
         raise CausalValueError(f"{field_name} must contain at least one variable name")
     for value in values:
         _require_name(field_name, value)
@@ -176,7 +177,7 @@ temporal_response_spec = _load_temporal_response_spec()
 
 def _validate_horizons(horizons: Sequence[int]) -> None:
     """Nonempty, ≥1, strictly increasing, capped — shared with TemporalResponseSpec."""
-    if not horizons:
+    if len(horizons) == 0:
         raise CausalValueError("horizons must be non-empty")
     if len(horizons) > temporal_response_spec.max_horizons:
         raise CausalValueError(
@@ -184,8 +185,7 @@ def _validate_horizons(horizons: Sequence[int]) -> None:
         )
     prev_h: int | None = None
     for h in horizons:
-        if isinstance(h, bool) or not isinstance(h, int) or h < 1:
-            raise CausalValueError("horizons must be positive integers")
+        h = _count(h, "horizon", minimum=1, maximum=2**32 - 1, type_error=CausalValueError)
         if prev_h is not None and h <= prev_h:
             raise CausalValueError("horizons must be strictly increasing")
         prev_h = h
@@ -195,8 +195,13 @@ def _validate_max_history_lag(max_history_lag: int | None) -> None:
     """``max_history_lag`` is ``None`` or a nonnegative integer step count."""
     if max_history_lag is None:
         return
-    if isinstance(max_history_lag, bool) or not isinstance(max_history_lag, int):
-        raise CausalValueError(f"max_history_lag must be an int or None, got {max_history_lag!r}")
+    _count(
+        max_history_lag,
+        "max_history_lag",
+        minimum=0,
+        maximum=2**32 - 1,
+        type_error=CausalValueError,
+    )
     if max_history_lag < 0:
         raise CausalValueError("max_history_lag must be non-negative")
 
@@ -637,6 +642,26 @@ class ResponseCurve:
             if previous is not None and value <= previous:
                 raise CausalValueError("grid values must be strictly increasing")
             previous = value
+        if self.horizons is not None:
+            object.__setattr__(
+                self,
+                "horizons",
+                tuple(
+                    _count(h, f"horizons[{i}]", minimum=1, maximum=2**32 - 1)
+                    for i, h in enumerate(self.horizons)
+                ),
+            )
+        object.__setattr__(
+            self,
+            "treatment_lag",
+            _count(self.treatment_lag, "treatment_lag", minimum=0, maximum=2**32 - 1),
+        )
+        if self.max_history_lag is not None:
+            object.__setattr__(
+                self,
+                "max_history_lag",
+                _count(self.max_history_lag, "max_history_lag", minimum=0, maximum=2**32 - 1),
+            )
         _validate_temporal(self.horizons, self.policy, self.treatment_lag, self.max_history_lag)
         if (
             self.horizons is not None
@@ -846,6 +871,26 @@ class InterventionResponse:
         _require_name("outcome", self.outcome)
         if self.intervention is None:
             raise CausalValueError("intervention must not be None")
+        if self.horizons is not None:
+            object.__setattr__(
+                self,
+                "horizons",
+                tuple(
+                    _count(h, f"horizons[{i}]", minimum=1, maximum=2**32 - 1)
+                    for i, h in enumerate(self.horizons)
+                ),
+            )
+        object.__setattr__(
+            self,
+            "treatment_lag",
+            _count(self.treatment_lag, "treatment_lag", minimum=0, maximum=2**32 - 1),
+        )
+        if self.max_history_lag is not None:
+            object.__setattr__(
+                self,
+                "max_history_lag",
+                _count(self.max_history_lag, "max_history_lag", minimum=0, maximum=2**32 - 1),
+            )
         _validate_temporal(self.horizons, self.policy, self.treatment_lag, self.max_history_lag)
 
     @property

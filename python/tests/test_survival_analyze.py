@@ -230,8 +230,14 @@ def test_graphless_survival_scalar_license_at_support_boundary() -> None:
     assert result.survival.survival_at_tau_difference_interval is not None
     assert result.survival.difference_band is None
     loaded = antecedent.load(result.export())
-    assert loaded.artifact.payload["survival"]["graphless_support_status"] == "licensed"
-    assert loaded.artifact.payload["survival"]["assignment_counts"] == [120, 120]
+    assert (
+        loaded.decoded_artifact.to_dict()["payload"]["survival"]["graphless_support_status"]
+        == "licensed"
+    )
+    assert loaded.decoded_artifact.to_dict()["payload"]["survival"]["assignment_counts"] == [
+        120,
+        120,
+    ]
     thin = {key: value[1:120] + value[121:] for key, value in data.items()}
     off_axis = antecedent.analyze(thin, query=query, bootstrap=299, seed=7729)
     assert off_axis.survival.support_status == "unlicensed_pointwise_interval"

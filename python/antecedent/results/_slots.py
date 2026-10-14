@@ -37,18 +37,18 @@ def _variable_names(contract: Mapping[str, Any]) -> list[str]:
         return flat.split(",") if flat else []
     for section in ("target", "observation"):
         schema = _nested(contract, section, "schema", "variables")
-        if isinstance(schema, list):
+        if isinstance(schema, (list, tuple)):
             ordered = sorted(
                 (v for v in schema if isinstance(v, Mapping)), key=lambda v: v.get("id", 0)
             )
             return [str(v.get("name")) for v in ordered]
     names = _nested(contract, "identification", "schema_names")
-    return [str(n) for n in names] if isinstance(names, list) else []
+    return [str(n) for n in names] if isinstance(names, (list, tuple)) else []
 
 
 def _resolve_variables(value: Any, names: list[str]) -> Any:
     """Schema ids → variable names; ``None`` stays ``None``, unknown ids stay ids."""
-    if isinstance(value, list):
+    if isinstance(value, (list, tuple)):
         return [_resolve_variables(v, names) for v in value]
     if isinstance(value, str) and value.lstrip("-").isdigit():
         value = int(value)
@@ -111,13 +111,13 @@ def portable_evidence(
     estimands = identification_wire.get("estimands")
     first = (
         estimands[0]
-        if isinstance(estimands, list) and estimands and isinstance(estimands[0], Mapping)
+        if isinstance(estimands, (list, tuple)) and estimands and isinstance(estimands[0], Mapping)
         else {}
     )
     raw_adjustment = list(first.get("adjustment_set") or [])
     unfolded = body.get("identification_variables")
     coordinates: list[dict[str, Any]] | None = None
-    if isinstance(unfolded, list) and unfolded:
+    if isinstance(unfolded, (list, tuple)) and unfolded:
         # A temporal estimand adjusts on nodes of the unfolded window: each id
         # indexes `identification_variables` (schema variable, signed offset),
         # never the schema directly.
@@ -197,6 +197,12 @@ def with_portable_evidence(slots: ReasoningSlots, evidence: Mapping[str, Any]) -
 
 def json_value(value: Any) -> Any:
     """Portable report data; preserve nonfinite bounds explicitly, never emit NaN."""
+    import numpy as np
+
+    if isinstance(value, np.ndarray):
+        return json_value(value.tolist())
+    if isinstance(value, np.generic):
+        return json_value(value.item())
     if isinstance(value, Enum):
         return json_value(value.value)
     if value is None or isinstance(value, (str, bool, int)):
@@ -221,7 +227,7 @@ def json_value(value: Any) -> Any:
         pass  # pydantic is optional; continue with mapping / sequence fallbacks
     if isinstance(value, Mapping):
         return {str(k): json_value(v) for k, v in value.items()}
-    if isinstance(value, (tuple, list)):
+    if isinstance(value, (tuple, (list, tuple))):
         return [json_value(v) for v in value]
     return {"available": False, "reason": "not_json_serializable", "type": type(value).__name__}
 

@@ -109,7 +109,7 @@ def test_public_analyze_composes_selected_outcome_into_point_only_curve() -> Non
     assert result.uncertainty.kind == "none"
     assert result.identification.status == "NonparametricallyIdentified"
     assert result.identification.method == "response.backdoor"
-    assert result.identification.adjustment_set == ["z"]
+    assert result.identification.adjustment_set == tuple(["z"])
     assert result.provenance["operation_id"] == "estimate.response.observation_adjusted"
     assert any("joint_uncertainty_unavailable" in warning for warning in result.support.warnings)
 

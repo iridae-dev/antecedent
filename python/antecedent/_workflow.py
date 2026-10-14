@@ -5,10 +5,12 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar, overload
 
 from ._api import describe_refusal
-from .errors import CausalSerializationError
+from ._artifact_protocol import ExportedArtifact, LoadContext
+from ._freeze import freeze, thaw
+from .errors import CausalSerializationError, CausalValueError
 from .estimation import PreparedAnalysis, _PreparedQuery, _PreparedResult
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
@@ -138,8 +140,16 @@ class Acceptance:
 
     verified: bool
     recognized: bool
-    details: dict[str, str]
+    details: Mapping[str, str]
     unresolved: tuple[str, ...] = ()
+    identity_bound: bool = False
+    resumable: bool = False
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "details", freeze(self.details))
+
+    def to_dict(self) -> dict[str, Any]:
+        return thaw(self)
 
     @classmethod
     def from_receipt(cls, receipt: Mapping[str, str]) -> Acceptance:
@@ -187,7 +197,7 @@ class LoadedResult(ResultAPI):
     checked operation it cannot replay in ``acceptance.unresolved``.
     """
 
-    artifact: Any
+    decoded_artifact: Any
     acceptance: Acceptance
     _bytes: bytes = field(repr=False)
 
@@ -203,37 +213,45 @@ class LoadedResult(ResultAPI):
 
     @property
     def calibration(self) -> CalibrationInfo:
-        return CalibrationInfo.from_contract(self.artifact.contract)
+        return CalibrationInfo.from_contract(self.decoded_artifact.contract)
 
     @property
     def answer(self) -> Answer:
         """The recorded answer for a verified or sealed load; otherwise unavailable."""
         if not self.acceptance.answer_available:
             return Answer("unavailable", detail="semantic_acceptance_unavailable")
-        return answer_from_artifact(self.artifact.contract, self.artifact.payload)
+        return answer_from_artifact(self.decoded_artifact.contract, self.decoded_artifact.payload)
 
     def inspect(self) -> InspectionReport:
         if not self.acceptance.answer_available and not (
-            self.acceptance.recognized and isinstance(self.artifact.contract, Mapping)
+            self.acceptance.recognized and isinstance(self.decoded_artifact.contract, Mapping)
         ):
-            return as_inspection(
+            report = as_inspection(
                 replace(
                     ReasoningSlots.from_contract({}),
                     answer=self.answer,
                     calibration=self.calibration,
                 )
             )
-        return as_inspection(
-            ReasoningSlots.from_result_section(
-                self.artifact.contract,
-                self.artifact.payload,
-                answer=self.answer,
-                calibration=self.calibration,
+        else:
+            report = as_inspection(
+                ReasoningSlots.from_result_section(
+                    self.decoded_artifact.contract,
+                    self.decoded_artifact.payload,
+                    answer=self.answer,
+                    calibration=self.calibration,
+                )
             )
+        return report.model_copy(
+            update={
+                "stage": "consumed",
+                "family": "LoadedResult",
+                "operations": ("inspect", "export", "artifact"),
+            }
         )
 
     def export(self, *, artifact_id: str | None = None) -> bytes:
-        if artifact_id is not None and artifact_id != self.artifact.artifact_id:
+        if artifact_id is not None and artifact_id != self.decoded_artifact.artifact_id:
             raise CausalSerializationError(
                 "A loaded execution is immutable; its artifact ID cannot be rewritten by forwarding."
             )
@@ -244,7 +262,7 @@ class LoadedResult(ResultAPI):
 
 
 @describe_refusal
-def load(
+def _load_analysis(
     data: bytes,
 ) -> (
     LoadedResult
@@ -302,3 +320,121 @@ def load(
     receipt = artifacts.accept(encoded)
     artifact = artifacts.loads(encoded)
     return LoadedResult(artifact, Acceptance.from_receipt(receipt), encoded)
+
+
+LoadedT = TypeVar("LoadedT")
+
+
+@overload
+def load(
+    data: ExportedArtifact[LoadedT], *, expected: Any = None, context: LoadContext | None = None
+) -> LoadedT: ...
+
+
+@overload
+def load(
+    data: bytes | bytearray | memoryview,
+    *,
+    expected: Any = None,
+    context: LoadContext | None = None,
+) -> Any: ...
+
+
+@describe_refusal
+def load(data: Any, *, expected: Any = None, context: Any = None) -> Any:
+    """Consume a scientific artifact using its native family consumer.
+
+    Expectations must be supplied separately; envelope metadata never binds an identity implicitly.
+    Loading never executes callbacks or restores a live study.
+    """
+    from ._artifact_protocol import (
+        ArtifactAcceptance,
+        ArtifactExpectation,
+        container_bytes,
+        inspect_artifact,
+        load_scientific,
+    )
+
+    encoded = container_bytes(data)
+    legacy_transport = encoded.startswith(
+        tuple(
+            b"ANTECEDENT-" + marker + b"\x01"
+            for marker in (
+                b"TRANSPORT-VIEW",
+                b"LEARNED-TRIAL",
+                b"EXACT-TRANSPORT",
+                b"STATISTICAL-TRANSPORT",
+                b"TRANSPORT-GRID",
+                b"Z-TRANSPORT",
+                b"TRANSPORT-CERTIFICATE",
+            )
+        )
+    )
+    if not legacy_transport and (
+        encoded.startswith((b"CAUSAL\0\0", b"ANTECEDENT-"))
+        or encoded.lstrip().startswith(b"{")
+        or (encoded and encoded[0] >> 5 == 5)
+    ):
+        header = inspect_artifact(encoded)
+        if header.kind not in (
+            "analysis_result",
+            "causal_payload",
+            "provider_result_v1",
+            "external_callback_v1",
+        ):
+            return load_scientific(encoded, expected=expected, context=context)
+    result = _load_analysis(encoded)
+    if isinstance(expected, ArtifactExpectation):
+        actual_kind = (
+            encoded.split(b"\x01", 1)[0].decode("ascii")
+            if legacy_transport
+            else result.decoded_artifact.payload_kind
+            if isinstance(result, LoadedResult)
+            else "analysis_result"
+        )
+        if expected.kind != actual_kind:
+            raise CausalSerializationError(
+                "expected artifact kind differs from the loaded execution"
+            )
+        expected = expected.identity
+    if context is not None:
+        raise CausalValueError("this artifact does not consume bundle source context")
+    if expected is not None:
+        bindings = expected if isinstance(expected, Mapping) else {"claim_id": expected}
+        allowed = {
+            "program_id",
+            "claim_id",
+            "data_snapshot_id",
+            "target_id",
+            "identification_id",
+            "identification_product_id",
+            "inference_binding_id",
+            "observation_id",
+            "execution_id",
+        }
+        if not bindings or not any(identity is not None for identity in bindings.values()):
+            raise CausalValueError(
+                "expected must contain at least one independent identity binding"
+            )
+        if set(bindings) - allowed:
+            raise CausalValueError(
+                f"unknown expected identity fields: {sorted(set(bindings) - allowed)}"
+            )
+        inspect_result = getattr(result, "inspect", None)
+        if not callable(inspect_result):
+            raise CausalValueError(
+                "this legacy artifact exposes no independently bindable execution inspection; use its owning specialized consumer"
+            )
+        report = inspect_result()
+        for name, identity in bindings.items():
+            if identity is not None and getattr(report, name, None) != identity:
+                raise CausalSerializationError(f"expected {name} differs from the loaded execution")
+        if isinstance(result, LoadedResult):
+            object.__setattr__(
+                result, "acceptance", replace(result.acceptance, identity_bound=True)
+            )
+    if legacy_transport:
+        object.__setattr__(
+            result, "acceptance", ArtifactAcceptance("verified", expected is not None, True, False)
+        )
+    return result

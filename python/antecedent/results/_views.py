@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, PrivateAttr
@@ -66,7 +66,7 @@ __all__ = [
 class IdentificationView(ResultModel):
     status: str
     method: str
-    adjustment_set: list[str]
+    adjustment_set: Sequence[str]
     assumption_count: int
     derivation_step_count: int
     horizon_adjustment_sets: tuple[tuple[str, ...], ...] | None = None
@@ -251,10 +251,10 @@ class EstimateView(ResultModel):
     #: recorded in ``gcm.counterfactual.heterogeneity_rejected``.
     unit_effects_homogeneous: bool | None = None
     score_table: ScoreTableSection | None = None
-    joint_covariance: list[list[float]] | None = None
+    joint_covariance: Sequence[Sequence[float]] | None = None
     score_inference: ScoreInferenceSection | None = None
-    scenario_effects: list[float] | None = None
-    scenario_intervals: list[tuple[float, float]] | None = None
+    scenario_effects: Sequence[float] | None = None
+    scenario_intervals: Sequence[tuple[float, float]] | None = None
     simultaneous_interval: tuple[float, float, float] | None = None
     adjusted_p_values: tuple[float, float] | None = None
     family_contrast: tuple[float, float] | None = None
@@ -328,9 +328,9 @@ class EstimateView(ResultModel):
 class ConflictSummaryView(ResultModel):
     """Applied external-prior alphas after conflict shrink."""
 
-    source_ids: list[str]
-    alphas_requested: list[float]
-    alphas_applied: list[float]
+    source_ids: Sequence[str]
+    alphas_requested: Sequence[float]
+    alphas_applied: Sequence[float]
 
     def __repr__(self) -> str:
         applied = ", ".join(fmt_float(a) for a in self.alphas_applied)
@@ -349,7 +349,7 @@ class PosteriorView(ResultModel):
     #: routes must select this from their estimator identity rather than infer
     #: that every posterior-shaped result is an ordinary coefficient posterior.
     interval_type: str | None = None
-    artifact: bytes | list[int] | None = Field(default=None, exclude=True)
+    artifact: bytes | Sequence[int] | None = Field(default=None, exclude=True)
     unidentified_mass: float | None = None
     envelope: EffectEnvelope | None = None
     conflict: ConflictSummaryView | None = None
@@ -410,7 +410,9 @@ class PosteriorView(ResultModel):
             )
         from .._native import decode_posterior_artifact
 
-        decoded = decode_posterior_artifact(self.artifact)
+        decoded = decode_posterior_artifact(
+            self.artifact if isinstance(self.artifact, bytes) else list(self.artifact)
+        )
         return np.asarray(decoded, dtype=dtype, copy=copy)
 
     def interval(self, level: float = 0.95) -> tuple[float, float]:
@@ -488,11 +490,11 @@ class PriorSensitivityReport(ResultModel):
     Exactly one mode is active.
     """
 
-    scales: list[float]
-    effect_means: list[float]
-    effect_sds: list[float]
-    alphas: list[float] | None = None
-    variance_multipliers: list[float] | None = None
+    scales: Sequence[float]
+    effect_means: Sequence[float]
+    effect_sds: Sequence[float]
+    alphas: Sequence[float] | None = None
+    variance_multipliers: Sequence[float] | None = None
     family: str = "isotropic_scale"
 
     def __repr__(self) -> str:
@@ -539,8 +541,8 @@ class ValidationView(ResultModel):
     prior_predictive: PredictiveCheckReport | None = None
     posterior_predictive: PredictiveCheckReport | None = None
     prior_sensitivity: PriorSensitivityReport | None = None
-    reports: list[RefutationReport] = Field(default_factory=list)
-    computation_failures: list[ValidationFailureSection] = Field(default_factory=list)
+    reports: Sequence[RefutationReport] = Field(default_factory=list)
+    computation_failures: Sequence[ValidationFailureSection] = Field(default_factory=list)
 
     def __repr__(self) -> str:
         if not self.ran:
@@ -610,7 +612,7 @@ class PerformanceView(ResultModel):
     n_draws: int | None = None
     cancelled: bool = False
     early_stopped: bool = False
-    stage_timings: dict[str, int] | None = None
+    stage_timings: Mapping[str, int] | None = None
     bytes_borrowed: int | None = None
 
     @property
@@ -680,8 +682,8 @@ class AnalysisResult(ResultModel, ResultAPI):
     posterior: PosteriorView | None
     validation: ValidationView
     performance: PerformanceView
-    diagnostics: list[str]
-    provenance: dict[str, Any]
+    diagnostics: Sequence[str]
+    provenance: Mapping[str, Any]
     mediation: MediationView | None = None
     mediation_grid: TemporalMediationGridView | None = None
     plan: PlanView | None = None
@@ -711,8 +713,8 @@ class AnalysisResult(ResultModel, ResultAPI):
     _prepared: Any = PrivateAttr(default=None)
     _execution: Any = PrivateAttr(default=None)
     query: Any = None
-    certificate: dict[str, Any] | None = None
-    unit_effects: list[float] | None = None
+    certificate: Mapping[str, Any] | None = None
+    unit_effects: Sequence[float] | None = None
     #: Per-unit ``(lower, upper)`` intervals aligned with ``unit_effects``, at
     #: ``unit_effect_intervals_level`` and by ``unit_effect_intervals_method``.
     #: Bayesian counterfactuals publish the equal-tailed posterior quantiles of
@@ -729,16 +731,16 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: pointwise interval on the conditional average effect ``tau(x)`` rather
     #: than a unit ITE, see the Rust ``DrLearner::fit_pointwise_profiles``
     #: (uncalibrated; ``docs/dr-pointwise-cate.md``).
-    unit_effect_intervals: list[tuple[float, float]] | None = None
+    unit_effect_intervals: Sequence[tuple[float, float]] | None = None
     unit_effect_intervals_level: float | None = None
     unit_effect_intervals_method: str | None = None
     #: Per-unit flags aligned with ``unit_effects``: ``True`` where the unit's
     #: prediction into the arm it did not receive leaves that arm's observed
     #: support (covariate cell or abducted disturbance). Counts are in the
     #: ``gcm.counterfactual.support`` diagnostic.
-    unit_extrapolative: list[bool] | None = None
-    assumptions: list[str] | None = None
-    support: list[str] | None = None
+    unit_extrapolative: Sequence[bool] | None = None
+    assumptions: Sequence[str] | None = None
+    support: Sequence[str] | None = None
     reasoning: ReasoningSlots | None = None
     #: Compiled program identity. Distinct from ``claim_id``.
     program_id: str | None = None
@@ -766,7 +768,7 @@ class AnalysisResult(ResultModel, ResultAPI):
     longitudinal_regime: Any | None = None
     #: AnomalyAttribution: per-target GCM anomaly scores (per-unit IT scores,
     #: row indices, and the top-scoring row).
-    anomaly: list[AnomalyScores] | None = None
+    anomaly: Sequence[AnomalyScores] | None = None
     #: ChangeAttribution: GCM distribution-change Shapley (``total_change``
     #: is also ``estimate.ate``).
     change_attribution: ChangeAttributionResult | None = None

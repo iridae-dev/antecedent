@@ -588,7 +588,7 @@ def test_staggered_event_joint_pretrend_statistic_is_labeled_and_artifact_retain
     artifact = antecedent.load(result.export(artifact_id="joint-pretrend"))
     assert any(
         item["code"] == "diagnostic.quasi.event_study.pretrend_joint_max_cluster_z"
-        for item in artifact.artifact.payload["diagnostics"]
+        for item in artifact.decoded_artifact.payload["diagnostics"]
     )
 
 
@@ -620,7 +620,7 @@ def test_staggered_event_known_truth_fixture_spans_thin_and_supported_clusters()
             assert result.panel_did.support_status == "unlicensed_point_utility"
             assert result.answer.detail == "staggered_event_point_only"
         artifact = antecedent.load(result.export(artifact_id="staggered-event-boundary"))
-        assert len(artifact.artifact.payload["panel_did"]["event_time_intervals_95"]) == 3
+        assert len(artifact.decoded_artifact.payload["panel_did"]["event_time_intervals_95"]) == 3
 
 
 def test_staggered_event_study_refuses_no_never_treated_comparison_group():

@@ -24,7 +24,7 @@ def test_prepared_contract_has_domain_separated_identities() -> None:
         refute="none",
         bootstrap=0,
     )
-    contract = prepared.inspect().contract
+    contract = prepared.inspect_plan().contract
     assert contract["accepted_version"] == "1"
     assert contract["accepted_variable_binding"] in {"explicit", "unbound"}
     assert contract["target"] != contract["program"]
@@ -50,11 +50,11 @@ def test_same_shape_refresh_changes_only_data_identity() -> None:
         refute="none",
         bootstrap=0,
     )
-    before = prepared.inspect().contract
+    before = prepared.inspect_plan().contract
     preview = prepared.preview_transform("compatible_data_replace")
     assert preview["input_data_snapshot"] == before["data_snapshot"]
     prepared.refresh({**data, "y": data["y"] + data["t"]})
-    after = prepared.inspect().contract
+    after = prepared.inspect_plan().contract
     for layer in (
         "target",
         "identification",
@@ -81,7 +81,7 @@ def test_contracted_linear_adjustment_replays_from_fit_statistics() -> None:
         bootstrap=0,
     )
     prepared.estimate(data)
-    contract = prepared.inspect().contract
+    contract = prepared.inspect_plan().contract
     encoded = prepared.export()
     loaded = artifacts.loads(encoded)
     assert loaded.payload_kind == "analysis_result"
@@ -126,7 +126,7 @@ def test_conditional_effect_contracted_artifact_names_missing_checked_operation(
         bootstrap=0,
     )
     result = prepared.estimate(data)
-    contract = prepared.inspect().contract
+    contract = prepared.inspect_plan().contract
     accepted = artifacts.accept(prepared.export())
     assert accepted["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_conditional_effect_operation" in accepted["unresolved"]
@@ -158,7 +158,7 @@ def test_mediation_contracted_artifact_names_missing_checked_operation() -> None
         bootstrap=0,
     )
     result = prepared.estimate(data)
-    contract = prepared.inspect().contract
+    contract = prepared.inspect_plan().contract
     accepted = artifacts.accept(prepared.export())
     assert accepted["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_mediation_operation" in accepted["unresolved"]
@@ -188,7 +188,7 @@ def test_response_curve_contracted_artifact_names_missing_checked_grid() -> None
         bootstrap=0,
     )
     prepared.estimate(data)
-    contract = prepared.inspect().contract
+    contract = prepared.inspect_plan().contract
     accepted = artifacts.accept(prepared.export())
     assert accepted["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_response_grid_operation" in accepted["unresolved"]
@@ -216,7 +216,7 @@ def test_intervention_response_contracted_artifact_names_missing_checked_operati
         bootstrap=0,
     )
     result = prepared.estimate(data)
-    contract = prepared.inspect().contract
+    contract = prepared.inspect_plan().contract
     accepted = artifacts.accept(prepared.export())
     assert accepted["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_intervention_response_operation" in accepted["unresolved"]
@@ -363,9 +363,9 @@ def test_custom_validator_is_attested_and_covered_by_claim_id() -> None:
         ).estimate()
 
     passing, failing, unchecked = run([always_pass]), run([always_fail]), run(None)
-    attested = ant.load(passing.export()).artifact.contract["claim"]["attested"]
+    attested = ant.load(passing.export()).decoded_artifact.contract["claim"]["attested"]
     assert attested, "a custom validator result must be attested in the claim"
-    assert ant.load(failing.export()).artifact.contract["claim"]["attested"] != attested
+    assert ant.load(failing.export()).decoded_artifact.contract["claim"]["attested"] != attested
     assert len({passing.claim_id, failing.claim_id, unchecked.claim_id}) == 3
 
 

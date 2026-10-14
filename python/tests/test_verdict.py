@@ -24,7 +24,7 @@ def _assert_schema(instance: dict) -> None:
 
 
 def test_verdict_table_is_exhaustive():
-    assert set(VERDICTS) == set(identification_status_names())
+    assert set(VERDICTS) == set(identification_status_names()) | {"DesignBased"}
 
 
 def test_statement_lines_nonempty_when_assumptions_exist():
@@ -90,6 +90,6 @@ def test_certificate_matches_schema():
         refute="none",
     )
     for result in (dag, admg, cpdag, pag):
-        certificate = result.certificate
+        certificate = result.to_dict()["certificate"]
         assert isinstance(certificate, dict), type(result)
         _assert_schema(certificate)

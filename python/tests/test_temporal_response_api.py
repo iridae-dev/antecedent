@@ -377,7 +377,7 @@ def test_temporal_default_lag_matches_pulse():
 
 
 def test_temporal_horizons_reject_bool_and_dynamic_policy():
-    with pytest.raises(CausalValueError, match="positive integers"):
+    with pytest.raises(antecedent.errors.CausalTypeError, match=r"horizons\[0\]"):
         antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[True])
     with pytest.raises(CausalValueError, match="pulse"):
         antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1], policy="dynamic")

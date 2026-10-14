@@ -64,6 +64,8 @@ class StatisticalTransportData:
 class StatisticalTransportDistribution:
     """Plug-in target law with licensed or withheld sampling uncertainty."""
 
+    acceptance: Any = field(default=None, init=False, repr=False, compare=False)
+
     outcomes: tuple[str, ...]
     atoms: tuple[tuple[float, ...], ...]
     probabilities: tuple[float, ...]

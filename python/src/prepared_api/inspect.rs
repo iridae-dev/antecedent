@@ -16,6 +16,13 @@ use crate::{AteAnalysisResult, py_err, py_execution_context_ext};
 
 #[pymethods]
 impl PyPreparedAnalysis {
+    /// Cached identification product; never identifies or fits again.
+    fn identification_json(&self) -> PyResult<String> {
+        let mut details = self.inner.identification_details().map_err(crate::py_err)?;
+        details["names"] = serde_json::json!(self.names);
+        serde_json::to_string(&details).map_err(|error| crate::value_err(error.to_string()))
+    }
+
     /// Inspect the checked conditional target and its bound scalar procedure.
     fn checked_conditional_effect_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
         let Some(info) = self.inner.checked_conditional_effect_info() else {

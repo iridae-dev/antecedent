@@ -162,7 +162,7 @@ def test_class_curve_executes_without_collapsing_graph(inference) -> None:
     assert result.envelope.weight_basis == "completion_enumeration"
     assert len(result.envelope.atom_keys) == 4
     decoded = artifacts.loads(prepared.export_artifact())
-    atoms = decoded.payload["structural_response"]["atoms"]
+    atoms = decoded.to_dict()["payload"]["structural_response"]["atoms"]
     assert len(atoms) == 4
     assert all(atom["response"] is not None for atom in atoms)
 
@@ -284,7 +284,7 @@ def test_temporal_class_identify_preserves_response_schedule() -> None:
     )
     identified = antecedent.identify(graph=_cpdag(), query=query)
     assert len(identified.completion_keys) == 2
-    assert "sequential" in json.dumps(identified.certificate)
+    assert "sequential" in json.dumps(identified.to_dict()["certificate"])
     # Sequence ends at -treatment_lag, preserving both preceding interventions.
     assert [node["offset"] for node in identified.certificate["treatments"]] == [-3, -2]
     assert identified.certificate["outcome"]["offset"] == 0
@@ -306,7 +306,7 @@ def test_class_mediation_preserves_functional_and_atom_posterior() -> None:
     query = antecedent.TemporalMediationEffect("t", "m", "y", horizons=[1])
     identified = antecedent.identify(graph=graph, query=query)
     assert len(identified.completion_keys) == 1
-    assert "temporal_mediation" in json.dumps(identified.certificate)
+    assert "temporal_mediation" in json.dumps(identified.to_dict()["certificate"])
     assert identified.certificate["treatments"][0]["offset"] == -1
     assert identified.certificate["outcome"]["offset"] == 0
     prepared = antecedent.estimation.PreparedAnalysis.prepare(

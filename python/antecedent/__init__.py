@@ -121,6 +121,7 @@ from __future__ import annotations
 
 from importlib import import_module as _import_module
 from types import ModuleType as _ModuleType
+from typing import TYPE_CHECKING as _TYPE_CHECKING
 from typing import NoReturn as _NoReturn
 
 # A debug-profile extension returns bit-identical estimates while running
@@ -424,6 +425,69 @@ _LAZY_MODULES: tuple[str, ...] = (
     "transported_counterfactual",
     "vector_treatment",
 )
+
+if _TYPE_CHECKING:
+    from . import adaptive_inference as adaptive_inference
+    from . import categorical_treatment as categorical_treatment
+    from . import cohort_decision as cohort_decision
+    from . import compact_export as compact_export
+    from . import composition as composition
+    from . import composition_bundle as composition_bundle
+    from . import composition_verification as composition_verification
+    from . import counterfactual_id as counterfactual_id
+    from . import cross_world as cross_world
+    from . import cross_world_execution as cross_world_execution
+    from . import decision_reliability as decision_reliability
+    from . import decision_robust as decision_robust
+    from . import descriptive as descriptive
+    from . import dose_grid as dose_grid
+    from . import effect_constancy_review as effect_constancy_review
+    from . import evidence_ledger as evidence_ledger
+    from . import execution_attempt as execution_attempt
+    from . import functional_source as functional_source
+    from . import interface_contract as interface_contract
+    from . import inverse as inverse
+    from . import inverse_query as inverse_query
+    from . import joint_distribution as joint_distribution
+    from . import joint_law_propagation as joint_law_propagation
+    from . import latent_class as latent_class
+    from . import measurement_models as measurement_models
+    from . import mechanism_composition as mechanism_composition
+    from . import mechanism_discrepancy as mechanism_discrepancy
+    from . import msm_sensitivity as msm_sensitivity
+    from . import nonlinear_mediation as nonlinear_mediation
+    from . import observation_query as observation_query
+    from . import predictive_assessment as predictive_assessment
+    from . import preflight as preflight
+    from . import program_claims as program_claims
+    from . import proposal_arrival as proposal_arrival
+    from . import proposals as proposals
+    from . import provider_callbacks as provider_callbacks
+    from . import recalc as recalc
+    from . import recalc_adjusted as recalc_adjusted
+    from . import recalc_bayesian as recalc_bayesian
+    from . import recalc_capabilities as recalc_capabilities
+    from . import recalc_cell as recalc_cell
+    from . import recalc_composite as recalc_composite
+    from . import recalc_design as recalc_design
+    from . import recalc_dr as recalc_dr
+    from . import recalc_external as recalc_external
+    from . import recalc_static as recalc_static
+    from . import recalc_temporal as recalc_temporal
+    from . import recovery_chain as recovery_chain
+    from . import repair as repair
+    from . import scenario_decision as scenario_decision
+    from . import scenario_invariance as scenario_invariance
+    from . import scientific_bridge as scientific_bridge
+    from . import selective_discovery as selective_discovery
+    from . import sensitivity_decision as sensitivity_decision
+    from . import sequential_evaluation as sequential_evaluation
+    from . import source_evidence as source_evidence
+    from . import source_projection as source_projection
+    from . import temporal as temporal
+    from . import temporal_counterfactual as temporal_counterfactual
+    from . import transported_counterfactual as transported_counterfactual
+    from . import vector_treatment as vector_treatment
 
 _RETIRED_MODULES = {"prior_bank": "priors"}
 _RETIRED_DISCOVER_PREFIX = "discover_"

@@ -143,6 +143,50 @@ inspection_accessors! {
 }
 
 impl PreparedStudy {
+    /// Read the cached identification certificate without identifying or fitting again.
+    ///
+    /// # Errors
+    /// Returns a canonical serialization error when a retained certificate cannot be encoded.
+    pub fn identification_details(&self) -> Result<serde_json::Value, CausalError> {
+        let contract = self.contract()?;
+        let mut details = contract.identification_details()?;
+        let encode = |result: &antecedent_identify::IdentificationResult| {
+            antecedent_io::identification_to_wire_with_registry(result, self.population_registry())
+                .map_err(CausalError::from)
+        };
+        let study = self.study();
+        if let Some(cache) = &study.cpdag_identification_cache {
+            let cases = cache.envelope.cases.iter().map(|case| {
+                Ok(serde_json::json!({"identification": encode(&case.result)?, "weight": case.weight.0}))
+            }).collect::<Result<Vec<_>, CausalError>>()?;
+            details["cases"] = serde_json::json!(cases);
+        } else if let Some(cache) = &study.pag_identification_cache {
+            let cases = cache.envelope.cases.iter().map(|case| {
+                Ok(serde_json::json!({"identification": encode(&case.result)?, "weight": case.weight.0}))
+            }).collect::<Result<Vec<_>, CausalError>>()?;
+            details["cases"] = serde_json::json!(cases);
+        }
+        Ok(details)
+    }
+
+    /// Refute an execution on the retained tabular snapshot.
+    ///
+    /// # Errors
+    /// Refuses absent tabular data or a suite unavailable for the retained execution.
+    pub fn refute_bound(
+        &self,
+        result: &crate::StudyResult,
+        suite: RefuteSuite,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<crate::StudyResult, CausalError> {
+        let DataInput::Tabular(data) = &self.study().data else {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "retained refutation requires tabular data"
+            ));
+        };
+        self.refute(result, data, suite, ctx)
+    }
     pub(crate) fn rebind_checked_bayesian_inference(
         &self,
         config: crate::BayesianConfig,

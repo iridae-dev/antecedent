@@ -148,9 +148,12 @@ def test_response_curve_runs_through_public_analyze_api():
         graph=[("x", "a"), ("x", "y"), ("a", "y")],
     )
 
-    assert result.estimand is query
+    assert result.estimand is not query
+    assert result.estimand.treatment == query.treatment
+    assert result.estimand.outcome == query.outcome
+    assert tuple(result.estimand.grid) == tuple(query.grid)
     assert result.response is not None
-    assert list(result.response.points) == [[-0.5], [0.0], [0.5]]
+    assert [list(point) for point in result.response.points] == [[-0.5], [0.0], [0.5]]
     assert result.provenance["operation_id"] == "estimate.response.kennedy_dr"
     assert result.identification.status == "NonparametricallyIdentified"
     tail = next(d for d in result.support.diagnostics if d.id == "response.outcome_tail_ratio")
@@ -410,7 +413,7 @@ def test_response_returns_standard_identification_view_and_adjustment_set():
     )
     assert isinstance(result.identification, antecedent.results.IdentificationView)
     assert result.identification.method == "response.backdoor"
-    assert result.identification.adjustment_set == ["z"]
+    assert result.identification.adjustment_set == tuple(["z"])
     assert result.identification
 
 

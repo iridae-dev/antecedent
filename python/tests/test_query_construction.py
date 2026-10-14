@@ -8,7 +8,7 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
-from antecedent.errors import CausalValueError
+from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.query import (
     AverageDerivative,
     AverageEffect,
@@ -188,7 +188,7 @@ def test_query_value_guards():
             grid=[0.0, 1.0],
             horizons=list(range(1, spec.max_horizons + 2)),
         )
-    with pytest.raises(CausalValueError, match="positive integers"):
+    with pytest.raises(CausalTypeError, match=r"horizons\[0\]"):
         ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[True])
     with pytest.raises(CausalValueError, match="strictly increasing"):
         ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[2, 2])
