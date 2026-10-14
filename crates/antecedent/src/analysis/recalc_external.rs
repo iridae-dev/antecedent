@@ -10,8 +10,8 @@ use antecedent_contract::{
 };
 use antecedent_core::ExecutionContext;
 use antecedent_core::recalc::{
-    Boundary, Branch, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext,
-    RetargetSupport, Stage, StageIdentities, StageIdentity, StageStatus,
+    Boundary, Branch, ProviderStandingInput, RecalcCapabilities, RecalcPlan, RequestSupport,
+    ResumeContext, RetargetSupport, Stage, StageIdentities, StageIdentity, StageStatus,
 };
 use antecedent_io::external_callback_artifact::ExternalCallbackArtifact;
 use antecedent_io::external_claim_artifact::ExternalClaimArtifact;
@@ -559,6 +559,10 @@ impl ExternalCallbackRequest {
         ids.set(Stage::Query, text_identity("callback.program.v1", &self.program.identity()));
         ids.set(Stage::TreatmentGrid, text_identity("callback.grid.v1", &self.program.identity()));
         ids.set(Stage::ExternalStudy(self.branch), self.digest());
+        // The request carries no verification receipt, so the provider stands as
+        // unverified; a standing that moves (a receipt appears, trust is revoked)
+        // changes this stage and recomputes the provider request, never reuses it.
+        ids.set_provider_standing(self.branch, &ProviderStandingInput::Unverified);
         ids.set(
             Stage::ProviderRequest(self.branch),
             text_identity(

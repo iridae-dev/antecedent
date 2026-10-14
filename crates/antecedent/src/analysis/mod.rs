@@ -21,6 +21,8 @@ pub(crate) use checked_ref;
 pub mod api;
 
 pub mod adaptive_inference;
+pub mod adaptive_procedure_declaration;
+pub mod adaptive_procedure_report;
 mod admg_conditional_transport;
 mod batch;
 mod batch_export;
@@ -59,6 +61,7 @@ mod decision_contract_facade;
 pub mod decision_reliability;
 mod derived_treatment;
 pub mod design_ranking;
+pub mod discovered_transport;
 pub mod discretized_composition;
 pub mod dose_grid_functional;
 pub mod effect_constancy;
@@ -88,6 +91,7 @@ pub mod nonlinear_mediation;
 pub mod observation_evidence;
 pub mod observation_posterior;
 pub mod observation_query;
+pub mod per_population_discovery;
 pub mod predictive_assessment;
 mod preflight;
 pub mod provider_callbacks;
@@ -104,6 +108,7 @@ pub mod recalc_temporal_measured;
 mod recovery;
 pub mod recovery_chain;
 pub mod repair;
+pub mod sample_split_analysis;
 pub mod scientific_bridge;
 pub mod selective_discovery;
 pub mod sensitivity_decision;
@@ -121,7 +126,11 @@ pub mod transport_handoff;
 pub mod transport_revalidation;
 mod transport_scenarios;
 pub mod transport_sensitivity;
+pub mod transported_cohort;
+pub mod transported_constructors;
 pub mod transported_counterfactual;
+pub mod transported_measurement;
+pub mod transported_mechanism;
 pub mod vector_treatment;
 mod z_transport;
 mod z_transport_sensitivity_artifact;
@@ -129,6 +138,11 @@ pub use adaptive_inference::{
     AdaptiveInferenceOutcome, AdaptiveInferenceRefusal, AdaptiveInferenceSession,
     ConsumedAdaptiveResult, ConsumedMonitoringContract, consume_adaptive_inference_result_artifact,
     consume_adaptive_monitoring_contract_artifact,
+};
+pub use adaptive_procedure_declaration::{AdaptiveProcedure, ProcedureElements, Retention};
+pub use adaptive_procedure_report::{
+    ProcedureLawReport, ProcedureReport, ProcedureReportBody, ProcedureReportRequest,
+    ProcedureSimulationReport,
 };
 pub use admg_conditional_transport::{
     AdmgConditionalResult, PreparedAdmgConditionalTransport,
@@ -218,11 +232,14 @@ pub use inverse_outcome::{
     SupportBasis, TargetDirection, classify_inverse_outcome,
 };
 pub use joint_law_propagation::{
-    CorrelationRangeSummary, JointLawPropagationRefusal, LinearDependence, MixtureComponent,
-    MomentInput, PropagationClaim, PropagationDraws, alignment_identity,
+    ComposedInterval, CorrelationRangeSummary, ExceedanceQuery, JointLawPropagationRefusal,
+    LinearDependence, MixtureComponent, MixtureDraws, MomentInput, PropagationClaim,
+    PropagationDraws, alignment_identity, claim_from_artifact,
     consume_joint_law_propagation_artifact, input_alignment, propagate_aligned_functional,
-    propagate_aligned_linear, propagate_correlation_range, propagate_dependence_envelope,
-    propagate_linear_moments, propagate_mixture,
+    propagate_aligned_linear, propagate_aligned_linear_spread, propagate_composed_exceedance,
+    propagate_correlation_range, propagate_dependence_envelope, propagate_linear_moments,
+    propagate_linear_moments_spread, propagate_mixture, propagate_mixture_exceedance,
+    propagate_spread, propagate_transported_spread, propagate_transported_spread_aligned,
 };
 pub use joint_sensitivity::{
     JOINT_SENSITIVITY_ARTIFACT_VERSION, JointFactorWire, JointOutcomeWire, JointPerturbationWire,

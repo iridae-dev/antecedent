@@ -83,6 +83,8 @@ pub mod identify_api;
 pub mod io;
 #[path = "analysis/surface/query.rs"]
 pub mod query;
+#[path = "analysis/surface/scientific.rs"]
+pub mod scientific;
 #[path = "analysis/surface/validate.rs"]
 pub mod validate;
 

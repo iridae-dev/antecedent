@@ -49,8 +49,7 @@ use antecedent_estimate::joint_bayesian_transport::{
     DataIdentity, GaussianPrior, JOINT_TRANSPORT_MAX_DRAWS, JOINT_TRANSPORT_MAX_PARAMETERS,
     JointPriors, JointTransportCalibration, JointTransportFit, JointTransportModel,
     JointTransportOptions, JointTransportRefusal, PriorProvenance, SourceData, SourceDependence,
-    TargetData,
-    fit_joint_bayesian_transport,
+    TargetData, fit_joint_bayesian_transport,
 };
 use antecedent_identify::TransportIdentification;
 use serde::{Deserialize, Serialize};
@@ -1020,8 +1019,6 @@ pub fn prior_data_overlap_from_ledger(
                 .to_owned(),
         });
     }
-    let pairs = prior_sources
-        .iter()
-        .flat_map(|&a| likelihood_sources.iter().map(move |&b| (a, b)));
+    let pairs = prior_sources.iter().flat_map(|&a| likelihood_sources.iter().map(move |&b| (a, b)));
     fold_pair_overlap(ledger, pairs)
 }

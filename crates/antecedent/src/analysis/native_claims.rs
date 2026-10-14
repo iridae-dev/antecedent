@@ -607,7 +607,7 @@ impl NativeResponseClaim {
             supported: Some(
                 self.point_status
                     .iter()
-                    .map(|status| status.severity() <= SupportStatus::Extrapolative.severity())
+                    .map(|status| *status == SupportStatus::Supported)
                     .collect(),
             ),
             calibration: self.calibration,

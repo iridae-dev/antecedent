@@ -10,16 +10,11 @@ use antecedent_io::joint_bayesian_transport_artifact::{
     prior_data_overlap_from_ledger, source_dependence_from_ledger,
 };
 
-fn add(
-    ledger: &mut EvidenceLedger,
-    label: &str,
-    rows: Option<std::ops::Range<u32>>,
-) -> SourceId {
+fn add(ledger: &mut EvidenceLedger, label: &str, rows: Option<std::ops::Range<u32>>) -> SourceId {
     let mut declaration = SourceDeclaration::new(label, SourceKind::ObservationSet);
     if let Some(range) = rows {
-        declaration = declaration.with_observations(
-            range.map(|i| ObservationId::from_key("units", &i.to_le_bytes())),
-        );
+        declaration = declaration
+            .with_observations(range.map(|i| ObservationId::from_key("units", &i.to_le_bytes())));
     }
     ledger.add_source(declaration).unwrap()
 }

@@ -36,8 +36,8 @@ use std::ops::Range;
 
 use antecedent_contract::ExternalRefusal;
 use antecedent_contract::composition_verification::{
-    CompositionGraph, CompositionNode, DependencyKind, GraphError, GraphRevalidation, NodeKind,
-    revalidate,
+    ClaimStanding, CompositionGraph, CompositionNode, DependencyKind, GraphError,
+    GraphRevalidation, NodeKind, revalidate,
 };
 use antecedent_contract::evidence_ledger::{
     Lineage, ObservationId, SourceDeclaration, SourceId, SourceKind,
@@ -241,7 +241,8 @@ pub fn add_discovery_claims(
 
     graph.add_node(
         CompositionNode::new(keys.data.clone(), NodeKind::Data, digest_of(snapshot.data.digest))
-            .with_coordinate(coordinate),
+            .with_coordinate(coordinate)
+            .with_standing(ClaimStanding::native_point()),
     )?;
     let statistics = snapshot.inputs.identity(DiscoveryStage::Statistics);
     graph.add_node(
@@ -251,7 +252,8 @@ pub fn add_discovery_claims(
             digest_of(*statistics.as_bytes()),
         )
         .with_coordinate(coordinate)
-        .with_representation("ci_statistics"),
+        .with_representation("ci_statistics")
+        .with_standing(ClaimStanding::native_point()),
     )?;
     let mut node = CompositionNode::new(
         keys.graph.clone(),
@@ -261,7 +263,10 @@ pub fn add_discovery_claims(
     .with_structure(digest_of(outcome.structure_identity))
     .with_representation(outcome.structure.class().as_str())
     .with_coordinate(coordinate)
-    .with_assumptions(graph_assumptions(outcome, route));
+    .with_assumptions(graph_assumptions(outcome, route))
+    // Discovery is native and reports a structure, not an interval: the standing is
+    // stated, not defaulted, so a later calibration claim cannot ride a reused stage.
+    .with_standing(ClaimStanding::native_point());
     if outcome.search_incomplete {
         let coordinates: Vec<String> = outcome
             .bounded_search_receipts
@@ -282,7 +287,8 @@ pub fn add_discovery_claims(
                 .with_assumptions(vec![
                     "declared_completion_of_equivalence_class".to_owned(),
                     format!("completion_label={}", completion.label),
-                ]),
+                ])
+                .with_standing(ClaimStanding::native_point()),
         )?;
         graph.add_edge(key, &keys.graph, DependencyKind::StructuralDerivation)?;
     }
@@ -330,6 +336,27 @@ pub fn discovery_data_source(
         let mut key = Vec::with_capacity(snapshot_id.len() + 8);
         key.extend_from_slice(snapshot_id);
         key.extend_from_slice(&row.to_le_bytes());
+        ObservationId::from_key(OBSERVATION_DOMAIN, &key)
+    });
+    declaration.with_observations(ids)
+}
+
+/// Declare an explicit set of rows (not necessarily contiguous) as an evidence source.
+///
+/// As [`discovery_data_source`], for a row set such as one part of a sample split: the
+/// observation identities are keyed by `snapshot_id` and row index, so the discovery part and
+/// the analysis part of one split are independent in the ledger, and either part overlaps the
+/// unsplit table on exactly the rows it holds.
+#[must_use]
+pub fn discovery_rows_source(label: &str, snapshot_id: &[u8], rows: &[usize]) -> SourceDeclaration {
+    let declaration = SourceDeclaration::new(label, SourceKind::ObservationSet);
+    if rows.len() > antecedent_contract::evidence_ledger::MAX_OBSERVATIONS_PER_SOURCE {
+        return declaration;
+    }
+    let ids = rows.iter().map(|&row| {
+        let mut key = Vec::with_capacity(snapshot_id.len() + 8);
+        key.extend_from_slice(snapshot_id);
+        key.extend_from_slice(&(row as u64).to_le_bytes());
         ObservationId::from_key(OBSERVATION_DOMAIN, &key)
     });
     declaration.with_observations(ids)

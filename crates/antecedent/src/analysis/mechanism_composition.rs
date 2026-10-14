@@ -719,6 +719,16 @@ impl PreparedMechanismComposition {
         {
             return Err(MechanismCompositionRefusal::one(refusal));
         }
+        // A product of coefficients along a path is nonlinear in the parameters:
+        // a declared independence of the estimates is not a joint law for it.
+        let arms: Vec<Vec<String>> = contrast
+            .arms
+            .iter()
+            .map(|arm| arm.interventions.iter().map(|(name, _)| name.clone()).collect())
+            .collect();
+        self.plan
+            .check_contrast_uncertainty(&contrast.outcome, &arms)
+            .map_err(MechanismCompositionRefusal::one)?;
         self.gaussian()?.mean_contrast_uncertainty(contrast).map_err(model_refusal)
     }
 

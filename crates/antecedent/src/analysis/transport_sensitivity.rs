@@ -140,15 +140,7 @@ impl From<TransportSensitivityRefusal> for TransportSensitivityEntryRefusal {
 /// implies one. A `declared` transport names none.
 #[must_use]
 pub const fn route_of(route: TransportedRoute) -> Option<TransportRoute> {
-    match route {
-        TransportedRoute::CohortEffect | TransportedRoute::ShiftedCohort => {
-            Some(TransportRoute::CohortDecision)
-        }
-        TransportedRoute::Policy => Some(TransportRoute::PolicyTransport),
-        TransportedRoute::Synthesis => Some(TransportRoute::SynthesisTransport),
-        TransportedRoute::Mechanism => Some(TransportRoute::MechanismTransport),
-        TransportedRoute::Declared => None,
-    }
+    TransportRoute::of_response_route(route)
 }
 
 /// The request for the assumption range of one coordinate of a response.

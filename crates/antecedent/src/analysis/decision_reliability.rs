@@ -43,7 +43,19 @@ pub use antecedent_design::decision_reliability::{
     SelectionUncertainty, SourceParadigm, SourceUncertainty, StreamId, StreamPurpose,
     ThresholdSide, UncertaintyReporting, ValidationKind, ValidationPlan, WithinStreamDependence,
 };
-use antecedent_design::decision_reliability::{ReliabilityError, assess, consume, license_route};
+pub use antecedent_design::decision_reliability::{
+    CohortUtilityDraws, ConfidenceSetBasis, CoverageCell, DERIVED_UNCERTAINTY_VERSION,
+    DerivedStanding, DerivedUncertainty, IntervalMultiplicity, IntervalRequest,
+    JointLawDeclaration, JointLawStanding, MIN_NORMAL_ESS, NumericalComponent, NumericalInterval,
+    NumericalIntervalMethod, OffPolicyReturnDraws, OptimalityConfidenceSet, PointOnlyOutput,
+    ProbabilityInterval, ProbabilityQuantity, ProducerCarrier, ProducerKind, ProducerOutput,
+    RolloutNoise, RolloutUtilityDraws, SelectionComponent, SelectionCorrectedInterval, TruthKind,
+    UtilityInterval,
+};
+use antecedent_design::decision_reliability::{
+    ReliabilityError, assess, consume, coverage_design, derive_uncertainty, license_route,
+    reach_carrier,
+};
 use antecedent_io::IoError;
 
 /// One refusal as plain data: registered reason code, namespaced
@@ -220,6 +232,157 @@ impl PreparedDecisionReliability {
             .to_bytes(artifact_id, ctx)
             .map_err(|error| DecisionReliabilityRefusal::from_io(&error))
     }
+}
+
+impl PreparedDecisionReliability {
+    /// Assess a producer's carrier, honouring what the producer allows it to claim.
+    ///
+    /// A carrier whose noise is shared only for variance reduction refuses ranking
+    /// requests (`joint_law_required`); the exported artifact carries the draws and the
+    /// request as accepted.
+    ///
+    /// # Errors
+    /// Anything [`ProducerCarrier::assess`] or [`Self::assess`] refuses.
+    pub fn assess_producer(
+        carrier: &ProducerCarrier,
+        validation: Option<DecisionDraws>,
+        request: ReliabilityRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, DecisionReliabilityRefusal> {
+        carrier
+            .assess(validation.as_ref(), &request, ctx)
+            .map_err(|error| DecisionReliabilityRefusal::from_error(&error))?;
+        let artifact =
+            DecisionReliabilityArtifact::new(carrier.draws().clone(), validation, request, ctx)
+                .map_err(|error| DecisionReliabilityRefusal::from_io(&error))?;
+        Ok(Self { artifact })
+    }
+
+    /// Derive the three uncertainty components for this assessment's decision: source
+    /// distribution, Monte Carlo error at the effective sample size, and selection
+    /// (confidence set for the best candidate and a selection-corrected interval).
+    ///
+    /// The result is labelled [`DerivedStanding::DerivedUnmeasured`]; it is recomputed
+    /// from the carried draws, so nothing here is stored beside the artifact.
+    ///
+    /// # Errors
+    /// A level outside `[0.5, 0.9999]`, an effective sample size below
+    /// [`MIN_NORMAL_ESS`], or anything the assessment itself refuses.
+    pub fn derive_uncertainty(
+        &self,
+        interval: &IntervalRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<DerivedUncertainty, DecisionReliabilityRefusal> {
+        derive_uncertainty(
+            &self.artifact.draws,
+            self.artifact.validation.as_ref(),
+            &self.artifact.request,
+            interval,
+            ctx,
+        )
+        .map_err(|error| DecisionReliabilityRefusal::from_error(&error))
+    }
+
+    /// Re-derive `derived` from this assessment's draws and compare.
+    ///
+    /// # Errors
+    /// A derivation that does not recompute, or anything [`Self::derive_uncertainty`]
+    /// refuses.
+    pub fn verify_derived(
+        &self,
+        derived: &DerivedUncertainty,
+        ctx: &ExecutionContext,
+    ) -> Result<(), DecisionReliabilityRefusal> {
+        derived
+            .verify(
+                &self.artifact.draws,
+                self.artifact.validation.as_ref(),
+                &self.artifact.request,
+                ctx,
+            )
+            .map_err(|error| DecisionReliabilityRefusal::from_error(&error))
+    }
+}
+
+/// Derive the three uncertainty components directly from draws.
+///
+/// # Errors
+/// As [`PreparedDecisionReliability::derive_uncertainty`], plus anything
+/// [`PreparedDecisionReliability::assess`] refuses.
+pub fn derive_decision_uncertainty(
+    draws: &DecisionDraws,
+    validation: Option<&DecisionDraws>,
+    request: &ReliabilityRequest,
+    interval: &IntervalRequest,
+    ctx: &ExecutionContext,
+) -> Result<DerivedUncertainty, DecisionReliabilityRefusal> {
+    derive_uncertainty(draws, validation, request, interval, ctx)
+        .map_err(|error| DecisionReliabilityRefusal::from_error(&error))
+}
+
+/// Derive the three components for a producer's carrier; a marginal-only carrier refuses
+/// ranking requests.
+///
+/// # Errors
+/// As [`ProducerCarrier::derive_uncertainty`].
+pub fn derive_producer_uncertainty(
+    carrier: &ProducerCarrier,
+    validation: Option<&DecisionDraws>,
+    request: &ReliabilityRequest,
+    interval: &IntervalRequest,
+    ctx: &ExecutionContext,
+) -> Result<DerivedUncertainty, DecisionReliabilityRefusal> {
+    carrier
+        .derive_uncertainty(validation, request, interval, ctx)
+        .map_err(|error| DecisionReliabilityRefusal::from_error(&error))
+}
+
+/// Take a cohort-decision or sequential-evaluation output to the reliability carrier.
+///
+/// # Errors
+/// A point-only output (`joint_law_required` for a cohort mean,
+/// `diagnostic_not_available` for a rollout or off-policy mean), cohort utilities
+/// without a declared shared law, a reported value the draws disagree with, or a carrier
+/// defect.
+pub fn reach_decision_carrier(
+    output: ProducerOutput,
+) -> Result<ProducerCarrier, DecisionReliabilityRefusal> {
+    reach_carrier(output).map_err(|error| DecisionReliabilityRefusal::from_error(&error))
+}
+
+/// Ask to publish a route from a derivation.
+///
+/// # Errors
+/// `cell_not_licensed` until a coverage record measures the route at the derivation's
+/// coordinate.
+pub fn publish_derived_route(
+    derived: &DerivedUncertainty,
+    route: PublishedRoute,
+) -> Result<(), DecisionReliabilityRefusal> {
+    derived.publish(route).map_err(|error| DecisionReliabilityRefusal::from_error(&error))
+}
+
+/// The coverage-measurement design for every derived interval and set, as data. Nothing
+/// is measured here.
+#[must_use]
+pub fn decision_reliability_coverage_design() -> Vec<CoverageCell> {
+    coverage_design()
+}
+
+/// Consume `decision_reliability_v1` bytes (recomputing the report from the carried
+/// draws) and derive the three uncertainty components from those draws: a fresh consumer
+/// never trusts a stored interval.
+///
+/// # Errors
+/// As [`consume_decision_reliability_artifact`] and
+/// [`PreparedDecisionReliability::derive_uncertainty`].
+pub fn consume_derived_uncertainty(
+    bytes: &[u8],
+    expected: &DecisionReliabilityExpectation,
+    interval: &IntervalRequest,
+    ctx: &ExecutionContext,
+) -> Result<DerivedUncertainty, DecisionReliabilityRefusal> {
+    consume_decision_reliability_artifact(bytes, expected, ctx)?.derive_uncertainty(interval, ctx)
 }
 
 /// Independently consume `decision_reliability_v1` bytes: every number is recomputed

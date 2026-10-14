@@ -46,6 +46,8 @@ use antecedent_io::adaptive_inference_result_artifact::{
 };
 use antecedent_io::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractArtifact;
 
+use super::adaptive_procedure_declaration::{AdaptiveProcedure, ProcedureElements};
+
 /// One refusal as plain data: registered reason code, namespaced
 /// `adaptive_inference.*` detail, and what would license the request.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -147,6 +149,23 @@ impl AdaptiveInferenceSession {
     /// A ledger bound exceeded.
     pub fn interim_evidence(&self) -> Result<InterimEvidence, AdaptiveInferenceRefusal> {
         self.contract.interim_evidence().map_err(|r| from_external(&r))
+    }
+
+    /// The declared whole procedure of this experiment: the contract's
+    /// schedule, delay and stopping parameters plus the elements the contract
+    /// does not keep (the assignment rule, loss retention, the exposure-failure
+    /// model, final selection and posterior priors). The uncertainty of the
+    /// procedure is derived from it by [`AdaptiveProcedure::report`].
+    ///
+    /// # Errors
+    /// One refusal per missing element and per disagreement between the
+    /// declared elements and the retained contract.
+    pub fn procedure(
+        &self,
+        elements: &ProcedureElements,
+        ctx: &ExecutionContext,
+    ) -> Result<AdaptiveProcedure, Vec<AdaptiveInferenceRefusal>> {
+        AdaptiveProcedure::from_contract(&self.contract, elements, ctx)
     }
 
     /// Analyse the data as if the design had been fixed in advance.

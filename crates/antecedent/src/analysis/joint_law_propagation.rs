@@ -18,6 +18,14 @@
 //!    `joint_law_propagation_v1`; **consume** re-runs the rule and replays the
 //!    result to identical bits.
 //!
+//! A **spread** (a variance, a Monte Carlo standard error, or an exceedance
+//! probability with its Monte Carlo band and verdict) is requested through the
+//! `*_spread` and `*_exceedance` functions; it is labelled
+//! `uncalibrated_spread` and carries no coverage statement. An **interval** at
+//! a composed coordinate is licensed only by
+//! [`PropagationClaim::check_composed_interval`] with a measured coverage
+//! record for exactly that coordinate and construction.
+//!
 //! # What a value means
 //!
 //! A value computed under a licensed dependence route is a labelled point
@@ -32,9 +40,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{
-    ExternalRefusal, InputAlignment, InputRole, JOINT_LAW_STAGE, PropagationDependence,
-    PropagationInput, PropagationOperation, PropagationRequest, RequestedReading,
-    check_propagation,
+    ComposedCoordinate, CoverageRecord, ExternalRefusal, InputAlignment, InputRole,
+    JOINT_LAW_STAGE, PropagationDependence, PropagationInput, PropagationOperation,
+    PropagationRequest, RequestedReading, check_propagation,
 };
 use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_io::distribution_artifact::{DistributionArtifact, DrawAlignment};
@@ -45,6 +53,9 @@ use antecedent_io::joint_law_propagation_artifact::{
 
 pub use antecedent_io::joint_law_propagation_artifact::{EnvelopeQueryWire, MarginalWire};
 pub use antecedent_stats::ValueFunctional;
+use antecedent_stats::{
+    DecisionVerdict, NORMAL_APPROXIMATION_CONSTRUCTION, normal_interval_candidate,
+};
 
 /// The refusals of a propagation request: each with a registered reason code,
 /// a namespaced `joint_law_propagation.*` detail, the offending subject and a
@@ -393,6 +404,7 @@ impl PropagationClaim {
     #[must_use]
     pub fn is_envelope(&self) -> bool {
         self.artifact.label != antecedent_contract::POINT_ONLY_LABEL
+            && self.artifact.label != antecedent_contract::UNCALIBRATED_SPREAD_LABEL
     }
 
     /// The alignment identity the rows share, for an aligned route.
@@ -404,7 +416,7 @@ impl PropagationClaim {
     /// A named float value (`mean`, `variance`, `lower`/`upper` pairs ...).
     #[must_use]
     pub fn value(&self, name: &str) -> Option<f64> {
-        if name == "n_rows" {
+        if is_count(name) {
             return None;
         }
         self.artifact.result.iter().find(|(n, _)| n == name).map(|(_, b)| f64::from_bits(*b))
@@ -422,9 +434,89 @@ impl PropagationClaim {
         self.artifact
             .result
             .iter()
-            .filter(|(n, _)| n != "n_rows")
+            .filter(|(n, _)| !is_count(n))
             .map(|(n, b)| (n.clone(), f64::from_bits(*b)))
             .collect()
+    }
+
+    /// The decision verdict (`act`, `withhold` or `unresolved`) of a composed
+    /// exceedance decision. The verdict is about the Monte Carlo band of the
+    /// stated probability only; it is not a coverage statement.
+    #[must_use]
+    pub fn verdict(&self) -> Option<&'static str> {
+        let code = self.artifact.result.iter().find(|(n, _)| n == "verdict_code")?.1;
+        let verdict = match code {
+            0 => DecisionVerdict::Act,
+            1 => DecisionVerdict::Withhold,
+            2 => DecisionVerdict::Unresolved,
+            _ => return None,
+        };
+        Some(verdict.as_str())
+    }
+
+    /// The composed coordinate a coverage record for this claim must be
+    /// measured at: `operation|route|role,role,...`.
+    ///
+    /// # Errors
+    /// A declaration whose dependence route does not license a spread (an
+    /// envelope has no composed coordinate with a spread).
+    pub fn coordinate_id(&self) -> Result<String, Refusal> {
+        let request =
+            PropagationRequest { reading: RequestedReading::Spread, ..self.declared.clone() };
+        let plan = check_propagation(&request).map_err(Refusal::one)?;
+        Ok(ComposedCoordinate::of(&request, &plan).id())
+    }
+
+    /// The interval reading of the composed quantity, licensed only by a
+    /// measured coverage record for exactly this composed coordinate and
+    /// construction. Without a record it is closed with the typed refusal; a
+    /// component interval does not cover the composition.
+    ///
+    /// A licensed `normal_approximation` interval is built from this claim's
+    /// mean and variance at the record's nominal level. For another
+    /// construction the licence is returned without bounds: the caller builds
+    /// the interval from the aligned draws with the construction the record
+    /// was measured for.
+    ///
+    /// # Errors
+    /// The refusals of `antecedent_contract::check_composed_interval`: an
+    /// unlicensed dependence route, a missing, unmeasured or mismatched record,
+    /// or a nominal level outside `(0, 1)`.
+    pub fn check_composed_interval(
+        &self,
+        record: Option<&CoverageRecord>,
+        construction: &str,
+    ) -> Result<ComposedInterval, Refusal> {
+        let request =
+            PropagationRequest { reading: RequestedReading::Interval, ..self.declared.clone() };
+        let plan = antecedent_contract::check_composed_interval(&request, record, construction)
+            .map_err(Refusal::one)?;
+        let bounds = if construction == NORMAL_APPROXIMATION_CONSTRUCTION {
+            let (Some(mean), Some(variance)) = (self.value("mean"), self.value("variance")) else {
+                return Err(Refusal::invalid(
+                    construction,
+                    "the claim carries no mean and variance to build a normal approximation from; build the interval from the aligned draws",
+                ));
+            };
+            let candidate = normal_interval_candidate(mean, variance, plan.nominal_level)
+                .map_err(|e| {
+                    Refusal::invalid(
+                        &e.to_string(),
+                        "the interval needs a finite mean, a non-negative variance and a level in (0, 1)",
+                    )
+                })?;
+            Some((candidate.lower, candidate.upper))
+        } else {
+            None
+        };
+        Ok(ComposedInterval {
+            coordinate_id: plan.coordinate.id(),
+            record_id: plan.record_id,
+            construction: plan.construction,
+            nominal_level: plan.nominal_level,
+            label: plan.label,
+            bounds,
+        })
     }
 
     /// Encode the sealed artifact.
@@ -463,6 +555,62 @@ impl PropagationClaim {
             )),
         }
     }
+}
+
+/// A composed interval licensed by a measured coverage record at its composed
+/// coordinate. The record, not this value, carries the coverage evidence.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ComposedInterval {
+    coordinate_id: String,
+    record_id: String,
+    construction: String,
+    nominal_level: f64,
+    label: &'static str,
+    bounds: Option<(f64, f64)>,
+}
+
+impl ComposedInterval {
+    /// The composed coordinate the record was matched against.
+    #[must_use]
+    pub fn coordinate_id(&self) -> &str {
+        &self.coordinate_id
+    }
+
+    /// The identity of the record that licensed the interval.
+    #[must_use]
+    pub fn record_id(&self) -> &str {
+        &self.record_id
+    }
+
+    /// The construction the interval is built with.
+    #[must_use]
+    pub fn construction(&self) -> &str {
+        &self.construction
+    }
+
+    /// The nominal level, the record's.
+    #[must_use]
+    pub fn nominal_level(&self) -> f64 {
+        self.nominal_level
+    }
+
+    /// The label of the result (`measured_interval`).
+    #[must_use]
+    pub fn label(&self) -> &'static str {
+        self.label
+    }
+
+    /// The interval ends, when the facade builds the construction from the
+    /// claim's own mean and variance.
+    #[must_use]
+    pub fn bounds(&self) -> Option<(f64, f64)> {
+        self.bounds
+    }
+}
+
+/// Result names that hold an integer count or code, not float bits.
+fn is_count(name: &str) -> bool {
+    matches!(name, "n_rows" | "verdict_code")
 }
 
 // ------------------------------------------------------------- execution
@@ -573,6 +721,51 @@ pub fn propagate_linear_moments(
     dependence: &LinearDependence,
     ctx: &ExecutionContext,
 ) -> Result<PropagationClaim, Refusal> {
+    linear_moments_reading(
+        RequestedReading::Point,
+        operation,
+        inputs,
+        coefficients,
+        covariance,
+        dependence,
+        ctx,
+    )
+}
+
+/// The spread (a variance under the licensed dependence route) of
+/// `sum a_i X_i` from means and a covariance, labelled `uncalibrated_spread`.
+/// The variance is what the route determines; it carries no coverage statement.
+///
+/// # Errors
+/// As [`propagate_linear_moments`].
+pub fn propagate_linear_moments_spread(
+    operation: PropagationOperation,
+    inputs: &[MomentInput],
+    coefficients: &[f64],
+    covariance: &[f64],
+    dependence: &LinearDependence,
+    ctx: &ExecutionContext,
+) -> Result<PropagationClaim, Refusal> {
+    linear_moments_reading(
+        RequestedReading::Spread,
+        operation,
+        inputs,
+        coefficients,
+        covariance,
+        dependence,
+        ctx,
+    )
+}
+
+fn linear_moments_reading(
+    reading: RequestedReading,
+    operation: PropagationOperation,
+    inputs: &[MomentInput],
+    coefficients: &[f64],
+    covariance: &[f64],
+    dependence: &LinearDependence,
+    ctx: &ExecutionContext,
+) -> Result<PropagationClaim, Refusal> {
     let k = inputs.len();
     if coefficients.len() != k || covariance.len() != k * k {
         return Err(Refusal::invalid(
@@ -606,7 +799,7 @@ pub fn propagate_linear_moments(
                 PropagationDependence::Covariance { id: id.clone() }
             }
         },
-        reading: RequestedReading::Point,
+        reading,
     };
     let means: Vec<f64> = inputs.iter().map(|m| m.mean).collect();
     propagate(
@@ -743,6 +936,348 @@ pub fn propagate_correlation_range(
         },
         ctx,
     )
+}
+
+// ------------------------------------------------------- spread readings
+
+/// The spread of `g(X, Y)` under the aligned joint law of two inputs: the
+/// mean, the variance of the composed rows and the Monte Carlo standard error
+/// of the mean, labelled `uncalibrated_spread`. It carries no coverage
+/// statement; an interval needs [`PropagationClaim::check_composed_interval`].
+///
+/// # Errors
+/// As [`propagate_aligned_functional`].
+pub fn propagate_spread(
+    operation: PropagationOperation,
+    x: &PropagationDraws,
+    y: &PropagationDraws,
+    functional: ValueFunctional,
+    ctx: &ExecutionContext,
+) -> Result<PropagationClaim, Refusal> {
+    let declared = aligned_declared(operation, x, y, RequestedReading::Spread);
+    check_propagation(&declared).map_err(Refusal::one)?;
+    paired(x, y)?;
+    propagate(
+        &declared,
+        PropagationRequestWire::AlignedFunctionalSpread {
+            functional: functional.as_str().to_owned(),
+            x: float_bits(&x.values),
+            y: float_bits(&y.values),
+        },
+        ctx,
+    )
+}
+
+/// The spread (variance and covariance) of `a X + b Y` from aligned draws,
+/// labelled `uncalibrated_spread`.
+///
+/// # Errors
+/// As [`propagate_aligned_linear`].
+pub fn propagate_aligned_linear_spread(
+    operation: PropagationOperation,
+    coefficients: (f64, f64),
+    x: &PropagationDraws,
+    y: &PropagationDraws,
+    ctx: &ExecutionContext,
+) -> Result<PropagationClaim, Refusal> {
+    let declared = aligned_declared(operation, x, y, RequestedReading::Spread);
+    check_propagation(&declared).map_err(Refusal::one)?;
+    paired(x, y)?;
+    propagate(
+        &declared,
+        PropagationRequestWire::AlignedLinearCombination {
+            a: coefficients.0.to_bits(),
+            b: coefficients.1.to_bits(),
+            x: float_bits(&x.values),
+            y: float_bits(&y.values),
+        },
+        ctx,
+    )
+}
+
+fn aligned_declared(
+    operation: PropagationOperation,
+    x: &PropagationDraws,
+    y: &PropagationDraws,
+    reading: RequestedReading,
+) -> PropagationRequest {
+    PropagationRequest {
+        operation,
+        inputs: vec![x.as_input(), y.as_input()],
+        dependence: PropagationDependence::AlignedJointLaw,
+        reading,
+    }
+}
+
+/// The threshold, probability cutoff and Monte Carlo band level of an
+/// exceedance decision.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ExceedanceQuery {
+    /// The composed value the probability is of exceeding.
+    pub threshold: f64,
+    /// The probability cutoff the verdict compares against, in `(0, 1)`.
+    pub cutoff: f64,
+    /// The level of the Monte Carlo band, in `(0, 1)`.
+    pub band_level: f64,
+}
+
+/// `P(g(X, Y) > threshold)` from aligned draws with its Monte Carlo band and
+/// the verdict (`act`, `withhold` or `unresolved`) against the cutoff, labelled
+/// `uncalibrated_spread`. The verdict is about the Monte Carlo error of the
+/// stated probability only; it says nothing about the law's calibration.
+///
+/// # Errors
+/// As [`propagate_aligned_functional`]; also a cutoff or band level outside
+/// `(0, 1)` or a non-finite threshold.
+pub fn propagate_composed_exceedance(
+    operation: PropagationOperation,
+    x: &PropagationDraws,
+    y: &PropagationDraws,
+    functional: ValueFunctional,
+    query: ExceedanceQuery,
+    ctx: &ExecutionContext,
+) -> Result<PropagationClaim, Refusal> {
+    let declared = aligned_declared(operation, x, y, RequestedReading::Spread);
+    check_propagation(&declared).map_err(Refusal::one)?;
+    paired(x, y)?;
+    propagate(
+        &declared,
+        PropagationRequestWire::AlignedExceedance {
+            functional: functional.as_str().to_owned(),
+            x: float_bits(&x.values),
+            y: float_bits(&y.values),
+            threshold: query.threshold.to_bits(),
+            cutoff: query.cutoff.to_bits(),
+            band_level: query.band_level.to_bits(),
+        },
+        ctx,
+    )
+}
+
+/// A component of a finite mixture given as draws, with its known weight.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MixtureDraws {
+    /// Component identity.
+    pub id: String,
+    /// Identity of the evidence the component rests on.
+    pub evidence_id: String,
+    /// The component's known weight.
+    pub weight: f64,
+    /// The component's draws.
+    pub draws: Vec<f64>,
+}
+
+/// `P(X > threshold)` of a finite mixture of draw sets with known weights, with
+/// a Monte Carlo standard error that treats each component's draws as
+/// independently produced, labelled `uncalibrated_spread`. The components need
+/// no joint law and are never paired.
+///
+/// # Errors
+/// As [`propagate`]; also weights that are not a probability vector or an empty
+/// or non-finite component.
+pub fn propagate_mixture_exceedance(
+    components: &[MixtureDraws],
+    threshold: f64,
+    ctx: &ExecutionContext,
+) -> Result<PropagationClaim, Refusal> {
+    let declared = PropagationRequest {
+        operation: PropagationOperation::Mixture,
+        inputs: components
+            .iter()
+            .map(|c| PropagationInput {
+                id: c.id.clone(),
+                evidence_id: c.evidence_id.clone(),
+                role: InputRole::Estimate,
+                alignment: InputAlignment::MomentsOnly,
+            })
+            .collect(),
+        dependence: PropagationDependence::KnownWeights,
+        reading: RequestedReading::Spread,
+    };
+    let weights: Vec<f64> = components.iter().map(|c| c.weight).collect();
+    propagate(
+        &declared,
+        PropagationRequestWire::MixtureExceedance {
+            weights: float_bits(&weights),
+            components: components.iter().map(|c| float_bits(&c.draws)).collect(),
+            threshold: threshold.to_bits(),
+        },
+        ctx,
+    )
+}
+
+// ------------------------------------------------- transported uncertainty
+
+/// The spread of a transported claim from its three pieces (source sampling,
+/// target sampling, transport functional) and their covariance, labelled
+/// `uncalibrated_spread`.
+///
+/// `pieces` carry their roles (`InputRole::SourceSampling`,
+/// `InputRole::TargetSampling`, `InputRole::TransportFunctional`); the rule
+/// refuses a spread whose pieces are incomplete, and a declared independence of
+/// the pieces, because the pieces are dependent when evidence is shared.
+/// `covariance_id` names the declaration or the shared evidence that supplies
+/// the covariance.
+///
+/// # Errors
+/// As [`propagate_linear_moments`], plus the transported-composition refusals
+/// (`joint_law_propagation.transport_pieces_incomplete`,
+/// `joint_law_propagation.transported_dependence_required`).
+pub fn propagate_transported_spread(
+    pieces: &[MomentInput],
+    coefficients: &[f64],
+    covariance: &[f64],
+    covariance_id: &str,
+    ctx: &ExecutionContext,
+) -> Result<PropagationClaim, Refusal> {
+    linear_moments_reading(
+        RequestedReading::Spread,
+        PropagationOperation::TransportedComposition,
+        pieces,
+        coefficients,
+        covariance,
+        &LinearDependence::Covariance { id: covariance_id.to_owned() },
+        ctx,
+    )
+}
+
+/// The spread of a transported claim from the aligned draws of its three
+/// pieces: the rows must share one alignment identity (columns of one joint
+/// law). The covariance is the population covariance of the aligned rows, and
+/// its declaration names the alignment identity, so a refusal for a mismatched
+/// or unpaired piece comes from the rule before any number is formed.
+///
+/// `coefficients` weight (source sampling, target sampling, transport
+/// functional) in that order.
+///
+/// # Errors
+/// As [`propagate_transported_spread`]; also `joint_law_required` when the
+/// pieces' alignment identities differ or a piece has no aligned draws.
+pub fn propagate_transported_spread_aligned(
+    source_sampling: &PropagationDraws,
+    target_sampling: &PropagationDraws,
+    transport_functional: &PropagationDraws,
+    coefficients: [f64; 3],
+    ctx: &ExecutionContext,
+) -> Result<PropagationClaim, Refusal> {
+    let pieces = [
+        source_sampling.clone().with_role(InputRole::SourceSampling),
+        target_sampling.clone().with_role(InputRole::TargetSampling),
+        transport_functional.clone().with_role(InputRole::TransportFunctional),
+    ];
+    let declared = PropagationRequest {
+        operation: PropagationOperation::TransportedComposition,
+        inputs: pieces.iter().map(PropagationDraws::as_input).collect(),
+        dependence: PropagationDependence::AlignedJointLaw,
+        reading: RequestedReading::Spread,
+    };
+    let plan = check_propagation(&declared).map_err(Refusal::one)?;
+    let n = pieces[0].values.len();
+    if pieces.iter().any(|p| p.values.len() != n) {
+        return Err(Refusal::invalid(
+            &pieces[0].id,
+            "aligned columns have one value per joint realization; the draw counts differ",
+        ));
+    }
+    if n < 2 || pieces.iter().any(|p| p.values.iter().any(|v| !v.is_finite())) {
+        return Err(Refusal::invalid(
+            &pieces[0].id,
+            "a spread needs at least two finite aligned rows",
+        ));
+    }
+    let nf = n as f64;
+    let means: Vec<f64> = pieces.iter().map(|p| p.values.iter().sum::<f64>() / nf).collect();
+    let mut covariance = vec![0.0; 9];
+    for i in 0..3 {
+        for j in i..3 {
+            let total: f64 = pieces[i]
+                .values
+                .iter()
+                .zip(&pieces[j].values)
+                .map(|(a, b)| (a - means[i]) * (b - means[j]))
+                .sum();
+            covariance[i * 3 + j] = total / nf;
+            covariance[j * 3 + i] = total / nf;
+        }
+    }
+    let alignment = plan.alignment_id.unwrap_or_default();
+    let moment_inputs: Vec<MomentInput> = pieces
+        .iter()
+        .zip(&means)
+        .map(|(p, mean)| MomentInput {
+            id: p.id.clone(),
+            evidence_id: p.evidence_id.clone(),
+            role: p.role,
+            mean: *mean,
+        })
+        .collect();
+    linear_moments_reading(
+        RequestedReading::Spread,
+        PropagationOperation::TransportedComposition,
+        &moment_inputs,
+        &coefficients,
+        &covariance,
+        &LinearDependence::Covariance { id: format!("aligned_draw_covariance:{alignment}") },
+        ctx,
+    )
+}
+
+/// Rebuild a claim from a sealed artifact for a further reading (the interval
+/// check). The artifact is verified and replayed first (a consumer re-derives,
+/// it does not trust), so an edited artifact is refused.
+///
+/// # Errors
+/// As [`consume_joint_law_propagation_artifact`].
+pub fn claim_from_artifact(
+    bytes: &[u8],
+    expected_identity: Option<&str>,
+    ctx: &ExecutionContext,
+) -> Result<PropagationClaim, Refusal> {
+    let wire = JointLawPropagationArtifactWire::decode(bytes)?;
+    wire.consume(expected_identity, ctx)?;
+    let malformed =
+        |what: &str| Refusal::invalid(what, "supply an intact joint_law_propagation_v1 artifact");
+    let operation = PropagationOperation::from_name(&wire.rule.operation)
+        .ok_or_else(|| malformed("operation"))?;
+    let reading =
+        RequestedReading::from_name(&wire.rule.reading).ok_or_else(|| malformed("reading"))?;
+    let dependence = match wire.rule.dependence.as_str() {
+        "unknown" => PropagationDependence::Unknown,
+        "declared_independent" => PropagationDependence::DeclaredIndependent,
+        "covariance" => PropagationDependence::Covariance {
+            id: wire.rule.covariance_id.clone().ok_or_else(|| malformed("covariance id"))?,
+        },
+        "aligned_joint_law" => PropagationDependence::AlignedJointLaw,
+        "known_weights" => PropagationDependence::KnownWeights,
+        "correlation_range" => {
+            let (Some(lo), Some(hi)) = (wire.rule.rho_lo, wire.rule.rho_hi) else {
+                return Err(malformed("correlation range"));
+            };
+            PropagationDependence::CorrelationRange {
+                rho_lo: f64::from_bits(lo),
+                rho_hi: f64::from_bits(hi),
+            }
+        }
+        "marginals_only" => PropagationDependence::MarginalsOnly,
+        _ => return Err(malformed("dependence")),
+    };
+    let mut inputs = Vec::with_capacity(wire.inputs.len());
+    for input in &wire.inputs {
+        let alignment = match (input.alignment.as_str(), &input.alignment_id) {
+            ("aligned", Some(id)) => InputAlignment::Aligned { alignment_id: id.clone() },
+            ("independent_marginals", None) => InputAlignment::IndependentMarginals,
+            ("moments_only", None) => InputAlignment::MomentsOnly,
+            _ => return Err(malformed("input alignment")),
+        };
+        inputs.push(PropagationInput {
+            id: input.input_id.clone(),
+            evidence_id: input.evidence_id.clone(),
+            role: InputRole::from_name(&input.role).ok_or_else(|| malformed("input role"))?,
+            alignment,
+        });
+    }
+    let declared = PropagationRequest { operation, inputs, dependence, reading };
+    Ok(PropagationClaim { declared, artifact: wire })
 }
 
 /// Verify a sealed artifact and replay it to identical result bits.
