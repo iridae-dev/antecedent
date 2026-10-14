@@ -16,6 +16,8 @@ antecedent-core = { path = "../crates/antecedent-core" }
 antecedent-graph = { path = "../crates/antecedent-graph" }
 antecedent-kernels = { path = "../crates/antecedent-kernels" }
 antecedent-io = { path = "../crates/antecedent-io" }
+antecedent-io-core = { path = "../crates/antecedent-io-core" }
+antecedent-design = { path = "../crates/antecedent-design" }
 antecedent-expr = { path = "../crates/antecedent-expr" }
 antecedent-data = { path = "../crates/antecedent-data", features = ["arrow"] }
 arrow-array = { version = "54", default-features = false }
@@ -101,6 +103,181 @@ bench = false
 [[bin]]
 name = "causal_payload"
 path = "fuzz_targets/causal_payload.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "transport_handoff"
+path = "fuzz_targets/transport_handoff.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "joint_law_propagation"
+path = "fuzz_targets/joint_law_propagation.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "composition_verification"
+path = "fuzz_targets/composition_verification.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "interface_contract"
+path = "fuzz_targets/interface_contract.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "callback_result"
+path = "fuzz_targets/callback_result.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "callback_envelope"
+path = "fuzz_targets/callback_envelope.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "inverse_query"
+path = "fuzz_targets/inverse_query.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "design_ranking"
+path = "fuzz_targets/design_ranking.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "adaptive_artifacts"
+path = "fuzz_targets/adaptive_artifacts.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "counterfactual_transport"
+path = "fuzz_targets/counterfactual_transport.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "evidence_ledger"
+path = "fuzz_targets/evidence_ledger.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "cohort_decision"
+path = "fuzz_targets/cohort_decision.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "measurement_model"
+path = "fuzz_targets/measurement_model.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "decision_artifacts"
+path = "fuzz_targets/decision_artifacts.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "provider_verification_receipt"
+path = "fuzz_targets/provider_verification_receipt.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "external_claims"
+path = "fuzz_targets/external_claims.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "selective_discovery"
+path = "fuzz_targets/selective_discovery.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "cross_world_execution"
+path = "fuzz_targets/cross_world_execution.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "source_evidence"
+path = "fuzz_targets/source_evidence.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "repair_report_artifact"
+path = "fuzz_targets/repair_report_artifact.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "rollout_artifact"
+path = "fuzz_targets/rollout_artifact.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sequential_evaluation_artifact"
+path = "fuzz_targets/sequential_evaluation_artifact.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "study_plan_artifact"
+path = "fuzz_targets/study_plan_artifact.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "transport_artifacts"
+path = "fuzz_targets/transport_artifacts.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "decision_json"
+path = "fuzz_targets/decision_json.rs"
 test = false
 doc = false
 bench = false
