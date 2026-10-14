@@ -14,7 +14,7 @@
 use antecedent::analysis::cohort_decision::{CohortExpectation, consume_cohort_decision_source};
 use antecedent::analysis::inverse_query::{InverseQueryWire, InverseResultWire};
 use antecedent::analysis::inverse_sources::{
-    ComposedActionQuery, InverseDemand, LicensedForwardSource, ObservationalScenarioQuery,
+    ComposedActionQuery, ComposedSourceRefusal, InverseDemand, LicensedForwardSource, ObservationalScenarioQuery,
     ObservationalScenarioResult, OutcomeEvent, ScenarioCell, ScenarioCondition, TransportReceipt,
     TransportedInputPolicy, cohort_source, evaluate, evaluate_observational, inspect_observational,
     inspect_origin, seal, seal_per_action, transported_source, verify_observational,
@@ -84,6 +84,28 @@ impl ForwardSourceHandle {
     }
 }
 
+/// A composed-source refusal as JSON: the composition's own refusal (code, detail, offending,
+/// expected, supplied, remedy) is the payload, with every refusal of the composition under
+/// `refusals` and the refused action under `action_id`. The payload's detail is
+/// `inverse_forward_source.origin_invalid` only when the replay of the exported query did not
+/// reproduce its premises.
+fn composed_refusal_json(refusal: &ComposedSourceRefusal) -> String {
+    let all = refusal.refusals();
+    let mut payload: Json = serde_json::from_str(&external_refusal_json(&refusal.to_refusal()))
+        .unwrap_or(Json::Null);
+    if let Json::Object(map) = &mut payload {
+        let each: Vec<Json> = all
+            .iter()
+            .filter_map(|r| serde_json::from_str(&external_refusal_json(r)).ok())
+            .collect();
+        map.insert("refusals".to_owned(), Json::Array(each));
+        if let Some(action) = refusal.action_id() {
+            map.insert("action_id".to_owned(), Json::String(action.to_owned()));
+        }
+    }
+    payload.to_string()
+}
+
 fn declaration_refusal(detail: &str, message: &str) -> String {
     RefusalJson::new(reason_code!("invalid_argument"), "inverse_query", detail, message).json()
 }
@@ -143,11 +165,11 @@ fn forward_source_composed(
     let policy = policy_of(accepts_transported);
     let outcome = crate::detach_catch(py, move || {
         let ctx = execution_context(0, None, cancel);
-        Ok(inner.inverse_forward_source(&actions, transport, policy, &ctx))
+        Ok(inner.inverse_forward_source_typed(&actions, transport, policy, &ctx))
     })?;
     Ok(match outcome {
         Ok(inner) => (Some(ForwardSourceHandle { inner }), None),
-        Err(refusal) => (None, Some(external_refusal_json(&refusal.to_refusal()))),
+        Err(refusal) => (None, Some(composed_refusal_json(&refusal))),
     })
 }
 

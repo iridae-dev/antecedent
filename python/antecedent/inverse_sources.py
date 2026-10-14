@@ -9,7 +9,7 @@ with its own refusals and its identity travels into the result and the sealed ar
 
     source = sources.composed_forward_source(
         composition,
-        [sources.ComposedAction("x1", coordinate, mc.MeanContrast.mean_at("Y", {"X": 1.0}))],
+        [sources.ComposedAction("x1", coordinate, {"X": 1.0}, outcome="Y")],
     )
     result = source.evaluate(query)
     result.selected, result.origin.kind, result.origin.assumed_mechanisms
@@ -206,9 +206,12 @@ class ComposedAction:
 
     ``coordinate`` is the scientific coordinate the action's utility reads (the interventional
     mean of the outcome, or the contrast, in the contract's own regime and population).
-    ``query`` is a :class:`~antecedent.mechanism_composition.MeanContrast` or a mapping of hard
-    interventions with ``outcome`` (a Gaussian intervention law for a linear-Gaussian
-    composition, a finite intervention distribution, with level names, for a finite-table one).
+    ``query`` is a mapping of hard interventions with ``outcome`` (a Gaussian intervention law
+    for a linear-Gaussian composition, or a finite intervention distribution, with level names,
+    for a finite-table one) or a :class:`~antecedent.mechanism_composition.MeanContrast`, whose
+    variance needs a declared joint law: without one the composition's own typed refusal
+    (``joint_law_required``, ``mechanism_composition.posterior_dependence_unknown``) is raised,
+    never an invalid-origin refusal.
     ``level_values`` maps each outcome level of a finite distribution to its numeric value; every
     level is coded exactly once.
     """
@@ -361,7 +364,9 @@ def composed_forward_source(
     never ``supported``.
 
     Raises:
-        InverseQueryRefusal: a composition refusal of any query (with its registered code), no
+        InverseQueryRefusal: a composition refusal of any query, kept as the composition's own
+            typed refusal (its code, detail, offending subject and remedy; ``action_id`` names the
+            refused action and ``refusals`` carries every defect), no
             action, a repeated action or coordinate, a query of another family than the
             composition, a mean addressed by an outcome-law coordinate, a finite outcome whose
             levels are not coded exactly once, an admitted composition without its receipt, and

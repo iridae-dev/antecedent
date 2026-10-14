@@ -35,6 +35,7 @@ from antecedent.joint_distribution import (
 from _refusal import assert_registered_refusal
 from _transport_fixtures import (
     compose,
+    declaration,
     finite_chain,
     gaussian_chain,
     identity_contract,
@@ -58,7 +59,7 @@ def query(arms, constraints, *, functional: str = "mean") -> iq.InverseQuery:
 def gaussian_actions() -> list[src.ComposedAction]:
     return [
         src.ComposedAction(
-            f"x{arm}", outcome_under(arm), mc.MeanContrast.mean_at("Y", {"X": float(arm)})
+            f"x{arm}", outcome_under(arm), {"X": float(arm)}, outcome="Y"
         )
         for arm in ("0", "1", "2")
     ]
@@ -143,6 +144,109 @@ def test_a_point_composition_refuses_laws_intervals_and_the_wrong_family() -> No
     # A finite-distribution query of a linear-Gaussian composition is refused by the composition.
     wrong = finite_actions({"0": 0.0, "1": 1.0})
     refusal_of(lambda: src.composed_forward_source(composition, wrong))
+
+
+def uncertain_chain() -> list[mc.Mechanism]:
+    """The Gaussian chain with a marginal parameter law per mechanism and no stated dependence."""
+    intercept = mc.ParameterTerm.intercept()
+
+    def coefficient(parent: str) -> mc.ParameterTerm:
+        return mc.ParameterTerm.coefficient(parent)
+
+    def marginal(terms, covariance) -> mc.MechanismUncertainty:
+        return mc.MechanismUncertainty(
+            parameters=tuple(terms),
+            covariance=tuple(covariance),
+            meaning="sampling_distribution",
+        )
+
+    def mechanism(variable, base, parents, uncertainty) -> mc.Mechanism:
+        names = [p for p, _ in parents]
+        return mc.Mechanism.declared_linear(
+            declaration(variable, names),
+            intercept=base[0],
+            sigma=base[1],
+            coefficients=dict(parents),
+            uncertainty=uncertainty,
+        )
+
+    return [
+        mechanism("X", (1.0, 2.0), [], marginal([intercept], [0.25])),
+        mechanism(
+            "M",
+            (0.5, 1.0),
+            [("X", 2.0)],
+            marginal([intercept, coefficient("X")], [0.04, -0.01, -0.01, 0.01]),
+        ),
+        mechanism(
+            "Y",
+            (-1.0, 0.5),
+            [("X", 0.5), ("M", 3.0)],
+            marginal(
+                [intercept, coefficient("X"), coefficient("M")],
+                [0.09, 0, 0, 0, 0.01, 0, 0, 0, 0.0025],
+            ),
+        ),
+    ]
+
+
+def contrast_action(arm: str) -> src.ComposedAction:
+    return src.ComposedAction(
+        f"x{arm}", outcome_under(arm), mc.MeanContrast.mean_at("Y", {"X": float(arm)})
+    )
+
+
+def test_a_mean_contrast_action_keeps_the_compositions_own_typed_refusal() -> None:
+    # Parameter uncertainty with no stated dependence is a joint-law refusal of the composition;
+    # it is never read as an invalid origin.
+    uncertain = compose(uncertain_chain())
+    error = refusal_of(
+        lambda: src.composed_forward_source(uncertain, [contrast_action("0"), contrast_action("1")])
+    )
+    assert error.reason_code == "joint_law_required"
+    assert error.detail == "mechanism_composition.posterior_dependence_unknown"
+    assert error.detail != "inverse_forward_source.origin_invalid"
+    assert error.remedy
+
+    # Mechanisms that report no parameter law at all refuse the same contrast with the
+    # composition's own coherence finding, not as an invalid origin.
+    bare = refusal_of(
+        lambda: src.composed_forward_source(
+            compose(gaussian_chain()), [contrast_action("1"), contrast_action("2")]
+        )
+    )
+    assert bare.detail.startswith("mechanism_composition.")
+    assert bare.reason_code in {"joint_law_required", "mechanism_composition_incoherent"}
+    assert bare.detail != "inverse_forward_source.origin_invalid"
+
+    # The intervention-law query of the same mechanisms is a replayed point:
+    # E[Y | do(X = 1)] = 7 and E[Y | do(X = 2)] = 13.5 against a target of 10.
+    source = src.composed_forward_source(
+        compose(gaussian_chain()),
+        [
+            src.ComposedAction("x1", outcome_under("1"), {"X": 1.0}, outcome="Y"),
+            src.ComposedAction("x2", outcome_under("2"), {"X": 2.0}, outcome="Y"),
+        ],
+    )
+    result = source.evaluate(query(("1", "2"), [iq.target_mean(10.0)]))
+    assert result.action("x1").point_values[0].value == pytest.approx(7.0, abs=TOL)
+    assert result.action("x2").point_values[0].value == pytest.approx(13.5, abs=TOL)
+    assert result.action("x1").point == "infeasible"
+    assert result.action("x2").point == "feasible"
+
+
+def test_a_contrast_of_a_finite_composition_is_an_unsupported_request() -> None:
+    # A mean contrast needs linear-Gaussian mechanisms; the finite composition refuses it as an
+    # unsupported request of its own, not as an invalid origin.
+    error = refusal_of(
+        lambda: src.composed_forward_source(
+            compose(finite_chain()), [contrast_action("0"), contrast_action("1")]
+        )
+    )
+    assert error.reason_code == "route_not_supported"
+    assert error.detail == "mechanism_composition.request_unsupported"
+    assert error.remedy
+    assert "x0" in (error.offending or "")
 
 
 # --------------------------------------------------------------------------- finite
