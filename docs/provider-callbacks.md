@@ -169,3 +169,16 @@ are in [callback-security.md](callback-security.md).
 Dependencies: 1024 per declaration. Inputs: 256. Draws: 1000000 per query.
 Points (thresholds or levels): 65536 per query. Operations: 5. Declaration
 text: 4096 bytes per field. Result artifact: 24 MiB.
+
+## Python session ownership
+
+A `CallbackExecution` is bound to its originating `CallbackSession`. Export and nested
+input use check that owner and the stored declaration, request and output identities;
+a foreign execution or a tampered object is refused. Integer history indices are local
+to the receiving session, even when another session has the same index.
+
+`execution.export()` returns bytes from its owning session. `execution.artifact()`
+returns the bytes plus an independently retainable identity expectation and immutable
+metadata. `ant.load(bytes, expected=...)` consumes without running any provider. Transfer
+to another live session uses explicit `session.resume(...)` with that expectation;
+provider replacement still follows the existing declaration and replay contract.

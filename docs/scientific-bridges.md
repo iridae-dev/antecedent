@@ -120,15 +120,17 @@ from antecedent import scientific_bridge as sb
 bridge = sb.prepare_scientific_bridge(contract)      # checks before any number is formed
 claim = bridge.derive(sb.SourceClaim.declared("biomarker-effect", 0.8, surrogate))
 claim.value, claim.fit.r_squared, claim.unresolved   # 0.796, 529/535, ("assumption:validation",)
-exported = claim.export("surrogate-bridge")
-again = sb.consume_scientific_bridge_artifact(exported.artifact, exported.identity)
+exported = claim.artifact("surrogate-bridge")
+again = sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
 claim.require_value_kind("predictive_law")            # refused: value_kind_substitution
 claim.interval()                                      # refused: cell_not_licensed
 ```
 
 Refusals are `ScientificBridgeRefusal` (a `CausalUnsupportedError`) with `reason_code`, `detail`
-and `remedy`. A bridged claim reaches `Contract.evaluate` and `InverseQuery.evaluate` only through
-the caller-declared `MeanSource` / `MeanClaim` adapter; see
+and `remedy`. A mean-valued bridged claim retains its target quantity and can reach
+`Contract.evaluate` and `InverseQuery.evaluate` directly when its units, population, regime
+and functional meaning match the consumer. `claim.as_mean_source()` exposes the canonical
+`results.MeanSource` explicitly. The handoff remains point-only; see
 [producer-consumer-matrix.md](producer-consumer-matrix.md).
 
 ## What is not licensed

@@ -90,9 +90,27 @@ a component estimator, does not substitute.
 
 `antecedent.adaptive_inference` exposes the facade: `AdaptiveDesign` (the retained
 contract; any element may be `None` and is then refused by name),
-`AdaptiveInferenceSession.prepare`, `analyse` with one request class per paradigm
+`AdaptiveInferenceSession.prepare`, `analyze` (also `analyse`) with one request class per paradigm
 (`BayesianPosterior`, `PosteriorStopping`, `AdaptiveWeighting`, `ConfidenceSequence`,
 `GroupSequential`), `fixed_sample` (always refused for adaptive data), `interval`
 (always `cell_not_licensed`), `interim_evidence`, `export_contract`, `export_result`,
 `consume_adaptive_monitoring_contract_artifact`,
 `consume_adaptive_inference_result_artifact` and `procedure_matrix()`.
+
+### Named Python readings
+
+Results retain their method and standing, with a method-specific typed `payload` rather
+than positional `values`. Bayesian posteriors expose `payload.arms`, each with `alpha`,
+`beta`, `mean`, `variance`, `probability_best` and `expected_loss`. Posterior stopping
+exposes `best_arm`, `probability_best`, `expected_loss` and `stop`. Adaptive weighting
+exposes `estimate`, `variance`, `units`, `effective_units` and `max_weight_share`.
+Confidence-sequence payloads name the arm readings and contrast bounds. Group-sequential
+payloads name each look's `critical`, `statistic` and `spent`, with `stopped_at=None`
+when no stopping event occurs. These numerical readings retain their existing uncalibrated
+whole-procedure standing.
+
+Use `result.inspect()`, `result.to_dict()` and `result.to_rows()` for notebook review
+and independent editable exports. `session.export_result(request)` remains the explicit
+request-selected bytes export, and `session.export_contract(paradigm)` exports the
+monitoring contract. Shared `ant.load(...)` invokes the same native artifact consumers
+and returns the specialized consumed type.

@@ -150,13 +150,21 @@ draws = dr.DecisionDraws.from_arrays(
     coupling="shared_simulation", within_stream="independent",
 )
 result = dr.assess(draws, dr.ReliabilityRequest(ranking=dr.RankingRequest(baseline="b")))
-result.report.monte_carlo_error
+# Repeated diagnostic records have named, immutable fields.
+for candidate in result.report.monte_carlo_error.candidates:
+    print(candidate.id, candidate.estimate.value, candidate.estimate.standard_error)
+result.inspect()
+result.report.to_dict()                 # independent JSON-safe copy
 result.publish("ranking_probability")   # raises cell_not_licensed
 ```
 
 `coupling` and `within_stream` default to `"unknown"` and are refused until
 declared. `dr.rank`, `dr.publish`, `DecisionReliability.export` and
-`dr.consume_decision_reliability_artifact` mirror the Rust routes.
+`dr.consume_decision_reliability_artifact` mirror the Rust routes. `result.export()`
+returns bytes; `result.artifact()` retains the same bytes, required digest expectations
+and immutable export metadata. `ant.load(envelope, expected=envelope.expectation)`
+uses the specialized native consumer. Inspecting stored metadata alone does not bind
+those expectations independently.
 
 ## Bounds
 

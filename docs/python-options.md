@@ -318,7 +318,7 @@ replay from bytes alone; `acceptance.verified` and `acceptance.replayable`
 stay `False` for it. Acceptance verifies the artifact's semantic
 contract, not the truth of causal assumptions. Loading does not reconstruct a
 live study or recover the source dataset. The original decoded body is available
-as `loaded.artifact.payload`.
+as `loaded.decoded_artifact.payload`.
 
 For prior transfer, `Bayesian(prior_from=...)` still expects the posterior-only
 payload from `result.study.export_artifact()`, taken before the study changes.

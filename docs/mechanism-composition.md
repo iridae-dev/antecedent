@@ -116,3 +116,16 @@ The `composed_model` producer is a row of
 [the producer and consumer matrix](producer-consumer-matrix.md): a composed model
 is a point mean source for the declared-adapter consumers and is refused by the
 rest with typed errors. The design composition-bundle node kind is not wired.
+
+### Checked Python handoffs
+
+`prepared.as_mean_source(quantity=..., contrast=...)` selects a checked interventional
+mean contrast and requires its compatible scientific coordinate. The canonical
+`results.MeanSource` carries the point, identity and lineage into decision and inverse
+queries. It does not carry the model's law or independent marginal variances as joint
+decision uncertainty.
+
+`prepared.export(query, ...)` returns bytes; `prepared.artifact(query, ...)` returns
+the same query-selected bytes, expectation and immutable export metadata. Shared
+`ant.load(...)` invokes `consume_mechanism_composition_artifact`, preserving its checks
+and typed consumed result.

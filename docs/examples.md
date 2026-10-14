@@ -2,6 +2,10 @@
 
 Start with the [Python quickstart](python-workflow.md) or [Rust quickstart](rust-quickstart.md). For notebooks, follow the [notebook setup](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/README.md#python-environment). All examples use simulated data.
 
+## Notebook to system in 2.4
+
+The [notebook-to-system guide](guides/notebook-to-system.md) follows retained identification, estimation, deferred refutation, guarded refresh, explicit repreparation, checked composition and fresh-process artifact consumption. Run `examples/python/notebook_to_system_24.py` or its companion notebook, `examples/notebooks/notebook_to_system_24.ipynb`, from the 2.4 checkout.
+
 ## Notebooks
 
 See Antecedent on a real decision. Open a notebook locally or in Google Colab after setup. Run all cells to generate the tables, plots, and reports in your environment.

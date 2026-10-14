@@ -48,6 +48,8 @@ nav:
       - Examples: examples.md
       - Supported analyses: supported-analyses.md
   - Guides:
+      - Notebook to system: guides/notebook-to-system.md
+      - Python 2.4 migration: migrations/2.4-python-ux.md
       - Causal responses: causal-responses.md
       - Local, distributional, and joint effects: local-distributional-joint.md
       - Transport and interference: transport-interference.md

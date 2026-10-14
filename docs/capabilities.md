@@ -15,6 +15,28 @@ decisions, study ranking and portable bundles; [measured scalar adapters](popula
 license specified Bayesian, nested-Markov, temporal and recovery intervals under
 separate source-bound contracts, without adding arbitrary analysis-grid cells.
 
+## Python workflow and interoperability in 2.4
+
+The [notebook-to-system journey](guides/notebook-to-system.md) connects retained
+identification, staged execution and durable consumption. Studies expose
+`identification`, `inspect_plan()`, `last_result` and explicit `reprepare(...)`;
+all named design rebinding paths protect the prepared assignment and ID bindings.
+Results support deferred refutation against their retained execution snapshot.
+
+Scientific read models share immutable nested records, JSON-safe independent
+`to_dict()` exports and typed inspection. Adaptive methods return named payloads;
+reliability diagnostics expose typed records. Root and submodule imports preserve
+static typing while modules remain lazy at runtime. Callback executions retain
+session ownership and transfer through explicit export/resume.
+
+`results.MeanSource` unifies checked mean handoffs into decision and inverse queries.
+Producer-specific `as_mean_source(...)` adapters require missing scientific declarations
+and preserve point-only standing. `export()` writes bytes, `artifact()` retains typed
+expectations and export metadata, `artifacts.inspect()` reads metadata, and shared
+`load(..., expected=..., context=...)` delegates to existing scientific consumers.
+These conventions add no laws, intervals, calibration evidence or analysis-grid licenses.
+See [the migration guide](migrations/2.4-python-ux.md).
+
 ## How to read capability claims
 
 The matrix has three active runtime states:

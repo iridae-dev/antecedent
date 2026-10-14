@@ -11,7 +11,7 @@ The day-1 workflow has five verbs:
 - `prepare(data, graph=..., query=...)` — stop after preparation; call `.estimate()` on retained data.
 - `load(result.export())` — consume a portable execution through semantic verification.
 - `identify(graph=..., query=...)` — identify only; returns a staged
-  `Identification` that can continue into `.estimate(data)` / `.validate(data)`
+  `Identification` that can continue into `.estimate(data)`; then call `result.refute(...)`
   while retaining the resolved strategy and query. The one-shot execution
   pipeline deterministically rechecks identification before estimation.
 - `estimate(identification, data, ...)` — the module-level mirror of
@@ -199,7 +199,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 |---|---|---|
 | Day-1 import | `use antecedent::prelude::*` (`cargo add antecedent`) | `import antecedent` |
 | Run analysis | `Study::tabular(data)…build()?.run(&ctx)` (or `::series` / `::series_multi` / `::panel` / `::events` for other modalities) | `antecedent.analyze(data, graph=…, query=…)` |
-| Identify only (staged) | `identify(&AcceptedGraph::from(graph), &query)` or `Study::…identify_only()` (DAG/ADMG) | `antecedent.identify(graph=…, query=…)` → `Identification.estimate()` / `.validate()` — `Cpdag` / `Pag` / temporal classes use the typed-graph identifier |
+| Identify only (staged) | `identify(&AcceptedGraph::from(graph), &query)` or `Study::…identify_only()` (DAG/ADMG) | `antecedent.identify(graph=…, query=…)` → `Identification.estimate()`; then `result.refute()` — `Cpdag` / `Pag` / temporal classes use the typed-graph identifier |
 | Named CPDAG | `Cpdag::from_named_edges` + `insert_undirected` | `Cpdag.from_directed_undirected(names, directed, undirected)` |
 | Adjustment handoff | — | `antecedent.handoff.adjustment(result, modifiers=…, target_weights=…, outcome_functional=…, tool=…)` — point-identified backdoor / generalized adjustment; temporal specs carry offsets. `columns(layout="econml"\|"named")` defaults to EconML `Y`/`T`/`W`/`X`. `spec.attach(learner=…, learner_config=…, effect=…)` returns an `ExternalEstimate` receipt (attested, not re-verifiable); with `label="ate"` the scalar is bound through `external.bind` and `.claim` carries provider version, support labels and lineage (`learner_version=`, `outcome_units=`, `support=`). `handoff.econml` is an alias |
 | Outcome functional | `OutcomeFunctional::{Mean, Exceedance, ExceedanceGrid}` | `antecedent.query.Mean` / `Exceedance` / `ExceedanceGrid` on `AverageEffect`, `ConditionalEffect`, `InterventionResponse` |
@@ -304,7 +304,8 @@ on the already-imported parent, not a `sys.modules` lookup — so
 as expected, because `from X import Y` extracts `Y` directly off the
 freshly-imported module object rather than walking `X`'s (possibly rebound)
 attributes. In practice this rarely matters: everything `identify.py` exports
-(`Identification`, `IdentifyResult`, `estimate`, `identify`, `validate`) is
+(`Identification`, `IdentifyResult`, `estimate`, `identify`) is
 reachable without naming the module at all — `Identification` and
-`identify`/`estimate` are already at the root, and `validate`/`IdentifyResult` are
-one `from antecedent.identify import ...` away.
+`identify`/`estimate` are already at the root, and `IdentifyResult` is
+one `from antecedent.identify import ...` away. Staged validation uses
+`Identification.estimate(..., refute=...)` or deferred `result.refute(...)`.

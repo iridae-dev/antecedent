@@ -26,6 +26,10 @@ It creates a simulated experiment with a treatment effect of 2, estimates that e
 
 Choose an example below by the question you want to answer. All datasets are simulated. The assertions check the examples; they do not validate assumptions for your own data.
 
+## Notebook to system in 2.4
+
+Run [`notebook_to_system_24.py`](python/notebook_to_system_24.py), or open [its notebook](notebooks/notebook_to_system_24.ipynb), for the complete exploration-to-persistence journey: cached identification, estimation, deferred refutation, guarded refresh, explicit repreparation, checked mean composition and fresh-process consumption. See [the migration guide](../docs/migrations/2.4-python-ux.md) for changed interfaces.
+
 ## Notebooks
 
 See Antecedent on a real decision. Open a notebook locally or in Google Colab after the setup above. Run all cells to generate the tables, plots, and reports in your environment.

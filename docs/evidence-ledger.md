@@ -119,3 +119,16 @@ A refused request raises `EvidenceLedgerRefusal` with its registered
 was; `pooled_interval` always raises `cell_not_licensed`.
 `consume_evidence_ledger_artifact` replays the operations, recomputes the
 syntheses and refuses another retained identity.
+
+### Python persistence and composition
+
+`ledger.export(...)` returns bytes. `ledger.artifact(...)` returns the same bytes
+and identity expectation with carried/not-carried export receipts in immutable
+`.metadata`; no summary is silently promoted to a replayable synthesis.
+`ant.load(envelope, expected=envelope.expectation)` uses the existing ledger replay
+consumer. Retain the expectation separately from the container.
+
+A scalar `SynthesisOutcome` can use `outcome.as_mean_source(quantity=...)` for
+decision or inverse-query composition. Explicitly declare the pooled quantity's units,
+population and regime. Evidence and lineage remain attached; an assumption range without
+a point, or a pooled interval without a license, cannot become a mean or a law.

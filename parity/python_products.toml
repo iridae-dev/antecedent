@@ -1103,10 +1103,10 @@ test = "python/tests/test_parameter_bindings.py::test_on_stage_reaches_plan"
 # prepare_transport passes as estimator= into the native
 # prepare_statistical_transport / prepare_exact_transport / prepare_trial call
 # (python/antecedent/transport/_impl.py); it changes which estimator actually runs, not
-# a value inside the portable AnalysisResult contract read by ant.load(...).artifact —
+# a value inside the portable AnalysisResult contract read by ant.load(...).decoded_artifact —
 # a Transport query's export() decodes back through decode_transport_view
 # (python/antecedent/transport/_wrap.py) into a plain AnalysisResult with no
-# .acceptance/.artifact, so _bound()'s contract-decode path does not apply here. The
+# .acceptance/.decoded_artifact, so _bound()'s contract-decode path does not apply here. The
 # choice is directly observable instead on the executed result's own
 # transport.provider and estimate.estimator_id fields, the same way the other
 # execution_control rows observe their control directly (callbacks called,
@@ -1172,3 +1172,25 @@ entry_points = ["analyze"]
 binding = "execution_control"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_dose_units_reaches_plan"
+
+# Shared Python 2.4 lifecycle and persistence conventions are not additional
+# scientific route licenses. Native family validators retain all authority.
+[[ux_contract]]
+area = "retained_study"
+operations = ["identification", "inspect_plan", "last_result", "reprepare", "result.refute"]
+test = "python/tests/test_python_ux_24.py::test_prepared_identification_and_inspection_are_retained"
+
+[[ux_contract]]
+area = "frozen_design_rebinding"
+operations = ["estimate", "refresh", "study.refute", "result.refute"]
+test = "python/tests/test_python_ux_24.py::test_every_design_rebinding_path_is_guarded_and_atomic"
+
+[[ux_contract]]
+area = "bytes_first_persistence"
+operations = ["export", "artifact", "artifacts.inspect", "load"]
+test = "python/tests/test_python_ux_24.py::test_specialized_artifact_dispatch_and_fresh_process_replay"
+
+[[ux_contract]]
+area = "checked_mean_handoff"
+operations = ["results.MeanSource", "as_mean_source", "decision.Contract.evaluate", "inverse_query.InverseQuery.evaluate"]
+test = "python/tests/test_python_ux_24.py::test_bridge_is_a_complete_checked_mean_producer"

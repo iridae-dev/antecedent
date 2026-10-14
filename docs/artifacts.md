@@ -10,6 +10,43 @@ Format 0.4 was the durable-artifact wire freeze for package 1.0.0. A wire
 change advances the format and provides migration from prior stable versions;
 the package-version bump itself does not change artifact bytes.
 
+## Python persistence in 2.4
+
+Scientific `export(...)` returns container bytes. Write them with `Path.write_bytes`
+and read them with `Path.read_bytes`; persistence does not take file paths implicitly.
+`artifact(...)` returns an immutable `ant.artifacts.ExportedArtifact[T]`: the same
+bytes in `.data`, a `.kind`, a typed `.expectation` when available, and family-specific
+`.metadata`. Ledger carried/not-carried receipts remain in this metadata. Operations
+that select a query or record retain their explicit selection arguments.
+
+```python
+import antecedent as ant
+
+envelope = result.artifact()
+path.write_bytes(envelope.data)
+# Store this expectation in an independent trusted record, separate from the bytes.
+expected = envelope.expectation
+metadata = ant.artifacts.inspect(path.read_bytes())
+loaded = ant.load(path.read_bytes(), expected=expected)
+```
+
+`ant.load` dispatches registered scientific families to their existing native consumers
+and returns the family-specific consumed result. Required expectations remain required:
+container metadata never supplies an independent identity binding. For bundle consumption,
+`ant.artifacts.LoadContext(supplied_sources=..., actual_claims=...)` passes existing source
+declarations and actual native claims to the consumer. Loading never invokes a callback or
+reconstructs a live study.
+
+Acceptance reports identity binding, native replayability and explicit resumability
+separately. `ant.artifacts.inspect(...)` is metadata inspection, not acceptance of a
+scientific claim. Unknown recognized families can be inspected and forwarded with
+`export()` while scientific consumption remains unavailable; malformed containers are
+errors. Consumed read models are recursively immutable, and `to_dict()` produces an
+independent JSON-safe editable copy.
+
+See [the notebook-to-system journey](guides/notebook-to-system.md) and
+[the 2.4 migration guide](migrations/2.4-python-ux.md).
+
 <a id="package-15-payloads"></a>
 
 ## Score tables and distribution payloads

@@ -20,6 +20,8 @@ python -m pdoc antecedent -o site/python
 
 The Python surface is documented by task in these guides:
 
+- [Notebook to system in 2.4](guides/notebook-to-system.md): retained identification, guarded design updates, explicit repreparation, checked mean composition and independent artifact consumption.
+- [Python 2.4 migration](migrations/2.4-python-ux.md): immutable scientific readings, named method outputs, session ownership and bytes-first persistence.
 - [The lifecycle](lifecycle.md): analyze, bind an external result, decide with `Contract.evaluate(result)`, rank a study, bundle and export, with the structured-refusal pattern.
 - [Population, time and uncertainty](population-time-uncertainty.md): exact measured adapter scopes and `inference.MeasuredInference.load` with retained source identity; every scalar needs its own current record.
 - [Design ranking](design-ranking.md): the shared `design.rank_designs` entry point for identification, structural sufficiency, information objectives and decision value; `DesignDecision.from_contract`, `design.adapt_prior_to_signal` and `design.consume`.
@@ -32,3 +34,7 @@ The Python surface is documented by task in these guides:
 Every stage module is also reachable lazily from the root, for example `antecedent.design`, without a separate import.
 
 For Rust, use `cargo doc -p antecedent --open` for this checkout, or visit the [published crate reference](https://docs.rs/antecedent).
+
+## Python 2.4 continuity
+
+See the [notebook-to-system journey](guides/notebook-to-system.md) and [migration guide](migrations/2.4-python-ux.md) for retained identification, immutable results, typed adaptive records, checked mean adapters and shared bytes-first persistence.
