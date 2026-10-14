@@ -11,7 +11,7 @@ copied_tests = false
 # (Tsiatis, Rosner and Mehta); the implementation applies the ordering to the exact law of a
 # declared procedure, and the spending boundaries extend adaptive_inference.group_sequential.
 papers = [
-  { title = "Exact confidence intervals following a group sequential test (Tsiatis, Rosner and Mehta, Biometrics 40:797-803, 1984)", sections = ["stagewise ordering of the sample space of a group sequential test and the confidence set by inversion (DOI not verified, omitted)"] },
+  { title = "Exact confidence intervals following a group sequential test (Tsiatis, Rosner and Mehta, Biometrics 40:797-803, 1984)", doi = "10.2307/2530924", sections = ["stagewise ordering of the sample space of a group sequential test and the confidence set by inversion"] },
   { title = "Discrete sequential boundaries for clinical trials (Lan, DeMets, Biometrika 70:659-663)", doi = "10.1093/biomet/70.3.659", sections = ["alpha spending function"] },
 ]
 implementation_deviations = [

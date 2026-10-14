@@ -12,7 +12,7 @@ copied_tests = false
 # original reporting engineering.
 papers = [
   { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams and the structural transportability decision"] },
-  { title = "Equivalence and Synthesis of Causal Models (Verma and Pearl, UAI 1990)", sections = ["Markov equivalence: same skeleton and same v-structures (no DOI verified, omitted)"] },
+  { title = "Equivalence and Synthesis of Causal Models (Verma and Pearl, UAI 1990; the DOI is the 2022 ACM reprint of the same paper)", doi = "10.1145/3501714.3501732", sections = ["Markov equivalence: same skeleton and same v-structures"] },
 ]
 implementation_deviations = [
   "No new theorem. A structural envelope is a statement about which members the implemented rules certify; it is not a point, interval or bound on an effect and carries no probability: members are not weighted and the true graph is not asserted to be among them except under the listed ENVELOPE_ASSUMPTIONS.",

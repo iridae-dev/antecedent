@@ -9,16 +9,18 @@ copied_tests = false
 # for utilities and differences, Wilson intervals for ranking probabilities at the reported
 # effective sample size, a Bonferroni multiple-comparisons-with-the-best confidence set, and a
 # simultaneous interval for the selected candidate. Wilson (1927) and Hsu's multiple comparisons
-# with the best are the underlying constructions; neither has a DOI verified here.
+# with the best are the underlying constructions. The confidence set for the best uses Bonferroni
+# critical values (marginal over all candidates, or over the competitors of the best on paired
+# differences), not the exact multivariate-t critical values of Hsu.
 papers = [
-  { title = "Probable Inference, the Law of Succession, and Statistical Inference (Wilson, J. Am. Stat. Assoc. 22:209-212, 1927)", sections = ["score interval for a binomial proportion (DOI not verified, omitted)"] },
-  { title = "Multiple Comparisons: Theory and Methods (Hsu, 1996)", sections = ["multiple comparisons with the best (DOI not verified, omitted)"] },
+  { title = "Probable Inference, the Law of Succession, and Statistical Inference (Wilson, J. Am. Stat. Assoc. 22:209-212, 1927)", doi = "10.1080/01621459.1927.10502953", sections = ["score interval for a binomial proportion"] },
+  { title = "Multiple Comparisons: Theory and Methods (Hsu, Chapman and Hall, 1996; the DOI is the publisher record titled Multiple Comparisons)", doi = "10.1201/b15074", sections = ["multiple comparisons with the best: the idea of a confidence set for the best candidate; the critical values here are Bonferroni, not Hsu's exact multivariate-t values"] },
   { title = "The Optimizer's Curse: Skepticism and Postdecision Surprise in Decision Analysis (Smith and Winkler, Management Science 52, 2006)", doi = "10.1287/mnsc.1050.0451", sections = ["upward bias of the selected maximum of noisy estimates"] },
 ]
 implementation_deviations = [
   "Source-distribution uncertainty is carried unchanged and never added to the numerical or selection components; a probability is a probability under the supplied law and no interval here covers a wrong law.",
   "Monte Carlo errors are treated as normal at the reported effective sample size and estimated standard errors as known; below MIN_NORMAL_ESS the derivation refuses. Candidates an adaptive search considered but did not retain are counted, never covered.",
-  "The Bonferroni critical values hold for any dependence between candidates and are conservative; no sharper joint critical value is implemented.",
+  "The confidence set for the best is Bonferroni-based, not Hsu's exact multiple-comparisons-with-the-best procedure: marginal standard errors with alpha/(2k) per candidate (any dependence), or, when the candidate-by-draw table is small enough, paired differences against each competitor with alpha/(k-1). Both are conservative; no sharper joint critical value is implemented.",
   "Derived-unmeasured: publish refuses with cell_not_licensed until a coverage record measures the route at its coordinate (candidate-set size, Monte Carlo budget, selection rule). The measurement design is data in coverage_design.rs; nothing is measured.",
   "Producers that hold only a point (cohort mean, rollout mean) are refused (joint_law_required / diagnostic_not_available); implementation-keyed shared-noise rollouts are marginal-only and cannot support ranking probabilities.",
 ]
