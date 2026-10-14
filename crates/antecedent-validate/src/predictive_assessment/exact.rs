@@ -9,9 +9,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::law::{ForecastLaw, MAX_LAW_ATOMS, Outcome, PROBABILITY_SUM_TOLERANCE};
+use super::law::{
+    ForecastLaw, MAX_JOINT_DIMENSION, MAX_LAW_ATOMS, Outcome, PROBABILITY_SUM_TOLERANCE,
+};
 use super::refusal::{PredictiveAssessmentError, detail, invalid};
-use super::score::{EnsembleCrpsForm, ScoreKind, score_case};
+use super::score::{EnsembleCrpsForm, ScoreKind, score_case_validated};
 
 /// A finite true law of the outcome.
 #[derive(Clone, Debug, PartialEq)]
@@ -77,9 +79,15 @@ pub fn exact_expected_score(
             if support.len() != probabilities.len() {
                 return Err(invalid(detail::INVALID_LAW, "one probability per support point"));
             }
+            if support.iter().any(|x| !x.is_finite()) {
+                return Err(invalid(
+                    detail::INVALID_LAW,
+                    "a finite truth support point is not finite",
+                ));
+            }
             for (x, p) in support.iter().zip(probabilities) {
                 if *p > 0.0 {
-                    total += p * score_case(kind, form, forecast, &Outcome::Real(*x))?;
+                    total += p * score_case_validated(kind, form, forecast, &Outcome::Real(*x))?;
                 }
             }
         }
@@ -88,24 +96,45 @@ pub fn exact_expected_score(
             for (k, p) in probabilities.iter().enumerate() {
                 if *p > 0.0 {
                     let category = u32::try_from(k).unwrap_or(u32::MAX);
-                    total += p * score_case(kind, form, forecast, &Outcome::Category(category))?;
+                    total += p * score_case_validated(
+                        kind,
+                        form,
+                        forecast,
+                        &Outcome::Category(category),
+                    )?;
                 }
             }
         }
         FiniteTruth::Vector { dimension, atoms, probabilities } => {
             check_masses(probabilities)?;
-            if *dimension == 0 || atoms.len() != probabilities.len() * dimension {
+            if *dimension == 0
+                || *dimension > MAX_JOINT_DIMENSION
+                || probabilities.len().checked_mul(*dimension) != Some(atoms.len())
+                || atoms.iter().any(|x| !x.is_finite())
+            {
                 return Err(invalid(
                     detail::INVALID_LAW,
-                    "a vector truth needs atoms * dimension reals",
+                    "a vector truth needs a bounded positive dimension and atoms * dimension finite reals",
                 ));
             }
             for (row, p) in atoms.chunks_exact(*dimension).zip(probabilities) {
                 if *p > 0.0 {
-                    total += p * score_case(kind, form, forecast, &Outcome::Vector(row.to_vec()))?;
+                    total += p * score_case_validated(
+                        kind,
+                        form,
+                        forecast,
+                        &Outcome::Vector(row.to_vec()),
+                    )?;
                 }
             }
         }
     }
-    Ok(total)
+    if total.is_finite() {
+        Ok(total)
+    } else {
+        Err(invalid(
+            detail::INVALID_LAW,
+            "the expected score overflowed the finite numeric range; rescale the outcome and forecast law",
+        ))
+    }
 }

@@ -241,17 +241,45 @@ fn infinite_log(law: LawKind) -> PredictiveAssessmentError {
 /// # Errors
 /// An outcome of another kind than the law predicts, a score the law does not
 /// support, or an infinite log score.
-#[allow(
-    clippy::too_many_lines,
-    reason = "one exhaustive (law, outcome) match keeps every defined score and refusal in one place"
-)]
 pub fn score_case(
     kind: ScoreKind,
     form: EnsembleCrpsForm,
     law: &ForecastLaw,
     outcome: &Outcome,
 ) -> Result<f64, PredictiveAssessmentError> {
-    match (law, outcome) {
+    law.validate()?;
+    match outcome {
+        Outcome::Real(value) if !value.is_finite() => {
+            return Err(invalid(detail::INVALID_OBSERVATIONS, "a realized outcome is not finite"));
+        }
+        Outcome::Vector(values)
+            if values.is_empty() || values.iter().any(|value| !value.is_finite()) =>
+        {
+            return Err(invalid(
+                detail::INVALID_OBSERVATIONS,
+                "a realized vector outcome is empty or contains a non-finite value",
+            ));
+        }
+        _ => {}
+    }
+    score_case_validated(kind, form, law, outcome)
+}
+
+/// Score a law and outcome already checked by the enclosing assessment.
+///
+/// Keeping this separate avoids revalidating every draw in an empirical law for
+/// every realized case; [`score_case`] remains safe for standalone callers.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one exhaustive (law, outcome) match keeps every defined score and refusal in one place"
+)]
+pub(crate) fn score_case_validated(
+    kind: ScoreKind,
+    form: EnsembleCrpsForm,
+    law: &ForecastLaw,
+    outcome: &Outcome,
+) -> Result<f64, PredictiveAssessmentError> {
+    let score = match (law, outcome) {
         (ForecastLaw::Gaussian { mean, sd }, Outcome::Real(y)) => match kind {
             ScoreKind::Log => Ok(log_score_gaussian(*mean, *sd, *y)),
             ScoreKind::Crps => Ok(crps_gaussian(*mean, *sd, *y)),
@@ -393,6 +421,14 @@ pub fn score_case(
             let expected = law.outcome_family().name();
             Err(outcome_mismatch(law.kind(), expected, outcome))
         }
+    }?;
+    if score.is_finite() {
+        Ok(score)
+    } else {
+        Err(invalid(
+            detail::INVALID_LAW,
+            "the requested score overflowed the finite numeric range; rescale the outcome and forecast law",
+        ))
     }
 }
 

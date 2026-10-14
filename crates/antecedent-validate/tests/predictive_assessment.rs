@@ -112,6 +112,32 @@ fn gaussian_log_score_matches_the_density() {
 }
 
 #[test]
+fn standalone_scoring_refuses_malformed_inputs_and_non_finite_scores() {
+    let form = EnsembleCrpsForm::EmpiricalLaw;
+    let malformed_law = ForecastLaw::Gaussian { mean: 0.0, sd: -1.0 };
+    assert!(score_case(ScoreKind::Log, form, &malformed_law, &Outcome::Real(0.0)).is_err());
+
+    let law = ForecastLaw::gaussian(0.0, 1.0);
+    assert!(score_case(ScoreKind::Crps, form, &law, &Outcome::Real(f64::NAN)).is_err());
+
+    // Finite inputs can still overflow an intermediate standardized residual.
+    let extreme = ForecastLaw::gaussian(f64::MAX, 1.0);
+    assert!(score_case(ScoreKind::Log, form, &extreme, &Outcome::Real(-f64::MAX)).is_err());
+}
+
+#[test]
+fn exact_expected_score_refuses_malformed_finite_truths() {
+    let forecast = ForecastLaw::gaussian(0.0, 1.0);
+    let non_finite_support =
+        FiniteTruth::Real { support: vec![f64::NAN], probabilities: vec![1.0] };
+    assert!(exact_expected_score(ScoreKind::Crps, &forecast, &non_finite_support).is_err());
+
+    let overflowing_dimension =
+        FiniteTruth::Vector { dimension: usize::MAX, atoms: vec![], probabilities: vec![1.0] };
+    assert!(exact_expected_score(ScoreKind::Energy, &forecast, &overflowing_dimension).is_err());
+}
+
+#[test]
 fn bernoulli_brier_log_and_crps_match_hand_values() {
     let law = ForecastLaw::bernoulli(0.7);
     let form = EnsembleCrpsForm::EmpiricalLaw;

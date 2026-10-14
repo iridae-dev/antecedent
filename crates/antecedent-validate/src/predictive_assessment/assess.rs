@@ -37,7 +37,7 @@ use super::overlap::{OverlapPolicy, OverlapStatus, decide_overlap, fit_overlap};
 use super::refusal::{
     PredictiveAssessmentError, bounds, cancelled, detail, invalid, refuse, unsupported,
 };
-use super::score::{EnsembleCrpsForm, ScoreKind, score_case};
+use super::score::{EnsembleCrpsForm, ScoreKind, score_case_validated};
 
 /// Largest total scoring work an assessment accepts.
 pub const MAX_ASSESSMENT_WORK: u64 = 4_000_000_000;
@@ -412,7 +412,7 @@ fn score_predictor(
             if position % CANCELLATION_STRIDE == 0 && ctx.cancellation.is_cancelled() {
                 return Err(cancelled());
             }
-            per_case.push(score_case(
+            per_case.push(score_case_validated(
                 kind,
                 spec.ensemble_crps,
                 &predictor.laws[i],
