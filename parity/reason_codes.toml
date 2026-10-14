@@ -285,7 +285,7 @@ meaning = "A required available transport regime or provider input is absent. Di
 id = "transport_not_certified"
 applies_to = ["runtime_refusal"]
 meaning = "No implemented sound transport rule applies. Historical NotCertified meaning; not a proof of non-transportability. The outcome kind of the same state is spelled `not_certified` (TransportOutcomeKind::NotCertified, the one owner of that literal); this code is the refusal-reason spelling and the two vocabularies never mix."
-max_uses = 1
+max_uses = 2
 
 [[code]]
 id = "transport_proven_non_transportable"
@@ -301,7 +301,7 @@ meaning = "A statistical provider required by a certified transport factor is ab
 id = "transport_unsupported_evaluator"
 applies_to = ["runtime_refusal"]
 meaning = "The transport formula is identified but this evaluator does not run it."
-max_uses = 4
+max_uses = 6
 
 [[code]]
 id = "transport_support_failure"
