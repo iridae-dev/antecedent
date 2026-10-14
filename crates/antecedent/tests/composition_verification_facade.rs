@@ -96,7 +96,7 @@ fn fixture_claim() -> ClaimEnvelope {
     )
 }
 
-/// data -> score_fit (structure: identification) -> law (target support) -> decision.
+/// data -> `score_fit` (structure: identification) -> law (target support) -> decision.
 fn composition(plan: &RecalcPlan, law_calibration: CalibrationDeclaration) -> CompositionGraph {
     let mut g = CompositionGraph::new();
     let node = |key, kind, stage| stage_node(key, kind, plan, stage).expect("stage in plan");

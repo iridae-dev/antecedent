@@ -408,6 +408,15 @@ pub enum GraphError {
     },
 }
 
+impl GraphError {
+    /// The registered reason code every graph declaration error is surfaced
+    /// under; the namespaced detail is the start of its display text.
+    #[must_use]
+    pub const fn reason_code(&self) -> &'static str {
+        antecedent_core::reason_code!("invalid_argument")
+    }
+}
+
 impl fmt::Display for GraphError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

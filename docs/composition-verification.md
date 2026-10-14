@@ -141,5 +141,12 @@ calibration records are declarations.
 * `antecedent::analysis::composition_verification`: `CompositionVerification`,
   the effect builders and `consume_composition_verification_artifact`.
 
+* `antecedent.composition_verification` (Python): `CompositionGraph`, `Node`,
+  `Edge`, `Calibration`, `Effect`, `verify_composition`, `ledger_effects`,
+  `shared_data_from_ledger`, `CompositionVerification` (`classify`, `keys_of`,
+  `view`, `require_valid`, `export`, `verify_ledger`) and
+  `consume_composition_verification_artifact`. Refusals are
+  `CompositionVerificationRefusal`.
+
 Bounds: 512 nodes, 4096 edges, 250 000 source-pair overlap checks per ledger
 query; the overlap query checks cancellation between node pairs.

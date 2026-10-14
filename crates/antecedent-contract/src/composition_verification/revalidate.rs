@@ -75,7 +75,7 @@ impl ObservedEffect {
         match status {
             StageStatus::Reused { .. } => None,
             StageStatus::Recomputed { because } => {
-                Some(Self::Recomputed { cause: format!("recalc.{because}") })
+                Some(Self::Recomputed { cause: format!("stage_status:{because}") })
             }
             StageStatus::Refused { reason } => Some(Self::Refused { detail: reason.to_string() }),
         }
@@ -661,6 +661,9 @@ fn evaluate_calibration(
 /// # Errors
 /// A graph that does not validate (calibration inherited without a
 /// calibration dependency, an unknown source node).
+///
+/// # Panics
+/// Never for a graph that validates: every ordered key is a node of the graph.
 pub fn revalidate(
     previous: &CompositionGraph,
     current: &CompositionGraph,

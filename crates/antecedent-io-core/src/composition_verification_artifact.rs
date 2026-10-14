@@ -383,7 +383,11 @@ fn node_to_wire(node: &CompositionNode) -> NodeWire {
         calibration: calibration_to_wire(&node.calibration),
         assumptions: node.assumptions.clone(),
         transformation: node.transformation.clone(),
-        evidence: node.evidence.iter().map(|s| s.to_hex()).collect(),
+        evidence: node
+            .evidence
+            .iter()
+            .map(antecedent_contract::evidence_ledger::SourceId::to_hex)
+            .collect(),
     }
 }
 
@@ -519,11 +523,11 @@ fn shared_from_wire(
     wire: &[SharedDataWire],
     graph: &CompositionGraph,
 ) -> Result<Vec<SharedDataRelation>, CompositionVerificationArtifactError> {
+    static NAMES: [&str; 4] =
+        ["shared_data", "shared_prior", "shared_fitted_model", "unknown_dependence"];
     if wire.len() > MAX_SHARED_DATA_RELATIONS {
         return Err(CompositionVerificationArtifactError::LimitsExceeded("shared-data relations"));
     }
-    static NAMES: [&str; 4] =
-        ["shared_data", "shared_prior", "shared_fitted_model", "unknown_dependence"];
     let mut out = Vec::with_capacity(wire.len());
     for r in wire {
         let relation = NAMES
@@ -537,7 +541,7 @@ fn shared_from_wire(
         out.push(SharedDataRelation {
             first: r.first.clone(),
             second: r.second.clone(),
-            relation: *relation,
+            relation,
             shared_observations: r.shared_observations,
         });
     }
@@ -866,6 +870,13 @@ impl CompositionVerificationArtifact {
     /// A key that is not in the current graph.
     pub fn view(&self, key: &str) -> Result<CompositionView, ViewError> {
         CompositionView::of(&self.current, &self.revalidation, key, &self.shared)
+    }
+
+    /// State digest of the evidence ledger the shared-data relations were
+    /// declared from, when the producer recorded one.
+    #[must_use]
+    pub const fn ledger_state(&self) -> Option<SemanticDigest> {
+        self.ledger_state
     }
 
     /// BLAKE3 identity (hex).

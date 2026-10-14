@@ -388,3 +388,25 @@ Original source reports are available through `source_report()` and
 `source_artifact()`. Their diagnostic uncertainty does not acquire the scalar
 interval's measured standing, and a measured result does not automatically supply
 the aligned outcome law required for distributional decisions.
+
+## Revalidating a composed analysis
+
+When an upstream object of a composed analysis changes, a downstream claim is not
+refreshed by reusing its stage artifact: `composition_verification` classifies every
+claim over one claim-level dependency graph built on the recalculation plan, the
+evidence ledger's standings, the invalidation log and claim freshness.
+[Composition verification](composition-verification.md) states the rules; this is what
+each lifecycle step keeps, recomputes or refuses.
+
+| Step | Keeps | Recomputes | Refuses |
+|---|---|---|---|
+| `refresh` with new outcome-only data | the structural derivation (graph, identification, bridge form), the version labels, the support and provider-trust standings | every node that reads the data: the score artifact, the law, a bridged claim, a transported result, the decision. The earlier fit and uncertainty carry no authority (`structure_reused_fit_not_retained`) | a fit or an interval carried across: `claim_revalidation_required` |
+| change of target population, source evidence, selection diagram or support | the source evidence and fit when the planner reuses them; a calibration record at the coordinate it was established | the transported claim at the new coordinate | a calibration record established at another target, or inherited from an object that no longer holds it: `cell_not_licensed`; coordinates outside the support: `claim_license_withdrawn` |
+| ledger revision (a source withdrawn, replaced, updated) | results the revised source does not reach | results that lose one member of several | a result built on a withdrawn source and what rests on it: `claim_license_withdrawn` |
+| provider replacement or loss of trust | claims that do not rest on the provider | claims rebuilt on a re-verified provider | claims resting on the provider while its trust does not hold |
+| `export` and `load` | the graphs, the observed effects, the declared shared-data relations, every classification and the lineage identity | the classification, on load, from the stored graphs and effects | a stored class, reason, authority, calibration state or lineage identity that does not replay; an identity other than the retained one |
+
+A load never revives a claim from a snapshot: the classification is made again from
+the stored graphs, and a first verification (no earlier snapshot) reports nothing
+stale. The route is point-only: it measures no coverage and reports no interval or
+posterior, and a calibration declaration names a record the producer supplied.
