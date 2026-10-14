@@ -1,0 +1,19 @@
+feature_id = "interface_contract.component_adapters"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Projects a mechanism declaration, a scientific bridge contract and a measurement model onto ports of the
+# one interface contract, with explicit declared facts the declarations do not hold. Declaration
+# bookkeeping over the existing shared connection and composition checks; no primary paper and no statistic.
+papers = []
+implementation_deviations = [
+  "No fact is inferred: support, semantic identity, uncertainty meaning and measurement models come from an explicit interface basis supplied by the caller.",
+  "Component-specific licensing (admission of another context, bridge licensing, measurement operation licensing) stays with each component; the shared check never admits a population change.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-contract/tests/interface_adapters.rs",
+]

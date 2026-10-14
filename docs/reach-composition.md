@@ -61,8 +61,15 @@ intervention on a representation's coordinates is
 `measurement_model.operation_not_licensed` or
 `measurement_model.learned_coordinates_not_intervenable`; error that differs
 by population or time is `measurement_model.differential_axis_unsupported`.
-Declared-invariance transport of a measurement model is not delivered; the
-refusal names the invariance premise that would license it.
+A model may be carried to another population only through
+`antecedent_estimate::measurement_transport::transport_measurement_model`
+under an explicit invariance declaration naming each error parameter the route
+uses: the premise is a declaration and is never tested, the correction stays
+point-only with its uncalibrated standard error, a differential population
+needs the target population's own model, and the replicate route and an
+external posterior (bound to its source snapshot) have nothing to carry. Every
+route above still refuses the transport operation without that declaration,
+and the refusal names the premise that would license it.
 
 The artifact (`measurement_model_v1`) is consumed independently by
 `consume_measurement_model_artifact`, whose `check_use` re-asks the contract
@@ -102,18 +109,46 @@ difference is `mechanism_composition.quantity_horizon_mismatch`; a directed
 cycle is `mechanism_composition.cycle_directed_cycle`; an interval is
 `mechanism_composition.interval_route_closed`.
 
-Transport reach here is a declaration, not a derivation: the plan represents
-the admission (and binds it into the plan identity) but does not execute a
-transport derivation. Whether the composition's refusal and the exact
-counterfactual transport obstruction agree on one fixture is not yet
-established.
+A selection arrow into a mechanism's variable (or into a latent cause it loads
+on) is the statement that the mechanism differs, so it dominates a declared
+invariance for the same variable; an invariance admits only what the diagram
+is silent about. `antecedent_model::mechanism_transport::transport_linear_gaussian`
+carries fitted additive-noise linear-Gaussian mechanisms of a source population
+under that rule (a natively refitted target mechanism always wins and is never
+averaged; finite tables are not carried and refuse with a pointer to the finite
+counterfactual transport derivation). The composition refusal and the finite
+counterfactual obstruction agree on the same fixtures (the obstruction
+agreement test of antecedent-model), including a selection arrow into a shared
+latent. The contrast variance of a carried composition is the first-order
+source-fit variance only, labelled
+`fitted_parameters_only_transport_assumption_not_propagated`; transport adds
+no variance and no interval exists.
 
 Connected consumers: `export` and `consume` of `mechanism_composition_v1`
 replay the premises and one query to identical result bits.
 
+A composed mechanism model reaches an inverse query through
+`PreparedMechanismComposition::inverse_forward_source`: a linear-Gaussian
+composition supplies a replayed mean per action (a quantile or probability is
+refused `inverse_forward_source.composed_law_not_materialized`, an interval
+`inverse_forward_source.interval_not_licensed`), a finite-table composition
+supplies the exact law of each action under the caller's coding of outcome
+levels, and a composition with admitted mechanisms is a transported claim: it
+needs the carrying receipt and an input policy that accepts a transported
+input (`inverse_forward_source.transported_not_accepted`,
+`cell_not_licensed`, otherwise), and its support label is extrapolative at
+best. A composition can also be discretized into an exact finite SCM with a
+computed mean-contrast error bound
+(`PreparedMechanismComposition::discretize`; point-only, `discretized_scm.point_only`
+for an interval or posterior). Declared independence between mechanisms is
+decided from ledger rows by
+`antecedent_contract::check_declared_independence_against_ledger`
+(`mechanism_composition.posterior_dependence_evidence_overlap_unknown` when a
+row set is undeclared).
+
 Scheduled owners: as for measurement. The composition bundle's node kind for a
-composed model is explicitly not wired. An inverse query over a composed
-model's response needs a forward source with its own refusal.
+composed model is explicitly not wired. A composed response as a decision
+claim stays a declared `MeanSource`; no decision-side composed adapter exists.
 
 ## Evidence ledger
 
@@ -142,8 +177,20 @@ native and transported (`evidence_ledger.native_and_transported`).
 Scheduled owners: a pooled value as a decision claim, a sensitivity input or a
 design-ranking signal needs an adapter that carries the ledger result
 identity and its `claim_class`; the composition bundle needs a ledger node
-kind. A ledger source is not yet bound to a mechanism's evidence identity; the
-mechanism composition holds evidence identity as a caller-supplied string.
+kind. A mechanism's evidence id is read as a ledger source identifier by
+`check_declared_independence_against_ledger`; a non-ledger id is unknown
+evidence, never independent.
+
+Transport-then-synthesize is delivered by
+`antecedent_design::transported_synthesis::synthesize_transported` over the
+ledger: a native claim and claims transported into the same target population
+pool (generalized least squares with each transport's declared error counted
+once through its identity), borrow (hierarchical, a transport that serves
+several claims refused) or serve as the prior of a native likelihood. The
+result is a model variance under the declared transport variances, never an
+interval; an undeclared transport variance is refused
+`transported_synthesis.transport_variance_undeclared` and the same
+observations as native and transported are refused by the ledger.
 
 ## Counterfactual transport
 
@@ -170,13 +217,42 @@ is `counterfactual_transport.graph_outside_contract`; a selected-sample law is
 route is `counterfactual_transport_sampled.interval_not_licensed`; an
 undeclared table relation is `counterfactual_transport_sampled.overlap_unknown`.
 
-Scheduled owners: a transported response as a decision claim or as a forward
-source for the inverse query, with a typed refusal when the value is
-point-only and the request needs a law or interval; an assumption range for
-selection-diagram violation through the sensitivity artifact surface; and a
-composition bundle node kind. Temporal transport (time-period shift) has its
-own rows and is not delivered by this route. The general path-specific
-transport row stays carried forward (see
+A transported response (a value with a receipt of route, populations,
+transport identities, assumptions and an extrapolative support label) is a
+decision claim through
+`BoundDecisionContract::evaluate_transported` and a forward source for the
+inverse query through `antecedent::analysis::inverse_sources`; a point answers
+an affine utility or a target mean and refuses a law
+(`transported_decision.law_not_supplied`,
+`inverse_forward_source.point_only_law_requested`) and an interval
+(`cell_not_licensed`), and the default policy refuses the label
+(`transported_decision.transported_not_accepted`). A bounded violation of the
+transport premise gives an assumption range through the sensitivity artifact
+surface (`transport_sensitivity`; additive or proportional shift, an
+assumption range on a declared bound, never composed with a sampling
+interval), and a changed source, diagram, target or calibration record is
+classified still valid, recompute or withdrawn by `transport_revalidation`
+(a calibration established at another target is withdrawn, never inherited).
+
+| Route | Inference mode | Decision | Inverse query | Sensitivity | Design ranking | Counterfactual | Transport | Temporal | Composition |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| transported response, point (cohort effect, policy, synthesis, declared) | point-only, extrapolative, receipt carried | DIRECT (`evaluate_transported`; law and interval REFUSED) | DIRECT under an accepting input policy; REFUSED `transported_not_accepted` otherwise | DIRECT (assumption range) | SCHEDULED | NO ROUTE | DIRECT (revalidation) | SCHEDULED | SCHEDULED |
+| transported response, law | transported law, receipt carried | DIRECT (probability criterion; interval REFUSED) | DIRECT under an accepting input policy | REFUSED (`transport_sensitivity.law_response_not_scalar`) | SCHEDULED | NO ROUTE | DIRECT (revalidation) | SCHEDULED | SCHEDULED |
+| cohort effect under a declared selection shift | point-only, labelled extrapolative | ADAPTER (declared mean source) | ADAPTER (`cohort_forward_source`; accepting policy) | DIRECT | SCHEDULED | NO ROUTE | DIRECT | SCHEDULED | SCHEDULED |
+| transported policy value (initial-state law shifted, selection diagram declared) | point-only, exact finite enumeration | ADAPTER (value as a declared mean) | ADAPTER | REFUSED | SCHEDULED | NO ROUTE | DIRECT (library) | REFUSED (use the period route) | SCHEDULED |
+| period shift of a policy value (fixed horizon, time-invariant mechanisms) | point-only | ADAPTER | ADAPTER | REFUSED | SCHEDULED | NO ROUTE | REFUSED (`temporal_policy_transport.mechanism_time_varying`) | DIRECT (library) | SCHEDULED |
+| adaptive trial as a transport source (recorded-probability standardization) | point-only, uncalibrated, no variance | ADAPTER (declared mean contrast) | REFUSED | REFUSED | REFUSED | NO ROUTE | DIRECT (library, finite strata) | REFUSED | SCHEDULED |
+| discovered CPDAG class | structural envelope, never a point or interval | REFUSED | REFUSED | REFUSED (`transport_sensitivity.no_scalar_family`) | REFUSED | NO ROUTE | DIRECT (library; PAG refused `discovered_transport.pag_members_not_causal_graphs`) | NO ROUTE | SCHEDULED |
+| provider output as source evidence | point-only or unmeasured, never native target data, never measured | not applicable (source evidence) | not applicable | not applicable | not applicable | NO ROUTE | DIRECT (admission; attested never relabelled verified) | NO ROUTE | SCHEDULED |
+| discretized composition | point-only with a computed mean-contrast bound | REFUSED (`discretized_scm.point_only` for an interval) | REFUSED | REFUSED | REFUSED | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
+| whole-path cross-world spread (finite Markovian row) | uncalibrated spread, never added across estimands | REFUSED (`cross_world_execution.interval_route_closed`) | REFUSED | REFUSED | REFUSED | DIRECT | REFUSED (`cross_world_uncertainty.transported_path_closed`) | NO ROUTE | SCHEDULED |
+
+Library-level means the route exists and is executed in its crate but is not
+yet reached by the Python surface, which is held. Temporal transport of a
+policy value is delivered by `temporal_policy_transport`, not by the
+counterfactual route above. The composition bundle node kind for any of these
+is not delivered. The general path-specific transport row stays carried
+forward (see
 [the carryover disposition](https://github.com/iridae-dev/antecedent/blob/main/parity/carryover_disposition.md)).
 
 ## Reading the table
@@ -185,7 +261,14 @@ transport row stays carried forward (see
   has no way to accept this output today and which module owns the adapter.
 - Frequentist and Bayesian modes are not licensed for any row: each would need
   a measured whole-method coverage record, and every such route is closed with
-  a typed refusal until then.
+  a typed refusal until then. A derived, unmeasured statement (a composed
+  spread, a decision-reliability numerical or selection interval, a
+  whole-procedure adaptive report) is labelled `uncalibrated_spread` or
+  `derived_unmeasured` and is never a license: publishing it refuses
+  `cell_not_licensed`.
+- Which paradigm each route supports, and the typed closed row for a missing
+  one (`paradigm_parity.paradigm_closed`), is the parity table of
+  `antecedent_model::discretized_scm::PARITY_TABLE`.
 - The refusals named above, and their remedies, are listed in
   [refusal and partial knowledge](refusal-and-partial-knowledge.md).
 - The identities each route freezes are in

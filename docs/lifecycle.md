@@ -1,6 +1,7 @@
 # The lifecycle: analyze, bind, decide, plan, bundle
 
-This page is the practitioner path through the Python surface. Each step
+This page is the practitioner path through the Python surface (the Rust facade
+steps for transported sources are in the last section). Each step
 hands a typed object to the next, and each step keeps the label of the claim it
 received. Nothing on the path upgrades a claim: an external mean stays
 externally attested, a point value stays a point value, and a sensitivity range
@@ -410,3 +411,25 @@ A load never revives a claim from a snapshot: the classification is made again f
 the stored graphs, and a first verification (no earlier snapshot) reports nothing
 stale. The route is point-only: it measures no coverage and reports no interval or
 posterior, and a calibration declaration names a record the producer supplied.
+
+## Transported sources, their revalidation and discretization (Rust facade)
+
+These steps are reached through `crates/antecedent/src/analysis/` and are
+library-level: the Python surface does not expose them yet. Every value is a point
+(or a labelled spread) under declared premises; none is an interval and none is
+upgraded by being passed on.
+
+| Step | Entry | Keeps | Recomputes | Refuses |
+|---|---|---|---|---|
+| analyze, then decide with a transported source | `BoundDecisionContract::evaluate_transported(&TransportedResponse, TransportedDemand, &SupportPolicy)` | the receipt (route, source and target populations, diagram identities, assumptions), the extrapolative support label and the declared exclusions as part of the bound decision identity | the affine expected utility of the transported mean, or the probability criterion of a transported law, and the decision identity | a law request of a point (`transported_decision.law_not_supplied`), an interval (`cell_not_licensed`), the default policy (`transported_decision.transported_not_accepted`), a support rule stronger than the label (`transported_decision.support_rule_unmet`), an uncertainty requirement a point cannot meet (`transported_decision.uncertainty_requirement`) |
+| transported source for an inverse query | `analysis::inverse_sources::{composed_source, cohort_source, transported_source, evaluate, seal}` and `PreparedMechanismComposition::inverse_forward_source` | the origin (kind, representation, support, receipt, assumed mechanisms), bound into the sealed query and re-derived on consume | the per-action forward value (replayed from the composition artifact) and the claim digest | a quantile or probability of a point (`inverse_forward_source.point_only_law_requested`), an interval (`inverse_forward_source.interval_not_licensed`), a transported source under a native-only policy (`inverse_forward_source.transported_not_accepted`) |
+| refresh, then revalidate transported claims | `transport_revalidation::{TransportSceneBuilder, revalidate}`, `TransportClaimState::observe` | the declared selection diagram, structure and quantity; claims that do not count a changed source | every claim counting a changed source, diagram or target (`recompute`); a state change enters through `invalidation_effects_for_claims` | a calibration record established at another target (`withdrawn`, `calibration_from_another_target`) and an unsupported target (every claim withdrawn); a refused observation leaves the state unchanged |
+| assumption range on a transported value | `transport_sensitivity::{transport_range, transport_sensitivity_artifact}` | the value, its quantity and receipt, the declared bound | the band at each grid point and the sealed sensitivity artifact on consume | a transported law (`transport_sensitivity.law_response_not_scalar`), a structural premise (`transport_sensitivity.no_scalar_family`), a sampling interval composed with the range (`transport_sensitivity.interval_not_composed`) |
+| refit, then discretize, contrast, export and consume | `PreparedMechanismComposition::discretize`, `PreparedDiscretizedComposition::{mean_contrast, refresh, export}`, `consume_discretized_composition` | the declared level counts and method | the cell edges and values, the tables, the computed mean-error bound and the identity; a consumer re-derives them from the carried premises | a refit whose variables no longer match the plan, an interval or posterior (`discretized_scm.point_only`), a latent-confounded, non-Gaussian or oversized composition |
+| execute a cross-world row, then account for its uncertainty | `CrossWorldExecution::whole_path_uncertainty(UnitSampling)` | the executed request and result the account is bound to | the enumerated exogenous-posterior spread and the declared sampling component, re-derived by a consumer | undeclared unit sampling (`cross_world_uncertainty.unit_sampling_undeclared`), a sampled or transported path, an account of other units (`cross_world_uncertainty.account_mismatch`) |
+
+A transported point export is `transported_decision_artifact` (a consumer re-evaluates
+the decision; a law is not exportable). The library-level routes without a facade
+entry yet (a transported cohort effect, a fitted mechanism carry, a transported policy
+or adaptive-trial value, a discovered-class envelope, a provider handoff) enter these
+steps as a declared `TransportedResponse` with the producing result's digest identity.

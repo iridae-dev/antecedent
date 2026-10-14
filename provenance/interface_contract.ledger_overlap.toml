@@ -1,0 +1,19 @@
+feature_id = "interface_contract.ledger_overlap"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Decides a DisjointEvidence requirement between composed components from the evidence ledger's
+# observation rows instead of source identifiers. Set-intersection bookkeeping over ledger declarations;
+# no primary paper and no statistic.
+papers = []
+implementation_deviations = [
+  "Undeclared observations are unknown, never disjoint; a ledger-free check reports the requirement unchecked rather than skipping it.",
+  "No statistic is computed and no calibration is declared.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-contract/tests/interface_adapters.rs",
+]

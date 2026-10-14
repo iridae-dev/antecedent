@@ -294,12 +294,12 @@ built_from = "`composition_verification.verify_composition(...)` (`CompositionVe
 
 [[consumer]]
 key = "decision"
-python = "`Contract.evaluate`, `composition.evaluate_with_support`, `decision_robust.finite_scenarios`, `decision_robust.identified_sets`"
+python = "`Contract.evaluate`, `Contract.evaluate_transported`, `composition.evaluate_with_support`, `decision_robust.finite_scenarios`, `decision_robust.identified_sets`"
 rust = "`decision_eval::evaluate_contract`, `evaluate_contract_on_means`, `composition_boundary`, `decision_robustness::evaluate_robust`, `decision_adapters::evaluate_identified_sets`"
 
 [[consumer]]
 key = "inverse_query"
-python = "`InverseQuery.evaluate(point=, interval_region=, identified_set=, scenarios=)`"
+python = "`InverseQuery.evaluate(point=, interval_region=, identified_set=, scenarios=)`, `inverse_sources.ForwardSource.evaluate`"
 rust = "`inverse_query::evaluate_inverse_query`"
 
 [[consumer]]
@@ -309,7 +309,7 @@ rust = "`evsi::evaluate_evsi`, `design_ranking_artifact`, `prior_signal::adapt_p
 
 [[consumer]]
 key = "sensitivity_decision"
-python = "`sensitivity_decision.decide`"
+python = "`sensitivity_decision.decide`, `transport.sensitivity.transport_sensitivity`"
 rust = "`sensitivity_decision::evaluate_sensitivity_decision`"
 
 [[consumer]]
@@ -1062,7 +1062,7 @@ detail = "`Contract.evaluate(source)` (or `source.mean_source`): one `mean_diffe
 producer = "cohort_decision_source"
 consumer = "inverse_query"
 status = "ADAPTER"
-detail = "`source.forward_claim()` (a `MeanClaim`) into `InverseQuery.evaluate` (target mean 5 keeps `treat`); the source itself is rejected (`CausalTypeError`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; a source built under a declared covariate shift REFUSED `cohort_decision.inverse_shift_not_licensed`"
+detail = "`source.forward_claim()` (a `MeanClaim`) into `InverseQuery.evaluate` (target mean 5 keeps `treat`); the source itself is rejected (`CausalTypeError`); a quantile or probability constraint REFUSED `decision_evaluation.mean_source_insufficient`; a source built under a declared covariate shift REFUSED `cell_not_licensed` `inverse_forward_source.transported_not_accepted`"
 
 [[cell]]
 producer = "cohort_decision_source"
@@ -1719,6 +1719,21 @@ key = "callback_result"
 object = "an executed callback result (a provider's mean, draws, distribution or quantile function or posterior update accepted as a well-formed law of a declared quantity; external, diagnostic or licensed-external, never native; no interval)"
 built_from = "`provider_callbacks.CallbackSession.execute(...)` (`CallbackExecution`), its `export` and `consume_callback_result`"
 
+[[producer]]
+key = "transported_response"
+object = "a transported response (a point or law about a target population with its receipt of route, source populations, selection-diagram identities, assumptions and an extrapolative support label; never native target data)"
+built_from = "`transported_response.TransportedResponse` (`declared_point`, `declared_law`, `from_shifted_cohort`)"
+
+[[producer]]
+key = "discretized_composition"
+object = "a discretized linear-Gaussian composition (a finite model of declared cells; a mean contrast is a point with a computed mean-error bound, no interval)"
+built_from = "`PreparedMechanismComposition.discretize(...)` (`PreparedDiscretizedComposition`), its `export` and `consume_discretized_composition`"
+
+[[producer]]
+key = "whole_path_account"
+object = "a whole-path uncertainty account of a finite Markovian cross-world execution (an uncalibrated spread of the unit values under a declared unit sampling, bound to the execution it was derived from)"
+built_from = "`CrossWorldExecution.whole_path_uncertainty(unit_sampling)` (`WholePathAccount`)"
+
 [[cell]]
 producer = "selective_discovery_result"
 consumer = "decision"
@@ -1862,3 +1877,340 @@ producer = "callback_result"
 consumer = "recalc_plan"
 status = "ADAPTER"
 detail = "`stage_identity(Stage.EVIDENCE, artifact identity)` declared by the caller; it is evidence the provider supplied, not a native stage"
+
+[[cell]]
+producer = "transported_response"
+consumer = "decision"
+status = "DIRECT"
+detail = "`Contract.evaluate_transported(response, analysis=, support_policy=)`: a transported point decides by the affine expected utility of its mean and carries its receipt and identity into the bound decision (treat 6.5, wait 0 at a transported mean of 2.0); the default support policy REFUSES the extrapolative label `transported_decision.transported_not_accepted`, a law or probability REFUSED `decision_contract_unsatisfied` `transported_decision.law_not_supplied`, an interval REFUSED `cell_not_licensed`; `Contract.evaluate` rejects the object (`CausalTypeError`)"
+
+[[cell]]
+producer = "transported_response"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "`inverse_sources.transported_forward_source(response, accepts_transported=True).evaluate(query)` (target mean 5 keeps `treat`, the result carries the origin and receipt); a native-only input REFUSED `cell_not_licensed` `inverse_forward_source.transported_not_accepted`; a quantile REFUSED `inverse_forward_source.point_only_law_requested`; `InverseQuery.evaluate` rejects the object (`CausalTypeError`)"
+
+[[cell]]
+producer = "transported_response"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "a transported value is not a prior over a decision-relevant state; `rank_designs(prior=)` rejects it (`CausalTypeError`)"
+
+[[cell]]
+producer = "transported_response"
+consumer = "sensitivity_decision"
+status = "ADAPTER"
+detail = "`transport.sensitivity.transport_sensitivity(response, family=, bound=, grid_points=, reference=, reference_value=)` builds the assumption range at declared grid points (additive range [2,2], [1.75,2.25], [1.5,2.5]) into a `SensitivityArtifact` for `decide`; a law response REFUSED `route_not_supported` `transport_sensitivity.law_response_not_scalar`; `sensitivity_decision.decide` rejects the object (`CausalTypeError`)"
+
+[[cell]]
+producer = "transported_response"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "a transported point is not a set of structural scenarios; both scenario entry points reject it"
+
+[[cell]]
+producer = "transported_response"
+consumer = "repair"
+status = "REFUSED"
+detail = "`repair` repairs a failed identification contract, which a transported value is not; both entry points reject it (`CausalTypeError`)"
+
+[[cell]]
+producer = "transported_response"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "a transported response has no portable artifact of its own and is not a bundle node kind (`add_artifact` rejects it)"
+
+[[cell]]
+producer = "transported_response"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, response.identity)` declared by the caller; the plan reads the digest only, and a changed receipt or value recomputes the stage"
+
+[[cell]]
+producer = "discretized_composition"
+consumer = "decision"
+status = "REFUSED"
+detail = "a discretized composition is a finite model of declared cells, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`) (a mean contrast is a point with a computed error bound; an interval or posterior is REFUSED `cell_not_licensed` `discretized_scm.point_only`)"
+
+[[cell]]
+producer = "discretized_composition"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "a discretized composition is a finite model of declared cells, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`)"
+
+[[cell]]
+producer = "discretized_composition"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "a discretized composition is a finite model of declared cells, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`)"
+
+[[cell]]
+producer = "discretized_composition"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "a discretized composition is a finite model of declared cells, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`)"
+
+[[cell]]
+producer = "discretized_composition"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "a discretized composition is a finite model of declared cells, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`)"
+
+[[cell]]
+producer = "discretized_composition"
+consumer = "repair"
+status = "REFUSED"
+detail = "a discretized composition is a finite model of declared cells, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`)"
+
+[[cell]]
+producer = "discretized_composition"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "a discretized composition is a finite model of declared cells, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`)"
+
+[[cell]]
+producer = "discretized_composition"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, discretized.identity)` declared by the caller; the plan reads the digest only"
+
+[[cell]]
+producer = "whole_path_account"
+consumer = "decision"
+status = "REFUSED"
+detail = "a whole-path account is a labelled uncalibrated spread of unit values, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`) (an uncalibrated spread is not an interval or posterior: `cell_not_licensed` `cross_world_execution.interval_route_closed`)"
+
+[[cell]]
+producer = "whole_path_account"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "a whole-path account is a labelled uncalibrated spread of unit values, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`)"
+
+[[cell]]
+producer = "whole_path_account"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "a whole-path account is a labelled uncalibrated spread of unit values, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`)"
+
+[[cell]]
+producer = "whole_path_account"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "a whole-path account is a labelled uncalibrated spread of unit values, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`)"
+
+[[cell]]
+producer = "whole_path_account"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "a whole-path account is a labelled uncalibrated spread of unit values, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`)"
+
+[[cell]]
+producer = "whole_path_account"
+consumer = "repair"
+status = "REFUSED"
+detail = "a whole-path account is a labelled uncalibrated spread of unit values, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`)"
+
+[[cell]]
+producer = "whole_path_account"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "a whole-path account is a labelled uncalibrated spread of unit values, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`)"
+
+[[cell]]
+producer = "whole_path_account"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, account.identity)` declared by the caller; the plan reads the digest only"
+
+# Rust facade sources and consumers (library level; the Python producer rows above list the Python entries).
+# The python matrix test reads only [[producer]], [[consumer]] and [[cell]]; these tables are read by
+# docs/producer-consumer-matrix.md (hand-written section) and are not rendered by generate_dictionary_tables.py.
+
+[[rust_producer]]
+key = "transported_response"
+object = "a transported response: a point (or a law) with a receipt of route, populations, transport identities, assumptions and an extrapolative support label"
+built_from = "`decision_transported_source::TransportedResponse` (`declared_point`, `declared_law`, `from_shifted_cohort`, `from_transported_policy`, `from_transported_synthesis`)"
+
+[[rust_producer]]
+key = "observational_law"
+object = "an aligned observational joint law of covariates and an outcome (meaning empirical or posterior predictive)"
+built_from = "`DistributionArtifact` with an observational meaning"
+
+[[rust_producer]]
+key = "discretized_composition"
+object = "a discretized linear-Gaussian composition (point mean contrast with a computed error bound)"
+built_from = "`PreparedMechanismComposition::discretize` (`PreparedDiscretizedComposition`)"
+
+[[rust_producer]]
+key = "whole_path_account"
+object = "a whole-path uncertainty account of a finite Markovian cross-world execution (uncalibrated spread)"
+built_from = "`CrossWorldExecution::whole_path_uncertainty` (`WholePathAccount`)"
+
+[[rust_consumer]]
+key = "decision"
+entry = "`BoundDecisionContract::evaluate_transported`"
+note = "the Python decision consumer is unchanged"
+
+[[rust_consumer]]
+key = "inverse_query"
+entry = "`analysis::inverse_sources::{composed_source, cohort_source, transported_source, evaluate, seal}` and `PreparedMechanismComposition::inverse_forward_source`"
+note = "inverse queries over a forward source"
+
+[[rust_consumer]]
+key = "sensitivity_decision"
+entry = "`transport_sensitivity::{transport_range, transport_sensitivity_artifact}`"
+note = "assumption range of a transported value"
+
+[[rust_consumer]]
+key = "transport_revalidation"
+entry = "`transport_revalidation::{TransportSceneBuilder, revalidate}`"
+note = "classification of transported claims"
+
+[[rust_consumer]]
+key = "observational_scenarios"
+entry = "`inverse_sources::{evaluate_observational, verify_observational}`"
+note = "associational scenario inversion"
+
+[[rust_cell]]
+producer = "transported_response"
+consumer = "decision"
+status = "DIRECT"
+detail = "a transported point decides by the affine expected utility of its mean and carries its receipt and identity into the bound decision (treat 6.5, wait 0 at a transported mean of 2.0)"
+evidence_test = "crates/antecedent/tests/transported_decision_facade.rs"
+evidence_assertion = "a_transported_point_decides_by_the_utility_of_the_mean_and_names_its_transport"
+
+[[rust_cell]]
+producer = "transported_response"
+consumer = "decision"
+status = "REFUSED"
+detail = "a law-valued criterion, a probability, quantile or hard constraint of a point is `decision_contract_unsatisfied` `transported_decision.law_not_supplied`; an interval is `cell_not_licensed`; the default policy refuses the label `transported_decision.transported_not_accepted`"
+evidence_test = "crates/antecedent/tests/transported_decision_facade.rs"
+evidence_assertion = "a_point_refuses_laws_and_intervals_and_the_default_policy_refuses_the_label"
+
+[[rust_cell]]
+producer = "transported_response"
+consumer = "inverse_query"
+status = "DIRECT"
+detail = "under an input policy that accepts a transported input (target mean 2 keeps `xb`); a native-only policy is REFUSED `cell_not_licensed` `inverse_forward_source.transported_not_accepted`; a quantile is REFUSED `inverse_forward_source.point_only_law_requested`"
+evidence_test = "crates/antecedent/tests/inverse_forward_sources_facade.rs"
+evidence_assertion = "a_transported_response_is_read_only_when_accepted_and_carries_its_receipt"
+
+[[rust_cell]]
+producer = "transported_response"
+consumer = "sensitivity_decision"
+status = "DIRECT"
+detail = "a point gives an assumption range at declared grid points through the sensitivity artifact (additive range [2,2], [1.75,2.25], [1.5,2.5]); sampling is withheld `transport_sensitivity.interval_not_composed`"
+evidence_test = "crates/antecedent/tests/transport_sensitivity_facade.rs"
+evidence_assertion = "the_sealed_artifact_exports_and_a_consumer_recomputes_it"
+
+[[rust_cell]]
+producer = "transported_response"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "a transported law has no single point to shift: `route_not_supported` `transport_sensitivity.law_response_not_scalar`"
+evidence_test = "crates/antecedent/tests/transport_sensitivity_facade.rs"
+evidence_assertion = "a_transported_law_has_no_single_point_to_shift"
+
+[[rust_cell]]
+producer = "transported_response"
+consumer = "transport_revalidation"
+status = "DIRECT"
+detail = "a changed source recomputes only the claims counting it; a calibration record from another target is withdrawn"
+evidence_test = "crates/antecedent/tests/transport_revalidation_facade.rs"
+evidence_assertion = "a_changed_source_recomputes_only_the_claims_that_count_it"
+
+[[rust_cell]]
+producer = "composed_model"
+consumer = "inverse_query"
+status = "DIRECT"
+detail = "Rust only: a linear-Gaussian composition supplies a replayed mean per action (0.5, 7.0, 13.5; target 5 keeps `x1` and `x2`); the Python row stays ADAPTER"
+evidence_test = "crates/antecedent/tests/inverse_forward_sources_facade.rs"
+evidence_assertion = "a_linear_gaussian_composition_supplies_a_replayed_point_per_action"
+
+[[rust_cell]]
+producer = "composed_model"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "a quantile or probability of a Gaussian composition is `decision_contract_unsatisfied` `inverse_forward_source.composed_law_not_materialized`; an interval is `cell_not_licensed` `inverse_forward_source.interval_not_licensed`"
+evidence_test = "crates/antecedent/tests/inverse_forward_sources_facade.rs"
+evidence_assertion = "a_point_composition_refuses_laws_intervals_and_the_wrong_family"
+
+[[rust_cell]]
+producer = "composed_model"
+consumer = "inverse_query"
+status = "DIRECT"
+detail = "Rust only: a finite-table composition supplies the exact law of each action under the caller's coding of outcome levels (P(Y = 1 given do) = 0.18 and 0.72)"
+evidence_test = "crates/antecedent/tests/inverse_forward_sources_facade.rs"
+evidence_assertion = "a_finite_composition_supplies_the_exact_law_of_each_action"
+
+[[rust_cell]]
+producer = "composed_model"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "a composition with admitted mechanisms is a transported claim: it needs the carrying receipt and an accepting input policy and is labelled extrapolative; without a receipt `inverse_forward_source.composed_response_invalid`, under a native-only policy `inverse_forward_source.transported_not_accepted`"
+evidence_test = "crates/antecedent/tests/inverse_forward_sources_facade.rs"
+evidence_assertion = "a_composition_with_admitted_mechanisms_is_a_transported_claim"
+
+[[rust_cell]]
+producer = "cohort_decision_source"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "Rust: `cohort_forward_source` (the cohort mean as a point forward source, 3.45 and 7.4 against a target of 5; a quantile is `inverse_forward_source.point_only_law_requested`); the facade wrapper has no executing test yet, so the cell stays ADAPTER"
+evidence_test = "crates/antecedent-design/tests/inverse_forward_source.rs"
+evidence_assertion = "a_cohort_contrast_is_a_point_source_with_its_own_law_refusal"
+
+[[rust_cell]]
+producer = "cohort_decision_source"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "a cohort from another population under a declared shift is a transported source only when accepted; a native-only policy refuses `inverse_forward_source.transported_not_accepted` (replacing `cohort_decision.inverse_shift_not_licensed`)"
+evidence_test = "crates/antecedent-design/tests/inverse_forward_source.rs"
+evidence_assertion = "a_shifted_cohort_is_a_transported_source_only_when_accepted"
+
+[[rust_cell]]
+producer = "transported_response"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "a transported policy value (7.5 - 10 p, 5.5 at p = 0.2) is a licensed inverse source that keeps its selection diagram and keeps the feasible action `inspect`"
+evidence_test = "crates/antecedent-design/tests/inverse_forward_source.rs"
+evidence_assertion = "a_transported_policy_value_is_a_licensed_inverse_source_with_its_diagram"
+
+[[rust_cell]]
+producer = "transported_response"
+consumer = "decision"
+status = "ADAPTER"
+detail = "a transported policy value decides between policies and keeps the diagram identity (inspect 5.5 against hold 0 at p = 0.2; -0.5 against 0 at p = 0.8)"
+evidence_test = "crates/antecedent-design/tests/decision_transported_source.rs"
+evidence_assertion = "a_transported_policy_value_decides_between_policies_and_keeps_the_diagram"
+
+[[rust_cell]]
+producer = "transported_response"
+consumer = "decision"
+status = "ADAPTER"
+detail = "a synthesis that contains a transported claim is a transported decision source whose populations come from the ledger (1.4 with variance 0.6 gives utility 4.1)"
+evidence_test = "crates/antecedent-design/tests/decision_transported_source.rs"
+evidence_assertion = "a_synthesis_with_a_transported_claim_is_a_transported_decision_source"
+
+[[rust_cell]]
+producer = "observational_law"
+consumer = "observational_scenarios"
+status = "DIRECT"
+detail = "associational scenario inversion labelled `ranks_actions = false` and `is_intervention_effect = false`; an interventional meaning is REFUSED `distribution_meaning_mismatch`"
+evidence_test = "crates/antecedent/tests/inverse_forward_sources_facade.rs"
+evidence_assertion = "observational_scenarios_are_associational_and_re_derive"
+
+[[rust_cell]]
+producer = "discretized_composition"
+consumer = "decision"
+status = "REFUSED"
+detail = "a discretized value is a point with a computed mean-error bound: an interval or posterior is `cell_not_licensed` `discretized_scm.point_only`"
+evidence_test = "crates/antecedent/tests/discretized_composition_facade.rs"
+evidence_assertion = "a_discretized_contrast_carries_its_closed_form_and_a_computed_bound"
+
+[[rust_cell]]
+producer = "whole_path_account"
+consumer = "decision"
+status = "REFUSED"
+detail = "an uncalibrated spread is not an interval or posterior: `cell_not_licensed` `cross_world_execution.interval_route_closed` and `cross_world_execution.posterior_route_closed`"
+evidence_test = "crates/antecedent/tests/whole_path_account_facade.rs"
+evidence_assertion = "the_account_is_the_enumerated_spread_bound_to_its_execution"
