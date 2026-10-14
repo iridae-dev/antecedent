@@ -952,6 +952,25 @@ pub fn consume_mechanism_composition_artifact(
     ctx: &ExecutionContext,
 ) -> Result<ConsumedComposition, MechanismCompositionRefusal> {
     check_cancelled(ctx)?;
+    // A readable container of another kind is a recognised artifact this consumer
+    // does not read; the composition artifact itself is not a container.
+    let expected =
+        antecedent_io::mechanism_composition_artifact::MECHANISM_COMPOSITION_ARTIFACT_FEATURE;
+    if let Some(kind) = antecedent_design::inverse_query_artifact::recognised_artifact_kind(bytes)
+        .filter(|kind| kind != expected)
+    {
+        return Err(MechanismCompositionRefusal::one(
+            ExternalRefusal::new(
+                antecedent_core::reason_code!("invalid_argument"),
+                "consume",
+                "mechanism_composition.artifact_kind_mismatch",
+            )
+            .with_offending(format!("expected {expected}, supplied {kind}"))
+            .with_expected(expected)
+            .with_supplied(kind.clone())
+            .with_remedy(antecedent_design::inverse_query_artifact::artifact_kind_remedy(&kind)),
+        ));
+    }
     let wire = MechanismCompositionArtifactWire::decode(bytes).map_err(artifact_refusal)?;
     let consumed = wire.consume(expected_premises_digest, ctx).map_err(artifact_refusal)?;
     Ok(ConsumedComposition {

@@ -192,7 +192,7 @@ pub fn transport_discovered_structure(
         }
         _ => {
             return Err(DiscoveredTransportError::Refused(DiscoveredTransportRefusal {
-                code: DISCOVERED_TRANSPORT_REASON,
+                code: antecedent_core::reason_code!("discovered_structure_unresolved"),
                 detail: TEMPORAL_STRUCTURE_DETAIL,
                 unresolved: unresolved_of(outcome),
                 exhausted_search_bounds: exhausted,

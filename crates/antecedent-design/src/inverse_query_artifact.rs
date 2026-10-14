@@ -90,6 +90,60 @@ const WRONG_CONTRACT: &str = "functional_inverse_query.wrong_contract";
 const GLOBAL_CLAIM: &str = "functional_inverse_query.global_feasibility_claim";
 const BOUNDS: &str = "functional_inverse_query.bounds_exceeded";
 const ORIGIN_INVALID: &str = "functional_inverse_query.forward_origin_invalid";
+const KIND_MISMATCH: &str = "functional_inverse_query.artifact_kind_mismatch";
+
+/// The kind of bytes that are a recognised artifact: a container's own kind, or the
+/// bare-CBOR joint-law propagation and mechanism-composition artifacts, decoded
+/// by their own readers. `None` for anything else.
+#[must_use]
+pub fn recognised_artifact_kind(bytes: &[u8]) -> Option<String> {
+    if let Some(kind) = antecedent_io_core::container_kind(bytes) {
+        return Some(kind);
+    }
+    if antecedent_io_core::joint_law_propagation_artifact::JointLawPropagationArtifactWire::decode(
+        bytes,
+    )
+    .is_ok()
+    {
+        return Some("joint_law_propagation_v1".to_owned());
+    }
+    if antecedent_io_core::mechanism_composition_artifact::MechanismCompositionArtifactWire::decode(
+        bytes,
+    )
+    .is_ok()
+    {
+        return Some("mechanism_composition_v1".to_owned());
+    }
+    None
+}
+
+/// What to do with a recognised artifact kind that a consumer does not read: the
+/// consumer that does accept it, as a remedy sentence.
+///
+/// Shared by the consumers that refuse another kind's bytes with an
+/// `artifact_kind_mismatch` detail, so each names the same destination.
+#[must_use]
+pub fn artifact_kind_remedy(kind: &str) -> &'static str {
+    match kind {
+        "joint_law_propagation_v1" => {
+            "a propagation claim is consumed by the joint-law propagation consumer \
+             (consume_joint_law_propagation_artifact)"
+        }
+        "decision_reliability_v1" => {
+            "a decision-reliability artifact is consumed by the decision-reliability consumer \
+             (consume_decision_reliability_artifact)"
+        }
+        "inverse_functional_query_v1" => {
+            "an inverse-query artifact is consumed by the inverse-query consumer \
+             (inverse_query::consume)"
+        }
+        "mechanism_composition_v1" => {
+            "a mechanism-composition artifact is consumed by the mechanism-composition consumer \
+             (consume_mechanism_composition_artifact)"
+        }
+        _ => "offer the artifact to the consumer of its own kind; this consumer reads only its own",
+    }
+}
 
 fn refused(detail: &str, text: &str) -> IoError {
     IoError::Refused {
@@ -112,6 +166,15 @@ pub fn artifact_refusal(error: &IoError) -> antecedent_contract::ExternalRefusal
         IoError::Refused { code, message } => {
             let (detail, text) =
                 message.split_once(": ").unwrap_or((WRONG_CONTRACT, message.as_str()));
+            if detail == KIND_MISMATCH {
+                let supplied = text.rsplit_once("supplied ").map_or("", |(_, kind)| kind);
+                return RefusalBuilder::new(*code, "inverse_query", detail)
+                    .offending(text)
+                    .expected(ARTIFACT_KIND)
+                    .supplied(supplied)
+                    .remedy(artifact_kind_remedy(supplied))
+                    .build();
+            }
             (*code, detail.to_owned(), text.to_owned())
         }
         other => (
@@ -1125,6 +1188,18 @@ pub fn encode_parts(
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
 #[doc(hidden)]
 pub fn decode_parts(bytes: &[u8]) -> Result<(InverseQueryMeta, Vec<u8>, Vec<u8>), IoError> {
+    // A readable container of another kind is a recognised artifact this consumer
+    // does not read; bytes that are no container at all keep the layout refusal.
+    if let Some(kind) = recognised_artifact_kind(bytes) {
+        if kind != ARTIFACT_KIND {
+            return Err(IoError::Refused {
+                code: antecedent_core::reason_code!("invalid_argument"),
+                message: format!(
+                    "{KIND_MISMATCH}: expected {ARTIFACT_KIND}, supplied {kind}"
+                ),
+            });
+        }
+    }
     let parts = antecedent_io_core::decode_container(
         ARTIFACT_KIND,
         MAX_INVERSE_QUERY_ARTIFACT_BYTES,

@@ -82,6 +82,30 @@ const PROBABILITY_SUM_TOLERANCE: f64 = 1e-9;
 const REPEATED_MEASURES: &str = "repeated_measures";
 const HIERARCHICAL: &str = "hierarchical_clustered";
 
+/// Registered reason code of every declaration refusal for an element that
+/// is not stated, by the detail it carries.
+#[must_use]
+pub fn incomplete_reason_code() -> &'static str {
+    antecedent_core::reason_code!("adaptive_contract_incomplete")
+}
+
+/// Registered reason code of an invalid declared element
+/// (`measurements_invalid`, `variance_invalid`, `correlation_invalid`,
+/// `analysis_invalid`, `repeated_measures_stopping_not_derived`).
+#[must_use]
+pub fn invalid_reason_code() -> &'static str {
+    antecedent_core::reason_code!("invalid_argument")
+}
+
+/// Registered reason code of every premise refusal of this module
+/// (`analysis_route_mismatch`, `exact_law_unavailable`,
+/// `guarantee_not_transferable`, `independence_assumed_for_dependent_measurements`,
+/// `repeated_measures_paradigm_not_derived`).
+#[must_use]
+pub fn premise_reason_code() -> &'static str {
+    antecedent_core::reason_code!("cell_not_licensed")
+}
+
 // -- Declaration ----------------------------------------------------------------------------------
 
 /// Correlation of two measurements of one unit.

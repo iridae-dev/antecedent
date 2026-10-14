@@ -89,6 +89,19 @@ impl DecisionReliabilityRefusal {
     }
 
     fn from_io(error: &IoError) -> Self {
+        // The loader's own kind-mismatch detail survives; every other artifact
+        // failure keeps the generic detail.
+        if let IoError::Refused { code, message } = error {
+            if let Some(text) = message.strip_prefix("decision_reliability.artifact_kind_mismatch: ")
+            {
+                return Self {
+                    code: *code,
+                    detail: "decision_reliability.artifact_kind_mismatch".to_owned(),
+                    message: text.to_owned(),
+                    remedy: None,
+                };
+            }
+        }
         Self {
             code: error.reason_code().unwrap_or(antecedent_core::reason_code!("invalid_argument")),
             detail: "decision_reliability.artifact".to_owned(),
@@ -396,6 +409,25 @@ pub fn consume_decision_reliability_artifact(
     expected: &DecisionReliabilityExpectation,
     ctx: &ExecutionContext,
 ) -> Result<PreparedDecisionReliability, DecisionReliabilityRefusal> {
+    // A readable container of another kind is a recognised artifact this consumer
+    // does not read: name both kinds and the consumer that does.
+    if let Some(kind) = antecedent_design::inverse_query_artifact::recognised_artifact_kind(bytes) {
+        if kind != antecedent_design::decision_reliability::DECISION_RELIABILITY_KIND {
+            let message = format!(
+                "decision_reliability.artifact_kind_mismatch: expected {}, supplied {kind}; {}",
+                antecedent_design::decision_reliability::DECISION_RELIABILITY_KIND,
+                antecedent_design::inverse_query_artifact::artifact_kind_remedy(&kind),
+            );
+            return Err(DecisionReliabilityRefusal {
+                code: antecedent_core::reason_code!("invalid_argument"),
+                detail: "decision_reliability.artifact_kind_mismatch".to_owned(),
+                message,
+                remedy: Some(antecedent_design::inverse_query_artifact::artifact_kind_remedy(
+                    &kind,
+                )),
+            });
+        }
+    }
     let artifact = consume(bytes, expected, ctx)
         .map_err(|error| DecisionReliabilityRefusal::from_io(&error))?;
     Ok(PreparedDecisionReliability { artifact })

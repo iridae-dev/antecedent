@@ -56,7 +56,7 @@ pub fn assemble_parameter_covariance(
                     }
                 }
             }
-            "aligned_joint_law"
+            "joint_gaussian_covariance"
         }
         other => {
             for d in &spec.mechanisms {
