@@ -115,3 +115,5 @@ pub use z_transport_planner::{
 /// Independently consumed original source diagnostics and semantic mappings.
 pub mod source_evidence;
 pub mod source_projection_artifact;
+pub mod transported_bridge;
+pub mod transported_synthesis;

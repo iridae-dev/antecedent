@@ -336,6 +336,7 @@ dependencies = [
  "antecedent-core",
  "antecedent-data",
  "antecedent-graph",
+ "antecedent-identify",
  "antecedent-kernels",
  "antecedent-stats",
  "criterion",

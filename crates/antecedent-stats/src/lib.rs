@@ -37,6 +37,7 @@ pub mod regularized;
 pub mod response;
 pub mod special;
 pub mod synthesis;
+pub mod synthesis_transport;
 #[cfg(test)]
 mod test_util;
 pub mod twosls;

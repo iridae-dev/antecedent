@@ -22,6 +22,7 @@ pub mod observation_query;
 pub mod overlay;
 pub mod registry;
 pub mod sample;
+pub mod mechanism_transport;
 
 pub use basis::{BasisTerm, ParentBasis};
 pub use batch::{
