@@ -791,7 +791,7 @@ fn evaluate(
     if ctx.cancellation.is_cancelled() {
         return Err(Error::Cancelled);
     }
-    match request {
+    let result = match request {
         PropagationRequestWire::LinearCombination { coefficients, means, covariance } => {
             require_len(coefficients.len(), n_inputs, "coefficient")?;
             if rule.dependence == "declared_independent"
@@ -865,7 +865,11 @@ fn evaluate(
         | PropagationRequestWire::PooledCorrelationRange { .. } => {
             evaluate_correlation_range(rule, request, n_inputs)
         }
+    }?;
+    if result.iter().any(|(name, bits)| name != "n_rows" && !f64::from_bits(*bits).is_finite()) {
+        return Err(math_error(JointLawError::NonFinite("propagation result")));
     }
+    Ok(result)
 }
 
 fn plan_for(

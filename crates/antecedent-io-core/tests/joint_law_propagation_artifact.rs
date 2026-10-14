@@ -168,6 +168,30 @@ fn a_covariance_aware_contrast_replays_to_the_closed_form() {
 }
 
 #[test]
+fn assumption_ranges_refuse_unrepresentable_moments() {
+    let request = declared(
+        PropagationOperation::Product,
+        vec![summary("x", "snapshot_x"), summary("y", "snapshot_y")],
+        PropagationDependence::CorrelationRange { rho_lo: -0.5, rho_hi: 0.5 },
+        RequestedReading::Envelope,
+    );
+    for (mean, sd) in [(f64::MAX, 1.0), (0.0, f64::MAX)] {
+        let numbers = PropagationRequestWire::CorrelationRange {
+            x_mean: bits(mean),
+            x_sd: bits(sd),
+            y_mean: bits(mean),
+            y_sd: bits(sd),
+            a: bits(1.0),
+            b: bits(-1.0),
+        };
+        assert!(
+            JointLawPropagationArtifactWire::seal(&request, numbers, &ctx()).is_err(),
+            "finite declarations cannot license a non-finite assumption range"
+        );
+    }
+}
+
+#[test]
 fn independent_claims_refuse_covariance_cross_terms_even_after_resealing() {
     let independent = declared(
         PropagationOperation::Sum,
