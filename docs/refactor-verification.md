@@ -1,8 +1,9 @@
 # 2.4.0 refactor verification
 
 This is a branch validation record, not a release or a calibration attestation.
-The refactor audits, repairs and local verification described below are
-complete at code commit `ef2cf46e`. The branch is not fully green: legitimate
+The earlier refactor audit and repairs described below were completed at code
+commit `ef2cf46e`. The subsequent functionality audit is recorded in the final
+section. The branch is not fully green: legitimate
 calibration remains a precondition for the measured-only acceptance checks and
 attestation gates. No calibration measurements or replay measurements have been
 run for this pass.
@@ -183,3 +184,98 @@ Local validation does not execute the remote Linux, Windows or wheel CI matrix.
 Calibration and release-candidate checks remain outside this pass. No branch has
 been pushed or released. Work is committed in separate logical increments with
 Charles Hinshaw's DCO sign-off and without co-author trailers.
+
+## Subsequent functionality audit (2026-10-14)
+
+This audit reviews the additional 2.4.0 functionality and refactoring against
+`v2.3.0`. Three delegated reviews covered causal/model mathematics, Python
+engineering, and scientific contracts; their patches were reviewed by the
+primary agent. The scope is source correctness and local engineering readiness.
+Calibration, publication, and the remote operating-system CI matrix remain
+outside this pass.
+
+The repairs tighten scientific premises and numerical failure boundaries:
+
+- Nonnegative sample covariance no longer licenses a Gaussian expected-maximum
+  comparison theorem. Declared independent streams retain the independent
+  Gaussian calculation; other dependence uses the union bound.
+- Correlation declarations require finite ordered endpoints in `[-1, 1]`.
+  Derived joint-law and synthesis moments must remain finite before endpoint
+  ordering or variance clamping can hide invalid arithmetic. Propagation replay
+  also checks finite named floating results and refuses covariance cross terms
+  under a declared-independence rule.
+- Finite coupling traversal retains tiny positive atoms. Accepted probability
+  rows with simplex slack are normalized in compiled composition and finite-SCM
+  laws, so enumeration and sampling consume the same law; exact-one rows retain
+  their original arithmetic. Positive SCM evidence that underflows is refused
+  with a numerical detail code rather than described as impossible evidence.
+- Large finite beta shapes use scaled arithmetic when their sum overflows;
+  ordinary representable arithmetic is preserved. The count solver has a
+  bounded search and an explicit exact-integer limit.
+- Sampled counterfactual overlap follows physical snapshot identity. Equal
+  aggregate summaries do not identify common observations, while one snapshot
+  cannot become independent merely because its summaries differ.
+- Adaptive weighting, sequential off-policy evaluation, and standalone
+  predictive scoring validate their inputs and refuse non-finite computed
+  results. A refused off-policy evaluation does not append to the ledger.
+- Callback cache reuse respects the current caller's output limit. Resumed
+  attempt counts merge monotonically and cannot wrap before another invocation.
+- Python cohort construction preserves supplied feature types and rejects mixed
+  feature columns and invalid row IDs. New interfaces and tests satisfy the
+  repository's lint, formatting, and typing requirements.
+
+The API snapshot update is additive: all 22 comparisons pass, with no removed
+snapshot lines. Promotion evidence now cites the physical-snapshot regression;
+its claim and licensing status are unchanged. No calibration record or positive
+acceptance assertion was weakened to make this audit pass.
+
+The first rebuilt native Python coverage run exposed a stale promotion-test
+citation and a Python overlap fixture that treated equal counts as shared
+observations. Both were repaired. After the final numerical repairs and native
+rebuild, the complete coverage command produced 5,281 passes, 31 failures, and
+54 skips, with 91.15% coverage against the 85% floor. All 31 failure sections
+refuse measured-only acceptance with `record_not_attesting`; there are no
+remaining failures from the two repaired fixtures. The full command remains
+red because the positive measured-route assertions are intentionally intact.
+
+The inventory check also exposed missing ownership declarations for five
+refusal-only interval APIs. Their explicit closed uncertainty routes now cite
+the existing refusal assertions. Three allocated sampled-counterfactual
+coverage IDs lacked emitters and calibration group registration. Ignored
+candidate emitters now use finite-SCM oracle truths and the allocated
+250/1,000/4,000-unit grid; they compile and satisfy strict target Clippy. They
+were not executed. The source-only interval checker passes all 212 records
+with attestation checking explicitly skipped, and both checker self-tests
+pass. This establishes wiring, not measured coverage: the three new records
+remain pending calibration, and stale attestations remain stale.
+
+Workspace doctests pass. All 89 script unit tests pass, including the rerun
+after the harness and inventory repairs. The full Python lint, formatting, and
+typing gate passes. Strict all-target workspace Clippy and workspace formatting
+pass. Focused callback tests pass (22); contract, joint-law, adaptive-weighting,
+and propagation-artifact groups pass (8, 14, 5, and 13). Decision-reliability
+and off-policy overflow/ledger regressions pass (one each), as do standalone
+predictive scoring and exact-truth validation (one each). The final synthesis
+NaN-reducer and precision-overflow regressions pass (one each).
+
+Seven feature checks pass: the default facade, `ml-gbdt`, `ml-forest`,
+`ml-full`, data without default features, model `gaussian-process`, and learner
+`ml-neural`. The estimator `ml-neural` check was interrupted and the combined
+`calibration-internal` library check was not reached in that sequence. The new
+sampled-transport calibration-internal harness independently compiles and
+passes strict Clippy; no measurement test was run.
+
+At the user's request, this pass hands off to the queued Python API refactor
+before the remaining broad Rust verification. The full nextest command
+compiled successfully but was stopped during unusually slow test discovery;
+it produced no full-suite execution result. The transport citation collector
+was also stopped. These checks remain pending, not passing. Resume the broad
+Rust suite and the two remaining feature checks against the subsequent final
+source before claiming complete engineering verification. The earlier
+historical Rust totals above do not establish that result for this audit.
+
+All repair streams are committed with the requested DCO email and no co-author
+trailers. Python edits appearing in the working tree during handoff were left
+untouched; this audit's Python results precede those subsequent edits. This is
+a completed repair handoff with explicitly deferred verification, not an
+all-green branch certification. No calibration, push, or release occurred.
