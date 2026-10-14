@@ -76,7 +76,7 @@ The artifact (`measurement_model_v1`) is consumed independently by
 for the consumer's own population, regime, arm, representation and operation.
 That is the only consumer connected today.
 
-Scheduled owners: decision, inverse query, sensitivity and design ranking
+Owners: decision, inverse query, sensitivity and design ranking
 accept the corrected functional only when an adapter keeps its
 uncalibrated-standard-error label and its model identity; the modules in the
 owner table above would hold it. The composition bundle needs a node kind for
@@ -146,8 +146,8 @@ decided from ledger rows by
 (`mechanism_composition.posterior_dependence_evidence_overlap_unknown` when a
 row set is undeclared).
 
-Scheduled owners: as for measurement. The composition bundle's node kind for a
-composed model is explicitly not wired. A composed response as a decision
+Owners: as for measurement. The composition bundle's node kind for a
+composed model is not defined, so a bundle cannot carry one. A composed response as a decision
 claim stays a declared `MeanSource`; no decision-side composed adapter exists.
 
 ## Evidence ledger
@@ -174,7 +174,7 @@ everything else is unknown. The transport identity of a transported claim is
 supplied by the caller; the ledger refuses a source that would count as both
 native and transported (`evidence_ledger.native_and_transported`).
 
-Scheduled owners: a pooled value as a decision claim, a sensitivity input or a
+Owners: a pooled value as a decision claim, a sensitivity input or a
 design-ranking signal needs an adapter that carries the ledger result
 identity and its `claim_class`; the composition bundle needs a ledger node
 kind. A mechanism's evidence id is read as a ledger source identifier by
@@ -247,13 +247,43 @@ classified still valid, recompute or withdrawn by `transport_revalidation`
 | discretized composition | point-only with a computed mean-contrast bound | REFUSED (`discretized_scm.point_only` for an interval) | REFUSED | REFUSED | REFUSED | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
 | whole-path cross-world spread (finite Markovian row) | uncalibrated spread, never added across estimands | REFUSED (`cross_world_execution.interval_route_closed`) | REFUSED | REFUSED | REFUSED | DIRECT | REFUSED (`cross_world_uncertainty.transported_path_closed`) | NO ROUTE | SCHEDULED |
 
-Library-level means the route exists and is executed in its crate but is not
-yet reached by the Python surface, which is held. Temporal transport of a
-policy value is delivered by `temporal_policy_transport`, not by the
-counterfactual route above. The composition bundle node kind for any of these
-is not delivered. The general path-specific transport row stays carried
+Temporal transport of a policy value is delivered by
+`temporal_policy_transport`, not by the counterfactual route above. None of
+these outputs is a composition bundle node kind, so a bundle cannot carry them. The general path-specific transport row stays carried
 forward (see
 [the carryover disposition](https://github.com/iridae-dev/antecedent/blob/main/parity/carryover_disposition.md)).
+
+## Derived uncertainty, transported vertical and discovery routes
+
+These rows describe the library and Python entries of the derived-uncertainty,
+transported-measurement, transported-mechanism, transported-cohort and
+discovery routes. The first column after the inference mode names the own
+consumer recorded in the Rust tables of the
+[producer and consumer matrix](producer-consumer-matrix.md), with the executing
+test that backs each cell. No row carries an interval or a coverage statement.
+
+Minimum-DIRECT floor: every producer in those tables has at least one DIRECT
+cell with an executing test, or a documented REFUSED cell where no consumer in
+code takes the output. The transported spread meets the floor with a DIRECT
+cell (the propagation consumer replays both the covariance and the aligned
+spread to identical bits) and REFUSED cells for the decision-reliability,
+mechanism-composition and inverse-query consumers. The repeated-measures report
+is a terminal derived statement and meets the floor with a documented REFUSED
+cell: it has no decision-reliability route.
+
+| Route | Inference mode | Own consumer | Decision | Inverse query | Sensitivity | Design ranking | Counterfactual | Transport | Temporal | Composition |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| composed spread (linear moments, aligned functional) | uncalibrated spread, derived and unmeasured | DIRECT (`propagation_artifact`: rebuilt from its bytes under the retained identity) | NO ROUTE (a spread is not a utility input) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
+| composed exceedance (probability, band, verdict; known-weight mixture) | uncalibrated spread, derived and unmeasured | DIRECT (`propagation_artifact`) | NO ROUTE (no utility reading) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
+| transported spread (source sampling, target sampling, transport functional) | uncalibrated spread, all three pieces and their dependence named | DIRECT (`propagation_artifact`: replays to identical bits); REFUSED for decision-reliability, composition and inverse query | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
+| composed interval | closed until a measured record exists at the composed coordinate and construction | REFUSED (`published_route`: `cell_not_licensed`, with the mismatch named) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
+| derived decision uncertainty (numerical, selection, rollout components) | derived and unmeasured, components never combined | DIRECT (`decision_reliability_derived`: re-derived from the carried draws); REFUSED when published | DIRECT (assessed on the bound decision's own draws) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
+| repeated-measures or clustered procedure report | exact forms plus seeded simulation, derived and unmeasured | REFUSED (`decision_reliability_derived`: no route) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
+| transported cohort effect (facade over the fitted-effect transport) | point-only, extrapolative, typed receipt | DIRECT (`decision`: the existing cohort-mean source) | DIRECT (interval and law REFUSED) | ADAPTER (`cohort_forward_source`; accepting policy) | DIRECT | NO ROUTE | NO ROUTE | DIRECT (revalidation) | NO ROUTE | SCHEDULED |
+| transported measurement estimate (carried or target-established error rates) | point-only, uncalibrated, typed receipt | DIRECT (`measurement_artifact`: the existing artifact replays) | SCHEDULED | SCHEDULED | SCHEDULED | SCHEDULED | NO ROUTE (an error-rate invariance is not a counterfactual claim) | DIRECT (library) | NO ROUTE | SCHEDULED |
+| transported mechanism composition (carried or refitted linear-Gaussian mechanisms) | point-only with a labelled parameter-only variance | DIRECT (`mechanism_composition_artifact`: replays to the same bits) | SCHEDULED | ADAPTER (`inverse_forward_source` of the composition) | SCHEDULED | SCHEDULED | REFUSED (conditioning is a separate query) | DIRECT (library; a selection arrow into a carried mechanism refused) | NO ROUTE | SCHEDULED |
+| per-population discovery | structure only, nothing pooled, differences descriptive | DIRECT (`claim_set`: one claim per population) | NO ROUTE (a structure has no response) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | REFUSED (`selective_discovery.differences_are_not_selection_targets`) | NO ROUTE | SCHEDULED |
+| sample-split discovery | structure on the discovery part; analysis part bound by a receipt | DIRECT (`evidence_ledger`: two disjoint sources; reuse refused) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
 
 ## Reading the table
 

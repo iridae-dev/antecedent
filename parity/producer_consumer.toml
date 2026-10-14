@@ -2214,3 +2214,250 @@ status = "REFUSED"
 detail = "an uncalibrated spread is not an interval or posterior: `cell_not_licensed` `cross_world_execution.interval_route_closed` and `cross_world_execution.posterior_route_closed`"
 evidence_test = "crates/antecedent/tests/whole_path_account_facade.rs"
 evidence_assertion = "the_account_is_the_enumerated_spread_bound_to_its_execution"
+
+[[rust_producer]]
+key = "composed_spread_claim"
+object = "a spread of a composition of aligned or covariance-declared pieces (uncalibrated_spread, never an interval)"
+built_from = "`joint_law_propagation::{propagate_linear_moments_spread, propagate_aligned_linear_spread, propagate_spread}`"
+
+[[rust_producer]]
+key = "composed_exceedance_claim"
+object = "the probability, band and verdict of a composed quantity exceeding a cutoff (a known-weight mixture included; uncalibrated_spread)"
+built_from = "`joint_law_propagation::{propagate_composed_exceedance, propagate_mixture_exceedance}`"
+
+[[rust_producer]]
+key = "transported_spread_claim"
+object = "the spread of a transported composition of source sampling, target sampling and the transport functional, with a declared dependence"
+built_from = "`joint_law_propagation::{propagate_transported_spread, propagate_transported_spread_aligned}`"
+
+[[rust_producer]]
+key = "derived_decision_uncertainty"
+object = "the derived numerical, selection and rollout components of a decision-reliability assessment (derived_unmeasured, components kept separate)"
+built_from = "`decision_reliability::{derive_decision_uncertainty, derive_producer_uncertainty}`"
+
+[[rust_producer]]
+key = "repeated_measures_report"
+object = "the exact forms and the seeded simulation of a repeated-measures or clustered procedure (derived_unmeasured, Monte Carlo error separate)"
+built_from = "`adaptive_procedure_report::RepeatedMeasuresProcedure::report`"
+
+[[rust_producer]]
+key = "transported_cohort_effect"
+object = "a cohort mean of a fitted conditional contrast under a declared selection shift (point, extrapolative, typed receipt)"
+built_from = "`transported_cohort::transport_cohort_effect_from_result`"
+
+[[rust_producer]]
+key = "transported_measurement_estimate"
+object = "a latent prevalence corrected with carried or target-established error rates (point, uncalibrated, typed receipt)"
+built_from = "`transported_measurement::transport_measurement_estimate`"
+
+[[rust_producer]]
+key = "transported_mechanism_composition"
+object = "a composition whose mechanisms are carried from a source population or refitted in the target (point, labelled parameter-only variance)"
+built_from = "`transported_mechanism::PreparedMechanismComposition::transport_to`"
+
+[[rust_producer]]
+key = "per_population_discovery"
+object = "one discovery contract run on each population separately with an edge-by-edge comparison (no pooling, differences descriptive)"
+built_from = "`per_population_discovery::discover_per_population`"
+
+[[rust_producer]]
+key = "sample_split_discovery"
+object = "a discovery on the discovery part of a recorded row split and the binding of the analysis part"
+built_from = "`sample_split_analysis::discover_on_split`"
+
+[[rust_consumer]]
+key = "propagation_artifact"
+entry = "`joint_law_propagation::{claim_from_artifact, consume_joint_law_propagation_artifact}`"
+note = "rebuilds a propagation claim from its bytes and the retained identity"
+
+[[rust_consumer]]
+key = "decision_reliability_derived"
+entry = "`decision_reliability::consume_derived_uncertainty`"
+note = "re-derives the components from the carried draws"
+
+[[rust_consumer]]
+key = "published_route"
+entry = "`decision_reliability::publish_derived_route`, `PropagationClaim::check_composed_interval`"
+note = "the routes that would publish a derived statement as an interval"
+
+[[rust_consumer]]
+key = "measurement_artifact"
+entry = "`measurement_model::consume_measurement_model_artifact`"
+note = "the existing measurement model artifact"
+
+[[rust_consumer]]
+key = "mechanism_composition_artifact"
+entry = "`mechanism_composition::consume_mechanism_composition_artifact`"
+note = "the existing mechanism composition artifact"
+
+[[rust_consumer]]
+key = "claim_set"
+entry = "`per_population_discovery::add_per_population_claims`"
+note = "one claim per population in a claim set"
+
+[[rust_consumer]]
+key = "selection_target_request"
+entry = "`per_population_discovery::request_selection_targets_from_differences`"
+note = "a request to take selection targets from the differences"
+
+[[rust_consumer]]
+key = "evidence_ledger"
+entry = "`sample_split_analysis::split_evidence_sources`"
+note = "the split parts declared as two sources to the evidence ledger"
+
+[[rust_consumer]]
+key = "analysis_interval"
+entry = "`SplitDiscovery::request_unsplit_interval`"
+note = "an interval on the rows that selected the graph"
+
+[[rust_cell]]
+producer = "composed_spread_claim"
+consumer = "propagation_artifact"
+status = "DIRECT"
+detail = "a spread claim exports, and a consumer rebuilds it from the bytes under the retained identity; a truncated or mis-identified artifact is refused"
+evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs"
+evidence_assertion = "an_envelope_has_no_composed_interval_and_an_edited_artifact_is_refused"
+
+[[rust_cell]]
+producer = "composed_spread_claim"
+consumer = "published_route"
+status = "REFUSED"
+detail = "a composed interval opens only with a measured coverage record at its own coordinate and construction; no record is measured, so `cell_not_licensed` with the specific mismatch"
+evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs"
+evidence_assertion = "a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate"
+
+[[rust_cell]]
+producer = "composed_exceedance_claim"
+consumer = "propagation_artifact"
+status = "DIRECT"
+detail = "an exceedance claim is consumed with probability 0.2 and its verdict code under the label `uncalibrated_spread`"
+evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs"
+evidence_assertion = "a_composed_exceedance_reports_the_probability_band_and_verdict"
+
+[[rust_cell]]
+producer = "derived_decision_uncertainty"
+consumer = "decision_reliability_derived"
+status = "DIRECT"
+detail = "a fresh consumer re-derives the components from the carried draws and refuses an edited derivation"
+evidence_test = "crates/antecedent/tests/decision_reliability_derived_facade.rs"
+evidence_assertion = "a_fresh_consumer_rederives_from_the_carried_draws"
+
+[[rust_cell]]
+producer = "derived_decision_uncertainty"
+consumer = "published_route"
+status = "REFUSED"
+detail = "every published route refuses `cell_not_licensed` `decision_reliability.cell_not_licensed`, and the components are never combined (`uncertainty_components_not_combined`)"
+evidence_test = "crates/antecedent/tests/decision_reliability_derived_facade.rs"
+evidence_assertion = "derived_uncertainty_is_never_published_or_combined"
+
+[[rust_cell]]
+producer = "transported_cohort_effect"
+consumer = "decision"
+status = "DIRECT"
+detail = "the decision source is the existing cohort-mean source with the same mean, labelled extrapolative"
+evidence_test = "crates/antecedent/tests/transported_cohort_facade.rs"
+evidence_assertion = "the_decision_source_is_the_existing_surface_with_the_same_mean"
+
+[[rust_cell]]
+producer = "transported_cohort_effect"
+consumer = "decision"
+status = "REFUSED"
+detail = "an interval or a law of the transported cohort mean is refused with the licensing evidence"
+evidence_test = "crates/antecedent/tests/transported_cohort_facade.rs"
+evidence_assertion = "interval_and_law_requests_are_refused_with_the_licensing_evidence"
+
+[[rust_cell]]
+producer = "transported_measurement_estimate"
+consumer = "measurement_artifact"
+status = "DIRECT"
+detail = "the corrected estimate is the existing measurement artifact and replays; the receipt is re-derived by a consumer"
+evidence_test = "crates/antecedent/tests/transported_measurement_facade.rs"
+evidence_assertion = "the_existing_artifact_replays_and_the_receipt_is_rederived"
+
+[[rust_cell]]
+producer = "transported_mechanism_composition"
+consumer = "mechanism_composition_artifact"
+status = "DIRECT"
+detail = "the sealed artifact is the existing one and replays to the same bits"
+evidence_test = "crates/antecedent/tests/transported_mechanism_facade.rs"
+evidence_assertion = "the_sealed_artifact_is_the_existing_one_and_replays_to_the_same_bits"
+
+[[rust_cell]]
+producer = "transported_mechanism_composition"
+consumer = "published_route"
+status = "REFUSED"
+detail = "the variance is parameter-only and scoped, and an interval of the carried contrast is closed `cell_not_licensed`"
+evidence_test = "crates/antecedent/tests/transported_mechanism_facade.rs"
+evidence_assertion = "the_variance_is_parameter_only_scoped_and_the_interval_is_closed"
+
+[[rust_cell]]
+producer = "per_population_discovery"
+consumer = "claim_set"
+status = "DIRECT"
+detail = "each population is its own claim, and a change of one leaves the other valid"
+evidence_test = "crates/antecedent/tests/per_population_discovery_facade.rs"
+evidence_assertion = "each_population_is_its_own_claim_and_a_change_of_one_leaves_the_other_valid"
+
+[[rust_cell]]
+producer = "per_population_discovery"
+consumer = "selection_target_request"
+status = "REFUSED"
+detail = "differences between populations are not selection targets: `discovered_structure_unresolved` `selective_discovery.differences_are_not_selection_targets`"
+evidence_test = "crates/antecedent/tests/per_population_discovery_facade.rs"
+evidence_assertion = "differences_between_populations_are_not_selection_targets"
+
+[[rust_cell]]
+producer = "sample_split_discovery"
+consumer = "evidence_ledger"
+status = "DIRECT"
+detail = "the parts are declared as disjoint sources; reusing the rows that selected is refused and the ledger sees the overlap"
+evidence_test = "crates/antecedent/tests/sample_split_analysis_facade.rs"
+evidence_assertion = "reusing_the_rows_that_selected_is_refused_and_the_ledger_sees_the_overlap"
+
+[[rust_cell]]
+producer = "sample_split_discovery"
+consumer = "analysis_interval"
+status = "REFUSED"
+detail = "an interval on the rows that selected the graph is refused; only the analysis part passes the check"
+evidence_test = "crates/antecedent/tests/sample_split_analysis_facade.rs"
+evidence_assertion = "only_the_analysis_part_passes_the_check_and_the_binding_states_what_it_licenses"
+
+[[rust_cell]]
+producer = "transported_spread_claim"
+consumer = "propagation_artifact"
+status = "DIRECT"
+detail = "the joint-law consumer replays both the covariance and the aligned transported spread to identical bits"
+evidence_test = "crates/antecedent/tests/composed_spread_consumers_facade.rs"
+evidence_assertion = "the_joint_law_consumer_replays_both_transported_spreads_to_identical_bits"
+
+[[rust_cell]]
+producer = "transported_spread_claim"
+consumer = "decision_reliability_derived"
+status = "REFUSED"
+detail = "a transported spread with a covariance is not read as a decision-reliability input"
+evidence_test = "crates/antecedent/tests/composed_spread_consumers_facade.rs"
+evidence_assertion = "a_transported_spread_with_a_covariance_is_not_read_as_a_decision_or_a_composition"
+
+[[rust_cell]]
+producer = "transported_spread_claim"
+consumer = "mechanism_composition_artifact"
+status = "REFUSED"
+detail = "a transported spread with a covariance is not read as a composition"
+evidence_test = "crates/antecedent/tests/composed_spread_consumers_facade.rs"
+evidence_assertion = "a_transported_spread_with_a_covariance_is_not_read_as_a_decision_or_a_composition"
+
+[[rust_cell]]
+producer = "transported_spread_claim"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "an aligned transported spread is not read as a forward source of an inverse query, a decision or a composition"
+evidence_test = "crates/antecedent/tests/composed_spread_consumers_facade.rs"
+evidence_assertion = "an_aligned_transported_spread_is_not_read_as_a_decision_or_a_composition"
+
+[[rust_cell]]
+producer = "repeated_measures_report"
+consumer = "decision_reliability_derived"
+status = "REFUSED"
+detail = "a repeated-measures derived report has no decision-reliability route"
+evidence_test = "crates/antecedent/tests/adaptive_repeated_measures_consumer.rs"
+evidence_assertion = "a_repeated_measures_report_has_no_decision_reliability_route"

@@ -412,10 +412,13 @@ the stored graphs, and a first verification (no earlier snapshot) reports nothin
 stale. The route is point-only: it measures no coverage and reports no interval or
 posterior, and a calibration declaration names a record the producer supplied.
 
-## Transported sources, their revalidation and discretization (Rust facade)
+## Transported sources, their revalidation and discretization
 
-These steps are reached through `crates/antecedent/src/analysis/` and are
-library-level: the Python surface does not expose them yet. Every value is a point
+These steps are reached through `crates/antecedent/src/analysis/` in Rust and
+through `antecedent.transported_response`, `antecedent.inverse_sources`,
+`antecedent.transport.revalidation`, `antecedent.transport.sensitivity`,
+`antecedent.discretized_composition` and `antecedent.cross_world_execution` in
+Python. Every value is a point
 (or a labelled spread) under declared premises; none is an interval and none is
 upgraded by being passed on.
 
@@ -429,7 +432,7 @@ upgraded by being passed on.
 | execute a cross-world row, then account for its uncertainty | `CrossWorldExecution::whole_path_uncertainty(UnitSampling)` | the executed request and result the account is bound to | the enumerated exogenous-posterior spread and the declared sampling component, re-derived by a consumer | undeclared unit sampling (`cross_world_uncertainty.unit_sampling_undeclared`), a sampled or transported path, an account of other units (`cross_world_uncertainty.account_mismatch`) |
 
 A transported point export is `transported_decision_artifact` (a consumer re-evaluates
-the decision; a law is not exportable). The library-level routes without a facade
-entry yet (a transported cohort effect, a fitted mechanism carry, a transported policy
-or adaptive-trial value, a discovered-class envelope, a provider handoff) enter these
-steps as a declared `TransportedResponse` with the producing result's digest identity.
+the decision; a law is not exportable). A transported cohort effect, a fitted mechanism
+carry, a transported policy or adaptive-trial value, a discovered-class envelope and a
+provider handoff enter these steps as a declared `TransportedResponse` with the
+producing result's digest identity.

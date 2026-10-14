@@ -9499,7 +9499,7 @@ inference_inventory_disposition = "point_output_listed_unmeasured"
 surface_rust = ["crates/antecedent/src/analysis/mechanism_composition.rs"]
 surface = ["python/antecedent/mechanism_composition.py"]
 surface_pyo3 = ["python/src/mechanism_composition_api.rs"]
-surface_values = ["MechanismCompositionRefusal", "MechanismSource", "MechanismInput", "DependenceInput", "MechanismCompositionRequest", "MechanismRefit", "PreparedMechanismComposition", "MechanismCompositionExport", "ConsumedComposition", "CompositionQueryWire", "CompositionResultWire", "Admission", "CompositionExport", "CrossCovarianceBlock", "Dependence", "FiniteDistributionResult", "FiniteLaw", "FunctionalUncertainty", "GaussianFunctionalResult", "GaussianLawResult", "JointGaussianLaw", "LatentCause", "Mechanism", "MechanismDeclaration", "MechanismUncertainty", "MeanContrast", "ParameterId", "ParameterTerm", "Quantity", "PreparedCompositionHandle"]
+surface_values = ["MechanismCompositionRefusal", "MechanismSource", "MechanismInput", "DependenceInput", "MechanismCompositionRequest", "MechanismRefit", "PreparedMechanismComposition", "MechanismCompositionExport", "ConsumedComposition", "CompositionQueryWire", "CompositionResultWire", "Admission", "CompositionExport", "CrossCovarianceBlock", "Dependence", "FiniteDistributionResult", "FiniteLaw", "FunctionalUncertainty", "GaussianFunctionalResult", "GaussianLawResult", "JointGaussianLaw", "LatentCause", "Mechanism", "MechanismDeclaration", "MechanismUncertainty", "MeanContrast", "ParameterId", "ParameterTerm", "Quantity", "PreparedCompositionHandle", "MechanismDisposition", "MechanismTransport", "MechanismTransportReceipt", "SelectionNode", "TransportedFunctionalUncertainty", "TransportedMechanismComposition", "TransportInvariance", "TransportedCompositionHandle"]
 refusals = [
   { code = "invalid_argument", detail = "mechanism_composition.shape_invalid_table", when = "A declared table or numeric field is malformed.", remedy = "Supply each finite mechanism as a normalized conditional table (every row a distribution) over declared levels." },
   { code = "quantity_semantics_mismatch", detail = "mechanism_composition.units_mismatch", when = "A producer's units differ from the units its consumer was fitted in.", remedy = "Convert the units explicitly and refit one side; no unit conversion is inferred." },
@@ -10290,7 +10290,7 @@ inference_outputs = []
 surface_rust = ["crates/antecedent/src/analysis/measurement_model.rs"]
 surface = ["python/antecedent/measurement_models.py"]
 surface_pyo3 = ["python/src/measurement_model_api.rs"]
-surface_values = ["MeasurementModelRefusal", "MeasurementAnalysisBinding", "CategoricalTarget", "MeasurementInput", "MeasurementDetail", "PreparedMeasurementModel", "MeasurementEstimate", "MeasurementRefresh", "ConsumedMeasurement", "AnalysisBinding", "BinaryParameters", "BinaryPrevalenceData", "BinaryRates", "CategoricalData", "CategoricalParameters", "ClassicalErrorParameters", "ClassicalLinearData", "LatentPosteriorData", "MeasurementIdentities", "MeasurementModel", "MeasurementVariable", "ParameterEvidence", "PosteriorParameters", "PosteriorReference", "ProviderObject", "RepeatedLinearData", "RepeatedParameters", "RepresentationMapping", "RepresentationVersion", "RiskDifferenceData", "VarianceComponent", "PreparedMeasurementHandle", "MeasurementEstimateHandle", "ConsumedMeasurementHandle"]
+surface_values = ["MeasurementModelRefusal", "MeasurementAnalysisBinding", "CategoricalTarget", "MeasurementInput", "MeasurementDetail", "PreparedMeasurementModel", "MeasurementEstimate", "MeasurementRefresh", "ConsumedMeasurement", "AnalysisBinding", "BinaryParameters", "BinaryPrevalenceData", "BinaryRates", "CategoricalData", "CategoricalParameters", "ClassicalErrorParameters", "ClassicalLinearData", "LatentPosteriorData", "MeasurementIdentities", "MeasurementModel", "MeasurementVariable", "ParameterEvidence", "PosteriorParameters", "PosteriorReference", "ProviderObject", "RepeatedLinearData", "RepeatedParameters", "RepresentationMapping", "RepresentationVersion", "RiskDifferenceData", "VarianceComponent", "PreparedMeasurementHandle", "MeasurementEstimateHandle", "ConsumedMeasurementHandle", "DifferentialErrorDeclaration", "InvarianceDeclaration", "MeasurementTransportReceipt", "TransportedMeasurementEstimate"]
 refusals = [
   { code = "measurement_model_invalid", detail = "measurement_model.indicator_observed", when = "An observed column is given an error model.", remedy = "Declare the column noisy or misclassified, or use it directly as observed." },
   { code = "differential_error_not_pooled", detail = "measurement_model.structure_parameters", when = "The declared error structure disagrees with the parameter layout.", remedy = "Declare shared parameters as non-differential, or one parameter set per arm as differential by arm." },
@@ -10329,7 +10329,7 @@ routes = [
   { name = "antecedent_io_core.measurement_model_wire.MeasurementModelArtifact.from_bytes", stage = "consume", status = "licensed", claim = "none", covers = ["consume_measurement_model_artifact"] },
   { name = "antecedent_estimate.measurement.interval_not_licensed", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "estimator_and_contract_refuse_the_same_requests_with_the_same_details" },
   { name = "antecedent.measurement_models.prepare_measurement_model", stage = "prepare", status = "licensed", claim = "none", covers = ["measurement_model_prepare"] },
-  { name = "antecedent.measurement_models.model_identities", stage = "prepare", status = "licensed", claim = "none", covers = ["measurement_model_identities"] },
+  { name = "antecedent.measurement_models.model_identities", stage = "prepare", status = "licensed", claim = "none", covers = ["measurement_model_identities", "transport_measurement_model", "verify_measurement_transport", "measurement_model_transport", "measurement_model_transport_verify"] },
   { name = "antecedent.measurement_models.PreparedMeasurementModel.estimate", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.measurement_models.PreparedMeasurementModel.refresh", stage = "prepare", status = "licensed", claim = "point_only" },
   { name = "antecedent.measurement_models.PreparedMeasurementModel.with_validation_parameters", stage = "prepare", status = "licensed", claim = "point_only" },
@@ -11100,7 +11100,7 @@ prerequisite_reason = "Consumes the compact export's verified identity, support 
 bounds = { cancellation = true }
 surface = ["crates/antecedent/src/analysis/cohort_decision.rs", "python/antecedent/cohort_decision.py"]
 surface_pyo3 = ["python/src/cohort_decision_api.rs"]
-surface_values = ["CohortDecisionRefusal", "CovariateShift", "FittedEffectModel", "CohortBinding", "CohortColumn", "CohortDecisionSource", "CohortExpectation", "CohortOptions", "CohortRefusal", "ContrastDeclaration", "CovariateShiftDeclaration", "LawRequest", "ParentIdentity", "RetainedEffectModel", "SupportReceipt", "UncalibratedStandardError"]
+surface_values = ["CohortDecisionRefusal", "CovariateShift", "FittedEffectModel", "CohortBinding", "CohortColumn", "CohortDecisionSource", "CohortExpectation", "CohortOptions", "CohortRefusal", "ContrastDeclaration", "CovariateShiftDeclaration", "LawRequest", "ParentIdentity", "RetainedEffectModel", "SupportReceipt", "UncalibratedStandardError", "CohortTransportReceipt", "SelectionShift", "TransportedCohortEffect"]
 refusals = [
   { code = "invalid_argument", detail = "cohort_decision.invalid_request", when = "A cohort, options, expectation or model-kind declaration crossing the native boundary is malformed.", remedy = "Declare the cohort and options through the Python types." },
   { code = "invalid_argument", detail = "cohort_decision.parent_not_verified", when = "The exported analysis result has no verifying contract section or executed claim.", remedy = "Supply the exported result of a native analysis whose contract section verifies against its body." },
@@ -11145,7 +11145,7 @@ refusals = [
 ]
 routes = [
   { name = "antecedent.cohort_decision.FittedEffectModel.decision_source", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["build_cohort_decision_source", "validate_cohort_binding", "normalize_cohort_weights", "cohort_decision_law_refusal"] },
-  { name = "antecedent.cohort_decision.decision_source_from_model", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.cohort_decision.decision_source_from_model", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["transport_cohort_effect", "transport_cohort_effect_verify", "transported_cohort_refusal"] },
   { name = "antecedent.cohort_decision.decision_source_from_compact_export", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.cohort_decision.consume_cohort_decision_source", stage = "consume", status = "licensed", claim = "point_only" },
   { name = "antecedent.cohort_decision.evaluate_cohort_decision", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["cohort_decision_input", "cohort_mean_source", "cohort_trust_evidence"] },
@@ -11353,7 +11353,7 @@ bounds = { max_candidates = 65536, max_cells = 67108864, cancellation = true }
 surface_rust = ["crates/antecedent/src/analysis/decision_reliability.rs"]
 surface = ["python/antecedent/decision_reliability.py"]
 surface_pyo3 = ["python/src/decision_reliability_api.rs"]
-surface_values = ["DecisionReliabilityRefusal", "DecisionReliabilityInspection", "PreparedDecisionReliability", "BatchPlan", "CalibrationCoordinate", "CandidateCoupling", "CandidateDraws", "CandidateOrigin", "CandidateSearchRecord", "DecisionChoice", "DecisionDraws", "DecisionReliabilityArtifact", "DecisionReliabilityExpectation", "DrawSegment", "Functional", "KnownOptimumDesign", "NoiseCoupling", "PublishedRoute", "RankingRequest", "ReliabilityReport", "ReliabilityRequest", "RiskTail", "SelectionRule", "SelectionUncertainty", "SourceParadigm", "SourceUncertainty", "StreamId", "StreamPurpose", "ThresholdSide", "UncertaintyReporting", "ValidationKind", "ValidationPlan", "WithinStreamDependence", "ConsumedDecisionReliability", "DecisionReliability", "RankingReport", "MonteCarloErrorReport", "CandidateRankStatement", "DependenceStatement"]
+surface_values = ["DecisionReliabilityRefusal", "DecisionReliabilityInspection", "PreparedDecisionReliability", "BatchPlan", "CalibrationCoordinate", "CandidateCoupling", "CandidateDraws", "CandidateOrigin", "CandidateSearchRecord", "DecisionChoice", "DecisionDraws", "DecisionReliabilityArtifact", "DecisionReliabilityExpectation", "DrawSegment", "Functional", "KnownOptimumDesign", "NoiseCoupling", "PublishedRoute", "RankingRequest", "ReliabilityReport", "ReliabilityRequest", "RiskTail", "SelectionRule", "SelectionUncertainty", "SourceParadigm", "SourceUncertainty", "StreamId", "StreamPurpose", "ThresholdSide", "UncertaintyReporting", "ValidationKind", "ValidationPlan", "WithinStreamDependence", "ConsumedDecisionReliability", "DecisionReliability", "RankingReport", "MonteCarloErrorReport", "CandidateRankStatement", "DependenceStatement", "CohortUtilityDraws", "CoverageDesign", "DerivedUncertainty", "IntervalRequest", "OffPolicyReturnDraws", "PointOnlyOutput", "ProducerCarrier", "RolloutUtilityDraws", "ConfidenceSetBasis", "CoverageCell", "DerivedStanding", "IntervalMultiplicity", "JointLawDeclaration", "JointLawStanding", "NumericalComponent", "NumericalInterval", "NumericalIntervalMethod", "OptimalityConfidenceSet", "ProbabilityInterval", "ProbabilityQuantity", "ProducerKind", "ProducerOutput", "RolloutNoise", "SelectionComponent", "SelectionCorrectedInterval", "TruthKind", "UtilityInterval"]
 refusals = [
   { code = "invalid_argument", detail = "decision_reliability.invalid_input", when = "A carrier or request is malformed: a blank identity, duplicate candidate, non-finite utility, misaligned length, fewer than four draws, an invalid functional level or batch plan, or a pre-specified decision that is not a candidate.", remedy = "Supply a carrier with unique non-blank candidate ids, finite utilities, one utility per draw and a valid request." },
   { code = "sampling_dependence_unknown", detail = "decision_reliability.dependence_unknown", when = "Candidate coupling or the serial dependence of a stream is undeclared; unknown is never taken as independence.", remedy = "Declare the candidate coupling (shared simulation or independent) and the within-stream dependence." },
@@ -11374,9 +11374,9 @@ refusals = [
   { code = "invalid_argument", detail = "decision_reliability.artifact_id_missing", when = "The display identity of the artifact is blank.", remedy = "Supply the intact artifact, or regenerate it from the draws; a retained identity must equal the recomputed one." },
 ]
 routes = [
-  { name = "antecedent.decision_reliability.assess", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["decision_reliability_assess", "decision_reliability_rank", "decision_reliability_publish", "rank", "publish"] },
+  { name = "antecedent.decision_reliability.assess", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["decision_reliability_assess", "decision_reliability_rank", "decision_reliability_publish", "rank", "publish", "derive_decision_uncertainty", "derive_producer_uncertainty", "reach_decision_carrier", "decision_reliability_coverage_design", "publish_derived_route", "derive_uncertainty", "coverage_design", "reach_carrier", "decision_reliability_derive", "decision_reliability_derive_producer", "decision_reliability_assess_producer", "decision_reliability_reach_carrier", "decision_reliability_coverage_design_json", "decision_reliability_publish_derived"] },
   { name = "antecedent.decision_reliability.export", stage = "representation", status = "licensed", claim = "point_only" },
-  { name = "antecedent.decision_reliability.consume_decision_reliability_artifact", stage = "consume", status = "licensed", claim = "point_only", covers = ["consume_decision_reliability_artifact", "decision_reliability_consume"] },
+  { name = "antecedent.decision_reliability.consume_decision_reliability_artifact", stage = "consume", status = "licensed", claim = "point_only", covers = ["consume_decision_reliability_artifact", "decision_reliability_consume", "consume_derived_uncertainty", "decision_reliability_consume_derived", "decision_reliability_verify_derived"] },
 ]
 fixtures = [
   { id = "decision_reliability.sampled_decision.enumerated_risk_measures.positive", role = "positive", intent = "Exact CVaR, nearest-rank quantile and threshold probability of ten enumerated utilities.", evidence_test = "crates/antecedent-design/tests/decision_reliability.rs", evidence_assertion = "enumerated_cvar_quantile_and_threshold_probability_are_exact" },
@@ -12953,6 +12953,7 @@ refusals = [
   { code = "invalid_argument", detail = "adaptive_inference.ledger_limit", when = "The units or looks exceed the evidence ledger bounds.", remedy = "Reduce the units or looks." },
   { code = "route_not_supported", detail = "adaptive_inference.wrong_contract", when = "A consumer retained another contract identity.", remedy = "Consume the contract of the experiment the retained identity names." },
   { code = "invalid_argument", detail = "adaptive_inference.report_replay_mismatch", when = "A stored derived value does not replay.", remedy = "Re-export the artifact from the experiment's history." },
+  { code = "invalid_argument", detail = "adaptive_inference.procedure_limit_exceeded", when = "A declared procedure exceeds a bounded work or size limit (units, looks, cells, delay or exact-law atoms).", remedy = "Reduce the units, looks, cells or delay of the declared procedure, or use the simulation route." },
 ]
 routes = [
   { name = "antecedent_contract.adaptive_design.AdaptiveDesignContract.new", stage = "prepare", status = "licensed", claim = "none" },
@@ -13004,6 +13005,7 @@ refusals = [
   { code = "cell_not_licensed", detail = "adaptive_inference.pairing_not_licensed", when = "Each component is delivered but the pairing has no design contract, estimator or calibration design.", remedy = "A pairing needs its own record; a guarantee for two components does not license it." },
   { code = "cell_not_licensed", detail = "adaptive_inference.cell_carried_forward", when = "The cell is coherent but undelivered; it has an owner.", remedy = "Wait for the owning work item or analyse a delivered cell." },
   { code = "cell_not_licensed", detail = "adaptive_inference.paradigm_not_licensed_for_cell", when = "The paradigm has no route for the procedure cell.", remedy = "Use a paradigm the cell is licensed for." },
+  { code = "invalid_argument", detail = "adaptive_inference.procedure_limit_exceeded", when = "A declared procedure exceeds a bounded work or size limit (units, looks, cells, delay or exact-law atoms).", remedy = "Reduce the units, looks, cells or delay of the declared procedure, or use the simulation route." },
 ]
 routes = [
   { name = "antecedent_contract.adaptive_design.procedure_status", stage = "evaluate", status = "licensed", claim = "none" },
@@ -13051,6 +13053,7 @@ refusals = [
   { code = "invalid_argument", detail = "adaptive_inference.input_invalid", when = "A prior shape is below one, a count total is above the bound or fewer than two arms.", remedy = "Declare prior shapes of at least one and between two and 64 arms." },
   { code = "invalid_argument", detail = "adaptive_inference.numerical_failure", when = "The incomplete beta continued fraction or the quadrature did not converge.", remedy = "No value is reported; reduce the counts or report the failure." },
   { code = "cancelled_no_claim", detail = "adaptive_inference.cancelled", when = "Cancelled before a posterior was formed.", remedy = "Rerun without cancellation." },
+  { code = "invalid_argument", detail = "adaptive_inference.procedure_limit_exceeded", when = "A declared procedure exceeds a bounded work or size limit (units, looks, cells, delay or exact-law atoms).", remedy = "Reduce the units, looks, cells or delay of the declared procedure, or use the simulation route." },
 ]
 routes = [
   { name = "antecedent_estimate.adaptive_inference.bayesian_posterior", stage = "evaluate", status = "licensed", claim = "point_only" },
@@ -13116,6 +13119,7 @@ inference_inventory_disposition = "point_output_listed_unmeasured"
 refusals = [
   { code = "cell_not_licensed", detail = "adaptive_inference.stopping_reliability_closed", when = "The probability of a wrong stop, regret or error rate of the stopping rule is requested.", remedy = "None available yet: the decision follows the retained history; its reliability needs whole-procedure measurement and a decision-reliability record." },
   { code = "cell_not_licensed", detail = "adaptive_inference.paradigm_not_licensed_for_cell", when = "The decision-theoretic paradigm has no route for the procedure cell.", remedy = "Declare a decision-theoretic stopping rule on a Thompson-sampling procedure." },
+  { code = "invalid_argument", detail = "adaptive_inference.procedure_limit_exceeded", when = "A declared procedure exceeds a bounded work or size limit (units, looks, cells, delay or exact-law atoms).", remedy = "Reduce the units, looks, cells or delay of the declared procedure, or use the simulation route." },
 ]
 routes = [
   { name = "antecedent_estimate.adaptive_inference.expected_loss_stopping", stage = "evaluate", status = "licensed", claim = "point_only" },
@@ -13179,6 +13183,7 @@ refusals = [
   { code = "adaptive_assumption_violated", detail = "adaptive_inference.positivity_floor", when = "An estimand arm had assignment probability below the declared floor at some unit.", remedy = "Declare a clipping policy as its own route or use a route that does not weight by assignment probability." },
   { code = "cell_not_licensed", detail = "adaptive_inference.paradigm_not_licensed_for_cell", when = "Adaptive weighting has no route for the procedure cell.", remedy = "Use a paradigm the cell is licensed for." },
   { code = "invalid_argument", detail = "adaptive_inference.input_invalid", when = "Shapes, probabilities, prior or multipliers are malformed.", remedy = "Supply well-formed retained history." },
+  { code = "invalid_argument", detail = "adaptive_inference.procedure_limit_exceeded", when = "A declared procedure exceeds a bounded work or size limit (units, looks, cells, delay or exact-law atoms).", remedy = "Reduce the units, looks, cells or delay of the declared procedure, or use the simulation route." },
 ]
 routes = [
   { name = "antecedent_estimate.adaptive_inference.adaptively_weighted_estimate", stage = "evaluate", status = "licensed", claim = "point_only" },
@@ -13244,6 +13249,7 @@ inference_inventory_disposition = "point_output_listed_unmeasured"
 refusals = [
   { code = "cell_not_licensed", detail = "adaptive_inference.cell_carried_forward", when = "A hierarchical clustered cell is requested.", remedy = "Wait for the owning work item or analyse subjects as the unit with assignment per subject." },
   { code = "cell_not_licensed", detail = "adaptive_inference.interval_closed", when = "An interval or coverage statement is requested.", remedy = "None available yet: the point values and uncalibrated diagnostics are the result; a guarantee needs measured whole-procedure coverage of this exact assignment, outcome structure, monitoring strategy and stopping rule." },
+  { code = "invalid_argument", detail = "adaptive_inference.procedure_limit_exceeded", when = "A declared procedure exceeds a bounded work or size limit (units, looks, cells, delay or exact-law atoms).", remedy = "Reduce the units, looks, cells or delay of the declared procedure, or use the simulation route." },
 ]
 routes = [
   { name = "antecedent_estimate.adaptive_inference.repeated_measures_weighted_estimate", stage = "evaluate", status = "licensed", claim = "point_only" },
@@ -13309,6 +13315,7 @@ refusals = [
   { code = "cell_not_licensed", detail = "adaptive_inference.interval_closed", when = "A coverage statement for the whole procedure is requested.", remedy = "None available yet: the point values and uncalibrated diagnostics are the result; a guarantee needs measured whole-procedure coverage of this exact assignment, outcome structure, monitoring strategy and stopping rule." },
   { code = "invalid_argument", detail = "adaptive_inference.outcome_invalid", when = "An outcome is outside [0, 1].", remedy = "Rescale a known-bounded outcome or use a route for unbounded outcomes." },
   { code = "cell_not_licensed", detail = "adaptive_inference.paradigm_not_licensed_for_cell", when = "The anytime-valid paradigm has no route for the procedure cell.", remedy = "Use a paradigm the cell is licensed for." },
+  { code = "invalid_argument", detail = "adaptive_inference.procedure_limit_exceeded", when = "A declared procedure exceeds a bounded work or size limit (units, looks, cells, delay or exact-law atoms).", remedy = "Reduce the units, looks, cells or delay of the declared procedure, or use the simulation route." },
 ]
 routes = [
   { name = "antecedent_estimate.adaptive_inference.anytime_valid_arm_sequences", stage = "evaluate", status = "licensed", claim = "point_only" },
@@ -13374,6 +13381,7 @@ refusals = [
   { code = "cell_not_licensed", detail = "adaptive_inference.stagewise_adjustment_closed", when = "A bias-adjusted estimate, stagewise p-value or confidence interval after stopping is requested.", remedy = "None available yet: the boundaries and the first crossing are the result; adjusted inference needs its own derivation and measurement." },
   { code = "cell_not_licensed", detail = "adaptive_inference.pairing_not_licensed", when = "Group-sequential monitoring is paired with an adaptive assignment.", remedy = "The pairing needs its own whole-procedure design; independent increments fail under outcome-adaptive assignment." },
   { code = "invalid_argument", detail = "adaptive_inference.numerical_failure", when = "A boundary lies outside the search bracket.", remedy = "No boundary is reported." },
+  { code = "invalid_argument", detail = "adaptive_inference.procedure_limit_exceeded", when = "A declared procedure exceeds a bounded work or size limit (units, looks, cells, delay or exact-law atoms).", remedy = "Reduce the units, looks, cells or delay of the declared procedure, or use the simulation route." },
 ]
 routes = [
   { name = "antecedent_estimate.adaptive_inference.group_sequential_decision", stage = "evaluate", status = "licensed", claim = "point_only" },
@@ -13440,6 +13448,7 @@ inference_inventory_disposition = "no_new_inference_outputs"
 refusals = [
   { code = "cell_not_licensed", detail = "adaptive_inference.interval_closed", when = "An interval or coverage statement is requested for the whole procedure.", remedy = "None available yet: the point values and uncalibrated diagnostics are the result; a guarantee needs measured whole-procedure coverage of this exact assignment, outcome structure, monitoring strategy and stopping rule." },
   { code = "adaptive_design_ignored", detail = "adaptive_inference.fixed_sample_on_adaptive_data", when = "Fixed-sample inference is requested for data from an adaptive design.", remedy = "Use an adaptive-design route." },
+  { code = "invalid_argument", detail = "adaptive_inference.procedure_limit_exceeded", when = "A declared procedure exceeds a bounded work or size limit (units, looks, cells, delay or exact-law atoms).", remedy = "Reduce the units, looks, cells or delay of the declared procedure, or use the simulation route." },
 ]
 routes = [
   { name = "antecedent.adaptive_inference.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/adaptive_inference_facade.rs", refusal_assertion = "fixed_sample_inference_of_adaptive_data_is_refused_while_the_posterior_runs" },
@@ -13597,7 +13606,7 @@ prerequisite_reason = "Uses the distribution artifact's alignment declaration an
 bounds = { max_terms = 256, cancellation = true }
 inference_inventory_disposition = "point_output_listed_unmeasured"
 surface_rust = ["crates/antecedent/src/analysis/joint_law_propagation.rs"]
-surface_values = ["JointLawPropagationRefusal", "PropagationDraws", "MomentInput", "MixtureComponent", "LinearDependence", "CorrelationRangeSummary", "PropagationClaim", "EnvelopeQueryWire", "MarginalWire", "ValueFunctional", "EnvelopeQuery", "ConsumedJointLawPropagation"]
+surface_values = ["JointLawPropagationRefusal", "PropagationDraws", "MomentInput", "MixtureComponent", "LinearDependence", "CorrelationRangeSummary", "PropagationClaim", "EnvelopeQueryWire", "MarginalWire", "ValueFunctional", "EnvelopeQuery", "ConsumedJointLawPropagation", "ComposedInterval", "ExceedanceQuery", "MixtureDraws"]
 surface_exports = ["python/antecedent/joint_law_propagation.py"]
 owned_exports = ["ConsumedJointLawPropagation", "EnvelopeQuery", "JointLawPropagationRefusal", "MixtureComponent", "MomentInput", "PropagationClaim", "PropagationDraws", "aligned_functional", "aligned_linear", "consume_joint_law_propagation_artifact", "correlation_range", "dependence_envelope", "linear_moments", "mixture"]
 surface_pyo3 = ["python/src/joint_law_propagation_api.rs"]
@@ -13615,10 +13624,10 @@ routes = [
   { name = "antecedent_stats.joint_law.linear_combination_moments", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent_stats.joint_law.paired_moments", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.joint_law_propagation.alignment_identity", stage = "prepare", status = "licensed", claim = "none", covers = ["input_alignment"] },
-  { name = "antecedent.joint_law_propagation.propagate", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["propagate_aligned_functional", "propagate_mixture", "propagate_dependence_envelope", "propagate_correlation_range"] },
-  { name = "antecedent.joint_law_propagation.propagate_linear_moments", stage = "evaluate", status = "licensed", claim = "point_only" },
-  { name = "antecedent.joint_law_propagation.propagate_aligned_linear", stage = "evaluate", status = "licensed", claim = "point_only" },
-  { name = "antecedent.joint_law_propagation.consume_joint_law_propagation_artifact", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent.joint_law_propagation.propagate", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["propagate_aligned_functional", "propagate_mixture", "propagate_dependence_envelope", "propagate_correlation_range", "propagate_composed_exceedance", "propagate_mixture_exceedance", "propagate_transported_spread", "propagate_transported_spread_aligned"] },
+  { name = "antecedent.joint_law_propagation.propagate_linear_moments", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["propagate_linear_moments_spread"] },
+  { name = "antecedent.joint_law_propagation.propagate_aligned_linear", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["propagate_aligned_linear_spread", "propagate_spread"] },
+  { name = "antecedent.joint_law_propagation.consume_joint_law_propagation_artifact", stage = "consume", status = "licensed", claim = "point_only", covers = ["claim_from_artifact"] },
   { name = "antecedent.joint_law_propagation.PropagationClaim.export", stage = "representation", status = "licensed", claim = "point_only" },
   { name = "antecedent_contract.joint_law_rule.dependence_unknown", stage = "prepare", status = "closed", reason_code = "sampling_dependence_unknown", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "linear_operations_take_a_covariance_or_distinct_evidence" },
   { name = "antecedent_contract.joint_law_rule.shared_evidence_declared_independent", stage = "prepare", status = "closed", reason_code = "evidence_double_counted", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "linear_operations_take_a_covariance_or_distinct_evidence" },
@@ -13626,9 +13635,9 @@ routes = [
   { name = "antecedent.python.joint_law_propagation.aligned_linear", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.python.joint_law_propagation.linear_moments", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.python.joint_law_propagation.consume_joint_law_propagation_artifact", stage = "consume", status = "licensed", claim = "point_only", covers = ["aligned_functional", "correlation_range", "dependence_envelope", "mixture"] },
-  { name = "antecedent._native.joint_law_aligned_linear", stage = "evaluate", status = "licensed", claim = "point_only" },
-  { name = "antecedent._native.joint_law_linear_moments", stage = "evaluate", status = "licensed", claim = "point_only" },
-  { name = "antecedent._native.joint_law_consume", stage = "consume", status = "licensed", claim = "point_only", covers = ["joint_law_aligned_functional", "joint_law_mixture", "joint_law_mixture_undeclared", "joint_law_envelope", "joint_law_correlation_range", "joint_law_closed_reading"] },
+  { name = "antecedent._native.joint_law_aligned_linear", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["joint_law_aligned_linear_spread", "joint_law_spread"] },
+  { name = "antecedent._native.joint_law_linear_moments", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["joint_law_linear_moments_spread"] },
+  { name = "antecedent._native.joint_law_consume", stage = "consume", status = "licensed", claim = "point_only", covers = ["joint_law_aligned_functional", "joint_law_mixture", "joint_law_mixture_undeclared", "joint_law_envelope", "joint_law_correlation_range", "joint_law_closed_reading", "joint_law_composed_exceedance", "joint_law_mixture_exceedance", "joint_law_transported_spread_aligned", "joint_law_check_composed_interval", "joint_law_coordinate_id"] },
   { name = "antecedent._native.joint_law_column", stage = "prepare", status = "licensed", claim = "none" },
   { name = "antecedent.python.joint_law_propagation.linear_moment_propagation.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_joint_law_propagation.py", refusal_assertion = "test_envelope_is_never_a_point_or_an_interval_and_ranges_are_labelled" },
 ]
@@ -15034,11 +15043,23 @@ refusals = [
   { code = "cell_not_licensed", detail = "transported_effect.non_finite_result", when = "The weighted cohort mean is not finite.", remedy = "Check the model and the cohort." },
   { code = "cell_not_licensed", detail = "transported_effect.interval_not_licensed", when = "An interval, band or posterior for the transported cohort mean is requested.", remedy = "None available: the value is point-only under a declared premise until whole-method coverage including the transport and support steps is measured." },
   { code = "decision_contract_unsatisfied", detail = "transported_effect.law_not_supplied", when = "A probability, quantile, nonlinear utility or joint law of the contrast is requested.", remedy = "Supply aligned outcome draws under a declared transport model." },
+  { code = "invalid_argument", detail = "transported_effect.cohort_not_numeric", when = "A cohort feature is not numeric (a categorical feature of a portable fitted effect).", remedy = "Supply numeric features." },
+  { code = "invalid_argument", detail = "transported_effect.outcome_units_required", when = "No outcome units were declared for the decision source.", remedy = "Declare the outcome units." },
+  { code = "transport_not_certified", detail = "transported_effect.identity_mismatch", when = "A fresh consumer's re-derived identity differs from the retained one.", remedy = "Supply the transport whose identity was retained." },
+  { code = "transport_not_certified", detail = "transported_effect.decision_source_mismatch", when = "Defensive integrity check: the decision source mean differs from the transported mean.", remedy = "Rebuild the source from the transport." },
+  { code = "invalid_argument", detail = "transported_effect.model_not_portable", when = "Defensive: the verified result retains no portable fitted effect.", remedy = "Fit with a producer that retains a portable conditional-contrast map." },
+  { code = "invalid_argument", detail = "transported_effect.invalid_request", when = "The Python request of a transported cohort effect is malformed (an unreadable request or an unknown request kind).", remedy = "Supply a well-formed request." },
 ]
 routes = [
   { name = "antecedent_learn.transported_effect.transport_cohort_effect", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent_learn.transported_effect.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-learn/src/transported_effect.rs", refusal_assertion = "requests_beyond_the_point_are_refused" },
   { name = "antecedent_learn.transported_effect.law_valued_request", stage = "evaluate", status = "closed", reason_code = "decision_contract_unsatisfied", permanent_in_release = true, refusal_test = "crates/antecedent-learn/src/transported_effect.rs", refusal_assertion = "requests_beyond_the_point_are_refused" },
+  { name = "antecedent.transported_cohort.transport_cohort_effect_from_result", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.transported_cohort.TransportedCohort.decision_source", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent.transported_cohort.verify_cohort_transport", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent.python.cohort_decision.transport_cohort_effect", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.python.cohort_decision.TransportedCohortEffect.verify", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent.transported_cohort.interval_or_law", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/transported_cohort_facade.rs", refusal_assertion = "interval_and_law_requests_are_refused_with_the_licensing_evidence" },
 ]
 fixtures = [
   { id = "transport.covariate_shift_cohort_effect.hand_cohort_mean.positive", role = "positive", intent = "Over tau = 1 + 2z - w on the box z in [0,1], w in [0,2], rows (0.5,1), (1,0), (0,2) have contrasts (1,3,-1) and the weighted mean under weights (0.5,0.25,0.25) is 1.0.", evidence_test = "crates/antecedent-learn/src/transported_effect.rs", evidence_assertion = "weighted_mean_matches_the_hand_calculation" },
@@ -15054,6 +15075,7 @@ fixtures = [
   { id = "transport.covariate_shift_cohort_effect.duplicate_features.negative", role = "negative", intent = "Duplicate model feature names are refused before any column is read.", evidence_test = "crates/antecedent-learn/src/transported_effect.rs", evidence_assertion = "duplicate_model_feature_names_are_refused_before_any_column_is_read" },
   { id = "transport.covariate_shift_cohort_effect.requests_beyond_point.negative", role = "negative", intent = "An interval and a law request are refused with their typed details.", evidence_test = "crates/antecedent-learn/src/transported_effect.rs", evidence_assertion = "requests_beyond_the_point_are_refused" },
   { id = "transport.covariate_shift_cohort_effect.identity_follows_inputs.artifact", role = "artifact", intent = "The identity is a canonical digest of model, cohort, declaration and issued values: a changed row at unchanged shape changes it. No wire artifact is emitted by this module, so this is the identity re-derivation, not a fresh-consumer artifact.", evidence_test = "crates/antecedent-learn/src/transported_effect.rs", evidence_assertion = "identity_changes_with_a_changed_row_at_unchanged_shape" },
+  { id = "transport.covariate_shift_cohort_effect.facade_premises_named.negative", role = "negative", intent = "Facade: every unmet premise is named (missing declaration, selection arrow into the outcome, modifier set, populations, overlap, schema, categorical, claim).", evidence_test = "crates/antecedent/tests/transported_cohort_facade.rs", evidence_assertion = "every_unmet_premise_is_named" },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -15095,9 +15117,14 @@ refusals = [
   { code = "route_not_supported", detail = "measurement_model.nothing_to_transport", when = "The route re-estimates the error in the target (replicates), so there is nothing to carry.", remedy = "Use the target replicates directly." },
   { code = "route_not_supported", detail = "measurement_model.posterior_bound_to_snapshot", when = "An external latent posterior is bound to its source snapshot.", remedy = "Request a new provider posterior for the target snapshot." },
   { code = "differential_error_not_pooled", detail = "measurement_model.differential_axis_unsupported", when = "A differential axis other than population is declared.", remedy = "Declare the error structure on the population axis or supply one model per axis value." },
+  { code = "measurement_binding_mismatch", detail = "measurement_model.transport_receipt_mismatch", when = "A stored transport receipt differs from its re-derivation.", remedy = "Re-derive the receipt from the models and the declaration." },
 ]
 routes = [
   { name = "antecedent_estimate.measurement_transport.transport_measurement_model", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.transported_measurement.transport_measurement_estimate", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.transported_measurement.verify_measurement_transport", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent.python.measurement_models.transport_measurement_model", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.python.measurement_models.verify_measurement_transport", stage = "consume", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
   { id = "transport.measurement_model.carried_rates.positive", role = "positive", intent = "With sensitivity 0.9, specificity 0.8 and 520 of 1000 observed positive, the carried rates correct the target prevalence to 0.32/0.7 and the receipt records the carried parameters with no interval.", evidence_test = "crates/antecedent-estimate/src/measurement_transport.rs", evidence_assertion = "carried_rates_correct_the_target_prevalence" },
@@ -15110,6 +15137,10 @@ fixtures = [
   { id = "transport.measurement_model.third_population.negative", role = "negative", intent = "A transported model does not serve a third population.", evidence_test = "crates/antecedent-estimate/src/measurement_transport.rs", evidence_assertion = "transported_model_does_not_serve_a_third_population" },
   { id = "transport.measurement_model.replicate_route.negative", role = "negative", intent = "The replicate route has nothing to carry.", evidence_test = "crates/antecedent-estimate/src/measurement_transport.rs", evidence_assertion = "replicate_route_has_nothing_to_carry" },
   { id = "transport.measurement_model.receipt_identity.artifact", role = "artifact", intent = "The receipt identity moves with the declared parameters. The module emits no wire artifact, so this is the receipt re-derivation, not a fresh-consumer artifact.", evidence_test = "crates/antecedent-estimate/src/measurement_transport.rs", evidence_assertion = "receipt_identity_moves_with_the_declared_parameters" },
+  { id = "transport.measurement_model.facade_target_own_model.truth", role = "truth", intent = "Facade: a model established for the target borrows nothing (0.47/0.65).", evidence_test = "crates/antecedent/tests/transported_measurement_facade.rs", evidence_assertion = "a_model_established_for_the_target_borrows_nothing" },
+  { id = "transport.measurement_model.facade_premises.negative", role = "negative", intent = "Facade: every unmet premise is named with code and detail.", evidence_test = "crates/antecedent/tests/transported_measurement_facade.rs", evidence_assertion = "every_unmet_premise_is_named" },
+  { id = "transport.measurement_model.facade_nothing_to_carry.negative", role = "negative", intent = "Facade: a route with nothing to carry is refused.", evidence_test = "crates/antecedent/tests/transported_measurement_facade.rs", evidence_assertion = "a_route_with_nothing_to_carry_is_refused_by_the_transport_decision" },
+  { id = "transport.measurement_model.facade_identity_moves.artifact", role = "artifact", intent = "Facade: changed numbers and declarations move the identity.", evidence_test = "crates/antecedent/tests/transported_measurement_facade.rs", evidence_assertion = "changed_numbers_and_declarations_move_the_identity" },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -15118,7 +15149,7 @@ inference_outputs = []
 [[record]]
 id = "transport.fitted_linear_gaussian_mechanism"
 capability = "transport.fitted_linear_gaussian_mechanism"
-status = "frozen"
+status = "in_progress"
 consumer_question = "Which fitted linear-Gaussian mechanisms of a source population may be carried into a composition for a target population under a declared selection diagram, and what does the carried composition compute?"
 theorem = "A fitted additive-noise linear-Gaussian mechanism of variable V estimated in a source population is carried to the target only if no selection node points into V or into a latent cause V loads on: a selection arrow into a mechanism is the statement that the mechanism differs, so it dominates any analyst invariance for the same variable (Pearl and Bareinboim 2014). A natively refitted target mechanism always takes precedence and is never averaged with a carried one. The composition is the existing linear-Gaussian composition, so the contrast and its delta-method variance are the source-fit parameter variance only, labelled; transport adds no variance and none is invented. On the same fixtures the composition refusal and the finite counterfactual transport obstruction agree."
 reference = "provenance/transport.fitted_linear_gaussian_mechanism.toml"
@@ -15146,10 +15177,15 @@ refusals = [
   { code = "quantity_semantics_mismatch", detail = "mechanism_transport.target_mechanism_not_native", when = "A mechanism supplied as target-fitted was fitted in another population.", remedy = "Supply as a target mechanism only one fitted in the target; carry the others as source mechanisms." },
   { code = "quantity_semantics_mismatch", detail = "mechanism_transport.selection_arrow_into_latent", when = "A selection node points into a latent cause a carried mechanism loads on.", remedy = "Refit the mechanism in the target population." },
   { code = "quantity_semantics_mismatch", detail = "mechanism_transport.duplicate_mechanism", when = "A variable has more than one source or more than one target mechanism.", remedy = "Give each variable exactly one mechanism per role." },
+  { code = "quantity_semantics_mismatch", detail = "mechanism_transport.transport_identity_mismatch", when = "A stored transport identity differs from its re-derivation.", remedy = "Re-derive the transport from the declaration." },
+  { code = "cell_not_licensed", detail = "mechanism_transport.interval_route_closed", when = "An interval of the carried composition's contrast is requested.", remedy = "None: the variance is parameter-only and scoped; no interval is licensed." },
 ]
 routes = [
-  { name = "antecedent_model.mechanism_transport.transport_linear_gaussian", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent_model.mechanism_transport.mean_contrast_uncertainty", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true },
+  { name = "antecedent.transported_mechanism.PreparedMechanismComposition.transport_to", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.transported_mechanism.verify_mechanism_transport", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent.python.mechanism_composition.PreparedMechanismComposition.transport_to", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.transported_mechanism.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/transported_mechanism_facade.rs", refusal_assertion = "the_variance_is_parameter_only_scoped_and_the_interval_is_closed" },
+  { name = "antecedent_model.mechanism_transport.transport_linear_gaussian", stage = "evaluate", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
   { id = "transport.fitted_linear_gaussian_mechanism.carried_contrast.positive", role = "positive", intent = "A carried invariant outcome mechanism executes in the target: E[x] = 3, E[y] = 6.5, Var x = 2, Var y = 14, Cov = 5 and the contrast is 2.", evidence_test = "crates/antecedent-model/tests/mechanism_transport.rs", evidence_assertion = "an_invariant_fitted_mechanism_is_carried_and_executes_in_the_target" },
@@ -15162,6 +15198,9 @@ fixtures = [
   { id = "transport.fitted_linear_gaussian_mechanism.latent_arrow_both_entry_points.negative", role = "negative", intent = "A selection arrow into the shared latent is refused by both entry points.", evidence_test = "crates/antecedent-model/tests/transport_obstruction_agreement.rs", evidence_assertion = "a_selection_arrow_into_the_shared_latent_is_refused_by_both_entry_points" },
   { id = "transport.fitted_linear_gaussian_mechanism.identity_at_unchanged_shape.artifact", role = "artifact", intent = "The identity is order-free and moves with a changed number at unchanged shape; the uncertainty, support and parent domain enter it. No wire artifact is emitted, so this is the identity re-derivation.", evidence_test = "crates/antecedent-model/tests/mechanism_transport.rs", evidence_assertion = "identity_is_order_free_and_moves_with_a_changed_number_at_unchanged_shape" },
   { id = "transport.fitted_linear_gaussian_mechanism.identity_fields.artifact", role = "artifact", intent = "A changed parameter law moves the identity at unchanged shape.", evidence_test = "crates/antecedent-model/tests/mechanism_transport_identity_fields.rs", evidence_assertion = "a_changed_parameter_law_moves_the_identity_at_unchanged_shape" },
+  { id = "transport.fitted_linear_gaussian_mechanism.facade_refit_precedence.truth", role = "truth", intent = "Facade: a refit replaces the carried mechanism and is never averaged.", evidence_test = "crates/antecedent/tests/transported_mechanism_facade.rs", evidence_assertion = "a_refit_replaces_the_carried_mechanism_and_is_never_averaged" },
+  { id = "transport.fitted_linear_gaussian_mechanism.facade_arrow_dominates.negative", role = "negative", intent = "Facade: a selection arrow dominates an invariance declaration.", evidence_test = "crates/antecedent/tests/transported_mechanism_facade.rs", evidence_assertion = "a_selection_arrow_dominates_an_invariance_declaration" },
+  { id = "transport.fitted_linear_gaussian_mechanism.facade_artifact_replays.artifact", role = "artifact", intent = "Facade: the sealed artifact is the existing mechanism_composition_v1 and replays to the same bits.", evidence_test = "crates/antecedent/tests/transported_mechanism_facade.rs", evidence_assertion = "the_sealed_artifact_is_the_existing_one_and_replays_to_the_same_bits" },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -15377,7 +15416,7 @@ inference_outputs = []
 [[record]]
 id = "transport.policy_evaluation"
 capability = "transport.policy_evaluation"
-status = "frozen"
+status = "in_progress"
 consumer_question = "What is the value of a supplied contingent policy in a target population when the only difference from the model's population is the initial-state law, under a declared selection diagram over every model mechanism?"
 theorem = "For a finite sequential model with initial-state law pi_s, transition, observation and utility mechanisms and a fixed contingent policy, the policy value is the g-formula sum over histories. If a declared selection diagram marks the transition, observation and utility mechanisms invariant between the model's population and the target and only the initial-state law shifted, then the target value is the same g-formula with the target initial-state law pi_t in place of pi_s, provided pi_t has support inside the states the source reaches. Every mechanism needs a declared status; invariance is never assumed. The value is exact finite arithmetic under the declared premises and is a point."
 reference = "provenance/transport.policy_evaluation.toml"
@@ -15413,9 +15452,8 @@ refusals = [
   { code = "invalid_argument", detail = "transported_policy.value_mismatch", when = "A stored transported value does not replay.", remedy = "Regenerate the evaluation from the request." },
 ]
 routes = [
-  { name = "antecedent_design.transported_policy.evaluate_transported_policy", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent_design.transported_policy.verify_transported_policy", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent_design.transported_policy.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true },
+  { name = "antecedent_design.transported_policy.evaluate_transported_policy", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_design.transported_policy.verify_transported_policy", stage = "consume", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
   { id = "transport.policy_evaluation.hand_value_across_target_laws.positive", role = "positive", intent = "For target faulty mass p in {0, .2, .5, .8, 1} the transported value is 7.5 - 10p, the source value is 2.5, the shifted set is the initial-state law, nodes visited are 6 and the verifier replays.", evidence_test = "crates/antecedent-design/tests/transported_evaluation.rs", evidence_assertion = "transported_value_matches_the_hand_value_across_target_laws" },
@@ -15431,7 +15469,7 @@ inference_outputs = []
 [[record]]
 id = "transport.period_shift_policy"
 capability = "transport.period_shift_policy"
-status = "frozen"
+status = "in_progress"
 consumer_question = "What is the value of a supplied contingent policy in a later period when mechanisms are declared time-invariant over a fixed horizon and only the initial-state law changes?"
 theorem = "The same g-formula as the population route with a time-invariance declaration in place of the selection diagram: transition, observation and utility mechanisms are declared invariant across the periods over one stated fixed horizon, the action and observation symbol alphabets are identical, and only the initial-state law of the target period differs. A horizon change, a re-keyed policy table and a time-varying mechanism are not bounded routes and are refused. The value is exact finite arithmetic and a point."
 reference = "provenance/transport.period_shift_policy.toml"
@@ -15469,13 +15507,14 @@ refusals = [
   { code = "invalid_argument", detail = "temporal_policy_transport.value_mismatch", when = "A stored temporal value does not replay.", remedy = "Regenerate the evaluation from the request." },
 ]
 routes = [
-  { name = "antecedent_design.temporal_policy_transport.evaluate_temporal_policy", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent_design.temporal_policy_transport.verify_temporal_policy", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_design.temporal_policy_transport.evaluate_temporal_policy", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_design.temporal_policy_transport.verify_temporal_policy", stage = "consume", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
   { id = "transport.period_shift_policy.period_shift_hand_value.positive", role = "positive", intent = "With target mass 0.6 the period-shifted value is 1.5 against the source value 2.5.", evidence_test = "crates/antecedent-design/tests/transported_evaluation.rs", evidence_assertion = "a_period_shift_under_time_invariant_mechanisms_has_the_hand_value", shared_evidence = true },
   { id = "transport.period_shift_policy.invariance_horizon_alphabet.negative", role = "negative", intent = "A missing declaration, a time-varying transition, a different horizon, an extra observation symbol, a dropped action, a wrong period binding and a target equal to the source are refused; SequentialRequest::check still refuses.", evidence_test = "crates/antecedent-design/tests/transported_evaluation.rs", evidence_assertion = "time_varying_horizon_and_history_incompatibilities_are_refused" },
   { id = "transport.period_shift_policy.replay.artifact", role = "artifact", intent = "The same test asserts that a changed law changes the identity and that the verifier replays the value from its request. No wire artifact is emitted.", evidence_test = "crates/antecedent-design/tests/transported_evaluation.rs", evidence_assertion = "a_period_shift_under_time_invariant_mechanisms_has_the_hand_value", shared_evidence = true },
+  { id = "transport.period_shift_policy.forged_stored_values.negative", role = "negative", intent = "A forged stored value, identity or target law and a horizon mismatch are refused by the verifier; an honest value replays.", evidence_test = "crates/antecedent-design/tests/transported_verify_replay.rs", evidence_assertion = "a_stored_temporal_policy_value_replays_and_forgeries_are_refused" },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -15484,7 +15523,7 @@ inference_outputs = []
 [[record]]
 id = "transport.adaptive_trial_source"
 capability = "transport.adaptive_trial_source"
-status = "frozen"
+status = "in_progress"
 consumer_question = "What are the arm means of an adaptively assigned trial standardized to a target population's stratum law, using the recorded assignment probabilities, under a declared selection diagram?"
 theorem = "With units i in stratum s_i, arm a_i assigned with recorded probability p_i and outcome y_i (the mean of the unit's measurements), the Hajek estimate of the arm mean in stratum s is sum_{i in s, a_i = a} y_i / p_i divided by sum_{i in s, a_i = a} 1 / p_i; the target mean is the stratum average of these under the target stratum law q. This identifies the target arm mean when the outcome mechanism given stratum and arm is invariant between the trial and the target (only the stratum law may shift), every target stratum with mass has an analysed unit under each compared arm, outcomes are ignorable-delay available at the final look, and every analysed unit's assigned arm had probability above the declared floor. The cells licensed are exactly those the adaptive contract already licenses for adaptively weighted scores; other cells refuse with the contract's own details."
 reference = "provenance/transport.adaptive_trial_source.toml"
@@ -15527,17 +15566,18 @@ refusals = [
   { code = "invalid_argument", detail = "adaptive_transport.value_mismatch", when = "A stored estimate does not replay.", remedy = "Regenerate from the request." },
 ]
 routes = [
-  { name = "antecedent_design.adaptive_trial_transport.transport_adaptive_trial", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent_design.adaptive_trial_transport.verify_adaptive_transport", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_design.adaptive_trial_transport.transport_adaptive_trial", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_design.adaptive_trial_transport.verify_adaptive_transport", stage = "consume", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
-  { id = "transport.adaptive_trial_source.standardized_arm_means.positive", role = "positive", intent = "Arm means standardize to the target stratum law: 29/56 and 1/2 with contrast 1/56 for law (0.25, 0.75), and 4/7 and 1 for law (1, 0),.", evidence_test = "crates/antecedent-design/tests/transported_evaluation.rs", evidence_assertion = "adaptive_trial_means_standardize_to_the_target_stratum_law" },
+  { id = "transport.adaptive_trial_source.standardized_arm_means.positive", role = "positive", intent = "Arm means standardize to the target stratum law: 29/56 and 1/2 with contrast 1/56 for law (0.25, 0.75), and 4/7 and 1 for law (1, 0),.", evidence_test = "crates/antecedent-design/tests/transported_evaluation.rs", evidence_assertion = "adaptive_trial_means_standardize_to_the_target_stratum_law", shared_evidence = true },
   { id = "transport.adaptive_trial_source.recorded_probabilities.truth", role = "truth", intent = "Equal recorded probabilities give 1/2 rather than the count-weighted 4/7 on the same data: the weighting uses the recorded probabilities, not the arm counts.", evidence_test = "crates/antecedent-design/tests/transported_evaluation.rs", evidence_assertion = "the_weighting_uses_the_recorded_probabilities_not_the_arm_counts" },
   { id = "transport.adaptive_trial_source.contract_and_cells.negative", role = "negative", intent = "A missing contract (naming the six elements), diagram or law, a shifted outcome mechanism, a fixed design, a Thompson cell, exposure differing from assignment and a probability below the floor are refused.", evidence_test = "crates/antecedent-design/tests/transported_evaluation.rs", evidence_assertion = "an_adaptive_source_without_its_contract_or_with_open_questions_is_refused" },
   { id = "transport.adaptive_trial_source.starved_stratum.negative", role = "negative", intent = "A stratum equal to the assigned arm is a transport support failure.", evidence_test = "crates/antecedent-design/tests/transported_evaluation.rs", evidence_assertion = "a_stratum_the_adaptive_assignment_starved_is_a_support_failure" },
   { id = "transport.adaptive_trial_source.population_binding.negative", role = "negative", intent = "The trial population is bound to the diagram and distinct from the target.", evidence_test = "crates/antecedent-design/tests/transported_evaluation.rs", evidence_assertion = "the_trial_population_is_bound_to_the_diagram_and_distinct_from_the_target" },
   { id = "transport.adaptive_trial_source.invariant_stratum_law.negative", role = "negative", intent = "An invariant stratum law must equal the trial's empirical law: (0.5, 0.5) accepted, (0.25, 0.75) refused.", evidence_test = "crates/antecedent-design/tests/transported_evaluation.rs", evidence_assertion = "an_invariant_stratum_law_must_equal_the_trials_empirical_law" },
-  { id = "transport.adaptive_trial_source.identity_replay.artifact", role = "artifact", intent = "Planned: a fresh-consumer test of verify_adaptive_transport; the identity changes with the law (cited in the positive fixture) but no test replays a stored estimate." },
+  { id = "transport.adaptive_trial_source.forged_stored_estimate.negative", role = "negative", intent = "A forged stored estimate, identity or target stratum law is refused; an honest estimate replays.", evidence_test = "crates/antecedent-design/tests/transported_verify_replay.rs", evidence_assertion = "a_stored_adaptive_transport_estimate_replays_and_forgeries_are_refused" },
+  { id = "transport.adaptive_trial_source.identity_replay_ok.artifact", role = "artifact", intent = "The identity changes with the target law and a fresh verify over the same request succeeds. No wire artifact is emitted; a forged stored estimate is not tested.", evidence_test = "crates/antecedent-design/tests/transported_evaluation.rs", evidence_assertion = "adaptive_trial_means_standardize_to_the_target_stratum_law", shared_evidence = true },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -15574,6 +15614,7 @@ refusals = [
   { code = "discovered_structure_unresolved", detail = "discovered_transport.class_too_large", when = "The class has more undirected edges than the enumeration sampler supports.", remedy = "Restrict the structure or declare a graph." },
   { code = "discovered_structure_unresolved", detail = "discovered_transport.no_members", when = "The class has no member DAG.", remedy = "Check the discovered structure." },
   { code = "discovered_structure_unresolved", detail = "discovered_transport.pag_members_not_causal_graphs", when = "A PAG is offered: its members are ancestral graphs, not causal graphs.", remedy = "Resolve the PAG to a declared causal graph (an ADMG you assert) and request transport with that graph." },
+  { code = "discovered_structure_unresolved", detail = "discovered_transport.temporal_structure_unsupported", when = "The discovered structure is temporal; its class is not enumerated here.", remedy = "Declare the temporal structure explicitly or use the static contract." },
 ]
 routes = [
   { name = "antecedent_identify.discovered_transport.transport_across_class", stage = "identify", status = "licensed", claim = "none" },
@@ -15594,7 +15635,7 @@ inference_outputs = []
 [[record]]
 id = "discovery.per_population"
 capability = "discovery.per_population"
-status = "frozen"
+status = "in_progress"
 consumer_question = "What structure does one discovery contract return on each of several populations searched separately, and where do the structures differ?"
 theorem = "One declared contract is run on each population's own rows through its own statistic store, data identity and stage inputs, with nothing pooled. Each run keeps its own algorithmic guarantee. Differences between the structures are descriptive: no function turns them into selection targets, a selection diagram or an invariance test, and no error rate for cross-population agreement is claimed. A pooled search (stacked rows or context variables) is refused because its cross-population invariance assumptions are declarations that belong to the transport contract and cannot be inferred from the data."
 reference = "provenance/discovery.per_population.toml"
@@ -15620,16 +15661,25 @@ refusals = [
   { code = "invalid_argument", detail = "selective_discovery.population_repeated", when = "A population label is repeated.", remedy = "Use each population label once." },
   { code = "invalid_argument", detail = "selective_discovery.pooled_population_data", when = "Content-identical rows appear under two labels, as a pooled table split by label or a relabelled copy.", remedy = "Supply each population's own rows." },
   { code = "invalid_argument", detail = "selective_discovery.nothing_retained", when = "No population retained a result.", remedy = "Run discovery before reporting." },
+  { code = "discovered_structure_unresolved", detail = "selective_discovery.differences_are_not_selection_targets", when = "Selection targets are requested from the differences between the populations' discovered structures.", remedy = "Declare the selection targets from background knowledge; a difference between two estimates is not evidence that a mechanism differs." },
 ]
 routes = [
-  { name = "antecedent_discovery.selective.populations.PerPopulationDiscovery.run", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent_discovery.selective.populations.PerPopulationReport.differing_edges", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_discovery.selective.populations.PerPopulationDiscovery.run", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent_discovery.selective.populations.PerPopulationReport.differing_edges", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent.per_population_discovery.discover_per_population", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.per_population_discovery.add_per_population_claims", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent.python.selective_discovery.discover_per_population", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.per_population_discovery.request_selection_targets_from_differences", stage = "evaluate", status = "closed", reason_code = "discovered_structure_unresolved", permanent_in_release = true, refusal_test = "crates/antecedent/tests/per_population_discovery_facade.rs", refusal_assertion = "differences_between_populations_are_not_selection_targets" },
+  { name = "antecedent.python.selective_discovery.request_selection_targets_from_differences", stage = "evaluate", status = "closed", reason_code = "discovered_structure_unresolved", permanent_in_release = true, refusal_test = "python/tests/test_per_population_discovery.py", refusal_assertion = "test_differences_between_populations_are_not_selection_targets" },
 ]
 fixtures = [
   { id = "discovery.per_population.edge_comparison_differences.positive", role = "positive", intent = "The comparison reports absent and re-marked edges as differences.", evidence_test = "crates/antecedent-discovery/src/selective/populations.rs", evidence_assertion = "comparison_reports_absent_and_remarked_edges_as_differences" },
   { id = "discovery.per_population.identical_structures.truth", role = "truth", intent = "Identical structures agree on every edge.", evidence_test = "crates/antecedent-discovery/src/selective/populations.rs", evidence_assertion = "identical_structures_agree_on_every_edge" },
-  { id = "discovery.per_population.pooled_and_repeated_refused.negative", role = "negative", intent = "Planned: a contract with additional populations refuses pooled_population_search, a repeated label population_repeated and content-identical rows pooled_population_data." },
-  { id = "discovery.per_population.per_population_replay.artifact", role = "artifact", intent = "Planned: each population's outcome result_identity equals a single-population run on the same rows and the report identity is stable under population order." },
+  { id = "discovery.per_population.standalone_equals_population.positive", role = "positive", intent = "Each population's outcome equals a standalone run on the same rows, so nothing is pooled.", evidence_test = "crates/antecedent-discovery/tests/selective_populations_and_split.rs", evidence_assertion = "each_population_equals_a_standalone_run_so_nothing_is_pooled" },
+  { id = "discovery.per_population.known_difference_edge.truth", role = "truth", intent = "Populations with a known graph difference report exactly that edge.", evidence_test = "crates/antecedent-discovery/tests/selective_populations_and_split.rs", evidence_assertion = "populations_with_a_known_graph_difference_report_exactly_that_edge" },
+  { id = "discovery.per_population.pooled_and_malformed.negative", role = "negative", intent = "Pooled, repeated and malformed requests refuse by name and leave the report untouched.", evidence_test = "crates/antecedent-discovery/tests/selective_populations_and_split.rs", evidence_assertion = "malformed_and_pooled_requests_refuse_by_name_and_leave_the_report_untouched" },
+  { id = "discovery.per_population.changed_rows_move_only_that_population.artifact", role = "artifact", intent = "Changed rows at unchanged shape move only that population's identity.", evidence_test = "crates/antecedent-discovery/tests/selective_populations_and_split.rs", evidence_assertion = "changed_rows_at_unchanged_shape_move_only_that_population" },
+  { id = "discovery.per_population.facade_python_replay.invariance", role = "invariance", intent = "A changed population recomputes itself and the other is served from its store.", evidence_test = "python/tests/test_per_population_discovery.py", evidence_assertion = "test_a_changed_population_recomputes_itself_and_the_other_is_served_from_its_store" },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -15638,7 +15688,7 @@ inference_outputs = []
 [[record]]
 id = "discovery.sample_split_analysis"
 capability = "discovery.sample_split_analysis"
-status = "frozen"
+status = "in_progress"
 consumer_question = "Can discovery and estimation use disjoint rows of one static table with a recorded, re-derivable split, so an analysis interval is at least conditional on the selected graph?"
 theorem = "Rows are split into a discovery part and an analysis part by an explicit row set or a seeded permutation with a discovery fraction; the parts are disjoint and non-empty and the split receipt re-derives the partition from the rule and the row count. An interval computed on the analysis rows is then an interval given the graph selected on the discovery rows, not for the whole method: miss probability is bounded by alpha_n plus the probability that the selected graph is not in the true equivalence class, and the cost of a split scales as 1/sqrt(1 - f). Reusing the same rows has no tractable truncated law for CI-test PC/FCI selection and no correction is implemented. No coverage claim is made."
 reference = "provenance/discovery.sample_split_analysis.toml"
@@ -15668,14 +15718,22 @@ refusals = [
   { code = "route_not_supported", detail = "selective_discovery.split_unsupported_rows", when = "The table has weights, a mask or non-float64 columns.", remedy = "Split an unweighted, unmasked float64 table." },
 ]
 routes = [
-  { name = "antecedent_discovery.selective.reuse.split_rows", stage = "prepare", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent_discovery.selective.reuse.SampleSplitReceipt.check_analysis_table", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_discovery.selective.reuse.split_rows", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent_discovery.selective.reuse.SampleSplitReceipt.check_analysis_table", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent.sample_split_analysis.discover_on_split", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.sample_split_analysis.SplitDiscovery.check_analysis_table", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent.sample_split_analysis.split_evidence_sources", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.python.selective_discovery.discover_on_split", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.sample_split_analysis.SplitDiscovery.request_unsplit_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/sample_split_analysis_facade.rs", refusal_assertion = "reusing_the_rows_that_selected_is_refused_and_the_ledger_sees_the_overlap" },
 ]
 fixtures = [
   { id = "discovery.sample_split_analysis.explicit_partition.positive", role = "positive", intent = "An explicit rule partitions the rows exactly: discovery (0, 2, 4) and analysis (1, 3, 5) of six rows.", evidence_test = "crates/antecedent-discovery/src/selective/reuse.rs", evidence_assertion = "explicit_rule_partitions_the_rows_exactly" },
   { id = "discovery.sample_split_analysis.seeded_permutation.truth", role = "truth", intent = "A seeded permutation is deterministic, disjoint and sized 20 and 30 of 50; another seed gives another discovery set.", evidence_test = "crates/antecedent-discovery/src/selective/reuse.rs", evidence_assertion = "seeded_permutation_is_deterministic_disjoint_and_sized" },
   { id = "discovery.sample_split_analysis.malformed_rules.negative", role = "negative", intent = "Repeated rows, out-of-range rows, an empty part and a fraction of one are refused with their registered details.", evidence_test = "crates/antecedent-discovery/src/selective/reuse.rs", evidence_assertion = "malformed_rules_are_refused_with_registered_details" },
-  { id = "discovery.sample_split_analysis.receipt_verification.artifact", role = "artifact", intent = "Planned: split_rows on a table, SampleSplitReceipt::verify and check_analysis_table (discovery rows refused, mutated receipt refused)." },
+  { id = "discovery.sample_split_analysis.explicit_gathers_named_rows.positive", role = "positive", intent = "An explicit split gathers exactly the named rows and verifies.", evidence_test = "crates/antecedent-discovery/tests/selective_populations_and_split.rs", evidence_assertion = "an_explicit_split_gathers_exactly_the_named_rows_and_verifies" },
+  { id = "discovery.sample_split_analysis.forged_receipts.negative", role = "negative", intent = "Forged receipts are refused by name.", evidence_test = "crates/antecedent-discovery/tests/selective_populations_and_split.rs", evidence_assertion = "forged_receipts_are_refused_by_name" },
+  { id = "discovery.sample_split_analysis.analysis_part_only.artifact", role = "artifact", intent = "The analysis check accepts only the recorded analysis part and a changed rule is a new receipt.", evidence_test = "crates/antecedent-discovery/tests/selective_populations_and_split.rs", evidence_assertion = "analysis_table_check_accepts_only_the_recorded_analysis_part" },
+  { id = "discovery.sample_split_analysis.facade_changed_rule.invariance", role = "invariance", intent = "A changed rule or data is a new receipt and a new binding.", evidence_test = "crates/antecedent/tests/sample_split_analysis_facade.rs", evidence_assertion = "a_changed_rule_or_data_is_a_new_receipt_and_a_new_binding" },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -15809,7 +15867,7 @@ compatibility = "Additive. The delivered matrix cells and the final-n analyses a
 search = false
 prerequisite_records = ["adaptive_inference.analysis_contract"]
 prerequisite_reason = "A procedure is consulted only for a validated adaptive design contract; each paradigm's own guarantee is stated by its record."
-bounds = { cancellation = true }
+bounds = { cancellation = true, max_arms = 4, max_contexts = 4, max_cells = 8, max_looks = 24, max_units = 400, max_outcome_lag = 4 }
 refusals = [
   { code = "adaptive_contract_incomplete", detail = "adaptive_inference.policy_history_missing", when = "No assignment rule is declared.", remedy = "Declare the assignment rule that governed every unit, as a function of the observed history." },
   { code = "adaptive_contract_incomplete", detail = "adaptive_inference.interim_analyses_missing", when = "No enrolment schedule is declared.", remedy = "Declare the interim looks: the units enrolled between consecutive looks." },
@@ -15823,10 +15881,16 @@ refusals = [
   { code = "invalid_argument", detail = "adaptive_inference.looks_not_ordered", when = "The enrolment schedule is empty, starts with an empty look or exceeds the look or unit bound.", remedy = "Declare 1 to 24 looks with a positive first look and at most 400 units." },
   { code = "invalid_argument", detail = "adaptive_inference.outcome_availability_invalid", when = "The outcome lag exceeds the maximum or a retention probability is not in (0, 1].", remedy = "Correct the declared element." },
   { code = "invalid_argument", detail = "adaptive_inference.exposure_invalid", when = "An exposure failure probability is outside [0, 1), the vector has the wrong length or the fallback arm is out of range.", remedy = "Correct the declared element." },
+  { code = "invalid_argument", detail = "adaptive_inference.procedure_limit_exceeded", when = "A declared procedure exceeds a bounded work or size limit (units, looks, cells, delay or exact-law atoms).", remedy = "Reduce the units, looks, cells or delay of the declared procedure, or use the simulation route." },
 ]
 routes = [
   { name = "antecedent_stats.adaptive_inference.procedure_law.enumerate_law", stage = "evaluate", status = "licensed", claim = "none" },
   { name = "antecedent_stats.adaptive_inference.procedure_contract.validate", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent.adaptive_procedure.AdaptiveProcedure.declare", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent.adaptive_procedure.AdaptiveProcedure.from_contract", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent.adaptive_procedure.AdaptiveProcedure.law", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.python.adaptive_inference.AdaptiveProcedure.declare", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent.python.adaptive_inference.AdaptiveProcedure.law", stage = "evaluate", status = "licensed", claim = "none" },
 ]
 fixtures = [
   { id = "adaptive_inference.procedure_law.fixed_binomial_mixture.positive", role = "positive", intent = "A fixed-allocation design's full atom map equals the hand binomial mixture with undefined mass 2/16 and mean contrast 0.3.", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "fixed_design_law_matches_the_binomial_mixture" },
@@ -15837,6 +15901,9 @@ fixtures = [
   { id = "adaptive_inference.procedure_law.inconsistent_elements.negative", role = "negative", intent = "A bad schedule, retention, exposure, boundary length or probability each give their own invalid detail.", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "inconsistent_elements_are_refused_with_their_own_details" },
   { id = "adaptive_inference.procedure_law.wrong_shape_truth.negative", role = "negative", intent = "A hypothesized truth of the wrong shape is refused by the law and the simulation.", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "simulation_and_law_refuse_a_truth_of_the_wrong_shape" },
   { id = "adaptive_inference.procedure_law.changed_truth_at_unchanged_shape.artifact", role = "artifact", intent = "A changed truth at unchanged shape changes the law. Numerics only: no artifact is defined, so this is the value-sensitivity witness, not a fresh-consumer path.", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "changed_truth_at_unchanged_shape_changes_the_law" },
+  { id = "adaptive_inference.procedure_law.facade_invalid_element.negative", role = "negative", intent = "Facade: an invalid element is refused with its own detail.", evidence_test = "crates/antecedent/tests/adaptive_procedure_facade.rs", evidence_assertion = "an_invalid_element_is_refused_with_its_own_detail" },
+  { id = "adaptive_inference.procedure_law.adapter_disagreements.negative", role = "negative", intent = "The adapter refuses each missing element and each disagreement with the contract.", evidence_test = "crates/antecedent/tests/adaptive_procedure_facade.rs", evidence_assertion = "the_adapter_refuses_each_missing_element_and_each_disagreement" },
+  { id = "adaptive_inference.procedure_law.facade_identity.artifact", role = "artifact", intent = "Facade: the procedure identity changes with an element of unchanged shape.", evidence_test = "crates/antecedent/tests/adaptive_procedure_facade.rs", evidence_assertion = "the_identity_changes_with_a_changed_element_of_unchanged_shape" },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -15867,10 +15934,13 @@ prerequisite_reason = "A procedure is consulted only for a validated adaptive de
 bounds = { cancellation = true }
 refusals = [
   { code = "cell_not_licensed", detail = "adaptive_inference.posterior_premise_outcome_dependent_delay", when = "Outcome-dependent delay or loss makes the observed counts alone not the likelihood, so posterior validity is not admitted.", remedy = "Declare ignorable loss and delay, or analyse a paradigm that models the loss." },
+  { code = "invalid_argument", detail = "adaptive_inference.procedure_limit_exceeded", when = "A declared procedure exceeds a bounded work or size limit (units, looks, cells, delay or exact-law atoms).", remedy = "Reduce the units, looks, cells or delay of the declared procedure, or use the simulation route." },
 ]
 routes = [
   { name = "antecedent_stats.adaptive_inference.procedure_uncertainty.posterior_mean_gaps", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent_stats.adaptive_inference.procedure_uncertainty.bayesian_report", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.adaptive_procedure.AdaptiveProcedure.report.bayesian", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.python.adaptive_inference.AdaptiveProcedure.report.bayesian", stage = "evaluate", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
   { id = "adaptive_inference.procedure_bayesian_martingale_gap.martingale_under_ignorability.positive", role = "positive", intent = "Under Thompson assignment with a stopping rule, lag 1 and ignorable 20 percent loss, every cell's posterior mean gap is zero within 1e-9.", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "posterior_mean_is_a_martingale_of_an_ignorable_adaptive_procedure" },
@@ -15878,6 +15948,7 @@ fixtures = [
   { id = "adaptive_inference.procedure_bayesian_martingale_gap.outcome_dependent_loss_gap.negative", role = "negative", intent = "With one unit and failures observed with probability 1/2 the expected posterior mean of arm 0 is 25/48 against the prior mean 1/2 (gap 1/48) and the report is refused as a failed premise.", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "outcome_dependent_loss_breaks_the_posterior_by_the_hand_computed_gap" },
   { id = "adaptive_inference.procedure_bayesian_martingale_gap.loss_premise_refused.negative", role = "negative", intent = "Outcome-dependent loss refuses the Bayesian and anytime-valid premises with a named detail.", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "outcome_dependent_loss_biases_the_observed_mean_by_the_closed_form" },
   { id = "adaptive_inference.procedure_bayesian_martingale_gap.gap_replays_bit_for_bit.artifact", role = "artifact", intent = "Numerics only: no artifact is defined. The gap is a pure function of the declared procedure and priors; the fixed-seed free replay is the closed-form comparison of the positive fixture.", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "bayesian_report_matches_closed_forms", shared_evidence = true },
+  { id = "adaptive_inference.procedure_bayesian_martingale_gap.facade_premise_failures.negative", role = "negative", intent = "Facade: every paradigm whose premise fails is refused with cell_not_licensed.", evidence_test = "crates/antecedent/tests/adaptive_procedure_facade.rs", evidence_assertion = "every_paradigm_whose_premise_fails_is_refused_with_cell_not_licensed" },
 ]
 inference_inventory_disposition = "outputs_listed"
 inference_outputs = [
@@ -15909,9 +15980,12 @@ prerequisite_reason = "A procedure is consulted only for a validated adaptive de
 bounds = { cancellation = true }
 refusals = [
   { code = "cell_not_licensed", detail = "adaptive_inference.rule_mismatch", when = "The procedure is not an expected-loss stopping rule.", remedy = "Declare a posterior expected-loss stopping rule." },
+  { code = "invalid_argument", detail = "adaptive_inference.procedure_limit_exceeded", when = "A declared procedure exceeds a bounded work or size limit (units, looks, cells, delay or exact-law atoms).", remedy = "Reduce the units, looks, cells or delay of the declared procedure, or use the simulation route." },
 ]
 routes = [
   { name = "antecedent_stats.adaptive_inference.procedure_uncertainty.decision_report", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.adaptive_procedure.AdaptiveProcedure.report.decision", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.python.adaptive_inference.AdaptiveProcedure.report.decision", stage = "evaluate", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
   { id = "adaptive_inference.procedure_decision_report.closed_form_regret.positive", role = "positive", intent = "With truth (0.4, 0.7) and loss threshold 0.1 the rule stops at look 0, one unit is enrolled, arm 0 is decided with probability 0.5 x 0.4 + 0.5 x 0.3 and the regret is that times 0.3.", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "expected_loss_rule_decides_at_the_first_look_with_closed_form_regret" },
@@ -15951,10 +16025,13 @@ bounds = { cancellation = true }
 refusals = [
   { code = "cell_not_licensed", detail = "adaptive_inference.anytime_premise_contexts", when = "The procedure has more than one context, which the confidence sequence does not cover.", remedy = "Analyse one context at a time or declare a single context." },
   { code = "cell_not_licensed", detail = "adaptive_inference.outcome_dependent_delay", when = "Outcome-dependent loss breaks the premise of the bound.", remedy = "Declare ignorable loss or use a paradigm that models the loss." },
+  { code = "invalid_argument", detail = "adaptive_inference.procedure_limit_exceeded", when = "A declared procedure exceeds a bounded work or size limit (units, looks, cells, delay or exact-law atoms).", remedy = "Reduce the units, looks, cells or delay of the declared procedure, or use the simulation route." },
 ]
 routes = [
   { name = "antecedent_stats.adaptive_inference.procedure_uncertainty.anytime_exclusion_probability", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent_stats.adaptive_inference.procedure_uncertainty.anytime_valid_report", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.adaptive_procedure.AdaptiveProcedure.report.anytime", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.python.adaptive_inference.AdaptiveProcedure.report.anytime", stage = "evaluate", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
   { id = "adaptive_inference.procedure_anytime_exclusion.exclusion_binomial_enumeration.positive", role = "positive", intent = "For a fixed design of four units the exact exclusion probability equals the binomial enumeration of the mixture-Hoeffding radius at alpha / 2 around the observed mean.", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "anytime_exclusion_probability_matches_the_binomial_enumeration", shared_evidence = true },
@@ -15990,16 +16067,20 @@ compatibility = "Additive. The delivered matrix cells and the final-n analyses a
 search = false
 prerequisite_records = ["adaptive_inference.analysis_contract", "adaptive_inference.procedure_law", "adaptive_inference.group_sequential"]
 prerequisite_reason = "A procedure is consulted only for a validated adaptive design contract; each paradigm's own guarantee is stated by its record."
-bounds = { cancellation = true }
+bounds = { cancellation = true, max_inversion_laws = 4096 }
 refusals = [
   { code = "cell_not_licensed", detail = "adaptive_inference.fixed_sample_design_adaptive", when = "A fixed-sample frequentist analysis is requested for an adaptive assignment design.", remedy = "Use the paradigm licensed for the adaptive cell." },
   { code = "cell_not_licensed", detail = "adaptive_inference.fixed_sample_data_dependent_stopping", when = "A fixed-sample frequentist analysis is requested for a data-dependent stopping rule.", remedy = "Use the group-sequential or anytime-valid paradigm." },
   { code = "cell_not_licensed", detail = "adaptive_inference.group_sequential_assignment_adaptive", when = "The group-sequential paradigm is requested for adaptive assignment (the independent-increment premise fails).", remedy = "Use fixed randomization or an anytime-valid paradigm." },
   { code = "cell_not_licensed", detail = "adaptive_inference.inversion_premise_contexts", when = "Test inversion is requested for a procedure with more than one context.", remedy = "Invert one context at a time." },
+  { code = "invalid_argument", detail = "adaptive_inference.procedure_limit_exceeded", when = "A declared procedure exceeds a bounded work or size limit (units, looks, cells, delay or exact-law atoms).", remedy = "Reduce the units, looks, cells or delay of the declared procedure, or use the simulation route." },
 ]
 routes = [
   { name = "antecedent_stats.adaptive_inference.procedure_uncertainty.ordering_p_values", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent_stats.adaptive_inference.group_sequential.stagewise_inference", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.adaptive_procedure.AdaptiveProcedure.report.group_sequential", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.python.adaptive_inference.AdaptiveProcedure.report.group_sequential", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_stats.adaptive_inference.procedure_uncertainty.inversion_interval", stage = "evaluate", status = "licensed", claim = "none" },
 ]
 fixtures = [
   { id = "adaptive_inference.procedure_ordered_p_value.ordered_binomial.positive", role = "positive", intent = "The ordered p-values equal the binomial enumeration of the stagewise ordering.", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "ordering_p_values_match_the_binomial_enumeration", shared_evidence = true },
@@ -16007,6 +16088,8 @@ fixtures = [
   { id = "adaptive_inference.procedure_ordered_p_value.alpha_spent_at_boundary.truth", role = "truth", intent = "The stagewise p-value at the boundary is the alpha spent (O'Brien-Fleming closed form).", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "stagewise_p_value_at_the_boundary_is_the_alpha_spent" },
   { id = "adaptive_inference.procedure_ordered_p_value.fixed_and_group_sequential_premises.negative", role = "negative", intent = "Fixed-sample and group-sequential paradigms are refused for adaptive designs with their details.", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "fixed_sample_and_group_sequential_are_refused_for_adaptive_designs" },
   { id = "adaptive_inference.procedure_ordered_p_value.ordered_values_are_a_function.artifact", role = "artifact", intent = "Numerics only: no artifact is defined; the ordered p-values are re-derived from the declared procedure and observed terminal state, as the positive fixture does.", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "ordering_p_values_match_the_binomial_enumeration", shared_evidence = true },
+  { id = "adaptive_inference.procedure_ordered_p_value.adaptive_atom.truth", role = "truth", intent = "An adaptive (UCB, stopped, selected) procedure's terminal atom equals the hand value 0.144 and the ordering tails equal the independent enumeration.", evidence_test = "crates/antecedent-stats/tests/adaptive_inversion_oracle.rs", evidence_assertion = "ordering_tails_of_the_adaptive_procedure_match_the_enumeration" },
+  { id = "adaptive_inference.procedure_ordered_p_value.inversion_premises.negative", role = "negative", intent = "Two contexts, three arms, an invalid level or grid, an empty baseline and a 65 x 64 grid are refused; cancellation leaves no partial interval.", evidence_test = "crates/antecedent-stats/tests/adaptive_inversion_oracle.rs", evidence_assertion = "inversion_refuses_what_its_premises_do_not_cover" },
 ]
 inference_inventory_disposition = "outputs_listed"
 inference_outputs = [
@@ -16036,12 +16119,15 @@ compatibility = "Additive. The delivered matrix cells and the final-n analyses a
 search = false
 prerequisite_records = ["adaptive_inference.analysis_contract", "adaptive_inference.procedure_law", "adaptive_inference.adaptive_weighting"]
 prerequisite_reason = "A procedure is consulted only for a validated adaptive design contract; each paradigm's own guarantee is stated by its record."
-bounds = { cancellation = true }
+bounds = { cancellation = true, max_replications = 1000000 }
 refusals = [
   { code = "invalid_argument", detail = "adaptive_inference.rule_mismatch", when = "The simulated procedure is inconsistent with its declared rule or truth shape.", remedy = "Correct the declared element." },
+  { code = "invalid_argument", detail = "adaptive_inference.procedure_limit_exceeded", when = "A declared procedure exceeds a bounded work or size limit (units, looks, cells, delay or exact-law atoms).", remedy = "Reduce the units, looks, cells or delay of the declared procedure, or use the simulation route." },
 ]
 routes = [
   { name = "antecedent_stats.adaptive_inference.procedure_simulation.simulate_procedure", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.adaptive_procedure.AdaptiveProcedure.simulate", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.python.adaptive_inference.AdaptiveProcedure.simulate", stage = "evaluate", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
   { id = "adaptive_inference.procedure_weighting_simulation.recovers_contrast.positive", role = "positive", intent = "The simulated weighted estimator recovers the declared contrast within 4 Monte Carlo standard errors and the replicate-prefix identity replays.", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "simulated_weighted_estimator_recovers_the_contrast_and_replays", shared_evidence = true },
@@ -16049,6 +16135,7 @@ fixtures = [
   { id = "adaptive_inference.procedure_weighting_simulation.no_estimate_for_deterministic_assignment.negative", role = "negative", intent = "Deterministic assignment has no weighted estimate (positivity).", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "deterministic_assignment_has_no_weighted_estimate" },
   { id = "adaptive_inference.procedure_weighting_simulation.wrong_shape_truth.negative", role = "negative", intent = "A truth of the wrong shape is refused.", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "simulation_and_law_refuse_a_truth_of_the_wrong_shape", shared_evidence = true },
   { id = "adaptive_inference.procedure_weighting_simulation.replicate_prefix_replay.artifact", role = "artifact", intent = "Replicate streams are keyed by seed and replicate index so a prefix replays bit for bit; asserted with the recovery test. No artifact is defined.", evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs", evidence_assertion = "simulated_weighted_estimator_recovers_the_contrast_and_replays", shared_evidence = true },
+  { id = "adaptive_inference.procedure_weighting_simulation.facade_deterministic.negative", role = "negative", intent = "Facade: a deterministic rule has no weighted estimate (positivity floor).", evidence_test = "crates/antecedent/tests/adaptive_procedure_facade.rs", evidence_assertion = "a_deterministic_rule_has_no_weighted_estimate" },
 ]
 inference_inventory_disposition = "outputs_listed"
 inference_outputs = [
@@ -16084,6 +16171,12 @@ refusals = [
 ]
 routes = [
   { name = "antecedent_design.decision_reliability.derive_uncertainty.numerical", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.decision_reliability.derive_decision_uncertainty", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.decision_reliability.consume_derived_uncertainty", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent.decision_reliability.decision_reliability_coverage_design", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.python.decision_reliability.derive_uncertainty", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.python.decision_reliability.consume_derived_uncertainty", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent.python.decision_reliability.coverage_design", stage = "evaluate", status = "licensed", claim = "none" },
 ]
 fixtures = [
   { id = "decision_reliability.derived_numerical_interval.wilson_hand_arithmetic.positive", role = "positive", intent = "A probability 0.5 at n_eff 100 gives the Wilson interval [0.40383, 0.59617]; the Wald interval comes from se = sqrt(0.25 * 100 / 99 / 100).", evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs", evidence_assertion = "wilson_interval_at_the_effective_sample_size_matches_hand_arithmetic" },
@@ -16092,6 +16185,8 @@ fixtures = [
   { id = "decision_reliability.derived_numerical_interval.ess_floor.negative", role = "negative", intent = "An effective sample size below the floor refuses with its typed detail.", evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs", evidence_assertion = "an_effective_sample_size_below_the_floor_refuses_with_a_typed_detail" },
   { id = "decision_reliability.derived_numerical_interval.level_and_dependence.negative", role = "negative", intent = "Levels outside the derived range and undeclared dependence are refused.", evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs", evidence_assertion = "levels_outside_the_derived_range_and_undeclared_dependence_are_refused" },
   { id = "decision_reliability.derived_numerical_interval.fresh_consumer_rederives.artifact", role = "artifact", intent = "A fresh consumer re-derives from the draws and refuses edited draws, a forged lower bound and a changed level.", evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs", evidence_assertion = "a_fresh_consumer_rederives_and_refuses_edited_draws_or_edited_intervals" },
+  { id = "decision_reliability.derived_numerical_interval.facade_small_ess.negative", role = "negative", intent = "Facade: a small effective sample size and an invalid level are refused.", evidence_test = "crates/antecedent/tests/decision_reliability_derived_facade.rs", evidence_assertion = "derivation_refuses_a_small_effective_sample_and_an_invalid_level" },
+  { id = "decision_reliability.derived_numerical_interval.facade_simultaneous.truth", role = "truth", intent = "Facade: simultaneous multiplicity widens every numerical interval (level 1 - 0.05/8).", evidence_test = "crates/antecedent/tests/decision_reliability_derived_facade.rs", evidence_assertion = "simultaneous_multiplicity_widens_every_numerical_interval" },
 ]
 inference_inventory_disposition = "outputs_listed"
 inference_outputs = [
@@ -16127,6 +16222,7 @@ refusals = [
 ]
 routes = [
   { name = "antecedent_design.decision_reliability.derive_uncertainty.confidence_set", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.python.decision_reliability.DecisionReliability.derive_uncertainty", stage = "evaluate", status = "licensed", claim = "none" },
 ]
 fixtures = [
   { id = "decision_reliability.optimality_confidence_set.paired_critical_value.positive", role = "positive", intent = "Members {A, B} and excluded {C} at level 0.95 with critical value 1.95996 using paired difference errors.", evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs", evidence_assertion = "confidence_set_excludes_the_clearly_worse_candidate_with_the_paired_critical_value" },
@@ -16134,6 +16230,7 @@ fixtures = [
   { id = "decision_reliability.optimality_confidence_set.adaptive_search_enters_critical_value.negative", role = "negative", intent = "An adaptive search enters the critical value but not the confidence set (37 unretained, 40 considered); without a search record candidate_search_record_required.", evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs", evidence_assertion = "an_adaptive_search_enters_the_critical_value_but_not_the_confidence_set" },
   { id = "decision_reliability.optimality_confidence_set.undeclared_dependence.negative", role = "negative", intent = "Undeclared dependence is refused.", evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs", evidence_assertion = "levels_outside_the_derived_range_and_undeclared_dependence_are_refused" },
   { id = "decision_reliability.optimality_confidence_set.rederived.artifact", role = "artifact", intent = "A fresh consumer re-derives the set from the draws.", evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs", evidence_assertion = "a_fresh_consumer_rederives_and_refuses_edited_draws_or_edited_intervals", shared_evidence = true },
+  { id = "decision_reliability.optimality_confidence_set.facade_paired_set.positive", role = "positive", intent = "Facade: the paired confidence set is {A}.", evidence_test = "crates/antecedent/tests/decision_reliability_derived_facade.rs", evidence_assertion = "derived_components_match_the_enumerated_law_and_stay_separate" },
 ]
 inference_inventory_disposition = "outputs_listed"
 inference_outputs = [
@@ -16171,6 +16268,7 @@ refusals = [
 routes = [
   { name = "antecedent_design.decision_reliability.derive_uncertainty.selection_corrected", stage = "evaluate", status = "licensed", claim = "none" },
   { name = "antecedent_design.decision_reliability.derive_uncertainty.publish", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs", refusal_assertion = "a_derivation_is_unmeasured_so_every_route_and_the_combined_number_stay_closed" },
+  { name = "antecedent.decision_reliability.publish_derived_route", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/decision_reliability_derived_facade.rs", refusal_assertion = "derived_uncertainty_is_never_published_or_combined" },
 ]
 fixtures = [
   { id = "decision_reliability.selection_corrected_interval.extra_width.positive", role = "positive", intent = "With 6 considered candidates the interval uses z(0.05/6) and reports the numerical half-width plus a separate selection extra with expected-maximum bias 0.8462843753 se.", evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs", evidence_assertion = "selection_corrected_interval_reports_the_extra_width_the_selection_costs" },
@@ -16178,6 +16276,7 @@ fixtures = [
   { id = "decision_reliability.selection_corrected_interval.pre_specified_decision.negative", role = "negative", intent = "A pre-specified decision has no selection-corrected interval.", evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs", evidence_assertion = "a_pre_specified_decision_has_no_selection_corrected_interval" },
   { id = "decision_reliability.selection_corrected_interval.closed_routes.negative", role = "negative", intent = "A derivation is unmeasured so every publish route and the combined number stay closed.", evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs", evidence_assertion = "a_derivation_is_unmeasured_so_every_route_and_the_combined_number_stay_closed" },
   { id = "decision_reliability.selection_corrected_interval.rederived.artifact", role = "artifact", intent = "A fresh consumer re-derives the corrected interval from the draws.", evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs", evidence_assertion = "a_fresh_consumer_rederives_and_refuses_edited_draws_or_edited_intervals", shared_evidence = true },
+  { id = "decision_reliability.selection_corrected_interval.python_prespecified.negative", role = "negative", intent = "Python: a pre-specified decision has no selection correction.", evidence_test = "python/tests/test_decision_reliability_derived.py", evidence_assertion = "test_a_prespecified_decision_has_no_selection_correction" },
 ]
 inference_inventory_disposition = "outputs_listed"
 inference_outputs = [
@@ -16214,6 +16313,10 @@ refusals = [
 ]
 routes = [
   { name = "antecedent_design.decision_reliability.producer.reach_carrier", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent.decision_reliability.reach_decision_carrier", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent.decision_reliability.derive_producer_uncertainty", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.decision_reliability.PreparedDecisionReliability.assess_producer", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.python.decision_reliability.reach_carrier", stage = "consume", status = "licensed", claim = "none" },
 ]
 fixtures = [
   { id = "decision_reliability.producer_carrier.cohort_utilities_reproduce_point.positive", role = "positive", intent = "Cohort utilities from one declared law reach the carrier and reproduce the reported mean 7.4 with se 0.34157 and P(best treat) = 1.", evidence_test = "crates/antecedent-design/tests/decision_reliability_producers.rs", evidence_assertion = "cohort_utilities_from_one_law_reach_the_carrier_and_reproduce_the_reported_mean" },
@@ -16224,6 +16327,8 @@ fixtures = [
   { id = "decision_reliability.producer_carrier.implementation_keyed_rollouts.negative", role = "negative", intent = "Implementation-keyed rollouts report functionals but refuse ranking.", evidence_test = "crates/antecedent-design/tests/decision_reliability_producers.rs", evidence_assertion = "implementation_keyed_rollouts_report_functionals_but_refuse_ranking" },
   { id = "decision_reliability.producer_carrier.off_policy_expected_utility_only.negative", role = "negative", intent = "Off-policy contributions carry the expected utility only; ranking and quantile are refused.", evidence_test = "crates/antecedent-design/tests/decision_reliability_producers.rs", evidence_assertion = "off_policy_contributions_carry_the_expected_utility_only" },
   { id = "decision_reliability.producer_carrier.carrier_identity.artifact", role = "artifact", intent = "A changed utility, source identity or replicate at unchanged shape changes the carrier digest.", evidence_test = "crates/antecedent-design/tests/decision_reliability_producers.rs", evidence_assertion = "changed_inputs_at_unchanged_shape_change_the_carrier_identity" },
+  { id = "decision_reliability.producer_carrier.facade_point_only.negative", role = "negative", intent = "Facade: point-only and undeclared producer outputs refuse with typed reasons.", evidence_test = "crates/antecedent/tests/decision_reliability_derived_facade.rs", evidence_assertion = "point_only_and_undeclared_producer_outputs_refuse_with_typed_reasons" },
+  { id = "decision_reliability.producer_carrier.python_rollout.truth", role = "truth", intent = "Python: rollout noise decides whether ranking is licensed.", evidence_test = "python/tests/test_decision_reliability_derived.py", evidence_assertion = "test_rollout_noise_decides_whether_ranking_is_licensed" },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -16259,6 +16364,10 @@ refusals = [
 routes = [
   { name = "antecedent_contract.joint_law_rule.check_propagation.spread", stage = "prepare", status = "licensed", claim = "none" },
   { name = "antecedent_stats.joint_law.aligned_linear_draws.draw_spread", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.joint_law_propagation.propagate_linear_moments_spread", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.joint_law_propagation.propagate_aligned_linear_spread", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.python.joint_law_propagation.linear_moments_spread", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.python.joint_law_propagation.aligned_linear_spread", stage = "evaluate", status = "licensed", claim = "none" },
 ]
 fixtures = [
   { id = "joint_law.composed_spread_linear.spread_label_and_dependence.positive", role = "positive", intent = "A contrast under a covariance gives the label uncalibrated_spread while the point keeps point_only; shared evidence declared independent refuses evidence_double_counted; unpaired marginals refuse index pairing.", evidence_test = "crates/antecedent-contract/src/joint_law_rule.rs", evidence_assertion = "a_spread_is_labelled_and_needs_the_same_dependence_as_the_point" },
@@ -16266,6 +16375,8 @@ fixtures = [
   { id = "joint_law.composed_spread_linear.shape_refusals.negative", role = "negative", intent = "Composed draw shape and finiteness defects are refused with the problem named.", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "composed_draw_refusals_name_the_shape_problem" },
   { id = "joint_law.composed_spread_linear.needs_dependence.negative", role = "negative", intent = "A transported spread needs all three pieces; marginals-only and a correlation range refuse the spread.", evidence_test = "crates/antecedent-contract/src/joint_law_rule.rs", evidence_assertion = "transported_pieces_are_dependent_and_a_spread_needs_all_three" },
   { id = "joint_law.composed_spread_linear.aligned_replay.artifact", role = "artifact", intent = "An aligned spread replays in a fresh consumer; a point reading is refused after resealing and a relabelled label is refused.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "an_aligned_spread_replays_to_the_enumerated_joint_law" },
+  { id = "joint_law.composed_spread_linear.facade_aligned_rows.truth", role = "truth", intent = "Facade: a covariance-route linear spread agrees with the aligned rows; an aligned linear spread is the population variance of the contrast.", evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", evidence_assertion = "a_linear_moments_spread_agrees_with_the_aligned_rows" },
+  { id = "joint_law.composed_spread_linear.facade_unpaired_refused.negative", role = "negative", intent = "Facade: a spread of unpaired draws, or of a mismatched route, is refused.", evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", evidence_assertion = "a_spread_of_unpaired_draws_or_on_a_mismatched_route_is_refused" },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -16300,6 +16411,8 @@ refusals = [
 routes = [
   { name = "antecedent_stats.joint_law.aligned_functional_draws.draw_spread", stage = "evaluate", status = "licensed", claim = "none" },
   { name = "antecedent_io_core.joint_law_propagation_artifact.AlignedFunctionalSpread", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent.joint_law_propagation.propagate_spread", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.python.joint_law_propagation.spread", stage = "evaluate", status = "licensed", claim = "none" },
 ]
 fixtures = [
   { id = "joint_law.composed_spread_aligned_functional.enumerated_rows.positive", role = "positive", intent = "Composed nonlinear rows match the ten-row enumerated joint law (variance 0.64 * 10/9) and the rotated-pairing control differs.", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "composed_nonlinear_rows_match_the_enumerated_joint_law" },
@@ -16307,6 +16420,7 @@ fixtures = [
   { id = "joint_law.composed_spread_aligned_functional.unpaired_or_envelope.negative", role = "negative", intent = "A spread of unpaired marginals or an envelope dependence is refused.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "spread_of_unpaired_marginals_or_an_envelope_dependence_is_refused" },
   { id = "joint_law.composed_spread_aligned_functional.index_pairing.negative", role = "negative", intent = "Unrelated marginals are never paired by index.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "unrelated_marginals_are_never_paired_by_index" },
   { id = "joint_law.composed_spread_aligned_functional.fresh_consumer_replay.artifact", role = "artifact", intent = "The aligned spread replays in a fresh consumer (mean 0.4, variance 0.64 * 10/9, se 0.8/3); a resealed point reading and a relabelled label are refused.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "an_aligned_spread_replays_to_the_enumerated_joint_law" },
+  { id = "joint_law.composed_spread_aligned_functional.facade_enumerated_rows.positive", role = "positive", intent = "Facade: an aligned nonlinear functional spread equals the enumerated rows.", evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", evidence_assertion = "an_aligned_functional_spread_matches_the_enumerated_rows" },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -16341,6 +16455,10 @@ refusals = [
 routes = [
   { name = "antecedent_stats.joint_law.mixture_exceedance", stage = "evaluate", status = "licensed", claim = "none" },
   { name = "antecedent_stats.joint_law.composed_exceedance_decision", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.joint_law_propagation.propagate_composed_exceedance", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.joint_law_propagation.propagate_mixture_exceedance", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.python.joint_law_propagation.composed_exceedance", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.python.joint_law_propagation.mixture_exceedance", stage = "evaluate", status = "licensed", claim = "none" },
 ]
 fixtures = [
   { id = "joint_law.composed_exceedance.mixture_weights_only.positive", role = "positive", intent = "A known-weight mixture gives exceedance 0.6875 with standard error sqrt(0.0302734375) from the weights alone.", evidence_test = "crates/antecedent-stats/src/joint_law.rs", evidence_assertion = "mixture_law_quantiles_and_exceedance_use_the_weights_only" },
@@ -16349,6 +16467,7 @@ fixtures = [
   { id = "joint_law.composed_exceedance.cutoff_and_edited_verdict.negative", role = "negative", intent = "A cutoff of 1.0 is refused and an edited verdict is a result mismatch.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "an_exceedance_decision_reports_its_monte_carlo_band_and_verdict", shared_evidence = true },
   { id = "joint_law.composed_exceedance.mixture_needs_weights.negative", role = "negative", intent = "Mixtures need known weights and no joint law.", evidence_test = "crates/antecedent-contract/src/joint_law_rule.rs", evidence_assertion = "mixtures_need_known_weights_and_no_joint_law" },
   { id = "joint_law.composed_exceedance.verdict_replay.artifact", role = "artifact", intent = "An exceedance decision replays in a fresh consumer (p 0.2, se 0.12111, verdict codes 1, 2, 2); an edited verdict is a result mismatch.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "an_exceedance_decision_reports_its_monte_carlo_band_and_verdict", shared_evidence = true },
+  { id = "joint_law.composed_exceedance.facade_cutoff_refused.negative", role = "negative", intent = "Facade: an exceedance cutoff outside the unit interval is refused.", evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", evidence_assertion = "an_exceedance_with_a_cutoff_outside_the_unit_interval_is_refused" },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -17138,6 +17257,151 @@ fixtures = [
   { id = "joint_law.ledger_overlap_and_row_pairing.same_alignment_pairs.positive", role = "positive", intent = "The same alignment id pairs rows.", evidence_test = "crates/antecedent-contract/tests/interface_adapters.rs", evidence_assertion = "row_pairing_across_inputs_compares_their_real_alignment_identities", shared_evidence = true },
   { id = "joint_law.ledger_overlap_and_row_pairing.different_alignment_refused.negative", role = "negative", intent = "Different joint ids refuse alignment_mismatch and independent marginals refuse index_pairing_refused.", evidence_test = "crates/antecedent-contract/tests/interface_adapters.rs", evidence_assertion = "row_pairing_across_inputs_compares_their_real_alignment_identities", shared_evidence = true },
   { id = "joint_law.ledger_overlap_and_row_pairing.ledger_rows.artifact", role = "artifact", intent = "A subset snapshot declared independent is refused with the ledger (evidence_double_counted) and passes the string rule.", evidence_test = "crates/antecedent-contract/tests/interface_adapters.rs", evidence_assertion = "a_declared_independence_is_decided_from_ledger_rows_not_evidence_strings", shared_evidence = true },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+
+[[record]]
+id = "joint_law.composed_spread_transported"
+capability = "joint_law.composed_spread_transported"
+status = "in_progress"
+consumer_question = "What is the spread of a transported composition of source sampling, target sampling and the transport functional, and which dependence license it?"
+theorem = "A spread of the pieces of one transported claim needs all three pieces named (source sampling, target sampling, transport functional) and their dependence: a covariance for a linear combination, or one aligned joint law of the three pieces (whose population covariance is formed from the aligned rows). Declared independence of pieces that share evidence, an unknown dependence and two of three pieces are refused. The result is labelled uncalibrated_spread."
+reference = "provenance/joint_law.composed_spread_and_exceedance.toml"
+guarantee = "first_order_spread_of_a_transported_composition_with_all_three_pieces_and_a_licensed_dependence_uncalibrated_no_interval"
+graph_class = "Not applicable: the dependence between the pieces is a declared covariance or an aligned joint law."
+population_semantics = "The target population of the transported claim; the source evidence is named in the pieces."
+evidence_family = "Three component estimates (source sampling, target sampling, transport functional) with a covariance or one aligned joint law, via the joint_law_propagation_v1 artifact."
+provider = "antecedent::analysis::joint_law_propagation::{propagate_transported_spread, propagate_transported_spread_aligned}"
+estimand = "The variance and standard error of the transported composition at its composed coordinate."
+inference_claim = "none"
+inference_notes = "Labelled uncalibrated_spread; an interval of the composition stays closed."
+owners = ["antecedent", "antecedent-contract", "antecedent-io-core"]
+identity_inputs = ["the three pieces and their coefficients", "covariance declaration id or aligned alignment id", "request: operation and reading", "result names and values"]
+wire_changes = ["None: the aligned three-piece spread seals the covariance route of the existing joint_law_propagation_v1 artifact (declaration id aligned_draw_covariance:<alignment id>)."]
+compatibility = "Additive."
+search = false
+prerequisite_records = ["joint_law.transported_composition"]
+prerequisite_reason = "Spread reading of that record's transported composition."
+bounds = { cancellation = true }
+refusals = [
+  { code = "joint_law_required", detail = "joint_law_propagation.transport_pieces_incomplete", when = "Fewer than the three transport pieces are named.", remedy = "Name source sampling, target sampling and the transport functional with their dependence." },
+  { code = "joint_law_required", detail = "joint_law_propagation.transported_dependence_required", when = "The dependence between the transported pieces is independent or unknown.", remedy = "Supply a covariance or one aligned joint law." },
+]
+routes = [
+  { name = "antecedent.joint_law_propagation.propagate_transported_spread", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.joint_law_propagation.propagate_transported_spread_aligned", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.python.joint_law_propagation.transported_spread", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.python.joint_law_propagation.transported_spread_aligned", stage = "evaluate", status = "licensed", claim = "none" },
+]
+fixtures = [
+  { id = "joint_law.composed_spread_transported.aligned_row_sums.positive", role = "positive", intent = "Three aligned pieces give the spread of the row sums.", evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", evidence_assertion = "a_transported_spread_from_aligned_pieces_matches_the_row_sums", shared_evidence = true },
+  { id = "joint_law.composed_spread_transported.three_pieces_and_dependence.negative", role = "negative", intent = "Two of three pieces, declared independence or unknown dependence refuse naming the missing piece.", evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", evidence_assertion = "a_transported_spread_needs_all_three_pieces_and_their_dependence" },
+  { id = "joint_law.composed_spread_transported.python_row_sums.truth", role = "truth", intent = "Python: the aligned three-piece spread equals the row sums.", evidence_test = "python/tests/test_composed_uncertainty.py", evidence_assertion = "test_transported_spread_from_aligned_pieces_matches_the_row_sums" },
+  { id = "joint_law.composed_spread_transported.sealed_artifact.artifact", role = "artifact", intent = "The spread is sealed through the existing propagation artifact (covariance route) and re-derived on consume; asserted with the aligned positive test.", evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", evidence_assertion = "a_transported_spread_from_aligned_pieces_matches_the_row_sums", shared_evidence = true },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+
+[[record]]
+id = "joint_law.composed_interval_check"
+capability = "joint_law.composed_interval_check"
+status = "in_progress"
+consumer_question = "Does a measured coverage record at the composed coordinate and construction license a composed interval, and what is returned without one?"
+theorem = "A composed interval opens only through check_composed_interval with a CoverageRecord that is measured and whose composed-coordinate id (operation, route, input roles), construction and nominal level equal the request; the check is a function of the sealed claim and the offered record and is re-derived at every call. No measured record exists, so every composed interval request refuses cell_not_licensed with the specific mismatch; an envelope claim has no composed interval."
+reference = "provenance/joint_law.composed_spread_and_exceedance.toml"
+guarantee = "composed_interval_opens_only_with_a_measured_record_at_its_own_coordinate_and_construction_closed_otherwise"
+graph_class = "Not applicable."
+population_semantics = "Not applicable."
+evidence_family = "A sealed propagation claim, a coverage record and a named interval construction."
+provider = "antecedent::analysis::joint_law_propagation::PropagationClaim::check_composed_interval"
+estimand = "None: a license decision."
+inference_claim = "none"
+inference_notes = "The licence is not sealed into the artifact; no measured record exists."
+owners = ["antecedent", "antecedent-contract"]
+identity_inputs = ["claim coordinate id", "record id, coordinate id, construction, nominal level", "measured flag"]
+wire_changes = ["None."]
+compatibility = "Additive."
+search = false
+prerequisite_records = ["joint_law.composed_interval"]
+prerequisite_reason = "Facade entry to that record's closed interval rule."
+bounds = { cancellation = true }
+refusals = [
+  { code = "cell_not_licensed", detail = "joint_law_propagation.coverage_record_unmeasured", when = "A composed interval is requested with an unmeasured coverage record.", remedy = "Run and attest the whole-method coverage measurement at the composed coordinate, or report the labelled spread." },
+  { code = "cell_not_licensed", detail = "joint_law_propagation.coverage_record_coordinate_mismatch", when = "The record was measured at another composed coordinate.", remedy = "Measure coverage at this composed coordinate." },
+  { code = "cell_not_licensed", detail = "joint_law_propagation.coverage_record_construction_mismatch", when = "The interval is built with another construction than the record was measured for.", remedy = "Use the construction the record was measured for." },
+]
+routes = [
+  { name = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", refusal_assertion = "a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate" },
+]
+fixtures = [
+  { id = "joint_law.composed_interval_check.opens_only_with_a_record.positive", role = "positive", intent = "A composed interval opens only with a measured record at its own coordinate and construction; unmeasured, coordinate, construction and level mismatches refuse.", evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", evidence_assertion = "a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate" },
+  { id = "joint_law.composed_interval_check.envelope_has_none.negative", role = "negative", intent = "An envelope has no composed interval and an edited artifact is refused.", evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", evidence_assertion = "an_envelope_has_no_composed_interval_and_an_edited_artifact_is_refused", shared_evidence = true },
+  { id = "joint_law.composed_interval_check.python_opens_only.truth", role = "truth", intent = "Python: the same opening rule.", evidence_test = "python/tests/test_composed_uncertainty.py", evidence_assertion = "test_composed_interval_opens_only_with_a_measured_record_at_its_coordinate" },
+  { id = "joint_law.composed_interval_check.rederived.artifact", role = "artifact", intent = "The licence is re-derived from the sealed claim and the offered record at every check; an edited artifact is refused.", evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", evidence_assertion = "an_envelope_has_no_composed_interval_and_an_edited_artifact_is_refused", shared_evidence = true },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+
+[[record]]
+id = "adaptive_inference.procedure_repeated_measures"
+capability = "adaptive_inference.procedure_repeated_measures"
+status = "in_progress"
+consumer_question = "What is the law and the derived uncertainty of a contrast estimated from repeated or clustered Gaussian measurements of units under a declared adaptive or fixed assignment, with the within-unit dependence declared?"
+theorem = "Within-unit dependence is declared (compound symmetry, AR(1), or a unit random effect) and never defaulted. The unit summary variance is sigma^2 w'Rw, the design effect is m Var / sigma^2 (1 + (m - 1) rho under compound symmetry and for random-effect clusters), and the AR(1) generalized least squares weights have variance sigma^2 (1 + rho) / D. For a fixed two-arm allocation the exact contrast law is the binomial mixture of normals over arm counts, counting only revealed units. An adaptive (epsilon-greedy over unit summaries) procedure has no closed form and is simulated under a declared seed with replicate streams keyed by (seed, replicate); exact forms and Monte Carlo error are reported separately. Fixed-sample analysis after adaptive assignment, independence assumed for dependent measurements and any paradigm other than fixed sample and adaptive weighting are refused; a guarantee is never paired across cells."
+reference = "provenance/adaptive_inference.procedure_repeated_measures.toml"
+guarantee = "exact_closed_forms_and_a_seeded_simulation_of_the_declared_repeated_measures_procedure_derived_unmeasured_no_coverage"
+graph_class = "Not applicable: a property of the declared collection procedure and within-unit dependence structure."
+population_semantics = "The experiment's units, each with m in [2, 32] measurements; Gaussian outcomes; fixed or epsilon-greedy unit-level assignment, no interim analysis and no stopping."
+evidence_family = "A declared outcome structure (repeated measures or hierarchical), within-unit correlation or variance components, a unit-level assignment rule, a unit summary and a final analysis estimator, and a hypothesized truth."
+provider = "antecedent_stats::adaptive_inference::procedure_repeated_measures::{exact_fixed_contrast_law, simulate_repeated_measures, derive_repeated_measures}"
+estimand = "The exact (fixed allocation) or simulated law of the contrast of arm means of unit summaries, with the design effect."
+inference_claim = "none"
+inference_notes = "Derived, unmeasured. Monte Carlo error is reported separately from the exact forms; no coverage is claimed."
+owners = ["antecedent-stats", "antecedent"]
+identity_inputs = ["outcome structure and its parameters as IEEE bits", "unit assignment rule", "unit summary and final analysis estimator", "enrolment batches and lag", "hypothesized truth", "seed and replicate count", "REPEATED_MEASURES_PROCEDURE_VERSION"]
+wire_changes = ["None. Numerics only; no artifact is defined for derived reports."]
+compatibility = "Additive: five added ContractGap variants; existing variants unchanged."
+search = false
+prerequisite_records = ["adaptive_inference.procedure_law", "adaptive_inference.repeated_measures_weighting"]
+prerequisite_reason = "Extends the procedure declaration with a within-unit dependence structure; the weighting route is that record's."
+bounds = { cancellation = true }
+refusals = [
+  { code = "adaptive_contract_incomplete", detail = "adaptive_inference.outcome_structure_missing", when = "The outcome structure (repeated measures or hierarchical) is not declared.", remedy = "Declare the outcome structure." },
+  { code = "adaptive_contract_incomplete", detail = "adaptive_inference.within_unit_correlation_missing", when = "The within-unit correlation of repeated measures is not declared.", remedy = "Declare compound symmetry or AR(1) correlation." },
+  { code = "adaptive_contract_incomplete", detail = "adaptive_inference.between_unit_variance_missing", when = "A hierarchical outcome has no between-unit variance.", remedy = "Declare the between-unit variance." },
+  { code = "adaptive_contract_incomplete", detail = "adaptive_inference.within_unit_variance_missing", when = "A hierarchical outcome has no within-unit variance.", remedy = "Declare the within-unit variance." },
+  { code = "adaptive_contract_incomplete", detail = "adaptive_inference.final_analysis_missing", when = "No final analysis estimator is declared.", remedy = "Declare the estimator and unit summary." },
+  { code = "invalid_argument", detail = "adaptive_inference.measurements_invalid", when = "The number of measurements per unit is outside 2 to 32.", remedy = "Declare 2 to 32 measurements." },
+  { code = "invalid_argument", detail = "adaptive_inference.variance_invalid", when = "A variance is not finite and positive.", remedy = "Declare finite positive variances." },
+  { code = "invalid_argument", detail = "adaptive_inference.correlation_invalid", when = "The correlation is outside its positive-definite range.", remedy = "Declare a valid correlation." },
+  { code = "invalid_argument", detail = "adaptive_inference.analysis_invalid", when = "The final analysis declaration is inconsistent.", remedy = "Correct the declared analysis." },
+  { code = "invalid_argument", detail = "adaptive_inference.repeated_measures_stopping_not_derived", when = "An interim analysis or stopping rule is declared; those are separate cells not derived here.", remedy = "Declare one final analysis with no stopping rule." },
+  { code = "cell_not_licensed", detail = "adaptive_inference.independence_assumed_for_dependent_measurements", when = "Independence of measurements is assumed for dependent measurements.", remedy = "Use the cluster-robust unit-level analysis." },
+  { code = "cell_not_licensed", detail = "adaptive_inference.repeated_measures_paradigm_not_derived", when = "A paradigm other than fixed sample and adaptive weighting is requested.", remedy = "Use a derived paradigm for the cell." },
+  { code = "cell_not_licensed", detail = "adaptive_inference.analysis_route_mismatch", when = "The analysis route does not match the assignment (fixed-sample analysis with the weighting estimator, or the reverse).", remedy = "Match the analysis to the assignment rule." },
+  { code = "cell_not_licensed", detail = "adaptive_inference.guarantee_not_transferable", when = "A guarantee established for one cell is paired with another.", remedy = "Establish the guarantee for this cell." },
+  { code = "cell_not_licensed", detail = "adaptive_inference.exact_law_unavailable", when = "An exact law is requested of an adaptive or weighted procedure.", remedy = "Use the simulation route." },
+  { code = "invalid_argument", detail = "adaptive_inference.procedure_limit_exceeded", when = "A declared procedure exceeds a bounded work or size limit (units, looks, cells, delay or exact-law atoms).", remedy = "Reduce the units, looks, cells or delay of the declared procedure, or use the simulation route." },
+]
+routes = [
+  { name = "antecedent_stats.adaptive_inference.procedure_repeated_measures.exact_fixed_contrast_law", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent_stats.adaptive_inference.procedure_repeated_measures.derive_repeated_measures", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.adaptive_procedure_report.RepeatedMeasuresProcedure.report", stage = "evaluate", status = "licensed", claim = "none" },
+  { name = "antecedent.python.adaptive_inference.RepeatedMeasuresProcedure.report", stage = "evaluate", status = "licensed", claim = "none" },
+]
+fixtures = [
+  { id = "adaptive_inference.procedure_repeated_measures.design_effect.positive", role = "positive", intent = "Compound symmetry gives the design effect 1 + (m - 1) rho (0.95 over 1.9 values); rho < 0 gives 0.5; rho 0 is independent.", evidence_test = "crates/antecedent-stats/tests/adaptive_repeated_measures_oracle.rs", evidence_assertion = "compound_symmetry_gives_the_design_effect_one_plus_m_minus_one_rho" },
+  { id = "adaptive_inference.procedure_repeated_measures.ar1_gls.truth", role = "truth", intent = "AR(1) summed matrix and the GLS closed form (variance 0.6).", evidence_test = "crates/antecedent-stats/tests/adaptive_repeated_measures_oracle.rs", evidence_assertion = "autoregressive_correlation_matches_the_hand_summed_matrix_and_gls_closed_form" },
+  { id = "adaptive_inference.procedure_repeated_measures.simulation_matches_exact.truth", role = "truth", intent = "The simulated cluster-robust contrast matches the exact mixture under compound symmetry.", evidence_test = "crates/antecedent-stats/tests/adaptive_repeated_measures_oracle.rs", evidence_assertion = "simulated_cluster_robust_contrast_matches_the_exact_mixture_under_compound_symmetry" },
+  { id = "adaptive_inference.procedure_repeated_measures.fixed_after_adaptive.negative", role = "negative", intent = "A fixed-sample analysis after adaptive assignment is refused.", evidence_test = "crates/antecedent-stats/tests/adaptive_repeated_measures_oracle.rs", evidence_assertion = "a_fixed_sample_analysis_after_adaptive_assignment_is_refused" },
+  { id = "adaptive_inference.procedure_repeated_measures.independence_refused.negative", role = "negative", intent = "Independence assumed for dependent measurements is refused.", evidence_test = "crates/antecedent-stats/tests/adaptive_repeated_measures_oracle.rs", evidence_assertion = "the_independence_assumption_is_refused_for_dependent_measurements" },
+  { id = "adaptive_inference.procedure_repeated_measures.missing_correlation.negative", role = "negative", intent = "A missing within-unit correlation is its own refusal.", evidence_test = "crates/antecedent-stats/tests/adaptive_repeated_measures_oracle.rs", evidence_assertion = "a_missing_within_unit_correlation_is_its_own_refusal" },
+  { id = "adaptive_inference.procedure_repeated_measures.guarantee_not_paired.negative", role = "negative", intent = "A guarantee is never paired across cells.", evidence_test = "crates/antecedent-stats/tests/adaptive_repeated_measures_oracle.rs", evidence_assertion = "a_guarantee_is_never_paired_across_cells" },
+  { id = "adaptive_inference.procedure_repeated_measures.replicate_prefix_identity.artifact", role = "artifact", intent = "A replicate does not depend on how many others are run; a changed correlation at unchanged shape changes the simulated law. Numerics only: no wire artifact.", evidence_test = "crates/antecedent-stats/tests/adaptive_repeated_measures_oracle.rs", evidence_assertion = "a_replicate_does_not_depend_on_how_many_others_are_run" },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
