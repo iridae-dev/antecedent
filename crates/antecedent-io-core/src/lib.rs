@@ -299,3 +299,4 @@ pub mod transport_errors;
 pub mod transport_interference_wire;
 pub mod transported_counterfactual_artifact;
 pub mod transport_handoff_artifact;
+pub mod transport_revalidation_artifact;

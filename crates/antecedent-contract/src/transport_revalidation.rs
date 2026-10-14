@@ -36,6 +36,17 @@
 //! was. A claim that inherits a record from another claim holds it only while that claim
 //! holds it at the same target and quantity.
 //!
+//! # Refresh
+//!
+//! New outcome-only data at a source population changes that source's identity: the
+//! claims that count it are *recomputed*; the scene's declaration (diagram, quantity
+//! coordinates, claim wiring) is *kept*; a claim's calibration record is never carried
+//! to another target (it is withdrawn with
+//! [`TransportReason::CalibrationFromAnotherTarget`]) and data of another population,
+//! quantity or arm is a different scene, not a refresh. Revalidation never edits a scene:
+//! it compares two and reports, so a refused or withdrawn claim leaves the earlier
+//! numbers untouched.
+//!
 //! This module computes no statistic and declares no calibration record.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

@@ -67,6 +67,13 @@ pub const JOINT_LAW_PROPAGATION_ARTIFACT_VERSION: u32 = 1;
 pub const JOINT_LAW_PROPAGATION_ARTIFACT_FEATURE: &str = "joint_law_propagation_v1";
 /// Most inputs one composition may name.
 pub const JOINT_LAW_PROPAGATION_MAX_INPUTS: usize = 256;
+/// Most bytes an encoded propagation artifact may occupy; larger input is
+/// refused before any CBOR is parsed.
+pub const MAX_JOINT_LAW_PROPAGATION_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
+/// Longest identity, label or name in the artifact, in bytes.
+pub const MAX_JOINT_LAW_PROPAGATION_TEXT_BYTES: usize = 4096;
+/// Most shared-evidence identities the artifact may record.
+pub const MAX_JOINT_LAW_PROPAGATION_SHARED_EVIDENCE: usize = 4096;
 
 /// Why a joint-law propagation artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -608,6 +615,35 @@ fn check_bounds(wire: &JointLawPropagationArtifactWire) -> Result<(), Error> {
     if wire.inputs.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS {
         return Err(too_large("inputs"));
     }
+    let long = |text: &str| text.len() > MAX_JOINT_LAW_PROPAGATION_TEXT_BYTES;
+    let long_opt = |text: &Option<String>| text.as_deref().is_some_and(long);
+    if wire.shared_evidence.len() > MAX_JOINT_LAW_PROPAGATION_SHARED_EVIDENCE
+        || wire.required_features.len() > 16
+    {
+        return Err(too_large("shared evidence"));
+    }
+    if wire.shared_evidence.iter().any(|id| long(id))
+        || wire.required_features.iter().any(|f| long(f))
+        || long(&wire.route)
+        || long(&wire.label)
+        || long(&wire.identity)
+        || long_opt(&wire.alignment_id)
+        || long_opt(&wire.covariance_id)
+        || long(&wire.rule.operation)
+        || long(&wire.rule.dependence)
+        || long(&wire.rule.reading)
+        || long_opt(&wire.rule.covariance_id)
+        || wire.inputs.iter().any(|input| {
+            long(&input.input_id)
+                || long(&input.evidence_id)
+                || long(&input.role)
+                || long(&input.alignment)
+                || long_opt(&input.alignment_id)
+        })
+        || wire.result.iter().any(|(name, _)| long(name))
+    {
+        return Err(too_large("text"));
+    }
     let draws = |n: usize| {
         if n > MAX_DISTRIBUTION_DRAWS { Err(too_large("draws")) } else { Ok(()) }
     };
@@ -1107,6 +1143,9 @@ impl JointLawPropagationArtifactWire {
     /// # Errors
     /// A decoding failure, another version or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, Error> {
+        if bytes.len() > MAX_JOINT_LAW_PROPAGATION_ARTIFACT_BYTES {
+            return Err(Error::LimitsExceeded("artifact bytes"));
+        }
         let wire: Self = crate::decode_with_version(bytes, |version| {
             if version == JOINT_LAW_PROPAGATION_ARTIFACT_VERSION {
                 Ok(())
@@ -1117,6 +1156,7 @@ impl JointLawPropagationArtifactWire {
         if wire.required_features != [JOINT_LAW_PROPAGATION_ARTIFACT_FEATURE] {
             return Err(Error::UnsupportedSemantics("required features"));
         }
+        check_bounds(&wire)?;
         Ok(wire)
     }
 

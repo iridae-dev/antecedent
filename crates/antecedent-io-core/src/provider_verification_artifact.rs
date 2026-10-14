@@ -19,7 +19,7 @@ use antecedent_contract::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::{from_cbor, to_cbor};
+use crate::convert::to_cbor;
 use crate::error::IoError;
 use crate::external_binding_wire::ExternalBindingRefusalWire;
 use crate::external_claim_artifact::VerificationProbeWire;
@@ -329,7 +329,15 @@ pub fn receipt_from_bytes(
     let Ok([meta]) = <[Vec<u8>; 1]>::try_from(parts) else {
         return Err(convert("unsupported provider verification layout"));
     };
-    let wire: ProviderVerificationReceiptWire = from_cbor(&meta)?;
+    // The version is gated from the untyped value before the typed shape is read.
+    let wire: ProviderVerificationReceiptWire =
+        crate::decode_with_version(&meta, |version: u16| {
+            if version == 1 {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version: u32::from(version) })
+            }
+        })?;
     if wire.digest != expected_digest {
         return Err(IoError::Refused {
             code: antecedent_core::reason_code!("external_binding_mismatch"),

@@ -59,8 +59,10 @@ use crate::convert::to_cbor;
 pub const COMPOSITION_VERIFICATION_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const COMPOSITION_VERIFICATION_ARTIFACT_FEATURE: &str = "composition_verification_v1";
-/// Most bytes a composition verification artifact may occupy.
-pub const MAX_COMPOSITION_VERIFICATION_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
+/// Most bytes a composition verification artifact may occupy. The content limits
+/// (nodes, edges, items per node, text bytes, relations) bound the real payload
+/// well under this; the cap is checked before any section is parsed.
+pub const MAX_COMPOSITION_VERIFICATION_ARTIFACT_BYTES: usize = 32 * 1024 * 1024;
 /// Most shared-data relations one artifact may carry.
 pub const MAX_SHARED_DATA_RELATIONS: usize = 65_536;
 
@@ -292,6 +294,10 @@ pub struct CompositionVerificationMeta {
     pub version: u16,
     /// Feature marker.
     pub feature: String,
+    /// Features a reader must understand. This version defines none; a reader
+    /// refuses any entry.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_features: Vec<String>,
     /// The earlier snapshot; `None` for a first verification.
     pub previous: Option<GraphWire>,
     /// The current snapshot.
@@ -634,6 +640,11 @@ fn check(
     if meta.feature != COMPOSITION_VERIFICATION_ARTIFACT_FEATURE {
         return Err(CompositionVerificationArtifactError::UnsupportedSemantics("feature marker"));
     }
+    if !meta.required_features.is_empty() {
+        return Err(CompositionVerificationArtifactError::UnsupportedSemantics(
+            "required feature",
+        ));
+    }
     let current = graph_from_wire(&meta.current)?;
     let previous = meta.previous.as_ref().map(graph_from_wire).transpose()?;
     let effects = effects_from_wire(&meta.effects)?;
@@ -731,6 +742,7 @@ fn build_meta(
     let mut meta = CompositionVerificationMeta {
         version: COMPOSITION_VERIFICATION_ARTIFACT_VERSION,
         feature: COMPOSITION_VERIFICATION_ARTIFACT_FEATURE.to_owned(),
+        required_features: Vec::new(),
         previous: previous.map(graph_to_wire),
         current: graph_to_wire(current),
         effects: effects_to_wire(effects)?,

@@ -6,7 +6,7 @@
 //! readable; nothing writes it any more.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::IoError;
-use crate::convert::{from_cbor, to_cbor};
+use crate::convert::to_cbor;
 use crate::external_claim_artifact::{ExternalClaimArtifact, ExternalClaimIdentity};
 use serde::{Deserialize, Serialize};
 
@@ -137,10 +137,16 @@ impl ExternalCallbackArtifact {
         let Ok([meta, artifact]) = <[Vec<u8>; 2]>::try_from(parts) else {
             return Err(IoError::Convert(layout.into()));
         };
-        let meta: CallbackMeta = from_cbor(&meta)?;
-        if meta.version != META_VERSION {
-            return Err(IoError::UnsupportedVersion { version: u32::from(meta.version) });
-        }
+        // The version is read from the untyped value and gated before the typed
+        // shape is interpreted, so a newer body is `UnsupportedVersion`, not a
+        // shape error.
+        let meta: CallbackMeta = crate::decode_with_version(&meta, |version: u16| {
+            if version == META_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version: u32::from(version) })
+            }
+        })?;
         Ok(Self {
             request_digest: meta.request_digest,
             provider_digest: meta.provider_digest,
@@ -150,6 +156,9 @@ impl ExternalCallbackArtifact {
         })
     }
 
+    /// The `ANTCALLBACK1` magic is the legacy frame's version: it carries no
+    /// version word, its fields are closed (`deny_unknown_fields`) and its size
+    /// is bounded by the envelope cap checked in [`Self::inspect`].
     fn decode_legacy(bytes: &[u8]) -> Result<Self, IoError> {
         let mut remaining = &bytes[LEGACY_MAGIC.len()..];
         let value: Self = ciborium::from_reader(&mut remaining)

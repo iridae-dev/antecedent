@@ -908,7 +908,7 @@ fn build_meta(record: &CallbackResultRecord) -> CallbackResultMeta {
         request: request_to_wire(&record.request),
         request_identity: record.request.identity(declaration).to_hex(),
         stage,
-        standing: standing_label(declaration, true).as_str().to_owned(),
+        standing: standing_label(declaration, false).as_str().to_owned(),
         output_digest: output_values_digest(&values),
         identity: String::new(),
     };
@@ -1013,7 +1013,9 @@ fn check(
     if meta.output_digest != output_values_digest(&values_of(&record)) {
         return Err(Failure::IdentityMismatch { field: "output_digest" });
     }
-    if meta.standing != standing_label(&record.declaration, true).as_str() {
+    // No verification receipt travels in the artifact, so a declared verification is
+    // never confirmed here; the live path labels the same declaration `diagnostic`.
+    if meta.standing != standing_label(&record.declaration, false).as_str() {
         return Err(Failure::IdentityMismatch { field: "standing" });
     }
     let identity = compute_identity(meta);

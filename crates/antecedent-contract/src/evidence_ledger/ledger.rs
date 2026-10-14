@@ -577,6 +577,26 @@ impl EvidenceLedger {
                     "a transport identity names its source populations, target population and assumptions"
                 ));
             }
+            // A transport that states no assumption licenses nothing, and a
+            // target that is one of its own sources is not a transport at all;
+            // the decision and handoff routes refuse both, so refuse here
+            // rather than late and under another code.
+            if transport.assumptions.is_empty() {
+                return Err(invalid!(
+                    "evidence_ledger.invalid_declaration",
+                    "a transport identity states at least one invariance or selection assumption"
+                ));
+            }
+            if transport
+                .source_populations
+                .iter()
+                .any(|p| *p == transport.target_population)
+            {
+                return Err(invalid!(
+                    "evidence_ledger.invalid_declaration",
+                    "a transport target population is not one of its source populations"
+                ));
+            }
         }
         let effective = self.resolve_effective(&declaration)?;
         let id = declaration.identity();

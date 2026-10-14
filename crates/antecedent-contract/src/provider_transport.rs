@@ -31,6 +31,18 @@
 //! Nothing here executes a provider, a callback or any declared code.
 //! Declarations are data; the decision is about what they state.
 //!
+//! # Refresh
+//!
+//! A source or offer is an immutable declaration. New data at a provider's
+//! population is a new declaration: *recompute* the admitted source (identity,
+//! evidence and trust follow the new declaration) and every handoff built on
+//! it; *keep* the transport identity and the consumer's port when the
+//! population, regime, quantity and assumptions are unchanged; *refuse* a
+//! source whose population is not a source population of the transport
+//! (`provider_transport.population_not_a_source`), an assumption the transport
+//! does not carry, and data of another quantity or arm. Nothing is refreshed
+//! in place: a refused refresh leaves the previous admission untouched.
+//!
 //! # What is and is not decided
 //!
 //! A declared population is the producer's declaration, not proof that the
@@ -567,6 +579,27 @@ pub fn connect_provider_source(
     check_connection(&source.interface_contract(), PROVIDER_SOURCE_PORT, consumer, consumed_port)
 }
 
+/// Connect an admitted provider source to a transport route's consumer,
+/// after checking the source belongs to the transport the route carries.
+///
+/// The provider's population must be a source population of `transport` and
+/// every assumption it relies on must be carried by it; otherwise the
+/// connection is not attempted.
+///
+/// # Errors
+/// `provider_transport.population_not_a_source`,
+/// `provider_transport.assumptions_not_carried`, then every defect of
+/// [`connect_provider_source`].
+pub fn connect_bound_provider_source(
+    source: &AdmittedProviderSource,
+    transport: &TransportIdentity,
+    consumer: &InterfaceContract,
+    consumed_port: &str,
+) -> Result<Connection, Vec<InterfaceRefusal>> {
+    source.require_bound_to(transport).map_err(|refusal| vec![refusal])?;
+    connect_provider_source(source, consumer, consumed_port)
+}
+
 // -- a transported claim handed to an external consumer -------------------------------------------------
 
 /// What an external consumer accepts of a claim about its population.
@@ -901,4 +934,29 @@ pub fn hand_to_callback(
         ]);
     }
     hand_to_consumer(offer, &callback.interface_contract(), input, policy)
+}
+
+/// Hand a transported claim to a consumed port together with the provider
+/// sources it was derived from.
+///
+/// Every provider source must belong to the offer's transport identity (its
+/// population is one of the source populations and its assumptions are
+/// carried); a provider of another population cannot stand behind the claim.
+///
+/// # Errors
+/// `provider_transport.population_not_a_source`,
+/// `provider_transport.assumptions_not_carried`, then every refusal of
+/// [`hand_to_consumer`].
+pub fn hand_to_consumer_from_sources(
+    offer: &TransportedClaimOffer,
+    sources: &[&AdmittedProviderSource],
+    consumer: &InterfaceContract,
+    consumed_port: &str,
+    policy: TransportedInputPolicy,
+) -> Result<TransportedHandoff, Vec<InterfaceRefusal>> {
+    offer.validate().map_err(|refusal| vec![refusal])?;
+    for source in sources {
+        source.require_bound_to(&offer.transport).map_err(|refusal| vec![refusal])?;
+    }
+    hand_to_consumer(offer, consumer, consumed_port, policy)
 }

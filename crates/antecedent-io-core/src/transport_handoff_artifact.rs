@@ -8,6 +8,23 @@
 //! consumer accepted it under, and the identities that bind them. When the
 //! consumer is a declared callback its declaration identity is recorded too.
 //!
+//! # Provider trust
+//!
+//! An offer built from a provider's output may record which of the two external
+//! trust levels stood behind it, `externally_attested` or `verified_extension`
+//! (exact-request verified), so a reader of the artifact alone can tell them apart
+//! without the evidence ledger. The label is part of the artifact identity. It is a
+//! declaration: the receipt that would confirm a verified label does not travel in
+//! the artifact, so the label is never read as native licence and never raises the
+//! claim's standing. `native_licensed` and `unverified` are not accepted.
+//!
+//! # Refresh
+//!
+//! A handoff is a record of one claim at one moment. New data at a source population
+//! produces a new offer: *recompute* the offer, handoff and artifact identities; *keep*
+//! the consumer's contract and the policy; *refuse* a stored artifact whose identities
+//! no longer re-derive. Nothing is refreshed in place.
+//!
 //! # What a consumer does
 //!
 //! It trusts none of the stored identities. It rebuilds the offer and the
@@ -36,7 +53,7 @@ use antecedent_contract::provider_transport::{
     TransportedClaimOffer, TransportedHandoff, TransportedInputPolicy, hand_to_callback,
     hand_to_consumer,
 };
-use antecedent_contract::ExternalRefusal;
+use antecedent_contract::{ExternalRefusal, ProviderTrust};
 use antecedent_core::{CanonicalWriter, SemanticDigest};
 use serde::{Deserialize, Serialize};
 
@@ -177,6 +194,10 @@ pub struct TransportHandoffMeta {
     pub policy: String,
     /// Declaration identity (hex) of the consuming callback, when it is one.
     pub callback_identity: Option<String>,
+    /// Trust label of the provider behind the claim, when recorded:
+    /// `externally_attested` or `verified_extension`. Part of the identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_trust: Option<String>,
     /// Handoff identity (hex), re-derived on consumption.
     pub handoff_identity: String,
     /// BLAKE3 identity (hex) of the artifact: version, feature, required
@@ -227,6 +248,19 @@ fn transport_from_wire(wire: &TransportIdentityWire) -> Result<TransportIdentity
 
 // -- identity and consumption ---------------------------------------------------------------------
 
+/// Read a stored provider trust label: only the two external levels, in their
+/// canonical spelling.
+fn parse_provider_trust(label: &str) -> Result<ProviderTrust, Failure> {
+    match ProviderTrust::from_wire(label) {
+        Some(trust @ (ProviderTrust::ExternallyAttested | ProviderTrust::ExactRequestVerified))
+            if trust.as_wire() == label =>
+        {
+            Ok(trust)
+        }
+        _ => Err(Failure::UnsupportedSemantics("provider trust label")),
+    }
+}
+
 fn compute_identity(meta: &TransportHandoffMeta) -> String {
     let mut writer = CanonicalWriter::new(TRANSPORT_HANDOFF_ARTIFACT_TAG);
     writer
@@ -235,6 +269,10 @@ fn compute_identity(meta: &TransportHandoffMeta) -> String {
         .texts(&meta.required_features)
         .text(&meta.handoff_identity)
         .opt_text(meta.callback_identity.as_deref());
+    // Written only when recorded, so an artifact without a label keeps its identity.
+    if let Some(trust) = &meta.provider_trust {
+        writer.text("provider_trust").text(trust);
+    }
     writer.finish_hex()
 }
 
@@ -286,6 +324,9 @@ fn check(
     if meta.callback_identity.as_deref().is_some_and(|identity| !is_hex_digest(identity)) {
         return Err(malformed("callback identity is not a lowercase digest"));
     }
+    if let Some(label) = &meta.provider_trust {
+        parse_provider_trust(label)?;
+    }
     let derived = derive(meta)?;
     if meta.handoff_identity != derived.handoff.identity().to_hex() {
         return Err(Failure::IdentityMismatch { field: "handoff_identity" });
@@ -302,6 +343,7 @@ fn check(
         consumer: derived.consumer,
         consumed_port: meta.consumed_port.clone(),
         callback_identity: meta.callback_identity.clone(),
+        provider_trust: meta.provider_trust.as_deref().map(parse_provider_trust).transpose()?,
         handoff: derived.handoff,
         identity,
     })
@@ -358,6 +400,7 @@ pub struct TransportHandoffArtifact {
     consumer: InterfaceContract,
     consumed_port: String,
     callback_identity: Option<String>,
+    provider_trust: Option<ProviderTrust>,
     handoff: TransportedHandoff,
     identity: String,
 }
@@ -369,6 +412,7 @@ impl TransportHandoffArtifact {
         consumed_port: &str,
         policy: TransportedInputPolicy,
         callback_identity: Option<String>,
+        provider_trust: Option<ProviderTrust>,
         handoff: &TransportedHandoff,
     ) -> TransportHandoffMeta {
         let mut meta = TransportHandoffMeta {
@@ -382,6 +426,7 @@ impl TransportHandoffArtifact {
             consumed_port: consumed_port.to_owned(),
             policy: policy.as_str().to_owned(),
             callback_identity,
+            provider_trust: provider_trust.map(|trust| trust.as_wire().to_owned()),
             handoff_identity: handoff.identity().to_hex(),
             identity: String::new(),
         };
@@ -403,7 +448,40 @@ impl TransportHandoffArtifact {
     ) -> Result<(Self, TransportHandoffMeta), Failure> {
         let handoff =
             hand_to_consumer(offer, consumer, consumed_port, policy).map_err(first_refusal)?;
-        let meta = Self::build_meta(offer, consumer, consumed_port, policy, None, &handoff);
+        let meta = Self::build_meta(offer, consumer, consumed_port, policy, None, None, &handoff);
+        let artifact = check(&meta, None)?;
+        Ok((artifact, meta))
+    }
+
+    /// Seal a handoff and record the provider trust level behind the claim.
+    ///
+    /// # Errors
+    /// As [`Self::seal`], and a trust level other than `ExternallyAttested`
+    /// or `ExactRequestVerified`.
+    pub fn seal_with_provider_trust(
+        offer: &TransportedClaimOffer,
+        consumer: &InterfaceContract,
+        consumed_port: &str,
+        policy: TransportedInputPolicy,
+        provider_trust: ProviderTrust,
+    ) -> Result<(Self, TransportHandoffMeta), Failure> {
+        if !matches!(
+            provider_trust,
+            ProviderTrust::ExternallyAttested | ProviderTrust::ExactRequestVerified
+        ) {
+            return Err(Failure::UnsupportedSemantics("provider trust label"));
+        }
+        let handoff =
+            hand_to_consumer(offer, consumer, consumed_port, policy).map_err(first_refusal)?;
+        let meta = Self::build_meta(
+            offer,
+            consumer,
+            consumed_port,
+            policy,
+            None,
+            Some(provider_trust),
+            &handoff,
+        );
         let artifact = check(&meta, None)?;
         Ok((artifact, meta))
     }
@@ -426,6 +504,7 @@ impl TransportHandoffArtifact {
             input,
             policy,
             Some(callback.canonical_identity().to_hex()),
+            None,
             &handoff,
         );
         let artifact = check(&meta, None)?;
@@ -444,6 +523,24 @@ impl TransportHandoffArtifact {
         artifact_id: &str,
     ) -> Result<Vec<u8>, Failure> {
         let (_, meta) = Self::seal(offer, consumer, consumed_port, policy)?;
+        encode_meta(&meta, artifact_id)
+    }
+
+    /// Serialize a sealed handoff that records its provider trust level.
+    ///
+    /// # Errors
+    /// As [`Self::seal_with_provider_trust`], an encoding failure or an
+    /// oversized payload.
+    pub fn to_bytes_with_provider_trust(
+        offer: &TransportedClaimOffer,
+        consumer: &InterfaceContract,
+        consumed_port: &str,
+        policy: TransportedInputPolicy,
+        provider_trust: ProviderTrust,
+        artifact_id: &str,
+    ) -> Result<Vec<u8>, Failure> {
+        let (_, meta) =
+            Self::seal_with_provider_trust(offer, consumer, consumed_port, policy, provider_trust)?;
         encode_meta(&meta, artifact_id)
     }
 
@@ -521,6 +618,13 @@ impl TransportHandoffArtifact {
     #[must_use]
     pub const fn handoff(&self) -> &TransportedHandoff {
         &self.handoff
+    }
+
+    /// The provider trust level recorded with the claim, when one was: always
+    /// an external level (attested or exact-request verified), never native.
+    #[must_use]
+    pub const fn provider_trust(&self) -> Option<ProviderTrust> {
+        self.provider_trust
     }
 
     /// The handoff identity (hex).

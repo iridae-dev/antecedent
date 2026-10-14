@@ -396,6 +396,55 @@ impl DistributionArtifact {
         self.metadata.shape[0]
     }
 
+    /// Pairing identity of this artifact's draws: a digest of the source,
+    /// provider, rng stream, data snapshot, causal contract and draw count.
+    /// Two artifacts whose rows are realizations of one joint law share it;
+    /// artifacts of different simulations do not, so index pairing across
+    /// them is refused by `check_rows_pairable_across`.
+    ///
+    /// # Errors
+    /// `joint_law_required` for independently sampled marginals, whose rows
+    /// are not paired; an encoding failure otherwise.
+    pub fn alignment_identity(&self) -> Result<String, IoError> {
+        let identity = &self.metadata.identity;
+        if identity.alignment != DrawAlignment::Joint {
+            return Err(IoError::Refused {
+                code: antecedent_core::reason_code!("joint_law_required"),
+                message: "joint_law_propagation.index_pairing_refused: independently sampled marginals have no pairing identity".into(),
+            });
+        }
+        crate::artifact_codec::digest_hex(
+            antecedent_core::IdentityDomain::Program,
+            &(
+                "joint_law_alignment_v1",
+                &identity.source_id,
+                &identity.provider_id,
+                &identity.rng_id,
+                &identity.snapshot_id,
+                &identity.causal_contract_id,
+                self.n_draws() as u64,
+            ),
+        )
+    }
+
+    /// The alignment of this artifact's draws as the joint-law rule reads
+    /// it: the pairing identity for one joint law, independent marginals
+    /// otherwise. Callers pairing several artifacts compare these through
+    /// `check_rows_pairable_across`, never a constant.
+    ///
+    /// # Errors
+    /// A joint artifact whose pairing identity cannot be encoded.
+    pub fn input_alignment(&self) -> Result<antecedent_contract::InputAlignment, IoError> {
+        match self.metadata.identity.alignment {
+            DrawAlignment::Joint => Ok(antecedent_contract::InputAlignment::Aligned {
+                alignment_id: self.alignment_identity()?,
+            }),
+            DrawAlignment::IndependentMarginals => {
+                Ok(antecedent_contract::InputAlignment::IndependentMarginals)
+            }
+        }
+    }
+
     /// Scientific coordinates in exact column order.
     #[must_use]
     pub fn quantities(&self) -> &[ScientificQuantityWire] {

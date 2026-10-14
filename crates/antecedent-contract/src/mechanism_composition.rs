@@ -374,6 +374,9 @@ fn check_context(
         );
         let mut reason: Option<&'static str> = None;
         let mut admitted = false;
+        // A selection arrow into the variable is the statement that its mechanism
+        // differs across populations, so it dominates a declared invariance.
+        let mut arrow_into_variable = false;
         for a in &candidates {
             match &a.basis {
                 AdmissionBasis::DeclaredInvariance { assumption_id } => {
@@ -385,6 +388,7 @@ fn check_context(
                 }
                 AdmissionBasis::SelectionDiagram { targets } => {
                     if targets.iter().any(|t| t == v) {
+                        arrow_into_variable = true;
                         reason =
                             Some("mechanism_composition.population_selection_arrow_into_mechanism");
                     } else if m.latent_causes.is_empty() {
@@ -396,6 +400,9 @@ fn check_context(
                     }
                 }
             }
+        }
+        if arrow_into_variable {
+            admitted = false;
         }
         if !admitted {
             let detail = if candidates.is_empty() {
