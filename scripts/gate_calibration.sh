@@ -470,6 +470,18 @@ run_ignored antecedent-estimate bayesian_sustained_single_step_conjugate_nominal
 run_ignored antecedent-estimate bayesian_sustained_multi_step_conjugate_nominal_90_coverage
 run_ignored antecedent-estimate bayesian_panel_hierarchical_nominal_90_coverage
 
+echo "== sampled counterfactual transport delta-method candidate (antecedent-estimate) =="
+run_sampled_counterfactual_transport() {
+  local filter="$1"
+  echo "== antecedent-estimate: ${filter} =="
+  check "antecedent-estimate: ${filter}" \
+    cargo test --release -p antecedent-estimate --features calibration-internal \
+    --test counterfactual_transport_sampled "$filter" -- --ignored --exact --nocapture
+}
+run_sampled_counterfactual_transport sampled_mediation_covariate_shift
+run_sampled_counterfactual_transport sampled_two_source_joint
+run_sampled_counterfactual_transport sampled_latent_district
+
 echo "== temporal / mixture interval coverage (antecedent) =="
 run_ignored_test() {
   local filter="$1"

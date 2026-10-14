@@ -11,6 +11,9 @@
 
 #![allow(clippy::float_cmp, reason = "bit-for-bit determinism assertions")]
 
+#[cfg(feature = "calibration-internal")]
+#[path = "../../antecedent/tests/common/calibration.rs"]
+mod calibration;
 #[path = "../../antecedent-identify/tests/support/counterfactual_transport_adapter.rs"]
 mod counterfactual_transport_adapter;
 #[path = "../../antecedent-identify/tests/support/counterfactual_transport_cases.rs"]
@@ -35,6 +38,8 @@ use antecedent_identify::{
     COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS, CounterfactualTransportDecision,
     CounterfactualTransportDerivation, identify_counterfactual_transport,
 };
+#[cfg(feature = "calibration-internal")]
+use calibration::{Construction, CoverageTally, RecordKey, ScopeFacts, map_replicates, n_sim};
 use counterfactual_transport_adapter as adapter;
 use counterfactual_transport_cases::{Case, CaseGraph, ExpectedClass, Target, all_cases};
 use finite_scm_oracle::{
@@ -796,4 +801,116 @@ fn the_calibration_internal_interval_is_a_candidate_not_a_published_claim() {
     // The published result still carries no interval.
     assert_eq!(result.inference.interval.code, "cell_not_licensed");
     assert!(sampled_transport_wald_interval_internal(&result, 1.5).is_err());
+}
+
+#[cfg(feature = "calibration-internal")]
+fn measure_sampled_transport_coverage(
+    case_name: &str,
+    target_label: &str,
+    test: &'static str,
+    dgp: &'static str,
+    seed: u64,
+    expected_id: &str,
+) {
+    use antecedent_estimate::counterfactual_transport_sampled::sampled_transport_wald_interval_internal;
+
+    let case = case_named(case_name);
+    let target = case.targets.iter().find(|target| target.label == target_label).unwrap();
+    assert_eq!(target.class, ExpectedClass::Identified);
+    let truth = target.expected_value.expect("the oracle supplies an exact target truth");
+    let derivation = derive(&case, target);
+    let data = laws_of(&case);
+    // The allocation names 250, 1000 and 4000 units per table. Use that exact
+    // grid rather than the shared default so collected scopes match the plan.
+    let n = [250_u64, 1_000, 4_000][calibration::grid_point()];
+    let mut tally =
+        CoverageTally::for_record(RecordKey { test, dgp, interval: "delta_method_wald" }, 0.95);
+    let construction = Construction {
+        query: "CounterfactualTransport".to_owned(),
+        graph_class: "Admg".to_owned(),
+        structure: "Fixed".to_owned(),
+        modality: "Discrete".to_owned(),
+        inference: "Frequentist".to_owned(),
+        estimator: "sampled_counterfactual_transport".to_owned(),
+        interval_method: "delta_method_wald".to_owned(),
+        se_kind: "delta_method_multinomial_central_difference".to_owned(),
+        dependence: "independent_units".to_owned(),
+        posterior: String::new(),
+        functional: derivation.query.canonical_text(),
+        identification: "point".to_owned(),
+        reported_level: 0.95,
+    };
+    let results = map_replicates(n_sim(), |replicate| {
+        let mut rng = Rng(calibration::grid_seed(seed + replicate));
+        let tables = cited_only(&derivation, &sample_laws(&data, n, &mut rng));
+        let ctx = ExecutionContext::for_tests(seed + replicate);
+        derivation.replay_checked(&ctx).expect("the stored identified derivation replays");
+        let result = estimate(&derivation, tables, UnseenCellRule::Refuse).ok()?;
+        let interval = sampled_transport_wald_interval_internal(&result, 0.95).ok()?;
+        Some((result, interval))
+    });
+    for result in results {
+        match result {
+            Some((estimate, interval)) => {
+                assert!(estimate.point.is_some());
+                assert!(estimate.inference.standard_error.is_some());
+                assert_eq!(interval.method, "delta_wald_clamped");
+                tally.bind(
+                    &construction,
+                    ScopeFacts {
+                        row_count: n,
+                        replicates_ok: None,
+                        posterior_draws: None,
+                        unidentified_mass: 0.0,
+                    },
+                );
+                tally.record(Some((interval.lower, interval.upper)), truth);
+            }
+            None => tally.skip(),
+        }
+    }
+    assert_eq!(tally.record_id().as_deref(), Some(expected_id));
+    tally.assert();
+}
+
+#[cfg(feature = "calibration-internal")]
+#[test]
+#[ignore = "calibration: final measurement only"]
+fn sampled_mediation_covariate_shift() {
+    measure_sampled_transport_coverage(
+        "nonlinear_mediation_covariate_shift",
+        "Y_{x1,M_{x0}}",
+        "sampled_mediation_covariate_shift",
+        "finite_scm_mediation_covariate_shift",
+        0x71a0_0000,
+        "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_mediation_covariate_shift",
+    );
+}
+
+#[cfg(feature = "calibration-internal")]
+#[test]
+#[ignore = "calibration: final measurement only"]
+fn sampled_two_source_joint() {
+    measure_sampled_transport_coverage(
+        "joint_counterfactual_two_source_regimes",
+        "Y_{x1}=1,X=0",
+        "sampled_two_source_joint",
+        "finite_scm_two_source_joint_counterfactual_transport",
+        0x71a1_0000,
+        "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_two_source_joint",
+    );
+}
+
+#[cfg(feature = "calibration-internal")]
+#[test]
+#[ignore = "calibration: final measurement only"]
+fn sampled_latent_district() {
+    measure_sampled_transport_coverage(
+        "transportable_latent_district",
+        "Y_{x1}=1",
+        "sampled_latent_district",
+        "finite_scm_frontdoor_latent_district",
+        0x71a2_0000,
+        "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_latent_district",
+    );
 }
