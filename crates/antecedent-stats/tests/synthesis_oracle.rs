@@ -459,3 +459,19 @@ fn the_envelope_refuses_degenerate_and_non_definite_ranges() {
         Err(SynthesisError::InvalidCorrelationRange(_))
     ));
 }
+
+#[test]
+fn dependence_envelopes_refuse_finite_inputs_with_unrepresentable_precision() {
+    assert!(matches!(
+        pooled_dependence_envelope(&[1.0, 2.0], &[1e200, 1e200], 0.0, 0.5),
+        Err(SynthesisError::NonPositiveVariance(_))
+    ));
+    assert!(matches!(
+        pooled_dependence_envelope(&[1.0, 2.0], &[1e-200, 1e-200], 0.0, 0.5),
+        Err(SynthesisError::NonFinite(_))
+    ));
+    assert!(matches!(
+        equicorrelated_gls(&[1.0, 2.0], &[1e200, 1e200], 0.0),
+        Err(SynthesisError::NonPositiveVariance(_))
+    ));
+}

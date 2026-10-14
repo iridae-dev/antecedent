@@ -761,6 +761,16 @@ impl EquicorrelationTerms {
         Self { k, b, p, m: (k - 1.0) * b - a * a, mp: (k - 1.0) * p - a * q }
     }
 
+    fn validate(&self) -> Result<(), SynthesisError> {
+        if ![self.k, self.b, self.p, self.m, self.mp].into_iter().all(f64::is_finite) {
+            return Err(SynthesisError::NonFinite("computed equicorrelation terms"));
+        }
+        if self.b <= 0.0 {
+            return Err(SynthesisError::NonPositiveVariance("computed study precision"));
+        }
+        Ok(())
+    }
+
     /// `1' S^-1 1 (1 - rho) (1 + (k-1) rho)` for `S = D R(rho) D`.
     fn denominator(&self, rho: f64) -> f64 {
         self.m.mul_add(rho, self.b)
@@ -776,20 +786,31 @@ impl EquicorrelationTerms {
 
     /// Stationary points of the variance: roots of
     /// `-(k-1) m rho^2 - 2 (k-1) b rho + ((k-2) b - m)`.
-    fn variance_stationary_points(&self) -> Vec<f64> {
+    fn variance_stationary_points(&self) -> Result<Vec<f64>, SynthesisError> {
         let km1 = self.k - 1.0;
         let qa = -km1 * self.m;
         let qb = -2.0 * km1 * self.b;
         let qc = (self.k - 2.0).mul_add(self.b, -self.m);
+        if ![qa, qb, qc].into_iter().all(f64::is_finite) {
+            return Err(SynthesisError::NonFinite("variance stationary-point coefficients"));
+        }
         if qa.abs() <= 1e-14 * qb.abs() {
             if qb == 0.0 {
-                return Vec::new();
+                return Ok(Vec::new());
             }
-            return vec![-qc / qb];
+            let root = -qc / qb;
+            return if root.is_finite() {
+                Ok(vec![root])
+            } else {
+                Err(SynthesisError::NonFinite("variance stationary point"))
+            };
         }
         let discriminant = qb * qb - 4.0 * qa * qc;
+        if !discriminant.is_finite() {
+            return Err(SynthesisError::NonFinite("variance stationary-point discriminant"));
+        }
         if discriminant < 0.0 {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         let root = discriminant.sqrt();
         let t = -0.5 * (qb + qb.signum() * root);
@@ -797,8 +818,35 @@ impl EquicorrelationTerms {
         if t != 0.0 {
             out.push(qc / t);
         }
-        out
+        if out.iter().any(|root| !root.is_finite()) {
+            return Err(SynthesisError::NonFinite("variance stationary point"));
+        }
+        Ok(out)
     }
+}
+
+type EnvelopeExtremes = ((f64, f64), (f64, f64));
+
+fn finite_extremes(
+    points: &[f64],
+    initial_rho: f64,
+    f: impl Fn(f64) -> f64,
+) -> Result<EnvelopeExtremes, SynthesisError> {
+    let mut min = (f64::INFINITY, initial_rho);
+    let mut max = (f64::NEG_INFINITY, initial_rho);
+    for &rho in points {
+        let value = f(rho);
+        if !value.is_finite() {
+            return Err(SynthesisError::NonFinite("computed dependence envelope"));
+        }
+        if value < min.0 {
+            min = (value, rho);
+        }
+        if value > max.0 {
+            max = (value, rho);
+        }
+    }
+    Ok((min, max))
 }
 
 /// Pooled estimate and variance at one common correlation `rho`, by the
@@ -819,7 +867,18 @@ pub fn equicorrelated_gls(
         ));
     }
     let terms = EquicorrelationTerms::new(estimates, standard_errors);
-    Ok((terms.estimate(rho), terms.variance(rho)))
+    terms.validate()?;
+    let denominator = terms.denominator(rho);
+    let estimate = terms.estimate(rho);
+    let variance = terms.variance(rho);
+    if !(denominator.is_finite()
+        && denominator > 0.0
+        && estimate.is_finite()
+        && variance.is_finite())
+    {
+        return Err(SynthesisError::NonFinite("computed equicorrelated GLS result"));
+    }
+    Ok((estimate, variance))
 }
 
 fn check_equicorrelated_inputs(
@@ -888,33 +947,30 @@ pub fn pooled_dependence_envelope(
         ));
     }
     let terms = EquicorrelationTerms::new(estimates, standard_errors);
+    terms.validate()?;
 
     let estimate_points = [rho_lo, rho_hi];
     // The estimate has no interior stationary point: its derivative numerator
     // `m_P B - m P` is constant in rho. A zero constant makes it flat, and the
     // endpoints already give the common value.
     let mut variance_points = vec![rho_lo, rho_hi];
-    for root in terms.variance_stationary_points() {
+    for root in terms.variance_stationary_points()? {
         if root.is_finite() && root > rho_lo && root < rho_hi {
             variance_points.push(root);
         }
     }
-    let extremes = |points: &[f64], f: &dyn Fn(f64) -> f64| {
-        let mut min = (f64::INFINITY, rho_lo);
-        let mut max = (f64::NEG_INFINITY, rho_lo);
-        for &rho in points {
-            let value = f(rho);
-            if value < min.0 {
-                min = (value, rho);
-            }
-            if value > max.0 {
-                max = (value, rho);
-            }
-        }
-        (min, max)
-    };
-    let (est_min, est_max) = extremes(&estimate_points, &|r| terms.estimate(r));
-    let (var_min, var_max) = extremes(&variance_points, &|r| terms.variance(r));
+    let (est_min, est_max) = finite_extremes(&estimate_points, rho_lo, |r| terms.estimate(r))?;
+    let (var_min, var_max) = finite_extremes(&variance_points, rho_lo, |r| terms.variance(r))?;
+    if ![est_min.0, est_min.1, est_max.0, est_max.1, var_min.0, var_min.1, var_max.0, var_max.1]
+        .into_iter()
+        .all(f64::is_finite)
+        || estimate_points.into_iter().chain(variance_points.iter().copied()).any(|rho| {
+            let denominator = terms.denominator(rho);
+            !denominator.is_finite() || denominator <= 0.0
+        })
+    {
+        return Err(SynthesisError::NonFinite("computed dependence envelope"));
+    }
     Ok(DependenceEnvelope {
         studies: k,
         rho_lo,
@@ -928,4 +984,16 @@ pub fn pooled_dependence_envelope(
         variance_max: var_max.0,
         rho_at_variance_max: var_max.1,
     })
+}
+
+#[cfg(test)]
+mod dependence_envelope_tests {
+    use super::*;
+
+    #[test]
+    fn finite_extrema_reducer_does_not_hide_nan_endpoints() {
+        let result =
+            finite_extremes(&[0.0, 1.0], 0.0, |rho| if rho == 0.0 { 1.0 } else { f64::NAN });
+        assert!(matches!(result, Err(SynthesisError::NonFinite(_))));
+    }
 }
