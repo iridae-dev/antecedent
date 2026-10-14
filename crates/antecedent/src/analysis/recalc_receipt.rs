@@ -1179,6 +1179,128 @@ pub fn execute_with_receipt(
     Ok(RecalcOutcome { plan, receipt, law, decision })
 }
 
+// -- standing inputs ------------------------------------------------------------------------
+
+/// A recalculation session family, for the standing inputs its stage identities declare.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[non_exhaustive]
+pub enum RecalcSessionKind {
+    /// Cross-fitted AIPW average effect with retargeting ([`RecalcRequest`]).
+    Receipt,
+    /// Adjusted mean contrast.
+    Adjusted,
+    /// Binary joint-cell AIPW.
+    Cell,
+    /// Design-based (instrumental-variable and front-door) estimators.
+    Design,
+    /// Doubly robust CATE.
+    DoublyRobust,
+    /// Finite static ADMG responses and multi-source transport.
+    Static,
+    /// Checked temporal response.
+    Temporal,
+    /// Conjugate Bayesian posterior.
+    Bayesian,
+    /// Joint multi-source Bayesian posterior.
+    JointBayesian,
+    /// Attested external mean callbacks.
+    External,
+    /// Native response with attested callbacks under one plan.
+    Composite,
+}
+
+/// How a session states one standing input in its stage identities.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum StandingInputDeclaration {
+    /// The input is declared; a change in it moves the law and the decision, and nothing
+    /// that reads only data.
+    Declared,
+    /// The session's claim does not rest on the input, so none is declared and the
+    /// identities are exactly those of a session that predates standing inputs.
+    NotApplicable {
+        /// Why the claim does not rest on it.
+        reason: &'static str,
+    },
+    /// The session does not hold the information the input names, or declaring it would
+    /// reseal the identity of a retained artifact, so none is declared. A claim that needs
+    /// it is not licensed by this session's identities alone.
+    Undeclared {
+        /// What is missing, as a namespaced finding.
+        finding: &'static str,
+        /// What would make the input declarable.
+        remedy: &'static str,
+    },
+}
+
+/// The three standing inputs of a session's stage identities.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SessionStanding {
+    /// The calibration record behind an interval or posterior statement.
+    pub calibration: StandingInputDeclaration,
+    /// The representation (model family and version) the score artifact was built with.
+    pub representation: StandingInputDeclaration,
+    /// The coupling between streams a joint statement relies on.
+    pub coupling: StandingInputDeclaration,
+}
+
+const POINT_ONLY: StandingInputDeclaration = StandingInputDeclaration::NotApplicable {
+    reason: "the law is a point value; its standard error is an uncalibrated diagnostic",
+};
+const NO_JOINT: StandingInputDeclaration = StandingInputDeclaration::NotApplicable {
+    reason: "the session forms no statement across more than one sampled stream",
+};
+const REPRESENTATION_UNAVAILABLE: StandingInputDeclaration = StandingInputDeclaration::Undeclared {
+    finding: "recalc.standing_undeclared.representation_version_not_held",
+    remedy: "declare the representation when the session consumes a measurement model; the \
+             score artifact identity then moves, so each retained score artifact of the earlier \
+             identity is recomputed once, visibly, and none is resealed in place",
+};
+
+impl RecalcSessionKind {
+    /// The standing inputs this session family declares, and why each other is not.
+    ///
+    /// Declared inputs enter only the effective identities of the law and the decision.
+    /// The representation enters the score artifact: it is declared by no session, because
+    /// no session consumes a measurement model and declaring a label with no model behind
+    /// it would reseal the identity of every retained score artifact for no information.
+    #[must_use]
+    pub const fn standing(self) -> SessionStanding {
+        match self {
+            Self::Bayesian | Self::JointBayesian => SessionStanding {
+                calibration: StandingInputDeclaration::Declared,
+                representation: REPRESENTATION_UNAVAILABLE,
+                coupling: StandingInputDeclaration::Declared,
+            },
+            Self::External | Self::Composite => SessionStanding {
+                calibration: StandingInputDeclaration::Undeclared {
+                    finding: "recalc.standing_undeclared.calibration_folded_into_decision",
+                    remedy: "declare the calibration of the provider's output where the \
+                             provider standing is declared; an existing previous state would \
+                             recompute its law once, visibly",
+                },
+                representation: REPRESENTATION_UNAVAILABLE,
+                coupling: StandingInputDeclaration::Undeclared {
+                    finding: "recalc.standing_undeclared.callback_metadata_establishes_no_coupling",
+                    remedy: "declare the coupling of the callback stream to the native stream \
+                             when a joint statement over both is requested",
+                },
+            },
+            Self::Receipt
+            | Self::Adjusted
+            | Self::Cell
+            | Self::Design
+            | Self::DoublyRobust
+            | Self::Static
+            | Self::Temporal => SessionStanding {
+                calibration: POINT_ONLY,
+                representation: REPRESENTATION_UNAVAILABLE,
+                coupling: NO_JOINT,
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod estimator_identity_tests {
     use super::{RecalcRequest, UtilitySpec};

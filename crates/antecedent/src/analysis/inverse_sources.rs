@@ -56,7 +56,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_contract::ScientificQuantity;
+use antecedent_contract::{ExternalRefusal, ScientificQuantity};
 use antecedent_core::ExecutionContext;
 use antecedent_io::cohort_decision::CohortDecisionSource;
 use antecedent_io::distribution_artifact::DistributionArtifact;
@@ -108,12 +108,195 @@ pub struct ComposedActionQuery {
     pub level_values: Vec<(String, f64)>,
 }
 
-fn composition_refusal(error: &MechanismCompositionRefusal) -> ForwardSourceRefusal {
+/// A composition refusal read as a replay mismatch: the artifact exported a
+/// moment ago did not consume to the same premises, so the origin is not the
+/// one the composition computed.
+fn replay_refusal(error: &MechanismCompositionRefusal) -> ForwardSourceRefusal {
     let detail =
         error.details().first().copied().unwrap_or("mechanism_composition.artifact_invalid");
     ForwardSourceRefusal::Artifact {
         code: error.code(),
-        text: format!("{detail}: the mechanism composition refused the action's query"),
+        text: format!("{detail}: the composition's exported query did not replay to its premises"),
+    }
+}
+
+/// Re-type an export failure the artifact layer reports only as replay text.
+///
+/// A query outside the composition's family or naming a variable it does not
+/// have is an unsupported request, and a failed solve is a numerical failure;
+/// neither is an invalid artifact. Coherence findings and every other typed
+/// refusal pass through unchanged.
+fn retype_export_refusal(
+    refusal: MechanismCompositionRefusal,
+    action: &str,
+) -> MechanismCompositionRefusal {
+    let [only] = refusal.refusals.as_slice() else {
+        return refusal;
+    };
+    if only.detail != "mechanism_composition.artifact_invalid" {
+        return refusal;
+    }
+    let text = only.offending.clone().unwrap_or_default();
+    if let Some(message) = text.strip_prefix("replay failed: unsupported: ") {
+        return MechanismCompositionRefusal {
+            refusals: vec![
+                ExternalRefusal::new(
+                    antecedent_core::reason_code!("route_not_supported"),
+                    "compose",
+                    "mechanism_composition.request_unsupported",
+                )
+                .with_offending(format!("action `{action}`: {message}"))
+                .with_remedy(
+                    "declare the action's query in the composition's own family (a mean \
+                     contrast or intervention law for linear-Gaussian mechanisms, a finite \
+                     intervention distribution for tabular ones) over variables the \
+                     composition has",
+                ),
+            ],
+        };
+    }
+    if let Some(message) = text.strip_prefix("replay failed: numerical error: ") {
+        return MechanismCompositionRefusal {
+            refusals: vec![
+                ExternalRefusal::new(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    "compose",
+                    "mechanism_composition.numerical_failure",
+                )
+                .with_offending(format!("action `{action}`: {message}"))
+                .with_remedy("the composition's numbers could not be solved for this query"),
+            ],
+        };
+    }
+    refusal
+}
+
+/// Why a composed forward source was refused, with the composition's own
+/// typed refusal kept intact.
+///
+/// A composition that cannot answer an action's query (a mean contrast
+/// without a declared joint law, a time-varying mechanism, an unsupported
+/// family, a finite query of a Gaussian composition) refuses with its own
+/// registered code, namespaced detail, offending subject and remedy. That
+/// refusal is carried here unchanged under
+/// [`ComposedSourceRefusal::Composition`]; the forward-source refusals
+/// (coding, family, transport receipt, replay mismatch) stay under
+/// [`ComposedSourceRefusal::Source`]. Only a replay that does not reproduce the
+/// exported premises reads as an invalid origin.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum ComposedSourceRefusal {
+    /// The composition refused one action's query.
+    Composition {
+        /// The action whose query was refused.
+        action_id: String,
+        /// The composition's refusal, every defect in checker order.
+        refusal: MechanismCompositionRefusal,
+    },
+    /// The forward-source adapter refused.
+    Source(ForwardSourceRefusal),
+}
+
+impl ComposedSourceRefusal {
+    /// Registered reason code of the refusal.
+    #[must_use]
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::Composition { refusal, .. } => refusal.code(),
+            Self::Source(source) => source.code(),
+        }
+    }
+
+    /// Namespaced detail of the first refusal.
+    #[must_use]
+    pub fn detail(&self) -> String {
+        match self {
+            Self::Composition { refusal, .. } => refusal
+                .refusals
+                .first()
+                .map_or_else(|| "mechanism_composition.artifact_invalid".to_owned(), |r| {
+                    r.detail.clone()
+                }),
+            Self::Source(source) => source.detail(),
+        }
+    }
+
+    /// Every structured refusal, in checker order. A source refusal is one.
+    #[must_use]
+    pub fn refusals(&self) -> Vec<ExternalRefusal> {
+        match self {
+            Self::Composition { refusal, .. } => refusal.refusals.clone(),
+            Self::Source(source) => vec![source.to_refusal()],
+        }
+    }
+
+    /// The first structured refusal, with its stated remedy where the route
+    /// has one.
+    #[must_use]
+    pub fn to_refusal(&self) -> ExternalRefusal {
+        match self {
+            Self::Composition { refusal, .. } => refusal.refusals.first().cloned().unwrap_or_else(
+                || {
+                    ExternalRefusal::new(
+                        refusal.code(),
+                        "inverse_forward_source",
+                        "mechanism_composition.artifact_invalid",
+                    )
+                },
+            ),
+            Self::Source(source) => source.to_refusal(),
+        }
+    }
+
+    /// The action whose query was refused, for a composition refusal.
+    #[must_use]
+    pub fn action_id(&self) -> Option<&str> {
+        match self {
+            Self::Composition { action_id, .. } => Some(action_id),
+            Self::Source(_) => None,
+        }
+    }
+
+    /// The refusal as the forward-source refusal type: a composition refusal
+    /// keeps its code and detail but its structured form is flattened. Use
+    /// [`Self::to_refusal`] to keep the offending subject and remedy.
+    #[must_use]
+    pub fn into_forward_source_refusal(self) -> ForwardSourceRefusal {
+        match self {
+            Self::Composition { refusal, .. } => {
+                let detail = refusal
+                    .details()
+                    .first()
+                    .copied()
+                    .unwrap_or("mechanism_composition.artifact_invalid");
+                ForwardSourceRefusal::Artifact {
+                    code: refusal.code(),
+                    text: format!(
+                        "{detail}: the mechanism composition refused the action's query"
+                    ),
+                }
+            }
+            Self::Source(source) => source,
+        }
+    }
+}
+
+impl std::fmt::Display for ComposedSourceRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Composition { action_id, refusal } => {
+                write!(f, "action `{action_id}`: {refusal}")
+            }
+            Self::Source(source) => write!(f, "{source}"),
+        }
+    }
+}
+
+impl std::error::Error for ComposedSourceRefusal {}
+
+impl From<ForwardSourceRefusal> for ComposedSourceRefusal {
+    fn from(value: ForwardSourceRefusal) -> Self {
+        Self::Source(value)
     }
 }
 
@@ -131,12 +314,12 @@ impl PreparedMechanismComposition {
     /// receipt of that carrying and is read only under `AcceptsTransported`; the
     /// origin then carries the receipt and its support label, never `supported`.
     ///
+    /// This is [`Self::inverse_forward_source_typed`] with a composition
+    /// refusal flattened into [`ForwardSourceRefusal::Artifact`]: the code and
+    /// the first detail survive, the offending subject and remedy do not.
+    ///
     /// # Errors
-    /// A composition refusal of any query (wrapped with its registered code), and
-    /// every refusal of [`composed_forward_source`]: no action, a repeated action
-    /// or coordinate, a query of another family than the composition, a mean
-    /// addressed by an outcome-law coordinate, a finite outcome whose levels are
-    /// not coded exactly once.
+    /// As [`Self::inverse_forward_source_typed`].
     pub fn inverse_forward_source(
         &self,
         actions: &[ComposedActionQuery],
@@ -144,11 +327,37 @@ impl PreparedMechanismComposition {
         accept: TransportedInputPolicy,
         ctx: &ExecutionContext,
     ) -> Result<LicensedForwardSource, ForwardSourceRefusal> {
+        self.inverse_forward_source_typed(actions, transport, accept, ctx)
+            .map_err(ComposedSourceRefusal::into_forward_source_refusal)
+    }
+
+    /// As [`Self::inverse_forward_source`], keeping the composition's own typed
+    /// refusal (registered code, namespaced detail, offending subject, expected
+    /// and supplied semantics, remedy) when it refuses an action's query.
+    ///
+    /// # Errors
+    /// [`ComposedSourceRefusal::Composition`] when the composition refuses an
+    /// action's query (a mean contrast without a declared joint law, a family
+    /// the composition does not execute, a query of another family, a
+    /// cancellation). [`ComposedSourceRefusal::Source`] for a replay that does
+    /// not reproduce the exported premises (an invalid origin) and for every
+    /// refusal of [`composed_forward_source_accepting`]: no action, a repeated
+    /// action or coordinate, a mean addressed by an outcome-law coordinate, a
+    /// finite outcome whose levels are not coded exactly once, an admitted
+    /// composition without its transport receipt, a transported claim under
+    /// `NativeTargetOnly`.
+    pub fn inverse_forward_source_typed(
+        &self,
+        actions: &[ComposedActionQuery],
+        transport: Option<TransportReceipt>,
+        accept: TransportedInputPolicy,
+        ctx: &ExecutionContext,
+    ) -> Result<LicensedForwardSource, ComposedSourceRefusal> {
         if transport.is_none() && !self.admitted_variables().is_empty() {
-            return Err(ForwardSourceRefusal::ComposedInvalid(
+            return Err(ComposedSourceRefusal::Source(ForwardSourceRefusal::ComposedInvalid(
                 "a composition with mechanisms admitted from another context carries the \
                  transport receipt of that carrying",
-            ));
+            )));
         }
         let family = if self.family() == MechanismFamily::LinearGaussian {
             ComposedFamily::LinearGaussian
@@ -157,14 +366,18 @@ impl PreparedMechanismComposition {
         };
         let mut responses = Vec::with_capacity(actions.len());
         for action in actions {
-            let export =
-                self.export(action.query.clone(), ctx).map_err(|e| composition_refusal(&e))?;
+            let export = self.export(action.query.clone(), ctx).map_err(|refusal| {
+                ComposedSourceRefusal::Composition {
+                    action_id: action.action_id.clone(),
+                    refusal: retype_export_refusal(refusal, &action.action_id),
+                }
+            })?;
             let consumed = consume_mechanism_composition_artifact(
                 &export.bytes,
                 Some(&export.premises_digest),
                 ctx,
             )
-            .map_err(|e| composition_refusal(&e))?;
+            .map_err(|e| ComposedSourceRefusal::Source(replay_refusal(&e)))?;
             responses.push(ComposedActionResponse {
                 action_id: action.action_id.clone(),
                 coordinate: action.coordinate.clone(),
@@ -180,7 +393,7 @@ impl PreparedMechanismComposition {
             transport,
             actions: responses,
         };
-        composed_forward_source_accepting(&response, accept)
+        composed_forward_source_accepting(&response, accept).map_err(ComposedSourceRefusal::Source)
     }
 }
 

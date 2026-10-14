@@ -47,7 +47,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use antecedent_contract::ExternalRefusal;
+use antecedent_contract::{ExternalRefusal, ProviderTrust};
 use antecedent_core::{CanonicalWriter, SemanticDigest, StateVersion, SupportStatus};
 use antecedent_state::{InvalidationLog, InvalidationTarget};
 
@@ -57,14 +57,16 @@ pub use antecedent_contract::transport_revalidation::{
     TransportRevalidation, TransportScene, revalidate_transport, transport_coordinate,
 };
 
-use antecedent_design::decision_transported_source::{TransportedResponse, TransportedValue};
+use antecedent_design::decision_transported_source::{
+    TransportedResponse, TransportedRoute, TransportedValue,
+};
 use antecedent_design::inverse_forward_source::forward_claim_digest;
 use antecedent_design::inverse_query::ForwardClaim;
 
 use super::composition_verification::{
-    CalibrationState, CompositionVerification, CompositionVerificationRefusal, GraphError,
-    ObservedEffect, PriorAuthority, Revalidation, SupportStanding, TrustStanding,
-    invalidation_effects,
+    CalibrationDeclaration, CalibrationState, ClaimStanding, CompositionNode,
+    CompositionVerification, CompositionVerificationRefusal, GraphError, NodeKind, ObservedEffect,
+    PriorAuthority, Revalidation, SupportStanding, TrustStanding, invalidation_effects,
 };
 
 const TAG_CLAIM: &str = "antecedent.transport_revalidation.facade.claim";
@@ -72,6 +74,7 @@ const TAG_QUANTITY: &str = "antecedent.transport_revalidation.facade.quantity";
 const TAG_STRUCTURE: &str = "antecedent.transport_revalidation.facade.structure";
 const TAG_DIAGRAM: &str = "antecedent.transport_revalidation.facade.diagram";
 const TAG_TARGET: &str = "antecedent.transport_revalidation.facade.target";
+const TAG_NODE_TARGET: &str = "antecedent.transport_revalidation.facade.node_target";
 
 /// Detail: the scene's graph does not build.
 pub const DETAIL_SCENE_INVALID: &str = "transport_revalidation.scene_invalid";
@@ -85,6 +88,8 @@ pub const DETAIL_DUPLICATE_CLAIM: &str = "transport_revalidation.duplicate_claim
 pub const DETAIL_UNKNOWN_CLAIM: &str = "transport_revalidation.unknown_claim";
 /// Detail: the claim's value digest could not be formed.
 pub const DETAIL_VALUE_DIGEST: &str = "transport_revalidation.value_digest";
+/// Detail: a provider trust level was given for a claim of a native route.
+pub const DETAIL_TRUST_NOT_APPLICABLE: &str = "transport_revalidation.provider_trust_not_applicable";
 
 /// One refusal as plain data.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -159,6 +164,158 @@ pub fn source_node_key(population: &str) -> String {
 pub const TARGET_NODE_KEY: &str = "target_population";
 /// The graph key of the selection diagram.
 pub const DIAGRAM_NODE_KEY: &str = "selection_diagram";
+
+/// The trust standing a response's provenance states.
+///
+/// A response built by one of the library's own transport routes (a cohort
+/// effect, a policy, a period shift, an adaptive trial, a synthesis, a
+/// mechanism, a surrogate bridge) rests on no provider: trust is
+/// [`TrustStanding::NotApplicable`]. A response whose route is
+/// [`TransportedRoute::Declared`] is another party's claim: its trust is the
+/// verification level of the provider that supplied it
+/// ([`TrustStanding::of_provider`]), and a declared response with no stated
+/// level is [`TrustStanding::Undeclared`], which withdraws the claim for
+/// provider trust until it is stated.
+///
+/// # Errors
+/// `transport_revalidation.provider_trust_not_applicable` for a provider level
+/// given to a claim of a native route: such a claim has no provider whose trust
+/// could be held or withdrawn.
+pub fn provenance_trust(
+    route: TransportedRoute,
+    provider: Option<ProviderTrust>,
+) -> Result<TrustStanding, TransportRevalidationRefusal> {
+    match (route, provider) {
+        (TransportedRoute::Declared, Some(level)) => Ok(TrustStanding::of_provider(level)),
+        (TransportedRoute::Declared, None) => Ok(TrustStanding::Undeclared),
+        (_, None) => Ok(TrustStanding::NotApplicable),
+        (route, Some(_)) => Err(TransportRevalidationRefusal::new(
+            antecedent_core::reason_code!("invalid_argument"),
+            DETAIL_TRUST_NOT_APPLICABLE,
+            format!(
+                "a `{}` claim is computed by the library and rests on no provider, so no \
+                 provider trust level applies",
+                route.as_str()
+            ),
+            "state a provider trust level only for a declared route; a library route carries no \
+             provider trust",
+        )),
+    }
+}
+
+/// Whether a response's own coordinates lie inside the support its label states:
+/// a label stronger than `extrapolative` names the response's coordinates as
+/// unsupported. The label itself (`extrapolative`) travels in the receipt and in
+/// the claim's identity.
+#[must_use]
+pub fn response_support(response: &TransportedResponse) -> SupportStanding {
+    let receipt = response.receipt();
+    match receipt.support_status() {
+        Some(status) if status.severity() > SupportStatus::Extrapolative.severity() => {
+            let mut names: Vec<String> =
+                response.coordinates().iter().map(|c| c.variable_id.clone()).collect();
+            names.sort_unstable();
+            names.dedup();
+            SupportStanding::Unsupported { coordinates: names }
+        }
+        _ => SupportStanding::Supported,
+    }
+}
+
+/// Identity of the claim (receipt and value) and of the quantity it answers.
+fn claim_digests(
+    response: &TransportedResponse,
+) -> Result<(SemanticDigest, SemanticDigest), TransportRevalidationRefusal> {
+    let receipt = response.receipt();
+    let claim_value = match response.value() {
+        TransportedValue::Means(mean) => ForwardClaim::Means(mean.clone()),
+        TransportedValue::Law(law) => ForwardClaim::Law(Box::new(law.clone())),
+    };
+    let value_digest = forward_claim_digest(&claim_value).map_err(|error| {
+        TransportRevalidationRefusal::new(
+            antecedent_core::reason_code!("invalid_argument"),
+            DETAIL_VALUE_DIGEST,
+            error.to_string(),
+            "supply a value whose metadata encodes",
+        )
+    })?;
+    let mut identity = CanonicalWriter::new(TAG_CLAIM);
+    identity.text(&receipt.canonical_identity()).text(&value_digest);
+    let mut quantity = CanonicalWriter::new(TAG_QUANTITY);
+    let coordinates = response.coordinates();
+    quantity.word(coordinates.len() as u64);
+    for coordinate in &coordinates {
+        coordinate.write_canonical(&mut quantity);
+    }
+    Ok((digest_of(&identity), digest_of(&quantity)))
+}
+
+/// The coordinate a transported response is evaluated at when it stands alone
+/// (outside a scene): its target population and the quantity it answers. A
+/// calibration record established for exactly this response at this target is
+/// declared with this coordinate ([`CalibrationDeclaration::Held`]).
+///
+/// # Errors
+/// A value whose metadata does not encode.
+pub fn response_coordinate(
+    response: &TransportedResponse,
+) -> Result<SemanticDigest, TransportRevalidationRefusal> {
+    let (_, quantity) = claim_digests(response)?;
+    let mut target = CanonicalWriter::new(TAG_NODE_TARGET);
+    target.text(&response.receipt().target_population);
+    Ok(transport_coordinate(digest_of(&target), quantity))
+}
+
+/// The standing of a transported response as a claim: its support follows the
+/// receipt's label, its trust follows its provenance ([`provenance_trust`]), and
+/// its uncertainty guarantee is the one declared. A transported value is a point
+/// or a transported law with no calibration record of its own, so the caller
+/// states [`CalibrationDeclaration::PointOnly`] unless a record established at
+/// exactly this target and quantity is declared.
+///
+/// # Errors
+/// As [`provenance_trust`].
+pub fn transported_claim_standing(
+    response: &TransportedResponse,
+    calibration: CalibrationDeclaration,
+    provider: Option<ProviderTrust>,
+) -> Result<ClaimStanding, TransportRevalidationRefusal> {
+    let trust = provenance_trust(response.receipt().route, provider)?;
+    let mut standing = ClaimStanding::native_point().with_calibration(calibration);
+    standing.trust = trust;
+    standing.support = response_support(response);
+    Ok(standing)
+}
+
+/// A composition-verification node for a transported response, carrying its
+/// standing: identity from the receipt and the value, structure from the
+/// receipt's selection-diagram identities, the evaluation coordinate
+/// ([`response_coordinate`]), the receipt's assumptions and the evidence-source
+/// populations named in them.
+///
+/// # Errors
+/// As [`transported_claim_standing`], and a value whose metadata does not encode.
+pub fn transported_claim_node(
+    key: &str,
+    response: &TransportedResponse,
+    calibration: CalibrationDeclaration,
+    provider: Option<ProviderTrust>,
+) -> Result<CompositionNode, TransportRevalidationRefusal> {
+    let standing = transported_claim_standing(response, calibration, provider)?;
+    let (identity, _) = claim_digests(response)?;
+    let receipt = response.receipt();
+    let mut diagrams = receipt.transport_identities.clone();
+    diagrams.sort_unstable();
+    diagrams.dedup();
+    let mut structure = CanonicalWriter::new(TAG_STRUCTURE);
+    structure.texts(&diagrams);
+    Ok(CompositionNode::new(key, NodeKind::TransportedResult, identity)
+        .with_structure(digest_of(&structure))
+        .with_coordinate(response_coordinate(response)?)
+        .with_standing(standing)
+        .with_assumptions(receipt.assumptions.clone())
+        .with_transformation(receipt.route.as_str()))
+}
 
 /// Declares a [`TransportScene`] from transported responses.
 #[derive(Clone, Debug)]
@@ -256,61 +413,54 @@ impl TransportSceneBuilder {
             ));
             return self;
         }
-        let claim_value = match response.value() {
-            TransportedValue::Means(mean) => ForwardClaim::Means(mean.clone()),
-            TransportedValue::Law(law) => ForwardClaim::Law(Box::new(law.clone())),
-        };
-        let value_digest = match forward_claim_digest(&claim_value) {
-            Ok(digest) => digest,
-            Err(error) => {
-                self.refusal = Some(TransportRevalidationRefusal::new(
-                    antecedent_core::reason_code!("invalid_argument"),
-                    DETAIL_VALUE_DIGEST,
-                    error.to_string(),
-                    "supply a value whose metadata encodes",
-                ));
+        let (identity, quantity) = match claim_digests(response) {
+            Ok(digests) => digests,
+            Err(refusal) => {
+                self.refusal = Some(refusal);
                 return self;
             }
         };
-        let mut identity = CanonicalWriter::new(TAG_CLAIM);
-        identity.text(&receipt.canonical_identity()).text(&value_digest);
-        let mut quantity = CanonicalWriter::new(TAG_QUANTITY);
-        let coordinates = response.coordinates();
-        quantity.word(coordinates.len() as u64);
-        for coordinate in &coordinates {
-            coordinate.write_canonical(&mut quantity);
-        }
         let mut sorted_diagrams = receipt.transport_identities.clone();
         sorted_diagrams.sort_unstable();
         sorted_diagrams.dedup();
         let mut structure = CanonicalWriter::new(TAG_STRUCTURE);
         structure.texts(&sorted_diagrams);
         self.diagrams.extend(sorted_diagrams);
-        let mut claim = SceneClaim::new(
-            key,
-            SceneClaimKind::Transported,
-            digest_of(&identity),
-            digest_of(&quantity),
-        );
+        let mut claim = SceneClaim::new(key, SceneClaimKind::Transported, identity, quantity);
         claim.structure = Some(digest_of(&structure));
         claim.sources = receipt.source_populations.clone();
         claim.trust = trust;
         claim.calibration = calibration;
-        if let Some(status) = receipt.support_status() {
-            if status.severity() > SupportStatus::Extrapolative.severity() {
-                claim.support = SupportStanding::Unsupported {
-                    coordinates: {
-                        let mut names: Vec<String> =
-                            coordinates.iter().map(|c| c.variable_id.clone()).collect();
-                        names.sort_unstable();
-                        names.dedup();
-                        names
-                    },
-                };
-            }
-        }
+        claim.support = response_support(response);
         self.claims.push(claim);
         self
+    }
+
+    /// Add a transported claim whose trust standing is read from its
+    /// provenance ([`provenance_trust`]) instead of being typed by the caller.
+    ///
+    /// A claim of a library route is `NotApplicable`; a declared claim carries the
+    /// verification level of its provider (`provider`), and a declared claim with
+    /// no stated level is `Undeclared`, which withdraws it for provider trust
+    /// until the level is stated.
+    #[must_use]
+    pub fn transported_claim(
+        mut self,
+        key: impl Into<String>,
+        response: &TransportedResponse,
+        calibration: SceneCalibration,
+        provider: Option<ProviderTrust>,
+    ) -> Self {
+        if self.refusal.is_some() {
+            return self;
+        }
+        match provenance_trust(response.receipt().route, provider) {
+            Ok(trust) => self.transported(key, response, calibration, trust),
+            Err(refusal) => {
+                self.refusal = Some(refusal);
+                self
+            }
+        }
     }
 
     /// Add a decision resting on claims of the scene.

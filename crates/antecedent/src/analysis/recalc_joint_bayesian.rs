@@ -286,6 +286,17 @@ impl JointBayesianRequest {
         );
         ids.set(Stage::Utility, super::recalc_cell::utility_identity(self.utility));
         ids.set(Stage::Decision, literal("joint.decision.v1", "candidate.expected_net_benefit"));
+        // The projection states an uncertainty claim with no calibration record, and its draws
+        // are rows of one aligned joint posterior over the sources: the alignment is the draw
+        // count, the seed and the source units it was drawn for.
+        ids.set_calibration(&antecedent_core::recalc::CalibrationInput::Unmeasured);
+        ids.set_coupling(&antecedent_core::recalc::CouplingInput::AlignedJoint {
+            alignment: Fields::new()
+                .texts(&self.sources.iter().map(|source| source.id.as_str()).collect::<Vec<_>>())
+                .len(self.options.draws)
+                .word(self.options.seed)
+                .identity("joint.coupling.v1"),
+        });
         ids
     }
 }

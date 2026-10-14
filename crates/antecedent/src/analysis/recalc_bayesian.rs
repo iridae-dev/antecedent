@@ -443,6 +443,12 @@ impl BayesianRequest {
         );
         ids.set(Stage::Utility, super::recalc_cell::utility_identity(self.utility));
         ids.set(Stage::Decision, literal("bayesian.decision.v1", "net_benefit.posterior_mean"));
+        // The posterior probabilities and quantiles state an uncertainty claim for which no
+        // calibration record exists (the whole method has not been measured), and the single
+        // posterior forms no joint statement with another stream. Both are declared, so a
+        // record appearing later is a visible change of the law and the decision.
+        ids.set_calibration(&antecedent_core::recalc::CalibrationInput::Unmeasured);
+        ids.set_coupling(&antecedent_core::recalc::CouplingInput::None);
         ids
     }
 }

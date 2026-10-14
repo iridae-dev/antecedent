@@ -64,6 +64,9 @@ pub use antecedent_learn::transported_effect::{
     TransportedInference, TransportedRequest, assess_overlap, transport_cohort_effect,
 };
 
+use super::composition_verification::{
+    ClaimStanding, CompositionNode, library_transported_node, library_transported_standing,
+};
 use super::cohort_decision::{
     CohortBinding, CohortColumn, CohortDecisionSource, CohortOptions, CohortRefusal,
     CovariateShiftDeclaration, FittedEffectModel,
@@ -206,6 +209,32 @@ impl TransportedCohort {
             inference: self.effect.inference(),
             assumptions: self.effect.assumptions(),
         }
+    }
+
+    /// The standing this value states as a claim in a composition graph: a point
+    /// computed by the library under a declared premise, so no provider trust
+    /// and no calibration record (an interval, band or posterior is refused), and
+    /// support `extrapolative` ([`COHORT_TRANSPORT_SUPPORT`]), which is the
+    /// strongest a carried value states.
+    #[must_use]
+    pub fn claim_standing(&self) -> ClaimStanding {
+        library_transported_standing(COHORT_TRANSPORT_SUPPORT, &[])
+    }
+
+    /// The composition-graph node of this value under `key`, carrying
+    /// [`Self::claim_standing`]. Its identity is the transported value's own
+    /// identity, so a changed model, cohort, weight, declaration or population
+    /// recomputes it.
+    #[must_use]
+    pub fn composition_node(&self, key: &str) -> CompositionNode {
+        library_transported_node(
+            key,
+            COHORT_TRANSPORT_ROUTE,
+            self.effect.identity(),
+            self.cohort.population_id(),
+            COHORT_TRANSPORT_SUPPORT,
+            self.effect.assumptions(),
+        )
     }
 
     /// The refusal for an interval, band or posterior of the transported mean.

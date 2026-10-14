@@ -67,6 +67,10 @@ pub use antecedent_estimate::measurement_transport::{
 };
 
 use super::StudyBuilder;
+use super::composition_verification::{
+    ClaimStanding, CompositionNode, NodeKind, TrustStanding, library_transported_node,
+    library_transported_standing,
+};
 use super::measurement_model::{
     MeasurementAnalysisBinding, MeasurementEstimate, MeasurementInput, MeasurementModelRefusal,
 };
@@ -230,6 +234,54 @@ impl TransportedMeasurementEstimate {
     #[must_use]
     pub fn assumptions(&self) -> Vec<String> {
         self.receipt.assumptions()
+    }
+
+    /// The standing this corrected functional states as a claim in a composition
+    /// graph.
+    ///
+    /// A corrected value is a point with an uncalibrated standard error at most:
+    /// the interval route is closed ([`Self::interval`]), so no calibration
+    /// record is claimed. Trust follows the provenance of the route: a
+    /// model-based route rests on no provider (not applicable); an external
+    /// latent posterior rests on its provider at the trust it was admitted at
+    /// (an exact-request verification, or the supplier's attestation), and one
+    /// with no stated trust is undeclared. Support is `extrapolative` when a
+    /// parameter was carried from another population ([`Self::carried`]) and
+    /// supported otherwise.
+    #[must_use]
+    pub fn claim_standing(&self) -> ClaimStanding {
+        let mut standing = if self.carried() {
+            library_transported_standing("extrapolative", &[])
+        } else {
+            ClaimStanding::native_point()
+        };
+        standing.trust = match (self.route(), self.provider_trust()) {
+            (MeasurementRoute::ExternalLatentPosterior, Some(_)) => TrustStanding::Held,
+            (MeasurementRoute::ExternalLatentPosterior, None) => TrustStanding::Undeclared,
+            _ => TrustStanding::NotApplicable,
+        };
+        standing
+    }
+
+    /// The composition-graph node of this corrected functional under `key`,
+    /// carrying [`Self::claim_standing`]. Its identity binds the transport
+    /// receipt, the route and the corrected point, so a changed source model,
+    /// declaration, binding or value recomputes it.
+    #[must_use]
+    pub fn composition_node(&self, key: &str) -> CompositionNode {
+        let route = self.route().as_str();
+        let identity = format!("{}:{}", self.identity_hex(), self.point().to_bits());
+        let node = library_transported_node(
+            key,
+            route,
+            &identity,
+            &self.receipt.target_population,
+            if self.carried() { "extrapolative" } else { "supported" },
+            self.assumptions(),
+        );
+        let kind =
+            if self.carried() { NodeKind::TransportedResult } else { NodeKind::MeasurementModel };
+        CompositionNode { kind, ..node }.with_standing(self.claim_standing())
     }
 
     /// The corrected functional record.

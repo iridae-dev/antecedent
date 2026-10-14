@@ -406,6 +406,34 @@ impl TransportedMechanismComposition {
         self.inner.identity_hex()
     }
 
+    /// The standing this composition states as a claim in a composition graph:
+    /// built from mechanisms the library composed, so no provider trust; the
+    /// interval route is closed ([`Self::interval`]), so no calibration record is
+    /// claimed; support `extrapolative` ([`MECHANISM_TRANSPORT_SUPPORT`]).
+    #[must_use]
+    pub fn claim_standing(&self) -> super::composition_verification::ClaimStanding {
+        super::composition_verification::library_transported_standing(
+            MECHANISM_TRANSPORT_SUPPORT,
+            &[],
+        )
+    }
+
+    /// The composition-graph node of this transported composition under `key`,
+    /// carrying [`Self::claim_standing`]. Its identity is the composition's own
+    /// identity, so a changed source mechanism, selection diagram, refit or
+    /// invariance recomputes it.
+    #[must_use]
+    pub fn composition_node(&self, key: &str) -> super::composition_verification::CompositionNode {
+        super::composition_verification::library_transported_node(
+            key,
+            MECHANISM_TRANSPORT_ROUTE,
+            &self.identity_hex(),
+            &self.receipt.target_population,
+            MECHANISM_TRANSPORT_SUPPORT,
+            Vec::new(),
+        )
+    }
+
     /// Every component, sorted by variable.
     #[must_use]
     pub fn dispositions(&self) -> &[MechanismDisposition] {

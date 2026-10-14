@@ -68,7 +68,8 @@ use antecedent_contract::claim::{ClaimEnvelope, ClaimFreshness};
 use antecedent_contract::evidence_ledger::{EvidenceLedger, ResultId};
 use antecedent_core::recalc::{RecalcPlan, Stage};
 use antecedent_core::{
-    CancellationToken, ContractIdentities, QueryId, SemanticDigest, StateVersion,
+    CancellationToken, CanonicalWriter, ContractIdentities, QueryId, SemanticDigest, StateVersion,
+    SupportStatus,
 };
 use antecedent_io::IoError;
 use antecedent_io::composition_verification_artifact::{
@@ -182,6 +183,68 @@ impl CompositionVerificationRefusal {
             },
         }
     }
+}
+
+/// The standing of a claim one of the library's own transport routes carried to
+/// another population.
+///
+/// The claim rests on no provider (trust not applicable) and states a point:
+/// no interval, posterior or calibration record is claimed, so a moved
+/// calibration input cannot be mistaken for a held one. Its support follows the
+/// route's label: `extrapolative` is the strongest a carried claim states and
+/// reads as supported coordinates (the label itself travels in the claim's
+/// identity); a label stronger than that, or one that is not a support label,
+/// names the claim's coordinates as unsupported.
+#[must_use]
+pub fn library_transported_standing(support_label: &str, coordinates: &[String]) -> ClaimStanding {
+    let standing = ClaimStanding::native_point();
+    match SupportStatus::from_name(support_label) {
+        Some(status) if status.severity() <= SupportStatus::Extrapolative.severity() => standing,
+        _ => {
+            let mut names: Vec<String> = coordinates.to_vec();
+            names.sort_unstable();
+            names.dedup();
+            if names.is_empty() {
+                names.push("support_label".to_owned());
+            }
+            standing.with_unsupported(names)
+        }
+    }
+}
+
+/// The node of a claim a library transport route issued: kind
+/// `transported_result`, identity bound to the route and the route's own
+/// identity text, coordinate bound to the target population and the route, the
+/// route's assumptions, and the standing of
+/// [`library_transported_standing`].
+///
+/// The identity moves exactly when the route's own identity moves, so a changed
+/// source model, cohort, declaration or population recomputes the node; the
+/// standing is stated, so a calibration record declared on the node later is
+/// checked at this coordinate.
+#[must_use]
+pub fn library_transported_node(
+    key: &str,
+    route: &str,
+    route_identity: &str,
+    target_population: &str,
+    support_label: &str,
+    assumptions: Vec<String>,
+) -> CompositionNode {
+    let mut identity = CanonicalWriter::new("antecedent.composition_verification.library_transport");
+    identity.text(route).text(route_identity);
+    let mut coordinate =
+        CanonicalWriter::new("antecedent.composition_verification.library_transport_coordinate");
+    coordinate.text(route).text(target_population);
+    CompositionNode::new(
+        key,
+        NodeKind::TransportedResult,
+        SemanticDigest::from_bytes(identity.finish()),
+    )
+    .with_coordinate(SemanticDigest::from_bytes(coordinate.finish()))
+    .with_standing(library_transported_standing(support_label, &[]))
+    .with_assumptions(assumptions)
+    .with_transformation(route)
 }
 
 /// A node whose content identity is the effective identity the plan assigned

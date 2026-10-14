@@ -93,6 +93,11 @@ use antecedent_design::transported_synthesis::{
     synthesize_transported, synthesize_transported_in_population,
 };
 
+use super::composition_verification::{CalibrationDeclaration, ClaimStanding, CompositionNode};
+use super::transport_revalidation::{
+    TransportRevalidationRefusal, transported_claim_node, transported_claim_standing,
+};
+
 /// The stage a constructor refusal is reported under.
 const STAGE: &str = "bind";
 
@@ -109,6 +114,39 @@ pub struct TransportedConstruction<E> {
 pub use antecedent_design::decision_transported_source::{
     AdaptiveTransportedValue, period_population_label,
 };
+
+impl<E> TransportedConstruction<E> {
+    /// The standing this response states as a claim in a composition graph.
+    ///
+    /// The route is one of the library's own, so the claim rests on no provider
+    /// (trust not applicable); its support follows the receipt's label; its
+    /// uncertainty guarantee is `calibration`, which is
+    /// [`CalibrationDeclaration::PointOnly`] unless a record established at
+    /// exactly this target and quantity is declared. A record established at
+    /// another target is withdrawn by revalidation, never inherited.
+    ///
+    /// # Errors
+    /// A value whose metadata does not encode.
+    pub fn claim_standing(
+        &self,
+        calibration: CalibrationDeclaration,
+    ) -> Result<ClaimStanding, TransportRevalidationRefusal> {
+        transported_claim_standing(&self.response, calibration, None)
+    }
+
+    /// The composition-graph node of this response under `key`, carrying
+    /// [`Self::claim_standing`].
+    ///
+    /// # Errors
+    /// A value whose metadata does not encode.
+    pub fn composition_node(
+        &self,
+        key: &str,
+        calibration: CalibrationDeclaration,
+    ) -> Result<CompositionNode, TransportRevalidationRefusal> {
+        transported_claim_node(key, &self.response, calibration, None)
+    }
+}
 
 fn sequential(error: &SequentialEvaluationError) -> ExternalRefusal {
     error.to_refusal()
