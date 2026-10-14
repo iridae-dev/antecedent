@@ -540,6 +540,12 @@ impl CallbackSession {
                     if let CallbackOutcome::Computed { output, state_identity, .. } =
                         &self.history[index].outcome
                     {
+                        // A cached output was checked against the policy of
+                        // its original execution. The current caller may
+                        // impose a tighter bound, which reuse must respect.
+                        if output.output().value_count() > policy.max_output_values {
+                            return Err(fail(refusal::output_too_large(policy.max_output_values)));
+                        }
                         return Ok(CallbackExecution {
                             output: output.clone(),
                             invocations: 0,
@@ -560,6 +566,9 @@ impl CallbackSession {
         Self::guard_effects(declaration, request, policy, attempts).map_err(fail)?;
         if policy.max_invocations == 0 {
             return Err(fail(refusal::invocation_limit(0)));
+        }
+        if attempts == u64::MAX {
+            return Err(fail(refusal::invocation_limit(u64::MAX)));
         }
         if ctx.cancellation.is_cancelled() {
             return Err(fail(refusal::cancelled("before_invocation")));
@@ -773,7 +782,10 @@ impl CallbackSession {
         let slot = slot_of(&record.declaration, &record.request);
         let request_hex = record.request.identity(&record.declaration).to_hex();
         if let CallbackOutcome::Computed { invocations, .. } = &record.outcome {
-            self.attempts.entry(request_hex).or_insert(*invocations);
+            self.attempts
+                .entry(request_hex)
+                .and_modify(|attempts| *attempts = (*attempts).max(*invocations))
+                .or_insert(*invocations);
         }
         let imported_computed = matches!(record.outcome, CallbackOutcome::Computed { .. });
         self.history.push(record.clone());

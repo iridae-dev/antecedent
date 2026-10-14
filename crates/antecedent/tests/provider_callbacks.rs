@@ -404,6 +404,28 @@ fn deterministic_replay_reuses_without_invoking_until_a_dependency_changes() {
 }
 
 #[test]
+fn cached_callback_outputs_respect_the_current_output_limit() {
+    let calls = Rc::new(Cell::new(0));
+    let mut provider = gaussian_provider("1.0", MU, Rc::clone(&calls));
+    let declaration = seeded();
+    let request = CallbackRequest::new(CallbackQuery::Sample { draws: 5 }, 0);
+    let mut session = CallbackSession::new();
+    run(&mut session, &mut provider, &declaration, &request).expect("initial sample");
+    let policy =
+        CallbackExecutionPolicy { max_output_values: 3, ..CallbackExecutionPolicy::default() };
+    let refused = session
+        .execute(&mut provider, &declaration, &request, &no_inputs(), &policy, &ctx())
+        .expect_err("cached sample exceeds the new bound");
+    assert_eq!(refused.refusal.detail, "callback_protocol.output_too_large");
+    assert_eq!(refused.invocations, 0);
+    assert_eq!(calls.get(), 1, "refusal must neither recompute nor invoke the provider");
+    assert_eq!(session.history().len(), 1);
+    let reused = run(&mut session, &mut provider, &declaration, &request).expect("original bound");
+    assert!(reused.reused, "the refused read does not invalidate the stored sample");
+    assert_eq!(calls.get(), 1);
+}
+
+#[test]
 fn a_changed_inner_callback_invalidates_the_dependent_results() {
     let calls = Rc::new(Cell::new(0));
     let mut inner_provider = gaussian_provider("1.0", MU, Rc::clone(&calls));
@@ -783,6 +805,63 @@ fn failure_cancellation_and_limits_are_typed_and_counted() {
 }
 
 // -- side effects -----------------------------------------------------------------------------------
+
+#[test]
+fn importing_a_callback_record_never_lowers_the_known_attempt_count() {
+    let mut declaration = pure();
+    // Opaque dependencies require recomputation. The invocation must be
+    // counted after the largest known attempt number from either history.
+    declaration.dependencies = DependencyDeclaration::Opaque;
+    let request = CallbackRequest::new(CallbackQuery::Mean, 0);
+    let policy = CallbackExecutionPolicy::default();
+    let mut provider =
+        FnCallback::new(identity("1.0"), |_, _| Ok(CallbackOutput::Mean { value: MU }));
+    let mut session = CallbackSession::new();
+    session
+        .execute(&mut provider, &declaration, &request, &no_inputs(), &policy, &ctx())
+        .expect("one local attempt");
+    let mut imported = session.history()[0].clone();
+    if let CallbackOutcome::Computed { invocations, .. } = &mut imported.outcome {
+        *invocations = 3;
+    }
+    let bytes = export_callback_result(&imported, "exhausted").expect("portable history");
+    let resumed = session
+        .resume(&bytes, None, Some(&mut provider), &no_inputs(), &policy, &ctx())
+        .expect("recompute after the imported history");
+    assert!(matches!(resumed, CallbackResume::Answered(_)));
+    assert_eq!(session.request_attempts(&request.identity(&declaration).to_hex()), 4);
+    assert_eq!(session.invocations(), 2);
+}
+
+#[test]
+fn an_imported_attempt_count_cannot_overflow_during_recomputation() {
+    let mut declaration = pure();
+    declaration.dependencies = DependencyDeclaration::Opaque;
+    let request = CallbackRequest::new(CallbackQuery::Mean, 0);
+    let mut provider =
+        FnCallback::new(identity("1.0"), |_, _| Ok(CallbackOutput::Mean { value: MU }));
+    let mut session = CallbackSession::new();
+    run(&mut session, &mut provider, &declaration, &request).expect("local record");
+    let mut imported = session.history()[0].clone();
+    if let CallbackOutcome::Computed { invocations, .. } = &mut imported.outcome {
+        *invocations = u64::MAX;
+    }
+    let bytes = export_callback_result(&imported, "max-attempts").expect("portable history");
+    let refused = session
+        .resume(
+            &bytes,
+            None,
+            Some(&mut provider),
+            &no_inputs(),
+            &CallbackExecutionPolicy::default(),
+            &ctx(),
+        )
+        .expect_err("the next invocation cannot be counted");
+    assert_eq!(refused.refusal.detail, "callback_protocol.invocation_limit");
+    assert_eq!(refused.invocations, 0);
+    assert_eq!(refused.request_attempts, u64::MAX);
+    assert_eq!(session.invocations(), 1);
+}
 
 #[test]
 fn a_side_effecting_callback_is_never_invoked_outside_execution_or_retried_outside_its_policy() {
