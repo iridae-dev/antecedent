@@ -57,13 +57,15 @@ mod refusal;
 
 pub use composition::{
     ComponentConnection, ComposedInterfaces, MAX_COMPOSITION_COMPONENTS,
-    MAX_COMPOSITION_CONNECTIONS, check_composition,
+    MAX_COMPOSITION_CONNECTIONS, check_composition, check_composition_with_ledger,
+    disjoint_requirements_without_ledger,
 };
 pub use connection::{Connection, check_connection};
 pub use declaration::{
     CalibrationRequirement, CalibrationStatus, ConsumedPort, ContractOperation,
     DependenceRequirement, EvidenceBasis, INTERFACE_CONTRACT_VERSION, InterfaceContract,
-    MAX_INTERFACE_PORTS, MAX_INTERFACE_TEXT_BYTES, MAX_PORT_SET_ITEMS, ProducedPort, SupportDomain,
+    MAX_INTERFACE_PORTS, MAX_INTERFACE_TEXT_BYTES, MAX_PORT_SET_ITEMS, PortFacts, ProducedPort,
+    SupportDomain,
     UncertaintyMeaning, UncertaintyParadigm, operations_of_capabilities,
 };
 pub use refusal::InterfaceRefusal;

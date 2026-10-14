@@ -227,6 +227,51 @@ pub fn request_mismatch(detail: &str) -> CallbackRefusal {
     .with_remedy("supply every declared input, once, and a query of a declared operation")
 }
 
+/// A nested input's callback is not registered in the evidence ledger, so its
+/// overlap with the other inputs cannot be computed.
+#[must_use]
+pub fn nested_input_unregistered(input: &str) -> CallbackRefusal {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("sampling_dependence_unknown"),
+        STAGE_NEGOTIATE,
+        "callback_protocol.nested_input_unregistered",
+    )
+    .with_offending(input)
+    .with_remedy(
+        "register the inner callback and its evidence in the session's evidence ledger before executing a callback that combines it with another callback's output",
+    )
+}
+
+/// Two nested inputs rest on observations in common, so combining them counts
+/// the same evidence twice.
+#[must_use]
+pub fn nested_inputs_share_evidence(first: &str, second: &str, shared: u64) -> CallbackRefusal {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("evidence_double_counted"),
+        STAGE_NEGOTIATE,
+        "callback_protocol.nested_inputs_share_evidence",
+    )
+    .with_offending(format!("{first}, {second}"))
+    .with_supplied(format!("{shared} shared observation(s)"))
+    .with_remedy(
+        "feed the callback inputs that rest on disjoint evidence, or use one input that already carries the dependence between the two",
+    )
+}
+
+/// The ledger cannot decide whether two nested inputs share observations.
+#[must_use]
+pub fn nested_input_overlap_unknown(first: &str, second: &str) -> CallbackRefusal {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("sampling_dependence_unknown"),
+        STAGE_NEGOTIATE,
+        "callback_protocol.nested_input_overlap_unknown",
+    )
+    .with_offending(format!("{first}, {second}"))
+    .with_remedy(
+        "declare the observations behind each inner callback's evidence so the ledger can compute the overlap; unknown overlap is never independence",
+    )
+}
+
 // -- reuse and replay (callback_reuse_ineligible) ------------------------------------------------
 
 /// A dependency is opaque or undeclared, so no stable identity exists.

@@ -26,6 +26,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::identity::CanonicalWriter;
 
+use crate::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
+use crate::interface_contract::{
+    CalibrationStatus, ConsumedPort, ContractOperation, DependenceRequirement, EvidenceBasis,
+    InterfaceContract, PortFacts,
+};
 use crate::{ExternalRefusal, QuantityMismatch, ScientificQuantity};
 
 /// Functional identity of a quantity used as a mechanism input or output: one
@@ -828,6 +833,179 @@ pub fn check_mechanism_composition(
         dependence: decl.dependence.clone(),
         admit_declared_mechanisms: decl.admit_declared_mechanisms,
     })
+}
+
+/// Name of the single produced port of a mechanism's interface contract.
+pub const MECHANISM_OUTPUT_PORT: &str = "output";
+
+/// What a mechanism's declaration does not state but its interface contract
+/// needs: the support, estimand, uncertainty meaning and measurement models of
+/// the quantities it produces and consumes, the operations it offers and the
+/// operation it requires of each parent.
+///
+/// Nothing is inferred. A mechanism's evidence is the declaration's
+/// `evidence_id` read as a ledger source identity (its hex spelling); an id
+/// that is not one is undeclared evidence, which a consumer that needs the
+/// dependence judged refuses.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MechanismInterfaceBasis {
+    /// Facts of the produced quantity.
+    pub output: PortFacts,
+    /// What the mechanism offers of its output (draws of the realized value, a
+    /// conditional law, a mean).
+    pub offered: BTreeSet<ContractOperation>,
+    /// Facts of each consumed parent, by parent variable identity. A parent
+    /// not listed is a real-valued quantity with no stated measurement model.
+    pub parents: BTreeMap<String, PortFacts>,
+    /// The operation the mechanism requires of each parent.
+    pub parent_operation: ContractOperation,
+    /// The calibration the output holds; `None` is unmeasured when the
+    /// offering carries uncertainty and point-only otherwise.
+    pub calibration: Option<CalibrationStatus>,
+    /// The evidence the output rests on; `None` reads `evidence_id` as a
+    /// ledger source identity.
+    pub evidence: Option<EvidenceBasis>,
+    /// Whether the parents must rest on disjoint evidence (the composition
+    /// declares the mechanism estimates independent).
+    pub disjoint_parent_evidence: bool,
+}
+
+impl MechanismInterfaceBasis {
+    /// A basis that offers `offered` of an output with the given facts,
+    /// requires the mean of every parent (an operation that carries no
+    /// uncertainty, so no meaning is demanded of the parent) and claims
+    /// nothing else. A caller that requires draws or a law of a parent sets
+    /// `parent_operation` and states the parent's uncertainty meaning in
+    /// `parents`.
+    #[must_use]
+    pub fn new(
+        output: PortFacts,
+        offered: impl IntoIterator<Item = ContractOperation>,
+    ) -> Self {
+        Self {
+            output,
+            offered: offered.into_iter().collect(),
+            parents: BTreeMap::new(),
+            parent_operation: ContractOperation::Mean,
+            calibration: None,
+            evidence: None,
+            disjoint_parent_evidence: false,
+        }
+    }
+}
+
+impl MechanismDeclaration {
+    /// The mechanism as one instance of the interface-contract schema: its
+    /// output as the produced port and one consumed port per parent, named by
+    /// the parent's variable identity.
+    ///
+    /// The same connection check that decides a callback's connection decides
+    /// a mechanism's. The coordinate defects this module names
+    /// (`quantity_*`, `population_*`, `regime_*`, `units`, `transform`) are the
+    /// `interface_contract.*` quantity mismatches of the same ports; the
+    /// admission of a mechanism from another context stays this module's
+    /// (a connection never admits a population or regime change).
+    #[must_use]
+    pub fn interface_contract(&self, basis: &MechanismInterfaceBasis) -> InterfaceContract {
+        let evidence = basis.evidence.clone().unwrap_or_else(|| {
+            SourceId::from_hex(&self.evidence_id)
+                .map_or(EvidenceBasis::Undeclared, |id| EvidenceBasis::Declared(BTreeSet::from([id])))
+        });
+        let stages: &[&'static str] = match self.origin {
+            MechanismOriginKind::Fitted => &["evidence"],
+            MechanismOriginKind::ExternalBinding => &["external_provider"],
+            MechanismOriginKind::Declared => &[],
+        };
+        let produced = basis.output.produced(
+            MECHANISM_OUTPUT_PORT,
+            &self.output,
+            basis.offered.clone(),
+            stages.iter().copied(),
+            basis.calibration.clone(),
+            evidence,
+        );
+        let dependence = if basis.disjoint_parent_evidence {
+            DependenceRequirement::DisjointEvidence
+        } else {
+            DependenceRequirement::DeclaredEvidence
+        };
+        let default_facts = PortFacts::new(crate::interface_contract::SupportDomain::Real);
+        let consumes: Vec<ConsumedPort> = self
+            .parents
+            .iter()
+            .map(|parent| {
+                basis.parents.get(&parent.variable_id).unwrap_or(&default_facts).consumed(
+                    &parent.variable_id,
+                    parent,
+                    BTreeSet::from([basis.parent_operation]),
+                    dependence,
+                )
+            })
+            .collect();
+        InterfaceContract {
+            component: format!("mechanism:{}", self.output.variable_id),
+            produces: vec![produced],
+            consumes,
+        }
+    }
+}
+
+/// Decide the evidence-independence a composition declares from the evidence
+/// ledger rather than from the equality of identity strings.
+///
+/// Applies only to [`DependenceDeclaration::IndependentByDesign`]. Every pair
+/// of mechanisms is compared: equal identities are the forwarded duplicate;
+/// two distinct ledger sources are shared when the ledger finds common
+/// observations; an identity the ledger does not hold, or a source whose
+/// observations are not computable, is unknown overlap, which is never
+/// independence. Run it in addition to [`check_mechanism_composition`], which
+/// keeps the string-equality fast path for callers without a ledger.
+///
+/// # Errors
+/// One refusal per pair that shares observations
+/// (`mechanism_composition.posterior_dependence_shared_evidence_declared_independent`)
+/// or whose overlap is unknown
+/// (`mechanism_composition.posterior_dependence_evidence_overlap_unknown`).
+pub fn check_declared_independence_against_ledger(
+    decl: &MechanismCompositionDeclaration,
+    ledger: &EvidenceLedger,
+) -> Result<(), Vec<ExternalRefusal>> {
+    if !matches!(decl.dependence, DependenceDeclaration::IndependentByDesign { .. }) {
+        return Ok(());
+    }
+    let mut refusals = Vec::new();
+    for (position, first) in decl.mechanisms.iter().enumerate() {
+        for second in &decl.mechanisms[position + 1..] {
+            let subject = format!("{}|{}", first.output.variable_id, second.output.variable_id);
+            let overlap = if first.evidence_id == second.evidence_id {
+                Some(Overlap::SharedObservations { shared: 1 })
+            } else {
+                SourceId::from_hex(&first.evidence_id)
+                    .zip(SourceId::from_hex(&second.evidence_id))
+                    .and_then(|(a, b)| ledger.overlap(a, b).ok())
+            };
+            match overlap {
+                Some(Overlap::Independent) => {}
+                Some(Overlap::SharedObservations { .. }) => refusals.push(composition_refusal(
+                    "posterior_dependence",
+                    "mechanism_composition.posterior_dependence_shared_evidence_declared_independent",
+                    &subject,
+                    Some("evidence with no shared observation"),
+                    Some(&second.evidence_id),
+                    "mechanisms estimated from the same observations are dependent; supply a joint law or cross-mechanism covariance",
+                )),
+                Some(Overlap::Unknown { .. }) | None => refusals.push(composition_refusal(
+                    "posterior_dependence",
+                    "mechanism_composition.posterior_dependence_evidence_overlap_unknown",
+                    &subject,
+                    Some("evidence registered in the ledger with computable observations"),
+                    Some(&second.evidence_id),
+                    "register both mechanisms' evidence in the evidence ledger with its observations, or supply a joint law or cross-mechanism covariance; an independence that cannot be checked is not accepted",
+                )),
+            }
+        }
+    }
+    if refusals.is_empty() { Ok(()) } else { Err(refusals) }
 }
 
 impl MechanismCompositionPlan {

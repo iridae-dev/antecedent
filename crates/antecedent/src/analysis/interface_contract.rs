@@ -43,10 +43,14 @@ use antecedent_contract::ExternalRefusal;
 pub use antecedent_contract::interface_contract::{
     CalibrationRequirement, CalibrationStatus, ComponentConnection, ComposedInterfaces, Connection,
     ConsumedPort, ContractOperation, DependenceRequirement, EvidenceBasis, InterfaceContract,
-    MAX_COMPOSITION_COMPONENTS, MAX_COMPOSITION_CONNECTIONS, ProducedPort, SupportDomain,
+    MAX_COMPOSITION_COMPONENTS, MAX_COMPOSITION_CONNECTIONS, PortFacts, ProducedPort, SupportDomain,
     UncertaintyMeaning, UncertaintyParadigm, operations_of_capabilities,
 };
-use antecedent_contract::interface_contract::{check_composition, check_connection};
+use antecedent_contract::evidence_ledger::EvidenceLedger;
+use antecedent_contract::interface_contract::{
+    check_composition, check_composition_with_ledger, check_connection,
+    disjoint_requirements_without_ledger,
+};
 use antecedent_io::IoError;
 pub use antecedent_io::interface_contract_artifact::InterfaceContractMeta;
 use antecedent_io::interface_contract_artifact::{
@@ -185,8 +189,13 @@ pub fn check_interface_connection(
 }
 
 /// Check a set of components and the connections between them: every
-/// connection, inherited calibration resolved against its upstream, inputs
-/// that must be disjoint, and feedback cycles (refused with the path named).
+/// connection, inherited calibration resolved against its upstream, and
+/// feedback cycles (refused with the path named).
+///
+/// Without a ledger the overlap of two declared sources is not computable, so
+/// a component that requires disjoint evidence among its inputs is refused
+/// (`interface_contract.dependence_unknown`) rather than checked on source
+/// identities alone; use [`check_interface_composition_with_ledger`].
 ///
 /// # Errors
 /// Every defect of the group of checks that failed.
@@ -194,7 +203,28 @@ pub fn check_interface_composition(
     components: &[InterfaceContract],
     connections: &[ComponentConnection],
 ) -> Result<ComposedInterfaces, Vec<InterfaceContractRefusal>> {
+    let unchecked = disjoint_requirements_without_ledger(components);
+    if !unchecked.is_empty() {
+        return Err(InterfaceContractRefusal::all(&unchecked));
+    }
     check_composition(components, connections)
+        .map_err(|refusals| InterfaceContractRefusal::all(&refusals))
+}
+
+/// As [`check_interface_composition`], deciding the disjoint-evidence
+/// requirements from the evidence ledger's row-level overlap of the declared
+/// sources: sources that share observations refuse as
+/// `interface_contract.shared_evidence`, and a source whose observations are
+/// not computable is unknown, never disjoint.
+///
+/// # Errors
+/// Every defect of the group of checks that failed.
+pub fn check_interface_composition_with_ledger(
+    components: &[InterfaceContract],
+    connections: &[ComponentConnection],
+    ledger: &EvidenceLedger,
+) -> Result<ComposedInterfaces, Vec<InterfaceContractRefusal>> {
+    check_composition_with_ledger(components, connections, ledger)
         .map_err(|refusals| InterfaceContractRefusal::all(&refusals))
 }
 

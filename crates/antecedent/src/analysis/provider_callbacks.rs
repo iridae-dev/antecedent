@@ -57,7 +57,7 @@ pub use antecedent_contract::callback_protocol::{
 use antecedent_contract::callback_protocol::{
     StoredCallback, callback_source_declaration, plan_reuse, refusal, validate_output,
 };
-use antecedent_contract::evidence_ledger::{EvidenceLedger, LedgerError, SourceId};
+use antecedent_contract::evidence_ledger::{EvidenceLedger, LedgerError, Overlap, SourceId};
 use antecedent_contract::interface_contract::{Connection, InterfaceContract, check_connection};
 use antecedent_contract::{
     ExternalCapabilityRequest, ExternalRefusal, ExternalScientificObject, ProviderObjectIdentity,
@@ -209,6 +209,10 @@ pub struct CallbackExecution {
     pub request_identity: String,
     /// The state identity the provider reported after the call.
     pub state_identity: Option<String>,
+    /// The digest (hex) of the evidence ledger state the overlap of the nested
+    /// inputs was decided under; `None` when the callback has fewer than two
+    /// callback inputs and so no overlap to decide.
+    pub evidence_state_digest: Option<String>,
 }
 
 /// A refused or failed execution, with what actually happened.
@@ -290,6 +294,8 @@ pub struct CallbackSession {
     attempts: BTreeMap<String, u64>,
     invocations: u64,
     state_probes: u64,
+    ledger: EvidenceLedger,
+    registered: BTreeMap<String, SourceId>,
 }
 
 impl CallbackSession {
@@ -297,6 +303,94 @@ impl CallbackSession {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The evidence ledger the session decides nested-input overlap in.
+    #[must_use]
+    pub const fn ledger(&self) -> &EvidenceLedger {
+        &self.ledger
+    }
+
+    /// Register a callback and its evidence in the session's ledger, so the
+    /// overlap of nested inputs is computed when a callback that combines them
+    /// is executed. Inner callbacks are resolved from the callbacks already
+    /// registered in the session.
+    ///
+    /// # Errors
+    /// As [`register_callback_source`].
+    #[allow(
+        clippy::result_large_err,
+        reason = "a refusal is the cold path of a once-per-call check; boxing the error would change the public error type"
+    )]
+    pub fn register(
+        &mut self,
+        declaration: &CallbackDeclaration,
+    ) -> Result<SourceId, CallbackRegistrationError> {
+        let id = register_callback_source(&mut self.ledger, declaration, &self.registered)?;
+        self.registered.insert(declaration.canonical_identity().to_hex(), id);
+        Ok(id)
+    }
+
+    /// Decide, from the session ledger, that the callback inputs of
+    /// `declaration` do not share observations. Every pair of callback inputs
+    /// is checked; an input whose callback is not registered, or whose
+    /// observations are not computable, is unknown overlap, which is never
+    /// independence.
+    ///
+    /// Returns the ledger state digest the decision was made under, or `None`
+    /// when there is no pair to decide.
+    #[allow(
+        clippy::result_large_err,
+        reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+    )]
+    fn check_nested_evidence(
+        &self,
+        declaration: &CallbackDeclaration,
+    ) -> Result<Option<String>, ExternalRefusal> {
+        let nested: Vec<(&str, &str)> = declaration
+            .inputs
+            .iter()
+            .filter_map(|input| match &input.supplier {
+                InputSupplier::Callback { identity, .. } => {
+                    Some((input.name.as_str(), identity.as_str()))
+                }
+                InputSupplier::External => None,
+            })
+            .collect();
+        if nested.len() < 2 {
+            return Ok(None);
+        }
+        let mut sources = Vec::with_capacity(nested.len());
+        for (name, identity) in &nested {
+            let Some(id) = self.registered.get(*identity) else {
+                return Err(refusal::nested_input_unregistered(name));
+            };
+            sources.push((*name, *id));
+        }
+        for (position, (first_name, first)) in sources.iter().enumerate() {
+            for (second_name, second) in &sources[position + 1..] {
+                if first == second {
+                    return Err(refusal::nested_inputs_share_evidence(first_name, second_name, 1));
+                }
+                match self.ledger.overlap(*first, *second) {
+                    Ok(Overlap::Independent) => {}
+                    Ok(Overlap::SharedObservations { shared }) => {
+                        return Err(refusal::nested_inputs_share_evidence(
+                            first_name,
+                            second_name,
+                            shared,
+                        ));
+                    }
+                    Ok(_) | Err(_) => {
+                        return Err(refusal::nested_input_overlap_unknown(
+                            first_name,
+                            second_name,
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(Some(self.ledger.state_digest().to_hex()))
     }
 
     /// Every record, in the order produced; superseded results stay.
@@ -427,7 +521,9 @@ impl CallbackSession {
     ///
     /// The order of checks, each before any invocation: the declaration, the
     /// phase, negotiation of exactly the requested operation through the one
-    /// provider contract, the provider's identity, the inputs, the reuse plan,
+    /// provider contract, the provider's identity, the inputs, the overlap of
+    /// the callback inputs in the session's evidence ledger (shared or unknown
+    /// overlap is refused), the reuse plan,
     /// the side-effect policy, the invocation bound and cancellation. After an
     /// invocation: cancellation, the wall-clock bound and the checked output.
     ///
@@ -519,6 +615,7 @@ impl CallbackSession {
             return Err(fail(refusal::provider_identity_mismatch(&expected, &supplied)));
         }
         Self::check_inputs(declaration, request, inputs).map_err(fail)?;
+        let evidence_state_digest = self.check_nested_evidence(declaration).map_err(fail)?;
         let exposes_state =
             matches!(declaration.replay, ReplayContract::Stateful { exposes_state_identity: true });
         let current_state = if exposes_state {
@@ -555,6 +652,7 @@ impl CallbackSession {
                             declaration_identity: declaration.canonical_identity().to_hex(),
                             request_identity: request_hex,
                             state_identity: state_identity.clone(),
+                            evidence_state_digest,
                         });
                     }
                 }
@@ -582,6 +680,7 @@ impl CallbackSession {
             ctx,
             request_hex,
             reason,
+            evidence_state_digest,
         )
     }
 
@@ -634,6 +733,7 @@ impl CallbackSession {
         ctx: &ExecutionContext,
         request_hex: String,
         reason: RecomputeReason,
+        evidence_state_digest: Option<String>,
     ) -> Result<CallbackExecution, CallbackExecutionError> {
         let rng = match &declaration.replay {
             ReplayContract::SeededStochastic { stream_id } => {
@@ -701,6 +801,7 @@ impl CallbackSession {
             declaration_identity: declaration.canonical_identity().to_hex(),
             request_identity: request_hex,
             state_identity,
+            evidence_state_digest,
         })
     }
 

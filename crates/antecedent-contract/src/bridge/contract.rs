@@ -41,6 +41,10 @@ use super::refusal::{
     transport_premise_missing, transport_premise_unused, value_kind_not_carried, wrong_value_kind,
 };
 use crate::ScientificQuantity;
+use crate::interface_contract::{
+    CalibrationStatus, ContractOperation, DependenceRequirement, EvidenceBasis, InterfaceContract,
+    PortFacts,
+};
 
 /// Version word written into every bridge contract identity. Bump only when
 /// the canonical encoding below changes.
@@ -51,6 +55,44 @@ pub const MAX_BRIDGE_ASSUMPTIONS: usize = 64;
 pub const MAX_BRIDGE_TEXT_BYTES: usize = 4096;
 
 const TAG_CONTRACT: &str = "antecedent.scientific_bridge.contract";
+
+/// Name of the consumed port of a bridge's interface contract.
+pub const BRIDGE_SOURCE_PORT: &str = "source";
+/// Name of the produced port of a bridge's interface contract.
+pub const BRIDGE_TARGET_PORT: &str = "target";
+
+/// What a bridge declaration does not state but its interface contract needs:
+/// the support, estimand, uncertainty meaning and measurement models of the
+/// two ends, the calibration the target holds and the evidence it rests on.
+///
+/// The operations of the two ports come from the declared value kinds. A
+/// value kind that names no operation (an identified set, a joint outcome
+/// law) projects to a port with none and is refused by the connection check
+/// as a port with no operations, as the licensing check refuses it as not
+/// carried.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BridgeInterfaceBasis {
+    /// Facts of the source quantity the bridge consumes.
+    pub source: PortFacts,
+    /// Facts of the target quantity the bridge produces.
+    pub target: PortFacts,
+    /// The calibration the target holds; `None` is unmeasured when the target
+    /// value carries uncertainty and point-only otherwise. A bridge never
+    /// raises a calibration the source did not hold.
+    pub calibration: Option<CalibrationStatus>,
+    /// The evidence the target rests on (the source evidence and the
+    /// bridge's own).
+    pub evidence: EvidenceBasis,
+}
+
+const fn value_operation(kind: ValueKind) -> Option<ContractOperation> {
+    match kind {
+        ValueKind::Mean => Some(ContractOperation::Mean),
+        ValueKind::PredictiveLaw => Some(ContractOperation::Law),
+        ValueKind::Posterior => Some(ContractOperation::Posterior),
+        ValueKind::IdentifiedSet | ValueKind::JointOutcomeLaw => None,
+    }
+}
 
 /// A population and regime.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -370,6 +412,45 @@ impl BridgeContract {
                 }
             }
             (Some(_), false) => Err(transport_premise_unused()),
+        }
+    }
+
+    /// The bridge as one instance of the interface-contract schema: the source
+    /// quantity as the consumed port and the target quantity as the produced
+    /// port, so the one connection check decides what feeds and what is fed by
+    /// a bridge.
+    ///
+    /// Licensing stays [`Self::check_licensing`] (the principal assumption,
+    /// the mapping, the transportability premise); the projection states only
+    /// the two ports and licenses nothing a connection does not.
+    #[must_use]
+    pub fn interface_contract(
+        &self,
+        component: impl Into<String>,
+        basis: &BridgeInterfaceBasis,
+    ) -> InterfaceContract {
+        let consumed_ops: std::collections::BTreeSet<ContractOperation> =
+            value_operation(self.source_value).into_iter().collect();
+        let produced_ops: std::collections::BTreeSet<ContractOperation> =
+            value_operation(self.target_value).into_iter().collect();
+        let consumed = basis.source.consumed(
+            BRIDGE_SOURCE_PORT,
+            &self.source.quantity,
+            consumed_ops,
+            DependenceRequirement::Unconstrained,
+        );
+        let produced = basis.target.produced(
+            BRIDGE_TARGET_PORT,
+            &self.target.quantity,
+            produced_ops,
+            ["transformation"],
+            basis.calibration.clone(),
+            basis.evidence.clone(),
+        );
+        InterfaceContract {
+            component: component.into(),
+            produces: vec![produced],
+            consumes: vec![consumed],
         }
     }
 

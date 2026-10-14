@@ -56,7 +56,8 @@ pub use claim::{
     derive_bridged_claim,
 };
 pub use contract::{
-    BRIDGE_IDENTITY_VERSION, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeScope,
+    BRIDGE_IDENTITY_VERSION, BRIDGE_SOURCE_PORT, BRIDGE_TARGET_PORT, BridgeAssumption,
+    BridgeInterfaceBasis, BridgeContract, BridgeEndpoint, BridgeScope,
     Licensing, MAX_BRIDGE_ASSUMPTIONS, MAX_BRIDGE_TEXT_BYTES, TransportabilityPremise,
 };
 pub use kind::{AssumptionKind, BridgeKind, QuantityClass, ValueKind};

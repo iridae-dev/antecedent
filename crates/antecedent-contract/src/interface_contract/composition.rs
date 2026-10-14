@@ -9,7 +9,11 @@
 //! is resolved against the upstream producer and refused when the upstream
 //! does not hold it. Inputs that must rest on disjoint evidence are checked
 //! pairwise against the sources their producers declare, so one observation
-//! cannot reach a consumer twice.
+//! cannot reach a consumer twice. Without a ledger that comparison is of the
+//! declared source identities; [`check_composition_with_ledger`] decides it
+//! from the evidence ledger's row-level overlap, so two distinct sources that
+//! share observations (a subset, a resample, a derived source) are refused
+//! and a pair whose overlap is not computable is unknown, never disjoint.
 //!
 //! The work is bounded (at most [`MAX_COMPOSITION_COMPONENTS`] components and
 //! [`MAX_COMPOSITION_CONNECTIONS`] connections, checked first) and linear in
@@ -22,14 +26,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use antecedent_core::identity::{CanonicalWriter, SemanticDigest};
 
 use super::connection::{Connection, check_ports};
+use crate::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
 use super::declaration::{
     CalibrationStatus, DependenceRequirement, EvidenceBasis, INTERFACE_CONTRACT_VERSION,
     InterfaceContract,
 };
 use super::refusal::{
     InterfaceRefusal, calibration_inherited_not_held, calibration_inherited_unfed,
-    composition_too_large, cyclic_composition, duplicate_component, port_multiply_fed,
-    shared_evidence, unknown_component, unknown_port,
+    composition_too_large, cyclic_composition, dependence_unknown, duplicate_component,
+    port_multiply_fed, shared_evidence, unknown_component, unknown_port,
 };
 
 /// Most components one composition may contain.
@@ -159,6 +164,38 @@ fn feed_forward_order<'a>(
 pub fn check_composition(
     components: &[InterfaceContract],
     connections: &[ComponentConnection],
+) -> Result<ComposedInterfaces, Vec<InterfaceRefusal>> {
+    check_composition_inner(components, connections, None)
+}
+
+/// As [`check_composition`], deciding the disjoint-evidence requirements from
+/// the evidence ledger's row-level overlap of the declared sources.
+///
+/// For every pair of inputs that require disjoint evidence, every declared
+/// source of one is compared with every declared source of the other: the same
+/// source, or two sources the ledger finds to share observations, refuse as
+/// `interface_contract.shared_evidence`; a source the ledger does not hold, or
+/// whose observations are not computable, refuses as
+/// `interface_contract.dependence_unknown`. Unknown overlap is never disjoint.
+///
+/// # Errors
+/// As [`check_composition`].
+pub fn check_composition_with_ledger(
+    components: &[InterfaceContract],
+    connections: &[ComponentConnection],
+    ledger: &EvidenceLedger,
+) -> Result<ComposedInterfaces, Vec<InterfaceRefusal>> {
+    check_composition_inner(components, connections, Some(ledger))
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "one ordered pipeline of checks; splitting would hide the order the documentation fixes"
+)]
+fn check_composition_inner(
+    components: &[InterfaceContract],
+    connections: &[ComponentConnection],
+    ledger: Option<&EvidenceLedger>,
 ) -> Result<ComposedInterfaces, Vec<InterfaceRefusal>> {
     if components.len() > MAX_COMPOSITION_COMPONENTS {
         return Err(vec![composition_too_large("components")]);
@@ -299,7 +336,7 @@ pub fn check_composition(
     }
 
     // Inputs required to rest on disjoint evidence must not share a source.
-    check_disjoint(&accepted, &by_name, &mut refusals);
+    check_disjoint(&accepted, &by_name, ledger, &mut refusals);
     if !refusals.is_empty() {
         return Err(refusals);
     }
@@ -324,9 +361,33 @@ pub fn check_composition(
     })
 }
 
+/// The consumed ports that require disjoint evidence among `components`, as
+/// refusals for a caller that has no evidence ledger.
+///
+/// Without a ledger the overlap of two declared sources is not computable, so
+/// a disjointness requirement cannot be decided from identities alone; a
+/// caller without a ledger refuses with these rather than skip the
+/// requirement. Empty when no consumed port requires disjoint evidence.
+#[must_use]
+pub fn disjoint_requirements_without_ledger(
+    components: &[InterfaceContract],
+) -> Vec<InterfaceRefusal> {
+    components
+        .iter()
+        .flat_map(|component| {
+            component
+                .consumes
+                .iter()
+                .filter(|port| port.dependence == DependenceRequirement::DisjointEvidence)
+                .map(|port| dependence_unknown(&format!("{}.{}", component.component, port.name)))
+        })
+        .collect()
+}
+
 fn check_disjoint(
     accepted: &[Connection],
     by_name: &BTreeMap<&str, &InterfaceContract>,
+    ledger: Option<&EvidenceLedger>,
     refusals: &mut Vec<InterfaceRefusal>,
 ) {
     let mut per_consumer: BTreeMap<&str, Vec<&Connection>> = BTreeMap::new();
@@ -347,15 +408,48 @@ fn check_disjoint(
                 else {
                     continue;
                 };
-                let shared = a.intersection(b).count();
+                let (first_name, second_name) = (
+                    format!("{}.{}", first.producer, first.produced_port),
+                    format!("{}.{}", second.producer, second.produced_port),
+                );
+                let (shared, undecided) = match ledger {
+                    None => (a.intersection(b).count(), false),
+                    Some(ledger) => ledger_overlap(a, b, ledger),
+                };
                 if shared > 0 {
-                    refusals.push(shared_evidence(
-                        &format!("{}.{}", first.producer, first.produced_port),
-                        &format!("{}.{}", second.producer, second.produced_port),
-                        shared,
-                    ));
+                    refusals.push(shared_evidence(&first_name, &second_name, shared));
+                } else if undecided {
+                    refusals.push(dependence_unknown(&second_name));
                 }
             }
         }
     }
+}
+
+/// Observations the two declared source sets share per the ledger (identical
+/// sources count one observation set each), and whether any pair could not be
+/// decided.
+fn ledger_overlap(
+    a: &BTreeSet<SourceId>,
+    b: &BTreeSet<SourceId>,
+    ledger: &EvidenceLedger,
+) -> (usize, bool) {
+    let mut shared: usize = 0;
+    let mut undecided = false;
+    for left in a {
+        for right in b {
+            if left == right {
+                shared += 1;
+                continue;
+            }
+            match ledger.overlap(*left, *right) {
+                Ok(Overlap::Independent) => {}
+                Ok(Overlap::SharedObservations { shared: rows }) => {
+                    shared += usize::try_from(rows).unwrap_or(usize::MAX).max(1);
+                }
+                Ok(Overlap::Unknown { .. }) | Err(_) => undecided = true,
+            }
+        }
+    }
+    (shared, undecided)
 }

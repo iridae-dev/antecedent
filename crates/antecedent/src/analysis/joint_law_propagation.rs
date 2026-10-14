@@ -171,6 +171,25 @@ pub fn alignment_identity(artifact: &DistributionArtifact) -> Result<String, Ref
     .map_err(|e| Refusal::invalid(&e.to_string(), "the alignment identity could not be encoded"))
 }
 
+/// The alignment of an artifact's draws as the propagation rule reads it: the
+/// artifact's pairing identity ([`alignment_identity`]) for draws of one joint
+/// law, and independent marginals otherwise.
+///
+/// This is the one mapping from an artifact's declared alignment to the rule's
+/// input alignment; callers that pair draws of several artifacts compare these
+/// values (through `check_rows_pairable_across`) rather than a constant.
+///
+/// # Errors
+/// A joint artifact whose pairing identity cannot be encoded.
+pub fn input_alignment(artifact: &DistributionArtifact) -> Result<InputAlignment, Refusal> {
+    match artifact.metadata().identity.alignment {
+        DrawAlignment::Joint => {
+            Ok(InputAlignment::Aligned { alignment_id: alignment_identity(artifact)? })
+        }
+        DrawAlignment::IndependentMarginals => Ok(InputAlignment::IndependentMarginals),
+    }
+}
+
 impl PropagationDraws {
     /// One column of a distribution artifact. The evidence identity is the
     /// artifact's data snapshot; the alignment follows the artifact's declared
@@ -203,12 +222,7 @@ impl PropagationDraws {
         {
             return Err(Refusal::invalid(&id, "the coordinate is unsupported in the artifact"));
         }
-        let alignment = match metadata.identity.alignment {
-            DrawAlignment::Joint => {
-                InputAlignment::Aligned { alignment_id: alignment_identity(artifact)? }
-            }
-            DrawAlignment::IndependentMarginals => InputAlignment::IndependentMarginals,
-        };
+        let alignment = input_alignment(artifact)?;
         let values = (0..rows).map(|row| artifact.draws()[row * width + column]).collect();
         Ok(Self {
             id,
@@ -252,6 +266,16 @@ impl PropagationDraws {
             alignment: InputAlignment::Aligned { alignment_id: alignment_id.into() },
             values,
         }
+    }
+
+    /// The same input resting on the evidence-ledger source `source`, so a
+    /// check that has the ledger (`check_propagation_with_ledger`) decides its
+    /// overlap with other inputs from their observations rather than from the
+    /// equality of snapshot identities.
+    #[must_use]
+    pub fn with_evidence_source(mut self, source: antecedent_contract::evidence_ledger::SourceId) -> Self {
+        self.evidence_id = source.to_hex();
+        self
     }
 
     /// The same input with another role in the composition (for the pieces of

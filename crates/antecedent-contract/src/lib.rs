@@ -86,13 +86,15 @@ pub use joint_law_rule::{
     PropagationClass, PropagationDependence, PropagationInput, PropagationOperation,
     PropagationPlan, PropagationRequest, PropagationRoute, RequestedReading,
     STRUCTURAL_ENVELOPE_LABEL, UNCALIBRATED_SPREAD_LABEL, check_composed_interval,
-    check_propagation, check_rows_pairable,
+    check_propagation, check_propagation_with_ledger, check_rows_pairable,
+    check_rows_pairable_across,
 };
 pub use mechanism_composition::{
     AdmissionBasis, AdmissionCoordinate, DependenceDeclaration, LatentCauseDeclaration,
     MAX_DECLARED_MECHANISMS, MECHANISM_COMPOSITION_STAGE, MECHANISM_VALUE_FUNCTIONAL,
     MechanismCompositionDeclaration, MechanismCompositionPlan, MechanismDeclaration,
-    MechanismOriginKind, PlannedMechanism, PlannedParent, TransportAdmission, UncertaintyRoute,
+    MECHANISM_OUTPUT_PORT, MechanismInterfaceBasis, MechanismOriginKind, PlannedMechanism,
+    PlannedParent, TransportAdmission, UncertaintyRoute, check_declared_independence_against_ledger,
     check_mechanism_composition, composition_refusal, reason_code_for_kind,
 };
 pub use obligation::{ObligationKind, ObligationRecord, ObligationScope};

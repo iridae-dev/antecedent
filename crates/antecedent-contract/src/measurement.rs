@@ -19,12 +19,18 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::BTreeSet;
+
 use antecedent_core::measurement_model::{
     ArmBinding, DifferentialAxis, ErrorStructure, MeasurementKind, MeasurementModel,
     MeasurementModelError, MeasurementParameters, MeasurementRoute, RepresentationMapping,
     RepresentationVersion,
 };
 
+use crate::interface_contract::{
+    CalibrationStatus, ContractOperation, DependenceRequirement, EvidenceBasis, InterfaceContract,
+    PortFacts,
+};
 use crate::{
     ExternalCapability, ExternalPosteriorKind, ExternalRefusal, ExternalScientificObject,
     ExternalTrustState, ScientificQuantity,
@@ -568,6 +574,116 @@ fn check_operation(
     .with_offending(operation.as_str())
     .with_supplied(route.as_str())
     .with_remedy(why))
+}
+
+/// Name of the consumed port of a measurement model's interface contract.
+pub const MEASUREMENT_INDICATOR_PORT: &str = "indicator";
+/// Name of the produced port of a measurement model's interface contract.
+pub const MEASUREMENT_CONSTRUCT_PORT: &str = "construct";
+
+/// What a measurement model's declaration does not state but its interface
+/// contract needs, and what the correction offers.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MeasurementInterfaceBasis {
+    /// Facts of the recorded indicator the correction consumes. Its
+    /// measurement models are empty: the indicator is the raw record.
+    pub indicator: PortFacts,
+    /// Facts of the corrected construct value. The model's identity is added
+    /// to its measurement models.
+    pub construct: PortFacts,
+    /// What the correction consumes of the indicator estimate and offers of
+    /// the construct value.
+    pub operations: BTreeSet<ContractOperation>,
+    /// The calibration the corrected value holds; `None` is unmeasured when it
+    /// carries uncertainty and point-only otherwise.
+    pub calibration: Option<CalibrationStatus>,
+    /// The evidence the corrected value rests on.
+    pub evidence: EvidenceBasis,
+}
+
+/// A measurement model as one instance of the interface-contract schema: the
+/// indicator quantity it consumes and the construct quantity it produces,
+/// established under the model's identity, so a consumer that relies on a
+/// corrected value states the model it relies on and the one connection check
+/// compares them.
+///
+/// The model must bind the two quantities it is projected over: the
+/// indicator and construct identities, and the model's population and regime
+/// for both ends. Those refuse under the `measurement_model.*` details that
+/// [`check_measurement_request`] uses. An interval offered by a route that
+/// does not license one refuses as `measurement_model.operation_not_licensed`.
+///
+/// # Errors
+/// A malformed model, a quantity that is not the model's indicator or
+/// construct, a population or regime other than the model's binding, or an
+/// operation the route does not license.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
+pub fn measurement_interface_contract(
+    component: impl Into<String>,
+    model: &MeasurementModel,
+    indicator: &ScientificQuantity,
+    construct: &ScientificQuantity,
+    basis: &MeasurementInterfaceBasis,
+) -> Result<InterfaceContract, MeasurementRefusal> {
+    model.validate().map_err(|error| model_refusal(&error))?;
+    if indicator.variable_id != model.indicator.id {
+        return Err(binding_mismatch(
+            "measurement_model.indicator_mismatch",
+            &model.indicator.id,
+            &indicator.variable_id,
+        ));
+    }
+    if construct.variable_id != model.construct.id {
+        return Err(binding_mismatch(
+            "measurement_model.construct_mismatch",
+            &model.construct.id,
+            &construct.variable_id,
+        ));
+    }
+    for quantity in [indicator, construct] {
+        if quantity.population_id != model.binding.population_id {
+            return Err(binding_mismatch(
+                "measurement_model.population_mismatch",
+                &model.binding.population_id,
+                &quantity.population_id,
+            ));
+        }
+        if quantity.regime_id != model.binding.regime_id {
+            return Err(binding_mismatch(
+                "measurement_model.regime_mismatch",
+                &model.binding.regime_id,
+                &quantity.regime_id,
+            ));
+        }
+    }
+    if basis.operations.contains(&ContractOperation::Interval) {
+        check_operation(model.route, MeasurementOperation::Interval)?;
+    }
+    let identity = model.identities().model.to_hex();
+    let mut construct_facts = basis.construct.clone();
+    construct_facts.measurement_models.insert(identity);
+    let produced = construct_facts.produced(
+        MEASUREMENT_CONSTRUCT_PORT,
+        construct,
+        basis.operations.clone(),
+        ["transformation"],
+        basis.calibration.clone(),
+        basis.evidence.clone(),
+    );
+    let consumed = basis.indicator.consumed(
+        MEASUREMENT_INDICATOR_PORT,
+        indicator,
+        basis.operations.clone(),
+        DependenceRequirement::Unconstrained,
+    );
+    Ok(InterfaceContract {
+        component: component.into(),
+        produces: vec![produced],
+        consumes: vec![consumed],
+    })
 }
 
 /// Refuse a measured column used as the construct when no measurement model

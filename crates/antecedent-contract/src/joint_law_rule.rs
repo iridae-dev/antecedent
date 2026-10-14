@@ -56,6 +56,7 @@
 
 use std::collections::BTreeSet;
 
+use crate::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
 use crate::ExternalRefusal;
 
 /// Stage reported by every refusal of this module.
@@ -706,7 +707,81 @@ fn check_envelope(
     reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
 )]
 pub fn check_propagation(request: &PropagationRequest) -> Result<PropagationPlan, ExternalRefusal> {
-    let mut plan = check_core(request)?;
+    finish_propagation(request, check_core(request, None, None))
+}
+
+/// Check a composition against the propagation rule, deciding whether inputs
+/// share evidence from the evidence ledger's row-level overlap rather than from
+/// the equality of identity strings.
+///
+/// An input's `evidence_id` is read as a ledger source identity (its hex
+/// spelling). Two inputs with the same identity share evidence (the forwarded
+/// duplicate); two distinct ledger sources share evidence when the ledger finds
+/// common observations (a subset, a resample, a derived source); the ledger
+/// reporting the overlap as not computable, or an identity the ledger does not
+/// hold, is unknown dependence and is never independence. A declared
+/// independence of inputs whose overlap is unknown is refused rather than
+/// accepted on distinct strings.
+///
+/// # Errors
+/// As [`check_propagation`], and `sampling_dependence_unknown` with
+/// `joint_law_propagation.evidence_overlap_unknown` when independence is
+/// declared for inputs whose evidence overlap the ledger cannot decide.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
+pub fn check_propagation_with_ledger(
+    request: &PropagationRequest,
+    ledger: &EvidenceLedger,
+) -> Result<PropagationPlan, ExternalRefusal> {
+    validate(request)?;
+    let (shared, unresolved) = ledger_shared_evidence(&request.inputs, ledger);
+    finish_propagation(request, check_core(request, Some(shared), unresolved))
+}
+
+/// Evidence identities that share observations, and the first pair whose
+/// overlap cannot be decided, per the ledger.
+fn ledger_shared_evidence(
+    inputs: &[PropagationInput],
+    ledger: &EvidenceLedger,
+) -> (Vec<String>, Option<String>) {
+    let mut shared = BTreeSet::new();
+    let mut unresolved: Option<String> = None;
+    for (position, input) in inputs.iter().enumerate() {
+        for other in &inputs[position + 1..] {
+            if other.evidence_id == input.evidence_id {
+                shared.insert(input.evidence_id.clone());
+                continue;
+            }
+            let ids = SourceId::from_hex(&input.evidence_id)
+                .zip(SourceId::from_hex(&other.evidence_id));
+            let overlap = ids.and_then(|(a, b)| ledger.overlap(a, b).ok());
+            match overlap {
+                Some(Overlap::Independent) => {}
+                Some(Overlap::SharedObservations { .. }) => {
+                    shared.insert(input.evidence_id.clone());
+                    shared.insert(other.evidence_id.clone());
+                }
+                Some(Overlap::Unknown { .. }) | None => {
+                    unresolved
+                        .get_or_insert_with(|| format!("{}|{}", input.id, other.id));
+                }
+            }
+        }
+    }
+    (shared.into_iter().collect(), unresolved)
+}
+
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
+fn finish_propagation(
+    request: &PropagationRequest,
+    core: Result<PropagationPlan, ExternalRefusal>,
+) -> Result<PropagationPlan, ExternalRefusal> {
+    let mut plan = core?;
     plan.missing_transport_pieces = missing_pieces(&request.inputs);
     if request.reading == RequestedReading::Spread {
         if let Some(first) = plan.missing_transport_pieces.first() {
@@ -726,12 +801,16 @@ pub fn check_propagation(request: &PropagationRequest) -> Result<PropagationPlan
     clippy::result_large_err,
     reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
 )]
-fn check_core(request: &PropagationRequest) -> Result<PropagationPlan, ExternalRefusal> {
+fn check_core(
+    request: &PropagationRequest,
+    ledger_shared: Option<Vec<String>>,
+    unresolved: Option<String>,
+) -> Result<PropagationPlan, ExternalRefusal> {
     validate(request)?;
     if let Some(refusal) = closed_reading(request.reading) {
         return Err(refusal);
     }
-    let shared = shared_evidence(&request.inputs);
+    let shared = ledger_shared.unwrap_or_else(|| shared_evidence(&request.inputs));
     let envelope_dependence = matches!(
         request.dependence,
         PropagationDependence::CorrelationRange { .. } | PropagationDependence::MarginalsOnly
@@ -770,7 +849,7 @@ fn check_core(request: &PropagationRequest) -> Result<PropagationPlan, ExternalR
                 "declare the mixture weights: a mixture's mean and variance need known weights and the component moments, and no joint law of the components",
             )),
         },
-        PropagationClass::Linear => check_linear(request, shared),
+        PropagationClass::Linear => check_linear(request, shared, unresolved),
         PropagationClass::Nonlinear => check_nonlinear(request, shared),
         PropagationClass::Transported => check_transported(request, shared),
     }
@@ -783,6 +862,7 @@ fn check_core(request: &PropagationRequest) -> Result<PropagationPlan, ExternalR
 fn check_linear(
     request: &PropagationRequest,
     shared: Vec<String>,
+    unresolved: Option<String>,
 ) -> Result<PropagationPlan, ExternalRefusal> {
     if request.inputs.len() == 1 {
         return Ok(plan(request, PropagationRoute::LinearMoments, None, None, shared));
@@ -795,6 +875,14 @@ fn check_linear(
                     "joint_law_propagation.shared_evidence_declared_independent",
                     evidence.clone(),
                     "inputs that rest on the same evidence are not independent; supply the covariance between them (the shared evidence supplies it) or an aligned joint law",
+                ));
+            }
+            if let Some(pair) = unresolved {
+                return Err(refuse(
+                    antecedent_core::reason_code!("sampling_dependence_unknown"),
+                    "joint_law_propagation.evidence_overlap_unknown",
+                    pair,
+                    "the evidence ledger cannot decide whether these inputs share observations (an unregistered source, or a source with undeclared observations); register both sources with their observations, or supply the covariance or an aligned joint law",
                 ));
             }
             Ok(plan(request, PropagationRoute::LinearMoments, None, None, shared))
@@ -1019,7 +1107,10 @@ pub fn check_composed_interval(
 ///
 /// This is the single-input form of the rule for a nonlinear operation under an
 /// aligned joint law: the input is checked against a partner that is aligned
-/// with it by declaration, so only the input's own alignment decides. Existing
+/// with it by declaration, so only the input's own alignment decides. It cannot
+/// detect two joint artifacts whose alignment identities differ; where several
+/// inputs are paired use [`check_rows_pairable_across`] with their real
+/// alignment identities. Existing
 /// callers that validate pairing relations separately (shared evidence, declared
 /// dependence routes) use this so that no code outside this module decides that
 /// draws are row-paired.
@@ -1053,6 +1144,55 @@ pub fn check_rows_pairable(alignment: &InputAlignment) -> Result<(), ExternalRef
         reading: RequestedReading::Point,
     };
     check_propagation(&request).map(|_| ())
+}
+
+/// Whether the rows of several inputs may be paired row by row.
+///
+/// The multi-input form of the rule for a nonlinear operation under an aligned
+/// joint law: the inputs' own alignments decide, so two inputs flagged joint
+/// with different alignment identities (separate artifacts, other draws) refuse
+/// as `alignment_mismatch`, and an independent-marginal or summary input
+/// refuses as `index_pairing_refused`. A covariance or a declared independence
+/// is never a route to row pairing. Each entry is an input identity and its
+/// alignment; the evidence identities are distinct placeholders because only
+/// the alignment is decided here.
+///
+/// With fewer than two inputs it is the single-input rule,
+/// [`check_rows_pairable`].
+///
+/// # Errors
+/// `joint_law_required` with `joint_law_propagation.alignment_mismatch` for
+/// different alignment identities, or
+/// `joint_law_propagation.index_pairing_refused` for an input with no aligned
+/// draws.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
+pub fn check_rows_pairable_across(
+    inputs: &[(&str, &InputAlignment)],
+) -> Result<(), ExternalRefusal> {
+    match inputs {
+        [] => Ok(()),
+        [(_, only)] => check_rows_pairable(only),
+        many => {
+            let request = PropagationRequest {
+                operation: PropagationOperation::NonlinearFunctional,
+                inputs: many
+                    .iter()
+                    .map(|(id, alignment)| PropagationInput {
+                        id: (*id).to_owned(),
+                        evidence_id: format!("pairing_evidence:{id}"),
+                        role: InputRole::Estimate,
+                        alignment: (*alignment).clone(),
+                    })
+                    .collect(),
+                dependence: PropagationDependence::AlignedJointLaw,
+                reading: RequestedReading::Point,
+            };
+            check_propagation(&request).map(|_| ())
+        }
+    }
 }
 
 #[cfg(test)]

@@ -202,7 +202,8 @@ pub use exact::{
 };
 pub use interface_contract::{
     ConsumedInterfaceContract, InterfaceContractExport, InterfaceContractRefusal,
-    check_interface_composition, check_interface_connection, consume_interface_contract_artifact,
+    check_interface_composition, check_interface_composition_with_ledger, check_interface_connection,
+    consume_interface_contract_artifact,
     export_interface_contract, inspect_interface_contract_artifact,
 };
 pub use inverse_outcome::{
@@ -213,7 +214,7 @@ pub use inverse_outcome::{
 };
 pub use joint_law_propagation::{
     CorrelationRangeSummary, JointLawPropagationRefusal, LinearDependence, MixtureComponent,
-    MomentInput, PropagationClaim, PropagationDraws, alignment_identity,
+    MomentInput, PropagationClaim, PropagationDraws, alignment_identity, input_alignment,
     consume_joint_law_propagation_artifact, propagate_aligned_functional, propagate_aligned_linear,
     propagate_correlation_range, propagate_dependence_envelope, propagate_linear_moments,
     propagate_mixture,

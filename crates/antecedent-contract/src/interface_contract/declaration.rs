@@ -659,6 +659,124 @@ impl ConsumedPort {
     }
 }
 
+/// The port-level facts a mechanism, bridge or measurement-model declaration
+/// does not itself state but an interface contract needs: the support of the
+/// quantity, the identity of the estimand it answers, what its uncertainty
+/// means and the measurement models it is established under.
+///
+/// The adapters that project those declarations to an [`InterfaceContract`]
+/// take these facts explicitly. Nothing is inferred: a support that is not
+/// supplied is [`SupportDomain::Real`], no uncertainty meaning is stated, and
+/// no measurement model is claimed.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PortFacts {
+    /// The values the quantity takes (produced) or the consumer accepts.
+    pub support: SupportDomain,
+    /// The estimand or semantic identity; `None` names the variable.
+    pub semantic_identity: Option<String>,
+    /// What the offered or required uncertainty means.
+    pub uncertainty: Option<DistributionMeaning>,
+    /// Identities (hex) of the measurement models the value is established
+    /// under (produced) or must be established under (consumed).
+    pub measurement_models: BTreeSet<String>,
+}
+
+impl PortFacts {
+    /// Facts with the given support, no stated estimand, uncertainty meaning or
+    /// measurement model.
+    #[must_use]
+    pub fn new(support: SupportDomain) -> Self {
+        Self {
+            support,
+            semantic_identity: None,
+            uncertainty: None,
+            measurement_models: BTreeSet::new(),
+        }
+    }
+
+    /// State the estimand or semantic identity.
+    #[must_use]
+    pub fn with_semantic_identity(mut self, identity: impl Into<String>) -> Self {
+        self.semantic_identity = Some(identity.into());
+        self
+    }
+
+    /// State what the offered or required uncertainty means.
+    #[must_use]
+    pub fn with_uncertainty(mut self, meaning: DistributionMeaning) -> Self {
+        self.uncertainty = Some(meaning);
+        self
+    }
+
+    /// State the measurement models (hex identities).
+    #[must_use]
+    pub fn with_measurement_models<S: Into<String>>(
+        mut self,
+        models: impl IntoIterator<Item = S>,
+    ) -> Self {
+        self.measurement_models = models.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// A produced port for `quantity` under these facts. The calibration is
+    /// `calibration` when stated, otherwise `unmeasured` for an offering that
+    /// carries uncertainty and `point_only` for one that does not; it is never
+    /// measured by default.
+    pub(crate) fn produced(
+        &self,
+        name: &str,
+        quantity: &ScientificQuantity,
+        operations: BTreeSet<ContractOperation>,
+        provenance: impl IntoIterator<Item = &'static str>,
+        calibration: Option<CalibrationStatus>,
+        evidence: EvidenceBasis,
+    ) -> ProducedPort {
+        let carries = uncertainty_ops(&operations);
+        let mut port = ProducedPort::new(
+            name,
+            quantity.clone(),
+            self.semantic_identity.clone().unwrap_or_else(|| quantity.variable_id.clone()),
+            self.support.clone(),
+            operations,
+        )
+        .with_measurement_models(self.measurement_models.iter().cloned())
+        .with_provenance(provenance);
+        if let Some(meaning) = self.uncertainty {
+            port = port.with_uncertainty(meaning);
+        }
+        port = port.with_calibration(calibration.unwrap_or(if carries {
+            CalibrationStatus::Unmeasured
+        } else {
+            CalibrationStatus::PointOnly
+        }));
+        port.evidence = evidence;
+        port
+    }
+
+    /// A consumed port for `quantity` under these facts.
+    pub(crate) fn consumed(
+        &self,
+        name: &str,
+        quantity: &ScientificQuantity,
+        operations: BTreeSet<ContractOperation>,
+        dependence: DependenceRequirement,
+    ) -> ConsumedPort {
+        let mut port = ConsumedPort::new(
+            name,
+            quantity.clone(),
+            self.semantic_identity.clone().unwrap_or_else(|| quantity.variable_id.clone()),
+            self.support.clone(),
+            operations,
+        )
+        .with_measurement_models(self.measurement_models.iter().cloned())
+        .with_dependence(dependence);
+        if let Some(meaning) = self.uncertainty {
+            port = port.with_uncertainty(meaning);
+        }
+        port
+    }
+}
+
 /// What one component produces and consumes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct InterfaceContract {
