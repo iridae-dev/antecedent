@@ -2,7 +2,39 @@
 
 ## 2.4.0
 
-The package version on this branch is 2.4.0. The last tagged release remains 2.3.0. The [draft release notes](docs/release-notes/v2.4.0.md) list the generic analysis-support delta since that tag.
+Changes since 2.3.0. The [release notes](docs/release-notes/v2.4.0.md) describe the new workflows, each cell's inference status, the refused adjacent requests and their remedies; this section records the software delta.
+
+### Added
+
+- **Composing measurements, mechanisms and evidence.** Measurement-error and misclassification correction, probabilistic categorical labels and externally supplied latent posteriors carry a typed measurement contract. Independently fitted mechanisms compose into one acyclic joint law under intervention. An evidence ledger decides row-level overlap, pools with a stated covariance (minimum-variance, random-effects, hierarchical borrowing), bounds pooling over a declared correlation range, and revalidates dependent claims when a source changes. Values are point-only or assumption ranges; pooled, borrowed and revalidated intervals are refused.
+- **Transport and counterfactuals.** Nested and conditional counterfactual transport from labelled finite laws, sampled counterfactual transport, mechanism and synthesis transport, discovered-structure transport (a class of structures, per-population discovery, sample split), provider-sourced transport and cohort-effect transport carry their transport identity into decisions, inverse queries and handoffs. Assumption ranges and revalidation say what happens when a transport premise fails. See [transported decisions](docs/guides/transported-decisions-and-measurement.md) and [inverse and decision reach](docs/guides/inverse-and-decision-reach.md).
+- **Derived uncertainty, unmeasured.** Composed spread and exceedance, whole-path uncertainty, decision-reliability derived uncertainty (Monte Carlo error, ranking probabilities, selection-aware evaluation) and adaptive-procedure uncertainty by paradigm are derived from declared structure. Each reports `derived-unmeasured` standing and grants no interval, coverage or error-rate license. See [composed uncertainty](docs/guides/composed-uncertainty.md), [decision reliability](docs/guides/decision-reliability-uncertainty.md) and [adaptive procedures](docs/guides/adaptive-procedure-uncertainty.md).
+- **Adaptive experiments.** Retained analysis contracts and a procedure matrix license or refuse inference for an assignment policy, outcome structure, monitoring strategy and stopping rule. Bayesian posterior, decision-theoretic stopping, adaptive weighting, repeated-measures weighting, anytime-valid sequences and group-sequential boundaries are point-only readings; no coverage or error-rate claim is made.
+- **Predictive assessment and observation queries.** Proper scores, score differences, calibration diagnostics and distribution drift of a predictive law on realized observations; observation-conditioned probabilities, posterior updates and evidence requirements over a declared finite model. Interval and significance statements are refused.
+- **Bridges, contracts and execution.** Typed scientific bridges, one interface-contract schema for mechanism, bridge and measurement declarations, joint-law propagation (linear moments, aligned nonlinear functionals, known-weight mixtures), dependence envelopes, cross-world execution in finite Markovian SCMs and fixed-population temporal counterfactuals, sequential policy evaluation, and a bounded provider-callback protocol with replay policy and portable results.
+- **Selective reuse.** Discovery recalculation reuses compatible stages when a threshold, multiplicity rule, background knowledge, orientation budget, lag window or CI test changes. Recalculation receipts and composite decision stages report executed and reused work.
+- **Posterior means.** Bayesian counterparts of vector, categorical, dose, mediation, latent-class, penalized and clustered score, finite-law decision, recovery and transport routes return a posterior mean as a point. Draws are not an interval.
+- **Python.** Specialized result objects with shared `inspect()`, bytes-first `export`, `MeanSource` adapters and structured refusals for the new routes. See the [migration notes](docs/migrations/2.4-python-ux.md).
+- Fuzz targets for receipts, claims, discovery, rollout, study plans and transport artifacts; a security review of the new decoders with per-artifact byte caps ([security review](docs/security_review.md)).
+
+### Breaking identity changes
+
+Container layouts and version constants are unchanged; derived identities are not. Nothing is silently accepted: a consumer that retains today's identity refuses an artifact exported earlier.
+
+- Decision contracts, decision results, external claims, composition bundles, inverse-query results and robust decision results are derived under new domain tags. Requires regeneration. [Migration](docs/migrations/decision-and-claim-identity-domains.md).
+- Design ranking request and signal fingerprints are derived differently. The earlier artifact is inspectable only. [Migration](docs/migrations/design-ranking-fingerprints.md).
+- A stored `exact_request_verified` label is consumed as externally attested without a receipt; newer layouts are refused before decoding; source overlap comes from the evidence ledger; Monte Carlo expected value of sample information uses per-candidate streams. Migrated. [Migration](docs/migrations/design-ranking-verification-and-overlap.md).
+- Recovery derivations, mixed-source and study-plan identities, and four rule-version spellings. Requires regeneration; the stored wire stays inspectable. [Migration](docs/migrations/recovery-identity-and-rule-spelling.md).
+- The terminal stage of a composite recalculation binds its contract, support policy, program and every callback branch. Migrated; no stored receipt is refused. [Migration](docs/migrations/composite-decision-stage-identity.md).
+- Python: retained studies, immutable read models, bytes-first export and `Identification.validate` removal. [Migration](docs/migrations/2.4-python-ux.md).
+
+### Moved to the next release
+
+The acceleration workstream (an opt-in accelerator backend for cross-fitted neural models) did not start and no 2.4 claim depends on it. It moves to 2.5 and remains conditional; see the [roadmap](ROADMAP.md).
+
+### Known open item
+
+Calibration of the new uncertainty routes (composed, decision-reliability and adaptive-procedure) is measured in the release candidate. Until a coverage record exists at a route's own coordinate, it carries `derived-unmeasured` standing and no `calibrated` result is issued.
 
 ### Fixed
 
