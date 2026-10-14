@@ -640,3 +640,49 @@ meaning = "A request needs one declared causal graph (a selection diagram, an id
 id = "discovery_statistics_invalid"
 applies_to = ["runtime_refusal"]
 meaning = "Retained discovery statistics cannot be used: the raw data they were computed from are absent or differ, the contract differs, a receipt is not a usable statistic or does not cover a requested test, or replaying them does not reproduce the recorded result. Statistics are bound to the content they were computed from; the remedy is to rerun discovery on the raw data."
+
+# Design preflight review findings.
+[[code]]
+id = "near_collinear_column"
+applies_to = ["runtime_refusal"]
+meaning = "An adjustment column is not an exact linear function of higher-priority columns but leaves almost no residual after projecting them out (uncentered); fits are ill conditioned and nothing is dropped. Review finding from design preflight."
+
+[[code]]
+id = "column_separates_arms"
+applies_to = ["runtime_refusal"]
+meaning = "A single adjustment column separates the treatment arms completely or quasi-completely, so a propensity model saturates; a positivity review finding for human review, not an identification verdict."
+
+[[code]]
+id = "adjustment_duplicates_query_variable"
+applies_to = ["runtime_refusal"]
+meaning = "An adjustment column is an exact copy of a treatment or the outcome; review for a post-treatment or label-leaking column."
+
+[[code]]
+id = "duplicate_adjustment_columns"
+applies_to = ["runtime_refusal"]
+meaning = "Adjustment columns are exact copies of one another, so the design is rank deficient by exactly this duplication."
+
+[[code]]
+id = "duplicate_query_columns"
+applies_to = ["runtime_refusal"]
+meaning = "The treatment and outcome columns are exact copies."
+
+[[code]]
+id = "treatment_near_determined_by_adjustment"
+applies_to = ["runtime_refusal"]
+meaning = "A treatment column is near-deterministically predicted by the adjustment columns (linear R^2 above threshold); review finding."
+
+[[code]]
+id = "outcome_near_determined_by_adjustment"
+applies_to = ["runtime_refusal"]
+meaning = "The outcome column is near-deterministically predicted by the adjustment columns; review finding."
+
+[[code]]
+id = "adjustment_column_tracks_treatment"
+applies_to = ["runtime_refusal"]
+meaning = "A single adjustment column near-deterministically predicts a treatment column; review finding."
+
+[[code]]
+id = "adjustment_column_tracks_outcome"
+applies_to = ["runtime_refusal"]
+meaning = "A single adjustment column near-deterministically predicts the outcome; review finding."

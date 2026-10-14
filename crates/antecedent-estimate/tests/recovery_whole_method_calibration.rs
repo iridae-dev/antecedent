@@ -113,7 +113,82 @@ fn recovery_bca_original_measurement_identity_receipt() {
     let functional_literal =
         original_row.lines().find_map(|line| line.strip_prefix("functional = ")).unwrap();
     let recorded_functional: String = serde_json::from_str(functional_literal).unwrap();
-    assert_eq!(original_functional, recorded_functional);
+    // The stored row is immutable measurement evidence and still carries the
+    // retired textual identity; it is bound by alias, never re-stamped. Today's
+    // identity is a domain-separated digest, so it can no longer equal that text.
+    assert!(recorded_functional
+        .starts_with("recovered_effect:x10.recovery.v1|graph=mgraph.v1;nodes="));
+    assert_ne!(original_functional, recorded_functional);
+    // Independent oracle: re-encode the declared record fields with the public
+    // canonical writer (length-delimited words and text, in declaration order).
+    let rec = derivation.record();
+    let mut w = antecedent_core::CanonicalWriter::new("recovery.derivation.v2");
+    w.text(&rec.rule_version).text(&rec.graph_signature).text(&rec.population);
+    w.word(u64::from(rec.observed_regime)).text(&rec.observed_identity);
+    w.word(rec.partially_observed.len() as u64);
+    for &(a, b, c) in &rec.partially_observed {
+        w.word(u64::from(a)).word(u64::from(b)).word(u64::from(c));
+    }
+    let seq = |w: &mut antecedent_core::CanonicalWriter, v: &[u32]| {
+        w.word(v.len() as u64);
+        for &x in v {
+            w.word(u64::from(x));
+        }
+    };
+    seq(&mut w, &rec.fully_observed);
+    w.texts(&rec.premises);
+    w.word(u64::from(rec.numerator));
+    w.word(rec.factors.len() as u64);
+    for f in &rec.factors {
+        w.word(u64::from(f.response));
+        seq(&mut w, &f.parents);
+        seq(&mut w, &f.conditioning);
+        w.word(u64::from(f.expression));
+    }
+    w.word(u64::from(rec.root));
+    w.word(rec.margins.len() as u64);
+    for m in &rec.margins {
+        w.word(u64::from(m.expression));
+        seq(&mut w, &m.variables);
+        w.text(&m.identity);
+    }
+    let e = rec.effect.as_ref().expect("effect requested");
+    w.word(1);
+    seq(&mut w, &e.outcomes);
+    seq(&mut w, &e.treatments);
+    w.word(e.edges.len() as u64);
+    for &(from, to) in &e.edges {
+        w.word(u64::from(from)).word(u64::from(to));
+    }
+    w.word(u64::from(e.root));
+    w.texts(&e.rules);
+    assert_eq!(
+        result.receipt.derivation_identity,
+        format!("{}|{}", rec.rule_version, w.finish_hex())
+    );
+    // Equal derivations carry equal identity; a one-field change moves it.
+    let again = derive_sampled_recovery(
+        &source.graph,
+        &source.query(),
+        &catalog,
+        &effect,
+        RecoveryLimits::default(),
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(again.identity(), derivation.identity());
+    let mut changed_effect_identity = effect.clone();
+    changed_effect_identity.outcomes = Arc::from([v(2)]);
+    if let Ok(other) = derive_sampled_recovery(
+        &source.graph,
+        &source.query(),
+        &catalog,
+        &changed_effect_identity,
+        RecoveryLimits::default(),
+        &ctx,
+    ) {
+        assert_ne!(other.identity(), derivation.identity());
+    }
     let canonical_functional = result.calibration_basis().functional.to_string();
     assert_ne!(original_functional, canonical_functional);
     let mut changed_graph = source.graph.clone();

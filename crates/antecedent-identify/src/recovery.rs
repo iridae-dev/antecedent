@@ -85,7 +85,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use antecedent_core::{
-    CatalogDistribution, DistributionAvailability, EvidenceCatalog, EvidenceProjection,
+    CanonicalWriter, CatalogDistribution, DistributionAvailability, EvidenceCatalog, EvidenceProjection,
     ExecutionContext, LawOrigin, RegimeId, RegimeKind, SamplingSelection, SearchBudget,
     SearchLimits, SearchReceipt, SearchStop, VariableDomain, VariableId,
 };
@@ -556,40 +556,64 @@ fn scientific_identity(
     for margin in &mut record.margins {
         margin.identity = String::new();
     }
-    format!("recovery_scientific.v1:{}", derivation_identity(&record))
+    format!("recovery_scientific.v2:{}", derivation_identity(&record))
 }
+
+/// Domain of the canonical derivation digest.
+const DERIVATION_IDENTITY_DOMAIN: &str = "recovery.derivation.v2";
 
 fn derivation_identity(record: &RecoveryDerivationRecord) -> String {
     // Every field except the budget accounting: the provenance names what was
-    // derived, not how much work the producer's budget recorded.
-    let factors = record
-        .factors
-        .iter()
-        .map(|f| format!("{}<{:?}|{:?}@{}", f.response, f.parents, f.conditioning, f.expression))
-        .collect::<Vec<_>>()
-        .join(";");
-    let margins = record
-        .margins
-        .iter()
-        .map(|m| format!("{}:{:?}:{}", m.expression, m.variables, m.identity))
-        .collect::<Vec<_>>()
-        .join(";");
-    let effect = record.effect.as_ref().map_or_else(String::new, |e| {
-        format!("{:?}|{:?}|{:?}|{}|{:?}", e.outcomes, e.treatments, e.edges, e.root, e.rules)
-    });
-    format!(
-        "{}|graph={}|population={}|regime={}|observed={}|roles={:?}|fully={:?}|premises={:?}|numerator={}|factors={factors}|root={}|margins={margins}|effect={effect}",
-        record.rule_version,
-        record.graph_signature,
-        record.population,
-        record.observed_regime,
-        record.observed_identity,
-        record.partially_observed,
-        record.fully_observed,
-        record.premises,
-        record.numerator,
-        record.root,
-    )
+    // derived, not how much work the producer's budget recorded. Strings and
+    // sequences are length-delimited, so no field value can alias a neighbour.
+    let words = |stream: &mut CanonicalWriter, values: &[u32]| {
+        stream.word(values.len() as u64);
+        for &v in values {
+            stream.word(u64::from(v));
+        }
+    };
+    let mut stream = CanonicalWriter::new(DERIVATION_IDENTITY_DOMAIN);
+    stream.text(&record.rule_version).text(&record.graph_signature).text(&record.population);
+    stream.word(u64::from(record.observed_regime)).text(&record.observed_identity);
+    stream.word(record.partially_observed.len() as u64);
+    for &(variable, response, proxy) in &record.partially_observed {
+        stream.word(u64::from(variable)).word(u64::from(response)).word(u64::from(proxy));
+    }
+    words(&mut stream, &record.fully_observed);
+    stream.texts(&record.premises);
+    stream.word(u64::from(record.numerator));
+    stream.word(record.factors.len() as u64);
+    for f in &record.factors {
+        stream.word(u64::from(f.response));
+        words(&mut stream, &f.parents);
+        words(&mut stream, &f.conditioning);
+        stream.word(u64::from(f.expression));
+    }
+    stream.word(u64::from(record.root));
+    stream.word(record.margins.len() as u64);
+    for m in &record.margins {
+        stream.word(u64::from(m.expression));
+        words(&mut stream, &m.variables);
+        stream.text(&m.identity);
+    }
+    match &record.effect {
+        None => {
+            stream.word(0);
+        }
+        Some(e) => {
+            stream.word(1);
+            words(&mut stream, &e.outcomes);
+            words(&mut stream, &e.treatments);
+            stream.word(e.edges.len() as u64);
+            for &(from, to) in &e.edges {
+                stream.word(u64::from(from)).word(u64::from(to));
+            }
+            stream.word(u64::from(e.root));
+            stream.texts(&e.rules);
+        }
+    }
+    // The rule version stays readable as the prefix; the digest carries the content.
+    format!("{}|{}", record.rule_version, stream.finish_hex())
 }
 
 /// The outcome of a decision.
@@ -1116,7 +1140,16 @@ pub fn m_graph_signature(graph: &Admg) -> String {
         .into_iter()
         .map(|(from, to)| (from.raw(), to.raw()))
         .collect();
-    format!("mgraph.v1;nodes={nodes:?};directed={edges:?}")
+    let mut stream = CanonicalWriter::new("recovery.mgraph.v2");
+    stream.word(nodes.len() as u64);
+    for node in &nodes {
+        stream.word(u64::from(*node));
+    }
+    stream.word(edges.len() as u64);
+    for &(from, to) in &edges {
+        stream.word(u64::from(from)).word(u64::from(to));
+    }
+    format!("mgraph.v2:{}", stream.finish_hex())
 }
 
 fn margin_identity(
@@ -1409,6 +1442,71 @@ mod tests {
     use crate::test_support::v;
 
     const WITNESS_AT: At = At { stage: Stage::Witness, effect: false };
+
+    fn identity_record() -> RecoveryDerivationRecord {
+        RecoveryDerivationRecord {
+            rule_version: RECOVERY_RULE_VERSION.to_string(),
+            graph_signature: "g".to_string(),
+            population: "p".to_string(),
+            observed_regime: 7,
+            observed_identity: "obs".to_string(),
+            partially_observed: vec![(0, 1, 2)],
+            fully_observed: vec![3],
+            premises: vec!["a|b".to_string(), "c".to_string()],
+            numerator: 0,
+            factors: vec![RecoveryFactorRecord {
+                response: 1,
+                parents: vec![3],
+                conditioning: vec![3, 2],
+                expression: 4,
+            }],
+            root: 5,
+            margins: vec![RecoveryMarginRecord {
+                expression: 0,
+                variables: vec![3],
+                identity: "m".to_string(),
+            }],
+            effect: None,
+            receipt: RecoveryReceiptRecord {
+                operations_limit: 100,
+                depth_limit: 8,
+                memory_bytes: 1 << 20,
+                operations_consumed: 10,
+                depth_reached: 2,
+            },
+        }
+    }
+
+    #[test]
+    fn derivation_identity_is_canonical_and_field_sensitive() {
+        let base = identity_record();
+        let id = derivation_identity(&base);
+        assert!(id.starts_with(RECOVERY_RULE_VERSION));
+        // Equivalent records (budget accounting aside) agree.
+        let mut same = base.clone();
+        same.receipt.operations_consumed = 99;
+        assert_eq!(derivation_identity(&same), id);
+        // Strings that would alias under separator-joined text stay distinct.
+        let mut split = base.clone();
+        split.premises = vec!["a".to_string(), "b|c".to_string()];
+        assert_ne!(derivation_identity(&split), id);
+        let mut moved = base.clone();
+        moved.fully_observed = vec![];
+        moved.partially_observed = vec![(0, 1, 2), (3, 0, 0)];
+        assert_ne!(derivation_identity(&moved), id);
+        let mut other = base.clone();
+        other.factors[0].conditioning = vec![2, 3];
+        assert_ne!(derivation_identity(&other), id);
+        let mut effect = base;
+        effect.effect = Some(RecoveredEffectRecord {
+            outcomes: vec![1],
+            treatments: vec![0],
+            edges: vec![(0, 1)],
+            root: 9,
+            rules: vec!["r".to_string()],
+        });
+        assert_ne!(derivation_identity(&effect), id);
+    }
 
     /// X=0, R=1, X*=2, O=3; O -> X, O -> R, X -> X*, R -> X*.
     fn k1() -> (Admg, ObservationRecoveryQuery, EvidenceCatalog) {

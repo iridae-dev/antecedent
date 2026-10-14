@@ -225,21 +225,24 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
         target: Arc::from("target"),
     };
     let treatment_mask: usize = treatments.iter().map(|t| 1usize << t).sum();
+    let visited = std::sync::atomic::AtomicU64::new(0);
+    let checked = std::sync::atomic::AtomicU64::new(0);
     // Each directed mask is its own graph family. Nextest reserves the machine
     // for this sweep, and the masks share that budget.
-    let workers = std::thread::available_parallelism().map(std::num::NonZero::get).unwrap_or(1);
-    let masks: Vec<usize> = (0..8).collect();
-    let width = (masks.len() / workers).max(1);
-    let chunks: Vec<Vec<usize>> = masks.chunks(width).map(<[usize]>::to_vec).collect();
+    let workers =
+        std::thread::available_parallelism().map(std::num::NonZero::get).unwrap_or(1).min(8);
+    let catalog = three_node_power_set_catalog();
+    let catalog = &catalog;
     let query = &query;
     let ctx = &ctx;
     let edges = &edges;
     std::thread::scope(|scope| {
-        for chunk in &chunks {
+        for worker in 0..workers {
+            let visited = &visited;
+            let checked = &checked;
             scope.spawn(move || {
-                for &directed_mask in chunk {
+                for directed_mask in (worker..8).step_by(workers) {
         for bidirected_mask in 0..8usize {
-            for selected in 0..8usize {
                 let mut graph = Admg::with_variables(3);
                 for (bit, &(a, b)) in edges.iter().enumerate() {
                     if directed_mask & (1 << bit) != 0 {
@@ -249,8 +252,13 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
                         graph.insert_bidirected(d(a as u32), d(b as u32)).unwrap();
                     }
                 }
+                // Every target selection uses the same source mechanisms.
+                let mut sources: Vec<Option<Vec<ExactDiscreteLaw>>> =
+                    (0..parameterizations.len()).map(|_| None).collect();
+            for selected in 0..8usize {
+                visited.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 let diagram = SelectionDiagram::try_new(
-                    graph,
+                    graph.clone(),
                     (0..3).filter(|i| selected & (1 << i) != 0).map(v).collect::<Vec<_>>(),
                 )
                 .unwrap();
@@ -268,7 +276,10 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
                         "inconclusive uncapped three-node case: directed={directed_mask} bidirected={bidirected_mask} selected={selected}"
                     ),
                 };
-                for &(base, parent_w, shared_w, sel_w) in parameterizations {
+                let bound = proof.bind_catalog(catalog).unwrap();
+                for (parameter, &(base, parent_w, shared_w, sel_w)) in
+                    parameterizations.iter().enumerate()
+                {
                     let enumerate =
                         |target: bool, intervention_mask: usize, intervention_values: usize| {
                             let axes: Vec<usize> =
@@ -320,30 +331,11 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
                             }
                             (axes, law)
                         };
-                    let mut laws = Vec::new();
-                    let mut regimes = Vec::new();
+                    if sources[parameter].is_none() {
+                    let mut laws = Vec::with_capacity(27);
                     for mask in 0..8usize {
                         let interventions: Vec<_> =
                             (0..3).filter(|i| mask & (1 << i) != 0).map(v).collect();
-                        let measured: Vec<_> =
-                            (0..3).filter(|i| mask & (1 << i) == 0).map(v).collect();
-                        regimes.push(
-                            EvidenceRegime::try_new(
-                                RegimeId::from_raw(mask as u32),
-                                if mask == 0 {
-                                    RegimeKind::Observational
-                                } else {
-                                    RegimeKind::Experimental
-                                },
-                                EvidenceKind::Available,
-                                interventions.clone(),
-                                [],
-                                measured,
-                                "source",
-                                DistributionAvailability::Joint,
-                            )
-                            .unwrap(),
-                        );
                         for values in 0..8usize {
                             if values & !mask != 0 {
                                 continue;
@@ -377,20 +369,10 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
                             );
                         }
                     }
+                    sources[parameter] = Some(laws);
+                    }
+                    let mut laws = sources[parameter].as_ref().unwrap().clone();
                     let (axes, mass) = enumerate(true, 0, 0);
-                    regimes.push(
-                        EvidenceRegime::try_new(
-                            RegimeId::from_raw(8),
-                            RegimeKind::Observational,
-                            EvidenceKind::Available,
-                            [],
-                            [],
-                            [v(0), v(1), v(2)],
-                            "target",
-                            DistributionAvailability::Joint,
-                        )
-                        .unwrap(),
-                    );
                     let axes = axes
                         .into_iter()
                         .map(|i| DiscreteAxis {
@@ -410,8 +392,6 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
                         )
                         .unwrap(),
                     );
-                    let catalog = EvidenceCatalog::try_new([], regimes, [], None).unwrap();
-                    let bound = proof.bind_catalog(&catalog).unwrap();
                     let data = ExactTransportData::try_new(laws, 1000).unwrap();
                     for level in 0..(1usize << treatments.len()) {
                         let assigned: usize = treatments
@@ -441,6 +421,7 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
                             (result.mean(v(outcome)).unwrap() - expected).abs() < 1e-10,
                             "graph directed={directed_mask} bidirected={bidirected_mask} selection={selected} treatments={treatments:?} outcome={outcome} level={level} base={base}"
                         );
+                        checked.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     }
                 }
             }
@@ -449,6 +430,48 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
             });
         }
     });
+    assert_eq!(visited.load(std::sync::atomic::Ordering::Relaxed), 64 * 8);
+    let checked = checked.load(std::sync::atomic::Ordering::Relaxed);
+    eprintln!(
+        "three-node SCM treatments={treatments:?} outcome={outcome}: 512 diagrams; {checked} intervention comparisons"
+    );
+    assert!(checked > 0);
+}
+
+// Catalog shape depends only on node count, never graph or SCM parameters.
+fn three_node_power_set_catalog() -> EvidenceCatalog {
+    let mut regimes = Vec::with_capacity(9);
+    for mask in 0..8u32 {
+        let interventions: Vec<_> = (0..3).filter(|i| mask & (1 << i) != 0).map(v).collect();
+        let measured: Vec<_> = (0..3).filter(|i| mask & (1 << i) == 0).map(v).collect();
+        regimes.push(
+            EvidenceRegime::try_new(
+                RegimeId::from_raw(mask),
+                if mask == 0 { RegimeKind::Observational } else { RegimeKind::Experimental },
+                EvidenceKind::Available,
+                interventions,
+                [],
+                measured,
+                "source",
+                DistributionAvailability::Joint,
+            )
+            .unwrap(),
+        );
+    }
+    regimes.push(
+        EvidenceRegime::try_new(
+            RegimeId::from_raw(8),
+            RegimeKind::Observational,
+            EvidenceKind::Available,
+            [],
+            [],
+            [v(0), v(1), v(2)],
+            "target",
+            DistributionAvailability::Joint,
+        )
+        .unwrap(),
+    );
+    EvidenceCatalog::try_new([], regimes, [], None).unwrap()
 }
 
 /// Laws for X -> M -> Y with X <-> M, where only Y's mechanism differs in the target.
@@ -842,13 +865,17 @@ fn four_node_branch_positives_match_latent_scm_truth() {
     let failed = std::sync::atomic::AtomicBool::new(false);
     let message = std::sync::Mutex::new(String::new());
     let checked = std::sync::atomic::AtomicU64::new(0);
+    let visited = std::sync::atomic::AtomicU64::new(0);
+    let workers =
+        std::thread::available_parallelism().map(std::num::NonZero::get).unwrap_or(1).min(64);
     std::thread::scope(|scope| {
-        for worker in 0..8u32 {
+        for worker in 0..workers {
             let failed = &failed;
             let message = &message;
             let checked = &checked;
+            let visited = &visited;
             scope.spawn(move || {
-                let ctx = ExecutionContext::for_tests(u64::from(worker));
+                let ctx = ExecutionContext::for_tests(worker as u64);
                 let catalog = four_node_power_set_catalog();
                 let query = ClassicalTransportQuery {
                     outcomes: Arc::from([v(3)]),
@@ -856,13 +883,20 @@ fn four_node_branch_positives_match_latent_scm_truth() {
                     source: Arc::from("source"),
                     target: Arc::from("target"),
                 };
-                for directed in (worker..64).step_by(8) {
+                for directed in (worker..64).step_by(workers) {
+                    let directed = directed as u32;
                     for bidirected in 0..64u32 {
                         if failed.load(std::sync::atomic::Ordering::Relaxed) {
                             return;
                         }
                         let graph = four_node_graph(directed, bidirected);
+                        // Source mechanisms do not depend on target selections. Keep
+                        // one validated set per parameterization for this graph;
+                        // target laws and independent do-truths still vary per case.
+                        let mut sources: [Option<Vec<ExactDiscreteLaw>>; PARAMS.len()] =
+                            std::array::from_fn(|_| None);
                         for selections in 0..16u32 {
+                            visited.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                             let diagram = SelectionDiagram::try_new(
                                 graph.clone(),
                                 (0..4).filter(|i| selections & (1 << i) != 0).map(v).collect::<Vec<_>>(),
@@ -886,7 +920,9 @@ fn four_node_branch_positives_match_latent_scm_truth() {
                                     return;
                                 }
                             };
-                            for (base, parent_w, shared_w, sel_w) in PARAMS {
+                            for (parameter, (base, parent_w, shared_w, sel_w)) in
+                                PARAMS.into_iter().enumerate()
+                            {
                                 if !four_node_param_in_unit_interval(
                                     directed, bidirected, selections, base, parent_w, shared_w, sel_w,
                                 ) {
@@ -901,9 +937,23 @@ fn four_node_branch_positives_match_latent_scm_truth() {
                                     shared_w,
                                     sel_w,
                                 };
-                                if let Err(err) =
-                                    four_node_formula_matches_scm(&proof, &catalog, &model, &ctx)
-                                {
+                                if sources[parameter].is_none() {
+                                    match four_node_source_laws(&model) {
+                                        Ok(laws) => sources[parameter] = Some(laws),
+                                        Err(err) => {
+                                            *message.lock().unwrap() = err;
+                                            failed.store(true, std::sync::atomic::Ordering::Relaxed);
+                                            return;
+                                        }
+                                    }
+                                }
+                                if let Err(err) = four_node_formula_matches_scm(
+                                    &proof,
+                                    &catalog,
+                                    &model,
+                                    sources[parameter].as_ref().unwrap(),
+                                    &ctx,
+                                ) {
                                     *message.lock().unwrap() = err;
                                     failed.store(true, std::sync::atomic::Ordering::Relaxed);
                                     return;
@@ -917,7 +967,13 @@ fn four_node_branch_positives_match_latent_scm_truth() {
         }
     });
     assert!(!failed.load(std::sync::atomic::Ordering::Relaxed), "{}", message.lock().unwrap());
-    assert!(checked.load(std::sync::atomic::Ordering::Relaxed) > 0);
+    assert_eq!(visited.load(std::sync::atomic::Ordering::Relaxed), 64 * 64 * 16);
+    let checked = checked.load(std::sync::atomic::Ordering::Relaxed);
+    eprintln!(
+        "four-node SCM: 65536 diagrams; {checked} graph-selection-parameter cases; {} intervention comparisons",
+        checked * 2
+    );
+    assert!(checked > 0);
 }
 
 const FOUR_EDGES: [(usize, usize); 6] = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
@@ -1029,18 +1085,11 @@ fn four_node_weight(
     model.base + model.parent_w * parents + model.shared_w * shared + selection_shift
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "one fixture exercised end to end; later assertions read locals built above them"
-)]
+// The source power-set laws are independent of the selected target mechanisms.
+// Enumeration and summation order match the original per-case oracle exactly.
 #[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
-fn four_node_formula_matches_scm(
-    proof: &antecedent_identify::ClassicalTransportDerivation,
-    catalog: &EvidenceCatalog,
-    model: &FourNodeModel,
-    ctx: &ExecutionContext,
-) -> Result<(), String> {
-    let FourNodeModel { directed, bidirected, selections, base, .. } = *model;
+fn four_node_source_laws(model: &FourNodeModel) -> Result<Vec<ExactDiscreteLaw>, String> {
+    let FourNodeModel { directed, bidirected, selections, .. } = *model;
     let mut source = vec![Vec::new(); 81];
     for mask in 0..16usize {
         let free = 4 - mask.count_ones() as usize;
@@ -1051,20 +1100,11 @@ fn four_node_formula_matches_scm(
             source[four_node_slot(mask, values)] = vec![0.0; 1 << free];
         }
     }
-    let mut target = vec![0.0; 16];
-    let mut truth = [0.0; 2];
     let prior = 1.0 / 64.0;
     for latent in 0..64usize {
         for values in 0..16usize {
             let source_p: [f64; 4] =
                 std::array::from_fn(|node| four_node_weight(node, values, latent, model, false));
-            let target_p: [f64; 4] =
-                std::array::from_fn(|node| four_node_weight(node, values, latent, model, true));
-            let mut observational = prior;
-            for (node, probability) in target_p.iter().enumerate() {
-                observational *= bernoulli((values >> node) & 1, *probability);
-            }
-            target[four_node_free_row(values, 0)] += observational;
             for mask in 0..16usize {
                 let mut mass = prior;
                 for (node, probability) in source_p.iter().enumerate() {
@@ -1076,17 +1116,9 @@ fn four_node_formula_matches_scm(
                 let row = four_node_free_row(values, mask);
                 source[four_node_slot(mask, values & mask)][row] += mass;
             }
-            let x = values & 1;
-            if (values >> 3) & 1 == 1 {
-                let mut mass = prior;
-                for (node, probability) in target_p.iter().enumerate().skip(1) {
-                    mass *= bernoulli((values >> node) & 1, *probability);
-                }
-                truth[x] += mass;
-            }
         }
     }
-    let mut laws = Vec::with_capacity(82);
+    let mut laws = Vec::with_capacity(81);
     for mask in 0..16usize {
         for values in 0..16usize {
             if values & !mask != 0 {
@@ -1122,6 +1154,41 @@ fn four_node_formula_matches_scm(
             );
         }
     }
+    Ok(laws)
+}
+
+#[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
+fn four_node_formula_matches_scm(
+    proof: &antecedent_identify::ClassicalTransportDerivation,
+    catalog: &EvidenceCatalog,
+    model: &FourNodeModel,
+    source: &[ExactDiscreteLaw],
+    ctx: &ExecutionContext,
+) -> Result<(), String> {
+    let FourNodeModel { directed, bidirected, selections, base, .. } = *model;
+    let mut target = vec![0.0; 16];
+    let mut truth = [0.0; 2];
+    let prior = 1.0 / 64.0;
+    for latent in 0..64usize {
+        for values in 0..16usize {
+            let target_p: [f64; 4] =
+                std::array::from_fn(|node| four_node_weight(node, values, latent, model, true));
+            let mut observational = prior;
+            for (node, probability) in target_p.iter().enumerate() {
+                observational *= bernoulli((values >> node) & 1, *probability);
+            }
+            target[four_node_free_row(values, 0)] += observational;
+            let x = values & 1;
+            if (values >> 3) & 1 == 1 {
+                let mut mass = prior;
+                for (node, probability) in target_p.iter().enumerate().skip(1) {
+                    mass *= bernoulli((values >> node) & 1, *probability);
+                }
+                truth[x] += mass;
+            }
+        }
+    }
+    let mut laws = source.to_vec();
     laws.push(
         ExactDiscreteLaw::try_new(
             "target",

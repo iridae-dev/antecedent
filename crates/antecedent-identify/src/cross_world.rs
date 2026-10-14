@@ -82,7 +82,7 @@ impl CrossWorldRefusal {
     /// identified, only that no route here evaluates it.
     fn outside_contract(message: impl Into<String>) -> Self {
         Self {
-            code: "route_not_supported",
+            code: antecedent_core::reason_code!("route_not_supported"),
             detail: "cross_world.query_outside_contract",
             message: message.into(),
         }
@@ -90,7 +90,7 @@ impl CrossWorldRefusal {
 
     fn recanting(variable: u32, message: impl Into<String>) -> Self {
         Self {
-            code: "cross_world_not_identified",
+            code: antecedent_core::reason_code!("cross_world_not_identified"),
             detail: "cross_world.recanting_witness",
             message: format!("variable {variable} {}", message.into()),
         }
@@ -98,7 +98,7 @@ impl CrossWorldRefusal {
 
     fn graph(message: impl Into<String>) -> Self {
         Self {
-            code: "cell_not_licensed",
+            code: antecedent_core::reason_code!("cell_not_licensed"),
             detail: "cross_world.graph_outside_contract",
             message: message.into(),
         }
@@ -106,7 +106,7 @@ impl CrossWorldRefusal {
 
     fn invalid(message: impl Into<String>) -> Self {
         Self {
-            code: "invalid_argument",
+            code: antecedent_core::reason_code!("invalid_argument"),
             detail: "cross_world.invalid_query",
             message: message.into(),
         }

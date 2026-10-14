@@ -730,14 +730,14 @@ fn duplicate_findings(frame: &Frame<'_>, duplicates: &[Vec<usize>]) -> Vec<Prefl
         let touches_adjustment = group.iter().any(|&j| j > nt);
         let (code, detail) = if touches_query && touches_adjustment {
             (
-                "adjustment_duplicates_query_variable",
+                reason_code!("adjustment_duplicates_query_variable"),
                 "an adjustment column is an exact copy of a treatment or the outcome; review \
                  whether it is a post-treatment or label-leaking column (the adjustment set is \
                  not changed)",
             )
         } else if touches_adjustment {
             (
-                "duplicate_adjustment_columns",
+                reason_code!("duplicate_adjustment_columns"),
                 "adjustment columns are exact copies of one another; the design is rank \
                  deficient by exactly this duplication",
             )
@@ -781,7 +781,7 @@ fn rank_findings(
                 dependent.iter().map(|d| d.column.as_str()).collect::<Vec<_>>().join(", ")
             );
             findings.push(PreflightFinding {
-                code: "design_rank_deficient",
+                code: reason_code!("design_rank_deficient"),
                 severity: FindingSeverity::Blocking,
                 columns: dependent.iter().map(|d| d.column.clone()).collect(),
                 measure: Some(numerical_rank as f64),
@@ -794,7 +794,7 @@ fn rank_findings(
         for (j, scanned) in scan.columns.iter().enumerate().skip(1) {
             if scanned.kept && scanned.ratio < NEAR_COLLINEAR_RATIO {
                 findings.push(PreflightFinding {
-                    code: "near_collinear_column",
+                    code: reason_code!("near_collinear_column"),
                     severity: FindingSeverity::Review,
                     columns: vec![names[j].clone()],
                     measure: Some(scanned.ratio),
@@ -839,7 +839,7 @@ pub fn preflight_design(
 
     for arm in frame.arms.iter().filter(|a| a.rows == 0) {
         findings.push(PreflightFinding {
-            code: "arm_not_populated",
+            code: reason_code!("arm_not_populated"),
             severity: FindingSeverity::Blocking,
             columns: Vec::new(),
             measure: Some(0.0),
@@ -866,7 +866,7 @@ pub fn preflight_design(
         }
         if let Some(kind) = separates_arms(col, &frame.indicator) {
             findings.push(PreflightFinding {
-                code: "column_separates_arms",
+                code: reason_code!("column_separates_arms"),
                 severity: FindingSeverity::Review,
                 columns: vec![adjustment_names[j].clone()],
                 measure: None,
@@ -907,13 +907,13 @@ fn query_targets<'f>(frame: &'f Frame<'_>) -> Vec<(&'f str, &'static str, &'f [f
     for (j, name) in frame.names[..frame.nt()].iter().enumerate() {
         out.push((
             name.as_str(),
-            "treatment_near_determined_by_adjustment",
+            reason_code!("treatment_near_determined_by_adjustment"),
             frame.columns[j].as_slice(),
         ));
     }
     out.push((
         frame.names[frame.nt()].as_str(),
-        "outcome_near_determined_by_adjustment",
+        reason_code!("outcome_near_determined_by_adjustment"),
         frame.outcome_column(),
     ));
     out
@@ -925,13 +925,13 @@ fn query_columns<'f>(frame: &'f Frame<'_>) -> Vec<(&'f str, &'static str, &'f [f
     for (j, name) in frame.names[..frame.nt()].iter().enumerate() {
         out.push((
             name.as_str(),
-            "adjustment_column_tracks_treatment",
+            reason_code!("adjustment_column_tracks_treatment"),
             frame.columns[j].as_slice(),
         ));
     }
     out.push((
         frame.names[frame.nt()].as_str(),
-        "adjustment_column_tracks_outcome",
+        reason_code!("adjustment_column_tracks_outcome"),
         frame.outcome_column(),
     ));
     out

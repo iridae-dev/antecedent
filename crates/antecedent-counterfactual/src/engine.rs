@@ -171,7 +171,7 @@ impl CounterfactualEngine {
         ctx: &ExecutionContext,
     ) -> Result<ExogenousPosterior, CounterfactualError> {
         let mut rng = ctx.rng.stream_for(StreamDomain::Counterfactual, ABDUCTION_STREAM);
-        self.abduct_with_rng(data, missing, &mut rng)
+        self.abduct_impl(data, missing, &mut rng, Some(ctx))
     }
 
     /// Abduce exogenous noise with an explicit RNG (Discrete / LGSSM posterior draws).
@@ -184,6 +184,18 @@ impl CounterfactualEngine {
         data: &TabularData,
         missing: AbductionMissingPolicy,
         rng: &mut antecedent_core::CausalRng,
+    ) -> Result<ExogenousPosterior, CounterfactualError> {
+        self.abduct_impl(data, missing, rng, None)
+    }
+
+    /// Shared abduction body. When `ctx` is supplied, cancellation is observed once per
+    /// node column; the draws and results are identical to the uncancelled path.
+    fn abduct_impl(
+        &self,
+        data: &TabularData,
+        missing: AbductionMissingPolicy,
+        rng: &mut antecedent_core::CausalRng,
+        ctx: Option<&ExecutionContext>,
     ) -> Result<ExogenousPosterior, CounterfactualError> {
         let n = data.row_count();
         let n_nodes = self.model.n_nodes();
@@ -227,6 +239,9 @@ impl CounterfactualEngine {
         let mut parent_buf: Vec<f64> = Vec::new();
         let mut mechanism_workspace = MechanismWorkspace::default();
         for gather in self.model.parent_gathers.iter() {
+            if ctx.is_some_and(|c| c.cancellation.is_cancelled()) {
+                return Err(CounterfactualError::Cancelled);
+            }
             let node = gather.child;
             let idx = node.as_usize();
             let out = &mut noise[idx * n..(idx + 1) * n];
@@ -385,6 +400,9 @@ impl CounterfactualEngine {
         let mut parent_buf = Vec::new();
 
         for (wi, world) in worlds.iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CounterfactualError::Cancelled);
+            }
             if !allow_nested {
                 for iv in world.interventions.iter() {
                     if matches!(iv, Intervention::Sequence(_)) {
@@ -1148,6 +1166,24 @@ mod tests {
             .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
             .unwrap();
         (CounterfactualEngine::new(compiled.with_mechanisms(store)), data)
+    }
+
+    #[test]
+    fn cancelled_context_stops_abduction_and_prediction_with_typed_error() {
+        let (engine, data) = toy();
+        let live = ExecutionContext::for_tests(1);
+        let exo = engine.abduct(&data, AbductionMissingPolicy::Error, &live).unwrap();
+
+        let cancelled = ExecutionContext::for_tests(1);
+        cancelled.cancellation.cancel();
+        let err = engine.abduct(&data, AbductionMissingPolicy::Error, &cancelled).unwrap_err();
+        assert_eq!(err, CounterfactualError::Cancelled);
+
+        let y = VariableId::from_raw(1);
+        let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from([]) };
+        let mut ws = MechanismWorkspace::default();
+        let err = engine.predict(&exo, &[world], &[y], false, &mut ws, &cancelled).unwrap_err();
+        assert_eq!(err, CounterfactualError::Cancelled);
     }
 
     #[test]

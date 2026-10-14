@@ -188,7 +188,7 @@ impl CounterfactualIdRefusal {
     #[must_use]
     pub fn interval_requested() -> Self {
         Self::plain(
-            "estimator_inference_mismatch",
+            antecedent_core::reason_code!("estimator_inference_mismatch"),
             "counterfactual_id.interval_requested",
             "the counterfactual identification cell is a point claim; no interval or posterior \
              is published"
@@ -198,7 +198,7 @@ impl CounterfactualIdRefusal {
 
     fn outside_contract(message: impl Into<String>) -> Self {
         Self::plain(
-            "route_not_supported",
+            antecedent_core::reason_code!("route_not_supported"),
             "counterfactual_id.query_outside_contract",
             message.into(),
         )
@@ -206,17 +206,17 @@ impl CounterfactualIdRefusal {
 
     fn path_specific() -> Self {
         Self::plain(
-            "route_not_supported",
+            antecedent_core::reason_code!("route_not_supported"),
             "counterfactual_id.path_specific_deferred",
             "a world routes edges: path-specific and recanting-district effects on ADMGs are \
-             deferred to 2.3"
+             outside this identification route"
                 .into(),
         )
     }
 
     fn conflict(obstruction: CounterfactualObstruction) -> Self {
         Self {
-            code: "route_not_supported",
+            code: antecedent_core::reason_code!("route_not_supported"),
             detail: "counterfactual_id.conflicting_subscripts",
             message: obstruction.describe(),
             obstruction: Some(Box::new(obstruction)),
@@ -226,7 +226,7 @@ impl CounterfactualIdRefusal {
 
     fn hedge(obstruction: CounterfactualObstruction) -> Self {
         Self {
-            code: "route_not_supported",
+            code: antecedent_core::reason_code!("route_not_supported"),
             detail: "counterfactual_id.counterfactual_hedge",
             message: obstruction.describe(),
             obstruction: Some(Box::new(obstruction)),
@@ -236,7 +236,7 @@ impl CounterfactualIdRefusal {
 
     fn budget(receipt: SearchReceipt) -> Self {
         Self {
-            code: "transport_budget_cancel",
+            code: antecedent_core::reason_code!("transport_budget_cancel"),
             detail: "counterfactual_id.budget",
             message: format!(
                 "{} stopped the counterfactual identification search; this is not a \

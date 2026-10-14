@@ -99,7 +99,14 @@ pub fn digest_wire_hex<T: Serialize>(domain: IdentityDomain, value: &T) -> Resul
     Ok(digest_wire(domain, value)?.to_hex())
 }
 
-/// Host/Python view of the executed functional. Stable tags, not `Debug`.
+/// Host/Python view of the executed functional: human-readable label pairs for
+/// inspection reports.
+///
+/// The query kind and estimand tags are stable; several value labels render
+/// collections with `Debug` and reals with `to_string()`, so they are display text
+/// only. They feed no digest and no equality check; identity is carried by
+/// [`digest_wire`] over the typed wire, which encodes reals by bit pattern. Do not
+/// compare or hash these labels.
 ///
 /// Every query kind reports through this owner so consume and prepare do not
 /// re-decide science in the adapter.

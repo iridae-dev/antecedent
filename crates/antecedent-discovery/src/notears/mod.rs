@@ -47,7 +47,7 @@ use crate::result::{
     discovery_assumptions,
 };
 
-use solver::{NotearsWorkspace, SolverConfig, solve_notears};
+use solver::{NotearsWorkspace, SolveFailure, SolverConfig, solve_notears};
 
 /// NOTEARS discovery result: hard DAG review plus soft weight matrix for mechanism seeding.
 #[derive(Clone, Debug)]
@@ -224,8 +224,13 @@ impl Notears {
             ..SolverConfig::default()
         };
         let mut solver_ws = NotearsWorkspace::default();
-        let soft_w = solve_notears(&x, n, d, &frozen, &cfg, &mut solver_ws)
-            .map_err(DiscoveryError::stats_msg)?;
+        let soft_w = solve_notears(&x, n, d, &frozen, &cfg, &mut solver_ws, &|| {
+            ctx.cancellation.is_cancelled()
+        })
+        .map_err(|failure| match failure {
+            SolveFailure::Cancelled => DiscoveryError::Cancelled,
+            SolveFailure::Message(message) => DiscoveryError::stats_msg(message),
+        })?;
 
         // Threshold → candidate edges (parent i → child j when |W_ij| >= threshold).
         let max_parents = self.constraints.max_parents.unwrap_or(d.saturating_sub(1));

@@ -95,6 +95,22 @@ impl Default for SolverConfig {
     }
 }
 
+/// Why a NOTEARS solve stopped without a weight matrix.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SolveFailure {
+    /// The caller's cancellation signal was observed at an iteration boundary; no
+    /// partial weights are returned.
+    Cancelled,
+    /// Shape, finiteness or convergence failure.
+    Message(&'static str),
+}
+
+impl From<&'static str> for SolveFailure {
+    fn from(message: &'static str) -> Self {
+        Self::Message(message)
+    }
+}
+
 /// Solve soft weighted adjacency `W` (row-major, \(W_{ij}\) = weight of edge \(i\to j\)).
 ///
 /// `x` is column-major \(n\times d\) (column `j` occupies `x[j*n..(j+1)*n]`).
@@ -102,7 +118,9 @@ impl Default for SolverConfig {
 ///
 /// # Errors
 ///
-/// Non-finite numerics or failure to drive \(|h(W)|\) below `h_tol`.
+/// Non-finite numerics or failure to drive \(|h(W)|\) below `h_tol`, or
+/// [`SolveFailure::Cancelled`] when `cancelled` reports true. `cancelled` is polled once
+/// per L-BFGS iteration and once per penalty escalation; it never alters the numerics.
 pub(crate) fn solve_notears(
     x: &[f64],
     n: usize,
@@ -110,16 +128,17 @@ pub(crate) fn solve_notears(
     frozen: &[bool],
     cfg: &SolverConfig,
     ws: &mut NotearsWorkspace,
-) -> Result<Vec<f64>, &'static str> {
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Vec<f64>, SolveFailure> {
     if n == 0 || d == 0 {
-        return Err("NOTEARS requires non-empty data");
+        return Err("NOTEARS requires non-empty data".into());
     }
     if x.len() != n * d || frozen.len() != d * d {
-        return Err("NOTEARS shape mismatch");
+        return Err("NOTEARS shape mismatch".into());
     }
     for v in x {
         if !v.is_finite() {
-            return Err("NOTEARS data contains non-finite values");
+            return Err("NOTEARS data contains non-finite values".into());
         }
     }
 
@@ -156,10 +175,13 @@ pub(crate) fn solve_notears(
     for _outer in 0..cfg.max_iter {
         let h_old = h_val;
         loop {
-            lbfgs_minimize_al(x, n, d, cfg, alpha, rho, ws)?;
+            if cancelled() {
+                return Err(SolveFailure::Cancelled);
+            }
+            lbfgs_minimize_al(x, n, d, cfg, alpha, rho, ws, cancelled)?;
             h_val = h_of_w(&ws.w[..d * d], d, &mut ws.acyclicity)?;
             if !h_val.is_finite() {
-                return Err("NOTEARS acyclicity h(W) non-finite");
+                return Err("NOTEARS acyclicity h(W) non-finite".into());
             }
             if h_val.abs() <= 0.25 * h_old.abs().max(1e-30) || rho >= cfg.rho_max {
                 break;
@@ -173,11 +195,11 @@ pub(crate) fn solve_notears(
             return Ok(ws.w[..d * d].to_vec());
         }
         if rho >= cfg.rho_max {
-            return Err("NOTEARS failed to converge: |h(W)| above tolerance at rho_max");
+            return Err("NOTEARS failed to converge: |h(W)| above tolerance at rho_max".into());
         }
     }
 
-    Err("NOTEARS failed to converge: max augmented-Lagrangian iterations")
+    Err("NOTEARS failed to converge: max augmented-Lagrangian iterations".into())
 }
 
 fn unpack_free_from_w(ws: &mut NotearsWorkspace) {
@@ -339,7 +361,8 @@ fn lbfgs_minimize_al(
     alpha: f64,
     rho: f64,
     ws: &mut NotearsWorkspace,
-) -> Result<(), &'static str> {
+    cancelled: &dyn Fn() -> bool,
+) -> Result<(), SolveFailure> {
     let n_free = ws.free_idx.len();
     if n_free == 0 {
         return Ok(());
@@ -352,6 +375,9 @@ fn lbfgs_minimize_al(
     let mut hist_pos = 0usize;
 
     for _iter in 0..cfg.lbfgs_max_iter {
+        if cancelled() {
+            return Err(SolveFailure::Cancelled);
+        }
         let gnorm = inf_norm(&ws.free_grad[..n_free]);
         if gnorm < 1e-8 {
             pack_free_into_w(ws);
@@ -431,7 +457,7 @@ fn lbfgs_minimize_al(
                         break;
                     }
                 }
-                Err(e) => return Err(e),
+                Err(e) => return Err(e.into()),
             }
             step *= 0.5;
         }
@@ -529,8 +555,19 @@ mod tests {
     #[test]
     fn solve_zero_dim_rejected() {
         let mut ws = NotearsWorkspace::default();
-        let err = solve_notears(&[], 0, 0, &[], &SolverConfig::default(), &mut ws);
+        let err = solve_notears(&[], 0, 0, &[], &SolverConfig::default(), &mut ws, &|| false);
         assert!(err.is_err());
+    }
+
+    #[test]
+    fn cancellation_observed_before_any_weights_returned() {
+        let n = 10;
+        let d = 2;
+        let x: Vec<f64> = (0..n * d).map(|i| (i as f64).sin()).collect();
+        let frozen = [true, false, false, true];
+        let mut ws = NotearsWorkspace::default();
+        let err = solve_notears(&x, n, d, &frozen, &SolverConfig::default(), &mut ws, &|| true);
+        assert_eq!(err, Err(SolveFailure::Cancelled));
     }
 
     #[test]
@@ -541,7 +578,7 @@ mod tests {
         x[0] = f64::NAN;
         let frozen = [true, false, false, true];
         let mut ws = NotearsWorkspace::default();
-        let err = solve_notears(&x, n, d, &frozen, &SolverConfig::default(), &mut ws);
+        let err = solve_notears(&x, n, d, &frozen, &SolverConfig::default(), &mut ws, &|| false);
         assert!(err.is_err());
     }
 }
