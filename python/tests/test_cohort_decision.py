@@ -299,6 +299,14 @@ def test_missing_or_outside_support_and_schema_unit_population_contrast_are_refu
     with pytest.raises(cd.CohortDecisionRefusal) as nonfinite:
         cd.CohortBinding(snapshot_id="s", population="target", columns={"z": [float("nan")]})
     assert nonfinite.value.detail == "cohort_decision.cohort_invalid"
+    # NumPy normally coerces this mixed sequence to strings; binding must retain the caller's
+    # types so numeric values cannot silently become categorical levels.
+    with pytest.raises(CausalTypeError, match="mixes levels and numbers"):
+        cd.CohortBinding(snapshot_id="s", population="target", columns={"z": [1, "high"]})
+    with pytest.raises(CausalTypeError, match="row_id"):
+        cd.CohortBinding(
+            snapshot_id="s", population="target", columns={"z": [1.0]}, row_ids=[17]
+        )
 
 
 def test_a_declared_shift_is_extrapolative_and_must_be_accepted(model) -> None:

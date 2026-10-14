@@ -176,13 +176,16 @@ class CohortBinding:
         rows: int | None = None
         for name, values in columns.items():
             _text(name, "feature name")
-            array = np.asarray(values)
+            # Preserve element types while deciding whether this is a categorical or numeric
+            # feature. A normal ``np.asarray`` coerces a mixed list such as ``[1, "a"]`` to
+            # strings, which would silently change the caller's numeric value into a level.
+            array = np.asarray(values, dtype=object)
             if array.ndim != 1:
                 raise CausalValueError(f"feature {name!r} must be one-dimensional")
             rows = len(array) if rows is None else rows
-            if array.dtype.kind in "US" or array.dtype == object:
-                items = [str(v) if isinstance(v, str) else v for v in array.tolist()]
-                if any(not isinstance(v, str) for v in items):
+            items = array.tolist()
+            if any(isinstance(v, str) for v in items):
+                if not all(isinstance(v, str) for v in items):
                     raise CausalTypeError(f"feature {name!r} mixes levels and numbers")
                 wired.append((name, {"categorical": items}))
             else:
@@ -214,7 +217,12 @@ class CohortBinding:
                 if refusal is not None:
                     raise CohortDecisionRefusal(json.loads(refusal))
                 raw = [float(w) for w in json.loads(text)]  # type: ignore[arg-type]
-        ids = [f"row-{i}" for i in range(rows)] if row_ids is None else [str(r) for r in row_ids]
+        if row_ids is None:
+            ids = [f"row-{i}" for i in range(rows)]
+        else:
+            if isinstance(row_ids, (str, bytes)):
+                raise CausalTypeError("row_ids must be a sequence of non-empty strings")
+            ids = [_text(row_id, "row_id") for row_id in row_ids]
         self._snapshot = snapshot_id
         self._population = population
         self._row_ids = tuple(ids)
