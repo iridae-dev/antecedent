@@ -594,7 +594,7 @@ fn independent_assumption_and_declared_covariance_give_different_checked_varianc
     let joint = StudyBuilder::mechanism_composition(request, &ctx()).unwrap();
     let w = joint.mean_contrast_uncertainty(&ate_at(2.0)).unwrap();
     assert!((w.variance - 0.648_625).abs() < 1e-12, "{}", w.variance);
-    assert_eq!(w.dependence, "aligned_joint_law");
+    assert_eq!(w.dependence, "joint_gaussian_covariance");
 }
 
 #[test]
