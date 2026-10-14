@@ -230,7 +230,41 @@ impl CompositeSession {
                 &[utility.as_bytes(), identity.as_bytes(), policy.as_slice(), order.as_slice()],
             ),
         );
-        ids.set(Stage::Decision, StageIdentity::of("composite.original_support_terminal.v1", &[]));
+        // The terminal decision is identified by everything its inputs were licensed under:
+        // the contract, the support policy and input order, the native program binding, and
+        // for every callback branch its provider, snapshot, program, seed, the trust
+        // requirement and attestation it enters under, and its (point-only) calibration. A
+        // change in any of them is a change of the decision, never a reuse.
+        let mut externals: Vec<&ExternalCallbackRequest> = request.externals.iter().collect();
+        externals.sort_by_key(|e| e.branch.index());
+        let mut terminal = Fields::new()
+            .text(&request.native_program.graph_id)
+            .text(&request.native_program.contract_id)
+            .text("native.trust:unrestricted")
+            .text("native.calibration:point_only");
+        for external in &externals {
+            let identity = &external.descriptor.identity;
+            terminal = terminal
+                .word(u64::from(external.branch.index()))
+                .text(&identity.provider_id)
+                .text(&identity.snapshot_id)
+                .text(&external.program.contract_id)
+                .word(external.seed)
+                .text("external.trust:unrestricted:externally_attested")
+                .text("external.calibration:point_only");
+        }
+        ids.set(
+            Stage::Decision,
+            StageIdentity::of(
+                "composite.original_support_terminal.v2",
+                &[
+                    identity.as_bytes(),
+                    policy.as_slice(),
+                    order.as_slice(),
+                    terminal.into_bytes().as_slice(),
+                ],
+            ),
+        );
         Ok((
             ids,
             RecalcCapabilities {

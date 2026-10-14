@@ -263,7 +263,13 @@ impl EvidenceLedger {
         finish(&writer)
     }
 
-    /// Classification of one result against the current standings.
+    /// Source-loss classification of one result against the current standings.
+    ///
+    /// This is the ledger's own observation (which sources were lost), not the
+    /// class a consumer may act on: it knows nothing of representation,
+    /// support, provider trust, calibration or coupling. Bind it to a claim
+    /// node with `composition_verification::ledger_effects` and read the class
+    /// from `revalidate`.
     #[must_use]
     pub fn standing(&self, id: ResultId) -> Option<Revalidation> {
         self.result(id).map(|r| r.status.revalidation())
@@ -1185,48 +1191,35 @@ impl EvidenceLedger {
             }
             (permanent, any)
         };
+        // One rule, four operations: nothing lost keeps the class, losing the sources a
+        // result cannot do without withdraws it, any other loss asks for recomputation.
+        let by_loss = |any: usize, remaining: usize, needed: usize| {
+            if any == 0 {
+                Revalidation::StillValid
+            } else if remaining < needed {
+                Revalidation::Withdrawn
+            } else {
+                Revalidation::Recompute
+            }
+        };
         match operation {
             SynthesisOperation::StatisticalPooling { sources, .. } => {
                 let (permanent, any) = losses(sources);
-                if any == 0 {
-                    Revalidation::StillValid
-                } else if sources.len() - permanent < 2 {
-                    Revalidation::Withdrawn
-                } else {
-                    Revalidation::Recompute
-                }
+                by_loss(any, sources.len() - permanent, 2)
             }
             SynthesisOperation::BayesianBorrowing { priors, likelihood } => {
                 let (perm_l, any_l) = losses(likelihood);
                 let (_, any_p) = losses(priors);
-                if any_l + any_p == 0 {
-                    Revalidation::StillValid
-                } else if likelihood.len() - perm_l == 0 {
-                    Revalidation::Withdrawn
-                } else {
-                    Revalidation::Recompute
-                }
+                by_loss(any_l + any_p, likelihood.len() - perm_l, 1)
             }
             SynthesisOperation::CausalTransport { transported, native } => {
                 let (perm_t, any_t) = losses(transported);
                 let (_, any_n) = losses(native);
-                if any_t + any_n == 0 {
-                    Revalidation::StillValid
-                } else if transported.len() - perm_t == 0 {
-                    Revalidation::Withdrawn
-                } else {
-                    Revalidation::Recompute
-                }
+                by_loss(any_t + any_n, transported.len() - perm_t, 1)
             }
             SynthesisOperation::RepeatedObservationUse { sources, .. } => {
                 let (permanent, any) = losses(sources);
-                if any == 0 {
-                    Revalidation::StillValid
-                } else if sources.len() - permanent == 0 {
-                    Revalidation::Withdrawn
-                } else {
-                    Revalidation::Recompute
-                }
+                by_loss(any, sources.len() - permanent, 1)
             }
             SynthesisOperation::EvidenceReuse { .. } => Revalidation::StillValid,
         }
@@ -1242,12 +1235,12 @@ impl EvidenceLedger {
             }
             let class = match &self.results[i].operation {
                 SynthesisOperation::EvidenceReuse { of } => {
+                    // A reuse takes its parent's class; a replaced parent has a successor,
+                    // so the reuse recomputes rather than withdraws.
                     match self.result(*of).map(|r| &r.status) {
-                        Some(ResultStatus::Valid) => Revalidation::StillValid,
-                        Some(
-                            ResultStatus::NeedsRecompute { .. } | ResultStatus::Replaced { .. },
-                        ) => Revalidation::Recompute,
-                        Some(ResultStatus::Withdrawn { .. }) | None => Revalidation::Withdrawn,
+                        Some(ResultStatus::Replaced { .. }) => Revalidation::Recompute,
+                        Some(status) => status.revalidation(),
+                        None => Revalidation::Withdrawn,
                     }
                 }
                 operation => self.source_loss_class(operation),
@@ -1261,12 +1254,13 @@ impl EvidenceLedger {
             };
             self.results[i].status = updated;
         }
-        self.classification()
+        self.source_loss_classification()
     }
 
-    /// Classification of every result, sorted by id.
+    /// Source-loss classification of every result, sorted by id. See
+    /// [`Self::standing`] for what this class does and does not say.
     #[must_use]
-    pub fn classification(&self) -> Vec<ResultRevalidation> {
+    pub fn source_loss_classification(&self) -> Vec<ResultRevalidation> {
         let mut out: Vec<ResultRevalidation> = self
             .results
             .iter()
@@ -1274,6 +1268,12 @@ impl EvidenceLedger {
             .collect();
         out.sort_by_key(|r| r.result);
         out
+    }
+
+    /// Same as [`Self::source_loss_classification`].
+    #[must_use]
+    pub fn classification(&self) -> Vec<ResultRevalidation> {
+        self.source_loss_classification()
     }
 
     // -- operations ---------------------------------------------------------------------

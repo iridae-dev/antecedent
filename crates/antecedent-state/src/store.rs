@@ -169,6 +169,10 @@ pub struct QueryRecord {
     /// the cached result, so publishing the same data snapshot again after a
     /// data event is recognizable as a non-recomputation.
     pub last_published: Option<PublishedLineage>,
+    /// Stage inputs that changed since the result was last published (or since the query
+    /// was registered), one entry per `(stage, change)`, newest identity kept. Cleared when
+    /// a recomputation is published.
+    pub pending_inputs: Vec<crate::invalidation::ChangedInput>,
 }
 
 /// Lineage recorded when a caller published a recomputed result.
@@ -180,6 +184,8 @@ pub struct PublishedLineage {
     pub data_snapshot: antecedent_core::SemanticDigest,
     /// Data-catalog version at publication.
     pub data_version: DataVersion,
+    /// Every contract identity layer of the published result, when supplied.
+    pub identities: Option<antecedent_core::ContractIdentities>,
 }
 
 /// Query store.
@@ -196,7 +202,13 @@ impl QueryStore {
         let id = QueryId::from_raw(self.next_id);
         self.next_id = self.next_id.wrapping_add(1);
         self.queries
-            .insert(id, QueryRecord { id, query, result_valid_at: None, last_published: None });
+            .insert(id, QueryRecord {
+                id,
+                query,
+                result_valid_at: None,
+                last_published: None,
+                pending_inputs: Vec::new(),
+            });
         id
     }
 }

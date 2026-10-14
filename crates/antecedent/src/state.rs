@@ -11,7 +11,7 @@ use antecedent_core::{CacheBudget, ContractIdentities, QueryId, SemanticDigest, 
 use crate::error::CausalError;
 
 pub use antecedent_state::{
-    CachedResult, CausalState, ConstraintId, DataBatchRef, DataCatalog, DataVersion,
+    CachedResult, CausalState, ChangedInput, ConstraintId, DataBatchRef, DataCatalog, DataVersion,
     GraphConstraintRecord, GraphEvidenceRecord, GraphEvidenceStore, GraphScoreCacheKey,
     GraphScoreData, GraphScoreFamily, InterventionRecord, InvalidationEntry, InvalidationLog,
     InvalidationTarget, LagIndexCacheEntry, LagIndexCacheKey, LgssmParams, LinearOlsSuffStats,
@@ -68,12 +68,19 @@ fn store_fingerprint(lineage: &SemanticDigest) -> u64 {
 /// recomputed contract. A version that advanced during recompute, a failed or
 /// cancelled recompute that never reaches this function, and a republication
 /// of the data snapshot recorded before the latest data event are all refused:
-/// nothing here can mark an uncomputed result fresh.
+/// nothing here can mark an uncomputed result fresh. A stage input that changed
+/// since the previous publication (data, graph evidence, a constraint, an
+/// assumption, a recorded intervention) must show in the identity layer that
+/// reads it, so a premise event answered by an identical lineage is refused too.
+/// The result's three-state class is [`CausalState::revalidation`].
+///
+/// A query published here is lineage-bound: the unchecked
+/// `CausalState::refresh_results` path refuses it.
 ///
 /// # Errors
 ///
-/// Stale expected version, a snapshot that predates the latest data event,
-/// unknown query, or cache budget refusal.
+/// Stale expected version, a snapshot or identity layer that predates a
+/// changed stage input, unknown query, or cache budget refusal.
 pub fn publish_recomputed_results(
     state: &mut CausalState,
     expected: StateVersion,
@@ -89,6 +96,7 @@ pub fn publish_recomputed_results(
                 bytes,
                 lineage: Some(lineage),
                 data_snapshot: Some(identities.data_snapshot),
+                identities: Some(*identities),
             }
         })
         .collect();

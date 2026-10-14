@@ -14,7 +14,9 @@
 //!   withdrawn or replaced result is withdrawn;
 //! * the invalidation log ([`invalidation_effects`]) and claim freshness
 //!   ([`freshness_effects`]): a query result or model invalidated after a
-//!   state version recomputes, a withdrawn claim is withdrawn.
+//!   state version recomputes, one whose premise was removed is withdrawn; a
+//!   withdrawn claim is withdrawn, and a claim whose contract identities moved
+//!   in any layer recomputes ([`contract_effects`]).
 //!
 //! # What each class means
 //!
@@ -62,10 +64,12 @@
 use std::collections::BTreeMap;
 
 use antecedent_contract::ExternalRefusal;
-use antecedent_contract::claim::ClaimFreshness;
+use antecedent_contract::claim::{ClaimEnvelope, ClaimFreshness};
 use antecedent_contract::evidence_ledger::{EvidenceLedger, ResultId};
 use antecedent_core::recalc::{RecalcPlan, Stage};
-use antecedent_core::{CancellationToken, QueryId, SemanticDigest, StateVersion};
+use antecedent_core::{
+    CancellationToken, ContractIdentities, QueryId, SemanticDigest, StateVersion,
+};
 use antecedent_io::IoError;
 use antecedent_io::composition_verification_artifact::{
     CompositionVerificationArtifact, CompositionVerificationArtifactError,
@@ -74,7 +78,7 @@ use antecedent_state::{InvalidationLog, InvalidationTarget};
 
 pub use antecedent_contract::composition_verification::{
     BoundaryAssumption, BoundaryTransformation, CalibrationDeclaration, CalibrationLineage,
-    CalibrationState, ClaimRevalidation, CompositionEdge, CompositionGraph, CompositionNode,
+    CalibrationState, ClaimRevalidation, ClaimStanding, CompositionEdge, CompositionGraph, CompositionNode,
     CompositionView, DependencyKind, GraphError, GraphRevalidation, LineageEdge, LineageEntry,
     NodeKind, NumericalCause, NumericalReason, ObservedEffect, PriorAuthority, SharedDataRelation,
     SupportStanding, TrustStanding, UnsupportedCoordinate, ViewError, Withdrawal, WithdrawalKind,
@@ -181,8 +185,30 @@ impl CompositionVerificationRefusal {
 }
 
 /// A node whose content identity is the effective identity the plan assigned
+/// to `stage`, with the support, trust and calibration standings its producer
+/// states. A `Reused` stage retains authority only while those standings are
+/// unchanged between two snapshots, so a route builds its nodes here rather
+/// than through [`stage_node`] (which states no standing and so reads as a
+/// supported point-only claim). `None` when the plan does not contain the
+/// stage.
+#[must_use]
+pub fn stage_node_with_standing(
+    key: &str,
+    kind: NodeKind,
+    plan: &RecalcPlan,
+    stage: Stage,
+    standing: ClaimStanding,
+) -> Option<CompositionNode> {
+    stage_node(key, kind, plan, stage).map(|node| node.with_standing(standing))
+}
+
+/// A node whose content identity is the effective identity the plan assigned
 /// to `stage`: it changes exactly when the stage's own inputs or any stage it
 /// depends on change. `None` when the plan does not contain the stage.
+///
+/// The node states no standing: it is supported, point-only and carries no
+/// provider trust. Use [`stage_node_with_standing`] for any claim that states an
+/// interval or posterior or rests on a provider.
 #[must_use]
 pub fn stage_node(
     key: &str,
@@ -241,35 +267,81 @@ pub fn freshness_effects(bindings: &[(&str, &ClaimFreshness)]) -> BTreeMap<Strin
         .collect()
 }
 
-/// The observed effects of invalidations recorded after `since`: a node bound
-/// to a query result (or a model) the log invalidated recomputes; an
-/// invalidation of every result recomputes every bound node.
+/// The observed effects of claim contracts against the identities the receiver
+/// now holds: every identity layer is compared, so a changed target,
+/// identification, program, inference binding or observation recomputes the
+/// claim even when the data snapshot is unchanged, and the changed layers are
+/// named in the effect's cause. A receiver with no current identities (`None`)
+/// falls back to the claim's freshness reading.
+#[must_use]
+pub fn contract_effects(
+    bindings: &[(&str, &ClaimEnvelope, &ClaimFreshness, Option<&ContractIdentities>)],
+) -> BTreeMap<String, ObservedEffect> {
+    bindings
+        .iter()
+        .filter_map(|(key, claim, freshness, current)| {
+            ObservedEffect::from_claim_contract(claim, freshness, *current)
+                .map(|effect| ((*key).to_owned(), effect))
+        })
+        .collect()
+}
+
+/// The observed effects of invalidations recorded after `since`, in the one
+/// three-state vocabulary: a node bound to a query result (or a model) the log
+/// invalidated recomputes, and one whose premise the log shows removed (a
+/// withdrawn constraint) is withdrawn. An invalidation of every result applies
+/// to every bound node. The most severe entry per node wins and its cause
+/// names the stage input that moved.
 #[must_use]
 pub fn invalidation_effects(
     log: &InvalidationLog,
     since: StateVersion,
     bindings: &[(&str, InvalidationTarget)],
 ) -> BTreeMap<String, ObservedEffect> {
-    let mut out = BTreeMap::new();
+    let mut classes: BTreeMap<String, (Revalidation, String)> = BTreeMap::new();
     for entry in log.entries.iter().filter(|e| e.at_version.raw() > since.raw()) {
+        let class = entry.revalidation();
+        let source = entry.input.map_or_else(
+            || "unattributed".to_owned(),
+            |input| format!("{}:{}", input.stage, input.identity),
+        );
         for (key, target) in bindings {
             let hit =
                 matches!(entry.target, InvalidationTarget::AllResults) || entry.target == *target;
-            if hit {
-                out.entry((*key).to_owned()).or_insert_with(|| ObservedEffect::Recomputed {
-                    cause: format!("invalidation.at_version:{}", entry.at_version.raw()),
-                });
+            if !hit {
+                continue;
+            }
+            let cause = format!("invalidation.at_version:{}:{source}", entry.at_version.raw());
+            match classes.get_mut(*key) {
+                Some((held, held_cause)) if class > *held => {
+                    *held = class;
+                    *held_cause = cause;
+                }
+                Some(_) => {}
+                None => {
+                    classes.insert((*key).to_owned(), (class, cause));
+                }
             }
         }
     }
-    out
+    classes
+        .into_iter()
+        .filter_map(|(key, (class, cause))| {
+            ObservedEffect::from_revalidation(class, cause).map(|effect| (key, effect))
+        })
+        .collect()
 }
 
-/// Whether the invalidation log holds an unresolved invalidation of `query`
-/// after `since`. A thin pass-through so a caller binds one vocabulary.
+/// The three-state class of `query` in the invalidation log after `since`:
+/// `still_valid` when no entry concerns it, `recompute` for changed data or
+/// premises, `withdrawn` when a premise it rested on was removed.
 #[must_use]
-pub fn query_invalidated(log: &InvalidationLog, query: QueryId, since: StateVersion) -> bool {
-    log.query_stale_since(query, since)
+pub fn query_revalidation(
+    log: &InvalidationLog,
+    query: QueryId,
+    since: StateVersion,
+) -> Revalidation {
+    log.revalidation_since(query, since)
 }
 
 /// A sealed and replayed composition verification.

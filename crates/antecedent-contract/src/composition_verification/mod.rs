@@ -31,7 +31,7 @@ mod revalidate;
 mod view;
 
 pub use graph::{
-    COMPOSITION_GRAPH_VERSION, CalibrationDeclaration, CompositionEdge, CompositionGraph,
+    COMPOSITION_GRAPH_VERSION, CalibrationDeclaration, ClaimStanding, CompositionEdge, CompositionGraph,
     CompositionNode, DependencyKind, GraphError, MAX_EDGES, MAX_ITEMS_PER_NODE, MAX_NODES,
     MAX_TEXT_BYTES, NodeKind, SupportStanding, TrustStanding,
 };

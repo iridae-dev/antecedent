@@ -22,7 +22,7 @@ pub use graph_score::{
     GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache, ParentSetOp,
     full_graph_score,
 };
-pub use invalidation::{InvalidationEntry, InvalidationLog, InvalidationTarget};
+pub use invalidation::{ChangedInput, InvalidationEntry, InvalidationLog, InvalidationTarget};
 pub use mechanism_diag::{
     RollingMechanismDiagnostics, evict_mechanism_diag, insert_mechanism_diag,
 };

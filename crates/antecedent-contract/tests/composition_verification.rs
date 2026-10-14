@@ -697,3 +697,114 @@ fn the_classification_identity_binds_every_reported_field() {
     .expect("revalidate");
     assert_ne!(withdrawn.identity(), stale.identity());
 }
+
+#[test]
+fn a_reused_claim_does_not_keep_authority_across_a_trust_standing_that_moved() {
+    // every identity, structure and edge is unchanged: only the provider's stated standing
+    // moved from held to not stated as applicable
+    let before = build(&params());
+    let after = build(&Params { trust: TrustStanding::NotApplicable, ..params() });
+    let r = revalidate(&before, &after, &no_effects()).expect("revalidate");
+    assert_eq!(
+        keys(&r, Revalidation::Recompute),
+        vec![
+            "decision",
+            "indicator_provider",
+            "measurement",
+            "mechanisms",
+            "reported_effect",
+            "result",
+            "transported"
+        ]
+    );
+    assert_eq!(
+        keys(&r, Revalidation::StillValid),
+        vec!["cohort", "sibling_claim", "sibling_data", "target"]
+    );
+    let provider = r.claim("indicator_provider").expect("claim");
+    assert_eq!(provider.numerical[0].cause, NumericalCause::TrustChanged);
+    assert_eq!(provider.authority, PriorAuthority::NotRetained);
+    // a numerical reason, not a lost license
+    assert!(r.claims().all(|c| c.withdrawals.is_empty()));
+    assert!(r.claim("sibling_claim").expect("claim").authority == PriorAuthority::Retained);
+}
+
+#[test]
+fn a_replaced_calibration_record_recomputes_its_owner_and_refuses_its_heirs() {
+    let before = build(&params());
+    let after = build(&Params {
+        result_calibration: CalibrationDeclaration::Held { record: d(91), coordinate: d(100) },
+        ..params()
+    });
+    let r = revalidate(&before, &after, &no_effects()).expect("revalidate");
+    let result = r.claim("result").expect("claim");
+    assert_eq!(result.class, Revalidation::Recompute);
+    assert!(result.numerical.iter().any(|n| n.cause == NumericalCause::CalibrationChanged));
+    assert_eq!(result.authority, PriorAuthority::NotRetained);
+    // the claim that inherited the old record is refused: it states a record no one holds
+    let heir = r.claim("reported_effect").expect("claim");
+    assert_eq!(heir.class, Revalidation::Withdrawn);
+    assert_eq!(heir.calibration.detail, Some("record_differs"));
+    // claims that merely read the value do not inherit the calibration change
+    assert_eq!(r.claim("decision").expect("claim").class, Revalidation::StillValid);
+    assert_eq!(r.claim("transported").expect("claim").class, Revalidation::StillValid);
+    assert_eq!(r.claim("sibling_claim").expect("claim").class, Revalidation::StillValid);
+}
+
+#[test]
+fn a_provider_standing_nobody_stated_is_not_a_license() {
+    let g = build(&Params { trust: TrustStanding::Undeclared, ..params() });
+    let r = revalidate(&g, &g, &no_effects()).expect("revalidate");
+    let provider = r.claim("indicator_provider").expect("claim");
+    assert_eq!(provider.class, Revalidation::Withdrawn);
+    assert_eq!(provider.withdrawals[0].kind, WithdrawalKind::ProviderTrust);
+    assert_eq!(provider.withdrawals[0].detail, "provider_trust_undeclared");
+    assert!(r.claim("decision").expect("claim").withdrawn_for(WithdrawalKind::ProviderTrust));
+    assert_eq!(r.claim("cohort").expect("claim").class, Revalidation::StillValid);
+    assert_eq!(TrustStanding::from_name("undeclared"), Some(TrustStanding::Undeclared));
+}
+
+#[test]
+fn restored_support_recomputes_the_claims_that_were_never_licensed_there() {
+    let before = build(&Params { target_unsupported: true, ..params() });
+    let after = build(&params());
+    let r = revalidate(&before, &after, &no_effects()).expect("revalidate");
+    let target = r.claim("target").expect("claim");
+    assert_eq!(target.class, Revalidation::Recompute);
+    assert_eq!(target.numerical[0].cause, NumericalCause::SupportRestored);
+    assert_eq!(r.claim("transported").expect("claim").class, Revalidation::Recompute);
+    assert!(keys(&r, Revalidation::Withdrawn).is_empty());
+}
+
+#[test]
+fn a_standing_is_stated_as_one_value_and_unstated_standing_is_refused() {
+    use antecedent_contract::composition_verification::ClaimStanding;
+    let mut g = CompositionGraph::new();
+    g.add_node(node("native", NodeKind::Claim, 1).with_standing(ClaimStanding::native_point()))
+        .expect("node");
+    g.add_node(node("unstated", NodeKind::Claim, 2).with_standing(ClaimStanding::undeclared()))
+        .expect("node");
+    g.add_node(
+        node("outside", NodeKind::Claim, 3).with_standing(
+            ClaimStanding::native_point().with_unsupported(vec!["income above 200k".to_owned()]),
+        ),
+    )
+    .expect("node");
+    let r = revalidate(&g, &g, &no_effects()).expect("revalidate");
+    assert_eq!(keys(&r, Revalidation::StillValid), vec!["native"]);
+    assert_eq!(keys(&r, Revalidation::Withdrawn), vec!["outside", "unstated"]);
+    assert_eq!(g.node("native").expect("node").standing(), ClaimStanding::native_point());
+}
+
+#[test]
+fn another_vocabulary_adapts_onto_the_one_class() {
+    assert_eq!(ObservedEffect::from_revalidation(Revalidation::StillValid, "x"), None);
+    assert_eq!(
+        ObservedEffect::from_revalidation(Revalidation::Recompute, "stage"),
+        Some(ObservedEffect::Recomputed { cause: "stage".to_owned() })
+    );
+    assert_eq!(
+        ObservedEffect::from_revalidation(Revalidation::Withdrawn, "stage"),
+        Some(ObservedEffect::Withdrawn { cause: "stage".to_owned() })
+    );
+}

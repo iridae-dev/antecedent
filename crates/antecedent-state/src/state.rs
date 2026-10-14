@@ -4,11 +4,12 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, CacheBudget, QueryId, StateVersion};
+use antecedent_core::recalc::{ChangeKind, Revalidation, Stage, StageIdentities, StageIdentity};
+use antecedent_core::{AssumptionSet, CacheBudget, ContractIdentities, QueryId, StateVersion};
 
 use crate::error::StateError;
 use crate::event::StateEvent;
-use crate::invalidation::{InvalidationLog, InvalidationTarget};
+use crate::invalidation::{ChangedInput, InvalidationLog, InvalidationTarget};
 use crate::store::{
     CachedResult, DataCatalog, DataVersion, GraphEvidenceStore, ModelStore, QueryStore,
     ResultStore, SuffStatStore,
@@ -27,6 +28,30 @@ pub struct ResultPublication {
     pub lineage: Option<antecedent_core::SemanticDigest>,
     /// Data-snapshot identity the result was computed on.
     pub data_snapshot: Option<antecedent_core::SemanticDigest>,
+    /// Every contract identity layer the result was computed under. With it, a
+    /// republication is checked layer by layer against the stage inputs that changed since
+    /// the previous publication.
+    pub identities: Option<ContractIdentities>,
+}
+
+/// The contract identity layer a changed stage input must move in a real recomputation.
+/// `None` for a stage no single layer reflects.
+fn layer_unchanged(
+    stage: Stage,
+    was: &ContractIdentities,
+    now: &ContractIdentities,
+) -> Option<bool> {
+    match stage {
+        Stage::DataSnapshot => Some(was.data_snapshot == now.data_snapshot),
+        Stage::Graph => Some(
+            was.identification == now.identification
+                && was.identification_product == now.identification_product,
+        ),
+        Stage::Regime => Some(was.program == now.program),
+        Stage::Evidence => Some(was.observation == now.observation),
+        Stage::Query => Some(was.target == now.target),
+        _ => None,
+    }
 }
 
 /// Incremental causal analysis state (embeddable; no service runtime).
@@ -99,16 +124,17 @@ impl CausalState {
         }
         self.version = self.version.next();
         let v = self.version;
+        let input = self.changed_input(&event, v);
         match event {
             StateEvent::AppendData(batch) => {
                 self.data_catalog.batches.push(batch);
                 self.data_catalog.version = self.data_catalog.version.next();
-                self.invalidate_data_dependents(v, "append_data");
+                self.invalidate_data_dependents(v, "append_data", input);
             }
             StateEvent::ReplaceData(new_ver) => {
                 self.data_catalog.version = new_ver;
                 self.data_catalog.batches.clear();
-                self.invalidate_data_dependents(v, "replace_data");
+                self.invalidate_data_dependents(v, "replace_data", input);
                 self.suff_stats.ols.clear();
                 self.suff_stats.cov.clear();
                 self.suff_stats.lag_indexes.clear();
@@ -135,19 +161,19 @@ impl CausalState {
             }
             StateEvent::AddGraphEvidence(rec) => {
                 self.graph_evidence.evidence.push(rec);
-                self.invalidate_all_results(v, "add_graph_evidence");
+                self.invalidate_all_results(v, "add_graph_evidence", input);
             }
             StateEvent::AddConstraint(rec) => {
                 self.graph_evidence.constraints.push(rec);
-                self.invalidate_all_results(v, "add_constraint");
+                self.invalidate_all_results(v, "add_constraint", input);
             }
             StateEvent::RemoveConstraint(id) => {
                 self.graph_evidence.constraints.retain(|c| c.id != id.0);
-                self.invalidate_all_results(v, "remove_constraint");
+                self.invalidate_all_results(v, "remove_constraint", input);
             }
             StateEvent::UpdateAssumption(rec) => {
                 self.assumptions.push(rec);
-                self.invalidate_all_results(v, "update_assumption");
+                self.invalidate_all_results(v, "update_assumption", input);
             }
             StateEvent::RegisterQuery(query) => {
                 let _id = self.queries.register(query);
@@ -155,10 +181,133 @@ impl CausalState {
             }
             StateEvent::RecordIntervention(rec) => {
                 self.interventions.push(rec);
-                self.invalidate_all_results(v, "record_intervention");
+                self.invalidate_all_results(v, "record_intervention", input);
             }
         }
         Ok(v)
+    }
+
+    /// The stage input an event changes, with the digest of what it changed to. The digest
+    /// binds the event's content and its position in the history, so two events with equal
+    /// content are still two changes. `None` for an event that changes no stage input.
+    fn changed_input(&self, event: &StateEvent, at: StateVersion) -> Option<ChangedInput> {
+        let at_bytes = at.raw().to_le_bytes();
+        let (stage, change, identity) = match event {
+            StateEvent::AppendData(batch) => (
+                Stage::DataSnapshot,
+                ChangeKind::Modified,
+                StageIdentity::of(
+                    "state.append_data.v1",
+                    &[
+                        &at_bytes,
+                        batch.id.as_bytes(),
+                        &batch.nrows.to_le_bytes(),
+                        &batch.bytes.to_le_bytes(),
+                    ],
+                ),
+            ),
+            StateEvent::ReplaceData(version) => (
+                Stage::DataSnapshot,
+                ChangeKind::Modified,
+                StageIdentity::of(
+                    "state.replace_data.v1",
+                    &[&at_bytes, &version.raw().to_le_bytes()],
+                ),
+            ),
+            StateEvent::AddGraphEvidence(rec) => (
+                Stage::Graph,
+                ChangeKind::Added,
+                StageIdentity::of(
+                    "state.graph_evidence.v1",
+                    &[&at_bytes, rec.id.as_bytes(), &rec.fingerprint.to_le_bytes()],
+                ),
+            ),
+            StateEvent::AddConstraint(rec) => (
+                Stage::Graph,
+                ChangeKind::Added,
+                StageIdentity::of(
+                    "state.constraint_added.v1",
+                    &[&at_bytes, rec.id.as_bytes(), &rec.fingerprint.to_le_bytes()],
+                ),
+            ),
+            StateEvent::RemoveConstraint(id) => (
+                Stage::Graph,
+                ChangeKind::Removed,
+                StageIdentity::of("state.constraint_removed.v1", &[&at_bytes, id.0.as_bytes()]),
+            ),
+            // The assumption set is a premise of identification, which the graph stage
+            // feeds: an updated assumption is a modified premise.
+            StateEvent::UpdateAssumption(_) => (
+                Stage::Graph,
+                ChangeKind::Modified,
+                StageIdentity::of(
+                    "state.assumption_updated.v1",
+                    &[&at_bytes, &(self.assumptions.len() as u64).to_le_bytes()],
+                ),
+            ),
+            // A recorded intervention is an observation of what was done: it moves the data
+            // the result is computed on, not the declared regime of the query.
+            StateEvent::RecordIntervention(rec) => (
+                Stage::DataSnapshot,
+                ChangeKind::Added,
+                StageIdentity::of(
+                    "state.intervention.v1",
+                    &[&at_bytes, rec.id.as_bytes(), &rec.fingerprint.to_le_bytes()],
+                ),
+            ),
+            StateEvent::RegisterQuery(_) => return None,
+        };
+        Some(ChangedInput { stage, change, identity })
+    }
+
+    /// Own-input identities of the state's declared inputs: the graph (evidence, constraints,
+    /// assumptions), the data snapshot (catalog version and batches) and the recorded
+    /// interventions. Two states with equal identities hold equal inputs.
+    #[must_use]
+    pub fn input_identities(&self) -> StageIdentities {
+        let mut graph: Vec<Vec<u8>> = Vec::new();
+        for rec in &self.graph_evidence.evidence {
+            graph.push(rec.id.as_bytes().to_vec());
+            graph.push(rec.fingerprint.to_le_bytes().to_vec());
+        }
+        for rec in &self.graph_evidence.constraints {
+            graph.push(rec.id.as_bytes().to_vec());
+            graph.push(rec.fingerprint.to_le_bytes().to_vec());
+        }
+        graph.push((self.assumptions.len() as u64).to_le_bytes().to_vec());
+        let mut data: Vec<Vec<u8>> = vec![self.data_catalog.version.raw().to_le_bytes().to_vec()];
+        for batch in &self.data_catalog.batches {
+            data.push(batch.id.as_bytes().to_vec());
+            data.push(batch.nrows.to_le_bytes().to_vec());
+            data.push(batch.bytes.to_le_bytes().to_vec());
+        }
+        for rec in &self.interventions {
+            data.push(rec.id.as_bytes().to_vec());
+            data.push(rec.fingerprint.to_le_bytes().to_vec());
+        }
+        fn refs(parts: &[Vec<u8>]) -> Vec<&[u8]> {
+            parts.iter().map(Vec::as_slice).collect()
+        }
+        StageIdentities::new()
+            .with(Stage::Graph, StageIdentity::of("state.graph.v1", &refs(&graph)))
+            .with(Stage::DataSnapshot, StageIdentity::of("state.data.v1", &refs(&data)))
+    }
+
+    /// The three-state class of a query's result: `still_valid` when nothing it rests on
+    /// changed since it was published, `recompute` when a stage input changed (or it was never
+    /// computed), `withdrawn` when a premise it rested on was removed. `None` for an
+    /// unregistered query.
+    #[must_use]
+    pub fn revalidation(&self, query: QueryId) -> Option<Revalidation> {
+        let rec = self.queries.queries.get(&query)?;
+        let pending = rec
+            .pending_inputs
+            .iter()
+            .fold(Revalidation::StillValid, |class, input| class.worst(input.revalidation()));
+        Some(match rec.result_valid_at {
+            None => pending.worst(Revalidation::Recompute),
+            Some(since) => pending.worst(self.invalidations.revalidation_since(query, since)),
+        })
     }
 
     /// Whether a query's cached result is stale.
@@ -179,12 +328,18 @@ impl CausalState {
         self.queries.queries.keys().copied().filter(|q| self.is_stale(*q)).collect()
     }
 
-    /// Caller-driven recomputation hook: marks selected queries fresh after the
-    /// caller supplies new result fingerprints. Does not run estimators itself.
+    /// Caller-driven recomputation hook for results that carry no lineage: marks selected
+    /// queries fresh after the caller supplies new result fingerprints. Does not run
+    /// estimators itself.
+    ///
+    /// This is the unchecked path and is refused for any query whose last publication
+    /// carried a lineage: such a query is republished only through [`Self::publish_results`]
+    /// with the identities of the recomputation, so freshness is never asserted for a result
+    /// that cannot show what it was recomputed from.
     ///
     /// # Errors
     ///
-    /// Unknown query or cache budget refusal.
+    /// Unknown query, a lineage-bound query, or cache budget refusal.
     pub fn refresh_results(&mut self, updates: &[(QueryId, u64, u64)]) -> Result<(), StateError> {
         let updates: Vec<ResultPublication> = updates
             .iter()
@@ -194,6 +349,7 @@ impl CausalState {
                 bytes,
                 lineage: None,
                 data_snapshot: None,
+                identities: None,
             })
             .collect();
         self.publish_results(&updates)
@@ -215,22 +371,47 @@ impl CausalState {
             if !self.queries.queries.contains_key(&update.query) {
                 return Err(StateError::UnknownId(format!("query {}", update.query.raw())));
             }
-            let Some(previous) =
-                self.queries.queries.get(&update.query).and_then(|record| record.last_published)
-            else {
+            let Some(record) = self.queries.queries.get(&update.query) else {
                 continue;
             };
-            let Some(published) = update.data_snapshot else {
+            let Some(previous) = record.last_published else {
                 continue;
             };
-            if previous.data_version != self.data_catalog.version
-                && published == previous.data_snapshot
-            {
+            if update.lineage.is_none() {
                 return Err(StateError::InvalidEvent(format!(
-                    "query {} republishes the data snapshot recorded before the latest data \
-                     event; recompute on the current data before publishing",
+                    "query {} was published with a lineage; republish it with the identities of \
+                     the recomputation, not with a bare fingerprint",
                     update.query.raw()
                 )));
+            }
+            if let Some(published) = update.data_snapshot {
+                if previous.data_version != self.data_catalog.version
+                    && published == previous.data_snapshot
+                {
+                    return Err(StateError::InvalidEvent(format!(
+                        "query {} republishes the data snapshot recorded before the latest data \
+                         event; recompute on the current data before publishing",
+                        update.query.raw()
+                    )));
+                }
+            }
+            // Every stage input that changed since the previous publication must be
+            // reflected in the identity layer that reads it: an identical lineage after a
+            // premise, constraint or intervention event is not a recomputation.
+            for input in &record.pending_inputs {
+                let unchanged = match (&previous.identities, &update.identities) {
+                    (Some(was), Some(now)) => layer_unchanged(input.stage, was, now),
+                    _ => (update.lineage == Some(previous.lineage)).then_some(true),
+                };
+                if unchanged == Some(true) {
+                    return Err(StateError::InvalidEvent(format!(
+                        "query {} republishes the {} layer recorded before the {} change; \
+                         recompute under the current inputs before publishing",
+                        update.query.raw(),
+                        input.stage,
+                        input.stage,
+                    )));
+                }
             }
         }
         self.commit_results(updates)
@@ -268,9 +449,14 @@ impl CausalState {
                 return Err(StateError::UnknownId(format!("query {}", update.query.raw())));
             };
             record.result_valid_at = Some(self.version);
+            record.pending_inputs.clear();
             if let (Some(lineage), Some(data_snapshot)) = (update.lineage, update.data_snapshot) {
-                record.last_published =
-                    Some(crate::store::PublishedLineage { lineage, data_snapshot, data_version });
+                record.last_published = Some(crate::store::PublishedLineage {
+                    lineage,
+                    data_snapshot,
+                    data_version,
+                    identities: update.identities,
+                });
             }
         }
         Ok(())
@@ -323,8 +509,13 @@ impl CausalState {
         self.data_catalog.version
     }
 
-    fn invalidate_data_dependents(&mut self, v: StateVersion, reason: &str) {
-        self.invalidate_all_results(v, reason);
+    fn invalidate_data_dependents(
+        &mut self,
+        v: StateVersion,
+        reason: &str,
+        input: Option<ChangedInput>,
+    ) {
+        self.invalidate_all_results(v, reason, input);
         for key in self.suff_stats.ols.keys().cloned().collect::<Vec<_>>() {
             self.invalidations.push(
                 v,
@@ -345,16 +536,33 @@ impl CausalState {
         self.invalidations.push(v, InvalidationTarget::MechanismDiagnostics, reason);
     }
 
-    fn invalidate_all_results(&mut self, v: StateVersion, reason: &str) {
+    fn invalidate_all_results(
+        &mut self,
+        v: StateVersion,
+        reason: &str,
+        input: Option<ChangedInput>,
+    ) {
         let ids: Vec<QueryId> = self.cached_results.results.keys().copied().collect();
+        let log = |log: &mut InvalidationLog, target: InvalidationTarget, reason: &str| match input
+        {
+            Some(input) => log.push_input(v, target, Arc::from(reason), input),
+            None => log.push(v, target, Arc::from(reason)),
+        };
         for q in ids {
             self.cached_results.remove(q, &mut self.cache_budget);
-            self.invalidations.push(v, InvalidationTarget::QueryResult(q), Arc::from(reason));
+            log(&mut self.invalidations, InvalidationTarget::QueryResult(q), reason);
             if let Some(rec) = self.queries.queries.get_mut(&q) {
                 rec.result_valid_at = None;
             }
         }
-        self.invalidations.push(v, InvalidationTarget::AllResults, reason);
+        log(&mut self.invalidations, InvalidationTarget::AllResults, reason);
+        if let Some(input) = input {
+            for rec in self.queries.queries.values_mut() {
+                rec.pending_inputs
+                    .retain(|p| !(p.stage == input.stage && p.change == input.change));
+                rec.pending_inputs.push(input);
+            }
+        }
     }
 }
 
@@ -491,6 +699,108 @@ mod tests {
         assert_eq!(state.cache_budget.used_bytes, 0);
         assert!(state.is_stale(first));
         assert!(state.is_stale(second));
+    }
+
+    fn identities(identification: u8, snapshot: u8) -> ContractIdentities {
+        let d = |byte: u8| antecedent_core::SemanticDigest::from_bytes([byte; 32]);
+        ContractIdentities::new(d(1), d(identification), None, None, d(5), d(6), d(snapshot))
+    }
+
+    fn publication(query: QueryId, identities: &ContractIdentities) -> ResultPublication {
+        ResultPublication {
+            query,
+            fingerprint: 1,
+            bytes: 8,
+            lineage: Some(identities.identification),
+            data_snapshot: Some(identities.data_snapshot),
+            identities: Some(*identities),
+        }
+    }
+
+    fn one_query(state: &mut CausalState) -> QueryId {
+        state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        )))
+    }
+
+    fn constraint(id: &str) -> StateEvent {
+        StateEvent::AddConstraint(crate::store::GraphConstraintRecord {
+            id: Arc::from(id),
+            fingerprint: 7,
+        })
+    }
+
+    /// A premise event leaves the data snapshot alone, so the old data-snapshot check cannot
+    /// see it: the identification layer has to move for the republication to count.
+    #[test]
+    fn a_constraint_event_is_not_answered_by_an_identical_identification_layer() {
+        let mut state = CausalState::new(CacheBudget::new(1024));
+        let q = one_query(&mut state);
+        let first = identities(10, 20);
+        state.publish_results(&[publication(q, &first)]).expect("first publication");
+        assert_eq!(state.revalidation(q), Some(Revalidation::StillValid));
+
+        state.apply(constraint("c1")).expect("constraint");
+        assert_eq!(state.revalidation(q), Some(Revalidation::Recompute));
+        let err = state.publish_results(&[publication(q, &first)]).expect_err("same layer");
+        assert!(matches!(&err, StateError::InvalidEvent(m) if m.contains("graph layer")));
+        assert_eq!(state.revalidation(q), Some(Revalidation::Recompute));
+
+        // the same data but a re-derived identification is a recomputation
+        let rederived = identities(11, 20);
+        state.publish_results(&[publication(q, &rederived)]).expect("recomputed");
+        assert_eq!(state.revalidation(q), Some(Revalidation::StillValid));
+        assert!(!state.is_stale(q));
+    }
+
+    /// Removing a premise withdraws what rested on it; adding one only recomputes.
+    #[test]
+    fn a_removed_constraint_withdraws_and_an_added_one_recomputes() {
+        let mut state = CausalState::new(CacheBudget::new(1024));
+        let q = one_query(&mut state);
+        let first = identities(10, 20);
+        state.apply(constraint("c1")).expect("constraint");
+        state.publish_results(&[publication(q, &first)]).expect("publication");
+        assert_eq!(state.revalidation(q), Some(Revalidation::StillValid));
+        state
+            .apply(StateEvent::RemoveConstraint(crate::store::ConstraintId(Arc::from("c1"))))
+            .expect("remove");
+        assert_eq!(state.revalidation(q), Some(Revalidation::Withdrawn));
+        assert!(state.is_stale(q));
+        assert_eq!(state.revalidation(QueryId::from_raw(99)), None);
+    }
+
+    /// The staleness is tied to the stage input identity: equal inputs, equal identities.
+    #[test]
+    fn input_identities_move_with_the_events_that_change_them() {
+        let mut state = CausalState::new(CacheBudget::new(1024));
+        let before = state.input_identities();
+        assert_eq!(before, CausalState::new(CacheBudget::new(1024)).input_identities());
+        state.apply(constraint("c1")).expect("constraint");
+        let after = state.input_identities();
+        assert_ne!(before.own(Stage::Graph), after.own(Stage::Graph));
+        assert_eq!(before.own(Stage::DataSnapshot), after.own(Stage::DataSnapshot));
+        let entry = state.invalidations.entries.last().expect("entry");
+        let input = entry.input.expect("graph input");
+        assert_eq!((input.stage, input.change), (Stage::Graph, ChangeKind::Added));
+        assert_eq!(entry.revalidation(), Revalidation::Recompute);
+    }
+
+    /// A bare fingerprint cannot mark a lineage-bound result fresh.
+    #[test]
+    fn a_bare_refresh_cannot_republish_a_lineage_bound_result() {
+        let mut state = CausalState::new(CacheBudget::new(1024));
+        let q = one_query(&mut state);
+        state.publish_results(&[publication(q, &identities(10, 20))]).expect("publication");
+        state.apply(constraint("c1")).expect("constraint");
+        let err = state.refresh_results(&[(q, 5, 8)]).expect_err("lineage-bound");
+        assert!(matches!(err, StateError::InvalidEvent(_)));
+        assert!(state.is_stale(q));
+        // a query that never carried a lineage keeps the caller-driven path
+        let plain = one_query(&mut state);
+        state.refresh_results(&[(plain, 5, 8)]).expect("unbound query");
+        assert!(!state.is_stale(plain));
     }
 
     #[test]

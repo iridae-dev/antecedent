@@ -189,6 +189,9 @@ pub enum TrustStanding {
     Held,
     /// The provider's trust no longer holds (replaced, unverified, revoked).
     Withdrawn,
+    /// The producer did not state whether trust holds. Unknown standing is not
+    /// a license: the node is withdrawn for provider trust until it is stated.
+    Undeclared,
 }
 
 impl TrustStanding {
@@ -199,13 +202,14 @@ impl TrustStanding {
             Self::NotApplicable => "not_applicable",
             Self::Held => "held",
             Self::Withdrawn => "withdrawn",
+            Self::Undeclared => "undeclared",
         }
     }
 
     /// Parse a wire name.
     #[must_use]
     pub fn from_name(name: &str) -> Option<Self> {
-        [Self::NotApplicable, Self::Held, Self::Withdrawn]
+        [Self::NotApplicable, Self::Held, Self::Withdrawn, Self::Undeclared]
             .into_iter()
             .find(|standing| standing.as_str() == name)
     }
@@ -247,6 +251,76 @@ pub enum CalibrationDeclaration {
         /// The coordinate the record is claimed to hold at.
         coordinate: SemanticDigest,
     },
+}
+
+/// The three standings a claim rests on beyond its identity: whether its
+/// coordinates are supported, whether its provider's trust holds, and what
+/// uncertainty guarantee it states.
+///
+/// A producing route states all three explicitly when it builds a node, so
+/// that reusing a stage artifact never reads as a license by default. A route
+/// that cannot state one uses [`Self::undeclared`], which is refused rather
+/// than assumed fine.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClaimStanding {
+    /// Whether the node's own coordinates are supported.
+    pub support: SupportStanding,
+    /// Whether the node's provider trust holds.
+    pub trust: TrustStanding,
+    /// The node's uncertainty guarantee.
+    pub calibration: CalibrationDeclaration,
+}
+
+impl ClaimStanding {
+    /// A natively computed point value: supported, no provider, no interval or
+    /// posterior guarantee claimed.
+    #[must_use]
+    pub const fn native_point() -> Self {
+        Self {
+            support: SupportStanding::Supported,
+            trust: TrustStanding::NotApplicable,
+            calibration: CalibrationDeclaration::PointOnly,
+        }
+    }
+
+    /// A standing the producer did not state: supported coordinates are not
+    /// assumed to hold trust, and an uncertainty statement is wanted without a
+    /// record. A node built with it is withdrawn for provider trust.
+    #[must_use]
+    pub const fn undeclared() -> Self {
+        Self {
+            support: SupportStanding::Supported,
+            trust: TrustStanding::Undeclared,
+            calibration: CalibrationDeclaration::Required,
+        }
+    }
+
+    /// A node that rests on a provider at the given verification level.
+    #[must_use]
+    pub const fn provider(
+        trust: crate::ProviderTrust,
+        calibration: CalibrationDeclaration,
+    ) -> Self {
+        Self {
+            support: SupportStanding::Supported,
+            trust: TrustStanding::of_provider(trust),
+            calibration,
+        }
+    }
+
+    /// Replace the calibration declaration.
+    #[must_use]
+    pub fn with_calibration(mut self, calibration: CalibrationDeclaration) -> Self {
+        self.calibration = calibration;
+        self
+    }
+
+    /// Declare coordinates outside the support.
+    #[must_use]
+    pub fn with_unsupported(mut self, coordinates: Vec<String>) -> Self {
+        self.support = SupportStanding::Unsupported { coordinates };
+        self
+    }
 }
 
 /// One claim or object.
@@ -327,6 +401,25 @@ impl CompositionNode {
     pub fn with_unsupported(mut self, coordinates: Vec<String>) -> Self {
         self.support = SupportStanding::Unsupported { coordinates };
         self
+    }
+
+    /// Set the support, trust and calibration standings together.
+    #[must_use]
+    pub fn with_standing(mut self, standing: ClaimStanding) -> Self {
+        self.support = standing.support;
+        self.trust = standing.trust;
+        self.calibration = standing.calibration;
+        self
+    }
+
+    /// The node's current standings.
+    #[must_use]
+    pub fn standing(&self) -> ClaimStanding {
+        ClaimStanding {
+            support: self.support.clone(),
+            trust: self.trust,
+            calibration: self.calibration.clone(),
+        }
     }
 
     /// Set the provider trust standing.

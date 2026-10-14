@@ -12,10 +12,11 @@
 use std::collections::BTreeMap;
 
 use antecedent::analysis::composition_verification::{
-    CalibrationDeclaration, CalibrationState, CompositionGraph, CompositionNode,
+    CalibrationDeclaration, CalibrationState, ClaimStanding, CompositionGraph, CompositionNode,
     CompositionVerification, DependencyKind, NodeKind, NumericalCause, ObservedEffect,
     Revalidation, WithdrawalKind, consume_composition_verification_artifact, freshness_effects,
-    invalidation_effects, ledger_effects, query_invalidated, stage_effects, stage_node,
+    invalidation_effects, ledger_effects, query_revalidation, stage_effects, stage_node,
+    stage_node_with_standing,
 };
 use std::sync::Arc;
 
@@ -27,7 +28,8 @@ use antecedent_contract::{
     ClaimDomains, ClaimEnvelope, ClaimKind, DomainStatus, ReasoningView, SlotAvailability,
 };
 use antecedent_core::recalc::{
-    RecalcCapabilities, RecalcPlan, RetargetSupport, Stage, StageIdentities, StageIdentity,
+    CalibrationInput, RecalcCapabilities, RecalcPlan, RetargetSupport, Stage, StageIdentities,
+    StageIdentity,
 };
 use antecedent_core::{
     CancellationToken, ContractIdentities, QueryId, SemanticDigest, StateVersion,
@@ -260,9 +262,15 @@ fn invalidation_log_and_claim_freshness_drive_the_classification() {
     ];
     // before the entry: nothing; after it: the bound query result recomputes, the model does not
     assert!(invalidation_effects(&log, StateVersion::from_raw(3), &bindings).is_empty());
-    assert!(!query_invalidated(&log, QueryId::from_raw(7), StateVersion::from_raw(3)));
+    assert_eq!(
+        query_revalidation(&log, QueryId::from_raw(7), StateVersion::from_raw(3)),
+        Revalidation::StillValid
+    );
     let effects = invalidation_effects(&log, StateVersion::from_raw(2), &bindings);
-    assert!(query_invalidated(&log, QueryId::from_raw(7), StateVersion::from_raw(2)));
+    assert_eq!(
+        query_revalidation(&log, QueryId::from_raw(7), StateVersion::from_raw(2)),
+        Revalidation::Recompute
+    );
     assert_eq!(effects.keys().map(String::as_str).collect::<Vec<_>>(), vec!["query_result"]);
     let verification =
         CompositionVerification::verify(Some(&g), &g, &effects, None).expect("verify");
@@ -365,4 +373,131 @@ fn the_ledger_supplies_standings_overlap_and_a_state_the_consumer_checks() {
     assert_eq!(moved.classify("pooled_13").expect("c").class, Revalidation::Withdrawn);
     assert_eq!(moved.classify("decision").expect("c").class, Revalidation::Withdrawn);
     assert_eq!(moved.classify("study_3").expect("c").class, Revalidation::StillValid);
+}
+
+/// The law, stated with the calibration record the plan's calibration input names.
+fn calibrated_composition(plan: &RecalcPlan, record: u8) -> CompositionGraph {
+    let g = composition(plan, CalibrationDeclaration::PointOnly);
+    let target = g.node("target").expect("target").identity;
+    let law = stage_node_with_standing(
+        "law",
+        NodeKind::TransportedResult,
+        plan,
+        Stage::Law,
+        ClaimStanding::native_point().with_calibration(CalibrationDeclaration::Held {
+            record: d(record),
+            coordinate: target,
+        }),
+    )
+    .expect("law in plan")
+    .with_coordinate(target);
+    // rebuild with the stated standing: nodes are immutable once added
+    let mut out = CompositionGraph::new();
+    for node in g.nodes().filter(|n| n.key != "law") {
+        out.add_node(node.clone()).expect("node");
+    }
+    out.add_node(law).expect("node");
+    for edge in g.edges() {
+        out.add_edge(&edge.downstream, &edge.upstream, edge.kind).expect("edge");
+    }
+    out
+}
+
+fn calibrated(record: Option<(u8, u8)>) -> (StageIdentities, StageIdentities) {
+    let mut previous = identities(&BTreeMap::new());
+    previous.set_calibration(&CalibrationInput::Held {
+        record: StageIdentity::of("record", &[&[90]]),
+        coordinate: StageIdentity::of("coordinate", &[&[100]]),
+    });
+    let mut requested = identities(&BTreeMap::new());
+    if let Some((record, coordinate)) = record {
+        requested.set_calibration(&CalibrationInput::Held {
+            record: StageIdentity::of("record", &[&[record]]),
+            coordinate: StageIdentity::of("coordinate", &[&[coordinate]]),
+        });
+    }
+    (previous, requested)
+}
+
+#[test]
+fn a_re_measured_calibration_record_recomputes_the_law_and_leaves_the_fit_valid() {
+    let (previous_ids, requested_ids) = calibrated(Some((91, 100)));
+    let requested = plan(&previous_ids, &requested_ids);
+    let previous_plan = plan(&previous_ids, &previous_ids);
+    assert_eq!(requested.revalidation(Stage::Law), Some(Revalidation::Recompute));
+    assert_eq!(requested.revalidation(Stage::ScoreArtifact), Some(Revalidation::StillValid));
+    let before = calibrated_composition(&previous_plan, 90);
+    let after = calibrated_composition(&requested, 91);
+    let effects = stage_effects(&requested, &BINDINGS);
+    let verification =
+        CompositionVerification::verify(Some(&before), &after, &effects, None).expect("verify");
+    assert_eq!(verification.classify("law").expect("c").class, Revalidation::Recompute);
+    assert_eq!(verification.classify("decision").expect("c").class, Revalidation::Recompute);
+    assert_eq!(verification.classify("score_fit").expect("c").class, Revalidation::StillValid);
+    assert_eq!(verification.classify("data").expect("c").class, Revalidation::StillValid);
+}
+
+#[test]
+fn a_calibration_input_that_is_gone_withdraws_the_law_and_the_decision() {
+    let (previous_ids, requested_ids) = calibrated(None);
+    let requested = plan(&previous_ids, &requested_ids);
+    let previous_plan = plan(&previous_ids, &previous_ids);
+    assert_eq!(requested.revalidation(Stage::Law), Some(Revalidation::Withdrawn));
+    assert_eq!(requested.revalidation(Stage::Decision), Some(Revalidation::Withdrawn));
+    // the plan's class is adapted into the claim graph as an observed effect
+    let mut effects = BTreeMap::new();
+    for (key, stage) in [("law", Stage::Law), ("decision", Stage::Decision)] {
+        let class = requested.revalidation(stage).expect("stage");
+        if let Some(effect) = ObservedEffect::from_revalidation(class, format!("plan:{stage}")) {
+            effects.insert(key.to_owned(), effect);
+        }
+    }
+    let before = calibrated_composition(&previous_plan, 90);
+    let after = calibrated_composition(&previous_plan, 90);
+    let verification =
+        CompositionVerification::verify(Some(&before), &after, &effects, None).expect("verify");
+    assert_eq!(verification.classify("law").expect("c").class, Revalidation::Withdrawn);
+    assert_eq!(verification.classify("decision").expect("c").class, Revalidation::Withdrawn);
+    assert_eq!(verification.classify("score_fit").expect("c").class, Revalidation::StillValid);
+}
+
+#[test]
+fn a_removed_premise_withdraws_a_bound_result_and_data_only_recomputes_it() {
+    use antecedent_core::recalc::{ChangeKind, StageIdentity as Id};
+    use antecedent_state::ChangedInput;
+    let mut log = InvalidationLog::new();
+    let at = |n| StateVersion::from_raw(n);
+    let bound = [("report", InvalidationTarget::QueryResult(QueryId::from_raw(7)))];
+    log.push_input(
+        at(2),
+        InvalidationTarget::AllResults,
+        "append_data",
+        ChangedInput {
+            stage: Stage::DataSnapshot,
+            change: ChangeKind::Modified,
+            identity: Id::of("data", &[b"1"]),
+        },
+    );
+    let effects = invalidation_effects(&log, at(1), &bound);
+    assert!(matches!(effects.get("report"), Some(ObservedEffect::Recomputed { .. })));
+    assert_eq!(query_revalidation(&log, QueryId::from_raw(7), at(1)), Revalidation::Recompute);
+    log.push_input(
+        at(3),
+        InvalidationTarget::AllResults,
+        "remove_constraint",
+        ChangedInput {
+            stage: Stage::Graph,
+            change: ChangeKind::Removed,
+            identity: Id::of("constraint", &[b"c1"]),
+        },
+    );
+    let effects = invalidation_effects(&log, at(1), &bound);
+    assert!(matches!(effects.get("report"), Some(ObservedEffect::Withdrawn { .. })));
+    assert_eq!(query_revalidation(&log, QueryId::from_raw(7), at(1)), Revalidation::Withdrawn);
+    // only the entries after the observer's version count
+    assert!(matches!(
+        invalidation_effects(&log, at(2), &bound).get("report"),
+        Some(ObservedEffect::Withdrawn { .. })
+    ));
+    assert_eq!(query_revalidation(&log, QueryId::from_raw(7), at(3)), Revalidation::StillValid);
 }

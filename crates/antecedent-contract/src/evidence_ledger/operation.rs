@@ -236,37 +236,9 @@ impl ClaimClass {
 }
 
 /// Downstream classification after evidence changes. Claim-agnostic: any
-/// dependent artifact can be classified with it.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-#[non_exhaustive]
-pub enum Revalidation {
-    /// Nothing it rests on changed.
-    StillValid,
-    /// An input changed but a successor exists: recompute it.
-    Recompute,
-    /// An input it cannot do without is gone: it must not be used.
-    Withdrawn,
-}
-
-impl Revalidation {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::StillValid => "still_valid",
-            Self::Recompute => "recompute",
-            Self::Withdrawn => "withdrawn",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::StillValid, Self::Recompute, Self::Withdrawn]
-            .into_iter()
-            .find(|class| class.as_str() == name)
-    }
-}
+/// dependent artifact can be classified with it. This is the one three-state
+/// classification of the recalculation planner and the claim graph.
+pub use antecedent_core::recalc::Revalidation;
 
 /// Standing of a result.
 #[derive(Clone, Debug, Eq, PartialEq)]

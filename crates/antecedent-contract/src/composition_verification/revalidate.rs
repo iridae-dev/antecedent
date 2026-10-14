@@ -16,6 +16,11 @@
 //!    untrusted or unexecutable input is one the claim cannot do without. A
 //!    calibration withdrawal reaches the dependent only along a calibration
 //!    dependency.
+//!    A change of standing between the snapshots is itself an own change: a
+//!    provider trust standing that moved without being withdrawn, a support
+//!    that was restored, or a calibration record replaced by another one means
+//!    the earlier numbers or uncertainty carry no authority even when every
+//!    stage that produced them was reused.
 //! 4. **Calibration.** A claim that holds a record must be at the record's
 //!    coordinate. A claim that inherits one must have an upstream that
 //!    currently holds the same record at the same coordinate. Otherwise the
@@ -34,10 +39,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::recalc::StageStatus;
-use antecedent_core::{CanonicalWriter, SemanticDigest};
+use antecedent_core::{CanonicalWriter, ContractIdentities, SemanticDigest};
 
 use crate::ExternalRefusal;
-use crate::claim::ClaimFreshness;
+use crate::claim::{ClaimEnvelope, ClaimFreshness};
 use crate::evidence_ledger::{EvidenceLedger, ResultId, ResultStatus, Revalidation};
 
 use super::graph::{
@@ -115,6 +120,73 @@ impl ObservedEffect {
     }
 }
 
+impl ObservedEffect {
+    /// The effect of a claim against the contract identities the receiver now
+    /// holds: withdrawal and supersession as in [`Self::from_freshness`], and
+    /// otherwise every identity layer (target, identification and its product,
+    /// program, inference binding, observation, data snapshot) is compared, so a
+    /// change in any layer with an unchanged data snapshot is not read as
+    /// applicable. The changed layers are named in the cause. With no current
+    /// identities the receiver learns nothing and the freshness reading stands.
+    #[must_use]
+    pub fn from_claim_contract(
+        claim: &ClaimEnvelope,
+        freshness: &ClaimFreshness,
+        current: Option<&ContractIdentities>,
+    ) -> Option<Self> {
+        if freshness.withdrawn {
+            return Some(Self::Withdrawn { cause: "claim.withdrawn".to_owned() });
+        }
+        if freshness.superseded_by.is_some() {
+            return Some(Self::Recomputed { cause: "claim.superseded".to_owned() });
+        }
+        let Some(now) = current else {
+            return Self::from_freshness(freshness);
+        };
+        let was = &claim.identities;
+        let mut changed: Vec<&'static str> = Vec::new();
+        if was.target != now.target {
+            changed.push("target");
+        }
+        if was.identification != now.identification {
+            changed.push("identification");
+        }
+        if was.identification_product != now.identification_product {
+            changed.push("identification_product");
+        }
+        if was.program != now.program {
+            changed.push("program");
+        }
+        if was.inference_binding != now.inference_binding {
+            changed.push("inference_binding");
+        }
+        if was.observation != now.observation {
+            changed.push("observation");
+        }
+        if was.data_snapshot != now.data_snapshot {
+            changed.push("data_snapshot");
+        }
+        if changed.is_empty() {
+            return None;
+        }
+        Some(Self::Recomputed { cause: format!("claim.contract_changed:{}", changed.join(",")) })
+    }
+
+    /// The effect of a class decided by another vocabulary that adapts onto
+    /// the one three-state classification (the state's invalidation log, a
+    /// discovery or counterfactual stage receipt, a callback replay plan):
+    /// `still_valid` is no effect, `recompute` a numerical effect, `withdrawn`
+    /// a withdrawal. `cause` names where the class came from.
+    #[must_use]
+    pub fn from_revalidation(class: Revalidation, cause: impl Into<String>) -> Option<Self> {
+        match class {
+            Revalidation::StillValid => None,
+            Revalidation::Recompute => Some(Self::Recomputed { cause: cause.into() }),
+            Revalidation::Withdrawn => Some(Self::Withdrawn { cause: cause.into() }),
+        }
+    }
+}
+
 /// The effects of every bound ledger result, keyed by node key.
 ///
 /// # Errors
@@ -157,6 +229,15 @@ pub enum NumericalCause {
     DependenciesChanged,
     /// An observed effect reports the node stale.
     Observed,
+    /// The provider trust standing moved (and does not withdraw): the numbers
+    /// were produced under a different standing.
+    TrustChanged,
+    /// The node's calibration record was replaced by a different one: the
+    /// earlier uncertainty statement carries no authority.
+    CalibrationChanged,
+    /// Coordinates that were outside the support are supported again: the
+    /// earlier numbers were never licensed there.
+    SupportRestored,
 }
 
 impl NumericalCause {
@@ -172,6 +253,9 @@ impl NumericalCause {
             Self::CoordinateChanged => "coordinate_changed",
             Self::DependenciesChanged => "dependencies_changed",
             Self::Observed => "observed",
+            Self::TrustChanged => "trust_changed",
+            Self::CalibrationChanged => "calibration_changed",
+            Self::SupportRestored => "support_restored",
         }
     }
 }
@@ -510,8 +594,30 @@ fn own_causes(
             if before.representation != node.representation {
                 causes.push(NumericalCause::RepresentationChanged);
             }
-            if before.coordinate != node.coordinate {
+            let coordinate_changed = before.coordinate != node.coordinate;
+            if coordinate_changed {
                 causes.push(NumericalCause::CoordinateChanged);
+            }
+            // A standing that moved without withdrawing is an own change: reusing the
+            // stage artifact must not carry authority across it.
+            if before.trust != node.trust
+                && !matches!(node.trust, TrustStanding::Withdrawn | TrustStanding::Undeclared)
+            {
+                causes.push(NumericalCause::TrustChanged);
+            }
+            if matches!(before.support, SupportStanding::Unsupported { .. })
+                && node.support == SupportStanding::Supported
+            {
+                causes.push(NumericalCause::SupportRestored);
+            }
+            if !coordinate_changed {
+                if let (Some(was), Some(is)) =
+                    (held_record(&before.calibration), held_record(&node.calibration))
+                {
+                    if was != is {
+                        causes.push(NumericalCause::CalibrationChanged);
+                    }
+                }
             }
             if before.identity != node.identity && !structure_changed {
                 // A node that carries a structural derivation and whose
@@ -544,6 +650,16 @@ fn own_causes(
     causes
 }
 
+fn held_record(declaration: &CalibrationDeclaration) -> Option<Held> {
+    match declaration {
+        CalibrationDeclaration::Held { record, coordinate }
+        | CalibrationDeclaration::Inherited { record, coordinate, .. } => {
+            Some((*record, *coordinate))
+        }
+        CalibrationDeclaration::PointOnly | CalibrationDeclaration::Required => None,
+    }
+}
+
 fn propagate_cause(kind: DependencyKind, cause: NumericalCause) -> NumericalCause {
     match (kind, cause) {
         (
@@ -553,7 +669,10 @@ fn propagate_cause(kind: DependencyKind, cause: NumericalCause) -> NumericalCaus
             | NumericalCause::Added
             | NumericalCause::CoordinateChanged
             | NumericalCause::DependenciesChanged
-            | NumericalCause::RepresentationChanged,
+            | NumericalCause::RepresentationChanged
+            | NumericalCause::TrustChanged
+            | NumericalCause::CalibrationChanged
+            | NumericalCause::SupportRestored,
         ) => NumericalCause::StructureReusedFitNotRetained,
         _ => cause,
     }
@@ -572,6 +691,9 @@ fn own_withdrawals(
     }
     if node.trust == TrustStanding::Withdrawn {
         out.push(own(WithdrawalKind::ProviderTrust, "provider_trust_withdrawn".to_owned()));
+    }
+    if node.trust == TrustStanding::Undeclared {
+        out.push(own(WithdrawalKind::ProviderTrust, "provider_trust_undeclared".to_owned()));
     }
     match effect {
         Some(ObservedEffect::Withdrawn { cause }) => {
@@ -697,6 +819,13 @@ pub fn revalidate(
         for (up, kind) in current.dependencies(key) {
             let Some(upstream) = states.get(up) else { continue };
             for r in &upstream.numerical {
+                // A replaced calibration record is a change only for claims that
+                // claim to inherit calibration along a calibration dependency.
+                if r.cause == NumericalCause::CalibrationChanged
+                    && kind != DependencyKind::Calibration
+                {
+                    continue;
+                }
                 working.numerical.insert(NumericalReason {
                     origin: r.origin.clone(),
                     via: Some((up.to_owned(), kind)),
