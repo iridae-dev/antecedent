@@ -231,7 +231,8 @@ pub fn library_transported_node(
     support_label: &str,
     assumptions: Vec<String>,
 ) -> CompositionNode {
-    let mut identity = CanonicalWriter::new("antecedent.composition_verification.library_transport");
+    let mut identity =
+        CanonicalWriter::new("antecedent.composition_verification.library_transport");
     identity.text(route).text(route_identity);
     let mut coordinate =
         CanonicalWriter::new("antecedent.composition_verification.library_transport_coordinate");

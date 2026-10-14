@@ -80,7 +80,8 @@ fn rule(seed: u64) -> SplitRule {
 }
 
 fn row_ids(data: &TabularData) -> Vec<usize> {
-    data.float64_values(VariableId::from_raw(3)).unwrap().iter().map(|&r| r as usize).collect()
+    let ids = data.float64_values(VariableId::from_raw(3)).unwrap();
+    ids.iter().map(|r| r.to_string().parse().unwrap()).collect()
 }
 
 #[test]

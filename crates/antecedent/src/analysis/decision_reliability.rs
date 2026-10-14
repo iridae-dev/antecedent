@@ -92,7 +92,8 @@ impl DecisionReliabilityRefusal {
         // The loader's own kind-mismatch detail survives; every other artifact
         // failure keeps the generic detail.
         if let IoError::Refused { code, message } = error {
-            if let Some(text) = message.strip_prefix("decision_reliability.artifact_kind_mismatch: ")
+            if let Some(text) =
+                message.strip_prefix("decision_reliability.artifact_kind_mismatch: ")
             {
                 return Self {
                     code: *code,

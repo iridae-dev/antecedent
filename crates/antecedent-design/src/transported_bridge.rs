@@ -158,6 +158,10 @@ impl TransportedSurrogateBridge {
     /// `bridge_binding_mismatch` /
     /// `scientific_bridge.transport_diagram_scope_mismatch` when the diagram
     /// is not between the two populations.
+    #[allow(
+        clippy::result_large_err,
+        reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+    )]
     pub fn contract(&self) -> Result<BridgeContract, BridgeRefusal> {
         let claim_scope = BridgeScope {
             population_id: self.surrogate.population_id.clone(),
@@ -234,6 +238,10 @@ impl TransportedSurrogateBridge {
     /// unlicensed bridge, a source about another quantity or unit, a source
     /// that is not a finite point, and a surrogate effect outside the
     /// validated range.
+    #[allow(
+        clippy::result_large_err,
+        reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+    )]
     pub fn derive(&self, claim: &ClaimEnvelope) -> Result<BridgedClaim, BridgeRefusal> {
         let contract = self.contract()?;
         derive_bridged_claim(&contract, &BridgeSource { claim, quantity: &self.surrogate })

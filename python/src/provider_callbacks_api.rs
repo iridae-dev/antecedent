@@ -1191,7 +1191,7 @@ fn handoff_summary(
         CalibrationStatus::PointOnly => "point_only",
         CalibrationStatus::Unmeasured => "unmeasured",
         CalibrationStatus::Measured { .. } => "measured",
-        _ => "inherited",
+        CalibrationStatus::Inherited { .. } => "inherited",
     };
     json!({
         "identity": identity,

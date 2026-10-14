@@ -379,14 +379,11 @@ impl AdaptiveProcedure {
         let fail = |e: AdaptiveInferenceError| refusal_of(&e);
         let (paradigm, body) = match request {
             ProcedureReportRequest::BayesianPosterior { prior, observed } => {
-                let posterior = match observed {
-                    Some(counts) => {
-                        Some(bayesian_report(spec, *prior, counts, &cancelled).map_err(fail)?)
-                    }
-                    None => {
-                        admit(spec, UncertaintyParadigm::BayesianPosterior).map_err(fail)?;
-                        None
-                    }
+                let posterior = if let Some(counts) = observed {
+                    Some(bayesian_report(spec, *prior, counts, &cancelled).map_err(fail)?)
+                } else {
+                    admit(spec, UncertaintyParadigm::BayesianPosterior).map_err(fail)?;
+                    None
                 };
                 let priors = vec![*prior; spec.cells()];
                 let mean_gaps = posterior_mean_gaps(spec, &priors, &cancelled).map_err(fail)?;
@@ -536,7 +533,7 @@ impl AdaptiveProcedure {
                     let mean = |a: usize| truth[context * arms + a];
                     let value = match spec.exposure().attribution {
                         antecedent_stats::adaptive_inference::Attribution::Delivered => mean(arm),
-                        _ => {
+                        antecedent_stats::adaptive_inference::Attribution::Assigned => {
                             let failure = spec.exposure().failure_probability[arm];
                             let fallback = spec.exposure().fallback_arm;
                             (1.0 - failure) * mean(arm) + failure * mean(fallback)

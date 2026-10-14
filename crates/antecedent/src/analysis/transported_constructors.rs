@@ -178,7 +178,7 @@ pub fn synthesis_refusal(refusal: &TransportedSynthesisRefusal) -> ExternalRefus
                 Some(source) => base.with_offending(format!("{source:?}")),
                 None => base,
             };
-            base.with_remedy(*remedy)
+            base.with_remedy(remedy)
         }
         _ => base,
     }

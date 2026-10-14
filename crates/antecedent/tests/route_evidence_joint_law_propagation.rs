@@ -113,12 +113,7 @@ fn joint_columns(snapshot: &str) -> (DistributionArtifact, PropagationDraws, Pro
 }
 
 fn moment(id: &str, evidence: &str, mean: f64) -> MomentInput {
-    MomentInput {
-        id: id.into(),
-        evidence_id: evidence.into(),
-        role: InputRole::Estimate,
-        mean,
-    }
+    MomentInput { id: id.into(), evidence_id: evidence.into(), role: InputRole::Estimate, mean }
 }
 
 fn aligned_input(id: &str, evidence: &str, alignment: &str) -> PropagationInput {
@@ -178,9 +173,8 @@ fn an_alignment_identity_is_shared_by_the_columns_of_one_artifact_only() {
     // The same artifact always gives the same identity.
     assert_eq!(alignment_identity(&joint).expect("again"), id);
     // Both columns carry it into a claim.
-    let claim =
-        propagate_aligned_linear(PropagationOperation::Sum, (1.0, 1.0), &dx, &dy, &ctx())
-            .expect("sum");
+    let claim = propagate_aligned_linear(PropagationOperation::Sum, (1.0, 1.0), &dx, &dy, &ctx())
+        .expect("sum");
     assert_eq!(claim.alignment_id(), Some(id.as_str()));
     // Another snapshot is another joint law and another identity.
     let (x, y) = enumerated_rows();
@@ -286,9 +280,8 @@ fn aligned_linear_draws_give_the_covariance_from_the_rows_themselves() {
     assert_eq!(claim.route(), "aligned_joint_law");
     // Columns of different artifacts are not paired.
     let (_other, _ox, oy) = joint_columns("snap-aligned-linear-other");
-    let refused =
-        propagate_aligned_linear(PropagationOperation::Sum, (1.0, 1.0), &dx, &oy, &ctx())
-            .expect_err("different joint laws");
+    let refused = propagate_aligned_linear(PropagationOperation::Sum, (1.0, 1.0), &dx, &oy, &ctx())
+        .expect_err("different joint laws");
     assert_eq!(refused.code(), "joint_law_required");
     assert_eq!(refused.details(), vec!["joint_law_propagation.alignment_mismatch"]);
 }
@@ -464,6 +457,7 @@ fn a_fresh_consumer_replays_an_envelope_and_refuses_a_foreign_identity_or_trunca
         .expect_err("foreign identity");
     assert_eq!(refusal.details(), vec!["joint_law_propagation.artifact_refused"]);
     // Truncated bytes are not an artifact.
-    assert!(consume_joint_law_propagation_artifact(&bytes[..bytes.len() / 2], None, &ctx())
-        .is_err());
+    assert!(
+        consume_joint_law_propagation_artifact(&bytes[..bytes.len() / 2], None, &ctx()).is_err()
+    );
 }

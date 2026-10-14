@@ -278,20 +278,21 @@ fn finite_posterior_applies_bayes_rule_to_the_declared_hypothesis_space() {
     near(level(&two.posterior().unwrap(), "ill"), 36.0 / 47.0);
     near(two.evidence_probability().unwrap(), 0.010_575);
     // An unknown observation level is refused, not skipped.
-    assert!(finite_posterior(
-        &screening_model(),
-        &["maybe".to_owned()],
-        InferenceBasis::DeclaredModel,
-        &ctx(),
-    )
-    .is_err());
+    assert!(
+        finite_posterior(
+            &screening_model(),
+            &["maybe".to_owned()],
+            InferenceBasis::DeclaredModel,
+            &ctx(),
+        )
+        .is_err()
+    );
 }
 
 #[test]
 fn conjugate_posterior_adds_the_counts_to_the_beta_shapes() {
     // Beta(2, 3) after 4 successes and 6 failures: Beta(6, 9), predictive 6 / 15.
-    let claim =
-        conjugate_posterior(2.0, 3.0, 4, 6, InferenceBasis::DeclaredModel, &ctx()).unwrap();
+    let claim = conjugate_posterior(2.0, 3.0, 4, 6, InferenceBasis::DeclaredModel, &ctx()).unwrap();
     let (alpha, beta, predictive) = claim.conjugate_posterior().unwrap();
     near(alpha, 6.0);
     near(beta, 9.0);

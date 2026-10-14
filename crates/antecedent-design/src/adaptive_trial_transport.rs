@@ -59,7 +59,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_contract::adaptive_design::{AdaptiveDesignContract, InferenceParadigm};
+use antecedent_contract::adaptive_design::{
+    AdaptiveDesignContract, AdaptiveDesignDeclaration, InferenceParadigm,
+};
 use antecedent_core::CanonicalWriter;
 
 use crate::sequential_evaluation::{SequentialEvaluationError, SequentialResult};
@@ -411,22 +413,11 @@ fn check_shape(
     Ok(())
 }
 
-/// Transport two arm means of an adaptive trial to a target stratum law.
-///
-/// # Errors
-/// A missing trial contract, selection diagram or target stratum law; a
-/// blank, self-targeting or unbound population pair; a stratum law declared
-/// invariant that differs from the trial's; a fixed-design trial; a procedure cell not licensed for adaptively weighted
-/// scores; exposure that differs from assignment or an outcome-dependent
-/// delay; an outcome mechanism marked shifted; an assigned arm below the
-/// declared probability floor; a target stratum with no analysed unit under a
-/// compared arm; and malformed strata, arms or target law.
-///
-/// # Panics
-/// Never for a contract built by [`AdaptiveDesignContract::new`].
-pub fn transport_adaptive_trial(
-    request: &AdaptiveTransportRequest<'_>,
-) -> SequentialResult<AdaptiveTransportEstimate> {
+/// The contract, target stratum law and selection diagram a transport needs,
+/// or the refusal naming the one that is missing.
+fn required_inputs<'a>(
+    request: &AdaptiveTransportRequest<'a>,
+) -> SequentialResult<(&'a AdaptiveDesignContract, &'a [f64], &'a TrialSelectionDiagram)> {
     let Some(contract) = request.contract else {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("adaptive_contract_incomplete"),
@@ -451,6 +442,73 @@ pub fn transport_adaptive_trial(
             "supply a selection diagram marking the stratum law and the outcome mechanism invariant or shifted",
         ));
     };
+    Ok((contract, law, diagram))
+}
+
+/// Inverse-probability-weighted outcome sums by (stratum, compared arm):
+/// numerator, denominator and unit count.
+fn weighted_sums(
+    request: &AdaptiveTransportRequest<'_>,
+    declaration: &AdaptiveDesignDeclaration,
+    probabilities: &[Vec<f64>],
+    analysed: &[usize],
+    arms: [usize; 2],
+) -> SequentialResult<Vec<[(f64, f64, usize); 2]>> {
+    let strata = request.stratum_labels.len();
+    // numerator, denominator and count by (stratum, compared arm)
+    let mut sums = vec![[(0.0_f64, 0.0_f64, 0_usize); 2]; strata];
+    for &unit in analysed {
+        let arm = declaration.assigned_arm[unit] as usize;
+        let Some(slot) = arms.iter().position(|&a| a == arm) else { continue };
+        let probability = probabilities[unit][arm];
+        if probability < declaration.probability_floor {
+            return Err(adaptive_refusal(
+                antecedent_core::reason_code!("adaptive_assumption_violated"),
+                "adaptive_transport.assignment_below_floor",
+                format!(
+                    "unit {unit} was assigned arm {arm} at probability {probability}, below the declared floor {}",
+                    declaration.probability_floor
+                ),
+                "restrict the compared arms to those the policy kept above the floor, or declare a lower floor with its justification; nothing is clipped",
+            ));
+        }
+        let measurements = &declaration.outcomes[unit];
+        if measurements.is_empty() {
+            return Err(adaptive_refusal(
+                antecedent_core::reason_code!("adaptive_contract_incomplete"),
+                "adaptive_transport.outcome_missing",
+                format!("analysed unit {unit} carries no measurement"),
+                "retain the outcome of every unit whose availability is declared",
+            ));
+        }
+        #[allow(clippy::cast_precision_loss, reason = "a unit holds at most 1024 measurements")]
+        let outcome = measurements.iter().sum::<f64>() / measurements.len() as f64;
+        let weight = 1.0 / probability;
+        let cell = &mut sums[request.unit_strata[unit]][slot];
+        cell.0 += weight * outcome;
+        cell.1 += weight;
+        cell.2 += 1;
+    }
+    Ok(sums)
+}
+
+/// Transport two arm means of an adaptive trial to a target stratum law.
+///
+/// # Errors
+/// A missing trial contract, selection diagram or target stratum law; a
+/// blank, self-targeting or unbound population pair; a stratum law declared
+/// invariant that differs from the trial's; a fixed-design trial; a procedure cell not licensed for adaptively weighted
+/// scores; exposure that differs from assignment or an outcome-dependent
+/// delay; an outcome mechanism marked shifted; an assigned arm below the
+/// declared probability floor; a target stratum with no analysed unit under a
+/// compared arm; and malformed strata, arms or target law.
+///
+/// # Panics
+/// Never for a contract built by [`AdaptiveDesignContract::new`].
+pub fn transport_adaptive_trial(
+    request: &AdaptiveTransportRequest<'_>,
+) -> SequentialResult<AdaptiveTransportEstimate> {
+    let (contract, law, diagram) = required_inputs(request)?;
     if !contract.is_adaptive() {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("route_not_supported"),
@@ -486,41 +544,7 @@ pub fn transport_adaptive_trial(
         ));
     }
     let arms = [request.treatment_arm, request.control_arm];
-    let strata = request.stratum_labels.len();
-    // numerator, denominator and count by (stratum, compared arm)
-    let mut sums = vec![[(0.0_f64, 0.0_f64, 0_usize); 2]; strata];
-    for &unit in &analysed {
-        let arm = declaration.assigned_arm[unit] as usize;
-        let Some(slot) = arms.iter().position(|&a| a == arm) else { continue };
-        let probability = probabilities[unit][arm];
-        if probability < declaration.probability_floor {
-            return Err(adaptive_refusal(
-                antecedent_core::reason_code!("adaptive_assumption_violated"),
-                "adaptive_transport.assignment_below_floor",
-                format!(
-                    "unit {unit} was assigned arm {arm} at probability {probability}, below the declared floor {}",
-                    declaration.probability_floor
-                ),
-                "restrict the compared arms to those the policy kept above the floor, or declare a lower floor with its justification; nothing is clipped",
-            ));
-        }
-        let measurements = &declaration.outcomes[unit];
-        if measurements.is_empty() {
-            return Err(adaptive_refusal(
-                antecedent_core::reason_code!("adaptive_contract_incomplete"),
-                "adaptive_transport.outcome_missing",
-                format!("analysed unit {unit} carries no measurement"),
-                "retain the outcome of every unit whose availability is declared",
-            ));
-        }
-        #[allow(clippy::cast_precision_loss, reason = "a unit holds at most 1024 measurements")]
-        let outcome = measurements.iter().sum::<f64>() / measurements.len() as f64;
-        let weight = 1.0 / probability;
-        let cell = &mut sums[request.unit_strata[unit]][slot];
-        cell.0 += weight * outcome;
-        cell.1 += weight;
-        cell.2 += 1;
-    }
+    let sums = weighted_sums(request, declaration, probabilities, &analysed, arms)?;
     let mut cells = Vec::new();
     let mut theta = [0.0_f64; 2];
     for (stratum, &mass) in law.iter().enumerate() {

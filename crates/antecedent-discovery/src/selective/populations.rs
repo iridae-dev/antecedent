@@ -228,10 +228,7 @@ impl PerPopulationDiscovery {
         let mut structures: Vec<(String, Vec<super::structure::StructureEdge>)> = Vec::new();
         for (rows, (_, identity)) in populations.iter().zip(identities) {
             let per_population = for_population(contract, rows.population);
-            let adapter = self
-                .adapters
-                .entry(rows.population.to_owned())
-                .or_insert_with(StaticSelectiveDiscovery::new);
+            let adapter = self.adapters.entry(rows.population.to_owned()).or_default();
             let report = adapter.run(&per_population, rows.data, ctx)?;
             let outcome = adapter.outcome().ok_or_else(|| {
                 invalid(

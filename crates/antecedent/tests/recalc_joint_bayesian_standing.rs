@@ -11,6 +11,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![cfg(feature = "calibration-internal")]
 use antecedent::analysis::recalc_bayesian::PosteriorSummarySpec;
 use antecedent::analysis::recalc_joint_bayesian::{JointBayesianRequest, JointBayesianSession};
 use antecedent::analysis::recalc_receipt::UtilitySpec;

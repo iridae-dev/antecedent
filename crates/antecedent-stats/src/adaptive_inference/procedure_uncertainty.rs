@@ -112,17 +112,9 @@ fn premise(detail: &'static str, message: &'static str) -> Error {
     Error::PremiseFailed { detail, message }
 }
 
-/// Check that the declared procedure meets the validity premises of a
-/// paradigm, and say what the arm-level quantity is.
-///
-/// # Errors
-/// [`Error::PremiseFailed`] naming the premise, with a stable detail slug.
-pub fn admit(
-    spec: &ProcedureSpec,
-    paradigm: UncertaintyParadigm,
-) -> Result<EstimandStatement, Error> {
-    let mechanism = spec.observation().mechanism();
-    let outcome_dependent = mechanism == DelayMechanism::OutcomeDependent;
+/// The validity premises of one paradigm against the declared procedure.
+fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result<(), Error> {
+    let outcome_dependent = spec.observation().mechanism() == DelayMechanism::OutcomeDependent;
     let fixed = matches!(spec.assignment(), AssignmentRule::Fixed { .. });
     match paradigm {
         UncertaintyParadigm::BayesianPosterior => {
@@ -218,6 +210,19 @@ pub fn admit(
             }
         }
     }
+    Ok(())
+}
+
+/// Check that the declared procedure meets the validity premises of a
+/// paradigm, and say what the arm-level quantity is.
+///
+/// # Errors
+/// [`Error::PremiseFailed`] naming the premise, with a stable detail slug.
+pub fn admit(
+    spec: &ProcedureSpec,
+    paradigm: UncertaintyParadigm,
+) -> Result<EstimandStatement, Error> {
+    check_paradigm(spec, paradigm)?;
     let intention =
         spec.exposure().attribution == Attribution::Assigned && spec.exposure().has_failures();
     Ok(if intention {
@@ -667,7 +672,7 @@ pub fn anytime_exclusion_probability(
     let mut excluded = 0.0;
     for atom in &law.atoms {
         let mut misses = false;
-        for cell in 0..spec.cells() {
+        for (cell, &truth_cell) in truth.iter().enumerate().take(spec.cells()) {
             let units = atom.cell_units(cell);
             if units == 0 {
                 continue;
@@ -675,7 +680,7 @@ pub fn anytime_exclusion_probability(
             let mean = f64::from(atom.cell_counts(cell).0) / f64::from(units);
             let radius =
                 mixture_hoeffding_radius(u64::from(units), alpha_per_cell, tuning_samples)?;
-            if (mean - radius).max(0.0) > truth[cell] || (mean + radius).min(1.0) < truth[cell] {
+            if (mean - radius).max(0.0) > truth_cell || (mean + radius).min(1.0) < truth_cell {
                 misses = true;
             }
         }
@@ -782,13 +787,11 @@ pub fn ordering_p_values(
     );
     let (mut upper, mut lower, mut undefined) = (0.0, 0.0, 0.0);
     for atom in &law.atoms {
-        let value = match (atom.cell_mean(plus), atom.cell_mean(minus)) {
-            (Some(p), Some(m)) => p - m,
-            _ => {
-                undefined += atom.probability;
-                continue;
-            }
+        let (Some(p), Some(m)) = (atom.cell_mean(plus), atom.cell_mean(minus)) else {
+            undefined += atom.probability;
+            continue;
         };
+        let value = p - m;
         let rank = rank_of(atom.look, atom.rule_stopped, atom.decision, value, plus, minus);
         match compare(&rank, &target) {
             std::cmp::Ordering::Greater => upper += atom.probability,

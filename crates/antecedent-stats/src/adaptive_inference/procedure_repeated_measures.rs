@@ -401,22 +401,19 @@ impl Covariance {
 
     fn draw(&self, rng: &mut CausalRng, mean: f64) -> Vec<f64> {
         let m = self.measurements;
-        match &self.dependence {
-            Dependence::RandomEffect { between, within } => {
-                let effect = between.sqrt() * standard_normal(rng);
-                let sd = within.sqrt();
-                (0..m).map(|_| mean + effect + sd * standard_normal(rng)).collect()
-            }
-            _ => {
-                let z: Vec<f64> = (0..m).map(|_| standard_normal(rng)).collect();
-                let sd = self.marginal_variance.sqrt();
-                (0..m)
-                    .map(|i| {
-                        let correlated: f64 = (0..=i).map(|k| self.factor[i * m + k] * z[k]).sum();
-                        mean + sd * correlated
-                    })
-                    .collect()
-            }
+        if let Dependence::RandomEffect { between, within } = &self.dependence {
+            let effect = between.sqrt() * standard_normal(rng);
+            let sd = within.sqrt();
+            (0..m).map(|_| mean + effect + sd * standard_normal(rng)).collect()
+        } else {
+            let z: Vec<f64> = (0..m).map(|_| standard_normal(rng)).collect();
+            let sd = self.marginal_variance.sqrt();
+            (0..m)
+                .map(|i| {
+                    let correlated: f64 = (0..=i).map(|k| self.factor[i * m + k] * z[k]).sum();
+                    mean + sd * correlated
+                })
+                .collect()
         }
     }
 

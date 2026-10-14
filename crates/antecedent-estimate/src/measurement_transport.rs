@@ -347,62 +347,13 @@ fn select_model<'a>(
         .or(first)
 }
 
-/// Order of refusal: well-formed models, target model, declaration present, declaration
-/// names the source and target, regime unchanged, route has something to carry, error
-/// structure poolable across populations, every required parameter declared invariant.
-///
-/// # Errors
-/// A coded [`MeasurementError`] naming the unmet premise; no model is issued.
-pub fn transport_measurement_model(
-    models: &[MeasurementModel],
-    structure: Option<&PopulationErrorStructure>,
+/// The source model an invariance premise carries to the data, after every premise of the
+/// declaration is checked against it.
+fn invariant_source<'a>(
+    models: &'a [MeasurementModel],
+    declaration: &InvarianceDeclaration,
     data: &DataBinding,
-) -> Result<TransportedMeasurementModel, MeasurementError> {
-    if models.is_empty() {
-        return Err(refusal(
-            antecedent_core::reason_code!("measurement_model_invalid"),
-            "measurement_model.no_model",
-            "supply the measurement model established for a source population",
-        ));
-    }
-    for model in models {
-        model.validate().map_err(|error| crate::measurement::model_error(&error))?;
-    }
-    if let Some(own) = select_model(models, &data.population_id, data) {
-        let basis = match structure {
-            Some(PopulationErrorStructure::Differential { declarer }) => {
-                TransportBasis::DifferentialEstablished { declarer: declarer.clone() }
-            }
-            _ => TransportBasis::Established,
-        };
-        return Ok(established(own, basis));
-    }
-    let Some(structure) = structure else {
-        return Err(refusal(
-            antecedent_core::reason_code!("transport_missing_evidence"),
-            "measurement_model.invariance_premise_required",
-            format!(
-                "no measurement model is established for population `{}`; declare that the \
-                 error parameters are invariant from a named source population, declare the \
-                 error differential by population, or establish a validation sample there",
-                data.population_id
-            ),
-        ));
-    };
-    let declaration = match structure {
-        PopulationErrorStructure::Differential { .. } => {
-            return Err(refusal(
-                antecedent_core::reason_code!("differential_error_not_pooled"),
-                "measurement_model.differential_population_unestablished",
-                format!(
-                    "the error is declared differential by population and no model is \
-                     established for `{}`; another population's rates are not borrowed",
-                    data.population_id
-                ),
-            ));
-        }
-        PopulationErrorStructure::Invariant(declaration) => declaration,
-    };
+) -> Result<&'a MeasurementModel, MeasurementError> {
     if declaration.target_population != data.population_id {
         return Err(refusal(
             antecedent_core::reason_code!("transport_not_certified"),
@@ -491,6 +442,66 @@ pub fn transport_measurement_model(
             ));
         }
     }
+    Ok(source)
+}
+
+/// Order of refusal: well-formed models, target model, declaration present, declaration
+/// names the source and target, regime unchanged, route has something to carry, error
+/// structure poolable across populations, every required parameter declared invariant.
+///
+/// # Errors
+/// A coded [`MeasurementError`] naming the unmet premise; no model is issued.
+pub fn transport_measurement_model(
+    models: &[MeasurementModel],
+    structure: Option<&PopulationErrorStructure>,
+    data: &DataBinding,
+) -> Result<TransportedMeasurementModel, MeasurementError> {
+    if models.is_empty() {
+        return Err(refusal(
+            antecedent_core::reason_code!("measurement_model_invalid"),
+            "measurement_model.no_model",
+            "supply the measurement model established for a source population",
+        ));
+    }
+    for model in models {
+        model.validate().map_err(|error| crate::measurement::model_error(&error))?;
+    }
+    if let Some(own) = select_model(models, &data.population_id, data) {
+        let basis = match structure {
+            Some(PopulationErrorStructure::Differential { declarer }) => {
+                TransportBasis::DifferentialEstablished { declarer: declarer.clone() }
+            }
+            _ => TransportBasis::Established,
+        };
+        return Ok(established(own, basis));
+    }
+    let Some(structure) = structure else {
+        return Err(refusal(
+            antecedent_core::reason_code!("transport_missing_evidence"),
+            "measurement_model.invariance_premise_required",
+            format!(
+                "no measurement model is established for population `{}`; declare that the \
+                 error parameters are invariant from a named source population, declare the \
+                 error differential by population, or establish a validation sample there",
+                data.population_id
+            ),
+        ));
+    };
+    let declaration = match structure {
+        PopulationErrorStructure::Differential { .. } => {
+            return Err(refusal(
+                antecedent_core::reason_code!("differential_error_not_pooled"),
+                "measurement_model.differential_population_unestablished",
+                format!(
+                    "the error is declared differential by population and no model is \
+                     established for `{}`; another population's rates are not borrowed",
+                    data.population_id
+                ),
+            ));
+        }
+        PopulationErrorStructure::Invariant(declaration) => declaration,
+    };
+    let source = invariant_source(models, declaration, data)?;
     let mut rebound = source.clone();
     rebound.binding.population_id.clone_from(&declaration.target_population);
     let basis = TransportBasis::DeclaredInvariance(declaration.clone());

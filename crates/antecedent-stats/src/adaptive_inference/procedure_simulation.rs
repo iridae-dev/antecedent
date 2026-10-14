@@ -208,7 +208,7 @@ pub fn simulate_procedure(
         let mut units: Vec<Unit> = Vec::new();
         let mut pending: VecDeque<Vec<usize>> = VecDeque::new();
         let mut revealed: Vec<usize> = Vec::new();
-        for look in 0..looks {
+        for (look, &cumulative_look) in cumulative.iter().enumerate().take(looks) {
             let mut rows = Vec::with_capacity(contexts.len());
             for c in 0..contexts.len() {
                 rows.push(rules.policy_row(&observed[2 * arms * c..2 * arms * (c + 1)])?);
@@ -255,7 +255,7 @@ pub fn simulate_procedure(
                     }
                 }
             }
-            let assessment = rules.assess(look, cumulative[look], &observed)?;
+            let assessment = rules.assess(look, cumulative_look, &observed)?;
             if assessment.stop || look + 1 == looks {
                 let decision = if assessment.stop {
                     assessment.decision.or_else(|| rules.select(&observed))

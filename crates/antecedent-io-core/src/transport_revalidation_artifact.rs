@@ -326,9 +326,10 @@ fn calibration_from_wire(wire: &SceneCalibrationWire) -> Result<SceneCalibration
 }
 
 fn unsupported_of(support: &SupportStanding) -> Option<Vec<String>> {
-    match support {
-        SupportStanding::Unsupported { coordinates } => Some(coordinates.clone()),
-        _ => None,
+    if let SupportStanding::Unsupported { coordinates } = support {
+        Some(coordinates.clone())
+    } else {
+        None
     }
 }
 

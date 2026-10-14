@@ -121,8 +121,7 @@ fn populations_with_a_known_graph_difference_report_exactly_that_edge() {
     // `south` is the chain 1 - 2 - 3 (one equivalence class, no orientation), so the marks of
     // 1-2 and 2-3 also differ: 0-2 by presence, the other two by orientation only.
     let differing = report.differing_edges();
-    let pairs: Vec<(u32, u32)> =
-        differing.iter().map(|e| (e.a.variable, e.b.variable)).collect();
+    let pairs: Vec<(u32, u32)> = differing.iter().map(|e| (e.a.variable, e.b.variable)).collect();
     assert_eq!(pairs, vec![(0, 2), (1, 2), (2, 3)]);
     let absent: Vec<(u32, u32)> = differing
         .iter()

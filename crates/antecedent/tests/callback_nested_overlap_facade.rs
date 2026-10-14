@@ -145,7 +145,10 @@ fn fixture(
 fn run_outer(
     fixture: &mut Fixture,
     outer: &CallbackDeclaration,
-) -> Result<antecedent::analysis::CallbackExecution, antecedent::analysis::CallbackExecutionError> {
+) -> Result<
+    antecedent::analysis::CallbackExecution,
+    Box<antecedent::analysis::CallbackExecutionError>,
+> {
     let counter = Rc::clone(&fixture.outer_calls);
     let mut provider = FnCallback::new(outer.identity.clone(), move |_, ctx| {
         counter.set(counter.get() + 1);
@@ -155,14 +158,17 @@ fn run_outer(
         };
         Ok(CallbackOutput::Mean { value: mean("left")? + mean("right")? })
     });
-    fixture.session.execute(
-        &mut provider,
-        outer,
-        &fixture.request,
-        &fixture.inputs,
-        &CallbackExecutionPolicy::default(),
-        &ctx(),
-    )
+    fixture
+        .session
+        .execute(
+            &mut provider,
+            outer,
+            &fixture.request,
+            &fixture.inputs,
+            &CallbackExecutionPolicy::default(),
+            &ctx(),
+        )
+        .map_err(Box::new)
 }
 
 #[test]

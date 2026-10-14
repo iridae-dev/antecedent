@@ -452,6 +452,62 @@ struct Values {
     reports: Vec<ScenarioReport>,
 }
 
+/// The (column, lower, upper) conditions of every scenario, resolved against the law.
+fn scenario_columns(
+    query: &ObservationalScenarioQuery,
+    parsed: &[Option<ScientificQuantity>],
+    mask: Option<&[bool]>,
+) -> Result<Vec<Vec<(usize, f64, f64)>>, ObservationalScenarioError> {
+    let mut scenario_columns: Vec<Vec<(usize, f64, f64)>> =
+        Vec::with_capacity(query.scenarios.len());
+    for scenario in &query.scenarios {
+        let mut columns = Vec::with_capacity(scenario.conditions.len());
+        for condition in &scenario.conditions {
+            columns.push((
+                column_of(parsed, mask, &condition.coordinate)?,
+                condition.lower,
+                condition.upper,
+            ));
+        }
+        scenario_columns.push(columns);
+    }
+    Ok(scenario_columns)
+}
+
+/// Per-scenario masses and draw counts accumulated over the law's rows.
+struct ScenarioTotals<'a> {
+    event_mass: f64,
+    masses: &'a [f64],
+    joint: &'a [f64],
+    scenario_draws: &'a [u64],
+    joint_draws: &'a [u64],
+}
+
+fn scenario_reports(
+    query: &ObservationalScenarioQuery,
+    totals: &ScenarioTotals<'_>,
+) -> Vec<ScenarioReport> {
+    let ScenarioTotals { event_mass, masses, joint, scenario_draws, joint_draws } = *totals;
+    query
+        .scenarios
+        .iter()
+        .enumerate()
+        .map(|(index, scenario)| {
+            let event_given = (masses[index] > 0.0).then(|| joint[index] / masses[index]);
+            ScenarioReport {
+                id: scenario.id.clone(),
+                mass: masses[index],
+                joint_mass: joint[index],
+                event_given_scenario: event_given,
+                scenario_given_event: joint[index] / event_mass,
+                lift: event_given.map(|p| p / event_mass),
+                scenario_draws: scenario_draws[index],
+                joint_draws: joint_draws[index],
+            }
+        })
+        .collect()
+}
+
 /// Answer an observational-scenario question on an aligned observational law.
 ///
 /// # Errors
@@ -482,19 +538,7 @@ pub fn evaluate_observational_scenarios(
         .collect();
     let mask = metadata.supported.as_deref();
     let outcome_column = column_of(&parsed, mask, &query.outcome)?;
-    let mut scenario_columns: Vec<Vec<(usize, f64, f64)>> =
-        Vec::with_capacity(query.scenarios.len());
-    for scenario in &query.scenarios {
-        let mut columns = Vec::with_capacity(scenario.conditions.len());
-        for condition in &scenario.conditions {
-            columns.push((
-                column_of(&parsed, mask, &condition.coordinate)?,
-                condition.lower,
-                condition.upper,
-            ));
-        }
-        scenario_columns.push(columns);
-    }
+    let scenario_columns = scenario_columns(query, &parsed, mask)?;
     let [rows, width] = law.shape();
     let draws = law.draws();
     let raw: Vec<f64> = metadata.weights.clone().unwrap_or_else(|| vec![1.0; rows]);
@@ -549,24 +593,16 @@ pub fn evaluate_observational_scenarios(
         return Err(ObservationalScenarioError::EventHasNoMass);
     }
     let effective_event_draws = event_mass * event_mass / event_square;
-    let reports: Vec<ScenarioReport> = query
-        .scenarios
-        .iter()
-        .enumerate()
-        .map(|(index, scenario)| {
-            let event_given = (masses[index] > 0.0).then(|| joint[index] / masses[index]);
-            ScenarioReport {
-                id: scenario.id.clone(),
-                mass: masses[index],
-                joint_mass: joint[index],
-                event_given_scenario: event_given,
-                scenario_given_event: joint[index] / event_mass,
-                lift: event_given.map(|p| p / event_mass),
-                scenario_draws: scenario_draws[index],
-                joint_draws: joint_draws[index],
-            }
-        })
-        .collect();
+    let reports = scenario_reports(
+        query,
+        &ScenarioTotals {
+            event_mass,
+            masses: &masses,
+            joint: &joint,
+            scenario_draws: &scenario_draws,
+            joint_draws: &joint_draws,
+        },
+    );
     let values =
         Values { event_mass, covered, effective_event_draws, n_draws: rows as u64, reports };
     let identity = identity_of(query, law, &values);

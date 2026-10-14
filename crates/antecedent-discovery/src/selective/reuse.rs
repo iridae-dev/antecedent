@@ -186,10 +186,14 @@ impl SplitRule {
                 let mut order: Vec<usize> = (0..n_rows).collect();
                 let mut state = *seed;
                 for i in (1..n_rows).rev() {
-                    let j = (splitmix64(&mut state) % (i as u64 + 1)) as usize;
+                    let j = usize::try_from(splitmix64(&mut state) % (i as u64 + 1)).unwrap_or(i);
                     order.swap(i, j);
                 }
-                let take = ((n_rows as f64) * discovery_fraction).round() as usize;
+                // The rounded product is a whole number in [0, n_rows]; count the
+                // integers up to it instead of casting the float.
+                let scaled = ((n_rows as f64) * discovery_fraction).round();
+                let take =
+                    (0..=n_rows).take_while(|&t| (t as f64) <= scaled).count().saturating_sub(1);
                 let take = take.clamp(1, n_rows.saturating_sub(1).max(1));
                 let mut rows: Vec<usize> = order[..take.min(n_rows)].to_vec();
                 rows.sort_unstable();

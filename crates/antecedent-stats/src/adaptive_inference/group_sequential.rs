@@ -386,15 +386,15 @@ pub fn stagewise_upper_p_value(
     }
     let mut recursion = Recursion::new(fractions, sidedness, drift);
     let mut p = 0.0;
-    for k in 0..=observed.look {
+    for (k, &bound) in critical.iter().enumerate().take(observed.look + 1) {
         if cancelled() {
             return Err(Error::Cancelled);
         }
         if k == observed.look {
             p += recursion.side_crossing(k, observed.statistic, true);
         } else {
-            p += recursion.side_crossing(k, critical[k], true);
-            recursion.advance(k, critical[k]);
+            p += recursion.side_crossing(k, bound, true);
+            recursion.advance(k, bound);
         }
     }
     Ok(p.clamp(0.0, 1.0))

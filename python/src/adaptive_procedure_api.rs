@@ -471,7 +471,7 @@ fn report_json(report: &ProcedureReport) -> Json {
         "contract_identity": report.contract_identity,
         "estimand": match report.estimand {
             EstimandStatement::AssignedArmIntentToTreat => "assigned_arm_intent_to_treat",
-            _ => "delivered_arm_mean",
+            EstimandStatement::DeliveredArmMean => "delivered_arm_mean",
         },
         "calibration": report.calibration,
         "body": body,
@@ -515,7 +515,7 @@ impl AdaptiveProcedureHandle {
                 "fallback_arm": exposure.fallback_arm,
                 "attribution": match exposure.attribution {
                     Attribution::Assigned => "assigned",
-                    _ => "delivered",
+                    Attribution::Delivered => "delivered",
                 },
             },
             "stopping": stopping_json(spec.stopping()),

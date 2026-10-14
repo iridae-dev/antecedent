@@ -168,7 +168,7 @@ pub fn artifact_refusal(error: &IoError) -> antecedent_contract::ExternalRefusal
                 message.split_once(": ").unwrap_or((WRONG_CONTRACT, message.as_str()));
             if detail == KIND_MISMATCH {
                 let supplied = text.rsplit_once("supplied ").map_or("", |(_, kind)| kind);
-                return RefusalBuilder::new(*code, "inverse_query", detail)
+                return RefusalBuilder::new(code, "inverse_query", detail)
                     .offending(text)
                     .expected(ARTIFACT_KIND)
                     .supplied(supplied)
@@ -1194,9 +1194,7 @@ pub fn decode_parts(bytes: &[u8]) -> Result<(InverseQueryMeta, Vec<u8>, Vec<u8>)
         if kind != ARTIFACT_KIND {
             return Err(IoError::Refused {
                 code: antecedent_core::reason_code!("invalid_argument"),
-                message: format!(
-                    "{KIND_MISMATCH}: expected {ARTIFACT_KIND}, supplied {kind}"
-                ),
+                message: format!("{KIND_MISMATCH}: expected {ARTIFACT_KIND}, supplied {kind}"),
             });
         }
     }

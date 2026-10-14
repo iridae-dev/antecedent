@@ -458,6 +458,84 @@ fn write_domain(w: &mut CanonicalWriter, domain: &Domain) {
     }
 }
 
+/// Everything of a mechanism after its variable and role.
+fn write_mechanism_body(w: &mut CanonicalWriter, m: &MechanismDescriptor) {
+    match &m.form {
+        MechanismForm::LinearGaussian { intercept, sigma, coefficients } => {
+            w.word(1).real(*intercept).real(*sigma).word(coefficients.len() as u64);
+            for (name, coefficient) in coefficients {
+                w.text(name).real(*coefficient);
+            }
+        }
+        MechanismForm::Tabular { levels, rows } => {
+            w.word(2).texts(levels).word(rows.len() as u64);
+            for row in rows {
+                w.word(row.parent_levels.len() as u64);
+                for (parent, level) in &row.parent_levels {
+                    w.text(parent).text(level);
+                }
+                w.word(row.probabilities.len() as u64);
+                for (level, probability) in &row.probabilities {
+                    w.text(level).real(*probability);
+                }
+            }
+        }
+    }
+    w.text(&m.output_units).text(&m.output_transform);
+    write_domain(&mut w, &m.output_support);
+    w.texts(&m.conditioning_set);
+    match &m.uncertainty {
+        None => {
+            w.word(0);
+        }
+        Some(u) => {
+            w.word(1).word(u.meaning as u64).word(u.parameters.len() as u64);
+            for parameter in &u.parameters {
+                match parameter {
+                    ParameterTerm::Intercept => {
+                        w.word(0);
+                    }
+                    ParameterTerm::Coefficient(name) => {
+                        w.word(1).text(name);
+                    }
+                }
+            }
+            w.reals(&u.covariance);
+        }
+    }
+    w.text(&m.context.population).text(&m.context.regime);
+    w.text(&m.provenance.artifact_id).text(&m.provenance.evidence_id);
+    w.word(m.parents.len() as u64);
+    for p in &m.parents {
+        w.text(&p.variable).text(&p.units).text(&p.transform);
+        write_domain(&mut w, &p.domain);
+    }
+    w.word(m.latents.len() as u64);
+    for l in &m.latents {
+        w.text(&l.latent).opt_real(l.loading).texts(&l.shared_with);
+    }
+}
+
+fn write_dependence(w: &mut CanonicalWriter, dependence: &PosteriorDependence) {
+    match dependence {
+        PosteriorDependence::Unknown => {
+            w.word(0);
+        }
+        PosteriorDependence::IndependentByDesign { justification } => {
+            w.word(1).text(justification);
+        }
+        PosteriorDependence::Joint { covariance, parameters, .. } => {
+            w.word(2).word(parameters.len() as u64).reals(covariance);
+        }
+        PosteriorDependence::CrossCovariance { blocks } => {
+            w.word(3).word(blocks.len() as u64);
+            for b in blocks {
+                w.text(&b.first).text(&b.second).reals(&b.values);
+            }
+        }
+    }
+}
+
 fn identity_of(spec: &ComposedModelSpec, dispositions: &[MechanismDisposition]) -> [u8; 32] {
     let spec = spec.canonical();
     let mut w = CanonicalWriter::new(TAG_IDENTITY);
@@ -472,60 +550,7 @@ fn identity_of(spec: &ComposedModelSpec, dispositions: &[MechanismDisposition]) 
                 MechanismRole::NativeInTarget => 2,
             });
         w.word(role);
-        match &m.form {
-            MechanismForm::LinearGaussian { intercept, sigma, coefficients } => {
-                w.word(1).real(*intercept).real(*sigma).word(coefficients.len() as u64);
-                for (name, coefficient) in coefficients {
-                    w.text(name).real(*coefficient);
-                }
-            }
-            MechanismForm::Tabular { levels, rows } => {
-                w.word(2).texts(levels).word(rows.len() as u64);
-                for row in rows {
-                    w.word(row.parent_levels.len() as u64);
-                    for (parent, level) in &row.parent_levels {
-                        w.text(parent).text(level);
-                    }
-                    w.word(row.probabilities.len() as u64);
-                    for (level, probability) in &row.probabilities {
-                        w.text(level).real(*probability);
-                    }
-                }
-            }
-        }
-        w.text(&m.output_units).text(&m.output_transform);
-        write_domain(&mut w, &m.output_support);
-        w.texts(&m.conditioning_set);
-        match &m.uncertainty {
-            None => {
-                w.word(0);
-            }
-            Some(u) => {
-                w.word(1).word(u.meaning as u64).word(u.parameters.len() as u64);
-                for parameter in &u.parameters {
-                    match parameter {
-                        ParameterTerm::Intercept => {
-                            w.word(0);
-                        }
-                        ParameterTerm::Coefficient(name) => {
-                            w.word(1).text(name);
-                        }
-                    }
-                }
-                w.reals(&u.covariance);
-            }
-        }
-        w.text(&m.context.population).text(&m.context.regime);
-        w.text(&m.provenance.artifact_id).text(&m.provenance.evidence_id);
-        w.word(m.parents.len() as u64);
-        for p in &m.parents {
-            w.text(&p.variable).text(&p.units).text(&p.transform);
-            write_domain(&mut w, &p.domain);
-        }
-        w.word(m.latents.len() as u64);
-        for l in &m.latents {
-            w.text(&l.latent).opt_real(l.loading).texts(&l.shared_with);
-        }
+        write_mechanism_body(&mut w, m);
     }
     w.word(spec.edges.len() as u64);
     for (parent, child) in &spec.edges {
@@ -544,22 +569,6 @@ fn identity_of(spec: &ComposedModelSpec, dispositions: &[MechanismDisposition]) 
             w.text(&node.name).texts(&node.points_into);
         }
     }
-    match &spec.dependence {
-        PosteriorDependence::Unknown => {
-            w.word(0);
-        }
-        PosteriorDependence::IndependentByDesign { justification } => {
-            w.word(1).text(justification);
-        }
-        PosteriorDependence::Joint { covariance, parameters, .. } => {
-            w.word(2).word(parameters.len() as u64).reals(covariance);
-        }
-        PosteriorDependence::CrossCovariance { blocks } => {
-            w.word(3).word(blocks.len() as u64);
-            for b in blocks {
-                w.text(&b.first).text(&b.second).reals(&b.values);
-            }
-        }
-    }
+    write_dependence(&mut w, &spec.dependence);
     w.finish()
 }

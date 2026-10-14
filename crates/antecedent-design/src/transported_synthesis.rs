@@ -412,14 +412,12 @@ pub fn synthesize_transported_in_population(
     synthesize_checked(ledger, label, contributions, method, Some(native_population))
 }
 
-fn synthesize_checked(
-    ledger: &mut EvidenceLedger,
-    label: &str,
-    contributions: &[TransportedContribution],
-    method: &TransportedSynthesisMethod,
+/// The one target population the transported contributions share, refusing when they
+/// differ or when the native contributions were observed elsewhere.
+fn target_population_of(
+    classified: &[Classified],
     native_population: Option<&str>,
-) -> Result<TransportedSynthesis, TransportedSynthesisRefusal> {
-    let classified = classify(ledger, contributions)?;
+) -> Result<Option<String>, TransportedSynthesisRefusal> {
     let targets: BTreeSet<&str> =
         classified.iter().filter_map(|c| c.target_population.as_deref()).collect();
     if targets.len() > 1 {
@@ -442,20 +440,21 @@ fn synthesize_checked(
             ));
         }
     }
-    let source_populations: Vec<String> = classified
-        .iter()
-        .flat_map(|c| c.source_populations.iter().cloned())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect();
-    let ids: Vec<SourceId> = classified.iter().map(|c| c.source).collect();
-    let summaries: Vec<TransportAwareSummary> =
-        classified.iter().map(|c| c.summary.clone()).collect();
+    Ok(target_population)
+}
 
-    // The ledger decides the overlap before any number is combined.
-    let (operation, prior_index) = match method {
+/// The ledger operation the method names. The ledger decides the overlap before any
+/// number is combined; the second element is the prior's index for the prior route.
+fn plan_operation(
+    ledger: &EvidenceLedger,
+    method: &TransportedSynthesisMethod,
+    classified: &[Classified],
+    ids: &[SourceId],
+    summaries: &[TransportAwareSummary],
+) -> Result<(SynthesisOperation, Option<usize>), TransportedSynthesisRefusal> {
+    match method {
         TransportedSynthesisMethod::Pool { sampling_covariance } => {
-            let covariance = transport_aware_covariance(&summaries, sampling_covariance.as_deref())
+            let covariance = transport_aware_covariance(summaries, sampling_covariance.as_deref())
                 .map_err(TransportedSynthesisRefusal::Numeric)?;
             let k = summaries.len();
             let has_cross_covariance = (0..k).any(|i| {
@@ -486,10 +485,10 @@ fn synthesize_checked(
             } else {
                 PoolingDependence::Independent
             };
-            (SynthesisOperation::StatisticalPooling { sources: ids.clone(), dependence }, None)
+            (SynthesisOperation::StatisticalPooling { sources: ids.to_vec(), dependence }, None)
         }
         TransportedSynthesisMethod::Borrow { .. } => (
-            SynthesisOperation::BayesianBorrowing { priors: Vec::new(), likelihood: ids.clone() },
+            SynthesisOperation::BayesianBorrowing { priors: Vec::new(), likelihood: ids.to_vec() },
             None,
         ),
         TransportedSynthesisMethod::TransportedPrior { prior } => {
@@ -525,19 +524,23 @@ fn synthesize_checked(
                 Some(index),
             )
         }
-    };
-    let request = CombinationRequest { label: label.to_owned(), operation, replaces: None };
-    let mut trial = ledger.clone();
-    let result = trial.combine(request).map_err(TransportedSynthesisRefusal::Ledger)?;
+    }
+}
 
-    let (estimate, variance, transport_variance_added) = match method {
+/// The combined estimate, its variance and the transport variance the pooling added.
+fn combine_estimate(
+    method: &TransportedSynthesisMethod,
+    summaries: &[TransportAwareSummary],
+    prior_index: Option<usize>,
+) -> Result<(f64, f64, Option<f64>), TransportedSynthesisRefusal> {
+    match method {
         TransportedSynthesisMethod::Pool { sampling_covariance } => {
-            let pooled = pool_transported(&summaries, sampling_covariance.as_deref())
+            let pooled = pool_transported(summaries, sampling_covariance.as_deref())
                 .map_err(TransportedSynthesisRefusal::Numeric)?;
             (pooled.pooled.estimate, pooled.pooled.variance, Some(pooled.transport_variance_added))
         }
         TransportedSynthesisMethod::Borrow { mean_prior, tau_prior } => {
-            let borrowed = borrow_transported(&summaries, *mean_prior, tau_prior)
+            let borrowed = borrow_transported(summaries, *mean_prior, tau_prior)
                 .map_err(TransportedSynthesisRefusal::Numeric)?;
             (borrowed.posterior.mean, borrowed.posterior.variance, None)
         }
@@ -549,11 +552,39 @@ fn synthesize_checked(
                 .filter(|(i, _)| *i != index)
                 .map(|(_, s)| s.clone())
                 .collect();
-            let update = transported_prior_update(&summaries[index], &likelihood)
+            let update = transported_prior_update(summaries[index], &likelihood)
                 .map_err(TransportedSynthesisRefusal::Numeric)?;
             (update.mean, update.variance, None)
         }
-    };
+    }
+}
+
+fn synthesize_checked(
+    ledger: &mut EvidenceLedger,
+    label: &str,
+    contributions: &[TransportedContribution],
+    method: &TransportedSynthesisMethod,
+    native_population: Option<&str>,
+) -> Result<TransportedSynthesis, TransportedSynthesisRefusal> {
+    let classified = classify(ledger, contributions)?;
+    let target_population = target_population_of(&classified, native_population)?;
+    let source_populations: Vec<String> = classified
+        .iter()
+        .flat_map(|c| c.source_populations.iter().cloned())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let ids: Vec<SourceId> = classified.iter().map(|c| c.source).collect();
+    let summaries: Vec<TransportAwareSummary> =
+        classified.iter().map(|c| c.summary.clone()).collect();
+
+    let (operation, prior_index) = plan_operation(ledger, method, &classified, &ids, &summaries)?;
+    let request = CombinationRequest { label: label.to_owned(), operation, replaces: None };
+    let mut trial = ledger.clone();
+    let result = trial.combine(request).map_err(TransportedSynthesisRefusal::Ledger)?;
+
+    let (estimate, variance, transport_variance_added) =
+        combine_estimate(method, &summaries, prior_index)?;
 
     let record = trial.result(result).cloned().ok_or_else(|| {
         declaration(

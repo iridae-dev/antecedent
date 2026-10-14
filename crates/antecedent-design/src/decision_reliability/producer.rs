@@ -372,7 +372,7 @@ fn check_reported(
 )]
 fn build(
     producer: ProducerKind,
-    stream: StreamId,
+    stream: &StreamId,
     utility_unit: &str,
     source: SourceParadigm,
     within_stream: WithinStreamDependence,
@@ -437,7 +437,7 @@ fn cohort(input: CohortUtilityDraws) -> Result<ProducerCarrier, ReliabilityError
     );
     build(
         ProducerKind::CohortMeanDecision,
-        stream,
+        &stream,
         &input.utility_unit,
         input.source,
         input.within_stream,
@@ -470,7 +470,7 @@ fn rollout(input: RolloutUtilityDraws) -> Result<ProducerCarrier, ReliabilityErr
     };
     build(
         ProducerKind::SequentialRollout,
-        stream,
+        &stream,
         &input.utility_unit,
         SourceParadigm::KnownLaw,
         WithinStreamDependence::Independent,
@@ -497,7 +497,7 @@ fn off_policy(input: OffPolicyReturnDraws) -> Result<ProducerCarrier, Reliabilit
     );
     build(
         ProducerKind::SequentialOffPolicy,
-        stream,
+        &stream,
         &input.utility_unit,
         SourceParadigm::SamplingDistribution,
         WithinStreamDependence::Independent,

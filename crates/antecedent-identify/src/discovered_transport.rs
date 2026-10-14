@@ -321,6 +321,49 @@ fn unresolved_pairs(class: &Cpdag) -> Vec<UnresolvedPair> {
     pairs
 }
 
+/// The verdict and directed edges of one member of the class.
+fn member_of(
+    dag: &antecedent_graph::Dag,
+    class: &Cpdag,
+    selection: &std::sync::Arc<[VariableId]>,
+    identifier: &TransportIdentifier,
+    query: &TransportQuery,
+) -> Result<EnvelopeMember, DiscoveredTransportError> {
+    let admg = Admg::from_dag(dag).map_err(|error| {
+        DiscoveredTransportError::Identification(IdentificationError::invalid_input(
+            error.to_string(),
+        ))
+    })?;
+    let diagram = SelectionDiagram::try_new(admg, selection.clone()).map_err(|error| {
+        DiscoveredTransportError::Identification(IdentificationError::invalid_input(
+            error.to_string(),
+        ))
+    })?;
+    let verdict = match identifier
+        .identify(&diagram, query)
+        .map_err(DiscoveredTransportError::Identification)?
+    {
+        TransportIdentification::Transportable { formula, certificate } => {
+            MemberVerdict::Identified { rule: certificate.rule.to_string(), formula }
+        }
+        TransportIdentification::NotCertified(certificate) => {
+            MemberVerdict::NotCertified { reason: certificate.reason.to_string() }
+        }
+        TransportIdentification::MissingEvidence(certificate) => {
+            MemberVerdict::MissingEvidence { reason: certificate.reason.to_string() }
+        }
+    };
+    let mut directed_edges: Vec<(VariableId, VariableId)> = dag
+        .edges()
+        .filter_map(antecedent_graph::MarkedEdge::parent_child)
+        .filter_map(|(parent, child)| {
+            Some((variable_of(class, parent)?, variable_of(class, child)?))
+        })
+        .collect();
+    directed_edges.sort_by_key(|(p, c)| (p.raw(), c.raw()));
+    Ok(EnvelopeMember { directed_edges, verdict })
+}
+
 /// The structural transport verdict of `query` across every member of a discovered class.
 ///
 /// Members are enumerated up to `member_bound` and each is identified with the structural
@@ -427,39 +470,7 @@ pub fn transport_across_class(
     let selection: std::sync::Arc<[VariableId]> = request.selection_targets.into();
     let mut members = Vec::with_capacity(dags.len());
     for dag in &dags {
-        let admg = Admg::from_dag(dag).map_err(|error| {
-            DiscoveredTransportError::Identification(IdentificationError::invalid_input(
-                error.to_string(),
-            ))
-        })?;
-        let diagram = SelectionDiagram::try_new(admg, selection.clone()).map_err(|error| {
-            DiscoveredTransportError::Identification(IdentificationError::invalid_input(
-                error.to_string(),
-            ))
-        })?;
-        let verdict = match identifier
-            .identify(&diagram, query)
-            .map_err(DiscoveredTransportError::Identification)?
-        {
-            TransportIdentification::Transportable { formula, certificate } => {
-                MemberVerdict::Identified { rule: certificate.rule.to_string(), formula }
-            }
-            TransportIdentification::NotCertified(certificate) => {
-                MemberVerdict::NotCertified { reason: certificate.reason.to_string() }
-            }
-            TransportIdentification::MissingEvidence(certificate) => {
-                MemberVerdict::MissingEvidence { reason: certificate.reason.to_string() }
-            }
-        };
-        let mut directed_edges: Vec<(VariableId, VariableId)> = dag
-            .edges()
-            .filter_map(|edge| edge.parent_child())
-            .filter_map(|(parent, child)| {
-                Some((variable_of(class, parent)?, variable_of(class, child)?))
-            })
-            .collect();
-        directed_edges.sort_by_key(|(p, c)| (p.raw(), c.raw()));
-        members.push(EnvelopeMember { directed_edges, verdict });
+        members.push(member_of(dag, class, &selection, &identifier, query)?);
     }
     members.sort_by(|a, b| {
         let key = |m: &EnvelopeMember| {
@@ -482,6 +493,7 @@ pub fn transport_across_class(
 ///
 /// Always [`DiscoveredTransportError::Refused`] with
 /// `discovered_transport.pag_members_not_causal_graphs`.
+#[must_use]
 pub fn refuse_pag_transport(
     unresolved: Vec<UnresolvedPair>,
     exhausted_search_bounds: usize,

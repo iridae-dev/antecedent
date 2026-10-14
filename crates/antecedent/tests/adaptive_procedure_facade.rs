@@ -280,6 +280,10 @@ fn every_paradigm_whose_premise_fails_is_refused_with_cell_not_licensed() {
         "adaptive_inference.fixed_sample_data_dependent_stopping",
     );
 
+    delay_and_context_premises_are_refused();
+}
+
+fn delay_and_context_premises_are_refused() {
     let lossy = declare(
         thompson(),
         &[1, 1],

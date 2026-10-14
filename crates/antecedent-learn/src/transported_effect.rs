@@ -594,26 +594,14 @@ fn check_declaration(
     Ok(declared.clone())
 }
 
-/// Apply `effect` to a cohort from a different population under a declared shift.
-///
-/// Order of refusal: cohort shape, the model's support contract and identity link, strict
-/// feature schema, the shift declaration, overlap (disjoint feature, then rows outside),
-/// prediction. `feature_names` are the model's feature names aligned with
-/// [`FittedEffect::features`]; `model_identity` is the retained model's identity and is
-/// bound into the result.
-///
-/// # Errors
-/// A [`TransportRefusal`] naming the unmet premise; no value is issued.
-pub fn transport_cohort_effect(
+/// The retained model's identity, payload, feature names and link, before any cohort row is
+/// read.
+fn check_model(
     effect: &FittedEffect,
     feature_names: &[String],
     model_identity: &str,
     model_population: &str,
-    cohort: &TargetCohort,
-    shift: Option<&SelectionShiftDeclaration>,
-    ctx: &ExecutionContext,
-) -> Result<TransportedCohortEffect, TransportRefusal> {
-    cohort.validate()?;
+) -> Result<(), TransportRefusal> {
     if model_identity.trim().is_empty() || model_population.trim().is_empty() {
         return Err(invalid(
             "transported_effect.model_invalid",
@@ -660,6 +648,30 @@ pub fn transport_cohort_effect(
              the identity-scale CATE map",
         ));
     }
+    Ok(())
+}
+
+/// Apply `effect` to a cohort from a different population under a declared shift.
+///
+/// Order of refusal: cohort shape, the model's support contract and identity link, strict
+/// feature schema, the shift declaration, overlap (disjoint feature, then rows outside),
+/// prediction. `feature_names` are the model's feature names aligned with
+/// [`FittedEffect::features`]; `model_identity` is the retained model's identity and is
+/// bound into the result.
+///
+/// # Errors
+/// A [`TransportRefusal`] naming the unmet premise; no value is issued.
+pub fn transport_cohort_effect(
+    effect: &FittedEffect,
+    feature_names: &[String],
+    model_identity: &str,
+    model_population: &str,
+    cohort: &TargetCohort,
+    shift: Option<&SelectionShiftDeclaration>,
+    ctx: &ExecutionContext,
+) -> Result<TransportedCohortEffect, TransportRefusal> {
+    cohort.validate()?;
+    check_model(effect, feature_names, model_identity, model_population)?;
     let Some(support) = &effect.support else {
         return Err(unlicensed(
             "transported_effect.support_contract_absent",

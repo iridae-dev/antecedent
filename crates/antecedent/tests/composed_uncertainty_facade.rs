@@ -324,7 +324,7 @@ fn a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate() {
         claim.check_composed_interval(Some(&measured), "normal_approximation").expect("licensed");
     assert_eq!(interval.label(), "measured_interval");
     assert_eq!(interval.record_id(), "attested-record");
-    assert_eq!(interval.nominal_level(), 0.9);
+    assert!((interval.nominal_level() - 0.9).abs() < 1e-12);
     let half = 1.644_853_626_951_472_2 * 1.61_f64.sqrt();
     let (lower, upper) = interval.bounds().expect("bounds");
     assert!((lower - (-0.7 - half)).abs() < 1e-6, "lower {lower}");
@@ -347,7 +347,7 @@ fn a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate() {
 
 #[test]
 fn an_envelope_has_no_composed_interval_and_an_edited_artifact_is_refused() {
-    let atoms: Vec<f64> = (0..200).map(|j| (j as f64 + 0.5) / 200.0).collect();
+    let atoms: Vec<f64> = (0..200).map(|j| (f64::from(j) + 0.5) / 200.0).collect();
     let envelope = propagate_dependence_envelope(
         PropagationOperation::Sum,
         EnvelopeQueryWire::SumCdf { threshold: 1.0_f64.to_bits() },

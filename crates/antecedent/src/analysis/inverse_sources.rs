@@ -211,12 +211,10 @@ impl ComposedSourceRefusal {
     #[must_use]
     pub fn detail(&self) -> String {
         match self {
-            Self::Composition { refusal, .. } => refusal
-                .refusals
-                .first()
-                .map_or_else(|| "mechanism_composition.artifact_invalid".to_owned(), |r| {
-                    r.detail.clone()
-                }),
+            Self::Composition { refusal, .. } => refusal.refusals.first().map_or_else(
+                || "mechanism_composition.artifact_invalid".to_owned(),
+                |r| r.detail.clone(),
+            ),
             Self::Source(source) => source.detail(),
         }
     }
@@ -235,15 +233,15 @@ impl ComposedSourceRefusal {
     #[must_use]
     pub fn to_refusal(&self) -> ExternalRefusal {
         match self {
-            Self::Composition { refusal, .. } => refusal.refusals.first().cloned().unwrap_or_else(
-                || {
+            Self::Composition { refusal, .. } => {
+                refusal.refusals.first().cloned().unwrap_or_else(|| {
                     ExternalRefusal::new(
                         refusal.code(),
                         "inverse_forward_source",
                         "mechanism_composition.artifact_invalid",
                     )
-                },
-            ),
+                })
+            }
             Self::Source(source) => source.to_refusal(),
         }
     }
@@ -271,9 +269,7 @@ impl ComposedSourceRefusal {
                     .unwrap_or("mechanism_composition.artifact_invalid");
                 ForwardSourceRefusal::Artifact {
                     code: refusal.code(),
-                    text: format!(
-                        "{detail}: the mechanism composition refused the action's query"
-                    ),
+                    text: format!("{detail}: the mechanism composition refused the action's query"),
                 }
             }
             Self::Source(source) => source,

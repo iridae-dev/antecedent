@@ -286,9 +286,8 @@ fn a_composed_refusal_of_the_forward_source_stays_a_source_refusal() {
     let prepared = StudyBuilder::mechanism_composition(request_of(bare_chain()), &ctx()).unwrap();
     let mut actions = law_actions(&[0.0]);
     actions[0].coordinate = coordinate("Y", "do(X=0)", "outcome");
-    let error = prepared
-        .inverse_forward_source_typed(&actions, None, native(), &ctx())
-        .unwrap_err();
+    let error =
+        prepared.inverse_forward_source_typed(&actions, None, native(), &ctx()).unwrap_err();
     assert!(
         matches!(
             error,

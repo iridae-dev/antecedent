@@ -7,6 +7,8 @@ use antecedent_design::decision_contract::{
     StructuralPolicy, UtilityExpr,
 };
 
+type Mutation = (&'static str, Box<dyn Fn(&mut DecisionContract)>);
+
 fn quantity(id: &str) -> ScientificQuantity {
     ScientificQuantity {
         variable_id: id.into(),
@@ -73,7 +75,7 @@ fn reordering_actions_and_constraints_leaves_identity_unchanged() {
 #[test]
 fn every_semantic_field_changes_identity() {
     let reference = identity(&base());
-    let mutations: Vec<(&str, Box<dyn Fn(&mut DecisionContract)>)> = vec![
+    let mutations: Vec<Mutation> = vec![
         ("action kind", Box::new(|c| c.actions[0].kind = ActionKind::Policy)),
         ("action id", Box::new(|c| c.actions[0].id = "treat_more".into())),
         (

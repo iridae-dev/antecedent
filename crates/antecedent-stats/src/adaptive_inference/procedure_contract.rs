@@ -308,9 +308,10 @@ impl ContractGap {
     /// Registered reason code of the refusal.
     #[must_use]
     pub fn reason_code(self) -> &'static str {
-        match self {
-            Self::Invalid(_) => antecedent_core::reason_code!("invalid_argument"),
-            _ => antecedent_core::reason_code!("adaptive_contract_incomplete"),
+        if matches!(self, Self::Invalid(_)) {
+            antecedent_core::reason_code!("invalid_argument")
+        } else {
+            antecedent_core::reason_code!("adaptive_contract_incomplete")
         }
     }
 

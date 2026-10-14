@@ -64,12 +64,12 @@ pub use antecedent_learn::transported_effect::{
     TransportedInference, TransportedRequest, assess_overlap, transport_cohort_effect,
 };
 
-use super::composition_verification::{
-    ClaimStanding, CompositionNode, library_transported_node, library_transported_standing,
-};
 use super::cohort_decision::{
     CohortBinding, CohortColumn, CohortDecisionSource, CohortOptions, CohortRefusal,
     CovariateShiftDeclaration, FittedEffectModel,
+};
+use super::composition_verification::{
+    ClaimStanding, CompositionNode, library_transported_node, library_transported_standing,
 };
 
 /// Route label of this transport in a [`TransportedCohortReceipt`].

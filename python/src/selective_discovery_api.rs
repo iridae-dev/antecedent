@@ -1063,9 +1063,7 @@ impl PerPopulationDiscoveryHandle {
                     .zip(&tables)
                     .map(|(population, data)| PopulationRows { population, data })
                     .collect();
-                let result = driver
-                    .run(&contract, &rows, &ctx)
-                    .map(|report| per_population_report_json(report));
+                let result = driver.run(&contract, &rows, &ctx).map(per_population_report_json);
                 Ok((driver, result))
             });
         match ran {

@@ -5,9 +5,9 @@
 //! latent cause `u` of both (the finite derivation's bidirected edge `x <-> y`).
 //! Mechanisms (the same structural numbers on both sides):
 //!
-//!   x = 1 + 1 u + e_x          (e_x sd 1)   fitted in the source
-//!   x = 3 + 1 u + e_x          (e_x sd 1)   refitted in the target
-//!   y = 0.5 + 2 x + 1 u + e_y  (e_y sd 1)   fitted in the source
+//!   `x = 1 + 1 u + e_x`          (`e_x` sd 1)   fitted in the source
+//!   `x = 3 + 1 u + e_x`          (`e_x` sd 1)   refitted in the target
+//!   `y = 0.5 + 2 x + 1 u + e_y`  (`e_y` sd 1)   fitted in the source
 //!
 //! with `u ~ N(0, 1)`. Closed form in the target composed model with `x`
 //! refitted and `y` carried:

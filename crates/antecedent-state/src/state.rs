@@ -265,6 +265,9 @@ impl CausalState {
     /// interventions. Two states with equal identities hold equal inputs.
     #[must_use]
     pub fn input_identities(&self) -> StageIdentities {
+        fn refs(parts: &[Vec<u8>]) -> Vec<&[u8]> {
+            parts.iter().map(Vec::as_slice).collect()
+        }
         let mut graph: Vec<Vec<u8>> = Vec::new();
         for rec in &self.graph_evidence.evidence {
             graph.push(rec.id.as_bytes().to_vec());
@@ -284,9 +287,6 @@ impl CausalState {
         for rec in &self.interventions {
             data.push(rec.id.as_bytes().to_vec());
             data.push(rec.fingerprint.to_le_bytes().to_vec());
-        }
-        fn refs(parts: &[Vec<u8>]) -> Vec<&[u8]> {
-            parts.iter().map(Vec::as_slice).collect()
         }
         StageIdentities::new()
             .with(Stage::Graph, StageIdentity::of("state.graph.v1", &refs(&graph)))

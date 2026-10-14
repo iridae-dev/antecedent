@@ -5,10 +5,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::too_many_lines,
-    reason = "each test is one scenario over shared fixtures"
-)]
+#![allow(clippy::too_many_lines, reason = "each test is one scenario over shared fixtures")]
 
 use antecedent_contract::adaptive_design::{
     AdaptiveDesignContract, AdaptiveDesignDeclaration, AssignmentFamily, DelayMechanism,
@@ -34,9 +31,7 @@ use antecedent_design::temporal_policy_transport::{
     HistoryAlphabet, TemporalPolicyRequest, TemporalTarget, TimeInvariance,
     evaluate_temporal_policy, verify_temporal_policy,
 };
-use antecedent_design::transported_policy::{
-    MechanismStatus, ModelMechanism,
-};
+use antecedent_design::transported_policy::{MechanismStatus, ModelMechanism};
 
 const INSPECT: usize = 0;
 const SHIP: usize = 1;
@@ -157,8 +152,6 @@ fn all_invariant_but_initial(
     }
     rows
 }
-
-
 
 // ---------------------------------------------------------------------------
 // Transported policy evaluation

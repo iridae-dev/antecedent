@@ -82,7 +82,7 @@ fn the_range_is_built_from_the_responses_value_quantity_and_receipt() {
         &request(ViolationFamily::AdditiveShift { bound: 0.5 }),
     )
     .unwrap();
-    assert_eq!(spec.point_value, 2.0);
+    assert!((spec.point_value - 2.0).abs() < 1e-12);
     assert_eq!(spec.source_population, "trial");
     assert_eq!(spec.target_population, "clinic_b");
     assert_eq!(spec.query_binding, "transport-1");

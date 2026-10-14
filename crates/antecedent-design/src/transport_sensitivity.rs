@@ -347,7 +347,7 @@ impl TransportSensitivityRefusal {
             Self::QuantityNotInTarget { .. } => {
                 antecedent_core::reason_code!("quantity_semantics_mismatch")
             }
-            Self::Surface { code, .. } => *code,
+            Self::Surface { code, .. } => code,
             Self::NonFinitePoint
             | Self::InvalidBound
             | Self::InvalidGrid { .. }
@@ -697,8 +697,7 @@ impl TransportAssumptionRange {
                     kind: antecedent_io_core::sensitivity_artifact::SENSITIVITY_INFERENCE_CLAIM
                         .to_owned(),
                     interpretation: format!(
-                        "{ASSUMPTION_RANGE_STATEMENT}; {}",
-                        TRANSPORT_ASSUMPTION_RANGE_INTERPRETATION
+                        "{ASSUMPTION_RANGE_STATEMENT}; {TRANSPORT_ASSUMPTION_RANGE_INTERPRETATION}"
                     ),
                 },
                 identified_bound: None,

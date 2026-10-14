@@ -158,14 +158,16 @@ fn a_transported_point_decides_by_the_utility_of_the_mean_and_names_its_transpor
 fn declared_exclusions_remove_actions_and_are_part_of_the_bound_decision() {
     let plain = bound(AdmissibilityRules::default());
     let exclude = |ids: &[&str]| {
-        let mut rules = AdmissibilityRules::default();
-        rules.declared_exclusions = ids
-            .iter()
-            .map(|id| DecisionDeclaredExclusion {
-                action_id: (*id).into(),
-                reason: "not offered".into(),
-            })
-            .collect();
+        let rules = AdmissibilityRules {
+            declared_exclusions: ids
+                .iter()
+                .map(|id| DecisionDeclaredExclusion {
+                    action_id: (*id).into(),
+                    reason: "not offered".into(),
+                })
+                .collect(),
+            ..AdmissibilityRules::default()
+        };
         bound(rules)
     };
     let excluding = exclude(&["hold"]);
@@ -198,8 +200,10 @@ fn declared_exclusions_remove_actions_and_are_part_of_the_bound_decision() {
 
 #[test]
 fn a_support_rule_stronger_than_the_transported_label_refuses() {
-    let mut rules = AdmissibilityRules::default();
-    rules.default_weakest_support = Some(SupportStatus::Supported);
+    let rules = AdmissibilityRules {
+        default_weakest_support: Some(SupportStatus::Supported),
+        ..AdmissibilityRules::default()
+    };
     let refusal = bound(rules)
         .evaluate_transported(&point(2.0), TransportedDemand::ExpectedUtility, &accepting())
         .unwrap_err();
@@ -214,8 +218,8 @@ fn an_uncertainty_requirement_a_point_cannot_meet_refuses() {
     for requirement in
         [UncertaintyRequirement::Credible, UncertaintyRequirement::StructuralEnvelope]
     {
-        let mut rules = AdmissibilityRules::default();
-        rules.uncertainty = requirement;
+        let rules =
+            AdmissibilityRules { uncertainty: requirement, ..AdmissibilityRules::default() };
         let refusal = bound(rules)
             .evaluate_transported(&point(2.0), TransportedDemand::ExpectedUtility, &accepting())
             .unwrap_err();
@@ -223,8 +227,10 @@ fn an_uncertainty_requirement_a_point_cannot_meet_refuses() {
         assert_eq!(refusal.detail, "transported_decision.uncertainty_requirement");
     }
     // A point requirement is met by a transported point.
-    let mut rules = AdmissibilityRules::default();
-    rules.uncertainty = UncertaintyRequirement::PointOnly;
+    let rules = AdmissibilityRules {
+        uncertainty: UncertaintyRequirement::PointOnly,
+        ..AdmissibilityRules::default()
+    };
     assert!(
         bound(rules)
             .evaluate_transported(&point(2.0), TransportedDemand::ExpectedUtility, &accepting())

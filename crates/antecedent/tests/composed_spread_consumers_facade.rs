@@ -43,8 +43,7 @@ fn quantity(name: &str) -> ScientificQuantity {
 }
 
 fn pieces_artifact(snapshot: &str) -> DistributionArtifact {
-    let columns: [[f64; 4]; 3] =
-        [[1.0, 2.0, 3.0, 4.0], [2.0, 1.0, 4.0, 3.0], [0.0, 0.0, 1.0, 2.0]];
+    let columns: [[f64; 4]; 3] = [[1.0, 2.0, 3.0, 4.0], [2.0, 1.0, 4.0, 3.0], [0.0, 0.0, 1.0, 2.0]];
     let quantities: Vec<ScientificQuantity> =
         ["a", "b", "c"].iter().map(|name| quantity(name)).collect();
     let identity = DistributionIdentity::new(

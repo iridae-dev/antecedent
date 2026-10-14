@@ -382,7 +382,6 @@ impl AdaptiveProcedure {
             StoppingSpec::AlphaSpending { spending, total_alpha, sidedness } => {
                 let fractions: Vec<f64> = looks.iter().map(|l| l.information_fraction).collect();
                 let spending = match spending {
-                    SpendingKind::OBrienFlemingType => SpendingFunction::OBrienFlemingType,
                     SpendingKind::PocockType => SpendingFunction::PocockType,
                     _ => SpendingFunction::OBrienFlemingType,
                 };

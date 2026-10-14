@@ -51,7 +51,7 @@ fn refusal_json(error: &DiscretizationRefusal) -> String {
 
 /// The finite model a plan produced, held as prepared or as consumed from an artifact.
 enum Held {
-    Prepared(PreparedDiscretizedComposition),
+    Prepared(Box<PreparedDiscretizedComposition>),
     Consumed { bridge: DiscretizedLinearGaussian },
 }
 
@@ -250,7 +250,7 @@ impl DiscretizedCompositionHandle {
             Ok(refit.discretize(&plan, &ctx))
         })?;
         Ok(match outcome {
-            Ok(prepared) => (Some(Self { held: Held::Prepared(prepared) }), None),
+            Ok(prepared) => (Some(Self { held: Held::Prepared(Box::new(prepared)) }), None),
             Err(error) => (None, Some(refusal_json(&error))),
         })
     }
@@ -287,7 +287,7 @@ fn discretized_composition_prepare(
     })?;
     Ok(match outcome {
         Ok(prepared) => {
-            (Some(DiscretizedCompositionHandle { held: Held::Prepared(prepared) }), None)
+            (Some(DiscretizedCompositionHandle { held: Held::Prepared(Box::new(prepared)) }), None)
         }
         Err(error) => (None, Some(refusal_json(&error))),
     })

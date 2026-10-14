@@ -422,7 +422,7 @@ impl ForwardSourceRefusal {
             Self::ComposedLawNotMaterialized { .. } | Self::PointOnlyLawRequested { .. } => {
                 antecedent_core::reason_code!("decision_contract_unsatisfied")
             }
-            Self::Artifact { code, .. } => *code,
+            Self::Artifact { code, .. } => code,
             Self::Inverse(error) => error.reason_code(),
         }
     }
@@ -547,7 +547,7 @@ impl From<InverseQueryError> for ForwardSourceRefusal {
 fn artifact_refusal(error: &IoError) -> ForwardSourceRefusal {
     match error {
         IoError::Refused { code, message } => {
-            ForwardSourceRefusal::Artifact { code: *code, text: message.clone() }
+            ForwardSourceRefusal::Artifact { code, text: message.clone() }
         }
         other => ForwardSourceRefusal::Artifact {
             code: antecedent_core::reason_code!("invalid_argument"),
@@ -779,6 +779,33 @@ pub fn composed_forward_source(
     composed_forward_source_accepting(response, TransportedInputPolicy::NativeTargetOnly)
 }
 
+/// Every action carries identities, is distinct from the earlier ones in action and
+/// coordinate, and answers a query of the response's family.
+fn check_composed_actions(response: &ComposedResponse) -> Result<(), ForwardSourceRefusal> {
+    for (position, action) in response.actions.iter().enumerate() {
+        if action.action_id.trim().is_empty() || action.premises_digest.trim().is_empty() {
+            return Err(ForwardSourceRefusal::ComposedInvalid("action and premises identities"));
+        }
+        if response.actions[..position].iter().any(|earlier| {
+            earlier.action_id == action.action_id
+                || earlier.coordinate.require_same_coordinate(&action.coordinate).is_ok()
+        }) {
+            return Err(ForwardSourceRefusal::ComposedInvalid(
+                "actions and coordinates are distinct",
+            ));
+        }
+        let gaussian = matches!(
+            action.query,
+            CompositionQueryWire::GaussianInterventionLaw { .. }
+                | CompositionQueryWire::GaussianMeanContrast { .. }
+        );
+        if gaussian != (response.family == ComposedFamily::LinearGaussian) {
+            return Err(ForwardSourceRefusal::ComposedFamilyMismatch(action.action_id.clone()));
+        }
+    }
+    Ok(())
+}
+
 /// [`composed_forward_source`] with the consumer's stance on transported
 /// claims stated.
 ///
@@ -809,27 +836,7 @@ pub fn composed_forward_source_accepting(
     if response.actions.is_empty() {
         return Err(ForwardSourceRefusal::ComposedInvalid("at least one action"));
     }
-    for (position, action) in response.actions.iter().enumerate() {
-        if action.action_id.trim().is_empty() || action.premises_digest.trim().is_empty() {
-            return Err(ForwardSourceRefusal::ComposedInvalid("action and premises identities"));
-        }
-        if response.actions[..position].iter().any(|earlier| {
-            earlier.action_id == action.action_id
-                || earlier.coordinate.require_same_coordinate(&action.coordinate).is_ok()
-        }) {
-            return Err(ForwardSourceRefusal::ComposedInvalid(
-                "actions and coordinates are distinct",
-            ));
-        }
-        let gaussian = matches!(
-            action.query,
-            CompositionQueryWire::GaussianInterventionLaw { .. }
-                | CompositionQueryWire::GaussianMeanContrast { .. }
-        );
-        if gaussian != (response.family == ComposedFamily::LinearGaussian) {
-            return Err(ForwardSourceRefusal::ComposedFamilyMismatch(action.action_id.clone()));
-        }
-    }
+    check_composed_actions(response)?;
     let identity = combined_identity(response);
     let provider_id = format!("composed_mechanisms:{}", response.family.as_str());
     let causal_contract_id = format!("composition:{identity}");

@@ -89,7 +89,8 @@ pub const DETAIL_UNKNOWN_CLAIM: &str = "transport_revalidation.unknown_claim";
 /// Detail: the claim's value digest could not be formed.
 pub const DETAIL_VALUE_DIGEST: &str = "transport_revalidation.value_digest";
 /// Detail: a provider trust level was given for a claim of a native route.
-pub const DETAIL_TRUST_NOT_APPLICABLE: &str = "transport_revalidation.provider_trust_not_applicable";
+pub const DETAIL_TRUST_NOT_APPLICABLE: &str =
+    "transport_revalidation.provider_trust_not_applicable";
 
 /// One refusal as plain data.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -428,7 +429,7 @@ impl TransportSceneBuilder {
         self.diagrams.extend(sorted_diagrams);
         let mut claim = SceneClaim::new(key, SceneClaimKind::Transported, identity, quantity);
         claim.structure = Some(digest_of(&structure));
-        claim.sources = receipt.source_populations.clone();
+        claim.sources.clone_from(&receipt.source_populations);
         claim.trust = trust;
         claim.calibration = calibration;
         claim.support = response_support(response);
@@ -688,7 +689,7 @@ impl TransportRevalidationReport {
                 remedies: claim.reasons.iter().map(TransportReason::remedy).collect(),
                 prior_authority: match claim.authority {
                     PriorAuthority::Retained => "retained",
-                    _ => "not_retained",
+                    PriorAuthority::NotRetained => "not_retained",
                 },
                 calibration: match claim.calibration {
                     CalibrationState::NotApplicable => "not_applicable",

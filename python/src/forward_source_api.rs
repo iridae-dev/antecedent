@@ -14,10 +14,11 @@
 use antecedent::analysis::cohort_decision::{CohortExpectation, consume_cohort_decision_source};
 use antecedent::analysis::inverse_query::{InverseQueryWire, InverseResultWire};
 use antecedent::analysis::inverse_sources::{
-    ComposedActionQuery, ComposedSourceRefusal, InverseDemand, LicensedForwardSource, ObservationalScenarioQuery,
-    ObservationalScenarioResult, OutcomeEvent, ScenarioCell, ScenarioCondition, TransportReceipt,
-    TransportedInputPolicy, cohort_source, evaluate, evaluate_observational, inspect_observational,
-    inspect_origin, seal, seal_per_action, transported_source, verify_observational,
+    ComposedActionQuery, ComposedSourceRefusal, InverseDemand, LicensedForwardSource,
+    ObservationalScenarioQuery, ObservationalScenarioResult, OutcomeEvent, ScenarioCell,
+    ScenarioCondition, TransportReceipt, TransportedInputPolicy, cohort_source, evaluate,
+    evaluate_observational, inspect_observational, inspect_origin, seal, seal_per_action,
+    transported_source, verify_observational,
 };
 use antecedent::analysis::mechanism_composition::CompositionQueryWire;
 use antecedent_core::reason_code;
@@ -91,8 +92,8 @@ impl ForwardSourceHandle {
 /// reproduce its premises.
 fn composed_refusal_json(refusal: &ComposedSourceRefusal) -> String {
     let all = refusal.refusals();
-    let mut payload: Json = serde_json::from_str(&external_refusal_json(&refusal.to_refusal()))
-        .unwrap_or(Json::Null);
+    let mut payload: Json =
+        serde_json::from_str(&external_refusal_json(&refusal.to_refusal())).unwrap_or(Json::Null);
     if let Json::Object(map) = &mut payload {
         let each: Vec<Json> = all
             .iter()

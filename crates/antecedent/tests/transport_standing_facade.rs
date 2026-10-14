@@ -78,19 +78,28 @@ const VERIFIED: Option<ProviderTrust> = Some(ProviderTrust::ExactRequestVerified
 #[test]
 fn provenance_states_trust_and_never_assumes_it() {
     // A library route has no provider whose trust could hold or be withdrawn.
-    assert_eq!(provenance_trust(TransportedRoute::Policy, None).unwrap(), TrustStanding::NotApplicable);
+    assert_eq!(
+        provenance_trust(TransportedRoute::Policy, None).unwrap(),
+        TrustStanding::NotApplicable
+    );
     assert_eq!(
         provenance_trust(TransportedRoute::CohortEffect, None).unwrap(),
         TrustStanding::NotApplicable
     );
     // A declared route holds the level its provider was verified at.
-    assert_eq!(provenance_trust(TransportedRoute::Declared, VERIFIED).unwrap(), TrustStanding::Held);
+    assert_eq!(
+        provenance_trust(TransportedRoute::Declared, VERIFIED).unwrap(),
+        TrustStanding::Held
+    );
     assert_eq!(
         provenance_trust(TransportedRoute::Declared, Some(ProviderTrust::Unverified)).unwrap(),
         TrustStanding::Withdrawn
     );
     // A declared route that states no level is not trusted by default.
-    assert_eq!(provenance_trust(TransportedRoute::Declared, None).unwrap(), TrustStanding::Undeclared);
+    assert_eq!(
+        provenance_trust(TransportedRoute::Declared, None).unwrap(),
+        TrustStanding::Undeclared
+    );
 
     // A provider level for a library route is refused: nothing it could describe.
     let refusal = provenance_trust(TransportedRoute::Policy, VERIFIED).unwrap_err();
@@ -265,8 +274,9 @@ fn a_record_from_another_target_is_withdrawn_and_its_heir_is_refused_the_record(
 
     // A replaced record at the same target recomputes its owner and refuses the heir the
     // record it inherited.
-    let replaced = revalidate(Some(&before), &scene_with_record(1, Some(earlier_target), 78, 77), &none)
-        .unwrap();
+    let replaced =
+        revalidate(Some(&before), &scene_with_record(1, Some(earlier_target), 78, 77), &none)
+            .unwrap();
     assert_eq!(replaced.claim("effect_trial").unwrap().class, Revalidation::Recompute);
     let heir = replaced.claim("effect_heir").unwrap();
     assert_eq!(heir.class, Revalidation::Withdrawn);

@@ -598,43 +598,12 @@ fn same_bits(a: &[f64], b: &[f64]) -> bool {
     a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.to_bits() == y.to_bits())
 }
 
-/// Rebuild a discretization from an artifact, re-deriving every number.
-///
-/// `expected_identity` is the identity the consumer already holds for the
-/// composition it expects, when it has one.
-///
-/// # Errors
-/// [`ArtifactRefusal`] for malformed bytes, an unknown version
-/// ([`DETAIL_VERSION_UNSUPPORTED`]), premises that no longer discretize
-/// ([`DETAIL_REDERIVATION_REFUSED`], naming the inner refusal), an identity that
-/// differs from the claimed or expected one ([`DETAIL_IDENTITY_MISMATCH`]), or a
-/// claimed number that differs from the re-derived one ([`DETAIL_CLAIM_MISMATCH`]).
-pub fn consume_discretized_scm(
-    bytes: &[u8],
-    expected_identity: Option<[u8; 32]>,
-    ctx: &ExecutionContext,
-) -> Result<DiscretizedLinearGaussian, ArtifactRefusal> {
-    let mut r = Reader { bytes, at: 0 };
-    if r.text("tag")? != TAG {
-        return Err(ArtifactRefusal::malformed("tag"));
-    }
-    let version = u32::from_le_bytes(
-        r.take(4, "version")?.try_into().map_err(|_| ArtifactRefusal::malformed("version"))?,
-    );
-    if version != DISCRETIZED_SCM_ARTIFACT_VERSION {
-        return Err(ArtifactRefusal::new(
-            antecedent_core::reason_code!("schema_mismatch"),
-            DETAIL_VERSION_UNSUPPORTED,
-            format!("version={version}"),
-            "re-export the artifact with a producer this build reads",
-        ));
-    }
-
+fn read_spec(r: &mut Reader<'_>) -> Decoded<ComposedModelSpec> {
     let target = MechanismContext { population: r.text("target")?, regime: r.text("target")? };
     let n = r.count("mechanisms")?;
     let mut mechanisms = Vec::with_capacity(n);
     for _ in 0..n {
-        mechanisms.push(read_mechanism(&mut r)?);
+        mechanisms.push(read_mechanism(r)?);
     }
     let n = r.count("edges")?;
     let mut edges = Vec::with_capacity(n);
@@ -677,7 +646,7 @@ pub fn consume_discretized_scm(
             selection_nodes,
         });
     }
-    let dependence = read_dependence(&mut r)?;
+    let dependence = read_dependence(r)?;
     let admit_declared_mechanisms = match r.tag("admit_declared")? {
         0 => false,
         1 => true,
@@ -692,7 +661,10 @@ pub fn consume_discretized_scm(
         dependence,
         admit_declared_mechanisms,
     };
+    Ok(spec)
+}
 
+fn read_plan(r: &mut Reader<'_>) -> Decoded<(DiscretizationPlan, Vec<String>)> {
     let method = match r.tag("method")? {
         1 => DiscretizationMethod::EqualProbabilityQuantile,
         _ => return Err(ArtifactRefusal::malformed("method")),
@@ -709,7 +681,43 @@ pub fn consume_discretized_scm(
             return Err(ArtifactRefusal::malformed("levels"));
         }
     }
-    let plan = DiscretizationPlan { method, levels };
+    Ok((DiscretizationPlan { method, levels }, order))
+}
+
+/// Rebuild a discretization from an artifact, re-deriving every number.
+///
+/// `expected_identity` is the identity the consumer already holds for the
+/// composition it expects, when it has one.
+///
+/// # Errors
+/// [`ArtifactRefusal`] for malformed bytes, an unknown version
+/// ([`DETAIL_VERSION_UNSUPPORTED`]), premises that no longer discretize
+/// ([`DETAIL_REDERIVATION_REFUSED`], naming the inner refusal), an identity that
+/// differs from the claimed or expected one ([`DETAIL_IDENTITY_MISMATCH`]), or a
+/// claimed number that differs from the re-derived one ([`DETAIL_CLAIM_MISMATCH`]).
+pub fn consume_discretized_scm(
+    bytes: &[u8],
+    expected_identity: Option<[u8; 32]>,
+    ctx: &ExecutionContext,
+) -> Result<DiscretizedLinearGaussian, ArtifactRefusal> {
+    let mut r = Reader { bytes, at: 0 };
+    if r.text("tag")? != TAG {
+        return Err(ArtifactRefusal::malformed("tag"));
+    }
+    let version = u32::from_le_bytes(
+        r.take(4, "version")?.try_into().map_err(|_| ArtifactRefusal::malformed("version"))?,
+    );
+    if version != DISCRETIZED_SCM_ARTIFACT_VERSION {
+        return Err(ArtifactRefusal::new(
+            antecedent_core::reason_code!("schema_mismatch"),
+            DETAIL_VERSION_UNSUPPORTED,
+            format!("version={version}"),
+            "re-export the artifact with a producer this build reads",
+        ));
+    }
+
+    let spec = read_spec(&mut r)?;
+    let (plan, order) = read_plan(&mut r)?;
 
     let claimed_identity: [u8; 32] =
         r.take(32, "identity")?.try_into().map_err(|_| ArtifactRefusal::malformed("identity"))?;

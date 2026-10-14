@@ -404,6 +404,241 @@ fn from_composition(error: CompositionError) -> BridgeRefusal {
     }
 }
 
+/// Per-variable level counts, after the plan and the composition's mechanisms are checked.
+fn plan_level_counts(
+    model: &ComposedLinearGaussian,
+    plan: &DiscretizationPlan,
+) -> Result<Vec<usize>, BridgeRefusal> {
+    let spec = model.spec();
+    let variables = model.variables();
+    for name in plan.levels.keys() {
+        if !variables.contains(name) {
+            return Err(invalid(
+                DETAIL_UNKNOWN_VARIABLE,
+                name.clone(),
+                "declare levels only for variables of the composition",
+            ));
+        }
+    }
+    let mut level_counts = Vec::with_capacity(variables.len());
+    let mut joint = 1_usize;
+    for v in variables {
+        let Some(&n) = plan.levels.get(v) else {
+            return Err(invalid(
+                DETAIL_LEVELS_UNDECLARED,
+                v.clone(),
+                "declare a level count for every variable; none is defaulted",
+            ));
+        };
+        if !(MIN_BRIDGE_LEVELS..=MAX_BRIDGE_LEVELS).contains(&n) {
+            return Err(invalid(
+                DETAIL_LEVELS_OUT_OF_RANGE,
+                v.clone(),
+                "declare between 2 and 64 levels per variable",
+            ));
+        }
+        joint = joint.saturating_mul(n);
+        level_counts.push(n);
+    }
+    if joint > MAX_FINITE_STATES {
+        return Err(invalid(
+            DETAIL_STATE_SPACE_TOO_LARGE,
+            "composition",
+            "declare fewer levels or fewer variables; the joint space is enumerated exactly",
+        ));
+    }
+    for d in &spec.mechanisms {
+        if !unbounded_real(&d.output_support) {
+            return Err(unsupported(
+                DETAIL_SUPPORT_NOT_REAL,
+                d.variable.clone(),
+                "a Gaussian mechanism has the real line as support; declare it so or use a finite mechanism",
+            ));
+        }
+        if !d.latents.is_empty() {
+            return Err(unsupported(
+                DETAIL_LATENT_CONFOUNDING,
+                d.variable.clone(),
+                "the finite model is Markovian; refit with the shared cause observed or keep the closed-form route",
+            ));
+        }
+    }
+    Ok(level_counts)
+}
+
+/// Pass one: the quantile grid and the declared coefficients of every mechanism.
+fn grid_nodes(
+    model: &ComposedLinearGaussian,
+    level_counts: &[usize],
+    index: &BTreeMap<&str, usize>,
+) -> Result<Vec<BridgeNode>, BridgeRefusal> {
+    let spec = model.spec();
+    let law = model.law(&[]).map_err(from_composition)?;
+    let mut nodes: Vec<BridgeNode> = Vec::with_capacity(spec.mechanisms.len());
+    for (i, d) in spec.mechanisms.iter().enumerate() {
+        let MechanismForm::LinearGaussian { intercept, sigma, coefficients } = &d.form else {
+            return Err(unsupported(
+                DETAIL_NON_GAUSSIAN,
+                d.variable.clone(),
+                "discretize a composition whose every mechanism is additive-noise linear-Gaussian",
+            ));
+        };
+        let (Some(mean), Some(variance)) = (law.mean_of(&d.variable), law.variance_of(&d.variable))
+        else {
+            return Err(BridgeRefusal::new(
+                antecedent_core::reason_code!("invalid_argument"),
+                DETAIL_NUMERICAL,
+                d.variable.clone(),
+                "inspect the composition's numerical declaration",
+            ));
+        };
+        if !mean.is_finite() || !variance.is_finite() || variance <= 0.0 {
+            return Err(unsupported(
+                DETAIL_DEGENERATE_MARGINAL,
+                d.variable.clone(),
+                "a variable with no marginal spread has no grid; keep it out of the discretized composition",
+            ));
+        }
+        let n = level_counts[i];
+        let (edges, values) = quantile_grid(mean, variance.sqrt(), n);
+        let mut parents = Vec::with_capacity(coefficients.len());
+        let mut coefs = Vec::with_capacity(coefficients.len());
+        for (name, c) in coefficients {
+            let Some(&pi) = index.get(name.as_str()) else {
+                return Err(BridgeRefusal::new(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    DETAIL_NUMERICAL,
+                    d.variable.clone(),
+                    "inspect the composition's numerical declaration",
+                ));
+            };
+            parents.push(pi);
+            coefs.push(*c);
+        }
+        nodes.push(BridgeNode {
+            variable: d.variable.clone(),
+            parents,
+            coefficients: coefs,
+            intercept: *intercept,
+            sigma: *sigma,
+            edges,
+            values,
+            level_names: (0..n).map(level_name).collect(),
+            mean_error: 0.0,
+            delta: Vec::new(),
+        });
+    }
+    Ok(nodes)
+}
+
+/// Pass two: every mechanism's conditional table and its mean discretization error, which is
+/// written onto the nodes.
+fn fill_tables(
+    nodes: &mut [BridgeNode],
+    ctx: &ExecutionContext,
+) -> Result<Vec<Vec<TabularRow>>, BridgeRefusal> {
+    let mut tables: Vec<Vec<TabularRow>> = Vec::with_capacity(nodes.len());
+    let mut errors = Vec::with_capacity(nodes.len());
+    let mut deltas: Vec<Vec<f64>> = Vec::with_capacity(nodes.len());
+    for v in 0..nodes.len() {
+        let node = &nodes[v];
+        let widths: Vec<usize> = node.parents.iter().map(|&p| nodes[p].values.len()).collect();
+        let configs: usize = widths.iter().product();
+        let mut rows = Vec::with_capacity(configs);
+        let mut worst = 0.0_f64;
+        let mut delta = Vec::with_capacity(configs);
+        let mut digits = vec![0_usize; widths.len()];
+        for c in 0..configs {
+            if c % 4096 == 4095 {
+                poll(ctx)?;
+            }
+            let mut rest = c;
+            for k in (0..widths.len()).rev() {
+                digits[k] = rest % widths[k];
+                rest /= widths[k];
+            }
+            let mut mean = node.intercept;
+            for (k, &p) in node.parents.iter().enumerate() {
+                mean += node.coefficients[k] * nodes[p].values[digits[k]];
+            }
+            let probabilities = cell_probabilities(&node.edges, mean, node.sigma);
+            let table_mean: f64 = probabilities.iter().zip(&node.values).map(|(p, x)| p * x).sum();
+            worst = worst.max((table_mean - mean).abs());
+            delta.push(table_mean - mean);
+            rows.push(TabularRow {
+                parent_levels: node
+                    .parents
+                    .iter()
+                    .enumerate()
+                    .map(|(k, &p)| {
+                        (nodes[p].variable.clone(), nodes[p].level_names[digits[k]].clone())
+                    })
+                    .collect(),
+                probabilities: node.level_names.iter().cloned().zip(probabilities).collect(),
+            });
+        }
+        tables.push(rows);
+        errors.push(worst);
+        deltas.push(delta);
+    }
+    for ((node, e), d) in nodes.iter_mut().zip(errors).zip(deltas) {
+        node.mean_error = e;
+        node.delta = d;
+    }
+    Ok(tables)
+}
+
+/// The finite (tabular) mechanisms of the discretized composition.
+fn finite_mechanisms(
+    spec: &ComposedModelSpec,
+    nodes: &[BridgeNode],
+    tables: &[Vec<TabularRow>],
+    index: &BTreeMap<&str, usize>,
+    identity_hex: &str,
+) -> Vec<MechanismDescriptor> {
+    let mut mechanisms = Vec::with_capacity(nodes.len());
+    for (i, d) in spec.mechanisms.iter().enumerate() {
+        let node = &nodes[i];
+        let parents: Vec<ParentBinding> = d
+            .parents
+            .iter()
+            .map(|binding| {
+                let p = index[binding.variable.as_str()];
+                ParentBinding {
+                    variable: binding.variable.clone(),
+                    units: binding.units.clone(),
+                    transform: binding.transform.clone(),
+                    domain: Domain::Levels(nodes[p].level_names.clone()),
+                }
+            })
+            .collect();
+        mechanisms.push(MechanismDescriptor {
+            variable: d.variable.clone(),
+            form: MechanismForm::Tabular {
+                levels: node.level_names.clone(),
+                rows: tables[i].clone(),
+            },
+            parents,
+            conditioning_set: d.conditioning_set.clone(),
+            output_units: d.output_units.clone(),
+            output_transform: d.output_transform.clone(),
+            output_support: Domain::Levels(node.level_names.clone()),
+            context: d.context.clone(),
+            provenance: MechanismProvenance {
+                origin: d.provenance.origin,
+                artifact_id: format!("discretized:{identity_hex}:{}", d.variable),
+                // The evidence is the source's: a discretization is not
+                // new evidence, so dependence between mechanisms that
+                // shared evidence stays visible.
+                evidence_id: d.provenance.evidence_id.clone(),
+            },
+            latents: Vec::new(),
+            uncertainty: None,
+        });
+    }
+    mechanisms
+}
+
 impl DiscretizedLinearGaussian {
     /// Compile a declared composition and discretize it.
     ///
@@ -434,214 +669,16 @@ impl DiscretizedLinearGaussian {
         poll(ctx)?;
         let spec = model.spec();
         let variables = model.variables();
-        for name in plan.levels.keys() {
-            if !variables.contains(name) {
-                return Err(invalid(
-                    DETAIL_UNKNOWN_VARIABLE,
-                    name.clone(),
-                    "declare levels only for variables of the composition",
-                ));
-            }
-        }
-        let mut level_counts = Vec::with_capacity(variables.len());
-        let mut joint = 1_usize;
-        for v in variables {
-            let Some(&n) = plan.levels.get(v) else {
-                return Err(invalid(
-                    DETAIL_LEVELS_UNDECLARED,
-                    v.clone(),
-                    "declare a level count for every variable; none is defaulted",
-                ));
-            };
-            if !(MIN_BRIDGE_LEVELS..=MAX_BRIDGE_LEVELS).contains(&n) {
-                return Err(invalid(
-                    DETAIL_LEVELS_OUT_OF_RANGE,
-                    v.clone(),
-                    "declare between 2 and 64 levels per variable",
-                ));
-            }
-            joint = joint.saturating_mul(n);
-            level_counts.push(n);
-        }
-        if joint > MAX_FINITE_STATES {
-            return Err(invalid(
-                DETAIL_STATE_SPACE_TOO_LARGE,
-                "composition",
-                "declare fewer levels or fewer variables; the joint space is enumerated exactly",
-            ));
-        }
-        for d in &spec.mechanisms {
-            if !unbounded_real(&d.output_support) {
-                return Err(unsupported(
-                    DETAIL_SUPPORT_NOT_REAL,
-                    d.variable.clone(),
-                    "a Gaussian mechanism has the real line as support; declare it so or use a finite mechanism",
-                ));
-            }
-            if !d.latents.is_empty() {
-                return Err(unsupported(
-                    DETAIL_LATENT_CONFOUNDING,
-                    d.variable.clone(),
-                    "the finite model is Markovian; refit with the shared cause observed or keep the closed-form route",
-                ));
-            }
-        }
-        let law = model.law(&[]).map_err(from_composition)?;
+        let level_counts = plan_level_counts(model, plan)?;
         let index: BTreeMap<&str, usize> =
             variables.iter().enumerate().map(|(i, v)| (v.as_str(), i)).collect();
-
-        // Pass one: grids.
-        let mut nodes: Vec<BridgeNode> = Vec::with_capacity(variables.len());
-        for (i, d) in spec.mechanisms.iter().enumerate() {
-            let MechanismForm::LinearGaussian { intercept, sigma, coefficients } = &d.form else {
-                return Err(unsupported(
-                    DETAIL_NON_GAUSSIAN,
-                    d.variable.clone(),
-                    "discretize a composition whose every mechanism is additive-noise linear-Gaussian",
-                ));
-            };
-            let (Some(mean), Some(variance)) =
-                (law.mean_of(&d.variable), law.variance_of(&d.variable))
-            else {
-                return Err(BridgeRefusal::new(
-                    antecedent_core::reason_code!("invalid_argument"),
-                    DETAIL_NUMERICAL,
-                    d.variable.clone(),
-                    "inspect the composition's numerical declaration",
-                ));
-            };
-            if !mean.is_finite() || !variance.is_finite() || variance <= 0.0 {
-                return Err(unsupported(
-                    DETAIL_DEGENERATE_MARGINAL,
-                    d.variable.clone(),
-                    "a variable with no marginal spread has no grid; keep it out of the discretized composition",
-                ));
-            }
-            let n = level_counts[i];
-            let (edges, values) = quantile_grid(mean, variance.sqrt(), n);
-            let mut parents = Vec::with_capacity(coefficients.len());
-            let mut coefs = Vec::with_capacity(coefficients.len());
-            for (name, c) in coefficients {
-                let Some(&pi) = index.get(name.as_str()) else {
-                    return Err(BridgeRefusal::new(
-                        antecedent_core::reason_code!("invalid_argument"),
-                        DETAIL_NUMERICAL,
-                        d.variable.clone(),
-                        "inspect the composition's numerical declaration",
-                    ));
-                };
-                parents.push(pi);
-                coefs.push(*c);
-            }
-            nodes.push(BridgeNode {
-                variable: d.variable.clone(),
-                parents,
-                coefficients: coefs,
-                intercept: *intercept,
-                sigma: *sigma,
-                edges,
-                values,
-                level_names: (0..n).map(level_name).collect(),
-                mean_error: 0.0,
-                delta: Vec::new(),
-            });
-        }
-
-        // Pass two: tables and the per-mechanism mean error.
-        let mut tables: Vec<Vec<TabularRow>> = Vec::with_capacity(nodes.len());
-        let mut errors = Vec::with_capacity(nodes.len());
-        let mut deltas: Vec<Vec<f64>> = Vec::with_capacity(nodes.len());
-        for v in 0..nodes.len() {
-            let node = &nodes[v];
-            let widths: Vec<usize> = node.parents.iter().map(|&p| nodes[p].values.len()).collect();
-            let configs: usize = widths.iter().product();
-            let mut rows = Vec::with_capacity(configs);
-            let mut worst = 0.0_f64;
-            let mut delta = Vec::with_capacity(configs);
-            let mut digits = vec![0_usize; widths.len()];
-            for c in 0..configs {
-                if c % 4096 == 4095 {
-                    poll(ctx)?;
-                }
-                let mut rest = c;
-                for k in (0..widths.len()).rev() {
-                    digits[k] = rest % widths[k];
-                    rest /= widths[k];
-                }
-                let mut mean = node.intercept;
-                for (k, &p) in node.parents.iter().enumerate() {
-                    mean += node.coefficients[k] * nodes[p].values[digits[k]];
-                }
-                let probabilities = cell_probabilities(&node.edges, mean, node.sigma);
-                let table_mean: f64 =
-                    probabilities.iter().zip(&node.values).map(|(p, x)| p * x).sum();
-                worst = worst.max((table_mean - mean).abs());
-                delta.push(table_mean - mean);
-                rows.push(TabularRow {
-                    parent_levels: node
-                        .parents
-                        .iter()
-                        .enumerate()
-                        .map(|(k, &p)| {
-                            (nodes[p].variable.clone(), nodes[p].level_names[digits[k]].clone())
-                        })
-                        .collect(),
-                    probabilities: node.level_names.iter().cloned().zip(probabilities).collect(),
-                });
-            }
-            tables.push(rows);
-            errors.push(worst);
-            deltas.push(delta);
-        }
-        for ((node, e), d) in nodes.iter_mut().zip(errors).zip(deltas) {
-            node.mean_error = e;
-            node.delta = d;
-        }
+        let mut nodes = grid_nodes(model, &level_counts, &index)?;
+        let tables = fill_tables(&mut nodes, ctx)?;
 
         let identity = identity_of(spec, plan.method, &nodes);
         let identity_hex = antecedent_core::identity::to_hex(&identity);
 
-        // The finite composition.
-        let mut mechanisms = Vec::with_capacity(nodes.len());
-        for (i, d) in spec.mechanisms.iter().enumerate() {
-            let node = &nodes[i];
-            let parents: Vec<ParentBinding> = d
-                .parents
-                .iter()
-                .map(|binding| {
-                    let p = index[binding.variable.as_str()];
-                    ParentBinding {
-                        variable: binding.variable.clone(),
-                        units: binding.units.clone(),
-                        transform: binding.transform.clone(),
-                        domain: Domain::Levels(nodes[p].level_names.clone()),
-                    }
-                })
-                .collect();
-            mechanisms.push(MechanismDescriptor {
-                variable: d.variable.clone(),
-                form: MechanismForm::Tabular {
-                    levels: node.level_names.clone(),
-                    rows: tables[i].clone(),
-                },
-                parents,
-                conditioning_set: d.conditioning_set.clone(),
-                output_units: d.output_units.clone(),
-                output_transform: d.output_transform.clone(),
-                output_support: Domain::Levels(node.level_names.clone()),
-                context: d.context.clone(),
-                provenance: MechanismProvenance {
-                    origin: d.provenance.origin,
-                    artifact_id: format!("discretized:{identity_hex}:{}", d.variable),
-                    // The evidence is the source's: a discretization is not
-                    // new evidence, so dependence between mechanisms that
-                    // shared evidence stays visible.
-                    evidence_id: d.provenance.evidence_id.clone(),
-                },
-                latents: Vec::new(),
-                uncertainty: None,
-            });
-        }
+        let mechanisms = finite_mechanisms(spec, &nodes, &tables, &index, &identity_hex);
         let finite_spec = ComposedModelSpec {
             target: spec.target.clone(),
             mechanisms,

@@ -269,7 +269,7 @@ fn gaussian_actions() -> Vec<ComposedActionQuery> {
         .collect()
 }
 
-fn finite_actions(levels: Vec<(String, f64)>) -> Vec<ComposedActionQuery> {
+fn finite_actions(levels: &[(String, f64)]) -> Vec<ComposedActionQuery> {
     ["0", "1"]
         .iter()
         .map(|arm| ComposedActionQuery {
@@ -279,7 +279,7 @@ fn finite_actions(levels: Vec<(String, f64)>) -> Vec<ComposedActionQuery> {
                 interventions: vec![("X".into(), (*arm).to_owned())],
                 outcome: "Y".into(),
             },
-            level_values: levels.clone(),
+            level_values: levels.to_vec(),
         })
         .collect()
 }
@@ -371,7 +371,7 @@ fn a_point_composition_refuses_laws_intervals_and_the_wrong_family() {
 
     // A finite-distribution query of a linear-Gaussian composition is refused by the
     // composition itself and keeps its registered code.
-    let wrong = finite_actions(vec![("0".into(), 0.0), ("1".into(), 1.0)]);
+    let wrong = finite_actions(&[("0".into(), 0.0), ("1".into(), 1.0)]);
     let error = prepared.inverse_forward_source(&wrong, None, native(), &ctx()).unwrap_err();
     assert!(matches!(error, ForwardSourceRefusal::Artifact { .. }), "{error:?}");
 }
@@ -381,7 +381,7 @@ fn a_finite_composition_supplies_the_exact_law_of_each_action() {
     let prepared = StudyBuilder::mechanism_composition(binary_chain(), &ctx()).unwrap();
     let levels = vec![("0".to_owned(), 0.0), ("1".to_owned(), 1.0)];
     let source =
-        prepared.inverse_forward_source(&finite_actions(levels), None, native(), &ctx()).unwrap();
+        prepared.inverse_forward_source(&finite_actions(&levels), None, native(), &ctx()).unwrap();
     assert_eq!(source.origin().representation, ForwardRepresentation::Law);
     // Every mechanism of the binary chain was written down, not estimated.
     assert_eq!(source.origin().assumed_mechanisms.len(), 3);
@@ -423,7 +423,7 @@ fn a_finite_composition_supplies_the_exact_law_of_each_action() {
 fn an_uncoded_finite_outcome_is_refused_with_its_level_coding() {
     let prepared = StudyBuilder::mechanism_composition(binary_chain(), &ctx()).unwrap();
     let error = prepared
-        .inverse_forward_source(&finite_actions(vec![("1".into(), 1.0)]), None, native(), &ctx())
+        .inverse_forward_source(&finite_actions(&[("1".into(), 1.0)]), None, native(), &ctx())
         .unwrap_err();
     assert!(matches!(error, ForwardSourceRefusal::ComposedLevelCoding { .. }), "{error:?}");
     assert_eq!(error.code(), "mechanism_composition_incoherent");

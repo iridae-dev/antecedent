@@ -908,6 +908,93 @@ fn evaluate_correlation_range(
     Ok(out)
 }
 
+/// The mean and variance of a linear combination under the declared covariance.
+fn evaluate_linear_combination(
+    rule: &PropagationRuleWire,
+    n_inputs: usize,
+    coefficients: &[u64],
+    means: &[u64],
+    covariance: &[u64],
+) -> Result<Vec<(String, u64)>, Error> {
+    require_len(coefficients.len(), n_inputs, "coefficient")?;
+    if rule.dependence == "declared_independent"
+        && covariance.len() == n_inputs * n_inputs
+        && (0..n_inputs).any(|i| {
+            (0..n_inputs)
+                .any(|j| i != j && f64::from_bits(covariance[i * n_inputs + j]).abs() > 0.0)
+        })
+    {
+        return Err(invalid_request(
+            "covariance",
+            "declared independent inputs require zero cross-covariances; declare the covariance dependence when cross terms are present",
+        ));
+    }
+    let m = linear_combination_moments(&floats(coefficients), &floats(means), &floats(covariance))
+        .map_err(math_error)?;
+    Ok(vec![("mean".to_owned(), m.mean.to_bits()), ("variance".to_owned(), m.variance.to_bits())])
+}
+
+/// The moments of `a x + b y` over aligned draws.
+fn evaluate_aligned_linear_combination(
+    n_inputs: usize,
+    a: u64,
+    b: u64,
+    x: &[u64],
+    y: &[u64],
+) -> Result<Vec<(String, u64)>, Error> {
+    require_len(2, n_inputs, "aligned column")?;
+    let (a, b) = (f64::from_bits(a), f64::from_bits(b));
+    if !a.is_finite() || !b.is_finite() {
+        return Err(math_error(JointLawError::NonFinite("coefficient")));
+    }
+    let pm = paired_moments(&floats(x), &floats(y)).map_err(math_error)?;
+    let mean = a * pm.mean_x + b * pm.mean_y;
+    let variance = a * a * pm.var_x + b * b * pm.var_y + 2.0 * a * b * pm.covariance;
+    if !mean.is_finite() || !variance.is_finite() {
+        return Err(math_error(JointLawError::NonFinite("combination moment")));
+    }
+    let variance = variance.max(0.0);
+    Ok(vec![
+        ("mean".to_owned(), mean.to_bits()),
+        ("variance".to_owned(), variance.to_bits()),
+        ("covariance".to_owned(), pm.covariance.to_bits()),
+        ("n_rows".to_owned(), pm.n as u64),
+    ])
+}
+
+/// The exceedance decision of an aligned functional; `levels` are the threshold, the
+/// cutoff and the band level as float bits.
+fn evaluate_aligned_exceedance(
+    n_inputs: usize,
+    functional: &str,
+    x: &[u64],
+    y: &[u64],
+    levels: [u64; 3],
+    ctx: &ExecutionContext,
+) -> Result<Vec<(String, u64)>, Error> {
+    let [threshold, cutoff, band_level] = levels;
+    require_len(2, n_inputs, "aligned column")?;
+    let functional = ValueFunctional::from_name(functional)
+        .ok_or_else(|| Error::Malformed("unknown value functional".to_owned()))?;
+    let rows = aligned_functional_draws(&floats(x), &floats(y), functional, &ctx.cancellation)
+        .map_err(math_error)?;
+    let decision = composed_exceedance_decision(
+        &rows,
+        f64::from_bits(threshold),
+        f64::from_bits(cutoff),
+        f64::from_bits(band_level),
+        None,
+    )
+    .map_err(math_error)?;
+    Ok(vec![
+        ("probability".to_owned(), decision.probability.to_bits()),
+        ("standard_error".to_owned(), decision.standard_error.to_bits()),
+        ("band".to_owned(), decision.band.to_bits()),
+        ("verdict_code".to_owned(), verdict_code(decision.verdict)),
+        ("n_rows".to_owned(), decision.n as u64),
+    ])
+}
+
 /// Compute the named result values of `request`.
 fn evaluate(
     rule: &PropagationRuleWire,
@@ -920,49 +1007,10 @@ fn evaluate(
     }
     let result = match request {
         PropagationRequestWire::LinearCombination { coefficients, means, covariance } => {
-            require_len(coefficients.len(), n_inputs, "coefficient")?;
-            if rule.dependence == "declared_independent"
-                && covariance.len() == n_inputs * n_inputs
-                && (0..n_inputs).any(|i| {
-                    (0..n_inputs)
-                        .any(|j| i != j && f64::from_bits(covariance[i * n_inputs + j]).abs() > 0.0)
-                })
-            {
-                return Err(invalid_request(
-                    "covariance",
-                    "declared independent inputs require zero cross-covariances; declare the covariance dependence when cross terms are present",
-                ));
-            }
-            let m = linear_combination_moments(
-                &floats(coefficients),
-                &floats(means),
-                &floats(covariance),
-            )
-            .map_err(math_error)?;
-            Ok(vec![
-                ("mean".to_owned(), m.mean.to_bits()),
-                ("variance".to_owned(), m.variance.to_bits()),
-            ])
+            evaluate_linear_combination(rule, n_inputs, coefficients, means, covariance)
         }
         PropagationRequestWire::AlignedLinearCombination { a, b, x, y } => {
-            require_len(2, n_inputs, "aligned column")?;
-            let (a, b) = (f64::from_bits(*a), f64::from_bits(*b));
-            if !a.is_finite() || !b.is_finite() {
-                return Err(math_error(JointLawError::NonFinite("coefficient")));
-            }
-            let pm = paired_moments(&floats(x), &floats(y)).map_err(math_error)?;
-            let mean = a * pm.mean_x + b * pm.mean_y;
-            let variance = a * a * pm.var_x + b * b * pm.var_y + 2.0 * a * b * pm.covariance;
-            if !mean.is_finite() || !variance.is_finite() {
-                return Err(math_error(JointLawError::NonFinite("combination moment")));
-            }
-            let variance = variance.max(0.0);
-            Ok(vec![
-                ("mean".to_owned(), mean.to_bits()),
-                ("variance".to_owned(), variance.to_bits()),
-                ("covariance".to_owned(), pm.covariance.to_bits()),
-                ("n_rows".to_owned(), pm.n as u64),
-            ])
+            evaluate_aligned_linear_combination(n_inputs, *a, *b, x, y)
         }
         PropagationRequestWire::AlignedFunctional { functional, x, y } => {
             require_len(2, n_inputs, "aligned column")?;
@@ -996,27 +1044,8 @@ fn evaluate(
             cutoff,
             band_level,
         } => {
-            require_len(2, n_inputs, "aligned column")?;
-            let functional = ValueFunctional::from_name(functional)
-                .ok_or_else(|| Error::Malformed("unknown value functional".to_owned()))?;
-            let rows =
-                aligned_functional_draws(&floats(x), &floats(y), functional, &ctx.cancellation)
-                    .map_err(math_error)?;
-            let decision = composed_exceedance_decision(
-                &rows,
-                f64::from_bits(*threshold),
-                f64::from_bits(*cutoff),
-                f64::from_bits(*band_level),
-                None,
-            )
-            .map_err(math_error)?;
-            Ok(vec![
-                ("probability".to_owned(), decision.probability.to_bits()),
-                ("standard_error".to_owned(), decision.standard_error.to_bits()),
-                ("band".to_owned(), decision.band.to_bits()),
-                ("verdict_code".to_owned(), verdict_code(decision.verdict)),
-                ("n_rows".to_owned(), decision.n as u64),
-            ])
+            let levels = [*threshold, *cutoff, *band_level];
+            evaluate_aligned_exceedance(n_inputs, functional, x, y, levels, ctx)
         }
         PropagationRequestWire::MixtureExceedance { weights, components, threshold } => {
             require_len(components.len(), n_inputs, "mixture component")?;

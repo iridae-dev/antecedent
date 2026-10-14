@@ -208,6 +208,67 @@ fn builder(code: &'static str, detail: &str) -> RefusalBuilder {
     RefusalBuilder::new(code, "declare", detail)
 }
 
+/// The refusal for a producer that holds only a point value, with the remedy for its route.
+fn producer_point_only_refusal(producer: &ProducerKind, held: &str) -> ExternalRefusal {
+    match producer {
+        ProducerKind::CohortMeanDecision => builder(
+            antecedent_core::reason_code!("joint_law_required"),
+            "decision_reliability.producer_point_only",
+        )
+        .offending(format!("{}: holds {held}", producer.as_str()))
+        .remedy(
+            "supply per-draw cohort utilities from one aligned joint law (for example \
+             posterior draws of the effect model's coefficients mapped through the \
+             cohort) with the stream they came from",
+        )
+        .build(),
+        ProducerKind::SequentialRollout | ProducerKind::SequentialOffPolicy => builder(
+            antecedent_core::reason_code!("diagnostic_not_available"),
+            "decision_reliability.producer_point_only",
+        )
+        .offending(format!("{}: holds {held}", producer.as_str()))
+        .remedy(
+            "supply the per-rollout utilities or per-trajectory weighted returns the \
+             estimate was computed from; a mean and its standard error carry neither \
+             draws nor a stream",
+        )
+        .build(),
+    }
+}
+
+fn producer_mean_disagrees_refusal(
+    id: &str,
+    reported: f64,
+    draws_mean: f64,
+    standard_error: f64,
+) -> ExternalRefusal {
+    builder(
+        antecedent_core::reason_code!("distribution_meaning_mismatch"),
+        "decision_reliability.producer_mean_disagrees",
+    )
+    .offending(format!(
+        "{id}: reported {reported} but the supplied draws average {draws_mean} \
+         (standard error {standard_error})"
+    ))
+    .remedy("supply draws of the same quantity the producer reported, or drop the check")
+    .build()
+}
+
+fn effective_sample_size_refusal(
+    what: &str,
+    effective_sample_size: f64,
+    minimum: f64,
+) -> ExternalRefusal {
+    builder(
+        antecedent_core::reason_code!("route_not_supported"),
+        "decision_reliability.effective_sample_size_too_small",
+    )
+    .offending(format!("{what}: effective sample size {effective_sample_size:.1}"))
+    .expected(format!("effective sample size of at least {minimum}"))
+    .remedy("draw more, or reduce serial dependence, before deriving intervals")
+    .build()
+}
+
 impl ReliabilityError {
     pub(crate) fn invalid(slot: &'static str, message: impl Into<String>) -> Self {
         Self::InvalidInput { slot, message: message.into() }
@@ -286,48 +347,15 @@ impl ReliabilityError {
                  coordinate; use the diagnostic fields",
             )
             .build(),
-            Self::ProducerPointOnly { producer, held } => match producer {
-                ProducerKind::CohortMeanDecision => builder(
-                    antecedent_core::reason_code!("joint_law_required"),
-                    "decision_reliability.producer_point_only",
-                )
-                .offending(format!("{}: holds {held}", producer.as_str()))
-                .remedy(
-                    "supply per-draw cohort utilities from one aligned joint law (for example \
-                     posterior draws of the effect model's coefficients mapped through the \
-                     cohort) with the stream they came from",
-                )
-                .build(),
-                ProducerKind::SequentialRollout | ProducerKind::SequentialOffPolicy => builder(
-                    antecedent_core::reason_code!("diagnostic_not_available"),
-                    "decision_reliability.producer_point_only",
-                )
-                .offending(format!("{}: holds {held}", producer.as_str()))
-                .remedy(
-                    "supply the per-rollout utilities or per-trajectory weighted returns the \
-                     estimate was computed from; a mean and its standard error carry neither \
-                     draws nor a stream",
-                )
-                .build(),
-            },
-            Self::ProducerMeanDisagrees { id, reported, draws_mean, standard_error } => builder(
-                antecedent_core::reason_code!("distribution_meaning_mismatch"),
-                "decision_reliability.producer_mean_disagrees",
-            )
-            .offending(format!(
-                "{id}: reported {reported} but the supplied draws average {draws_mean} \
-                 (standard error {standard_error})"
-            ))
-            .remedy("supply draws of the same quantity the producer reported, or drop the check")
-            .build(),
-            Self::EffectiveSampleSizeTooSmall { what, effective_sample_size, minimum } => builder(
-                antecedent_core::reason_code!("route_not_supported"),
-                "decision_reliability.effective_sample_size_too_small",
-            )
-            .offending(format!("{what}: effective sample size {effective_sample_size:.1}"))
-            .expected(format!("effective sample size of at least {minimum}"))
-            .remedy("draw more, or reduce serial dependence, before deriving intervals")
-            .build(),
+            Self::ProducerPointOnly { producer, held } => {
+                producer_point_only_refusal(producer, held)
+            }
+            Self::ProducerMeanDisagrees { id, reported, draws_mean, standard_error } => {
+                producer_mean_disagrees_refusal(id, *reported, *draws_mean, *standard_error)
+            }
+            Self::EffectiveSampleSizeTooSmall { what, effective_sample_size, minimum } => {
+                effective_sample_size_refusal(what, *effective_sample_size, *minimum)
+            }
             Self::RouteNotSupported { message } => builder(
                 antecedent_core::reason_code!("route_not_supported"),
                 "decision_reliability.route_not_supported",

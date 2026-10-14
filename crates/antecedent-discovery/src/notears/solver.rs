@@ -178,7 +178,7 @@ pub(crate) fn solve_notears(
             if cancelled() {
                 return Err(SolveFailure::Cancelled);
             }
-            lbfgs_minimize_al(x, n, d, cfg, alpha, rho, ws, cancelled)?;
+            lbfgs_minimize_al(x, n, d, cfg, (alpha, rho), ws, cancelled)?;
             h_val = h_of_w(&ws.w[..d * d], d, &mut ws.acyclicity)?;
             if !h_val.is_finite() {
                 return Err("NOTEARS acyclicity h(W) non-finite".into());
@@ -358,11 +358,11 @@ fn lbfgs_minimize_al(
     n: usize,
     d: usize,
     cfg: &SolverConfig,
-    alpha: f64,
-    rho: f64,
+    penalty: (f64, f64),
     ws: &mut NotearsWorkspace,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<(), SolveFailure> {
+    let (alpha, rho) = penalty;
     let n_free = ws.free_idx.len();
     if n_free == 0 {
         return Ok(());

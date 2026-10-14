@@ -1687,7 +1687,7 @@ mod tests {
         };
         let plan = check_composed_interval(&composed, Some(&record), construction).expect("plan");
         assert_eq!(plan.label, "measured_interval");
-        assert_eq!(plan.nominal_level, 0.9);
+        assert!((plan.nominal_level - 0.9).abs() < 1e-12);
         assert_eq!(plan.propagation.route, PropagationRoute::AlignedJointLaw);
 
         let reason = |record: &CoverageRecord, construction: &str| {
