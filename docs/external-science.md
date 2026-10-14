@@ -205,3 +205,15 @@ Refusal details retain their owning namespace: `external_response_binding`,
 `external_object_verification` or `external_trust_receipt`. These checks supply
 neither an interval nor sampling calibration for a CDF or quantile, and external
 trust remains external.
+
+## Law, posterior and nested callbacks
+
+A callback that supplies a law, a posterior or a composition of them (mean,
+draws, distribution function, quantile function and posterior update each
+negotiated separately) is declared through the same provider object identity
+and the same trust vocabulary, and as one instance of the interface-contract
+schema; it is not a fifth surface and has no registry of its own. Reuse follows
+its declared replay contract, planning and verification never invoke a
+side-effecting callback, and its results stay diagnostic unless replayable,
+complete and attested. See [provider-callbacks.md](provider-callbacks.md) and
+[callback-security.md](callback-security.md).
