@@ -1536,14 +1536,15 @@ def test_overlap_must_be_declared_and_double_counting_is_refused():
     assert len(independent.datasets) == len(tables)
     assert all(len(group) == 1 for group in independent.datasets)
 
-    # One dataset under two labels: identical observations are double counting
-    # when declared independent and one multinomial when declared shared.
+    # Equal aggregate counts do not establish shared observations when the
+    # physical snapshots differ.
     experiments = [i for i, t in enumerate(tables) if t.population == "source" and t.interventions]
     assert len(experiments) == 2
     original = tables[experiments[0]]
     twin = tables[experiments[1]]
-    copied = list(tables)
-    copied[experiments[1]] = transport.SampledCountTable(
+    assert original.snapshot_identity != twin.snapshot_identity
+    same_counts_distinct_snapshot = list(tables)
+    same_counts_distinct_snapshot[experiments[1]] = transport.SampledCountTable(
         twin.population,
         twin.regime,
         twin.axes,
@@ -1552,15 +1553,36 @@ def test_overlap_must_be_declared_and_double_counting_is_refused():
         interventions=twin.interventions,
         structural_zeros=original.structural_zeros,
     )
+    coincidentally_equal = _estimate(derivation, same_counts_distinct_snapshot)
+    assert len(coincidentally_equal.datasets) == len(same_counts_distinct_snapshot)
+
+    # One physical dataset under two labels is double counting when declared
+    # independent and one multinomial when declared shared.
+    same_snapshot = list(same_counts_distinct_snapshot)
+    same_snapshot[experiments[1]] = transport.SampledCountTable(
+        twin.population,
+        twin.regime,
+        twin.axes,
+        original.counts,
+        original.snapshot_identity,
+        interventions=twin.interventions,
+        structural_zeros=original.structural_zeros,
+    )
     with pytest.raises(CausalUnsupportedError) as raised:
-        _estimate(derivation, copied)
+        _estimate(derivation, same_snapshot)
     assert raised.value.reason_code == "evidence_double_counted"
     shared = transport.SamplingOverlap(
         default="independent",
-        pairs=((key(copied[experiments[0]]), key(copied[experiments[1]]), "shared_units"),),
+        pairs=(
+            (
+                key(same_snapshot[experiments[0]]),
+                key(same_snapshot[experiments[1]]),
+                "shared_units",
+            ),
+        ),
     )
-    grouped = _estimate(derivation, copied, overlap=shared)
-    assert len(grouped.datasets) == len(copied) - 1
+    grouped = _estimate(derivation, same_snapshot, overlap=shared)
+    assert len(grouped.datasets) == len(same_snapshot) - 1
 
 
 def test_uncited_missing_and_undersized_tables_are_refused_before_a_number():
