@@ -13,6 +13,23 @@
 //! the finite problem declares the confounder as the bidirected edge the
 //! fixture's shared latent cause stands for.
 //!
+//! Three entry points are checked against the finite obstruction: the
+//! transport entry point, `ComposedLinearGaussian::compile`, and (through the
+//! contract mirror of the same checker, outside this crate) the facade. They
+//! must give one verdict per diagram, with the analyst's invariance declaration
+//! present: a selection arrow into a variable is the statement that its
+//! mechanism differs, so the declaration cannot override it.
+//!
+//! The two refusals carry different reason codes by design, and the test pins
+//! the mapping: the composition refuses to *carry* a mechanism whose quantity
+//! semantics differ between populations (`quantity_semantics_mismatch`, a
+//! statement about the component), while the finite derivation *proves the
+//! effect non-transportable* from the declared evidence
+//! (`transport_proven_non_transportable`, an impossibility claim about the
+//! query). A missing source experiment is a legitimate difference: composition
+//! carries the outcome mechanism under its parametric premise, the finite
+//! derivation reports missing evidence.
+//!
 //! Needs `antecedent-identify` as a dev-dependency of this crate.
 
 mod transport_fixture;
@@ -29,11 +46,14 @@ use antecedent_identify::{
     CounterfactualTransportProblem, CounterfactualTransportQuery, CounterfactualTransportSource,
     identify_counterfactual_transport,
 };
-use antecedent_model::mechanism_transport::{
-    DETAIL_SELECTION_INTO_MECHANISM, MechanismTransportRequest, selection_targets,
-    transport_linear_gaussian,
+use antecedent_model::compose::{
+    ComposedLinearGaussian, ComposedModelSpec, CompositionError, PosteriorDependence,
+    SelectionDiagramDeclaration, SelectionNodeDeclaration,
 };
-use antecedent_model::compose::PosteriorDependence;
+use antecedent_model::mechanism_transport::{
+    DETAIL_SELECTION_INTO_LATENT, DETAIL_SELECTION_INTO_MECHANISM, MechanismTransportRequest,
+    selection_targets, transport_linear_gaussian,
+};
 use transport_fixture::{
     SOURCE, Selection, TARGET, VARIABLES, diagram, edges, outcome_invariance, source_x, source_y,
     target_context, target_x, variable_id,
@@ -167,4 +187,94 @@ fn both_views_depend_on_the_diagram_alone_not_on_the_label_of_the_selected_varia
         );
         assert_eq!(composition_refuses, finite_obstructed, "{selection:?}");
     }
+}
+
+fn compile_spec(selection_diagram: SelectionDiagramDeclaration) -> ComposedModelSpec {
+    ComposedModelSpec {
+        target: target_context(),
+        mechanisms: vec![target_x(), source_y()],
+        edges: edges(),
+        invariances: vec![outcome_invariance()],
+        selection_diagrams: vec![selection_diagram],
+        dependence: PosteriorDependence::Unknown,
+        admit_declared_mechanisms: false,
+    }
+}
+
+fn details(error: &CompositionError) -> Vec<&'static str> {
+    error.findings().iter().map(|f| f.detail).collect()
+}
+
+fn diagram_into(variable: &str) -> SelectionDiagramDeclaration {
+    SelectionDiagramDeclaration {
+        source_population: SOURCE.into(),
+        target_population: TARGET.into(),
+        selection_nodes: vec![SelectionNodeDeclaration {
+            name: "S".into(),
+            points_into: vec![variable.into()],
+        }],
+    }
+}
+
+#[test]
+fn the_compile_entry_point_agrees_with_the_transport_entry_point_and_the_finite_obstruction() {
+    for selection in Selection::ALL {
+        let compiled = ComposedLinearGaussian::compile(&compile_spec(diagram(selection)));
+        let transported = transport_linear_gaussian(&composition_request(selection));
+        let obstructed = matches!(
+            finite_decision(selection),
+            CounterfactualTransportDecision::ProvenNonTransportable(_)
+        );
+        assert_eq!(compiled.is_err(), obstructed, "compile {selection:?}");
+        assert_eq!(transported.is_err(), obstructed, "transport {selection:?}");
+        if let (Err(a), Err(b)) = (&compiled, &transported) {
+            assert_eq!(details(a), vec![DETAIL_SELECTION_INTO_MECHANISM], "{selection:?}");
+            assert_eq!(details(a), details(b), "{selection:?}");
+        }
+    }
+}
+
+#[test]
+fn a_selection_arrow_into_the_shared_latent_is_refused_by_both_entry_points() {
+    // The finite problem cannot express a selection node into a latent cause,
+    // so the oracle here is the stated rule: the latent's law differs in the
+    // target, and the mechanism that loads on it cannot be carried.
+    let latent = diagram_into("u");
+    let compiled = ComposedLinearGaussian::compile(&compile_spec(latent.clone())).unwrap_err();
+    assert_eq!(details(&compiled), vec![DETAIL_SELECTION_INTO_LATENT]);
+    assert_eq!(compiled.findings()[0].subject, "u:y");
+
+    let mut request = composition_request(Selection::TreatmentSelected);
+    request.diagram = latent;
+    let transported = transport_linear_gaussian(&request).unwrap_err();
+    assert_eq!(details(&transported), vec![DETAIL_SELECTION_INTO_LATENT]);
+}
+
+#[test]
+fn a_diagram_with_no_selection_node_carries_and_two_nodes_into_different_variables_refuse() {
+    // Vacuous diagram: nothing selected, the declared invariance covers the latent.
+    let mut vacuous = diagram(Selection::TreatmentSelected);
+    vacuous.selection_nodes.clear();
+    assert!(ComposedLinearGaussian::compile(&compile_spec(vacuous)).is_ok());
+
+    // Nodes into both x and y: x is refitted natively, y cannot be carried.
+    let mut both = diagram(Selection::TreatmentSelected);
+    both.selection_nodes.push(SelectionNodeDeclaration {
+        name: "S2".into(),
+        points_into: vec!["y".into()],
+    });
+    let err = ComposedLinearGaussian::compile(&compile_spec(both)).unwrap_err();
+    assert_eq!(details(&err), vec![DETAIL_SELECTION_INTO_MECHANISM]);
+    assert_eq!(err.findings()[0].subject, "y");
+}
+
+#[test]
+fn the_two_refusals_carry_the_documented_reason_codes() {
+    let selection = Selection::OutcomeSelected;
+    let refusal = transport_linear_gaussian(&composition_request(selection)).unwrap_err();
+    assert_eq!(refusal.findings()[0].kind.reason_code(), "quantity_semantics_mismatch");
+    assert_eq!(
+        finite_decision(selection).reason_code(),
+        Some("transport_proven_non_transportable")
+    );
 }

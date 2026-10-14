@@ -311,7 +311,9 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused() {
         details(&err),
         vec!["mechanism_composition.population_selection_arrow_into_mechanism"]
     );
-    // An explicit invariance assumption admits it regardless of the diagram.
+    // An invariance declaration contradicts the arrow and cannot override it:
+    // the diagram dominates, as in the transport entry point and the finite
+    // counterfactual obstruction.
     spec.invariances.push(InvarianceDeclaration {
         variable: "M".into(),
         coordinate: ContextCoordinate::Population,
@@ -319,6 +321,13 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused() {
         target: "pop".into(),
         assumption_id: "assumption:m-invariant".into(),
     });
+    let err = ComposedLinearGaussian::compile(&spec).unwrap_err();
+    assert_eq!(
+        details(&err),
+        vec!["mechanism_composition.population_selection_arrow_into_mechanism"]
+    );
+    // The same declaration admits it where the diagram is silent about M.
+    spec.selection_diagrams[0].selection_nodes[0].points_into = vec!["X".into()];
     assert!(ComposedLinearGaussian::compile(&spec).is_ok());
 
     // Regime: fitted under do(Z=1), composed in the observational regime.

@@ -21,6 +21,16 @@
 //! from the model's own fit, and an interval or law request is refused with the evidence
 //! that would license it ([`TransportedRequest`]).
 //!
+//! # Refresh with outcome-only data
+//!
+//! Nothing here refreshes in place: the value is a pure function of the retained model,
+//! the target cohort and the declaration. New outcome-only data in the model's own
+//! population means refitting the model, which is a new retained identity and a new value
+//! (recompute). The declaration and cohort are kept only by being passed again. Outcome
+//! data from the target population cannot move the issued value, because the cohort
+//! carries covariates and weights, not outcomes; it is refused as a different route
+//! (a natively fitted target model), never blended with the transported value.
+//!
 //! Every refusal names the unmet premise: a missing declaration
 //! (`transport_missing_evidence`), a declaration that does not match the model, the
 //! populations or the selection structure (`transport_not_certified`), no overlap or rows
@@ -612,6 +622,16 @@ pub fn transport_cohort_effect(
             "name every retained feature",
         ));
     }
+    {
+        let distinct: BTreeSet<&String> = feature_names.iter().collect();
+        if distinct.len() != feature_names.len() {
+            return Err(invalid(
+                "transported_effect.model_invalid",
+                "duplicate_feature_names",
+                "name each retained feature once; a repeated name would feed one cohort column to two model features",
+            ));
+        }
+    }
     let identity_link = match &effect.predictor.model {
         PredictionMap::Linear { logistic, .. } => !logistic,
         PredictionMap::Trees { logistic, probability, .. } => !logistic && !probability,
@@ -866,6 +886,32 @@ mod tests {
         assert_eq!(report.features[0].rows_outside, 1);
         assert_eq!(report.features[1].rows_outside, 1);
         assert_eq!((report.features[0].target_lo, report.features[0].target_hi), (0.2, 1.5));
+    }
+
+    #[test]
+    fn duplicate_model_feature_names_are_refused_before_any_column_is_read() {
+        // One cohort column would otherwise feed both model features.
+        let c = TargetCohort {
+            population_id: "clinic_b".into(),
+            row_ids: vec!["r0".into()],
+            features: vec!["z".into()],
+            columns: vec![vec![0.5]],
+            weights: vec![1.0],
+        };
+        let duplicated = vec!["z".to_owned(), "z".to_owned()];
+        let refusal = transport_cohort_effect(
+            &model(true),
+            &duplicated,
+            "model-1",
+            "clinic_a",
+            &c,
+            Some(&declaration()),
+            &ctx(),
+        )
+        .unwrap_err();
+        assert_eq!(refusal.code, "invalid_argument");
+        assert_eq!(refusal.detail, "transported_effect.model_invalid");
+        assert_eq!(refusal.subject, "duplicate_feature_names");
     }
 
     #[test]

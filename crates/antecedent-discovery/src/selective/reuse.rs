@@ -93,6 +93,16 @@
 //!   unique.
 //! * **Support range.** Coordinates outside the measured grid are outside the claim.
 //!
+//! # Refresh with outcome-only data
+//!
+//! A downstream claim is bound to the split receipt it was made under, and
+//! [`SampleSplitReceipt::check_analysis_table`] refuses an analysis table that is not the
+//! receipt's analysis rows. New outcome-only rows are therefore a new split: the receipt is
+//! recomputed with the declared fraction and seed, and the discovered graph and the
+//! downstream estimate are recomputed against it. Nothing is patched in place. Rows that
+//! both select and analyse are the reuse case and refuse an interval; a refresh never
+//! converts reuse into a split.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, VariableId};

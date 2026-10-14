@@ -31,6 +31,16 @@
 //! The finite-table obstruction and the composition refusal of this module are
 //! checked against one shared fixture in the crate's integration tests.
 //!
+//! # Refresh with outcome-only data
+//!
+//! The composed model is a pure function of the request, so there is no in-place
+//! refresh. New outcome-only data for a *source* mechanism is a refit with a new fit
+//! identity: carried components and the model identity are recomputed. New data for a
+//! target-native mechanism replaces that component and keeps the carried ones. The
+//! selection diagram and invariance declarations are kept only by being passed again;
+//! data cannot move them. A refit under another population, regime or quantity than the
+//! request names is refused (the diagram and context findings), never adopted.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -40,13 +50,14 @@ use antecedent_core::identity::CanonicalWriter;
 use crate::compose::coherence::CoherenceFinding;
 use crate::compose::{
     CoherenceKind, ComposedLinearGaussian, ComposedModelSpec, CompositionError,
-    FunctionalUncertainty, InvarianceDeclaration, MeanContrast, MechanismContext,
-    MechanismDescriptor, MechanismFamily, MechanismForm, MechanismOrigin, PosteriorDependence,
+    Domain, FunctionalUncertainty, InvarianceDeclaration, MeanContrast, MechanismContext,
+    MechanismDescriptor, MechanismFamily, MechanismForm, MechanismOrigin, ParameterTerm,
+    PosteriorDependence,
     SelectionDiagramDeclaration,
 };
 
 /// Version of the transport route's identity encoding.
-pub const MECHANISM_TRANSPORT_VERSION: u32 = 1;
+pub const MECHANISM_TRANSPORT_VERSION: u32 = 2;
 
 /// A carried mechanism is not a fitted one.
 pub const DETAIL_ORIGIN_NOT_FITTED: &str = "mechanism_transport.origin_not_fitted";
@@ -61,7 +72,8 @@ pub const DETAIL_TARGET_NOT_NATIVE: &str = "mechanism_transport.target_mechanism
 /// A variable has more than one mechanism in one role.
 pub const DETAIL_DUPLICATE_MECHANISM: &str = "mechanism_transport.duplicate_mechanism";
 /// A selection node points into a latent cause of a carried mechanism.
-pub const DETAIL_SELECTION_INTO_LATENT: &str = "mechanism_transport.selection_arrow_into_latent";
+pub const DETAIL_SELECTION_INTO_LATENT: &str =
+    crate::compose::coherence::DETAIL_SELECTION_INTO_LATENT;
 /// A selection node points into a carried mechanism's variable (the literal
 /// of the composition checker, so one defect has one name).
 pub const DETAIL_SELECTION_INTO_MECHANISM: &str =
@@ -309,6 +321,13 @@ pub fn transport_linear_gaussian(
         };
         if role == MechanismRole::Transported {
             check_carried(request, &targets, descriptor, &mut findings);
+        } else if descriptor.form.family() != MechanismFamily::LinearGaussian {
+            findings.push(finding(
+                CoherenceKind::Family,
+                DETAIL_FAMILY_UNSUPPORTED,
+                &descriptor.variable,
+                "this route executes additive-noise linear-Gaussian mechanisms only; decide a finite table with the finite counterfactual transport derivation",
+            ));
         }
         dispositions.push(MechanismDisposition {
             variable: variable.clone(),
@@ -402,6 +421,20 @@ fn check_carried(
     }
 }
 
+fn write_domain(w: &mut CanonicalWriter, domain: &Domain) {
+    match domain {
+        Domain::Real => {
+            w.word(0);
+        }
+        Domain::Interval { lo, hi } => {
+            w.word(1).real(*lo).real(*hi);
+        }
+        Domain::Levels(levels) => {
+            w.word(2).texts(levels);
+        }
+    }
+}
+
 fn identity_of(spec: &ComposedModelSpec, dispositions: &[MechanismDisposition]) -> [u8; 32] {
     let spec = spec.canonical();
     let mut w = CanonicalWriter::new(TAG_IDENTITY);
@@ -425,16 +458,48 @@ fn identity_of(spec: &ComposedModelSpec, dispositions: &[MechanismDisposition]) 
                     w.text(name).real(*coefficient);
                 }
             }
-            MechanismForm::Tabular { .. } => {
-                w.word(2);
+            MechanismForm::Tabular { levels, rows } => {
+                w.word(2).texts(levels).word(rows.len() as u64);
+                for row in rows {
+                    w.word(row.parent_levels.len() as u64);
+                    for (parent, level) in &row.parent_levels {
+                        w.text(parent).text(level);
+                    }
+                    w.word(row.probabilities.len() as u64);
+                    for (level, probability) in &row.probabilities {
+                        w.text(level).real(*probability);
+                    }
+                }
             }
         }
         w.text(&m.output_units).text(&m.output_transform);
+        write_domain(&mut w, &m.output_support);
+        w.texts(&m.conditioning_set);
+        match &m.uncertainty {
+            None => {
+                w.word(0);
+            }
+            Some(u) => {
+                w.word(1).word(u.meaning as u64).word(u.parameters.len() as u64);
+                for parameter in &u.parameters {
+                    match parameter {
+                        ParameterTerm::Intercept => {
+                            w.word(0);
+                        }
+                        ParameterTerm::Coefficient(name) => {
+                            w.word(1).text(name);
+                        }
+                    }
+                }
+                w.reals(&u.covariance);
+            }
+        }
         w.text(&m.context.population).text(&m.context.regime);
         w.text(&m.provenance.artifact_id).text(&m.provenance.evidence_id);
         w.word(m.parents.len() as u64);
         for p in &m.parents {
             w.text(&p.variable).text(&p.units).text(&p.transform);
+            write_domain(&mut w, &p.domain);
         }
         w.word(m.latents.len() as u64);
         for l in &m.latents {

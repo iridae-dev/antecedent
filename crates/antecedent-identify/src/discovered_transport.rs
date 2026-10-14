@@ -45,6 +45,15 @@
 //! * Selection targets are declared by the caller. They are never inferred from differences
 //!   between per-population discoveries.
 //!
+//! # Refresh with outcome-only data
+//!
+//! The envelope is derived on every call from the discovered class and the declared query;
+//! nothing is cached or updated in place. Outcome-only data does not change the class, so
+//! it keeps the envelope's content; a re-run discovery that yields a different class is a
+//! new input and the envelope is recomputed from it. An envelope for one class is never
+//! read as a statement about another, and the declared selection targets are kept only by
+//! being passed again.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{NodeRef, TransportQuery, VariableId};

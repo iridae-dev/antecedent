@@ -24,6 +24,7 @@ pub mod registry;
 pub mod sample;
 pub mod mechanism_transport;
 pub mod discretized_scm;
+pub mod discretized_scm_artifact;
 
 pub use basis::{BasisTerm, ParentBasis};
 pub use batch::{

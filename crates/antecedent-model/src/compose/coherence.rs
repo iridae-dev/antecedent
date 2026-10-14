@@ -730,6 +730,20 @@ fn check_units_transform_support(spec: &ComposedModelSpec, out: &mut Vec<Coheren
     }
 }
 
+/// Literal for a selection arrow into a latent cause a mechanism loads on.
+pub(crate) const DETAIL_SELECTION_INTO_LATENT: &str =
+    "mechanism_transport.selection_arrow_into_latent";
+
+/// Population admission of every mechanism.
+///
+/// A selection node pointing into a mechanism's variable (or into a latent
+/// cause it loads on) *is* the statement that the mechanism's law differs
+/// between the populations, so the diagram dominates: an analyst's invariance
+/// declaration for the same variable contradicts it and cannot override it.
+/// This is the same verdict the transport entry point and the finite
+/// counterfactual transport obstruction reach. An invariance declaration is
+/// what admits a mechanism that the diagram alone cannot cover (no diagram,
+/// or a shared latent cause the diagram does not mention).
 fn check_context(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
     for d in &spec.mechanisms {
         if d.context.population != spec.target.population {
@@ -740,33 +754,43 @@ fn check_context(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
                     && i.target == spec.target.population
                     && !blank(&i.assumption_id)
             });
-            if !invariant {
-                let diagrams: Vec<_> = spec
-                    .selection_diagrams
-                    .iter()
-                    .filter(|s| {
-                        s.source_population == d.context.population
-                            && s.target_population == spec.target.population
-                    })
-                    .collect();
-                let compare = |f: CoherenceFinding| {
-                    f.comparing(spec.target.population.clone(), d.context.population.clone())
-                };
+            let diagrams: Vec<_> = spec
+                .selection_diagrams
+                .iter()
+                .filter(|s| {
+                    s.source_population == d.context.population
+                        && s.target_population == spec.target.population
+                })
+                .collect();
+            let compare = |f: CoherenceFinding| {
+                f.comparing(spec.target.population.clone(), d.context.population.clone())
+            };
+            let selected = |name: &str| {
+                diagrams.iter().any(|s| {
+                    s.selection_nodes.iter().any(|n| n.points_into.iter().any(|v| v == name))
+                })
+            };
+            if selected(&d.variable) {
+                out.push(compare(CoherenceFinding::new(
+                    CoherenceKind::Population,
+                    "mechanism_composition.population_selection_arrow_into_mechanism",
+                    d.variable.clone(),
+                    "a selection node points into this variable, so its mechanism is not invariant; refit it in the target population (an invariance declaration cannot override the diagram it contradicts)",
+                )));
+            } else if let Some(l) = d.latents.iter().find(|l| selected(&l.latent)) {
+                out.push(compare(CoherenceFinding::new(
+                    CoherenceKind::Population,
+                    DETAIL_SELECTION_INTO_LATENT,
+                    format!("{}:{}", l.latent, d.variable),
+                    "a selection node points into a latent cause this mechanism loads on, so the latent's law differs in the target; refit the mechanism in the target population",
+                )));
+            } else if !invariant {
                 if diagrams.is_empty() {
                     out.push(compare(CoherenceFinding::new(
                         CoherenceKind::Population,
                         "mechanism_composition.population_undeclared_transport",
                         d.variable.clone(),
                         "declare a selection diagram or an invariance assumption for this mechanism, or refit it in the target population",
-                    )));
-                } else if diagrams.iter().any(|s| {
-                    s.selection_nodes.iter().any(|n| n.points_into.iter().any(|v| *v == d.variable))
-                }) {
-                    out.push(compare(CoherenceFinding::new(
-                        CoherenceKind::Population,
-                        "mechanism_composition.population_selection_arrow_into_mechanism",
-                        d.variable.clone(),
-                        "a selection node points into this variable, so its mechanism is not invariant; refit it in the target population",
                     )));
                 } else if !d.latents.is_empty() {
                     out.push(compare(CoherenceFinding::new(

@@ -59,6 +59,16 @@
 //! derived route, which inferential paradigm each route supports, and refuses
 //! the one a request names that the route does not.
 //!
+//! # Refresh with outcome-only data
+//!
+//! The bridge is immutable and keyed by its identity, which covers the source
+//! composition, the levels and the method. New outcome-only data refits the source
+//! mechanisms and therefore changes the source composition: the grid, the tables, the
+//! error bound and the identity are all recomputed by calling the bridge again, never
+//! patched. Level edges are never reused across a refit, and a prepared composition's
+//! refresh does not rebuild a bridge from it silently. The declared levels are kept only by
+//! being passed again.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;

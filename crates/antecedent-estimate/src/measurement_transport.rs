@@ -28,6 +28,17 @@
 //! correction reports is uncalibrated and conditional on the premise, and no interval is
 //! issued.
 //!
+//! # Refresh with outcome-only data
+//!
+//! A transported model is derived, never stored back: new validation data in the source
+//! population is a new [`MeasurementModel`] with a new identity, so the receipt and the
+//! re-bound model are recomputed from it (recompute). The invariance declaration is kept
+//! only by being passed again, and a declaration for a different source or target is
+//! refused, not adapted. Outcome-only data from the target population carries no
+//! validation information and moves neither the parameters nor the receipt; it is
+//! corrected through the issued model, and any change of regime, arm or population in
+//! that data is refused (`measurement_binding_mismatch`).
+//!
 //! Routes with nothing to carry are refused: replicated measurements re-estimate the error
 //! from the target's own replicates, and an external latent posterior is bound to its
 //! source snapshot.
@@ -318,6 +329,29 @@ fn established(model: &MeasurementModel, basis: TransportBasis) -> TransportedMe
 /// invariance carries the declared source's parameters, a declared population-differential
 /// error refuses, and no declaration refuses naming the premise that is missing.
 ///
+/// The model for `population`, preferring one whose regime and arm also match the data
+/// binding over the first one for the population. When several models exist for one
+/// population (for example one per arm or regime) the matching one is used rather than
+/// whichever was listed first; if none matches, the first for the population is returned
+/// so the binding check still names the mismatch.
+fn select_model<'a>(
+    models: &'a [MeasurementModel],
+    population: &str,
+    data: &DataBinding,
+) -> Option<&'a MeasurementModel> {
+    let mut for_population = models.iter().filter(|m| m.binding.population_id == population);
+    let first = for_population.clone().next();
+    for_population
+        .find(|m| {
+            m.binding.regime_id == data.regime_id
+                && match &m.binding.arm {
+                    ArmBinding::Arm(arm) => data.arm_id.as_deref() == Some(arm.as_str()),
+                    _ => true,
+                }
+        })
+        .or(first)
+}
+
 /// Order of refusal: well-formed models, target model, declaration present, declaration
 /// names the source and target, regime unchanged, route has something to carry, error
 /// structure poolable across populations, every required parameter declared invariant.
@@ -339,7 +373,7 @@ pub fn transport_measurement_model(
     for model in models {
         model.validate().map_err(|error| crate::measurement::model_error(&error))?;
     }
-    if let Some(own) = models.iter().find(|m| m.binding.population_id == data.population_id) {
+    if let Some(own) = select_model(models, &data.population_id, data) {
         let basis = match structure {
             Some(PopulationErrorStructure::Differential { declarer }) => {
                 TransportBasis::DifferentialEstablished { declarer: declarer.clone() }
@@ -384,9 +418,7 @@ pub fn transport_measurement_model(
             ),
         ));
     }
-    let Some(source) =
-        models.iter().find(|m| m.binding.population_id == declaration.source_population)
-    else {
+    let Some(source) = select_model(models, &declaration.source_population, data) else {
         return Err(refusal(
             antecedent_core::reason_code!("transport_not_certified"),
             "measurement_model.invariance_source_unknown",
@@ -626,6 +658,22 @@ mod tests {
             .apply(&data("clinic_b"), |m, d| correct_binary_prevalence(m, d, 520, 1000, &ctx()))
             .unwrap();
         assert!((out.corrected.result.corrected - 0.47 / 0.65).abs() < 1e-12);
+    }
+
+    #[test]
+    fn a_later_model_matching_the_regime_is_used_instead_of_the_first_for_the_population() {
+        // Two source models for one population, the first for another regime. The
+        // observational one (0.9 / 0.8) is selected; the 0.6 / 0.6 model is not borrowed.
+        let mut other_regime = model("clinic_a", 0.6, 0.6);
+        other_regime.binding.regime_id = "do(a=1)".into();
+        let models = [other_regime, model("clinic_a", 0.9, 0.8)];
+        let transported =
+            transport_measurement_model(&models, Some(&premise(&BOTH)), &data("clinic_b"))
+                .unwrap();
+        let out = transported
+            .apply(&data("clinic_b"), |m, d| correct_binary_prevalence(m, d, 520, 1000, &ctx()))
+            .unwrap();
+        assert!((out.corrected.result.corrected - 0.32 / 0.7).abs() < 1e-12);
     }
 
     #[test]

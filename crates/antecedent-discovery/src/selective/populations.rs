@@ -37,6 +37,15 @@
 //! The recorded design in [`super::claims`] and [`super::reuse`] applies per population.
 //! This route does not state an error rate for agreement between populations.
 //!
+//! # Refresh with outcome-only data
+//!
+//! There is no in-place refresh. New rows for one population are new rows with a new data
+//! identity: that population's run and the comparison report are recomputed, and the other
+//! populations' results are kept untouched because nothing is pooled. Rows relabelled as
+//! another population, or content-identical to another population's, are refused rather
+//! than absorbed. Outcome-only rows leave the declared contract and the structure edge
+//! alignment rule unchanged.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
