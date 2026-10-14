@@ -1463,6 +1463,33 @@ fn off_policy_refusals_positivity_duplicates_and_inconsistent_logs() {
     assert_eq!(err.detail, "sequential_evaluation.no_overlap");
 }
 
+#[test]
+fn off_policy_refuses_overflowed_returns_without_recording_the_log() {
+    let spec = base_spec(false);
+    let mut model = build(&spec);
+    model.actions[SHIP].utility_cost = f64::MAX;
+    let policy = policy_of("ship_only", &act_now_ship());
+    let log = [LoggedTrajectory {
+        id: "overflowing_return".into(),
+        steps: vec![LoggedStep { action: SHIP, observation: None, assignment_probability: 1.0 }],
+        outcome_utility: -f64::MAX,
+    }];
+    let mut ledger = EvidenceLedger::new();
+    let initial_state = ledger.state_digest();
+    let error = evaluate_off_policy(
+        &model,
+        &policy,
+        &policy,
+        &log,
+        &mut ledger,
+        EvaluationLimits::default(),
+        &ctx(),
+    )
+    .expect_err("a finite-input net return that overflows must be refused");
+    assert_eq!(error.detail, "sequential_evaluation.return_overflow");
+    assert_eq!(ledger.state_digest(), initial_state);
+}
+
 // ---------------------------------------------------------------------------
 // The replayable artifact
 // ---------------------------------------------------------------------------

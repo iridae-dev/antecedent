@@ -177,7 +177,19 @@ fn weigh(
                 ));
             }
             match target.probability(&history, step.action) {
-                Some(pi) => weight *= pi / logged,
+                Some(pi) => {
+                    weight *= pi / logged;
+                    if !weight.is_finite() {
+                        return Err(refusal!(
+                            "invalid_argument",
+                            "sequential_evaluation.importance_weight_overflow",
+                            format!(
+                                "trajectory `{id}` has a non-finite cumulative importance weight"
+                            ),
+                            "use a target and logging policy with numerically representable likelihood ratios, or reduce the horizon",
+                        ));
+                    }
+                }
                 None if weight > 0.0 => {
                     return Err(refusal!(
                         "invalid_argument",
@@ -196,6 +208,14 @@ fn weigh(
             return Err(inconsistent(id, "the trajectory exceeds the declared resource budget"));
         }
         cost += spec.utility_cost;
+        if !cost.is_finite() {
+            return Err(refusal!(
+                "invalid_argument",
+                "sequential_evaluation.return_overflow",
+                format!("trajectory `{id}` has a non-finite accumulated action cost"),
+                "rescale the action utility costs so the cumulative return is representable",
+            ));
+        }
         match spec.role {
             ActionRole::Commit => {
                 if step.observation.is_some() {
@@ -225,7 +245,16 @@ fn weigh(
             "the trajectory ends before a commit and before the horizon (censored trajectories are not evaluated)",
         ));
     }
-    Ok(Weighted { weight, ret: trajectory.outcome_utility - cost })
+    let ret = trajectory.outcome_utility - cost;
+    if !ret.is_finite() {
+        return Err(refusal!(
+            "invalid_argument",
+            "sequential_evaluation.return_overflow",
+            format!("trajectory `{id}` has a non-finite net return"),
+            "rescale the logged outcome and action costs so the net return is representable",
+        ));
+    }
+    Ok(Weighted { weight, ret })
 }
 
 /// Collect the ledger identities of every logged trajectory, action and
@@ -328,6 +357,14 @@ pub fn evaluate_off_policy(
         sum_w2 += weighted.weight * weighted.weight;
         sum_wg2 += product * product;
         max_weight = max_weight.max(weighted.weight);
+        if !(sum_wg.is_finite() && sum_w.is_finite() && sum_w2.is_finite() && sum_wg2.is_finite()) {
+            return Err(refusal!(
+                "invalid_argument",
+                "sequential_evaluation.weighted_sum_overflow",
+                "importance-weighted return sums exceeded the finite numeric range",
+                "rescale outcomes or use a policy with less extreme importance ratios",
+            ));
+        }
     }
     if sum_w <= 0.0 {
         return Err(refusal!(
@@ -378,13 +415,25 @@ pub fn evaluate_off_policy(
     }
     let records_counted = ids.len() as u64;
     let state = staged.state_digest().to_hex();
-    *ledger = staged;
     let nf = n as f64;
     let ordinary = sum_wg / nf;
     let uncalibrated_standard_error = (n > 1).then(|| {
         let variance = ((sum_wg2 - nf * ordinary * ordinary) / (nf - 1.0)).max(0.0);
         (variance / nf).sqrt()
     });
+    if !(ordinary.is_finite()
+        && self_normalized_is_finite(sum_wg, sum_w)
+        && max_weight.is_finite()
+        && uncalibrated_standard_error.is_none_or(f64::is_finite))
+    {
+        return Err(refusal!(
+            "invalid_argument",
+            "sequential_evaluation.weighted_estimate_overflow",
+            "the importance-weighted estimate or its numerical diagnostic is not finite",
+            "rescale outcomes or use a policy with less extreme importance ratios",
+        ));
+    }
+    *ledger = staged;
     Ok(OffPolicyEstimate {
         ordinary,
         self_normalized: sum_wg / sum_w,
@@ -403,4 +452,8 @@ pub fn evaluate_off_policy(
         ledger_state: state,
         inference: SEQUENTIAL_EVALUATION_INFERENCE,
     })
+}
+
+fn self_normalized_is_finite(sum_wg: f64, sum_w: f64) -> bool {
+    (sum_wg / sum_w).is_finite()
 }
