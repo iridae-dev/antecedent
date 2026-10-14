@@ -7,8 +7,9 @@
 //! raise as a typed exception. Nothing here pairs draws.
 
 use antecedent::analysis::cross_world_execution::{
-    CrossWorldExecutionArtifactError, CrossWorldExecutionError, CrossWorldExecutionIdentity,
-    FiniteExecutionResult, FiniteScmExecutor, capability_matrix,
+    CrossWorldExecution, CrossWorldExecutionArtifactError, CrossWorldExecutionError,
+    CrossWorldExecutionIdentity, FiniteExecutionResult, FiniteScmExecutor, SourceTreatment,
+    UnitSampling, WholePathAccount, capability_matrix,
 };
 use antecedent_io::cross_world_execution_artifact::{
     CrossWorldExecutionArtifact, CrossWorldRequestWire, request_of,
@@ -447,6 +448,150 @@ fn cross_world_consume(
     }
 }
 
+fn parse_unit_sampling(name: &str) -> Result<UnitSampling, String> {
+    match name {
+        "undeclared" => Ok(UnitSampling::Undeclared),
+        "fixed_units" => Ok(UnitSampling::FixedUnits),
+        "independent_sample" => Ok(UnitSampling::IndependentSample),
+        other => Err(invalid_json(
+            "cross_world_execution.invalid_request",
+            format!("unknown unit sampling `{other}`"),
+        )),
+    }
+}
+
+fn treatment_json(treatment: &SourceTreatment) -> Json {
+    match treatment {
+        SourceTreatment::Premise => json!({"kind": "premise"}),
+        SourceTreatment::Exact { observed_weight_defect } => {
+            json!({"kind": "exact", "observed_weight_defect": observed_weight_defect})
+        }
+        SourceTreatment::Propagated { variance } => {
+            json!({"kind": "propagated", "variance": variance})
+        }
+        SourceTreatment::NotApplicable(reason) => {
+            json!({"kind": "not_applicable", "reason": reason})
+        }
+        SourceTreatment::Unavailable(reason) => json!({"kind": "unavailable", "reason": reason}),
+    }
+}
+
+fn account_json(account: &WholePathAccount) -> String {
+    let u = account.uncertainty();
+    let inspection = account.inspect();
+    json!({
+        "label": u.label,
+        "unit_sampling": u.unit_sampling.name(),
+        "value": u.value,
+        "units": u.units.iter().map(|unit| json!({
+            "unit": unit.unit,
+            "value": unit.value,
+            "predictive_variance": unit.predictive_variance,
+        })).collect::<Vec<_>>(),
+        "realized_mean_predictive_variance": u.realized_mean_predictive_variance,
+        "realized_mean_standard_error": inspection.realized_mean_standard_error,
+        "unit_mean_sampling_variance": u.unit_mean_sampling_variance,
+        "unit_mean_standard_error": inspection.unit_mean_standard_error,
+        "sources": u.sources.iter().map(|s| json!({
+            "source": s.source.name(),
+            "treatment": treatment_json(&s.treatment),
+        })).collect::<Vec<_>>(),
+        "routes": u.routes,
+        "identity": u.identity,
+        "execution_receipt_digest": account.execution_receipt_digest(),
+    })
+    .to_string()
+}
+
+fn consume_for_account(
+    data: &[u8],
+    expected_identity_json: Option<&str>,
+    cancel: Option<PyCancellationToken>,
+) -> Result<(CrossWorldExecution, antecedent_core::ExecutionContext), String> {
+    let expected = match expected_identity_json {
+        Some(text) => match serde_json::from_str::<CrossWorldExecutionIdentity>(text) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                return Err(invalid_json("cross_world_execution.invalid_identity", e.to_string()));
+            }
+        },
+        None => None,
+    };
+    let ctx = execution_context(0, None, cancel);
+    CrossWorldExecution::consume(data, expected.as_ref(), &ctx)
+        .map(|execution| (execution, ctx))
+        .map_err(|error| artifact_refusal(&error))
+}
+
+/// The whole-path uncertainty account of a sealed execution, derived again from its bytes
+/// under a declared unit sampling: an uncalibrated spread, never an interval.
+#[pyfunction]
+#[pyo3(signature = (data, unit_sampling, expected_identity_json=None, cancel=None))]
+fn cross_world_whole_path(
+    data: &[u8],
+    unit_sampling: &str,
+    expected_identity_json: Option<&str>,
+    cancel: Option<PyCancellationToken>,
+) -> Refused<String> {
+    let sampling = match parse_unit_sampling(unit_sampling) {
+        Ok(s) => s,
+        Err(e) => return (None, Some(e)),
+    };
+    let (execution, ctx) = match consume_for_account(data, expected_identity_json, cancel) {
+        Ok(pair) => pair,
+        Err(e) => return (None, Some(e)),
+    };
+    match execution.whole_path_uncertainty(sampling, &ctx) {
+        Ok(account) => (Some(account_json(&account)), None),
+        Err(error) => (None, Some(core_refusal(&error))),
+    }
+}
+
+/// Derive the account again from the bytes and require it to equal a stored one: `None` when
+/// it does, the refusal JSON otherwise. A stored account is never trusted.
+#[pyfunction]
+#[pyo3(signature = (data, unit_sampling, account_identity, receipt_digest, expected_identity_json=None, cancel=None))]
+fn cross_world_whole_path_verify(
+    data: &[u8],
+    unit_sampling: &str,
+    account_identity: &str,
+    receipt_digest: &str,
+    expected_identity_json: Option<&str>,
+    cancel: Option<PyCancellationToken>,
+) -> Option<String> {
+    let sampling = match parse_unit_sampling(unit_sampling) {
+        Ok(s) => s,
+        Err(e) => return Some(e),
+    };
+    let (execution, ctx) = match consume_for_account(data, expected_identity_json, cancel) {
+        Ok(pair) => pair,
+        Err(e) => return Some(e),
+    };
+    match execution.whole_path_uncertainty(sampling, &ctx) {
+        Ok(account) => {
+            if account.uncertainty().identity == account_identity
+                && account.execution_receipt_digest() == receipt_digest
+            {
+                None
+            } else {
+                Some(
+                    json!({
+                        "code": antecedent_core::reason_code!("invalid_argument"),
+                        "stage": "cross_world_uncertainty",
+                        "detail": "cross_world_uncertainty.account_mismatch",
+                        "message": "the stored account differs from the derivation",
+                        "offending": Json::Null,
+                        "remedy": "derive the account from the consumed execution; a stored account is never trusted",
+                        "missing": Vec::<String>::new(),
+                    })
+                    .to_string(),
+                )
+            }
+        }
+        Err(error) => Some(core_refusal(&error)),
+    }
+}
+
 /// The refusal of an interval or posterior reading (always `cell_not_licensed`).
 #[pyfunction]
 fn cross_world_closed_reading(reading: &str) -> String {
@@ -479,6 +624,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(cross_world_decide, module)?)?;
     module.add_function(wrap_pyfunction!(cross_world_seal, module)?)?;
     module.add_function(wrap_pyfunction!(cross_world_consume, module)?)?;
+    module.add_function(wrap_pyfunction!(cross_world_whole_path, module)?)?;
+    module.add_function(wrap_pyfunction!(cross_world_whole_path_verify, module)?)?;
     module.add_function(wrap_pyfunction!(cross_world_closed_reading, module)?)?;
     Ok(())
 }

@@ -522,6 +522,21 @@ class InverseResult:
         """What the answer does and does not claim."""
         return str(self._body["scope_note"])
 
+    @property
+    def origin(self) -> Any:
+        """Where the point claim came from (:class:`antecedent.inverse_sources.ForwardOrigin`),
+        for an artifact sealed on a forward source; ``None`` otherwise.
+
+        The origin is bound into the artifact identity and re-derived on consume: a consumer
+        refuses an origin that does not describe the embedded claim.
+        """
+        raw = self._native.forward_origin_json
+        if raw is None:
+            return None
+        from .inverse_sources import ForwardOrigin
+
+        return ForwardOrigin._from_wire(json.loads(raw))
+
     def action(self, id: str) -> ActionReport:  # noqa: A002
         """The report of one action by id."""
         for report in self.actions:

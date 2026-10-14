@@ -23,15 +23,16 @@ use super::{
     composition_api, composition_bundle_api, composition_verification_api, counterfactual_id_api,
     cpdag_scenario_api, cross_world_api, cross_world_execution_api, decision_api,
     decision_reliability_api, default_user_threads, derived_treatment_api, descriptive_api,
-    design_api, design_ranking_api, discovery_api, distribution_api, dose_grid_api,
-    effect_constancy_api, effect_constancy_review_api, evidence_ledger_api, execution_attempt_api,
-    experiment_api, external_api, factorial_api, gcm_api, graph_io, graphs, interface_contract_api,
-    interference_saturation_api, inverse_outcome_api, inverse_query_api, joint_law_propagation_api,
-    joint_transport_api, latent_class_api, learned_continuous_api, learned_joint_api,
-    learned_trial_api, load_float64_arrow_c_columns, load_float64_columns,
-    matched_case_control_api, measured_inference_api, measurement_model_api,
-    mechanism_composition_api, mechanism_discrepancy_api, msm_sensitivity_api, nested_bayesian_api,
-    nested_fisher_api, nonlinear_mediation_api, observation_api, observation_query_api,
+    design_api, design_ranking_api, discovery_api, discretized_composition_api, distribution_api,
+    dose_grid_api, effect_constancy_api, effect_constancy_review_api, evidence_ledger_api,
+    execution_attempt_api, experiment_api, external_api, factorial_api, forward_source_api,
+    gcm_api, graph_io, graphs, interface_contract_api, interference_saturation_api,
+    inverse_outcome_api, inverse_query_api, joint_law_propagation_api, joint_transport_api,
+    latent_class_api, learned_continuous_api, learned_joint_api, learned_trial_api,
+    load_float64_arrow_c_columns, load_float64_columns, matched_case_control_api,
+    measured_inference_api, measurement_model_api, mechanism_composition_api,
+    mechanism_discrepancy_api, msm_sensitivity_api, nested_bayesian_api, nested_fisher_api,
+    nonlinear_mediation_api, observation_api, observation_query_api,
     observational_interference_api, policy_api, predictive_assessment_api, preflight_api,
     prepared_api, prior_bank, prior_signal_api, program_claims_api, proposal_arrival_api,
     provider_api, provider_callbacks_api, quasi_api, recalc_adjusted_api, recalc_api,
@@ -46,8 +47,9 @@ use super::{
     transport_admg_conditional_api, transport_counterfactual_api,
     transport_counterfactual_sampled_api, transport_exact_api, transport_grid_api,
     transport_interference_api, transport_joint_sensitivity_api, transport_mixed_api,
-    transport_mz_api, transport_scenario_api, transport_statistical_api, transport_z_api,
-    transported_counterfactual_api, value_err, vector_treatment_api,
+    transport_mz_api, transport_revalidation_api, transport_scenario_api,
+    transport_statistical_api, transport_z_api, transported_counterfactual_api,
+    transported_response_api, value_err, vector_treatment_api,
 };
 
 pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -85,6 +87,10 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     mechanism_discrepancy_api::register(m)?;
     inverse_outcome_api::register(m)?;
     inverse_query_api::register(m)?;
+    forward_source_api::register(m)?;
+    transported_response_api::register(m)?;
+    transport_revalidation_api::register(m)?;
+    discretized_composition_api::register(m)?;
     sensitivity_decision_api::register(m)?;
     sensitivity_source_api::register(m)?;
     transport_admg_conditional_api::register(m)?;

@@ -444,8 +444,10 @@ class CohortDecisionSource(ScientificResult):
     def forward_claim(self) -> MeanClaim:
         """The cohort mean as a forward claim of :mod:`antecedent.inverse_query`.
 
-        A source built under a declared covariate shift is refused
-        (``cohort_decision.inverse_shift_not_licensed``).
+        A source built under a declared covariate shift is a transported claim and is refused
+        (``cell_not_licensed``, ``inverse_forward_source.transported_not_accepted``); read it
+        through :func:`antecedent.inverse_sources.cohort_forward_source` with
+        ``accepts_transported=True`` so the result carries the transport identity.
         """
         from .inverse_query import MeanClaim
 

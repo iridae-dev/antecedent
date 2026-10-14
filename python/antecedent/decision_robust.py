@@ -214,6 +214,26 @@ class AdmissibleContract:
         """The same decision under different rules."""
         return AdmissibleContract(self.contract, rules)
 
+    def evaluate_transported(
+        self,
+        response: Any,
+        *,
+        analysis: Any,
+        demand: Literal["expected_utility", "law", "interval"] = "expected_utility",
+        support_policy: Any = None,
+    ) -> Any:
+        """Decide on a transported response under these admissibility rules.
+
+        Declared exclusions remove their action, a support rule the transported label does not
+        meet refuses, and an uncertainty requirement a point cannot meet refuses. See
+        :func:`antecedent.transported_response.evaluate_transported`.
+        """
+        from .transported_response import evaluate_transported
+
+        return evaluate_transported(
+            self, response, analysis=analysis, demand=demand, support_policy=support_policy
+        )
+
     def export(self, *, artifact_id: str = "admissible-decision-contract") -> bytes:
         """The contract and its rules as a portable artifact.
 

@@ -21,8 +21,14 @@ use antecedent::analysis::provider_callbacks::{
     refuse_identification_licence, refuse_interval, refuse_joint_law, refuse_native_trust,
     refuse_posterior_guarantee,
 };
-use antecedent_contract::evidence_ledger::SourceId;
-use antecedent_contract::interface_contract::{EvidenceBasis, SupportDomain, UncertaintyMeaning};
+use antecedent::analysis::transport_handoff::{
+    TransportHandoffRefusal, TransportedClaimOffer, TransportedInputPolicy, consume_for_callback,
+    hand_to_callback,
+};
+use antecedent_contract::evidence_ledger::{SourceId, TransportIdentity, parse_digest_hex};
+use antecedent_contract::interface_contract::{
+    CalibrationStatus, ContractOperation, EvidenceBasis, SupportDomain, UncertaintyMeaning,
+};
 use antecedent_contract::{ExternalRefusal, ProviderObjectIdentity, ScientificQuantity};
 use antecedent_core::{CancellationToken, ExecutionContext};
 use antecedent_io::quantity_wire::ScientificQuantityWire;
@@ -31,6 +37,7 @@ use pyo3::types::PyBytes;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value as Json, json};
 
+use crate::bridge::RefusalJson;
 use crate::measurement_model_api::parse;
 
 /// An exported record `(bytes, identity)` or the refusal JSON.
@@ -1107,6 +1114,172 @@ fn callback_closed_refusal(route: &str) -> PyResult<String> {
     Ok(refusal_json(&refusal).to_string())
 }
 
+// -- transported claim handoff -----------------------------------------------------------------
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TransportIdentityJson {
+    source_populations: Vec<String>,
+    target_population: String,
+    selection_diagram: String,
+    assumptions: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OfferJson {
+    component: String,
+    port: String,
+    quantity: ScientificQuantityWire,
+    semantic_identity: String,
+    support: SupportJson,
+    operations: Vec<String>,
+    uncertainty: Option<String>,
+    transport: TransportIdentityJson,
+    evidence: Vec<String>,
+}
+
+fn offer_of(text: &str) -> PyResult<TransportedClaimOffer> {
+    let value = parse(text, "transported claim offer")?;
+    let json: OfferJson =
+        serde_json::from_value(value).map_err(|error| bad("transported claim offer", error))?;
+    let mut operations = std::collections::BTreeSet::new();
+    for name in &json.operations {
+        operations
+            .insert(ContractOperation::from_name(name).ok_or_else(|| bad("operation", name))?);
+    }
+    let uncertainty = match &json.uncertainty {
+        None => None,
+        Some(name) => {
+            Some(UncertaintyMeaning::from_name(name).ok_or_else(|| bad("meaning", name))?.meaning)
+        }
+    };
+    let selection_diagram = parse_digest_hex(&json.transport.selection_diagram)
+        .ok_or_else(|| bad("selection diagram", "not a 64 hexadecimal digest"))?;
+    let mut evidence = std::collections::BTreeSet::new();
+    for hex in &json.evidence {
+        evidence.insert(
+            SourceId::from_hex(hex).ok_or_else(|| bad("evidence", "a source is not a digest"))?,
+        );
+    }
+    Ok(TransportedClaimOffer {
+        component: json.component,
+        port: json.port,
+        quantity: quantity_of(&json.quantity)?,
+        semantic_identity: json.semantic_identity,
+        support: support_of(&json.support)?,
+        operations,
+        uncertainty,
+        transport: TransportIdentity {
+            source_populations: json.transport.source_populations,
+            target_population: json.transport.target_population,
+            selection_diagram,
+            assumptions: json.transport.assumptions,
+        },
+        evidence,
+    })
+}
+
+fn handoff_summary(
+    identity: &str,
+    transport: &TransportIdentity,
+    calibration: &CalibrationStatus,
+    standing: &str,
+) -> Json {
+    let calibration = match calibration {
+        CalibrationStatus::None => "none",
+        CalibrationStatus::PointOnly => "point_only",
+        CalibrationStatus::Unmeasured => "unmeasured",
+        CalibrationStatus::Measured { .. } => "measured",
+        _ => "inherited",
+    };
+    json!({
+        "identity": identity,
+        "standing": standing,
+        "native_target_data": false,
+        "transport": {
+            "source_populations": transport.source_populations,
+            "target_population": transport.target_population,
+            "selection_diagram": transport.selection_diagram.to_hex(),
+            "assumptions": transport.assumptions,
+        },
+        "calibration": calibration,
+    })
+}
+
+fn handoff_refusal_json(error: &TransportHandoffRefusal) -> String {
+    RefusalJson::new(error.code, "transport_handoff", &error.detail, &error.message).json()
+}
+
+/// Seal a transported claim to one input of a callback and verify it against the callback's
+/// declaration: `((bytes, identity, summary json), refusal json)`.
+#[pyfunction]
+fn transport_handoff_seal(
+    py: Python<'_>,
+    offer_json: &str,
+    callback_json: &str,
+    input: &str,
+    accepts_transported: bool,
+    artifact_id: &str,
+) -> PyResult<Refused<(Py<PyBytes>, String, String)>> {
+    let offer = offer_of(offer_json)?;
+    let callback = declaration_of(callback_json)?;
+    let policy = if accepts_transported {
+        TransportedInputPolicy::AcceptsTransported
+    } else {
+        TransportedInputPolicy::NativeTargetOnly
+    };
+    let handoff = match hand_to_callback(&offer, &callback, input, policy) {
+        Ok(handoff) => handoff,
+        Err(error) => return Ok((None, Some(handoff_refusal_json(&error)))),
+    };
+    let bytes = match handoff.to_bytes(artifact_id) {
+        Ok(bytes) => bytes,
+        Err(error) => return Ok((None, Some(handoff_refusal_json(&error)))),
+    };
+    let calibration = handoff.artifact().handoff().connection().calibration.clone();
+    let summary = handoff_summary(
+        handoff.identity(),
+        handoff.transport(),
+        &calibration,
+        handoff.artifact().handoff().standing(),
+    );
+    Ok((
+        Some((
+            PyBytes::new(py, &bytes).unbind(),
+            handoff.identity().to_owned(),
+            summary.to_string(),
+        )),
+        None,
+    ))
+}
+
+/// Consume a handoff's bytes and verify them against the callback declaration the consumer
+/// holds: `(summary json, refusal json)`.
+#[pyfunction]
+#[pyo3(signature = (artifact, callback_json, expected_identity=None))]
+fn transport_handoff_consume(
+    artifact: &[u8],
+    callback_json: &str,
+    expected_identity: Option<&str>,
+) -> PyResult<Refused<String>> {
+    let callback = declaration_of(callback_json)?;
+    Ok(match consume_for_callback(artifact, expected_identity, &callback) {
+        Ok(consumed) => {
+            let summary = handoff_summary(
+                consumed.identity(),
+                consumed.transport(),
+                &consumed.handoff().connection().calibration,
+                consumed.handoff().standing(),
+            );
+            (Some(summary.to_string()), None)
+        }
+        Err(error) => (None, Some(handoff_refusal_json(&error))),
+    })
+}
+
+type Refused<T> = (Option<T>, Option<String>);
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<CallbackToken>()?;
     module.add_class::<CallbackSessionHandle>()?;
@@ -1116,5 +1289,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(callback_result_consume, module)?)?;
     module.add_function(wrap_pyfunction!(callback_result_inspect, module)?)?;
     module.add_function(wrap_pyfunction!(callback_closed_refusal, module)?)?;
+    module.add_function(wrap_pyfunction!(transport_handoff_seal, module)?)?;
+    module.add_function(wrap_pyfunction!(transport_handoff_consume, module)?)?;
     Ok(())
 }

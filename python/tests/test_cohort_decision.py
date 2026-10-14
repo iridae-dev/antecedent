@@ -335,7 +335,8 @@ def test_a_declared_shift_is_extrapolative_and_must_be_accepted(model) -> None:
     # An inverse query does not take a transported mean.
     with pytest.raises(cd.CohortDecisionRefusal) as inverse:
         source.forward_claim()
-    assert inverse.value.detail == "cohort_decision.inverse_shift_not_licensed"
+    assert inverse.value.reason_code == "cell_not_licensed"
+    assert inverse.value.detail == "inverse_forward_source.transported_not_accepted"
 
 
 def test_changed_rows_weights_cohort_wrong_parent_and_resealed_artifacts_are_refused(

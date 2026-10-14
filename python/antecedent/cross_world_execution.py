@@ -20,6 +20,16 @@ adequacy is a premise, not a check). Intervals, posteriors and a sampled abducti
 ``cell_not_licensed``. :meth:`CrossWorldExecution.to_bytes` writes ``cross_world_execution_v1``;
 :func:`consume_cross_world_execution_artifact` replays everything with a fresh executor and
 refuses any edit. Every number, identity and refusal is computed in Rust.
+
+**Whole-path uncertainty.** :meth:`CrossWorldExecution.whole_path_uncertainty` derives, from the
+sealed request and result under a *declared* unit sampling, the spread of the unit values on the
+abduction-action-prediction path: the enumerated posterior predictive variance of each unit, the
+variance of the realized-outcome mean and, for an independent sample, the sampling variance of
+the mean unit probability. Every source of uncertainty (structural, posterior, sampling,
+numerical) is listed with what the path does with it. The result is an ``uncalibrated_spread``:
+no measured coverage record exists for the path, so an interval or posterior reading stays
+closed. The account is derived from the artifact bytes, never trusted: another set of units,
+mechanisms, quantity or unit sampling is refused by :meth:`WholePathAccount.verify_against`.
 """
 
 from __future__ import annotations
@@ -28,7 +38,7 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from . import _native
 from ._refusal import StructuredRefusal, raise_refusal
@@ -50,6 +60,9 @@ __all__ = [
     "FactualUnit",
     "FiniteSCM",
     "FiniteVariable",
+    "SourceAccount",
+    "UnitSpread",
+    "WholePathAccount",
     "World",
     "WorldRoute",
     "capability_matrix",
@@ -504,6 +517,29 @@ class CrossWorldExecution(ScientificResult):
         """Always raises ``cell_not_licensed``: no whole-path calibration record exists."""
         _refuse(_native.cross_world_closed_reading("posterior"))
 
+    def whole_path_uncertainty(
+        self,
+        unit_sampling: Literal["fixed_units", "independent_sample"],
+        *,
+        cancel: Any = None,
+    ) -> WholePathAccount:
+        """The uncalibrated whole-path spread of this execution under a declared unit sampling.
+
+        ``fixed_units``: the units are the whole set the claim is about; the mean is the
+        estimand and has no sampling variance. ``independent_sample``: the units are an
+        independent sample of a population and the claim is about the population mean of the unit
+        probabilities. The derivation re-abduces and re-predicts every unit from the sealed
+        request and requires every unit value and the mean to equal the executed result bit for
+        bit.
+
+        Raises:
+            CrossWorldExecutionRefusal: undeclared unit sampling
+                (``sampling_dependence_unknown``), a sampled or transported request
+                (``cell_not_licensed``), a coupling the joint-law rule does not license, units
+                with shared evidence declared independent, an exceeded bound, or cancellation.
+        """
+        return _whole_path(self, unit_sampling, cancel)
+
 
 def seal(
     request: CrossWorldRequest, *, artifact_id: str = "cross-world-execution", cancel: Any = None
@@ -544,3 +580,121 @@ def consume_cross_world_execution_artifact(
     _refuse(refusal)
     assert summary is not None
     return _consumed(summary)
+
+
+# --------------------------------------------------------------------------- whole path
+
+
+@dataclass(frozen=True, slots=True)
+class UnitSpread:
+    """One unit's counterfactual quantity ``value`` and its predictive variance under the
+    unit's exogenous posterior with shared exogenous states."""
+
+    unit: str
+    value: float
+    predictive_variance: float
+
+
+@dataclass(frozen=True, slots=True)
+class SourceAccount:
+    """One source of uncertainty and what the path does with it.
+
+    ``treatment`` is ``premise`` (declared, not propagated, not estimable by this row),
+    ``exact`` (exact by enumeration, with the observed weight defect), ``propagated`` (into a
+    ``variance``), ``not_applicable`` or ``unavailable`` (both with a ``reason``).
+    """
+
+    source: Literal["structural", "posterior", "sampling", "numerical"]
+    treatment: Mapping[str, Any]
+
+
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class WholePathAccount(ScientificResult):
+    """The whole-path uncertainty account of an executed cross-world row.
+
+    ``label`` is always ``uncalibrated_spread``: a labelled diagnostic, never an interval or a
+    posterior. ``value`` is the mean of the unit values (identical to the executed result);
+    ``realized_mean_predictive_variance`` is ``sum v_i / n^2`` and
+    ``unit_mean_sampling_variance`` is ``s^2 / n`` of the unit values, present only for an
+    independent sample of at least two units. ``execution_receipt_digest`` binds the account to
+    the execution it was derived from.
+    """
+
+    label: str
+    unit_sampling: str
+    value: float
+    units: tuple[UnitSpread, ...]
+    realized_mean_predictive_variance: float
+    realized_mean_standard_error: float
+    unit_mean_sampling_variance: float | None
+    unit_mean_standard_error: float | None
+    sources: tuple[SourceAccount, ...]
+    routes: tuple[str, ...]
+    identity: str
+    execution_receipt_digest: str
+
+    def source(self, name: str) -> SourceAccount:
+        """The account of one source."""
+        for item in self.sources:
+            if item.source == name:
+                return item
+        raise CausalValueError(f"no uncertainty source {name!r}")
+
+    def verify_against(self, execution: CrossWorldExecution, *, cancel: Any = None) -> None:
+        """Derive the account again from ``execution`` and require it to equal this one.
+
+        A stored account of other units, mechanisms, quantity or unit sampling is refused
+        (``cross_world_uncertainty.account_mismatch``), never annotated.
+        """
+        if not isinstance(execution, CrossWorldExecution):
+            raise CausalTypeError("execution must be a CrossWorldExecution")
+        _refuse(
+            _native.cross_world_whole_path_verify(
+                execution.to_bytes(),
+                self.unit_sampling,
+                self.identity,
+                self.execution_receipt_digest,
+                json.dumps(dict(execution.identity)),
+                cancel,
+            )
+        )
+
+    def interval(self) -> None:
+        """Always raises ``cell_not_licensed``: a spread is not an interval."""
+        _refuse(_native.cross_world_closed_reading("interval"))
+
+    def posterior(self) -> None:
+        """Always raises ``cell_not_licensed``: a spread is not a posterior."""
+        _refuse(_native.cross_world_closed_reading("posterior"))
+
+
+def _whole_path(
+    execution: CrossWorldExecution, unit_sampling: str, cancel: Any
+) -> WholePathAccount:
+    if unit_sampling not in ("fixed_units", "independent_sample", "undeclared"):
+        raise CausalValueError(
+            f"unit_sampling is 'fixed_units' or 'independent_sample'; got {unit_sampling!r}"
+        )
+    payload, refusal = _native.cross_world_whole_path(
+        execution.to_bytes(), unit_sampling, json.dumps(dict(execution.identity)), cancel
+    )
+    _refuse(refusal)
+    assert payload is not None
+    info = json.loads(payload)
+    return WholePathAccount(
+        label=str(info["label"]),
+        unit_sampling=str(info["unit_sampling"]),
+        value=float(info["value"]),
+        units=tuple(
+            UnitSpread(u["unit"], float(u["value"]), float(u["predictive_variance"]))
+            for u in info["units"]
+        ),
+        realized_mean_predictive_variance=float(info["realized_mean_predictive_variance"]),
+        realized_mean_standard_error=float(info["realized_mean_standard_error"]),
+        unit_mean_sampling_variance=info["unit_mean_sampling_variance"],
+        unit_mean_standard_error=info["unit_mean_standard_error"],
+        sources=tuple(SourceAccount(s["source"], dict(s["treatment"])) for s in info["sources"]),
+        routes=tuple(info["routes"]),
+        identity=str(info["identity"]),
+        execution_receipt_digest=str(info["execution_receipt_digest"]),
+    )

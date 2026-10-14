@@ -176,6 +176,11 @@ pub(crate) struct PyInverseQueryArtifact {
 }
 
 impl PyInverseQueryArtifact {
+    /// An artifact sealed on a licensed forward source; its origin is bound in.
+    pub(crate) fn from_sealed(artifact: InverseQueryArtifact) -> Self {
+        Self { artifact, source_claims: Vec::new(), external_sources: Vec::new() }
+    }
+
     fn with_sources(&self) -> PyResult<InverseQueryArtifact> {
         if self.source_claims.is_empty() && self.external_sources.is_empty() {
             return Ok(self.artifact.clone());
@@ -377,6 +382,15 @@ impl PyInverseQueryArtifact {
     fn query_json(&self) -> PyResult<String> {
         serde_json::to_string(&InverseQueryWire::from_query(self.artifact.query()))
             .map_err(serialization)
+    }
+
+    /// Where the point claim came from, as JSON, when the artifact carries an origin.
+    #[getter]
+    fn forward_origin_json(&self) -> PyResult<Option<String>> {
+        self.artifact
+            .forward_origin()
+            .map(|origin| serde_json::to_string(origin).map_err(serialization))
+            .transpose()
     }
 
     /// The decision contract declaring the actions, as normalized JSON.

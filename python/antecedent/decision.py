@@ -618,6 +618,26 @@ class Contract:
         assert result is not None
         return Decision(self, source, json.loads(result))
 
+    def evaluate_transported(
+        self,
+        response: Any,
+        *,
+        analysis: Any,
+        demand: Literal["expected_utility", "law", "interval"] = "expected_utility",
+        support_policy: Any = None,
+    ) -> Any:
+        """Decide on a :class:`~antecedent.transported_response.TransportedResponse`.
+
+        The result is a :class:`~antecedent.transported_response.TransportedDecision` that names
+        the transport beside every number and is never presented as a decision on native
+        target data. See :func:`antecedent.transported_response.evaluate_transported`.
+        """
+        from .transported_response import evaluate_transported
+
+        return evaluate_transported(
+            self, response, analysis=analysis, demand=demand, support_policy=support_policy
+        )
+
     def export(self, *, artifact_id: str = "decision-contract") -> bytes:
         return bytes(_export_contract(json.dumps(self._wire()), artifact_id))
 

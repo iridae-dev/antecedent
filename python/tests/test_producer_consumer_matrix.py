@@ -68,8 +68,10 @@ from antecedent import composition_bundle as cb
 from antecedent import cross_world_execution as cwx
 from antecedent import decision_reliability as dreliab
 from antecedent import design as dr
+from antecedent import discretized_composition as dcomp
 from antecedent import evidence_ledger as el
 from antecedent import inverse_query as iq
+from antecedent import inverse_sources as isrc
 from antecedent import joint_law_propagation as jlp
 from antecedent import measurement_models as mm
 from antecedent import mechanism_composition as mc
@@ -77,6 +79,7 @@ from antecedent import observation_query as oq
 from antecedent import predictive_assessment as pa
 from antecedent import sensitivity_decision as sd
 from antecedent import sequential_evaluation as seqeval
+from antecedent import transported_response as trr
 from antecedent.compact_export import CompactExport, Intercept, Linear, Numeric, Power, Quantity
 from antecedent.errors import (
     CausalSerializationError,
@@ -100,6 +103,7 @@ from antecedent.results.response import (
     CausalResponseView,
 )
 from antecedent.transport import advanced as transport
+from antecedent.transport import sensitivity as transport_sensitivity
 
 from _refusal import assert_registered_refusal
 from _repo_text import REPO_ROOT
@@ -138,6 +142,9 @@ PRODUCERS: tuple[str, ...] = (
     "selective_discovery_result",
     "cross_world_execution_result",
     "callback_result",
+    "transported_response",
+    "discretized_composition",
+    "whole_path_account",
 )
 CONSUMERS: tuple[str, ...] = (
     "decision",
@@ -1020,6 +1027,9 @@ def _object(producer: str, o: Objs) -> object:
         "selective_discovery_result": _discovered().outcome,
         "cross_world_execution_result": _crossed(),
         "callback_result": _callbacked().execution,
+        "transported_response": _carried(),
+        "discretized_composition": _discretized(),
+        "whole_path_account": _whole_path(),
     }[producer]
 
 
@@ -1753,6 +1763,9 @@ def _recalc_stage(producer: str, o: Objs) -> tuple[Stage, str]:
             _crossed().identity["receipt_digest"],
         ),
         "callback_result": (Stage.EVIDENCE, _callbacked().exported.expectation.identity),
+        "transported_response": (Stage.EVIDENCE, _carried().identity),
+        "discretized_composition": (Stage.EVIDENCE, _discretized().identity),
+        "whole_path_account": (Stage.EVIDENCE, _whole_path().identity),
     }[producer]
 
 
@@ -2929,6 +2942,214 @@ def _check_crossed_inverse(o: Objs) -> None:
     _check_raw_rejected(_crossed(), feeders=_INVERSE_FEEDERS)
 
 
+# ------------------------------------------- transported response, discretization, whole path
+
+
+@lru_cache(maxsize=1)
+def _carried() -> trr.TransportedResponse:
+    """The mean of ``effect`` in ``clinic_b`` carried from ``trial``: ``2.0``."""
+    quantity = _declared_quantity(
+        "effect", "contrast:do(t=1)-do(t=0)", units="units", population="clinic_b"
+    )
+    return trr.TransportedResponse.declared_point(
+        [quantity],
+        [2.0],
+        trr.TransportDeclaration(
+            route="declared",
+            source_identity="transport-1",
+            source_populations=("trial",),
+            target_population="clinic_b",
+            transport_identities=("diagram-1",),
+            assumptions=("selection acts on age only",),
+            provider_id="transport-provider",
+            snapshot_id="snapshot-1",
+            causal_contract_id="contract-1",
+        ),
+    )
+
+
+def _carried_contract() -> decision.Contract:
+    """``treat`` earns ``4 x - 1.5`` (``6.5`` at ``x = 2``); ``wait`` earns ``0``."""
+    quantity = _carried().coordinates[0]
+    return decision.Contract(
+        actions=(
+            decision.Action("treat", inputs=(quantity,), utility=decision.x(0) * 4.0 - 1.5),
+            decision.Action("wait", inputs=(quantity,), utility=decision.x(0) * 0.0),
+        ),
+        utility_units="utility",
+        criterion=decision.Criterion.expected_utility(),
+        target_population="clinic_b",
+    )
+
+
+@lru_cache(maxsize=1)
+def _analysis() -> Any:
+    """A prepared static ATE analysis: the causal contract a transported decision binds to."""
+    from _scm import confounded_scm
+
+    data, edges = confounded_scm(n=200, seed=31)
+    return ac.estimation.PreparedAnalysis.prepare(
+        data, query=ac.AverageEffect(treatment="t", outcome="y"), graph=edges, refute=False, seed=1
+    )
+
+
+def _check_carried_decision(o: Objs) -> None:
+    response = _carried()
+    contract = _carried_contract()
+    decided = contract.evaluate_transported(
+        response, analysis=_analysis(), support_policy=comp.SupportPolicy.require_all("extrapolative")
+    )
+    by_id = {a.id: a for a in decided.outcomes}
+    assert by_id["treat"].expected_utility == pytest.approx(6.5, abs=1e-12)
+    assert by_id["wait"].expected_utility == pytest.approx(0.0, abs=1e-12)
+    assert decided.verdict.selected == "treat"
+    assert decided.native_target_data is False and decided.inference == "point_only"
+    assert decided.receipt.target_population == "clinic_b"
+    # The default policy refuses the extrapolative label; a law and an interval are refused.
+    with pytest.raises(decision.DecisionRefusal) as unaccepted:
+        contract.evaluate_transported(response, analysis=_analysis())
+    assert unaccepted.value.detail == "transported_decision.transported_not_accepted"
+    assert_registered_refusal(unaccepted.value)
+    with pytest.raises(decision.DecisionRefusal) as law:
+        contract.evaluate_transported(
+            response,
+            analysis=_analysis(),
+            demand="law",
+            support_policy=comp.SupportPolicy.require_all("extrapolative"),
+        )
+    assert law.value.detail == "transported_decision.law_not_supplied"
+    # The raw response is no source of the other entry points.
+    _check_raw_rejected(response, feeders=_DECISION_FEEDERS)
+
+
+def _check_carried_inverse(o: Objs) -> None:
+    response = _carried()
+    contract = _carried_contract()
+    source = isrc.transported_forward_source(response, accepts_transported=True)
+    answered = source.evaluate(iq.InverseQuery(contract, ("wait", "treat"), (iq.target_mean(5.0),)))
+    # 4 * 2 - 1.5 = 6.5 >= 5 keeps `treat`; `wait` earns 0.
+    assert answered.feasible_actions == ("treat",)
+    assert answered.origin.transported and answered.origin.support == "extrapolative"
+    with pytest.raises(iq.InverseQueryRefusal) as native:
+        isrc.transported_forward_source(response)
+    assert native.value.detail == "inverse_forward_source.transported_not_accepted"
+    assert_registered_refusal(native.value)
+    with pytest.raises(iq.InverseQueryRefusal) as quantile:
+        source.evaluate(iq.InverseQuery(contract, ("wait", "treat"), (iq.target_quantile(0.5, 0.5),)))
+    assert quantile.value.detail == "inverse_forward_source.point_only_law_requested"
+    _check_raw_rejected(response, feeders=_INVERSE_FEEDERS)
+
+
+def _check_carried_sensitivity(o: Objs) -> None:
+    response = _carried()
+    reference = _declared_quantity(
+        "keep", "contrast:do(t=1)-do(t=0)", units="units", population="clinic_b"
+    )
+    result = transport_sensitivity.transport_sensitivity(
+        response,
+        family="additive_shift",
+        bound=0.5,
+        grid_points=3,
+        reference=reference,
+        reference_value=1.0,
+        route="cohort_decision",
+    )
+    # An additive bound of 0.5 on three points of [0, 0.5] about 2.0: [2, 2], [1.75, 2.25],
+    # [1.5, 2.5]; the reference 1.0 lies below the whole range.
+    assert result.lower == pytest.approx((2.0, 1.75, 1.5), abs=1e-12)
+    assert result.upper == pytest.approx((2.0, 2.25, 2.5), abs=1e-12)
+    artifact = result.artifact
+    decided = sd.decide(artifact.contract(), artifact)
+    assert decided.kind == "invariant_action"
+    assert decided.invariant_action == artifact.outcome.action
+    _check_raw_rejected(response, feeders=(_feed_sensitivity,))
+
+
+@lru_cache(maxsize=1)
+def _discretized() -> dcomp.PreparedDiscretizedComposition:
+    """``X = 1 + 2 e``, ``M = 0.5 + 2 X + e``, ``Y = -1 + 0.5 X + 3 M + 0.5 e`` on four cells."""
+
+    def quantity(variable: str) -> mc.Quantity:
+        return mc.Quantity(variable, units="u", population_id="pop")
+
+    def mechanism(variable: str, intercept: float, sigma: float, parents=()) -> mc.Mechanism:
+        declaration = mc.MechanismDeclaration(
+            output=quantity(variable),
+            parents=tuple(quantity(p) for p, _ in parents),
+            artifact_id=f"fit:{variable}",
+            evidence_id=f"data:{variable}",
+        )
+        return mc.Mechanism.declared_linear(
+            declaration, intercept=intercept, sigma=sigma, coefficients=dict(parents)
+        )
+
+    composition = mc.compose_mechanisms(
+        [
+            mechanism("X", 1.0, 2.0),
+            mechanism("M", 0.5, 1.0, [("X", 2.0)]),
+            mechanism("Y", -1.0, 0.5, [("X", 0.5), ("M", 3.0)]),
+        ],
+        target_population_id="pop",
+        admit_declared_mechanisms=True,
+    )
+    return composition.discretize(4)
+
+
+def _check_discretized_is_a_point(o: Objs) -> None:
+    discretized = _discretized()
+    values = discretized.variable("X").level_values
+    result = discretized.mean_contrast(dcomp.DiscreteContrast.ate("Y", "X", high=3, low=0))
+    # E[Y | do(X = v)] = 0.5 + 6.5 v, so the top-minus-bottom contrast is 6.5 (v3 - v0).
+    assert result.closed_form == pytest.approx(6.5 * (values[3] - values[0]), abs=1e-9)
+    assert result.absolute_error <= result.error_bound + 1e-9
+    for paradigm in ("frequentist", "bayesian"):
+        with pytest.raises(dcomp.DiscretizedCompositionRefusal) as closed:
+            discretized.uncertainty(paradigm)
+        assert closed.value.reason_code == "cell_not_licensed"
+        assert closed.value.detail == "discretized_scm.point_only"
+    _check_raw_rejected(discretized, feeders=_DECISION_FEEDERS + _INVERSE_FEEDERS)
+
+
+@lru_cache(maxsize=1)
+def _whole_path() -> cwx.WholePathAccount:
+    """The response-type model of the whole-path oracle: mean ``169/210`` over three units."""
+    scm = cwx.FiniteSCM(
+        population="pop-a",
+        history="regime-1",
+        exogenous=(
+            cwx.ExogenousTerm("u_x", (0.6, 0.4)),
+            cwx.ExogenousTerm("u_y", (0.2, 0.5, 0.1, 0.2)),
+        ),
+        variables=(
+            cwx.FiniteVariable("x", 2, (), "u_x", (0, 1)),
+            cwx.FiniteVariable("y", 2, ("x",), "u_y", (0, 0, 0, 1, 1, 0, 1, 1)),
+        ),
+    )
+    request = cwx.CrossWorldRequest(
+        scm=scm,
+        units=(
+            cwx.FactualUnit("case", {"x": 1, "y": 1}),
+            cwx.FactualUnit("clean", {"x": 0, "y": 0}),
+            cwx.FactualUnit("open"),
+        ),
+        worlds=(cwx.World("x0", {"x": 0}), cwx.World("x1", {"x": 1})),
+        quantity=cwx.probability("x0", "y", 0),
+    )
+    return cwx.seal(request).whole_path_uncertainty("independent_sample")
+
+
+def _check_account_is_a_spread(o: Objs) -> None:
+    account = _whole_path()
+    assert account.label == "uncalibrated_spread"
+    assert account.value == pytest.approx(169 / 210, abs=1e-12)
+    assert account.realized_mean_predictive_variance == pytest.approx(2029 / 44100, abs=1e-12)
+    for closed in (account.interval, account.posterior):
+        with pytest.raises(cwx.CrossWorldExecutionRefusal) as refused:
+            closed()
+        assert refused.value.reason_code == "cell_not_licensed"
+    _check_raw_rejected(account, feeders=_DECISION_FEEDERS + _INVERSE_FEEDERS)
+
+
 CHECKS: dict[tuple[str, str], Check] = {
     ("native_response", "decision"): _check_native_decision,
     ("native_response", "inverse_query"): _check_native_inverse,
@@ -2974,6 +3195,9 @@ CHECKS: dict[tuple[str, str], Check] = {
     ("propagated_claim", "inverse_query"): _check_propagated_inverse,
     ("cross_world_execution_result", "decision"): _check_crossed_decision,
     ("cross_world_execution_result", "inverse_query"): _check_crossed_inverse,
+    ("transported_response", "decision"): _check_carried_decision,
+    ("transported_response", "inverse_query"): _check_carried_inverse,
+    ("transported_response", "sensitivity_decision"): _check_carried_sensitivity,
 }
 #: Further checks of a REFUSED cell, beyond feeding every entry point of the consumer.
 REFUSED_EXTRAS: dict[tuple[str, str], Check] = {
@@ -3002,6 +3226,8 @@ REFUSED_EXTRAS: dict[tuple[str, str], Check] = {
     )
 }
 REFUSED_EXTRAS[("dependence_envelope", "decision")] = _check_envelope_is_not_a_source
+REFUSED_EXTRAS[("discretized_composition", "decision")] = _check_discretized_is_a_point
+REFUSED_EXTRAS[("whole_path_account", "decision")] = _check_account_is_a_spread
 
 
 def _run_cell(producer: str, consumer: str, o: Objs) -> None:
@@ -3025,10 +3251,10 @@ def test_producer_consumer_matrix_declares_every_cell_once_and_counts_them() -> 
     assert set(STATUS) == set(PRODUCERS)
     assert all(len(row) == len(CONSUMERS) for row in STATUS.values())
     cells = [status for row in STATUS.values() for status in row]
-    assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 240
-    assert cells.count("DIRECT") == 18
-    assert cells.count("ADAPTER") == 55
-    assert cells.count("REFUSED") == 167
+    assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 264
+    assert cells.count("DIRECT") == 19
+    assert cells.count("ADAPTER") == 60
+    assert cells.count("REFUSED") == 185
     assert set(cells) == {"DIRECT", "ADAPTER", "REFUSED"}
     # Every non-refused cell has a check; the only shared one is the recalc adapter.
     for producer in PRODUCERS:
@@ -3348,3 +3574,18 @@ def test_producer_consumer_matrix_sequential_policy_evaluation_row(
     consumer: str, objs: Objs
 ) -> None:
     _run_cell("sequential_policy_evaluation", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_transported_response_row(consumer: str, objs: Objs) -> None:
+    _run_cell("transported_response", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_discretized_composition_row(consumer: str, objs: Objs) -> None:
+    _run_cell("discretized_composition", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_whole_path_account_row(consumer: str, objs: Objs) -> None:
+    _run_cell("whole_path_account", consumer, objs)

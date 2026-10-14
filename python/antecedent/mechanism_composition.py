@@ -1015,6 +1015,43 @@ class PreparedMechanismComposition(ScientificResult):
         )
         return _prepared(handle, self._scope)
 
+    def inverse_forward_source(
+        self,
+        actions: Sequence[Any],
+        *,
+        transport: Any = None,
+        accepts_transported: bool = False,
+        cancel: Any = None,
+    ) -> Any:
+        """The composition as a forward source of an inverse query, one replayed query per action.
+
+        See :func:`antecedent.inverse_sources.composed_forward_source`.
+        """
+        from .inverse_sources import composed_forward_source
+
+        return composed_forward_source(
+            self,
+            actions,
+            transport=transport,
+            accepts_transported=accepts_transported,
+            cancel=cancel,
+        )
+
+    def discretize(
+        self,
+        levels: Mapping[str, int] | int,
+        *,
+        method: str = "equal_probability_quantile",
+        cancel: Any = None,
+    ) -> Any:
+        """Discretize a linear-Gaussian composition into an executable finite model.
+
+        See :func:`antecedent.discretized_composition.discretize`.
+        """
+        from .discretized_composition import discretize
+
+        return discretize(self, levels, method=method, cancel=cancel)
+
     @bytes_export
     def export(
         self,
@@ -1030,33 +1067,7 @@ class PreparedMechanismComposition(ScientificResult):
         of the linear-Gaussian composition, or, with level names, the distribution of one outcome
         of a finite composition). An uncertainty claim without a declared joint law is refused.
         """
-        if isinstance(query, MeanContrast):
-            wire: dict[str, Any] = {
-                "gaussian_mean_contrast": {
-                    "outcome": query.outcome,
-                    "arms": [
-                        [w, [[v, x] for v, x in interventions]] for w, interventions in query.arms
-                    ],
-                }
-            }
-        elif isinstance(query, Mapping):
-            target = _name(outcome, "outcome")
-            if self.family == "tabular":
-                wire = {
-                    "finite_intervention_distribution": {
-                        "interventions": [[v, str(level)] for v, level in query.items()],
-                        "outcome": target,
-                    }
-                }
-            else:
-                wire = {
-                    "gaussian_intervention_law": {
-                        "interventions": [[v, _number(x, "value")] for v, x in query.items()],
-                        "outcome": target,
-                    }
-                }
-        else:
-            raise CausalTypeError("query must be a MeanContrast or a mapping of interventions")
+        wire = _query_wire(self.family, query, outcome)
         artifact, digest, result = _unwrap(self._handle.export(_dumps(wire), cancel=cancel))
         return CompositionExport(
             artifact=bytes(artifact),
@@ -1064,6 +1075,36 @@ class PreparedMechanismComposition(ScientificResult):
             result=_result(json.loads(result)),
         )
 
+
+
+def _query_wire(
+    family: str, query: MeanContrast | Mapping[str, Any], outcome: str | None
+) -> dict[str, Any]:
+    """The composition query the native layer reads: a contrast, a Gaussian intervention law or
+    a finite intervention distribution."""
+    if isinstance(query, MeanContrast):
+        return {
+            "gaussian_mean_contrast": {
+                "outcome": query.outcome,
+                "arms": [[w, [[v, x] for v, x in interventions]] for w, interventions in query.arms],
+            }
+        }
+    if isinstance(query, Mapping):
+        target = _name(outcome, "outcome")
+        if family == "tabular":
+            return {
+                "finite_intervention_distribution": {
+                    "interventions": [[v, str(level)] for v, level in query.items()],
+                    "outcome": target,
+                }
+            }
+        return {
+            "gaussian_intervention_law": {
+                "interventions": [[v, _number(x, "value")] for v, x in query.items()],
+                "outcome": target,
+            }
+        }
+    raise CausalTypeError("query must be a MeanContrast or a mapping of interventions")
 
 @bind_mean_reading
 def _prepared(handle: Any, scope: Mapping[str, Any] | None = None) -> PreparedMechanismComposition:

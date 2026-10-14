@@ -5743,6 +5743,7 @@ class InverseQueryArtifact:
     identity_json: str
     query_json: str
     contract_json: str
+    forward_origin_json: str | None
     @staticmethod
     def build(
         contract_json: str,
@@ -6978,3 +6979,148 @@ def cross_world_closed_reading(reading: str) -> str: ...
 
 def inspect_artifact_container(bytes: bytes) -> str: ...
 def estimate_transport_response_grid(identification: Any, *, outcome: Sequence[float], trial: Sequence[bool], selection_probability: Sequence[float], grid: Sequence[float], observed_regression: Sequence[float], target_regression: Sequence[float], response_weight: Sequence[float]) -> str: ...
+
+class TransportedResponseHandle:
+    def receipt_json(self) -> str: ...
+    def value_json(self) -> str: ...
+    def identity(self) -> str: ...
+
+def transported_response_declared_point(
+    coordinates_json: str, means: list[float], declaration_json: str
+) -> tuple[TransportedResponseHandle | None, str | None]: ...
+def transported_response_declared_law(
+    law: JointDistributionArtifact, declaration_json: str
+) -> tuple[TransportedResponseHandle | None, str | None]: ...
+def transported_response_from_shifted_cohort(
+    artifact: bytes, expected_identity: str
+) -> tuple[TransportedResponseHandle | None, str | None]: ...
+def transported_decision_evaluate(
+    prepared: PreparedAnalysis,
+    declaration_json: str,
+    response: TransportedResponseHandle,
+    demand: str,
+    unsupported: str,
+    weakest_support: str,
+) -> tuple[str | None, str | None]: ...
+def transport_sensitivity_build(
+    response: TransportedResponseHandle,
+    family: str,
+    bound: float,
+    grid_points: int,
+    reference_json: str,
+    reference_value: float,
+    *,
+    coordinate: int = 0,
+    route: str | None = None,
+) -> tuple[SensitivityArtifact | None, str | None, str | None]: ...
+
+class ForwardSourceHandle:
+    def origin_json(self) -> str: ...
+
+class ObservationalScenarioHandle:
+    def summary_json(self) -> str: ...
+    def verify(self, law: JointDistributionArtifact) -> str | None: ...
+
+def forward_source_composed(
+    handle: PreparedCompositionHandle,
+    actions_json: str,
+    transport_json: str | None,
+    accepts_transported: bool,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[ForwardSourceHandle | None, str | None]: ...
+def forward_source_cohort(
+    artifact: bytes, expected_identity: str, accepts_transported: bool
+) -> tuple[ForwardSourceHandle | None, str | None]: ...
+def forward_source_transported(
+    response: TransportedResponseHandle, accepts_transported: bool
+) -> tuple[ForwardSourceHandle | None, str | None]: ...
+def forward_source_evaluate(
+    source: ForwardSourceHandle, contract_json: str, query_json: str, interval_region: bool
+) -> tuple[str | None, str | None]: ...
+def forward_source_seal(
+    source: ForwardSourceHandle, contract_json: str, query_json: str, interval_region: bool
+) -> tuple[InverseQueryArtifact | None, str | None]: ...
+def forward_source_seal_per_action(
+    source: ForwardSourceHandle, contract_json: str, query_json: str, interval_region: bool
+) -> tuple[list[tuple[str, InverseQueryArtifact]] | None, str | None]: ...
+def observational_scenarios_evaluate(
+    law: JointDistributionArtifact, query_json: str
+) -> tuple[ObservationalScenarioHandle | None, str | None]: ...
+
+class TransportSceneHandle:
+    def summary_json(self) -> str: ...
+
+class TransportRevalidationHandle:
+    def inspect_json(self) -> str: ...
+    def require_valid(self, key: str) -> tuple[str | None, str | None]: ...
+    def identity(self) -> str: ...
+    def export(self, artifact_id: str) -> tuple[bytes | None, str | None]: ...
+
+class TransportClaimStateHandle:
+    def __init__(self) -> None: ...
+    def observe(
+        self, current: TransportSceneHandle, effects_json: str | None = None
+    ) -> tuple[TransportRevalidationHandle | None, str | None]: ...
+    def scene(self) -> TransportSceneHandle | None: ...
+
+def transport_scene_target_identity(target_population: str, target_data_identity: str) -> str: ...
+def transport_scene_build(
+    scene_json: str, responses: list[TransportedResponseHandle]
+) -> tuple[TransportSceneHandle | None, str | None]: ...
+def transport_revalidate(
+    previous: TransportSceneHandle | None,
+    current: TransportSceneHandle,
+    effects_json: str | None = None,
+) -> tuple[TransportRevalidationHandle | None, str | None]: ...
+
+class DiscretizedCompositionHandle:
+    def identity(self) -> str: ...
+    def inspect_json(self) -> str: ...
+    def mean_contrast(
+        self, contrast_json: str, *, cancel: CancellationToken | None = None
+    ) -> tuple[str | None, str | None]: ...
+    def uncertainty(self, paradigm: str) -> str: ...
+    def refresh(
+        self, refit: PreparedCompositionHandle, *, cancel: CancellationToken | None = None
+    ) -> tuple[DiscretizedCompositionHandle | None, str | None]: ...
+    def export(self) -> tuple[bytes | None, str | None]: ...
+
+def discretized_composition_prepare(
+    handle: PreparedCompositionHandle,
+    plan_json: str,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[DiscretizedCompositionHandle | None, str | None]: ...
+def discretized_composition_consume(
+    artifact: bytes,
+    expected_identity: str | None = None,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[DiscretizedCompositionHandle | None, str | None]: ...
+
+def cross_world_whole_path(
+    data: bytes,
+    unit_sampling: str,
+    expected_identity_json: str | None = None,
+    cancel: Any = None,
+) -> tuple[str | None, str | None]: ...
+def cross_world_whole_path_verify(
+    data: bytes,
+    unit_sampling: str,
+    account_identity: str,
+    receipt_digest: str,
+    expected_identity_json: str | None = None,
+    cancel: Any = None,
+) -> str | None: ...
+
+def transport_handoff_seal(
+    offer_json: str,
+    callback_json: str,
+    input: str,
+    accepts_transported: bool,
+    artifact_id: str,
+) -> tuple[tuple[bytes, str, str] | None, str | None]: ...
+def transport_handoff_consume(
+    artifact: bytes, callback_json: str, expected_identity: str | None = None
+) -> tuple[str | None, str | None]: ...
