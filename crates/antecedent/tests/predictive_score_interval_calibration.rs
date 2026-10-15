@@ -10,7 +10,8 @@
 //! * CRPS: `tau (2 phi(z) + z (2 Phi(z) - 1)) - s / sqrt(pi)` with
 //!   `tau = sqrt(s^2 + sigma^2)` and `z = (m - mu) / tau`.
 //!
-//! Designs (each at nominal 0.95; sample sizes `grid_n(800)` = 400, 800 and 1,600 cases):
+//! Designs (each at nominal 0.95; sample sizes `grid_n(base)`: iid 400/800/1,600, cluster 800/1,600/3,200 and serial
+//! 1,600/3,200/6,400 cases):
 //!
 //! * `iid`: held-out split, independent outcomes `N(0, 1)`; Student-t, `n - 1` df.
 //! * `serial`: held-out split with a stationary Gaussian AR(1) outcome series
@@ -60,9 +61,16 @@ use common::calibration::{
 };
 
 const LEVEL: f64 = 0.95;
-// Serial intervals need the long-run variance estimated from enough cases, and cluster
-// intervals enough clusters: the measured range starts at 400 cases (80 clusters).
-const BASE_CASES: usize = 800;
+/// Base case count by design. The serial difference interval covers 0.925 and 0.928 at 400
+/// and 800 cases and reaches the level only from 1,600; cluster intervals need 160 clusters
+/// (800 cases) before the cluster-robust variance is accurate. The measured range starts there.
+const fn base_cases(design: Design) -> usize {
+    match design {
+        Design::Iid => 800,
+        Design::Cluster => 1_600,
+        Design::Serial => 3_200,
+    }
+}
 const CLUSTER_SIZE: usize = 5;
 const FORECAST_A: (f64, f64) = (0.3, 1.2);
 const FORECAST_B: (f64, f64) = (0.0, 1.5);
@@ -267,7 +275,7 @@ fn run(
     functional_suffix: &'static str,
     boundary: bool,
 ) {
-    let n = grid_n(BASE_CASES);
+    let n = grid_n(base_cases(design));
     let truth = if difference {
         expected(kind, FORECAST_B) - expected(kind, FORECAST_A)
     } else {

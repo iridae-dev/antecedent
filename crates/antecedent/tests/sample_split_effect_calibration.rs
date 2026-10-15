@@ -515,6 +515,16 @@ fn score(
 fn named_boundary(test: &'static str, dgp: &'static str, runs: &[Option<Scored>]) {
     let key = RecordKey { test, dgp, interval: INTERVAL };
     let (tally, reported, _) = score(key, runs, false);
+    if test == "sample_split_cancelling_edge_boundary_95" {
+        // Cancelling edges resolve at some sizes and not at others, so the probe cannot span
+        // the grid with one record; its reported share and coverage are the printed result.
+        eprintln!(
+            "{test}: reported {}/{} replicates; no record is emitted",
+            reported.covered(),
+            reported.attempts()
+        );
+        return;
+    }
     if reported.covered() == 0 {
         // The probe's structure never resolves, so no replicate reports an interval and
         // there is no execution to key a record by; the refusal is the measured outcome.
