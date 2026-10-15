@@ -451,3 +451,60 @@ def test_a_portable_model_has_no_variance_diagnostic_and_feeds_an_inverse_query(
     assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
     with pytest.raises(CausalTypeError):
         iq.InverseQuery(contract, ("wait", "treat"), (iq.target_mean(target),)).evaluate(source)
+
+
+def _native_fit(n: int = 400):
+    rng = np.random.default_rng(23)
+    x = rng.uniform(-2.0, 2.0, n)
+    t = (np.arange(n) % 2).astype(float)
+    y = 2.0 + x + t * (1.0 + 0.5 * x) + rng.normal(0.0, 0.5, n)
+    return x, cd.fit_native_cohort_effect(
+        outcome=y,
+        treatment=t,
+        features={"x": x},
+        outcome_name="y",
+        treatment_name="t",
+        outcome_units="mmHg",
+        population="target",
+    )
+
+
+def test_a_native_fit_issues_a_measured_interval_or_a_typed_refusal() -> None:
+    x, fit = _native_fit()
+    assert (fit.rows, fit.width) == (400, 4)
+    binding = cd.CohortBinding(
+        snapshot_id="clinic",
+        population="target",
+        columns={"x": [float(v) for v in x[:80]]},
+        weights=[1.0 / 80.0] * 80,
+    )
+    source = cd.decision_source_from_native_fit(fit, cohort=binding, outcome_units="mmHg")
+    try:
+        measured = source.interval(level=0.95)
+    except cd.CohortDecisionRefusal as refusal:
+        # No attesting coverage record yet: the typed refusal, never an unmeasured interval.
+        assert refusal.reason_code == "cell_not_licensed"
+        assert refusal.detail == "measured_inference.record_not_attesting"
+    else:
+        scalar = measured.scalars[0]
+        assert measured.route == "cohort_interval"
+        assert scalar.lower <= scalar.point <= scalar.upper
+    # The point route is unchanged and never carries an interval by itself.
+    assert abs(source.mean_contrast - (1.0 + 0.5 * float(np.mean(x[:80])))) < 0.2
+    with pytest.raises(CausalValueError):
+        source.interval(level=1.0)
+
+
+def test_a_declared_compact_export_is_point_only_with_its_own_detail() -> None:
+    x, fit = _native_fit()
+    binding = cd.CohortBinding(
+        snapshot_id="clinic", population="target", columns={"x": [0.0, 0.5]}, weights=[0.5, 0.5]
+    )
+    source = cd.decision_source_from_native_fit(fit, cohort=binding, outcome_units="mmHg")
+    plain = cd.consume_cohort_decision_source(
+        source.export(), expected_identity=source.identity, outcome_units="mmHg"
+    )
+    with pytest.raises(cd.CohortDecisionRefusal) as refused:
+        plain.interval()
+    assert refused.value.reason_code == "cell_not_licensed"
+    assert refused.value.detail == "cohort_decision.interval_requires_native_fit"

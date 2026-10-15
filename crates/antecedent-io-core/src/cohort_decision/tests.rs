@@ -233,8 +233,8 @@ fn the_interval_route_is_closed_with_a_remedy() {
     let source = build(&compact_model(), &cohort()).unwrap();
     let interval = source.interval_refusal();
     assert_eq!(interval.code, "cell_not_licensed");
-    assert_eq!(interval.detail, "cohort_decision.interval_not_licensed");
-    assert!(interval.remedy.contains("whole-method coverage"));
+    assert_eq!(interval.detail, "cohort_decision.interval_requires_native_fit");
+    assert!(interval.remedy.contains("measured native-fit route"));
     interval.to_refusal().validate().unwrap();
     // A diagnostic is present for the compact model and none for the portable one.
     assert!(source.uncalibrated_standard_error().is_some());

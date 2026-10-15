@@ -51,9 +51,12 @@ import numpy as np
 
 from ._columns import coerce_fields
 from ._freeze import thaw
+from ._measured_inference import MeasuredInference
 from ._native import build_cohort_decision_source as _build
 from ._native import cohort_decision_forward_claim as _forward_claim
+from ._native import cohort_decision_interval as _interval
 from ._native import cohort_decision_law_refusal as _law_refusal
+from ._native import fit_native_cohort_effect as _fit_native
 from ._native import consume_cohort_decision_source as _consume
 from ._native import normalize_cohort_weights as _normalize
 from ._native import transport_cohort_effect as _transport
@@ -77,12 +80,15 @@ __all__ = [
     "CohortDecisionSource",
     "CohortTransportReceipt",
     "CovariateShift",
+    "NativeEffectFit",
     "SelectionShift",
     "TransportedCohortEffect",
     "UncalibratedStandardError",
     "consume_cohort_decision_source",
     "decision_source_from_compact_export",
     "decision_source_from_model",
+    "decision_source_from_native_fit",
+    "fit_native_cohort_effect",
     "transport_cohort_effect",
 ]
 
@@ -324,6 +330,7 @@ class CohortDecisionSource(ScientificResult):
     summary: Mapping[str, Any] = field(repr=False)
     _artifact_bytes: bytes = field(repr=False)
     extrapolative_accepted: bool = field(default=False, repr=False)
+    _native_fit: str | None = field(default=None, repr=False)
 
     # -- values ------------------------------------------------------------------------------
     @property
@@ -388,10 +395,29 @@ class CohortDecisionSource(ScientificResult):
         )
 
     # -- closed routes ---------------------------------------------------------------------
-    def interval(self, *, level: float = 0.95) -> None:
-        """Always refuses: no interval, band or posterior is licensed for a cohort mean."""
-        del level
-        raise CohortDecisionRefusal(json.loads(_law_refusal("interval")))
+    def interval(self, *, level: float = 0.95) -> MeasuredInference:
+        """The measured interval of the cohort mean of a natively fitted linear effect.
+
+        Available for a source built with :func:`decision_source_from_native_fit`: the fit is
+        replayed from its retained rows and the Student-t interval (HC3 covariance, ``n - p``
+        degrees of freedom) is returned only when a currently attesting coverage record governs
+        exactly this construction. A source from a declared compact export, a portable model or
+        a shifted cohort raises a typed :class:`CohortDecisionRefusal`
+        (``cohort_decision.interval_requires_native_fit`` or
+        ``cohort_decision.interval_not_licensed``).
+        """
+        if isinstance(level, bool) or not isinstance(level, int | float) or not (
+            0.0 < float(level) < 1.0
+        ):
+            raise CausalValueError("level= must be strictly between 0 and 1")
+        measured, refusal = _interval(
+            self._artifact_bytes, self._expectation(), self._native_fit, float(level)
+        )
+        if refusal is not None:
+            raise CohortDecisionRefusal(json.loads(refusal))
+        if measured is None:  # pragma: no cover - the native contract
+            raise CausalValueError("the native interval returned neither a result nor a refusal")
+        return MeasuredInference._from_native(measured)
 
     def refuse(self, kind: str) -> None:
         """Raise the typed refusal of a request this source cannot answer.
@@ -583,6 +609,106 @@ def decision_source_from_model(
         expected_contrast,
         artifact_id,
     )
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class NativeEffectFit:
+    """A linear conditional effect fitted natively, with its retained rows.
+
+    Produced only by :func:`fit_native_cohort_effect`. Outcome is regressed on the declared
+    basis ``(1, features)`` and its treatment interaction by ordinary least squares with an
+    HC3 sandwich covariance; ``rows`` and ``width`` are the retained ``n`` and ``p``. The
+    retained rows are replayed by the interval route, so a hand-built export cannot claim a
+    native fit.
+    """
+
+    identity: str
+    rows: int
+    width: int
+    coefficients: tuple[float, ...]
+    covariance: tuple[float, ...]
+    feature_names: tuple[str, ...]
+    _export: bytes = field(repr=False)
+    _fit_json: str = field(repr=False)
+
+    def export(self) -> bytes:
+        """The compact export of the fit."""
+        return self._export
+
+
+def fit_native_cohort_effect(
+    *,
+    outcome: Sequence[float],
+    treatment: Sequence[float],
+    features: Mapping[str, Sequence[float]],
+    outcome_name: str,
+    treatment_name: str,
+    active: float = 1.0,
+    control: float = 0.0,
+    outcome_units: str,
+    population: str,
+    feature_units: Mapping[str, str] | None = None,
+) -> NativeEffectFit:
+    """Fit a linear conditional treatment effect natively and retain its rows.
+
+    ``features`` maps each declared modifier name to its column. Treatment must be randomized
+    or ignorable given exactly these modifiers; the outcome mean is assumed linear in them.
+    """
+    names = tuple(_text(name, "feature name") for name in features)
+    units = feature_units or {}
+    payload = {
+        "outcome_name": _text(outcome_name, "outcome_name"),
+        "treatment_name": _text(treatment_name, "treatment_name"),
+        "active": float(active),
+        "control": float(control),
+        "outcome_units": _text(outcome_units, "outcome_units"),
+        "population_id": _text(population, "population"),
+        "outcome": [float(v) for v in outcome],
+        "treatment": [float(v) for v in treatment],
+        "feature_names": list(names),
+        "feature_units": [str(units.get(name, "1")) for name in names],
+        "features": [[float(v) for v in features[name]] for name in names],
+    }
+    text = json.dumps(payload, allow_nan=False)
+    summary, export, refusal = _fit_native(text)
+    if refusal is not None:
+        raise CohortDecisionRefusal(json.loads(refusal))
+    if summary is None or export is None:  # pragma: no cover - the native contract
+        raise CausalValueError("the native fit returned neither a result nor a refusal")
+    parsed = json.loads(summary)
+    return NativeEffectFit(
+        identity=str(parsed["identity"]),
+        rows=int(parsed["rows"]),
+        width=int(parsed["width"]),
+        coefficients=tuple(float(v) for v in parsed["coefficients"]),
+        covariance=tuple(float(v) for v in parsed["covariance"]),
+        feature_names=tuple(str(v) for v in parsed["feature_names"]),
+        _export=bytes(export),
+        _fit_json=text,
+    )
+
+
+def decision_source_from_native_fit(
+    fit: NativeEffectFit,
+    *,
+    cohort: CohortBinding,
+    outcome_units: str,
+    artifact_id: str = _DEFAULT_ARTIFACT_ID,
+) -> CohortDecisionSource:
+    """Bind ``cohort`` to a natively fitted effect; the source can issue a measured interval."""
+    if not isinstance(fit, NativeEffectFit):
+        raise CausalTypeError("fit= must be a NativeEffectFit")
+    source = _build_source(
+        "compact_export",
+        fit._export,
+        fit.identity,
+        cohort,
+        outcome_units,
+        None,
+        None,
+        artifact_id,
+    )
+    return replace(source, _native_fit=fit._fit_json)
 
 
 def decision_source_from_compact_export(

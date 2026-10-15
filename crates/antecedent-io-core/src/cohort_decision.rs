@@ -22,7 +22,9 @@
 //! and weights and on the fitted structure; it carries no cohort-sampling, support
 //! selection, misspecification or extrapolation uncertainty and no calibration has been
 //! measured, so it is never an interval, never reaches a decision input and every
-//! interval request is refused ([`CohortDecisionSource::interval_refusal`]).
+//! interval request on it is refused ([`CohortDecisionSource::interval_refusal`]); the
+//! interval of a natively fitted linear effect is a separate measured route that retains
+//! the fit rows and replays the fit (`antecedent_estimate::cohort_linear_effect`).
 //!
 //! Population. A cohort drawn from the model's own population is decided as is. A cohort
 //! from a different population is accepted only under an explicit
@@ -230,24 +232,30 @@ impl LawRequest {
                     Self::Quantile => "quantile",
                     _ => "nonlinear_utility",
                 },
-                "a cohort mean of conditional contrasts is one expectation; supply a producer \
-                 of aligned outcome draws (an interventional predictive law) for a \
-                 probability, quantile or nonlinear utility",
+                "closed by logic: a cohort mean of conditional contrasts is one expectation, \
+                 and one expectation determines no law (a probability, a quantile or a \
+                 nonlinear utility of the contrast is not a function of its mean); supply \
+                 per-draw cohort utilities from a declared shared law as \
+                 `DecisionDraws` (producer `cohort_decision`) and ask the decision \
+                 reliability routes",
             ),
             Self::JointLaw => CohortRefusal::new(
                 antecedent_core::reason_code!("joint_law_required"),
                 "cohort_decision.joint_law_required",
                 "joint_law",
-                "conditional contrasts supply no pairing across units or with other \
-                 quantities; supply aligned joint draws or a declared dependence",
+                "closed by logic: conditional contrasts supply no pairing across units or with \
+                 other quantities, and a coupling is a premise no mean determines; supply \
+                 aligned joint draws as `DecisionDraws` (a declared shared simulation) or a \
+                 declared dependence",
             ),
             Self::Interval => CohortRefusal::new(
                 antecedent_core::reason_code!("cell_not_licensed"),
                 "cohort_decision.interval_not_licensed",
                 "interval",
-                "none available yet: the point value and an uncalibrated model-based \
-                 standard error are the result; an interval needs measured whole-method \
-                 coverage including the cohort-weight and support-selection step",
+                "a shifted cohort and a portable model are point-only: the point value (and for \
+                 a linear compact model an uncalibrated model-based standard error) is the \
+                 result; an interval needs a native fit over a cohort of the model's own \
+                 population and measured whole-method coverage",
             ),
         }
     }
@@ -1486,6 +1494,17 @@ impl CohortDecisionSource {
     /// The refusal for any interval, band or posterior request.
     #[must_use]
     pub fn interval_refusal(&self) -> CohortRefusal {
+        if self.shift.is_none() && self.model.is_linear_compact() {
+            return CohortRefusal::new(
+                antecedent_core::reason_code!("cell_not_licensed"),
+                "cohort_decision.interval_requires_native_fit",
+                "interval",
+                "an interval is issued only through the measured native-fit route, which \
+                 retains the fit rows and replays the fit: fit the effect natively (outcome on \
+                 treatment-by-basis with a sandwich covariance) and request the measured \
+                 interval; coefficients and covariance declared by the caller stay point-only",
+            );
+        }
         LawRequest::Interval.refusal()
     }
 

@@ -148,3 +148,43 @@ pub fn evaluate_cohort_decision(
     let input = cohort_decision_input("cohort_decision", source, TrustRequirement::Unrestricted)?;
     evaluate_with_support(contract, &[input], policy)
 }
+
+pub use antecedent_estimate::cohort_linear_effect::{
+    CohortIntervalRefusal, CohortMeanInterval, NativeCohortFit, NativeFitRows, NativeFitSize,
+    declared_export_refusal,
+};
+pub use antecedent_io::measured_inference::MeasuredInference;
+pub use antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire;
+
+/// Fit the linear conditional effect natively (OLS of the outcome on the declared basis
+/// and its treatment interaction, HC3 covariance), retaining the rows so a consumer can
+/// replay the fit.
+///
+/// # Errors
+/// A refused fit: mismatched columns, too few rows, a singular design or a row of
+/// leverage one.
+pub fn fit_cohort_effect(
+    outcome: &[f64],
+    treatment: &[f64],
+    features: &[&[f64]],
+    response: &antecedent_io::quantity_wire::ScientificQuantityWire,
+    feature_quantities: &[antecedent_io::quantity_wire::ScientificQuantityWire],
+) -> Result<NativeCohortFit, antecedent_estimate::EstimationError> {
+    NativeCohortFit::fit(outcome, treatment, features, response, feature_quantities)
+}
+
+/// The measured interval of `source`'s cohort mean: the Student-t interval of a native
+/// fit, bound to a currently attesting coverage record, or a typed refusal.
+///
+/// # Errors
+/// A source not built from `native`, a shifted cohort, an unmeasured level or fit size
+/// (no attesting record), or a changed artifact.
+pub fn measured_cohort_interval(
+    native: &NativeCohortFit,
+    source: &CohortDecisionSource,
+    level: f64,
+    ctx: &ExecutionContext,
+) -> Result<MeasuredInference, antecedent_io::IoError> {
+    let bytes = CohortIntervalArtifactWire::encode(native, source, level)?;
+    CohortIntervalArtifactWire::measure(&bytes, ctx)
+}

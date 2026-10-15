@@ -522,7 +522,181 @@ fn transported_cohort_refusal(kind: &str) -> PyResult<String> {
     Ok(transport_refusal_json(&request.refusal(), "evaluate"))
 }
 
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NativeFitJson {
+    outcome_name: String,
+    treatment_name: String,
+    active: f64,
+    control: f64,
+    outcome_units: String,
+    population_id: String,
+    outcome: Vec<f64>,
+    treatment: Vec<f64>,
+    feature_names: Vec<String>,
+    feature_units: Vec<String>,
+    features: Vec<Vec<f64>>,
+}
+
+fn quantity_wire(
+    id: &str,
+    role: &str,
+    units: &str,
+    population: &str,
+    functional: &str,
+    regime: &str,
+) -> ScientificQuantityWire {
+    ScientificQuantityWire {
+        version: 1,
+        variable_id: id.to_owned(),
+        variable_name: id.to_owned(),
+        role: role.to_owned(),
+        units: units.to_owned(),
+        population_id: population.to_owned(),
+        regime_id: regime.to_owned(),
+        horizon: 0,
+        functional_id: functional.to_owned(),
+        conditioning: Vec::new(),
+        transform_id: "identity".to_owned(),
+    }
+}
+
+fn native_fit_of(
+    parsed: &NativeFitJson,
+) -> Result<antecedent::analysis::cohort_decision::NativeCohortFit, String> {
+    use antecedent::analysis::cohort_decision::{
+        CATE_FUNCTIONAL_ID, ContrastDeclaration, fit_cohort_effect,
+    };
+    if parsed.feature_names.len() != parsed.features.len()
+        || parsed.feature_units.len() != parsed.features.len()
+    {
+        return Err("feature names, units and columns differ in count".to_owned());
+    }
+    let regime =
+        ContrastDeclaration::regime_of(&parsed.treatment_name, parsed.active, parsed.control);
+    let response = quantity_wire(
+        &parsed.outcome_name,
+        "outcome",
+        &parsed.outcome_units,
+        &parsed.population_id,
+        CATE_FUNCTIONAL_ID,
+        &regime,
+    );
+    let quantities: Vec<ScientificQuantityWire> = parsed
+        .feature_names
+        .iter()
+        .zip(&parsed.feature_units)
+        .map(|(name, units)| {
+            quantity_wire(name, "covariate", units, &parsed.population_id, "mean", "observed")
+        })
+        .collect();
+    let columns: Vec<&[f64]> = parsed.features.iter().map(Vec::as_slice).collect();
+    fit_cohort_effect(&parsed.outcome, &parsed.treatment, &columns, &response, &quantities)
+        .map_err(|e| e.to_string())
+}
+
+fn native_fit_refusal(message: &str) -> String {
+    RefusalJson::new(
+        antecedent_core::reason_code!("invalid_argument"),
+        "bind",
+        "cohort_decision.native_fit_refused",
+        message,
+    )
+    .json()
+}
+
+/// Fit a linear conditional effect natively (OLS on the declared basis and its treatment
+/// interaction, HC3 covariance): `(summary json, export bytes, refusal json)`.
+#[pyfunction]
+fn fit_native_cohort_effect(py: Python<'_>, fit_json: &str) -> PyResult<BuildPayload> {
+    check_size(fit_json, "native fit")?;
+    let parsed: NativeFitJson = serde_json::from_str(fit_json)
+        .map_err(|e| invalid_argument(format!("cohort_decision.invalid_request: {e}")))?;
+    detach_catch(py, move || match native_fit_of(&parsed) {
+        Ok(native) => {
+            let fit = native.linear_fit();
+            let export = native.export();
+            let bytes = export.to_bytes("cohort_decision_model").map_err(|e| {
+                invalid_argument(format!("cohort_decision.fitted_model_invalid: {e}"))
+            })?;
+            let summary = serde_json::json!({
+                "identity": export.identity(),
+                "rows": fit.rows,
+                "width": fit.width,
+                "coefficients": fit.coefficients,
+                "covariance": fit.covariance,
+                "feature_names": parsed.feature_names,
+            });
+            Ok((Some(summary.to_string()), Some(bytes), None))
+        }
+        Err(message) => Ok((None, None, Some(native_fit_refusal(&message)))),
+    })
+}
+
+/// The interval of a cohort source: the measured result for a source built from a native
+/// fit whose rows are retained, a typed refusal otherwise:
+/// `(measured inference, refusal json)`.
+#[pyfunction]
+#[pyo3(signature = (artifact, expectation_json, fit_json, level))]
+fn cohort_decision_interval(
+    py: Python<'_>,
+    artifact: Vec<u8>,
+    expectation_json: &str,
+    fit_json: Option<String>,
+    level: f64,
+) -> PyResult<(Option<crate::measured_inference_api::NativeMeasuredInference>, Option<String>)> {
+    check_size(expectation_json, "cohort expectation")?;
+    let parsed: ExpectationJson = serde_json::from_str(expectation_json)
+        .map_err(|e| invalid_argument(format!("cohort_decision.invalid_request: {e}")))?;
+    let fit: Option<NativeFitJson> =
+        match &fit_json {
+            Some(text) => {
+                check_size(text, "native fit")?;
+                Some(serde_json::from_str(text).map_err(|e| {
+                    invalid_argument(format!("cohort_decision.invalid_request: {e}"))
+                })?)
+            }
+            None => None,
+        };
+    let expectation = CohortExpectation {
+        identity: parsed.identity,
+        parent_claim: parsed.parent_claim,
+        population_id: parsed.population_id,
+        outcome_units: parsed.outcome_units,
+        contrast_regime: parsed.contrast_regime,
+        cohort_digest: parsed.cohort_digest,
+    };
+    detach_catch(py, move || {
+        let ctx = ExecutionContext::production_default(0);
+        let source = match CohortDecisionSource::consume_with(&artifact, &expectation, &ctx) {
+            Ok(source) => source,
+            Err(error) => return Ok((None, Some(refusal_json(&error, "consume")))),
+        };
+        let Some(fit) = fit else {
+            return Ok((None, Some(refusal_json(&source.interval_refusal(), "evaluate"))));
+        };
+        let native = match native_fit_of(&fit) {
+            Ok(native) => native,
+            Err(message) => return Ok((None, Some(native_fit_refusal(&message)))),
+        };
+        match antecedent::analysis::cohort_decision::measured_cohort_interval(
+            &native, &source, level, &ctx,
+        ) {
+            Ok(measured) => Ok((
+                Some(crate::measured_inference_api::NativeMeasuredInference::from_io(measured)?),
+                None,
+            )),
+            Err(antecedent_io::IoError::Refused { code, message }) => {
+                Ok((None, Some(RefusalJson::from_coded_message(code, "evaluate", &message).json())))
+            }
+            Err(other) => Err(crate::transport_common::error(other)),
+        }
+    })
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(fit_native_cohort_effect, m)?)?;
+    m.add_function(wrap_pyfunction!(cohort_decision_interval, m)?)?;
     m.add_function(wrap_pyfunction!(build_cohort_decision_source, m)?)?;
     m.add_function(wrap_pyfunction!(consume_cohort_decision_source, m)?)?;
     m.add_function(wrap_pyfunction!(validate_cohort_binding, m)?)?;
