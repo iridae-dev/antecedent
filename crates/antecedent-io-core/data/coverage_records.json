@@ -29242,6 +29242,63 @@
       "calibration_sha": "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
     },
     {
+      "id": "cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95",
+      "query": "RecoveredEffect",
+      "graph_class": "MGraph",
+      "structure": "fixed",
+      "modality": "tabular",
+      "inference": "Frequentist",
+      "estimator": "sampled_observation_recovery",
+      "interval_method": "bootstrap_bca",
+      "se_kind": "",
+      "dependence": "iid",
+      "posterior": "",
+      "functional": "recovered_effect:recovery_scientific.v2:binary_observation_recovery.v1|f06727f20e40df05a53343d71aefdc7f53f98956e7abfc8c03f612361f629b12:treated=3ff0000000000000:control=0000000000000000",
+      "identification": "point",
+      "nominal": "0.95",
+      "n_min": 1000,
+      "n_max": 4000,
+      "replicates_min": 2000,
+      "posterior_draws_min": 0,
+      "unidentified_mass_max": "0.0",
+      "observed": "0.93",
+      "mcse": "0.01275735082217307",
+      "replicates": 400,
+      "boundary": false,
+      "grid": [
+        {
+          "point": 0,
+          "n_min": 1000,
+          "n_max": 1000,
+          "observed": "0.96",
+          "mcse": "0.009797958971132717",
+          "replicates": 400,
+          "boundary": false
+        },
+        {
+          "point": 1,
+          "n_min": 2000,
+          "n_max": 2000,
+          "observed": "0.93",
+          "mcse": "0.01275735082217307",
+          "replicates": 400,
+          "boundary": false
+        },
+        {
+          "point": 2,
+          "n_min": 4000,
+          "n_max": 4000,
+          "observed": "0.9525",
+          "mcse": "0.010635289135702893",
+          "replicates": 400,
+          "boundary": false
+        }
+      ],
+      "dgp": "crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs::binary_confounded_missingness_scm",
+      "test": "crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs::binary_missingness_whole_row_recovery_bca_l95",
+      "calibration_sha": "a384c5234fc1ff6a0df226bbead846b4e708eecd"
+    },
+    {
       "id": "cov.response_curve.admg.bayesian.posterior_quantile.l95.response_curve_admg_bayesian_accepted_pointwise_nominal_coverage.a_0",
       "query": "ResponseCurve",
       "graph_class": "Admg",
@@ -51246,6 +51303,7 @@
     "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l95.pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage",
     "cov.pulse_effect.temporal_pag.frequentist.identified_set.l90.frequentist_temporal_pag_identified_set_interval_nominal_90_coverage",
     "cov.pulse_effect.temporal_pag.frequentist.identified_set.l90.frequentist_temporal_pag_point_identified_set_interval_nominal_90_coverage",
+    "cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95",
     "cov.response_curve.admg.bayesian.posterior_quantile.l95.response_curve_admg_bayesian_accepted_pointwise_nominal_coverage.a_0",
     "cov.response_curve.admg.bayesian.posterior_quantile.l95.response_curve_admg_bayesian_accepted_pointwise_nominal_coverage.a_1",
     "cov.response_curve.admg.bayesian.posterior_quantile.l95.response_curve_admg_bayesian_pointwise_nominal_coverage.a_0",
