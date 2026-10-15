@@ -371,8 +371,10 @@ convergence diagnostics. Fisher inference uses expected multinomial information
 and full delta covariance. A Fisher record cannot justify a Bayesian interval.
 
 Temporal inference resamples complete independent unit histories. Direct and
-checked responses use studentized intervals; checked paired effects also support
-separately measured percentile and basic intervals. Sampled observation recovery
+checked responses use studentized intervals (64 to 256 units); checked paired
+effects also support a separately measured basic interval (64 to 256 units) and a
+percentile interval (128 to 512 units) recorded as a named boundary, covering 0.93
+to 0.945 at the 0.95 level. Sampled observation recovery
 uses BCa resampling of complete raw rows through the checked recovery estimator.
 Neither sampling distribution supplies a predictive outcome law or a posterior.
 

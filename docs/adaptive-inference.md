@@ -6,7 +6,7 @@ sample is never analysed as if the design had been fixed: an analysis that
 presumes a fixed design is refused for such data (`adaptive_design_ignored`).
 Every route below is point-only; interval and guarantee routes stay closed
 (`cell_not_licensed`) until whole-procedure coverage of the exact procedure is
-measured.
+measured and the route is promoted at its own coordinate.
 
 ## The retained analysis contract
 
@@ -82,9 +82,31 @@ classified by `procedure_status`:
 
 Whole-procedure designs (data-generating process, nominal level, support range
 and boundary probes) are frozen in
-`crates/antecedent-estimate/tests/adaptive_inference_calibration.rs` and are
-unmeasured. Coverage of a fixed-sample interval at the final sample size, or of
-a component estimator, does not substitute.
+`crates/antecedent-estimate/tests/adaptive_inference_calibration.rs` and in
+`adaptive_procedure_prior_predictive_calibration.rs`, and each is measured over a
+three-point sample-size grid at 400 replicates with a 2,000-replicate recheck.
+Coverage of a fixed-sample interval at the final sample size, or of a component
+estimator, does not substitute.
+
+| Design | Planned units | Coverage at the 95% level | Standing |
+| --- | --- | --- | --- |
+| Thompson posterior, arms 0.3 and 0.5, posterior-probability stopping | 100 to 400 | 0.941 to 0.950 | measured |
+| Thompson posterior under prior-predictive truth, stopping at 0.90, 0.95, 0.99 | 100 to 400 | 0.93 to 0.96 | measured |
+| Thompson posterior, arms 0.05 and 0.95 | 100 to 400 | 0.945 to 0.970 | measured |
+| Thompson posterior at exactly equal arms | 100 to 400 | 0.92 to 0.94 | named boundary |
+| Epsilon-greedy weighted contrast, repeated measures, no stopping | 300 to 1,200 | 0.938 to 0.953 | measured |
+| Epsilon-greedy weighted contrast read at a stopping look, with and without outcome delay | 100 to 400 | 0.90 to 0.95 | named boundary |
+| Epsilon-greedy weighted contrast with 5% exploration | 100 to 400 | 0.73 to 0.91 | named boundary |
+| Anytime-valid confidence sequence at every look | 100 to 400 | at least 0.99 | one-sided floor |
+
+A named boundary records the measured shortfall and is not a claim of nominal
+coverage: a posterior-probability stopping rule selects on the data, so a
+fixed-level interval read at that look has no pointwise guarantee, and an
+exploration mass of a few units leaves the weighted scores too heavy-tailed for a
+normal interval. The Thompson posterior is exact under its prior; the
+prior-predictive rows measure that. These records measure the calibration-internal
+candidate intervals; the public routes above stay point-only until a route is
+promoted at its own coordinate.
 
 ## Python
 

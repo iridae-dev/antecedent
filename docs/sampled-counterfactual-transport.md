@@ -7,8 +7,9 @@ route evaluates that identification on supplied finite laws. This page covers
 the sampled route: the same stored derivation evaluated on laws estimated from
 counts, with the sample's uncertainty kept apart from the identification.
 
-Nothing on this route is calibrated. It publishes a point estimate and an
-uncalibrated standard error, and it keeps the interval closed.
+No interval on this route is published. It publishes a point estimate and an
+uncalibrated standard error, and it keeps the interval closed; the candidate
+interval's measured coverage is recorded below.
 
 ## Four claims, four fields
 
@@ -107,11 +108,15 @@ bias. An envelope request has none.
 
 No interval is published. The coordinate that would license one is the whole
 method across the sample-size grid, including estimated-table zero and sparse
-cells; it is allocated and unmeasured (`parity/promotion.toml`, records
-`counterfactual.transport_sampled` and `counterfactual.transport_sampled_interval`).
-A nominal normal interval exists only behind the `calibration-internal` feature
-of `antecedent-estimate` for the calibration harness. If calibration fails at a
-coordinate, the point estimate ships labelled and the interval stays closed.
+cells (`parity/promotion.toml`, records `counterfactual.transport_sampled` and
+`counterfactual.transport_sampled_interval`). A nominal normal interval exists
+only behind the `calibration-internal` feature of `antecedent-estimate` for the
+calibration harness, and it is measured there at 250 to 4,000 units on three
+designs: a latent district (0.955, 0.945, 0.940), a mediation covariate shift
+(0.940, 0.948, 0.948) and a two-source joint (0.958, 0.943, 0.950), each at the
+95% level. The route stays closed until it is promoted at its own coordinate;
+where a coordinate is not measured, the point estimate ships labelled and the
+interval stays closed.
 
 ## Artifact
 
