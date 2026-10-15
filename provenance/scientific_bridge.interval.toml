@@ -1,24 +1,28 @@
 # Algorithm provenance for scientific_bridge.interval (see docs/scientific-bridges.md).
 
 feature_id = "scientific_bridge.interval"
-implementation_crate = "antecedent-contract"
+implementation_crate = "antecedent-io"
 source_translation = false
 copied_code = false
 copied_comments = false
 copied_tests = false
 
-# papers = [] because the record is the closed interval route of a bridged claim: no interval,
-# posterior or coverage statement is licensed, so no published interval method is implemented.
+# The prediction interval of a new observation from a simple linear regression (classical
+# least squares), the delta method for the Rogan-Gladen correction (Rogan and Gladen 1978).
 papers = [
+  "Rogan and Gladen (1978), Estimating Prevalence from the Results of a Screening Test, American Journal of Epidemiology 107(1)",
+  "Buyse, Molenberghs, Burzykowski, Renard and Geys (2000), The Validation of Surrogate Endpoints in Meta-Analyses of Randomized Experiments, Biostatistics 1(1)",
 ]
 
 implementation_deviations = [
- "No interval, posterior or coverage statement: whole-method coverage of a bridge (source uncertainty, mapping uncertainty and the declared assumptions together) has not been measured, so the request is refused with cell_not_licensed.",
- "The sampling uncertainty of the mapping (trial-level regression error, estimated misclassification rates) is not propagated into the bridged value.",
+ "The interval of a bridged value carries the source claim's declared standard error (supplied with the claim) through the mapping together with the mapping's own estimation uncertainty: the prediction error of the trial-level line (Student-t, k - 2 degrees of freedom, validation effects treated as exact points) and the delta-method variance of the correction from the declared rate variances. It is published only where a current attesting coverage record measured the construction; an identity or declared affine map is an exact transform of the declared source interval.",
+ "No posterior or joint law is produced, and an unscoped request, an interval with no source standard error and a design no record measured are refused with cell_not_licensed.",
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
- "executed refusal of an interval request on a bridged claim and on its consumed artifact",
+ "crates/antecedent/tests/scientific_bridge_interval_facade.rs",
+ "crates/antecedent/tests/scientific_bridge_interval_calibration.rs",
+ "crates/antecedent/tests/scientific_bridge_facade.rs",
 ]

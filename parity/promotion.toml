@@ -9721,7 +9721,7 @@ routes = [
   { name = "antecedent.evidence_ledger.EvidenceLedger.refresh", stage = "prepare", status = "licensed", claim = "none" },
   { name = "antecedent.evidence_ledger.EvidenceLedger.export", stage = "representation", status = "licensed", claim = "none" },
   { name = "antecedent.evidence_ledger.consume_evidence_ledger_artifact", stage = "consume", status = "licensed", claim = "none", covers = ["evidence_ledger_consume"] },
-  { name = "antecedent.evidence_ledger.EvidenceLedger.pooled_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_evidence_ledger.py", refusal_assertion = "test_a_pooled_interval_refuses_without_a_measured_record" },
+  { name = "antecedent.evidence_ledger.EvidenceLedger.pooled_interval", stage = "uncertainty", status = "licensed", claim = "calibrated" },
 ]
 fixtures = [
   { id = "evidence_ledger.overlap_accounting.mass_accounting.positive", role = "positive", intent = "Overlapping 100/100/10-row sources: 210 slots, 160 distinct, 50 repeated; a duplicate adds slots, not observations.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "mass_accounting_counts_each_observation_once" },
@@ -10219,18 +10219,19 @@ truth_grid_allocation = "No repeated-sampling grid allocated. The declared point
 [[record]]
 id = "evidence_ledger.pooled_interval"
 capability = "evidence_ledger.pooled_interval"
-status = "in_progress"
+status = "promoted"
 consumer_question = "Can an interval, posterior or coverage statement be reported for pooled or borrowed evidence?"
-theorem = "Adjacent interval route of the pooling and random-effects records. Two constructions exist and are reported only as a measured scalar bound to a currently attesting coverage record of exactly that construction: the Wald z interval of the fixed-effect (inverse-variance or declared-covariance) pooled mean, and the Hartung-Knapp-Sidik-Jonkman t interval (k - 1 degrees of freedom, variance floored at the conditional one) of the DerSimonian-Laird or REML random-effects mean, each conditional on the declared study variances being the studies' sampling variances. No record is measured yet, so every request refuses cell_not_licensed. A hierarchical borrowing posterior and an assumption range have no measured construction and refuse; a result registered for accounting only has no numbers, so no interval can logically exist for it."
+theorem = "Adjacent interval route of the pooling and random-effects records. Two constructions exist and are reported only as a measured scalar bound to a currently attesting coverage record of exactly that construction: the Wald z interval of the fixed-effect (inverse-variance or declared-covariance) pooled mean, and the Hartung-Knapp-Sidik-Jonkman t interval (k - 1 degrees of freedom, variance floored at the conditional one) of the DerSimonian-Laird or REML random-effects mean, each conditional on the declared study variances being the studies' sampling variances. Measured at 5 and 10 studies with 75 to 200 observations per study (375 to 2000 distinct observations); any other study count or size refuses cell_not_licensed. A hierarchical borrowing posterior and an assumption range have no measured construction and refuse; a result registered for accounting only has no numbers, so no interval can logically exist for it."
 reference = "provenance/evidence_ledger.pooled_interval.toml"
-guarantee = "interval_route_closed_pending_measurement"
+guarantee = "pooled_mean_interval_measured_fixed_effect_wald_and_random_effects_hksj_point_otherwise"
 graph_class = "No graph."
 population_semantics = "Not applicable."
 evidence_family = "An independent pool, a covariance pool, a hierarchical borrowing and an assumption range, each asked for an interval."
-provider = "antecedent_contract::evidence_ledger::EvidenceLedger::request_interval"
-estimand = "none: the request is refused"
-inference_claim = "none"
-owners = ["antecedent-contract", "antecedent-io-core"]
+provider = "antecedent::analysis::evidence_ledger::EvidenceLedgerSession::pooled_interval"
+estimand = "The pooled mean of independent (or declared-covariance) study summaries, as a 95% interval."
+inference_claim = "calibrated"
+coverage_records = ["cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_five_studies", "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_ten_studies", "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_five_studies", "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_ten_studies"]
+owners = ["antecedent-contract", "antecedent-io-core", "antecedent"]
 identity_inputs = ["result identity"]
 wire_changes = ["None."]
 compatibility = "Additive; opening the route later is its own record with whole-method coverage measurement."
@@ -10244,16 +10245,42 @@ refusals = [
   { code = "invalid_argument", detail = "evidence_ledger.unknown_result", when = "A referenced result is not in the ledger, or was already replaced.", remedy = "Register the result in the ledger first, or cite the result that replaced it." },
 ]
 routes = [
-  { name = "antecedent.evidence_ledger.pooled_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent/tests/evidence_ledger_facade.rs", refusal_assertion = "a_pooled_interval_refuses_without_a_measured_record" },
+  { name = "antecedent.evidence_ledger.pooled_interval", stage = "uncertainty", status = "licensed", claim = "calibrated" }
 ]
 fixtures = [
   { id = "evidence_ledger.pooled_interval.point_fallback.positive", role = "positive", intent = "The point-only claim class is what a licensed pooling reports.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "a_registered_result_records_the_once_counted_mass", shared_evidence = true },
   { id = "evidence_ledger.pooled_interval.interval_request.negative", role = "negative", intent = "An interval request on pooled evidence is refused as cell_not_licensed naming the point-only class.", evidence_test = "crates/antecedent-contract/tests/evidence_ledger.rs", evidence_assertion = "no_interval_or_posterior_is_licensed_from_pooled_evidence" },
   { id = "evidence_ledger.pooled_interval.exported_results.artifact", role = "artifact", intent = "Every exported result refuses an interval request in a fresh consumer.", evidence_test = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs", evidence_assertion = "an_exported_result_carries_no_interval_license" },
+  { id = "evidence_ledger.pooled_interval.repeated_sampling.calibration", role = "calibration", intent = "Repeated-sampling coverage of the Wald z and Hartung-Knapp t pooled-mean intervals at 5 and 10 studies over per-study n 75, 100 and 200.", evidence_test = "crates/antecedent/tests/evidence_ledger_facade.rs", evidence_assertion = "a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record", shared_evidence = true },
+  { id = "evidence_ledger.pooled_interval.measured_interval.positive", role = "positive", intent = "Inside the measured scope the interval is reported bound to its attesting coverage record.", evidence_test = "crates/antecedent/tests/evidence_ledger_facade.rs", evidence_assertion = "a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record", shared_evidence = true },
   { id = "evidence_ledger.pooled_interval.python_interval_refused.negative", role = "negative", intent = "Python surface: an interval request on pooled evidence raises cell_not_licensed and an unknown result is an invalid argument.", evidence_test = "python/tests/test_evidence_ledger.py", evidence_assertion = "test_a_pooled_interval_refuses_without_a_measured_record" },
 ]
-inference_inventory_disposition = "no_new_inference_outputs"
-inference_outputs = []
+inference_inventory_disposition = "outputs_listed"
+
+[[record.inference_outputs]]
+fields = ["PooledInterval.lower", "PooledInterval.upper", "PooledInterval.level", "PooledInterval.report"]
+method = "fixed-effect Wald z interval and DerSimonian-Laird or REML random-effects Hartung-Knapp-Sidik-Jonkman t interval of the pooled mean, 95%"
+implementation_status = "implemented_measured_scoped"
+boundary = "Independent Gaussian study summaries with estimated variances, 5 or 10 studies, 75 to 200 observations per study; declared variances are the studies' sampling variances. Hierarchical borrowing, assumption ranges, accounting-only results and other study counts refuse."
+truth_design = "Raw rows drawn per study, summarized with estimated variance, registered as disjoint ledger sources and pooled through the session; truth is the common effect or the mean of study effects."
+method_source = "crates/antecedent/src/analysis/evidence_ledger.rs"
+nominal_level = "0.95"
+measurement_suite = "crates/antecedent/tests/evidence_synthesis_calibration.rs"
+id = "evidence_ledger.pooled_interval.measured_mean"
+owner = "antecedent"
+operation_or_object = "evidence_ledger_pooled_interval"
+public_producers = ["antecedent.evidence_ledger.pooled_interval"]
+closed_producers = []
+independent_consumers = ["evidence_ledger.pooled_interval.exported_results.artifact"]
+truth_fixtures = ["crates/antecedent/tests/evidence_ledger_facade.rs::a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record"]
+acceptance_threshold = "Nominal 0.95 within 3 MCSE at each grid point; skips at most 1 percent."
+activation_disposition = "licensed_exact_named_scalar_scope"
+allocation_status = "whole_method_measured_currently_attesting"
+role_allocation_note = "The measured interval is the public route; accounting-only results keep the contract refusal."
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "Fixed effect and random effects at 5 and 10 studies; per-study n 75 / 100 / 200."
+allocated_coverage_records = ["cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_five_studies", "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_ten_studies", "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_five_studies", "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_ten_studies"]
+inherited_coverage_records = []
 
 [[record]]
 id = "measurement.model_contract"
@@ -11444,6 +11471,7 @@ routes = [
   { name = "antecedent.decision_reliability.assess", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["decision_reliability_assess", "decision_reliability_rank", "decision_reliability_publish", "rank", "publish", "derive_decision_uncertainty", "derive_producer_uncertainty", "reach_decision_carrier", "decision_reliability_coverage_design", "publish_derived_route", "derive_uncertainty", "coverage_design", "reach_carrier", "decision_reliability_derive", "decision_reliability_derive_producer", "decision_reliability_assess_producer", "decision_reliability_reach_carrier", "decision_reliability_coverage_design_json", "decision_reliability_publish_derived"] },
   { name = "antecedent.decision_reliability.export", stage = "representation", status = "licensed", claim = "point_only" },
   { name = "antecedent.decision_reliability.consume_decision_reliability_artifact", stage = "consume", status = "licensed", claim = "point_only", covers = ["consume_decision_reliability_artifact", "decision_reliability_consume", "consume_derived_uncertainty", "decision_reliability_consume_derived", "decision_reliability_verify_derived"] },
+  { name = "antecedent.decision_reliability.sampled_decision.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-design/tests/decision_reliability.rs", refusal_assertion = "every_published_ranking_or_interval_route_is_closed_at_its_coordinate" },
 ]
 fixtures = [
   { id = "decision_reliability.sampled_decision.enumerated_risk_measures.positive", role = "positive", intent = "Exact CVaR, nearest-rank quantile and threshold probability of ten enumerated utilities.", evidence_test = "crates/antecedent-design/tests/decision_reliability.rs", evidence_assertion = "enumerated_cvar_quantile_and_threshold_probability_are_exact" },
@@ -11574,7 +11602,7 @@ inference_outputs = [
 [[record]]
 id = "decision_reliability.ranking_probability_interval"
 capability = "decision_reliability.ranking_probability_interval"
-status = "in_progress"
+status = "promoted"
 consumer_question = "Can a ranking or optimality probability, a confidence or credible set for the best action, or an interval for a selected decision's value be published as a calibrated claim?"
 theorem = "Adjacent variant of decision_reliability.ranking_statement and decision_reliability.selection_aware_evaluation. A published ranking probability (Wilson interval at the effective sample size), utility interval (Wald), optimality confidence set (Bonferroni over the retained candidates) and selection-corrected interval (simultaneous over the candidates considered) are statements about the whole procedure under the supplied law, with the Monte Carlo draws as the only randomness. Each is published at a coordinate (candidate-set size, Monte Carlo budget, selection rule, coupling, serial dependence) exactly when a current attesting non-boundary coverage record measured that construction against a known optimum and the budget lies inside its measured range; the record is resolved from the shipped coverage table, never declared by a caller. Component Monte Carlo error alone does not cover the selected decision, and the statements say nothing about candidates a search considered but did not retain or about a law other than the one supplied. Every other request is refused with cell_not_licensed and the point diagnostics remain available."
 reference = "provenance/decision_reliability.ranking_probability_interval.toml"
@@ -11583,10 +11611,48 @@ graph_class = "No graph. A finite candidate set of per-draw utilities supplied b
 population_semantics = "Whatever population and horizon the producer computed the utilities for; this record reasons about the draws and their stream identities, never about the population."
 evidence_family = "A report's ranking statements or selection diagnostics, asked to be published as a calibrated claim."
 provider = "antecedent_design::decision_reliability::DecisionDraws"
-estimand = "none: the request is refused"
-inference_claim = "none"
-inference_notes = "Measurement design: the whole procedure (draw, estimate, select, interval) is scored against the known truth of KnownOptimumDesign by crates/antecedent-design/tests/decision_reliability_interval_calibration.rs over candidate-set sizes 2/8/64, per-candidate budgets 500/1000/2000 (grid_n(1000)), shared-stream correlations 0 and 0.5 (ranking) and separate streams (the other routes), selection rule expected utility, level 0.95. Records are keyed by DecisionReliability / the route's estimator and interval method / the candidate-set size, selection rule and functional; a named boundary (all candidates equal, a dominant leader) is recorded under its own functional and never gates a route. Autocorrelated streams, importance weights, adaptively generated candidates, budgets outside the measured range and any other level are refused. The registry route stays closed until the collected records are attested and the record is promoted."
-inference_inventory_disposition = "no_new_inference_outputs"
+estimand = "The probability that a candidate is best under the supplied law, a candidate's expected utility, the best retained candidate and the value of the selected candidate, each as a 95% interval or set at a measured coordinate."
+inference_claim = "calibrated"
+coverage_records = [
+  "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_eight_candidates_l95.shared_rho_0_0",
+  "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_eight_candidates_l95.shared_rho_0_5",
+  "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_sixty_four_candidates_l95.shared_rho_0_0",
+  "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_sixty_four_candidates_l95.shared_rho_0_5",
+  "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_two_candidates_l95.shared_rho_0_0",
+  "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_two_candidates_l95.shared_rho_0_5",
+  "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.separate_streams",
+  "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.shared_rho_0_0",
+  "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.shared_rho_0_5",
+  "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_sixty_four_candidates_l95.separate_streams",
+  "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_sixty_four_candidates_l95.shared_rho_0_0",
+  "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_sixty_four_candidates_l95.shared_rho_0_5",
+  "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_two_candidates_l95.separate_streams",
+  "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_two_candidates_l95.shared_rho_0_0",
+  "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_two_candidates_l95.shared_rho_0_5",
+  "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_eight_candidates_l95.separate_streams",
+  "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_eight_candidates_l95.shared_rho_0_0",
+  "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_eight_candidates_l95.shared_rho_0_5",
+  "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_sixty_four_candidates_l95.separate_streams",
+  "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_sixty_four_candidates_l95.shared_rho_0_0",
+  "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_sixty_four_candidates_l95.shared_rho_0_5",
+  "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_two_candidates_l95.separate_streams",
+  "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_two_candidates_l95.shared_rho_0_0",
+  "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_two_candidates_l95.shared_rho_0_5",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_eight_candidates_l95.separate_streams",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_eight_candidates_l95.shared_rho_0_0",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_eight_candidates_l95.shared_rho_0_5",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_sixty_four_candidates_l95.separate_streams",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_sixty_four_candidates_l95.shared_rho_0_0",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_sixty_four_candidates_l95.shared_rho_0_5",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.separate_streams",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_0",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_5",
+  "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_all_equal_boundary_l95.shared_rho_0_5",
+  "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_dominant_leader_boundary_l95.shared_rho_0_5",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_all_equal_sixty_four_candidates_boundary_l95.shared_rho_0_5",
+]
+inference_notes = "Measurement design: the whole procedure (draw, estimate, select, interval) is scored against the known truth of KnownOptimumDesign by crates/antecedent-design/tests/decision_reliability_interval_calibration.rs over candidate-set sizes 2/8/64, per-candidate budgets 500/1000/2000 (grid_n(1000)), shared-stream correlations 0 and 0.5 (ranking) and separate streams (the other routes), selection rule expected utility, level 0.95. Records are keyed by DecisionReliability / the route's estimator and interval method / the candidate-set size, selection rule and functional; a named boundary (all candidates equal, a dominant leader) is recorded under its own functional and never gates a route. Autocorrelated streams, importance weights, adaptively generated candidates, budgets outside the measured range and any other level are refused. Measured: every statement at candidate-set sizes 2, 8 and 64 and per-candidate budgets 500 to 2000, the ranking probability on shared streams only; the selection-corrected interval and the confidence set are conservative by construction and were accepted one-sided. Three named boundaries (all candidates equal, a dominant leader, and all equal at 64 candidates for the selection-corrected interval) are recorded under their own keys and license nothing."
+inference_inventory_disposition = "outputs_listed"
 prerequisite_records = ["distribution.joint_alignment"]
 prerequisite_reason = "Pairs candidates' draws by index only on aligned joint draws or a declared shared simulation; no interval, posterior or coverage statement of that record, and no calibration, is inherited."
 owners = ["antecedent-design"]
@@ -11599,17 +11665,143 @@ refusals = [
   { code = "cell_not_licensed", detail = "decision_reliability.cell_not_licensed", when = "A ranking or optimality probability, or an interval for a selected decision, is requested as a published claim at a coordinate (candidate-set size, Monte Carlo budget, selection rule, coupling, serial dependence, level) that no current attesting coverage record measured.", remedy = "Use the labelled point diagnostics, or evaluate at a coordinate inside a measured record: a shared or declared-independent coupling with serially independent, unweighted, enumerated candidates and a per-candidate budget inside the measured range." },
 ]
 routes = [
-  { name = "antecedent.decision_reliability.publish", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent-design/tests/decision_reliability.rs", refusal_assertion = "every_published_ranking_or_interval_route_is_closed_at_its_coordinate" },
+  { name = "antecedent.decision_reliability.publish", stage = "uncertainty", status = "licensed", claim = "calibrated" },
 ]
 fixtures = [
   { id = "decision_reliability.ranking_probability_interval.facade_enumerated_law.positive", role = "positive", intent = "A four-state enumerated law reports exact expected utilities, best probabilities and three separate components through the facade.", evidence_test = "crates/antecedent/tests/decision_reliability_facade.rs", evidence_assertion = "the_facade_reports_the_enumerated_truth_with_separate_components" },
   { id = "decision_reliability.ranking_probability_interval.closed_routes.negative", role = "negative", intent = "Every published ranking or interval route refuses with cell_not_licensed at the report's coordinate.", evidence_test = "crates/antecedent-design/tests/decision_reliability.rs", evidence_assertion = "every_published_ranking_or_interval_route_is_closed_at_its_coordinate" },
   { id = "decision_reliability.ranking_probability_interval.facade_publish.negative", role = "negative", intent = "The facade refuses every publish request with the registered code and a stated remedy.", evidence_test = "crates/antecedent/tests/decision_reliability_facade.rs", evidence_assertion = "publishing_a_probability_or_a_combined_number_is_refused_with_registered_codes" },
   { id = "decision_reliability.ranking_probability_interval.artifact_roundtrip.artifact", role = "artifact", intent = "A fresh consumer recomputes the report from the carried draws bit for bit.", evidence_test = "crates/antecedent-design/tests/decision_reliability.rs", evidence_assertion = "the_artifact_round_trips_and_is_recomputed_from_the_draws" },
-  { id = "decision_reliability.ranking_probability_interval.python_closed_routes.negative", role = "negative", intent = "Python surface: every published ranking or interval route refuses cell_not_licensed.", evidence_test = "python/tests/test_decision_reliability.py", evidence_assertion = "test_every_published_ranking_or_interval_route_is_closed" },
+  { id = "decision_reliability.ranking_probability_interval.python_closed_routes.negative", role = "negative", intent = "Python surface: outside a measured record (100 draws per candidate) every published ranking or interval route refuses cell_not_licensed.", evidence_test = "python/tests/test_decision_reliability.py", evidence_assertion = "test_every_published_ranking_or_interval_route_is_closed" },
+  { id = "decision_reliability.ranking_probability_interval.measured_coordinate.positive", role = "positive", intent = "Inside a measured coverage record (two candidates, 1000 draws, shared stream, expected-utility selection, level 0.95) every published route is licensed, and the same coordinate at another level or with serially dependent draws is refused.", evidence_test = "crates/antecedent-design/tests/decision_reliability.rs", evidence_assertion = "every_published_route_is_licensed_inside_a_measured_coverage_record", shared_evidence = true },
+  { id = "decision_reliability.ranking_probability_interval.repeated_sampling.calibration", role = "calibration", intent = "Repeated-sampling coverage against the known optimum of the Wilson ranking probability, the Wald utility interval, the Bonferroni confidence set and the simultaneous selection-corrected interval at 2, 8 and 64 candidates and 500, 1000 and 2000 draws per candidate.", evidence_test = "crates/antecedent-design/tests/decision_reliability.rs", evidence_assertion = "every_published_route_is_licensed_inside_a_measured_coverage_record", shared_evidence = true },
+  { id = "decision_reliability.ranking_probability_interval.python_measured.positive", role = "positive", intent = "Python surface: inside a measured record every published route is licensed.", evidence_test = "python/tests/test_decision_reliability.py", evidence_assertion = "test_every_published_route_is_licensed_inside_a_measured_coverage_record" },
 ]
-inference_outputs = [
-]
+
+[[record.inference_outputs]]
+fields = ["DerivedUncertainty.numerical.probabilities", "DerivedUncertainty.publish"]
+method = "Wilson score interval at the reported effective sample size for the probability that a candidate is best, marginal, 95%"
+implementation_status = "implemented_measured_scoped"
+boundary = "Shared-stream candidates only; enumerated, unweighted, serially independent draws; 2, 8 or 64 candidates; 500 to 2000 draws per candidate; expected-utility selection; level 0.95; marginal multiplicity. Statements are about the per-draw law supplied and the retained candidates. Independent streams, other budgets and levels refuse."
+truth_design = "Known-optimum Gaussian candidates with one leader; the per-draw probability that the leader is best is the closed-form quadrature of phi(z) Phi(z + lead)^(k-1)."
+method_source = "crates/antecedent-design/src/decision_reliability/interval.rs"
+nominal_level = "0.95"
+measurement_suite = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs"
+id = "decision_reliability.ranking_probability.wilson"
+owner = "antecedent-design"
+operation_or_object = "decision_reliability_ranking_probability"
+public_producers = ["antecedent.decision_reliability.publish"]
+closed_producers = []
+independent_consumers = ["decision_reliability.ranking_probability_interval.artifact_roundtrip.artifact"]
+truth_fixtures = ["crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_best_probability"]
+acceptance_threshold = "Nominal 0.95 within 3 MCSE and the precision floor and ceiling at every grid point; skips at most 1 percent."
+activation_disposition = "licensed_exact_named_scalar_scope"
+allocation_status = "whole_method_measured_currently_attesting"
+role_allocation_note = "The artifact consumer recomputes the report and the derivation from the carried draws; publication resolves the record at the coordinate."
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "Candidates 2, 8, 64; draws 500 / 1000 / 2000; shared correlation 0 and 0.5."
+allocated_coverage_records = ["cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_eight_candidates_l95.shared_rho_0_0", "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_eight_candidates_l95.shared_rho_0_5", "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_sixty_four_candidates_l95.shared_rho_0_0", "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_sixty_four_candidates_l95.shared_rho_0_5", "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_two_candidates_l95.shared_rho_0_0", "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_two_candidates_l95.shared_rho_0_5"]
+inherited_coverage_records = []
+
+[[record.inference_outputs]]
+fields = ["DerivedUncertainty.numerical.utilities", "DerivedUncertainty.publish"]
+method = "Wald interval at the Monte Carlo standard error of a candidate's expected utility, marginal, 95%"
+implementation_status = "implemented_measured_scoped"
+boundary = "Enumerated, unweighted, serially independent draws; shared or independent streams; 2, 8 or 64 candidates; 500 to 2000 draws per candidate; expected-utility selection; level 0.95; marginal multiplicity."
+truth_design = "Known-optimum Gaussian candidates; truth is the candidate's true mean."
+method_source = "crates/antecedent-design/src/decision_reliability/interval.rs"
+nominal_level = "0.95"
+measurement_suite = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs"
+id = "decision_reliability.utility_interval.wald"
+owner = "antecedent-design"
+operation_or_object = "decision_reliability_utility_interval"
+public_producers = ["antecedent.decision_reliability.publish"]
+closed_producers = []
+independent_consumers = ["decision_reliability.ranking_probability_interval.artifact_roundtrip.artifact"]
+truth_fixtures = ["crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_design"]
+acceptance_threshold = "Nominal 0.95 within 3 MCSE and the precision floor and ceiling at every grid point; skips at most 1 percent."
+activation_disposition = "licensed_exact_named_scalar_scope"
+allocation_status = "whole_method_measured_currently_attesting"
+role_allocation_note = "As the ranking probability."
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "Candidates 2, 8, 64; draws 500 / 1000 / 2000; separate streams and shared correlation 0 and 0.5."
+allocated_coverage_records = ["cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.separate_streams", "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.shared_rho_0_0", "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.shared_rho_0_5", "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_sixty_four_candidates_l95.separate_streams", "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_sixty_four_candidates_l95.shared_rho_0_0", "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_sixty_four_candidates_l95.shared_rho_0_5", "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_two_candidates_l95.separate_streams", "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_two_candidates_l95.shared_rho_0_0", "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_two_candidates_l95.shared_rho_0_5"]
+inherited_coverage_records = []
+
+[[record.inference_outputs]]
+fields = ["DerivedUncertainty.selection.confidence_set", "DerivedUncertainty.publish"]
+method = "Bonferroni confidence set for the best retained candidate (marginal or paired comparisons with the best), 95%, conservative by construction"
+implementation_status = "implemented_measured_scoped"
+boundary = "Retained candidates only; enumerated, unweighted, serially independent draws; 2, 8 or 64 candidates; 500 to 2000 draws per candidate; expected-utility selection; level 0.95. Accepted one-sided (at least nominal)."
+truth_design = "Known-optimum Gaussian candidates with a unique leader; scored on containing the leader."
+method_source = "crates/antecedent-design/src/decision_reliability/interval.rs"
+nominal_level = "0.95"
+measurement_suite = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs"
+id = "decision_reliability.optimality_confidence_set.bonferroni"
+owner = "antecedent-design"
+operation_or_object = "decision_reliability_confidence_set"
+public_producers = ["antecedent.decision_reliability.publish"]
+closed_producers = []
+independent_consumers = ["decision_reliability.ranking_probability_interval.artifact_roundtrip.artifact"]
+truth_fixtures = ["crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_design"]
+acceptance_threshold = "Coverage at least nominal within 3 MCSE and the precision floor at every grid point; over-coverage is the claim, not a failure."
+activation_disposition = "licensed_exact_named_scalar_scope"
+allocation_status = "whole_method_measured_currently_attesting"
+role_allocation_note = "As the ranking probability."
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "Candidates 2, 8, 64; draws 500 / 1000 / 2000; separate streams and shared correlation 0 and 0.5."
+allocated_coverage_records = ["cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_eight_candidates_l95.separate_streams", "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_eight_candidates_l95.shared_rho_0_0", "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_eight_candidates_l95.shared_rho_0_5", "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_sixty_four_candidates_l95.separate_streams", "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_sixty_four_candidates_l95.shared_rho_0_0", "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_sixty_four_candidates_l95.shared_rho_0_5", "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_two_candidates_l95.separate_streams", "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_two_candidates_l95.shared_rho_0_0", "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_two_candidates_l95.shared_rho_0_5"]
+inherited_coverage_records = []
+
+[[record.inference_outputs]]
+fields = ["DerivedUncertainty.selection.corrected", "DerivedUncertainty.publish"]
+method = "simultaneous Bonferroni Wald interval over the candidates considered for the value of the selected candidate, 95%, conservative by construction"
+implementation_status = "implemented_measured_scoped"
+boundary = "Selection by expected utility on the draws; enumerated, unweighted, serially independent draws; 2, 8 or 64 candidates; 500 to 2000 draws per candidate; level 0.95. Accepted one-sided (at least nominal). All candidates equal at 64 candidates is a named boundary."
+truth_design = "Known-optimum Gaussian candidates; truth is the true value of whichever candidate the rule selected."
+method_source = "crates/antecedent-design/src/decision_reliability/interval.rs"
+nominal_level = "0.95"
+measurement_suite = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs"
+id = "decision_reliability.selection_corrected_interval.simultaneous"
+owner = "antecedent-design"
+operation_or_object = "decision_reliability_selection_corrected_interval"
+public_producers = ["antecedent.decision_reliability.publish"]
+closed_producers = []
+independent_consumers = ["decision_reliability.ranking_probability_interval.artifact_roundtrip.artifact"]
+truth_fixtures = ["crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_design"]
+acceptance_threshold = "Coverage at least nominal within 3 MCSE and the precision floor at every grid point; over-coverage is the claim, not a failure."
+activation_disposition = "licensed_exact_named_scalar_scope"
+allocation_status = "whole_method_measured_currently_attesting"
+role_allocation_note = "As the ranking probability."
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "Candidates 2, 8, 64; draws 500 / 1000 / 2000; separate streams and shared correlation 0 and 0.5."
+allocated_coverage_records = ["cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_eight_candidates_l95.separate_streams", "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_eight_candidates_l95.shared_rho_0_0", "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_eight_candidates_l95.shared_rho_0_5", "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_sixty_four_candidates_l95.separate_streams", "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_sixty_four_candidates_l95.shared_rho_0_0", "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_sixty_four_candidates_l95.shared_rho_0_5", "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.separate_streams", "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_0", "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_5"]
+inherited_coverage_records = []
+
+[[record.inference_outputs]]
+fields = ["DerivedUncertainty.publish"]
+method = "named boundary cells of the ranking probability and the selection-corrected interval, recorded and never licensed"
+implementation_status = "candidate_public_closed"
+boundary = "All candidates equal and a dominant leader (ranking probability, 8 candidates); all candidates equal at 64 candidates (selection-corrected interval). Each is recorded under its own key; none resolves a licence."
+truth_design = "Known-optimum Gaussian candidates at the stress coordinates."
+method_source = "crates/antecedent-design/src/decision_reliability/interval.rs"
+nominal_level = "0.95"
+measurement_suite = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs"
+id = "decision_reliability.named_boundaries"
+owner = "antecedent-design"
+operation_or_object = "decision_reliability_named_boundaries"
+public_producers = []
+closed_producers = ["antecedent.decision_reliability.publish"]
+independent_consumers = []
+truth_fixtures = ["crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_best_probability"]
+acceptance_threshold = "Recorded as measured coverage under the stress coordinate; never gated and never a licence."
+activation_disposition = "closed_named_boundary"
+allocation_status = "whole_method_measured_named_boundary_not_licensed"
+role_allocation_note = "Boundary measurements keep their own functional key, so they cannot be borrowed by a licensed coordinate."
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "Eight equal or dominant candidates; 64 equal candidates; draws 500 / 1000 / 2000; shared correlation 0.5."
+allocated_coverage_records = ["cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_all_equal_boundary_l95.shared_rho_0_5", "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_dominant_leader_boundary_l95.shared_rho_0_5", "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_all_equal_sixty_four_candidates_boundary_l95.shared_rho_0_5"]
+inherited_coverage_records = []
 
 [[record]]
 id = "decision_reliability.combined_uncertainty"
@@ -12006,7 +12198,7 @@ truth_grid_allocation = "No repeated-sampling grid allocated. The declared point
 [[record]]
 id = "predictive_assessment.score_interval"
 capability = "predictive_assessment.score_interval"
-status = "in_progress"
+status = "promoted"
 consumer_question = "Can an interval or significance level be reported for a score or a score difference?"
 theorem = "Adjacent variant of the proper_scores, score_differences and calibration_diagnostics records. The report states point scores, paired differences and a labelled Diebold-Mariano style statistic and carries no interval. The interval of one predictor's expected score (or of the expected difference of two) is a different, scoped statement: for a fixed law that was verified held out of the cases (or never fitted), a declared dependence (iid, serial with its truncation lag, or cluster) makes the mean case score a mean with a variance, and its Student-t interval is published only where a current attesting coverage record measured that construction at the design, score, law family, level and number of cases; the record is resolved from the shipped coverage table, never declared by a caller. The interval is about the expected score under the declared sampling design, not about the assessed cases alone, and is not causal validity. An unscoped request (no predictor, score or level), an in-sample or unverified predictor, an undeclared dependence and any design outside a measured record are refused with a typed reason; exact finite-law scoring supplies no sampling interval at all."
 reference = "provenance/predictive_assessment.score_interval.toml"
@@ -12014,9 +12206,22 @@ guarantee = "expected_score_interval_resolved_from_current_coverage_record_unsco
 graph_class = "No graph. Predictive laws and realized observations; the assessment is model-independent."
 population_semantics = "Not applicable."
 evidence_family = "A seeded generator assessed with an interval request refused as cell_not_licensed; the report's own interval request refused; the artifact claim cannot be edited to report one."
-provider = "antecedent_validate::predictive_assessment::PredictiveAssessmentReport::request_score_interval"
-estimand = "none: the request is refused"
-inference_claim = "none"
+provider = "antecedent_validate::predictive_assessment::expected_score_interval (interval); antecedent_validate::predictive_assessment::PredictiveAssessmentReport::request_score_interval (unscoped request)"
+estimand = "The expected score of one predictor's fixed law (or the expected difference of two predictors' scores) under the declared sampling design, as a 95% Student-t interval."
+inference_claim = "calibrated"
+coverage_records = [
+  "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_crps_mean_l95",
+  "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_log_score_mean_l95",
+  "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_crps_difference_l95",
+  "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_crps_mean_l95",
+  "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_log_score_mean_l95",
+  "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_crps_difference_l95",
+  "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_log_score_mean_l95",
+  "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_crps_difference_l95",
+  "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_crps_mean_l95",
+  "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_log_score_heavy_tailed_truth_boundary_l95",
+]
+inference_notes = "Measured against closed-form expected scores of fixed Gaussian forecasts: iid outcomes (400 to 1600 cases), clusters of five (800 to 3200 cases) and a stationary AR(1) series with phi 0.5 (1600 to 6400 cases, Bartlett lag floor(n^(1/3)), Student-t with n/(L+1)-1 degrees of freedom). The serial CRPS mean interval was measured as a named boundary and is not licensed; a heavy-tailed truth (Student-t with 3 degrees of freedom) is a named boundary of the iid log score. Any other design, law family, score, level or number of cases resolves to no record and refuses."
 owners = ["antecedent-validate", "antecedent-io", "antecedent"]
 identity_inputs = ["result identity"]
 wire_changes = ["None."]
@@ -12032,6 +12237,7 @@ refusals = [
 ]
 routes = [
   { name = "antecedent.predictive_assessment.score_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-validate/tests/predictive_assessment.rs", refusal_assertion = "a_score_interval_request_is_refused_with_cell_not_licensed" },
+  { name = "antecedent.predictive_assessment.expected_score_interval", stage = "uncertainty", status = "licensed", claim = "calibrated" },
 ]
 fixtures = [
   { id = "predictive_assessment.score_interval.point_fallback.positive", role = "positive", intent = "The point-only claim class is what a licensed assessment reports.", evidence_test = "crates/antecedent-validate/tests/predictive_assessment.rs", evidence_assertion = "every_report_is_point_only_unmeasured_and_not_a_causal_claim" },
@@ -12040,9 +12246,62 @@ fixtures = [
   { id = "predictive_assessment.score_interval.claims.artifact", role = "artifact", intent = "A consumer refuses an artifact whose stored interval, calibration or claim status is edited.", evidence_test = "crates/antecedent-io/tests/predictive_assessment_artifact.rs", evidence_assertion = "unknown_versions_and_unsupported_claims_are_refused_before_replay" },
   { id = "predictive_assessment.score_interval.python_closed_routes.negative", role = "negative", intent = "Python surface: an interval request and the closed reads raise typed refusals.", evidence_test = "python/tests/test_predictive_assessment.py", evidence_assertion = "test_the_closed_routes_raise_typed_refusals" },
   { id = "predictive_assessment.score_interval.python_matrix.negative", role = "negative", intent = "Producer/consumer matrix: a good score is point-only, replayable and refused as a decision source.", evidence_test = "python/tests/test_producer_consumer_matrix.py", evidence_assertion = "test_producer_consumer_matrix_a_good_score_is_not_a_decision_source" },
+  { id = "predictive_assessment.score_interval.measured_design.positive", role = "positive", intent = "Inside a measured design (iid, cluster, serial) the expected-score interval is published bound to its coverage record; the serial CRPS mean boundary, a short sample, another level, an in-sample predictor and an undeclared dependence are refused with typed reasons.", evidence_test = "crates/antecedent/tests/predictive_score_interval_facade.rs", evidence_assertion = "an_expected_score_interval_inside_a_measured_design_is_bound_to_its_record", shared_evidence = true },
+  { id = "predictive_assessment.score_interval.out_of_scope.negative", role = "negative", intent = "A design no record measured is refused cell_not_licensed with predictive_assessment.interval_scope_outside_measured.", evidence_test = "crates/antecedent/tests/predictive_score_interval_facade.rs", evidence_assertion = "a_design_no_record_measured_is_refused_with_the_typed_reason" },
+  { id = "predictive_assessment.score_interval.repeated_sampling.calibration", role = "calibration", intent = "Repeated-sampling coverage of the Student-t expected-score interval (CRPS and log score means, CRPS difference) under iid, cluster and serial dependence against closed-form truth.", evidence_test = "crates/antecedent/tests/predictive_score_interval_facade.rs", evidence_assertion = "an_expected_score_interval_inside_a_measured_design_is_bound_to_its_record", shared_evidence = true },
+  { id = "predictive_assessment.score_interval.python_measured.positive", role = "positive", intent = "Python surface: a scoped interval is published inside a measured design and refused outside it.", evidence_test = "python/tests/test_predictive_assessment.py", evidence_assertion = "test_a_scoped_score_interval_is_published_inside_a_measured_design_and_refused_outside" },
 ]
-inference_inventory_disposition = "no_new_inference_outputs"
-inference_outputs = []
+inference_inventory_disposition = "outputs_listed"
+
+[[record.inference_outputs]]
+fields = ["ScoreInterval.lower", "ScoreInterval.upper", "ScoreInterval.level", "ScoreInterval.coverage_record"]
+method = "Student-t interval of a mean case score (or of a mean paired difference) with the iid, cluster-robust or Bartlett long-run variance of the declared dependence, 95%"
+implementation_status = "implemented_measured_scoped"
+boundary = "A fixed Gaussian law verified held out or never fitted; iid 400 to 1600 cases, clusters of five 800 to 3200 cases (at least ten clusters), a serial bandwidth within a tenth of the cases 1600 to 6400 cases; CRPS and log score means and the CRPS difference, except the serial CRPS mean (a named boundary); level 0.95. In-sample or unverified predictors, undeclared dependence, other laws and designs refuse."
+truth_design = "Closed-form expected log score and CRPS of Gaussian forecasts under known Gaussian generators (iid, AR(1), clustered); the difference of two closed forms."
+method_source = "crates/antecedent-validate/src/predictive_assessment/interval.rs"
+nominal_level = "0.95"
+measurement_suite = "crates/antecedent/tests/predictive_score_interval_calibration.rs"
+id = "predictive_assessment.score_interval.student_t"
+owner = "antecedent-validate"
+operation_or_object = "predictive_assessment_expected_score_interval"
+public_producers = ["antecedent.predictive_assessment.expected_score_interval"]
+closed_producers = ["antecedent.predictive_assessment.score_interval"]
+independent_consumers = ["predictive_assessment.score_interval.claims.artifact"]
+truth_fixtures = ["crates/antecedent/tests/predictive_score_interval_calibration.rs::expected_crps"]
+acceptance_threshold = "Nominal 0.95 within 3 MCSE and the precision floor and ceiling at every grid point; the serial CRPS mean and the heavy-tailed log score are recorded as named boundaries and never gated."
+activation_disposition = "licensed_exact_named_scalar_scope"
+allocation_status = "whole_method_measured_currently_attesting"
+role_allocation_note = "The artifact stores no interval; the interval is recomputed from the stored laws and observations by the same construction and resolved against the record."
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "iid 400 / 800 / 1600; clusters 800 / 1600 / 3200; serial 1600 / 3200 / 6400 cases."
+allocated_coverage_records = ["cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_crps_mean_l95", "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_log_score_mean_l95", "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_crps_difference_l95", "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_crps_mean_l95", "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_log_score_mean_l95", "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_crps_difference_l95", "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_log_score_mean_l95", "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_crps_difference_l95"]
+inherited_coverage_records = []
+
+[[record.inference_outputs]]
+fields = ["ScoreInterval.lower", "ScoreInterval.upper"]
+method = "named boundary cells: the serial CRPS mean (Bartlett long-run variance) and the iid log score under a heavy-tailed truth"
+implementation_status = "candidate_public_closed"
+boundary = "The serial CRPS mean interval undercovers at the measured sizes and the iid log score under a Student-t(3) truth is outside the finite-variance assumption; each is recorded and none resolves a licence."
+truth_design = "Closed-form expected CRPS under a stationary AR(1) Gaussian generator; the log score of a Gaussian forecast under a unit-variance Student-t(3) truth."
+method_source = "crates/antecedent-validate/src/predictive_assessment/interval.rs"
+nominal_level = "0.95"
+measurement_suite = "crates/antecedent/tests/predictive_score_interval_calibration.rs"
+id = "predictive_assessment.score_interval.named_boundaries"
+owner = "antecedent-validate"
+operation_or_object = "predictive_assessment_expected_score_interval_boundaries"
+public_producers = []
+closed_producers = ["antecedent.predictive_assessment.expected_score_interval"]
+independent_consumers = []
+truth_fixtures = ["crates/antecedent/tests/predictive_score_interval_calibration.rs::expected_crps"]
+acceptance_threshold = "Recorded as measured coverage under the stress coordinate; never gated and never a licence."
+activation_disposition = "closed_named_boundary"
+allocation_status = "whole_method_measured_named_boundary_not_licensed"
+role_allocation_note = "A boundary record shares the licensed key (the serial CRPS mean) or carries its own functional (the heavy-tailed truth), so the licensed route refuses the cell it names."
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "Serial CRPS mean 1600 / 3200 / 6400 cases; iid heavy-tailed log score 400 / 800 / 1600 cases."
+allocated_coverage_records = ["cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_crps_mean_l95", "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_log_score_heavy_tailed_truth_boundary_l95"]
+inherited_coverage_records = []
 
 [[record]]
 id = "predictive_assessment.law_callback"
@@ -12720,7 +12979,7 @@ inference_outputs = []
 [[record]]
 id = "scientific_bridge.interval"
 capability = "scientific_bridge.interval"
-status = "in_progress"
+status = "promoted"
 consumer_question = "Can an interval, posterior or coverage statement be reported for a bridged claim?"
 theorem = "Adjacent variant of scientific_bridge.typed_bridges. The interval of a bridged value is a scoped statement built from two sampling uncertainties and none other: the source claim's declared standard error (supplied with the claim; a declared point value states none) carried through the mapping, and the mapping's own estimation uncertainty (the prediction error of the trial-level line over k validation trials, Student-t with k-2 degrees of freedom; the declared variances of the sensitivity and specificity by the delta method). An identity or declared affine map is an exact monotone transform of the source interval and adds nothing to measure. It is published for the estimating mappings only where a current attesting coverage record measured that construction at the bridge kind, mapping, direction and validated trial count (or validation units), resolved from the shipped coverage table and never declared by a caller. The declared assumptions of the bridge stay unresolved obligations the interval does not discharge, and invariance across populations is a declared premise. An unscoped request, a posterior and a joint law are refused with a typed reason; an interval with no source standard error is refused naming it."
 reference = "docs/scientific-bridges.md"
@@ -12728,12 +12987,20 @@ guarantee = "bridged_value_interval_from_declared_source_standard_error_resolved
 graph_class = "As scientific_bridge.typed_bridges."
 population_semantics = "As scientific_bridge.typed_bridges."
 evidence_family = "A bridged point claim, asked for an interval, posterior or joint law."
-provider = "antecedent_contract::bridge::BridgedClaim::request_interval"
-estimand = "none: the request is refused"
-inference_claim = "none"
+provider = "antecedent_io::bridge_interval::bridged_claim_interval (interval); antecedent_contract::bridge::BridgedClaim::request_interval (unscoped request)"
+estimand = "The value of the target quantity under the declared bridge assumptions, as a 95% interval carrying the source claim's declared standard error through the mapping."
+inference_claim = "calibrated"
+coverage_records = [
+  "cov.bridged_claim_interval.not_applicable.frequentist.student_t_prediction_interval.l95.surrogate_trial_level_prediction_interval_l95",
+  "cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_prevalence_0_2_l95",
+  "cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_prevalence_0_5_l95",
+  "cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_low_prevalence_boundary_l95",
+]
+inference_notes = "Measured against known generators: a linear trial-level relation with 15 to 40 validation trials (source standard error 0.1, residual sd 0.15, prediction interval of a new trial's terminal effect) and a binary-misclassification correction with sensitivity 0.9 and specificity 0.8 estimated from 100 to 400 validation units each (latent prevalence 0.2 and 0.5). A latent prevalence of 0.02 is a named boundary and licenses nothing. Identity and declared affine maps are exact monotone transforms of the declared source interval and need no record: their level is the source interval's own. The trial effects are treated as exact points, the declared assumptions stay unresolved obligations and invariance across populations is a declared premise."
 owners = [
   "antecedent-contract",
   "antecedent-io-core",
+  "antecedent-io",
   "antecedent",
 ]
 identity_inputs = [
@@ -12742,12 +13009,12 @@ identity_inputs = [
 wire_changes = [
   "None.",
 ]
-compatibility = "Additive; opening the route later is its own record with whole-method coverage measurement."
+compatibility = "Additive; the source standard error is held beside the derived result and is part of no identity or artifact."
 search = false
 prerequisite_records = ["scientific_bridge.typed_bridges"]
-prerequisite_reason = "Closed adjacent variant: it refuses the interval request of the point-only bridge and inherits no interval, posterior or coverage."
+prerequisite_reason = "Adjacent route: it replays the point derivation of the bridge unchanged and adds only the interval measured for this construction; no coverage is inherited from the point record."
 bounds = { cancellation = true }
-inference_inventory_disposition = "no_new_inference_outputs"
+inference_inventory_disposition = "outputs_listed"
 refusals = [
   { code = "cell_not_licensed", detail = "scientific_bridge.interval_not_licensed", when = "An interval is requested of a bridged claim without naming a level, or a posterior or joint law is requested.", remedy = "Name the level and ask for the interval of the bridged value; a posterior and a joint law have no executed bridge." },
   { code = "cell_not_licensed", detail = "scientific_bridge.interval_source_uncertainty_required", when = "An interval of a bridged value is requested and the source claim declared no standard error.", remedy = "Supply the source claim's standard error with its own provenance: a bridged interval carries the source estimate's sampling uncertainty, which the declared point value does not state." },
@@ -12755,14 +13022,119 @@ refusals = [
 ]
 routes = [
   { name = "antecedent.scientific_bridge.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/scientific_bridge_facade.rs", refusal_assertion = "an_interval_posterior_or_joint_law_request_on_a_bridged_claim_is_refused" },
+  { name = "antecedent.scientific_bridge.bridged_interval", stage = "uncertainty", status = "licensed", claim = "calibrated" },
 ]
 fixtures = [
   { id = "scientific_bridge.interval.point_fallback.positive", role = "positive", intent = "Rust facade: a bridged claim reports a point value with identification, support and uncertainty unavailable.", evidence_test = "crates/antecedent/tests/scientific_bridge_facade.rs", evidence_assertion = "a_bridged_claim_reports_a_point_value_and_its_labels" },
   { id = "scientific_bridge.interval.interval_request.negative", role = "negative", intent = "Rust facade: an interval, posterior or joint law request is refused with cell_not_licensed.", evidence_test = "crates/antecedent/tests/scientific_bridge_facade.rs", evidence_assertion = "an_interval_posterior_or_joint_law_request_on_a_bridged_claim_is_refused" },
   { id = "scientific_bridge.interval.consumed_artifact.artifact", role = "artifact", intent = "A consumed bridge refuses an interval request and names the operations it cannot offer.", evidence_test = "crates/antecedent-io-core/tests/scientific_bridge_artifact.rs", evidence_assertion = "a_consumed_bridge_has_no_interval_license" },
   { id = "scientific_bridge.interval.python_interval.negative", role = "negative", intent = "Python surface: an interval request on a bridged claim and on a consumed bridge is refused with cell_not_licensed.", evidence_test = "python/tests/test_scientific_bridge.py", evidence_assertion = "test_no_interval_posterior_or_joint_law_is_licensed" },
+  { id = "scientific_bridge.interval.measured_correction.positive", role = "positive", intent = "A correction with rates estimated from 400 validation units is published bound to its coverage record, and an affine map is an exact transform of the declared source interval.", evidence_test = "crates/antecedent/tests/scientific_bridge_interval_facade.rs", evidence_assertion = "a_correction_inside_a_measured_record_is_published_bound_to_it", shared_evidence = true },
+  { id = "scientific_bridge.interval.measured_trial_level.positive", role = "positive", intent = "A trial-level prediction interval over twenty validation trials is published bound to its coverage record.", evidence_test = "crates/antecedent/tests/scientific_bridge_interval_facade.rs", evidence_assertion = "a_trial_level_prediction_interval_inside_a_measured_record_is_published_bound_to_it" },
+  { id = "scientific_bridge.interval.source_uncertainty.negative", role = "negative", intent = "An interval without the source standard error is refused cell_not_licensed with its remedy; an unmeasured level and rates without a validation sample refuse interval_scope_outside_measured.", evidence_test = "crates/antecedent/tests/scientific_bridge_interval_facade.rs", evidence_assertion = "an_interval_without_the_source_standard_error_is_refused_with_its_remedy" },
+  { id = "scientific_bridge.interval.repeated_sampling.calibration", role = "calibration", intent = "Repeated-sampling coverage of the trial-level prediction interval over 15, 20 and 40 validation trials and of the delta-method correction interval over 100, 200 and 400 validation units against known generators.", evidence_test = "crates/antecedent/tests/scientific_bridge_interval_facade.rs", evidence_assertion = "a_correction_inside_a_measured_record_is_published_bound_to_it", shared_evidence = true },
+  { id = "scientific_bridge.interval.python_measured.positive", role = "positive", intent = "Python surface: a scoped interval needs the declared source standard error, is published over measured validation trials and refused outside the measured design.", evidence_test = "python/tests/test_scientific_bridge.py", evidence_assertion = "test_a_scoped_interval_needs_the_source_standard_error_and_a_measured_design" },
 ]
-inference_outputs = []
+
+[[record.inference_outputs]]
+fields = ["BridgedClaimInterval.lower", "BridgedClaimInterval.upper", "BridgedClaimInterval.level", "BridgedClaimInterval.coverage_record"]
+method = "prediction interval of the trial-level least-squares line with the source standard error propagated, Student-t with k - 2 degrees of freedom, 95%"
+implementation_status = "implemented_measured_scoped"
+boundary = "A surrogate_terminal_outcome bridge with a trial-level line over 15 to 40 validation trials treated as exact points, a source value inside the validated range, source standard error declared; level 0.95."
+truth_design = "A linear trial-level relation with normal residual sd 0.15; a new trial's true terminal effect including its residual; the source estimate carries normal error with sd 0.1."
+method_source = "crates/antecedent-io/src/bridge_interval.rs"
+nominal_level = "0.95"
+measurement_suite = "crates/antecedent/tests/scientific_bridge_interval_calibration.rs"
+id = "scientific_bridge.interval.trial_level_prediction"
+owner = "antecedent-io"
+operation_or_object = "scientific_bridge_bridged_interval_trial_level"
+public_producers = ["antecedent.scientific_bridge.bridged_interval"]
+closed_producers = ["antecedent.scientific_bridge.interval"]
+independent_consumers = ["scientific_bridge.interval.consumed_artifact.artifact"]
+truth_fixtures = ["crates/antecedent/tests/scientific_bridge_interval_facade.rs::a_trial_level_prediction_interval_matches_the_hand_computed_variance_and_t_quantile"]
+acceptance_threshold = "Nominal 0.95 within 3 MCSE and the precision floor and ceiling at every grid point; skips at most 1 percent."
+activation_disposition = "licensed_exact_named_scalar_scope"
+allocation_status = "whole_method_measured_currently_attesting"
+role_allocation_note = "The artifact carries no interval and no source standard error; the interval is a read of the derived result."
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "Validation trials 15 / 20 / 40."
+allocated_coverage_records = ["cov.bridged_claim_interval.not_applicable.frequentist.student_t_prediction_interval.l95.surrogate_trial_level_prediction_interval_l95"]
+inherited_coverage_records = []
+
+[[record.inference_outputs]]
+fields = ["BridgedClaimInterval.lower", "BridgedClaimInterval.upper", "BridgedClaimInterval.level", "BridgedClaimInterval.coverage_record"]
+method = "delta-method interval of the Rogan-Gladen corrected prevalence propagating the source standard error and both declared rate variances, clipped to [0, 1], 95%"
+implementation_status = "implemented_measured_scoped"
+boundary = "A latent_measured_outcome bridge with one shared pair of rates estimated from a stated validation sample of 100 to 400 units, Youden index at least 0.3, rate standard errors at most 0.05, a latent prevalence of 0.2 or 0.5; level 0.95. A latent prevalence of 0.02 is a named boundary."
+truth_design = "Binary misclassification with sensitivity 0.9 and specificity 0.8 estimated from binomial validation samples; a recorded prevalence from 1000 units; truth is the latent prevalence."
+method_source = "crates/antecedent-io/src/bridge_interval.rs"
+nominal_level = "0.95"
+measurement_suite = "crates/antecedent/tests/scientific_bridge_interval_calibration.rs"
+id = "scientific_bridge.interval.measurement_correction"
+owner = "antecedent-io"
+operation_or_object = "scientific_bridge_bridged_interval_measurement_correction"
+public_producers = ["antecedent.scientific_bridge.bridged_interval"]
+closed_producers = ["antecedent.scientific_bridge.interval"]
+independent_consumers = ["scientific_bridge.interval.consumed_artifact.artifact"]
+truth_fixtures = ["crates/antecedent/tests/scientific_bridge_interval_facade.rs::a_correction_propagates_the_source_and_both_rate_variances_by_the_delta_method"]
+acceptance_threshold = "Nominal 0.95 within 3 MCSE and the precision floor and ceiling at every grid point; the low-prevalence boundary is recorded and never gated."
+activation_disposition = "licensed_exact_named_scalar_scope"
+allocation_status = "whole_method_measured_currently_attesting"
+role_allocation_note = "As the trial-level interval."
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "Validation units 100 / 200 / 400 for each class; latent prevalence 0.2 and 0.5."
+allocated_coverage_records = ["cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_prevalence_0_2_l95", "cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_prevalence_0_5_l95"]
+inherited_coverage_records = []
+
+[[record.inference_outputs]]
+fields = ["BridgedClaimInterval.lower", "BridgedClaimInterval.upper", "BridgedClaimInterval.level"]
+method = "exact monotone transform of the declared source interval (identity or declared affine map), 95%"
+implementation_status = "implemented_exact_conditional"
+boundary = "Conditional on the declared source standard error and its normal approximation: the bridge adds no estimation uncertainty, so the interval's level is the source interval's own. No coverage claim of the bridge's own is made."
+truth_design = "Closed form: the endpoints of the source interval mapped by a + b x and ordered; the hand-computed oracle is 0.1 + 0.6 x of 0.5 with standard error 0.05."
+method_source = "crates/antecedent-io/src/bridge_interval.rs"
+nominal_level = "0.95"
+measurement_suite = "unallocated"
+id = "scientific_bridge.interval.exact_transform"
+owner = "antecedent-io"
+operation_or_object = "scientific_bridge_bridged_interval_exact_transform"
+public_producers = ["antecedent.scientific_bridge.bridged_interval"]
+closed_producers = []
+independent_consumers = ["scientific_bridge.interval.consumed_artifact.artifact"]
+truth_fixtures = ["crates/antecedent/tests/scientific_bridge_interval_facade.rs::an_affine_map_transforms_the_declared_source_interval_exactly"]
+acceptance_threshold = "Exact to rounding against the hand-computed endpoints."
+activation_disposition = "licensed_exact_conditional_scope"
+allocation_status = "exact_transform_no_measurement_required"
+role_allocation_note = "Nothing is estimated by the mapping, so there is nothing to measure."
+measurement_design_status = "not_applicable_exact_transform"
+truth_grid_allocation = "Not applicable."
+allocated_coverage_records = []
+inherited_coverage_records = []
+
+[[record.inference_outputs]]
+fields = ["BridgedClaimInterval.lower", "BridgedClaimInterval.upper"]
+method = "named boundary cell: the misclassification correction at a latent prevalence of 0.02"
+implementation_status = "candidate_public_closed"
+boundary = "The corrected value sits at the edge of its parameter space and the clipped interval is one-sided; recorded and never licensed."
+truth_design = "Binary misclassification with sensitivity 0.9 and specificity 0.8 and a latent prevalence of 0.02."
+method_source = "crates/antecedent-io/src/bridge_interval.rs"
+nominal_level = "0.95"
+measurement_suite = "crates/antecedent/tests/scientific_bridge_interval_calibration.rs"
+id = "scientific_bridge.interval.named_boundaries"
+owner = "antecedent-io"
+operation_or_object = "scientific_bridge_bridged_interval_boundaries"
+public_producers = []
+closed_producers = ["antecedent.scientific_bridge.bridged_interval"]
+independent_consumers = []
+truth_fixtures = ["crates/antecedent/tests/scientific_bridge_interval_calibration.rs::correction_replicate"]
+acceptance_threshold = "Recorded as measured coverage under the stress coordinate; never gated and never a licence."
+activation_disposition = "closed_named_boundary"
+allocation_status = "whole_method_measured_named_boundary_not_licensed"
+role_allocation_note = "The boundary carries its own functional key, so a licensed coordinate cannot borrow it."
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "Validation units 100 / 200 / 400; latent prevalence 0.02."
+allocated_coverage_records = ["cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_low_prevalence_boundary_l95"]
+inherited_coverage_records = []
 
 
 [[record]]
@@ -13464,17 +13836,18 @@ truth_grid_allocation = "Whole-procedure design with a named data-generating pro
 [[record]]
 id = "adaptive_inference.group_sequential"
 capability = "adaptive_inference.group_sequential"
-status = "in_progress"
+status = "promoted"
 consumer_question = "For a randomized trial with fixed allocation and pre-specified interim looks, what efficacy boundaries spend the declared alpha, and did the observed statistic cross one?"
 theorem = "Armitage, McPherson and Rowe (1969), Lan and DeMets (1983), Jennison and Turnbull (2000): with independent increments the interim standardized statistics are jointly normal with covariance sqrt(t_j/t_k); the boundary at look k solves P(first crossing at k) = alpha*(t_k) - alpha*(t_{k-1}) by recursive numerical integration, for O'Brien-Fleming-type and Pocock-type spending functions and one-sided or two-sided symmetric boundaries. Realized information fractions spend alpha by realized information. NOT inherited: any property under adaptive assignment (independent increments fail), non-binding futility, bias-adjusted estimates or stagewise confidence intervals after stopping (closed; the repeated confidence interval is a separate measured route), or conditional power."
 reference = "provenance/adaptive_inference.group_sequential.toml"
-guarantee = "alpha_spending_boundaries_by_numerical_integration_point_only"
+guarantee = "alpha_spending_boundaries_point_and_repeated_confidence_interval_measured_stagewise_adjustment_closed"
 graph_class = "Not applicable."
 population_semantics = "One population; fixed 1:1 or fixed-probability randomization; one outcome per unit."
 evidence_family = "Standardized statistics at the performed looks and their information fractions."
 provider = "antecedent_stats::adaptive_inference::group_sequential; antecedent_estimate::adaptive_inference::group_sequential_boundaries and group_sequential_decision."
 estimand = "Efficacy boundary crossing at each look."
-inference_claim = "point_only"
+inference_claim = "calibrated"
+coverage_records = ["cov.adaptive_experiment_contrast.not_applicable.frequentist.repeated_confidence_interval.l95.group_sequential_repeated_interval_large_effect_l95", "cov.adaptive_experiment_contrast.not_applicable.frequentist.repeated_confidence_interval.l95.group_sequential_repeated_interval_moderate_effect_l95", "cov.adaptive_experiment_contrast.not_applicable.frequentist.repeated_confidence_interval.l95.group_sequential_repeated_interval_null_effect_l95"]
 owners = ["antecedent-stats", "antecedent-estimate", "antecedent-io-core", "antecedent-io", "antecedent"]
 identity_inputs = ["spending function", "total alpha as bit pattern", "sidedness", "information fractions as bit patterns", "statistics as bit patterns"]
 wire_changes = ["Additive: adaptive_monitoring_contract_v1 stores and replays the boundaries; adaptive_inference_result_v1 the decision."]
@@ -13483,8 +13856,9 @@ search = false
 prerequisite_records = ["adaptive_inference.analysis_contract", "adaptive_inference.procedure_matrix"]
 prerequisite_reason = "Runs only for a validated contract of the group-sequential cell with fixed randomization."
 bounds = { cancellation = true }
-inference_inventory_disposition = "point_output_listed_unmeasured"
+inference_inventory_disposition = "outputs_listed"
 refusals = [
+  { code = "cell_not_licensed", detail = "measured_interval.protocol_not_measured", when = "A repeated confidence interval is requested for a monitoring rule, look schedule, allocation or arm pair outside the measured design (three looks, O'Brien-Fleming-type, two-sided, alpha 0.05, 1:1 fixed randomization).", remedy = "Use the boundaries and the first crossing, or restate the request inside the measured design." },
   { code = "cell_not_licensed", detail = "adaptive_inference.stagewise_adjustment_closed", when = "A bias-adjusted estimate, stagewise p-value or confidence interval after stopping is requested.", remedy = "None available yet: the boundaries and the first crossing are the result; adjusted inference needs its own derivation and measurement." },
   { code = "cell_not_licensed", detail = "adaptive_inference.pairing_not_licensed", when = "Group-sequential monitoring is paired with an adaptive assignment.", remedy = "The pairing needs its own whole-procedure design; independent increments fail under outcome-adaptive assignment." },
   { code = "invalid_argument", detail = "adaptive_inference.numerical_failure", when = "A boundary lies outside the search bracket.", remedy = "No boundary is reported." },
@@ -13494,8 +13868,13 @@ routes = [
   { name = "antecedent_estimate.adaptive_inference.group_sequential_decision", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent_estimate.adaptive_inference.group_sequential_decision.stagewise_adjusted_inference", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/adaptive_inference.rs", refusal_assertion = "group_sequential_boundaries_and_decisions_follow_the_published_values" },
   { name = "antecedent_contract.adaptive_design.cell.group_sequential_with_adaptive_assignment", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/adaptive_inference_facade.rs", refusal_assertion = "a_group_sequential_rule_is_not_licensed_for_a_thompson_assignment" },
+  { name = "antecedent.adaptive_inference.group_sequential.repeated_interval", stage = "uncertainty", status = "licensed", claim = "calibrated" },
 ]
+shared_refusal_namespaces = [{ namespace = "measured_interval", owner_record = "inference.measured_scalar", sources = ["crates/antecedent-io/src/measured_inference/adaptive_interval.rs", "crates/antecedent-io/src/measured_inference/count_fitted_interval.rs", "crates/antecedent-io/src/measured_inference/recovery_temporal.rs", "crates/antecedent-io/src/sampled_counterfactual_transport_artifact.rs"] }]
 fixtures = [
+  { id = "adaptive_inference.group_sequential.repeated_interval.calibration", role = "calibration", intent = "Repeated-sampling coverage of the repeated confidence interval read at the stopping look, three looks, O'Brien-Fleming-type two-sided alpha 0.05, null, moderate and large effects over 120 to 480 units (group_sequential_repeated_interval_*_l95 in adaptive_inference_calibration.rs, measured by gate_calibration.sh); the public interval and its binding to the attesting record are executed in the cited facade test.", evidence_test = "crates/antecedent/tests/adaptive_inference_facade.rs", evidence_assertion = "a_group_sequential_repeated_interval_is_bound_to_its_record", shared_evidence = true },
+  { id = "adaptive_inference.group_sequential.repeated_interval.measured.positive", role = "positive", intent = "Inside the measured design the repeated confidence interval is reported bound to its attesting record.", evidence_test = "crates/antecedent/tests/adaptive_inference_facade.rs", evidence_assertion = "a_group_sequential_repeated_interval_is_bound_to_its_record", shared_evidence = true },
+  { id = "adaptive_inference.group_sequential.python_repeated_interval.negative", role = "negative", intent = "Python surface: a measured interval outside the measured cells refuses with the protocol detail.", evidence_test = "python/tests/test_adaptive_inference.py", evidence_assertion = "test_a_measured_interval_refuses_a_procedure_outside_the_measured_cells", shared_evidence = true },
   { id = "adaptive_inference.group_sequential.published_boundaries.truth", role = "truth", intent = "One-sided O'Brien-Fleming-type boundaries match the published values for three and five looks.", evidence_test = "crates/antecedent-stats/tests/adaptive_inference_oracle.rs", evidence_assertion = "obrien_fleming_type_boundaries_match_published_values" },
   { id = "adaptive_inference.group_sequential.crossing_probabilities_and_inflation.truth", role = "truth", intent = "Stage-wise crossing probabilities reproduce the spent alpha, the five-look inflation of the fixed critical value and the power by independent recursion.", evidence_test = "crates/antecedent-stats/tests/adaptive_inference_oracle.rs", evidence_assertion = "crossing_probabilities_reproduce_spending_and_the_repeated_testing_inflation" },
   { id = "adaptive_inference.group_sequential.random_walks_cross_at_spent_rates.truth", role = "truth", intent = "Fixed-seed random walks cross at the spent rates within four Monte Carlo standard deviations.", evidence_test = "crates/antecedent-stats/tests/adaptive_inference_oracle.rs", evidence_assertion = "simulated_random_walks_cross_at_the_spent_rates" },
@@ -13505,6 +13884,30 @@ fixtures = [
   { id = "adaptive_inference.group_sequential.python_published_boundaries.positive", role = "positive", intent = "Python surface: boundaries match the published values and decisions follow independent statistics.", evidence_test = "python/tests/test_adaptive_inference.py", evidence_assertion = "test_group_sequential_boundaries_and_decisions_match_published_values" },
   { id = "adaptive_inference.group_sequential.python_fresh_process.artifact", role = "artifact", intent = "Python surface: a fresh process consumes both artifacts against the retained identity.", evidence_test = "python/tests/test_adaptive_inference.py", evidence_assertion = "test_a_fresh_process_consumes_both_artifacts_against_the_retained_identity" },
 ]
+[[record.inference_outputs]]
+id = "adaptive_inference.group_sequential.repeated_interval"
+fields = ["treatment_minus_control.point", "treatment_minus_control.lower", "treatment_minus_control.upper", "treatment_minus_control.level"]
+method = "Repeated confidence interval (Jennison and Turnbull): the Welch difference plus and minus the look's two-sided boundary times its standard error, simultaneous over looks and read at the last performed look."
+implementation_status = "implemented_measured_scoped"
+owner = "antecedent-io"
+operation_or_object = "antecedent_io::measured_inference::adaptive_interval::group_sequential"
+public_producers = ["antecedent.adaptive_inference.group_sequential.repeated_interval"]
+closed_producers = ["antecedent_estimate.adaptive_inference.group_sequential_decision.stagewise_adjusted_inference"]
+independent_consumers = ["adaptive_inference.group_sequential.fresh_reader_consumes.artifact"]
+method_source = "crates/antecedent-io/src/measured_inference/adaptive_interval.rs; crates/antecedent-estimate/src/adaptive_measured_interval.rs"
+truth_design = "Fixed 1:1 randomization, normal outcomes, three equally spaced looks with O'Brien-Fleming-type two-sided spending at alpha 0.05, effects 0.0, 0.3 and 0.8; coverage of the true effect by the interval read at the stopping look."
+truth_fixtures = ["adaptive_inference.group_sequential.repeated_interval.calibration"]
+nominal_level = "0.95"
+acceptance_threshold = "At least nominal within 3 MCSE (one-sided floor) at each grid point."
+measurement_suite = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs"
+allocated_coverage_records = ["cov.adaptive_experiment_contrast.not_applicable.frequentist.repeated_confidence_interval.l95.group_sequential_repeated_interval_large_effect_l95", "cov.adaptive_experiment_contrast.not_applicable.frequentist.repeated_confidence_interval.l95.group_sequential_repeated_interval_moderate_effect_l95", "cov.adaptive_experiment_contrast.not_applicable.frequentist.repeated_confidence_interval.l95.group_sequential_repeated_interval_null_effect_l95"]
+inherited_coverage_records = []
+boundary = "Two-arm fixed 1:1 randomization with three O'Brien-Fleming-type two-sided looks at alpha 0.05, 120 to 480 units. Adaptive assignment, other spending or look schedules, stagewise-adjusted estimates and p-values refuse."
+activation_disposition = "licensed_exact_named_scalar_scope"
+allocation_status = "whole_method_measured_currently_attesting"
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "Null, moderate and large effect at 120 / 240 / 480 units."
+
 [[record.inference_outputs]]
 id = "adaptive_inference.group_sequential.point.1"
 fields = ["efficacy critical values", "alpha spent at each look", "first crossing look"]
@@ -13532,17 +13935,19 @@ truth_grid_allocation = "Whole-procedure design with a named data-generating pro
 [[record]]
 id = "adaptive_inference.guarantees_closed"
 capability = "adaptive_inference.guarantees_closed"
-status = "in_progress"
+status = "promoted"
 consumer_question = "Can an interval, credible interval, error rate or coverage statement be reported for an adaptive procedure's result?"
-theorem = "Closed adjacent variant of every adaptive_inference record. No guarantee is licensed: none has measured whole-procedure coverage under the represented assignment, outcome structure, monitoring strategy and stopping rule, including delayed outcomes, stopping boundaries and exploration failure. A fixed-sample interval at the final n, a component estimator's coverage, or a time-uniform theorem for a component does not substitute, and a guarantee for two components does not license their pairing. The request is refused with a typed reason; point values ship with uncalibrated diagnostics."
+theorem = "Adjacent interval route of every adaptive_inference record. An interval is read only through measured_interval, for three measured procedure cells and bound to a currently attesting whole-procedure coverage record: the Beta credible interval of the second arm under Thompson sampling with a uniform prior and a posterior-probability stopping rule (prior-predictive calibration, planned horizon 100 to 400), the Wald interval of the epsilon-greedy repeated-measures weighted contrast with one final analysis (300 to 1,200 subjects), and the time-uniform confidence sequence of an arm mean or the contrast, valid at every look. The fixed-sample interval stays closed by logic (adaptive_design_ignored), and a fixed-level Wald interval read at a data-dependent stopping look stays closed by measurement (a named boundary). For every other cell no guarantee is licensed: none has measured whole-procedure coverage under the represented assignment, outcome structure, monitoring strategy and stopping rule, including delayed outcomes, stopping boundaries and exploration failure. A fixed-sample interval at the final n, a component estimator's coverage, or a time-uniform theorem for a component does not substitute, and a guarantee for two components does not license their pairing. The request is refused with a typed reason; point values ship with uncalibrated diagnostics."
 reference = "provenance/adaptive_inference.guarantees_closed.toml"
-guarantee = "interval_route_closed_pending_measurement"
+guarantee = "measured_interval_for_three_procedure_cells_fixed_sample_and_stopped_wald_closed"
 graph_class = "As the adaptive_inference records."
 population_semantics = "As the adaptive_inference records."
 evidence_family = "A result of an adaptive procedure asked for an interval or guarantee."
 provider = "antecedent::analysis::adaptive_inference::AdaptiveInferenceSession::interval; antecedent_estimate::adaptive_inference::WithheldGuarantee."
-estimand = "none: the request is refused"
-inference_claim = "none"
+estimand = "The treatment arm's success probability (Thompson credible interval), the treatment-minus-control contrast (epsilon-greedy weighted contrast and confidence sequence) or the treatment arm's mean (confidence sequence), each at 95% for a measured procedure cell; every other request is refused."
+inference_claim = "calibrated"
+coverage_records = ["cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_090_l95", "cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_095_l95", "cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_099_boundary_l95", "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_repeated_measures_weighted_contrast_l95", "cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_arm_mean_record_l95", "cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_contrast_record_l95"]
+candidate_coverage_records = ["cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_whole_procedure_l95", "cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_large_gap_boundary_l95", "cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_equal_arms_boundary_l95", "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_whole_procedure_l95", "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_delayed_outcomes_l95", "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_thin_exploration_boundary_l95"]
 owners = ["antecedent-estimate", "antecedent"]
 identity_inputs = ["the result's contract identity"]
 wire_changes = ["None."]
@@ -13551,7 +13956,7 @@ search = false
 prerequisite_records = ["adaptive_inference.bayesian_posterior", "adaptive_inference.adaptive_weighting", "adaptive_inference.anytime_valid_sequence", "adaptive_inference.group_sequential"]
 prerequisite_reason = "Closed adjacent variant: it refuses the interval and guarantee requests of the routes it is adjacent to and inherits no coverage."
 bounds = { cancellation = true }
-inference_inventory_disposition = "no_new_inference_outputs"
+inference_inventory_disposition = "outputs_listed"
 refusals = [
   { code = "cell_not_licensed", detail = "adaptive_inference.interval_closed", when = "An interval or coverage statement is requested for the whole procedure.", remedy = "None available yet: the point values and uncalibrated diagnostics are the result; a guarantee needs measured whole-procedure coverage of this exact assignment, outcome structure, monitoring strategy and stopping rule." },
   { code = "adaptive_design_ignored", detail = "adaptive_inference.fixed_sample_on_adaptive_data", when = "Fixed-sample inference is requested for data from an adaptive design.", remedy = "Use an adaptive-design route." },
@@ -13561,7 +13966,7 @@ refusals = [
 routes = [
   { name = "antecedent.adaptive_inference.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/adaptive_inference_facade.rs", refusal_assertion = "fixed_sample_inference_of_adaptive_data_is_refused_while_the_posterior_runs" },
   { name = "antecedent.adaptive_inference.fixed_sample", stage = "evaluate", status = "closed", reason_code = "adaptive_design_ignored", permanent_in_release = true, refusal_test = "crates/antecedent/tests/adaptive_inference_facade.rs", refusal_assertion = "fixed_sample_inference_of_adaptive_data_is_refused_while_the_posterior_runs" },
-  { name = "antecedent.adaptive_inference.measured_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent/tests/adaptive_inference_facade.rs", refusal_assertion = "a_measured_interval_names_the_measured_cell_and_refuses_every_other_procedure" },
+  { name = "antecedent.adaptive_inference.measured_interval", stage = "uncertainty", status = "licensed", claim = "calibrated" },
 ]
 shared_refusal_namespaces = [{ namespace = "measured_interval", owner_record = "inference.measured_scalar", sources = ["crates/antecedent-io/src/measured_inference/adaptive_interval.rs", "crates/antecedent-io/src/measured_inference/count_fitted_interval.rs", "crates/antecedent-io/src/measured_inference/recovery_temporal.rs", "crates/antecedent-io/src/sampled_counterfactual_transport_artifact.rs"] }]
 fixtures = [
@@ -13571,8 +13976,106 @@ fixtures = [
   { id = "adaptive_inference.guarantees_closed.python_interval_closed.negative", role = "negative", intent = "Python surface: no interval is licensed for any route.", evidence_test = "python/tests/test_adaptive_inference.py", evidence_assertion = "test_no_interval_is_licensed_for_any_route" },
   { id = "adaptive_inference.guarantees_closed.measured_cell_only.negative", role = "negative", intent = "A measured interval is requested for a procedure, prior or look schedule outside the measured cells and refuses as cell_not_licensed without borrowing another cell's record.", evidence_test = "crates/antecedent/tests/adaptive_inference_facade.rs", evidence_assertion = "a_measured_interval_names_the_measured_cell_and_refuses_every_other_procedure" },
   { id = "adaptive_inference.guarantees_closed.python_measured_cell_only.negative", role = "negative", intent = "Python surface: a measured interval outside the measured cells refuses with the protocol detail.", evidence_test = "python/tests/test_adaptive_inference.py", evidence_assertion = "test_a_measured_interval_refuses_a_procedure_outside_the_measured_cells" },
+  { id = "adaptive_inference.guarantees_closed.thompson_credible_interval.calibration", role = "calibration", intent = "Prior-predictive coverage of the Thompson Beta credible interval read at the stopping look for posterior-probability thresholds 0.90, 0.95 and 0.99 over planned horizons 100 to 400 (adaptive_procedure_prior_predictive_calibration.rs, measured by gate_calibration.sh); the public interval and its binding to the attesting record are executed in the cited facade test.", evidence_test = "crates/antecedent/tests/adaptive_inference_facade.rs", evidence_assertion = "a_thompson_credible_interval_inside_the_measured_range_is_bound_to_its_record", shared_evidence = true },
+  { id = "adaptive_inference.guarantees_closed.weighted_contrast_and_sequence.calibration", role = "calibration", intent = "Coverage of the epsilon-greedy repeated-measures weighted contrast (300 to 1,200 subjects) and floor coverage of the confidence sequence of the arm mean and the contrast at every look (200 to 800 units); the public intervals and their binding to the attesting records are executed in the cited facade test.", evidence_test = "crates/antecedent/tests/adaptive_inference_facade.rs", evidence_assertion = "a_weighted_contrast_and_a_confidence_sequence_are_bound_to_their_records" },
+  { id = "adaptive_inference.guarantees_closed.measured_interval.positive", role = "positive", intent = "Inside a measured cell the interval is reported bound to its attesting coverage record.", evidence_test = "crates/antecedent/tests/adaptive_inference_facade.rs", evidence_assertion = "a_thompson_credible_interval_inside_the_measured_range_is_bound_to_its_record", shared_evidence = true },
 ]
-inference_outputs = []
+
+[[record.inference_outputs]]
+id = "adaptive_inference.guarantees_closed.thompson_credible_interval"
+fields = ["treatment_success_probability.point", "treatment_success_probability.lower", "treatment_success_probability.upper", "treatment_success_probability.level"]
+method = "Equal-tailed 95% Beta credible interval of the second arm's success probability after Thompson sampling with a uniform Beta(1, 1) prior, read at the last look of a two-look schedule under a posterior-probability stopping rule."
+implementation_status = "implemented_measured_scoped"
+owner = "antecedent"
+operation_or_object = "antecedent::analysis::adaptive_inference::AdaptiveInferenceSession::measured_interval"
+public_producers = ["antecedent.adaptive_inference.measured_interval"]
+closed_producers = ["antecedent.adaptive_inference.interval", "antecedent.adaptive_inference.fixed_sample"]
+independent_consumers = ["adaptive_inference.guarantees_closed.fresh_reader_consumes.artifact"]
+method_source = "crates/antecedent-io/src/measured_inference/adaptive_interval.rs; crates/antecedent-estimate/src/adaptive_measured_interval.rs"
+truth_design = "Two Bernoulli arms whose truth is drawn from the uniform prior, Thompson assignment, looks at half and all of the horizon, stopping at posterior probability 0.90, 0.95 or 0.99; coverage of the second arm's true success probability. Fixed-truth designs are keyed apart: coverage there is 0.94 to 0.97 at gaps and a named boundary of about 0.92 at exactly equal arms."
+truth_fixtures = ["adaptive_inference.guarantees_closed.thompson_credible_interval.calibration"]
+nominal_level = "0.95"
+acceptance_threshold = "Nominal 0.95 within 3 MCSE at each grid point."
+measurement_suite = "crates/antecedent-estimate/tests/adaptive_procedure_prior_predictive_calibration.rs"
+allocated_coverage_records = ["cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_090_l95", "cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_095_l95", "cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_099_boundary_l95"]
+inherited_coverage_records = []
+boundary = "Two arms, Bernoulli outcomes, uniform prior, thresholds 0.90, 0.95 and 0.99, planned horizon 100 to 400, outcomes available at enrollment. The calibration is prior-predictive; pointwise frequentist coverage near equal arms is a named boundary and is not claimed. Another prior, the contrast, delayed outcomes and other look schedules refuse."
+activation_disposition = "licensed_exact_named_scalar_scope"
+allocation_status = "whole_method_measured_currently_attesting"
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "Thresholds 0.90, 0.95, 0.99 at horizons 100 / 200 / 400."
+
+[[record.inference_outputs]]
+id = "adaptive_inference.guarantees_closed.weighted_contrast"
+fields = ["treatment_minus_control.point", "treatment_minus_control.lower", "treatment_minus_control.upper", "treatment_minus_control.level"]
+method = "Wald interval of the variance-stabilizing adaptively weighted augmented inverse-probability contrast of subject means under epsilon-greedy assignment, one final analysis."
+implementation_status = "implemented_measured_scoped"
+owner = "antecedent"
+operation_or_object = "antecedent::analysis::adaptive_inference::AdaptiveInferenceSession::measured_interval"
+public_producers = ["antecedent.adaptive_inference.measured_interval"]
+closed_producers = ["antecedent.adaptive_inference.interval"]
+independent_consumers = ["adaptive_inference.guarantees_closed.fresh_reader_consumes.artifact"]
+method_source = "crates/antecedent-io/src/measured_inference/adaptive_interval.rs; crates/antecedent-estimate/src/adaptive_measured_interval.rs"
+truth_design = "Three measurements per subject with a random intercept, epsilon-greedy exploration 0.3, no stopping; coverage of the true contrast. The same estimator read at a data-dependent stopping look, with outcome delay or with exploration 0.05 is a named boundary and is not offered."
+truth_fixtures = ["adaptive_inference.guarantees_closed.weighted_contrast_and_sequence.calibration"]
+nominal_level = "0.95"
+acceptance_threshold = "Nominal 0.95 within 3 MCSE at each grid point."
+measurement_suite = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs"
+allocated_coverage_records = ["cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_repeated_measures_weighted_contrast_l95"]
+inherited_coverage_records = []
+boundary = "Two-arm epsilon-greedy with exploration 0.3, three measurements per subject, variance-stabilizing weights, prior mean 0.5 strength 1, probability floor 0.01, 300 to 1,200 subjects, final analysis only. A stopping look, delay and thinner exploration refuse."
+activation_disposition = "licensed_exact_named_scalar_scope"
+allocation_status = "whole_method_measured_currently_attesting"
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "300 / 600 / 1200 subjects."
+
+[[record.inference_outputs]]
+id = "adaptive_inference.guarantees_closed.confidence_sequence"
+fields = ["treatment_mean.point", "treatment_mean.lower", "treatment_mean.upper", "treatment_minus_control.point", "treatment_minus_control.lower", "treatment_minus_control.upper"]
+method = "Time-uniform mixture-Hoeffding confidence sequence of the second arm's mean, and the union-bound interval of the contrast, for outcomes bounded in [0, 1]."
+implementation_status = "implemented_measured_scoped"
+owner = "antecedent"
+operation_or_object = "antecedent::analysis::adaptive_inference::AdaptiveInferenceSession::measured_interval"
+public_producers = ["antecedent.adaptive_inference.measured_interval"]
+closed_producers = ["antecedent.adaptive_inference.interval"]
+independent_consumers = ["adaptive_inference.guarantees_closed.fresh_reader_consumes.artifact"]
+method_source = "crates/antecedent-io/src/measured_inference/adaptive_interval.rs; crates/antecedent-estimate/src/adaptive_inference.rs"
+truth_design = "Two Bernoulli arms 0.4 and 0.6 under epsilon-greedy 0.3 with posterior-probability stopping, scored at ten looks and at the end; a replicate misses when any look excludes the truth."
+truth_fixtures = ["adaptive_inference.guarantees_closed.weighted_contrast_and_sequence.calibration"]
+nominal_level = "0.95"
+acceptance_threshold = "At least nominal within 3 MCSE (one-sided floor) at each grid point."
+measurement_suite = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs"
+allocated_coverage_records = ["cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_arm_mean_record_l95", "cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_contrast_record_l95"]
+inherited_coverage_records = []
+boundary = "Two arms, epsilon-greedy exploration at least 0.3, alpha 0.05 tuned for 100 samples, planned horizon 200 to 800, outcomes bounded in [0, 1]. The interval is conservative; tightness is not claimed."
+activation_disposition = "licensed_exact_named_scalar_scope"
+allocation_status = "whole_method_measured_currently_attesting"
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "200 / 400 / 800 units, ten looks."
+
+[[record.inference_outputs]]
+id = "adaptive_inference.guarantees_closed.stopped_wald_interval"
+fields = ["treatment_minus_control.lower", "treatment_minus_control.upper"]
+method = "Fixed-level Wald interval of the weighted contrast read at a data-dependent stopping look."
+implementation_status = "candidate_public_closed"
+owner = "antecedent"
+operation_or_object = "antecedent_estimate::adaptive_inference::weighted_wald_interval_internal"
+public_producers = []
+closed_producers = ["antecedent.adaptive_inference.interval"]
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/adaptive_measured_interval.rs"
+truth_design = "Epsilon-greedy 0.4 and 0.6 with posterior-probability stopping, with and without outcome delay and with 5% exploration."
+truth_fixtures = []
+nominal_level = "0.95"
+acceptance_threshold = "Named boundaries: measured shortfall 0.73 to 0.94 at 100 to 400 units; no nominal claim."
+measurement_suite = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs"
+allocated_coverage_records = ["cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_whole_procedure_l95", "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_delayed_outcomes_l95", "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_thin_exploration_boundary_l95"]
+inherited_coverage_records = []
+boundary = "A selection on the data at the stopping look leaves a fixed-level interval without a pointwise guarantee; the confidence sequence is the interval for a stopping look. The route stays closed."
+activation_disposition = "retain_closed_named_boundary"
+allocation_status = "historical_measurement_failed_route_closed"
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "100 / 200 / 400 units, three designs."
 
 [[record]]
 id = "composition_verification.claim_revalidation"
@@ -14069,17 +14572,18 @@ inference_outputs = []
 [[record]]
 id = "joint_law.composed_interval"
 capability = "joint_law.composed_interval"
-status = "in_progress"
+status = "promoted"
 consumer_question = "Can an interval or posterior statement be reported for a quantity composed from several uncertain inputs?"
-theorem = "Closed adjacent variant of the joint_law.* records. No interval or posterior is licensed: none has measured whole-method coverage at a composed coordinate, and a component interval does not cover the composition. The labelled point value under a licensed dependence route, or the dependence envelope, is the result."
+theorem = "A component interval does not cover a composition, so a composed interval is read only through check_composed_interval, which derives the key from the sealed claim (operation, route, input roles, dependence declaration, construction and the declared number of observations behind the least-supported input) and resolves it against the shipped coverage records; the caller supplies no record. Measured: the normal approximation to the propagated variance of a linear contrast of two estimates, on the linear-moments route with a supplied covariance or declared independence over distinct evidence, and on the aligned-joint-law route, at 95% from 200 observations (200 to 800), on Gaussian and skewed pairs with the covariance estimated from the same rows or draws. Nonlinear operations, mixtures, envelopes and transported pieces have no record and stay closed, a declaration of independence is a premise the library cannot check, and a posterior of a composed quantity is closed by logic (no prior over the composed quantity exists). The labelled point value under a licensed dependence route, or the dependence envelope, is otherwise the result."
 reference = "docs/joint-law-propagation.md"
-guarantee = "interval_and_posterior_routes_closed_pending_measurement"
+guarantee = "linear_moment_composed_interval_measured_from_200_observations_posterior_and_other_operations_closed"
 graph_class = "As the joint_law.* records."
 population_semantics = "As the joint_law.* records."
 evidence_family = "A composed claim asked for an interval or posterior."
 provider = "antecedent_contract::joint_law_rule (closed refusals)"
-estimand = "none: the request is refused"
-inference_claim = "none"
+estimand = "The composed contrast (or sum) of two estimates, as a 95% normal-approximation interval."
+inference_claim = "calibrated"
+coverage_records = ["cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_aligned_bootstrap_gaussian_l95", "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_aligned_bootstrap_skewed_pair_l95", "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_independent_samples_gaussian_l95", "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_shared_rows_gaussian_negative_correlation_l95", "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_shared_rows_gaussian_positive_correlation_l95", "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_shared_rows_skewed_pair_l95"]
 owners = ["antecedent-stats", "antecedent-contract", "antecedent-io-core", "antecedent"]
 identity_inputs = ["the operation, dependence declaration (covariance identity, or correlation range as IEEE bits) and reading", "every input: identity, evidence identity, role and alignment (aligned with its alignment identity, independent marginals, or moments only)", "the numbers consumed, as IEEE bit patterns (coefficients, means, covariance, weights, draws or marginal atoms)", "the route and result label (point_only, structural_envelope or assumption_range), the alignment identity and the shared-evidence list"]
 wire_changes = ["Additive: joint_law_propagation_v1 artifact v1 (new kind) holding the declaration, inputs, numbers, plan and result bits; the identity excludes the stored result, which is replayed."]
@@ -14088,9 +14592,9 @@ search = false
 prerequisite_records = ["joint_law.linear_moment_propagation", "joint_law.aligned_nonlinear_functional", "joint_law.known_weight_mixture", "joint_law.dependence_envelope"]
 prerequisite_reason = "Closed adjacent variant: it refuses the interval and posterior requests of the point values it is adjacent to and inherits no coverage from them."
 bounds = { cancellation = true }
-inference_inventory_disposition = "point_output_listed_unmeasured"
+inference_inventory_disposition = "outputs_listed"
 refusals = [
-  { code = "cell_not_licensed", detail = "joint_law_propagation.interval_route_closed", when = "An interval is requested for a composed quantity.", remedy = "None available yet: the labelled point value under a licensed dependence route, or the dependence envelope, is the result; an interval needs a measured whole-method coverage record at the composed coordinate." },
+  { code = "cell_not_licensed", detail = "joint_law_propagation.interval_route_closed", when = "An interval is requested for a composed quantity whose coordinate, route, dependence declaration, construction or declared evidence size has no currently attesting coverage record.", remedy = "The labelled point value under a licensed dependence route, or the dependence envelope, is the result; an interval needs a measured whole-method coverage record at the composed coordinate (a linear contrast or sum from at least 200 observations is measured)." },
   { code = "cell_not_licensed", detail = "joint_law_propagation.posterior_route_closed", when = "A posterior or posterior-probability statement is requested for a composed quantity.", remedy = "None available yet: a posterior needs a measured calibration at the composed coordinate." },
   { code = "cell_not_licensed", detail = "joint_law_propagation.coverage_record_unmeasured", when = "A composed interval is requested with a coverage record that is not measured.", remedy = "Run and attest the whole-method coverage measurement at the composed coordinate, or report the labelled spread." },
   { code = "cell_not_licensed", detail = "joint_law_propagation.coverage_record_coordinate_mismatch", when = "The coverage record was measured at another composed coordinate.", remedy = "Measure coverage at this composed coordinate (operation, route, input roles)." },
@@ -14102,6 +14606,7 @@ routes = [
   { name = "antecedent.python.joint_law_propagation.PropagationClaim.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_joint_law_propagation.py", refusal_assertion = "test_envelope_is_never_a_point_or_an_interval_and_ranges_are_labelled" },
   { name = "antecedent.python.joint_law_propagation.PropagationClaim.posterior", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_joint_law_propagation.py", refusal_assertion = "test_envelope_is_never_a_point_or_an_interval_and_ranges_are_labelled" },
   { name = "antecedent._native.joint_law_closed_reading", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_joint_law_propagation.py", refusal_assertion = "test_envelope_is_never_a_point_or_an_interval_and_ranges_are_labelled" },
+  { name = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval", stage = "uncertainty", status = "licensed", claim = "calibrated" },
 ]
 fixtures = [
   { id = "joint_law.composed_interval.point_value_is_the_result.positive", role = "positive", intent = "The labelled point value under a licensed route is what a composed claim reports.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_covariance_aware_contrast_replays_to_the_closed_form", shared_evidence = true },
@@ -14110,7 +14615,33 @@ fixtures = [
   { id = "joint_law.composed_interval.no_interval_in_artifact.artifact", role = "artifact", intent = "The artifact carries no interval or posterior field and replays.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "a_covariance_aware_contrast_replays_to_the_closed_form", shared_evidence = true },
   { id = "joint_law.composed_interval.python_closed.negative", role = "negative", intent = "Python surface: interval and posterior raise cell_not_licensed with their details.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_envelope_is_never_a_point_or_an_interval_and_ranges_are_labelled", shared_evidence = true },
   { id = "joint_law.composed_interval.python_no_interval.artifact", role = "artifact", intent = "Python surface: the replayed artifact carries no interval.", evidence_test = "python/tests/test_joint_law_propagation.py", evidence_assertion = "test_artifact_round_trip_mutation_and_fresh_process", shared_evidence = true },
+  { id = "joint_law.composed_interval.linear_contrast_repeated_sampling.calibration", role = "calibration", intent = "Repeated-sampling coverage of the normal-approximation interval of a linear contrast of two estimates (shared rows with estimated covariance, independent samples, aligned bootstrap draws; Gaussian and skewed pairs) over 200 to 800 observations (joint_law_composed_interval_calibration.rs, measured by gate_calibration.sh); the interval and its binding to the attesting record are executed in the cited facade test.", evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", evidence_assertion = "a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate", shared_evidence = true },
+  { id = "joint_law.composed_interval.measured_interval.positive", role = "positive", intent = "Inside the measured scope the composed interval is bound to its attesting record and sized by the propagated variance.", evidence_test = "python/tests/test_composed_uncertainty.py", evidence_assertion = "test_composed_interval_opens_only_with_a_measured_record_at_its_coordinate", shared_evidence = true },
 ]
+[[record.inference_outputs]]
+id = "joint_law.composed_interval.linear_contrast"
+fields = ["ComposedInterval.lower", "ComposedInterval.upper", "ComposedInterval.nominal_level", "ComposedInterval.record_id"]
+method = "Normal approximation to the propagated variance of a linear contrast or sum of two estimates, 95%, on the linear-moments and aligned-joint-law routes."
+implementation_status = "implemented_measured_scoped"
+owner = "antecedent"
+operation_or_object = "antecedent::analysis::joint_law_propagation::PropagationClaim::check_composed_interval"
+public_producers = ["antecedent.joint_law_propagation.PropagationClaim.check_composed_interval"]
+closed_producers = ["antecedent.joint_law_propagation.PropagationClaim.interval"]
+independent_consumers = ["joint_law.composed_interval.no_interval_in_artifact.artifact"]
+method_source = "crates/antecedent/src/analysis/joint_law_propagation.rs; crates/antecedent/src/analysis/joint_law_composed_basis.rs"
+truth_design = "Bivariate normal pairs (correlation 0.6 and -0.5), independent normal samples and an exponential pair with shared evidence; the two estimates are sample means, the covariance is estimated from the same rows or bootstrap draws; coverage of the true composed contrast."
+truth_fixtures = ["joint_law.composed_interval.linear_contrast_repeated_sampling.calibration"]
+nominal_level = "0.95"
+acceptance_threshold = "Nominal 0.95 within 3 MCSE at each grid point."
+measurement_suite = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs"
+allocated_coverage_records = ["cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_aligned_bootstrap_gaussian_l95", "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_aligned_bootstrap_skewed_pair_l95", "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_independent_samples_gaussian_l95", "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_shared_rows_gaussian_negative_correlation_l95", "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_shared_rows_gaussian_positive_correlation_l95", "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_shared_rows_skewed_pair_l95"]
+inherited_coverage_records = []
+boundary = "Linear contrast or sum of two estimates, normal-approximation construction, 200 to 800 declared observations behind the least-supported input; inputs are asymptotically normal estimates whose variance and covariance are those supplied or estimated. A violated declaration of independence under-covers and is not detected. Nonlinear operations, mixtures, envelopes and transported pieces refuse."
+activation_disposition = "licensed_exact_named_scalar_scope"
+allocation_status = "whole_method_measured_currently_attesting"
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "Linear contrast on three dependence routes at 200 / 400 / 800 observations."
+
 [[record.inference_outputs]]
 id = "joint_law.composed_interval.values.1"
 fields = ["interval and posterior of a composed quantity (closed)"]
@@ -14542,17 +15073,18 @@ inference_outputs = []
 [[record]]
 id = "cross_world_execution.sampled_and_interval_readings"
 capability = "cross_world_execution.sampled_and_interval_readings"
-status = "in_progress"
+status = "promoted"
 consumer_question = "May a cross-world value carry an interval, a posterior or a sampled abduction?"
 theorem = "Posterior and sampled-abduction readings are closed by logic: the mechanisms are declared and the exogenous posterior is enumerated exactly, so there is no parameter uncertainty for a posterior to describe and a sampled abduction only adds Monte Carlo error to an exact value. An interval is read only through a declared unit sampling (an independent sample of a population, or fixed units) from the derived whole-path spread, is conditional on the declared mechanisms being the truth, and needs a currently attesting whole-path coverage record; component intervals do not cover the composition. The exact-enumeration point value is licensed. The calibration design (whole-path, response-type finite SCMs, nominal 0.95, 2-4 levels, up to 3 variables) is recorded in docs/cross-world-execution.md and not measured."
 reference = "provenance/cross_world_execution.sampled_and_interval_readings.toml"
-guarantee = "closed_pending_measurement"
+guarantee = "measured_interval_under_the_declared_model_from_60_units_posterior_and_sampled_abduction_closed"
 graph_class = "Finite Markovian SCM."
 population_semantics = "As the finite Markovian row."
-evidence_family = "None accepted."
-provider = "antecedent::analysis::cross_world_execution::CrossWorldExecution (refusal only)."
-estimand = "none"
-inference_claim = "none"
+evidence_family = "An executed finite Markovian row under a declared unit sampling (an independent sample of a population, or fixed units); no posterior or sampled abduction is accepted."
+provider = "antecedent::analysis::cross_world_interval::CrossWorldExecution::measured_interval."
+estimand = "The population mean of the unit counterfactual probabilities (independent sample) or the mean of the realized counterfactual outcomes of the units (fixed units), as a 95% normal-approximation interval, conditional on the declared mechanisms."
+inference_claim = "calibrated"
+coverage_records = ["cov.counterfactual.dag.frequentist.normal_approximation.l95.cross_world_interval_fixed_units_balanced_types_l95", "cov.counterfactual.dag.frequentist.normal_approximation.l95.cross_world_interval_independent_sample_balanced_types_l95", "cov.counterfactual.dag.frequentist.normal_approximation.l95.cross_world_interval_independent_sample_rare_types_l95"]
 owners = ["antecedent-counterfactual", "antecedent-contract", "antecedent-io-core", "antecedent"]
 identity_inputs = ["the reading requested"]
 wire_changes = ["Additive: cross_world_execution_v1 artifact v1 (new kind, at most 64 MiB) holding the declarations, shared exogenous states and numbers; the consumer replays everything with a fresh executor."]
@@ -14561,10 +15093,10 @@ search = false
 prerequisite_records = ["cross_world_execution.finite_markovian_scm"]
 prerequisite_reason = "Closed readings of an executed point route."
 bounds = { cancellation = true }
-inference_inventory_disposition = "no_new_inference_outputs"
+inference_inventory_disposition = "outputs_listed"
 refusals = [
   { code = "cell_not_licensed", detail = "cross_world_execution.sampled_abduction_not_licensed", when = "Posterior sampling of the exogenous terms is requested.", remedy = "Request exact enumeration." },
-  { code = "cell_not_licensed", detail = "cross_world_execution.interval_route_closed", when = "An interval is requested.", remedy = "Use the point value; the calibration design is recorded in docs/cross-world-execution.md." },
+  { code = "cell_not_licensed", detail = "cross_world_execution.interval_route_closed", when = "An unqualified interval is requested, or a measured interval is requested for a model class, quantity, unit sampling or unit count with no currently attesting whole-path coverage record.", remedy = "Use the point value, or declare the unit sampling and restate the request inside the measured model class (at most three variables of two to four levels, exact enumeration, 60 or more units)." },
   { code = "cell_not_licensed", detail = "cross_world_execution.posterior_route_closed", when = "A posterior statement is requested.", remedy = "Use the point value." },
   { code = "route_not_supported", detail = "cross_world_execution.evidence_probability_underflow", when = "A matching positive evidence state is lost to f64 underflow.", remedy = "Use an executor with probability arithmetic that can retain this positive mass; the f64 route cannot represent it." },
   { code = "route_not_supported", detail = "cross_world_execution.posterior_weight_underflow", when = "A matching positive posterior state mass is lost to f64 underflow.", remedy = "Use an executor with probability arithmetic that can retain this positive mass; the f64 route cannot represent it." },
@@ -14572,14 +15104,39 @@ refusals = [
 routes = [
   { name = "antecedent_counterfactual.selective.sampled_abduction", stage = "prepare", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", refusal_assertion = "unsupported_requests_are_scientific_refusals_that_do_no_work" },
   { name = "antecedent.cross_world_execution.interval_posterior", stage = "prepare", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/cross_world_execution_facade.rs", refusal_assertion = "natural_direct_effect_seals_replays_and_resumes" },
-  { name = "antecedent.cross_world_execution.measured_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_cross_world_execution.py", refusal_assertion = "test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record" },
+  { name = "antecedent.cross_world_execution.measured_interval", stage = "uncertainty", status = "licensed", claim = "calibrated" },
 ]
 fixtures = [
   { id = "cross_world_execution.sampled_and_interval_readings.closed_readings.negative", role = "negative", intent = "Interval and posterior readings refuse with cell_not_licensed and a remedy.", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", evidence_assertion = "marginal_contrasts_need_no_coupling_and_interval_readings_are_closed" },
   { id = "cross_world_execution.sampled_and_interval_readings.point_remains.positive", role = "positive", intent = "The exact-enumeration point value stays licensed (5/7).", evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs", evidence_assertion = "probability_of_necessity_is_the_abduced_posterior_mass", shared_evidence = true },
   { id = "cross_world_execution.sampled_and_interval_readings.facade_closed.artifact", role = "artifact", intent = "The sealed facade result refuses interval and posterior readings.", evidence_test = "crates/antecedent/tests/cross_world_execution_facade.rs", evidence_assertion = "natural_direct_effect_seals_replays_and_resumes" },
+  { id = "cross_world_execution.sampled_and_interval_readings.whole_path_interval.calibration", role = "calibration", intent = "Repeated-sampling coverage of the whole-path interval of a response-type finite Markovian SCM under an independent sample (balanced and rare response types) and under fixed units over 60 to 240 units (cross_world_interval_calibration.rs, measured by gate_calibration.sh); the interval and its binding to the attesting record are executed in the cited Python test.", evidence_test = "python/tests/test_cross_world_execution.py", evidence_assertion = "test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record", shared_evidence = true },
+  { id = "cross_world_execution.sampled_and_interval_readings.measured_interval.positive", role = "positive", intent = "Sixty units under a declared sampling report an interval bound to its attesting record; fewer units, an undeclared sampling and an unqualified request refuse.", evidence_test = "python/tests/test_cross_world_execution.py", evidence_assertion = "test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record", shared_evidence = true },
 ]
-inference_outputs = []
+
+[[record.inference_outputs]]
+id = "cross_world_execution.sampled_and_interval_readings.whole_path_interval"
+fields = ["MeasuredCrossWorldInterval.point", "MeasuredCrossWorldInterval.lower", "MeasuredCrossWorldInterval.upper", "MeasuredCrossWorldInterval.level", "MeasuredCrossWorldInterval.record_id"]
+method = "Normal interval of the mean unit counterfactual probability with variance s^2 / n (independent sample, Student quantile) or of the realized-outcome mean with variance sum v_i / n^2 (fixed units), from exact enumeration of a declared finite Markovian SCM."
+implementation_status = "implemented_measured_scoped"
+owner = "antecedent"
+operation_or_object = "antecedent::analysis::cross_world_interval::CrossWorldExecution::measured_interval"
+public_producers = ["antecedent.cross_world_execution.measured_interval"]
+closed_producers = ["antecedent.cross_world_execution.interval_posterior", "antecedent_counterfactual.selective.sampled_abduction"]
+independent_consumers = ["cross_world_execution.sampled_and_interval_readings.facade_closed.artifact"]
+method_source = "crates/antecedent/src/analysis/cross_world_interval.rs; crates/antecedent-counterfactual/src/selective/whole_path_uncertainty.rs"
+truth_design = "Response-type finite Markovian SCM with unit evidence of the observed treatment and outcome, quantity P(Y under do(X=0) = 0 | evidence); truth is the exact population probability (independent sample) or the realized counterfactual outcome mean of the simulated units (fixed units). Conditional on the declared model."
+truth_fixtures = ["cross_world_execution.sampled_and_interval_readings.whole_path_interval.calibration"]
+nominal_level = "0.95"
+acceptance_threshold = "Nominal 0.95 within 3 MCSE at each grid point."
+measurement_suite = "crates/antecedent/tests/cross_world_interval_calibration.rs"
+allocated_coverage_records = ["cov.counterfactual.dag.frequentist.normal_approximation.l95.cross_world_interval_fixed_units_balanced_types_l95", "cov.counterfactual.dag.frequentist.normal_approximation.l95.cross_world_interval_independent_sample_balanced_types_l95", "cov.counterfactual.dag.frequentist.normal_approximation.l95.cross_world_interval_independent_sample_rare_types_l95"]
+inherited_coverage_records = []
+boundary = "Exact enumeration of a declared finite Markovian SCM with at most three variables of two to four levels, in the population the mechanisms were declared for, 60 to 240 units, a declared unit sampling. The interval is conditional on the declared mechanisms being the truth. A posterior statement and a sampled abduction are closed by logic; the unqualified interval stays closed."
+activation_disposition = "licensed_exact_named_scalar_scope"
+allocation_status = "whole_method_measured_currently_attesting"
+measurement_design_status = "harness_written_measured"
+truth_grid_allocation = "Balanced and rare response types, independent sample and fixed units, at 60 / 120 / 240 units."
 
 [[record]]
 id = "provider_callback.law_posterior_protocol"
@@ -17544,7 +18101,7 @@ id = "joint_law.composed_interval_check"
 capability = "joint_law.composed_interval_check"
 status = "in_progress"
 consumer_question = "Does a measured coverage record at the composed coordinate and construction license a composed interval, and what is returned without one?"
-theorem = "A composed interval opens only through check_composed_interval with a CoverageRecord that is measured and whose composed-coordinate id (operation, route, input roles), construction and nominal level equal the request; the check is a function of the sealed claim and the offered record and is re-derived at every call. No measured record exists, so every composed interval request refuses cell_not_licensed with the specific mismatch; an envelope claim has no composed interval."
+theorem = "A composed interval opens only through check_composed_interval with a CoverageRecord that is measured and whose composed-coordinate id (operation, route, input roles), construction and nominal level equal the request; the check is a function of the sealed claim and the offered record and is re-derived at every call. The caller offers no record: the key is derived from the claim and resolved against the shipped coverage records (joint_law.composed_interval), and a coordinate, construction or evidence size with no attesting record refuses cell_not_licensed with the specific detail; an envelope claim has no composed interval."
 reference = "provenance/joint_law.composed_spread_and_exceedance.toml"
 guarantee = "composed_interval_opens_only_with_a_measured_record_at_its_own_coordinate_and_construction_closed_otherwise"
 graph_class = "Not applicable."
@@ -17568,12 +18125,12 @@ refusals = [
   { code = "cell_not_licensed", detail = "joint_law_propagation.coverage_record_construction_mismatch", when = "The interval is built with another construction than the record was measured for.", remedy = "Use the construction the record was measured for." },
 ]
 routes = [
-  { name = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", refusal_assertion = "a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate" },
+  { name = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval.unmeasured_coordinate", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", refusal_assertion = "a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate" },
 ]
 fixtures = [
-  { id = "joint_law.composed_interval_check.opens_only_with_a_record.positive", role = "positive", intent = "A composed interval opens only with a measured record at its own coordinate and construction; unmeasured, coordinate, construction and level mismatches refuse.", evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", evidence_assertion = "a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate" },
+  { id = "joint_law.composed_interval_check.opens_only_with_a_record.positive", role = "positive", intent = "A composed interval opens only with a measured record at its own coordinate and construction; unmeasured, coordinate, construction and level mismatches refuse.", evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", evidence_assertion = "a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate", shared_evidence = true },
   { id = "joint_law.composed_interval_check.envelope_has_none.negative", role = "negative", intent = "An envelope has no composed interval and an edited artifact is refused.", evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", evidence_assertion = "an_envelope_has_no_composed_interval_and_an_edited_artifact_is_refused", shared_evidence = true },
-  { id = "joint_law.composed_interval_check.python_opens_only.truth", role = "truth", intent = "Python: the same opening rule.", evidence_test = "python/tests/test_composed_uncertainty.py", evidence_assertion = "test_composed_interval_opens_only_with_a_measured_record_at_its_coordinate" },
+  { id = "joint_law.composed_interval_check.python_opens_only.truth", role = "truth", intent = "Python: the same opening rule.", evidence_test = "python/tests/test_composed_uncertainty.py", evidence_assertion = "test_composed_interval_opens_only_with_a_measured_record_at_its_coordinate", shared_evidence = true },
   { id = "joint_law.composed_interval_check.rederived.artifact", role = "artifact", intent = "The licence is re-derived from the sealed claim and the offered record at every check; an edited artifact is refused.", evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", evidence_assertion = "an_envelope_has_no_composed_interval_and_an_edited_artifact_is_refused", shared_evidence = true },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"

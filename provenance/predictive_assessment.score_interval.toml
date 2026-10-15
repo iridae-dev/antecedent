@@ -5,11 +5,16 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-# No primary paper: a closed variant; no method is implemented, so there is nothing to cite.
+# Newey and West (1987) Bartlett long-run variance with a Student-t reference (Kiefer and
+# Vogelsang's fixed-b idea in the form of a t reference); cluster-robust variance with G - 1
+# degrees of freedom. No external implementation is translated.
 papers = [
+  "Newey and West (1987), A Simple, Positive Semi-Definite, Heteroskedasticity and Autocorrelation Consistent Covariance Matrix, Econometrica 55(3)",
+  "Diebold and Mariano (1995), Comparing Predictive Accuracy, JBES 13(3)",
+  "Kiefer and Vogelsang (2005), A New Asymptotic Theory for Heteroskedasticity-Autocorrelation Robust Tests, Econometric Theory 21(6)",
 ]
 implementation_deviations = [
-  "Intentionally implements nothing: the interval route stays closed until whole-method coverage is measured at a declared sampling design.",
+  "Publishes the Student-t interval of one predictor's expected score (or expected difference) only for a held-out or unfitted predictor under a declared iid, serial or cluster dependence, where a current attesting coverage record measured the construction; the serial CRPS mean was measured as a named boundary and is refused. An unscoped request still refuses cell_not_licensed.",
 ]
 upstream_implementations_observed = []
-test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs", "crates/antecedent/tests/predictive_assessment_facade.rs"]
+test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs", "crates/antecedent/tests/predictive_assessment_facade.rs", "crates/antecedent/tests/predictive_score_interval_facade.rs", "crates/antecedent/tests/predictive_score_interval_calibration.rs"]

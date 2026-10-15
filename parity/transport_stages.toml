@@ -6188,9 +6188,8 @@ notes = "Rust facade route labelled assumption_range: the extremes over the decl
 [[routes]]
 route = "antecedent.evidence_ledger.pooled_interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "Rust producer and consumer exist; the public facade route is closed until the facade and Python surface are delivered."
+status = "licensed"
+notes = "Measured Wald z (fixed effect) and Hartung-Knapp t (random effects) pooled-mean intervals bound to a currently attesting coverage record; other results refuse cell_not_licensed."
 
 [[routes]]
 route = "antecedent_core.measurement_model.MeasurementModel.validate"
@@ -7048,9 +7047,14 @@ notes = "Python surface route; point-only or accounting, no interval."
 [[routes]]
 route = "antecedent.evidence_ledger.EvidenceLedger.pooled_interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "The ledger licenses no interval, posterior or coverage statement for pooled evidence; the Python surface raises cell_not_licensed."
+status = "licensed"
+graph = "not_applicable_no_graph"
+evidence = "measured_whole_method_coverage_record_attesting"
+functional = "pooled_mean_wald_z_or_hartung_knapp_t_interval"
+guarantee = "pooled_mean_interval_measured_fixed_effect_wald_and_random_effects_hksj_point_otherwise"
+evidence_test = "python/tests/test_evidence_ledger.py"
+evidence_assertion = "test_a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record"
+notes = "Python surface route; returns the measured interval with its coverage record, or raises cell_not_licensed."
 
 [[routes]]
 route = "antecedent.cohort_decision.FittedEffectModel.decision_source"
@@ -7188,9 +7192,15 @@ notes = "Rust facade route; point-only diagnostic, no interval or calibration. T
 [[routes]]
 route = "antecedent.decision_reliability.publish"
 stage = "uncertainty"
+status = "licensed"
+notes = "A ranking probability, optimality confidence set, utility interval or selection-corrected interval is published only where a current attesting coverage record measured it at its candidate-set size, Monte Carlo budget, selection rule, coupling and serial dependence; every other coordinate refuses cell_not_licensed."
+
+[[routes]]
+route = "antecedent.decision_reliability.sampled_decision.interval"
+stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
-notes = "No ranking or optimality probability, confidence set or selection-corrected interval is licensed until a coverage record measures it at its candidate-set size, Monte Carlo budget and selection rule."
+notes = "The sampled-decision record states numerical error as an uncalibrated diagnostic and publishes no interval of its own: the derived intervals and sets it carries are published only through antecedent.decision_reliability.publish, inside a coverage record of decision_reliability.ranking_probability_interval."
 
 [[routes]]
 route = "antecedent.decision_reliability.combined_uncertainty"
@@ -7276,7 +7286,13 @@ route = "antecedent.predictive_assessment.score_interval"
 stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
-notes = "Rust facade route closed with a typed refusal; no interval, causal-validity or callback-law result is produced."
+notes = "Rust facade route closed with a typed refusal for an unscoped interval request (no predictor, score or level named); the scoped expected-score interval is its own licensed route."
+
+[[routes]]
+route = "antecedent.predictive_assessment.expected_score_interval"
+stage = "uncertainty"
+status = "licensed"
+notes = "The Student-t interval of one predictor's expected score (or of an expected difference) under a declared iid, serial or cluster dependence, for a held-out or unfitted predictor, bound to a currently attesting coverage record; any other design refuses cell_not_licensed."
 
 [[routes]]
 route = "antecedent.predictive_assessment.law_callback"
@@ -7797,7 +7813,13 @@ route = "antecedent.scientific_bridge.interval"
 stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
-notes = "Permanently closed adjacent route of the scientific bridge: the request is refused with a typed reason that names the declaration or route that would license it."
+notes = "Permanently closed adjacent route of the scientific bridge for an unscoped interval request, a posterior or a joint law: the request is refused with a typed reason that names the declaration or route that would license it."
+
+[[routes]]
+route = "antecedent.scientific_bridge.bridged_interval"
+stage = "uncertainty"
+status = "licensed"
+notes = "The interval of a bridged value from the source claim's declared standard error carried through the mapping: an exact transform for identity and affine maps, a measured prediction interval for the trial-level line and a measured delta-method interval for the misclassification correction; any other design refuses cell_not_licensed."
 
 [[routes]]
 route = "antecedent.sequential_evaluation.evaluate_policy"
@@ -8190,16 +8212,20 @@ notes = "Closed adjacent route of adaptive-experiment inference: the request is 
 [[routes]]
 route = "antecedent.adaptive_inference.measured_interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "Closed adjacent route: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+status = "licensed"
+notes = "Measured adaptive intervals (Thompson credible interval of the second arm, epsilon-greedy repeated-measures weighted contrast, epsilon-greedy confidence sequence) bound to a currently attesting coverage record; every other procedure refuses cell_not_licensed."
+
+[[routes]]
+route = "antecedent.adaptive_inference.group_sequential.repeated_interval"
+stage = "uncertainty"
+status = "licensed"
+notes = "Measured repeated confidence interval of a fixed-randomization group-sequential trial bound to a currently attesting coverage record; stagewise-adjusted inference stays closed."
 
 [[routes]]
 route = "antecedent.cross_world_execution.measured_interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "Closed adjacent route: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+status = "licensed"
+notes = "Measured whole-path interval of an executed finite Markovian row under a declared unit sampling, bound to a currently attesting coverage record and conditional on the declared model; a posterior and a sampled abduction stay closed."
 
 [[routes]]
 route = "antecedent.decision_reliability.rank"
@@ -11704,9 +11730,15 @@ evidence_assertion = "test_transported_spread_from_aligned_pieces_matches_the_ro
 [[routes]]
 route = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval"
 stage = "uncertainty"
+status = "licensed"
+notes = "Measured normal-approximation interval of a linear composed contrast or sum, resolved against a currently attesting coverage record of its coordinate and declared evidence size; every other coordinate refuses cell_not_licensed."
+
+[[routes]]
+route = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval.unmeasured_coordinate"
+stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
-notes = "No measured record exists, so the route stays closed; the test also asserts the opening with a measured record."
+notes = "A composed coordinate, construction or evidence size with no currently attesting coverage record refuses with the specific detail."
 [[routes]]
 route = "antecedent_stats.adaptive_inference.procedure_repeated_measures.exact_fixed_contrast_law"
 stage = "evaluate"
