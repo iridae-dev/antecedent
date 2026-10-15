@@ -22,7 +22,7 @@ interval_method = "posterior_quantile"
 se_kind = ""
 dependence = "adaptive_assignment_stopped_by_posterior_rule"
 posterior = "beta_bernoulli.uniform_prior"
-functional = "arm_success_probability:treatment"
+functional = "arm_success_probability:treatment@fixed_truth"
 identification = "point"
 nominal = 0.95
 n_min = 100
@@ -42,9 +42,9 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::two_bernoulli_arms_0.5_0.5_thompson_uniform_prior_posterior_probability_stop"
 test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::thompson_posterior_equal_arms_boundary_l95"
-facets = ["core"]
-calibration_sha = "b4f06ae0abce384b1f774de5385ee09ee6bf0df4"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+facets = ["adaptive_interval", "core"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_large_gap_boundary_l95"
@@ -58,7 +58,7 @@ interval_method = "posterior_quantile"
 se_kind = ""
 dependence = "adaptive_assignment_stopped_by_posterior_rule"
 posterior = "beta_bernoulli.uniform_prior"
-functional = "arm_success_probability:treatment"
+functional = "arm_success_probability:treatment@fixed_truth"
 identification = "point"
 nominal = 0.95
 n_min = 100
@@ -78,9 +78,9 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::two_bernoulli_arms_0.05_0.95_thompson_uniform_prior_posterior_probability_stop"
 test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::thompson_posterior_large_gap_boundary_l95"
-facets = ["core"]
-calibration_sha = "b4f06ae0abce384b1f774de5385ee09ee6bf0df4"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+facets = ["adaptive_interval", "core"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_090_l95"
@@ -114,9 +114,9 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/adaptive_procedure_prior_predictive_calibration.rs::two_bernoulli_arms_truth_from_uniform_prior_thompson_posterior_probability_stop_0.90"
 test = "crates/antecedent-estimate/tests/adaptive_procedure_prior_predictive_calibration.rs::thompson_posterior_prior_predictive_stop_090_l95"
-facets = ["core", "suite.adaptive_procedure_prior_predictive_calibration"]
-calibration_sha = "b4f06ae0abce384b1f774de5385ee09ee6bf0df4"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+facets = ["adaptive_interval", "core", "suite.adaptive_procedure_prior_predictive_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_095_l95"
@@ -150,9 +150,9 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/adaptive_procedure_prior_predictive_calibration.rs::two_bernoulli_arms_truth_from_uniform_prior_thompson_posterior_probability_stop_0.95"
 test = "crates/antecedent-estimate/tests/adaptive_procedure_prior_predictive_calibration.rs::thompson_posterior_prior_predictive_stop_095_l95"
-facets = ["core", "suite.adaptive_procedure_prior_predictive_calibration"]
-calibration_sha = "b4f06ae0abce384b1f774de5385ee09ee6bf0df4"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+facets = ["adaptive_interval", "core", "suite.adaptive_procedure_prior_predictive_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_099_boundary_l95"
@@ -186,9 +186,9 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/adaptive_procedure_prior_predictive_calibration.rs::two_bernoulli_arms_truth_from_uniform_prior_thompson_posterior_probability_stop_0.99"
 test = "crates/antecedent-estimate/tests/adaptive_procedure_prior_predictive_calibration.rs::thompson_posterior_prior_predictive_stop_099_boundary_l95"
-facets = ["core", "suite.adaptive_procedure_prior_predictive_calibration"]
-calibration_sha = "b4f06ae0abce384b1f774de5385ee09ee6bf0df4"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+facets = ["adaptive_interval", "core", "suite.adaptive_procedure_prior_predictive_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_whole_procedure_l95"
@@ -202,7 +202,7 @@ interval_method = "posterior_quantile"
 se_kind = ""
 dependence = "adaptive_assignment_stopped_by_posterior_rule"
 posterior = "beta_bernoulli.uniform_prior"
-functional = "arm_success_probability:treatment"
+functional = "arm_success_probability:treatment@fixed_truth"
 identification = "point"
 nominal = 0.95
 n_min = 100
@@ -222,9 +222,9 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::two_bernoulli_arms_0.3_0.5_thompson_uniform_prior_posterior_probability_stop"
 test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::thompson_posterior_whole_procedure_l95"
-facets = ["core"]
-calibration_sha = "b4f06ae0abce384b1f774de5385ee09ee6bf0df4"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+facets = ["adaptive_interval", "core"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_repeated_measures_weighted_contrast_l95"
@@ -236,7 +236,7 @@ inference = "Frequentist"
 estimator = "adaptive.epsilon_greedy.weighted_aipw"
 interval_method = "analytic_se"
 se_kind = ""
-dependence = "adaptive_assignment_stopped_by_posterior_rule"
+dependence = "adaptive_assignment_final_analysis_repeated_measures"
 posterior = ""
 functional = "arm_contrast:treatment_minus_control"
 identification = "point"
@@ -258,9 +258,9 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::three_measurements_per_subject_random_intercept_sd_0.3_noise_sd_0.5_epsilon_greedy_0.3"
 test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::epsilon_greedy_repeated_measures_weighted_contrast_l95"
-facets = ["core"]
-calibration_sha = "b4f06ae0abce384b1f774de5385ee09ee6bf0df4"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+facets = ["adaptive_interval", "core"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_delayed_outcomes_l95"
@@ -294,9 +294,9 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::two_bernoulli_arms_0.4_0.6_epsilon_greedy_0.3_lag_10_posterior_probability_stop"
 test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::epsilon_greedy_weighted_contrast_delayed_outcomes_l95"
-facets = ["core"]
-calibration_sha = "cffe4a96b8f7833d1704ecd4c677d37e3c10df24"
-surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
+facets = ["adaptive_interval", "core"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_thin_exploration_boundary_l95"
@@ -330,9 +330,9 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::two_bernoulli_arms_0.4_0.6_epsilon_greedy_0.05_posterior_probability_stop"
 test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::epsilon_greedy_weighted_contrast_thin_exploration_boundary_l95"
-facets = ["core"]
-calibration_sha = "cffe4a96b8f7833d1704ecd4c677d37e3c10df24"
-surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
+facets = ["adaptive_interval", "core"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_whole_procedure_l95"
@@ -366,9 +366,9 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::two_bernoulli_arms_0.4_0.6_epsilon_greedy_0.3_posterior_probability_stop"
 test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::epsilon_greedy_weighted_contrast_whole_procedure_l95"
-facets = ["core"]
-calibration_sha = "cffe4a96b8f7833d1704ecd4c677d37e3c10df24"
-surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
+facets = ["adaptive_interval", "core"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.anomaly_attribution.dag.bayesian.posterior_quantile.l90.anomaly_attribution_dag_bayesian_nominal_coverage"
@@ -1197,6 +1197,150 @@ test = "crates/antecedent/tests/class_posterior_calibration.rs::class_posterior_
 facets = ["core", "estimator.linear_adjustment", "identity.backdoor", "identity.envelope", "suite.class_posterior_calibration"]
 calibration_sha = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
 surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+
+[[record]]
+id = "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_discovered_effect_nominal_95_coverage"
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "discovered_sample_split"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "sample_split.pc_parcorr.linear_adjustment"
+interval_method = "analytic_se"
+se_kind = "homoskedastic"
+dependence = "disjoint_rows"
+posterior = ""
+functional = "all_observed.mean"
+identification = "point"
+nominal = 0.95
+n_min = 300
+n_max = 1200
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.953125
+mcse = 0.010786485368346935
+replicates = 384
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 300, n_max = 300, observed = 0.953125, mcse = 0.010786485368346935, replicates = 384, boundary = false, role = "gated" },
+  { point = 1, n_min = 600, n_max = 600, observed = 0.9616368286445013, mcse = 0.009713470284054017, replicates = 391, boundary = false, role = "gated" },
+  { point = 2, n_min = 1200, n_max = 1200, observed = 0.9564102564102565, mcse = 0.010339081673687932, replicates = 390, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/sample_split_effect_calibration.rs::licensed_family_data"
+test = "crates/antecedent/tests/sample_split_effect_calibration.rs::sample_split_discovered_effect_nominal_95_coverage"
+facets = ["core", "estimator.sample_split_effect", "identity.envelope", "suite.sample_split_effect_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_full_row_reuse_boundary_95"
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "discovered_full_row_reuse"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "sample_split.pc_parcorr.linear_adjustment"
+interval_method = "analytic_se"
+se_kind = "homoskedastic"
+dependence = "shared_rows"
+posterior = ""
+functional = "all_observed.mean"
+identification = "point"
+nominal = 0.95
+n_min = 600
+n_max = 2400
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9394736842105263
+mcse = 0.01223270862186451
+replicates = 380
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 600, n_max = 600, observed = 0.951530612244898, mcse = 0.010846812073485894, replicates = 392, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 1200, n_max = 1200, observed = 0.9460154241645244, mcse = 0.011458008885845817, replicates = 389, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 2400, n_max = 2400, observed = 0.9394736842105263, mcse = 0.01223270862186451, replicates = 380, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent/tests/sample_split_effect_calibration.rs::licensed_family_data"
+test = "crates/antecedent/tests/sample_split_effect_calibration.rs::sample_split_full_row_reuse_boundary_95"
+facets = ["core", "estimator.sample_split_effect", "identity.envelope", "suite.sample_split_effect_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_misspecified_test_boundary_95"
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "discovered_sample_split"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "sample_split.pc_parcorr.linear_adjustment"
+interval_method = "analytic_se"
+se_kind = "homoskedastic"
+dependence = "disjoint_rows"
+posterior = ""
+functional = "all_observed.mean.named_boundary:misspecified_test"
+identification = "point"
+nominal = 0.95
+n_min = 300
+n_max = 1200
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.0
+mcse = 0.0
+replicates = 235
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 300, n_max = 300, observed = 0.0, mcse = 0.0, replicates = 235, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 600, n_max = 600, observed = 0.0, mcse = 0.0, replicates = 252, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 1200, n_max = 1200, observed = 0.0, mcse = 0.0, replicates = 249, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent/tests/sample_split_effect_calibration.rs::misspecified_test_family_data"
+test = "crates/antecedent/tests/sample_split_effect_calibration.rs::sample_split_misspecified_test_boundary_95"
+facets = ["core", "estimator.sample_split_effect", "identity.envelope", "suite.sample_split_effect_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_weak_edges_boundary_95"
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "discovered_sample_split"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "sample_split.pc_parcorr.linear_adjustment"
+interval_method = "analytic_se"
+se_kind = "homoskedastic"
+dependence = "disjoint_rows"
+posterior = ""
+functional = "all_observed.mean.named_boundary:weak_edges"
+identification = "point"
+nominal = 0.95
+n_min = 300
+n_max = 1200
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.8888888888888888
+mcse = 0.060481228216868604
+replicates = 27
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 300, n_max = 300, observed = 0.9230769230769231, mcse = 0.03305145572489689, replicates = 65, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 600, n_max = 600, observed = 0.9318181818181818, mcse = 0.03799912016063952, replicates = 44, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 1200, n_max = 1200, observed = 0.8888888888888888, mcse = 0.060481228216868604, replicates = 27, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent/tests/sample_split_effect_calibration.rs::weak_edge_family_data"
+test = "crates/antecedent/tests/sample_split_effect_calibration.rs::sample_split_weak_edges_boundary_95"
+facets = ["core", "estimator.sample_split_effect", "identity.envelope", "suite.sample_split_effect_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.average_effect.cpdag.frequentist.analytic_se.l95.static_cpdag_ate_envelope_frequentist_nominal_90_coverage"
@@ -3575,6 +3719,150 @@ calibration_sha = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
 surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
 
 [[record]]
+id = "cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_low_prevalence_boundary_l95"
+query = "BridgedClaimInterval"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "claim_value"
+inference = "Frequentist"
+estimator = "scientific_bridge_measurement_correction"
+interval_method = "normal_delta_method_clipped"
+se_kind = "declared_source_standard_error"
+dependence = "source_independent_of_mapping_evidence"
+posterior = ""
+functional = "bridge=latent_measured_outcome;direction=measured_to_latent;boundary=low_prevalence"
+identification = "point"
+nominal = 0.95
+n_min = 100
+n_max = 400
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.5425
+mcse = 0.024909523781076182
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 100, n_max = 100, observed = 0.5425, mcse = 0.024909523781076182, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 200, n_max = 200, observed = 0.63, mcse = 0.024140215409146622, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 400, n_max = 400, observed = 0.7025, mcse = 0.022857917118582788, replicates = 400, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent/tests/scientific_bridge_interval_calibration.rs::binary_misclassification_se_0_9_sp_0_8_estimated_from_validation_sample_prevalence_0_02"
+test = "crates/antecedent/tests/scientific_bridge_interval_calibration.rs::latent_measured_correction_low_prevalence_boundary_l95"
+facets = ["core", "estimator.bridge_interval", "suite.scientific_bridge_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_prevalence_0_2_l95"
+query = "BridgedClaimInterval"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "claim_value"
+inference = "Frequentist"
+estimator = "scientific_bridge_measurement_correction"
+interval_method = "normal_delta_method_clipped"
+se_kind = "declared_source_standard_error"
+dependence = "source_independent_of_mapping_evidence"
+posterior = ""
+functional = "bridge=latent_measured_outcome;direction=measured_to_latent"
+identification = "point"
+nominal = 0.95
+n_min = 100
+n_max = 400
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.93
+mcse = 0.01275735082217307
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 100, n_max = 100, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 200, n_max = 200, observed = 0.9575, mcse = 0.010086345968684594, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 400, n_max = 400, observed = 0.93, mcse = 0.01275735082217307, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/scientific_bridge_interval_calibration.rs::binary_misclassification_se_0_9_sp_0_8_estimated_from_validation_sample_prevalence_0_2"
+test = "crates/antecedent/tests/scientific_bridge_interval_calibration.rs::latent_measured_correction_prevalence_0_2_l95"
+facets = ["core", "estimator.bridge_interval", "suite.scientific_bridge_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_prevalence_0_5_l95"
+query = "BridgedClaimInterval"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "claim_value"
+inference = "Frequentist"
+estimator = "scientific_bridge_measurement_correction"
+interval_method = "normal_delta_method_clipped"
+se_kind = "declared_source_standard_error"
+dependence = "source_independent_of_mapping_evidence"
+posterior = ""
+functional = "bridge=latent_measured_outcome;direction=measured_to_latent"
+identification = "point"
+nominal = 0.95
+n_min = 100
+n_max = 400
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.95
+mcse = 0.010897247358851688
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 100, n_max = 100, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 200, n_max = 200, observed = 0.9625, mcse = 0.009499177595981663, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 400, n_max = 400, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/scientific_bridge_interval_calibration.rs::binary_misclassification_se_0_9_sp_0_8_estimated_from_validation_sample_prevalence_0_5"
+test = "crates/antecedent/tests/scientific_bridge_interval_calibration.rs::latent_measured_correction_prevalence_0_5_l95"
+facets = ["core", "estimator.bridge_interval", "suite.scientific_bridge_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.bridged_claim_interval.not_applicable.frequentist.student_t_prediction_interval.l95.surrogate_trial_level_prediction_interval_l95"
+query = "BridgedClaimInterval"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "claim_value"
+inference = "Frequentist"
+estimator = "scientific_bridge_trial_level_linear"
+interval_method = "student_t_prediction_interval"
+se_kind = "declared_source_standard_error"
+dependence = "source_independent_of_mapping_evidence"
+posterior = ""
+functional = "bridge=surrogate_terminal_outcome;direction=none"
+identification = "point"
+nominal = 0.95
+n_min = 15
+n_max = 40
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.95
+mcse = 0.010897247358851688
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 15, n_max = 15, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 20, n_max = 20, observed = 0.9625, mcse = 0.009499177595981663, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 40, n_max = 40, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/scientific_bridge_interval_calibration.rs::linear_trial_level_relation_residual_sd_0_15_new_trial_source_se_0_1"
+test = "crates/antecedent/tests/scientific_bridge_interval_calibration.rs::surrogate_trial_level_prediction_interval_l95"
+facets = ["core", "estimator.bridge_interval", "suite.scientific_bridge_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
 id = "cov.change_attribution.dag.bayesian.posterior_quantile.l90.change_attribution_dag_bayesian_shared_dirichlet_nominal_coverage"
 query = "ChangeAttribution"
 graph_class = "Dag"
@@ -4366,6 +4654,294 @@ test = "crates/antecedent-estimate/tests/learned_joint_calibration.rs::learned_d
 facets = ["core", "estimator.learned_joint_transport", "suite.learned_joint_calibration"]
 calibration_sha = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
 surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+
+[[record]]
+id = "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_confounded_p4_l90"
+query = "CohortMeanConditionalEffect"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "declared_cohort_linear_effect"
+inference = "Frequentist"
+estimator = "cohort.linear_effect.ols_hc3"
+interval_method = "student_t_hc3_sandwich"
+se_kind = "hc3_sandwich"
+dependence = "independent_rows"
+posterior = ""
+functional = "cohort_mean_conditional_effect"
+identification = "adjustment"
+nominal = 0.9
+n_min = 200
+n_max = 800
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9225
+mcse = 0.013369157602481916
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 200, n_max = 200, observed = 0.9225, mcse = 0.013369157602481916, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.9175, mcse = 0.013756248580190752, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.92, mcse = 0.013564659966250532, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs::observed_confounded_binary_treatment_three_modifiers_heteroskedastic_linear_effect_cohort_50_200"
+test = "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs::cohort_linear_effect_confounded_p4_l90"
+facets = ["core", "estimator.cohort_linear_effect", "suite.cohort_linear_effect_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_confounded_p5_l90"
+query = "CohortMeanConditionalEffect"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "declared_cohort_linear_effect"
+inference = "Frequentist"
+estimator = "cohort.linear_effect.ols_hc3"
+interval_method = "student_t_hc3_sandwich"
+se_kind = "hc3_sandwich"
+dependence = "independent_rows"
+posterior = ""
+functional = "cohort_mean_conditional_effect"
+identification = "adjustment"
+nominal = 0.9
+n_min = 200
+n_max = 800
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.907
+mcse = 0.006494266702253611
+replicates = 2000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 200, n_max = 200, observed = 0.92, mcse = 0.013564659966250532, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.92, mcse = 0.013564659966250532, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.907, mcse = 0.006494266702253611, replicates = 2000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs::observed_confounded_binary_treatment_four_modifiers_heteroskedastic_linear_effect_cohort_50_200"
+test = "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs::cohort_linear_effect_confounded_p5_l90"
+facets = ["core", "estimator.cohort_linear_effect", "suite.cohort_linear_effect_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_randomized_p3_l90"
+query = "CohortMeanConditionalEffect"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "declared_cohort_linear_effect"
+inference = "Frequentist"
+estimator = "cohort.linear_effect.ols_hc3"
+interval_method = "student_t_hc3_sandwich"
+se_kind = "hc3_sandwich"
+dependence = "independent_rows"
+posterior = ""
+functional = "cohort_mean_conditional_effect"
+identification = "adjustment"
+nominal = 0.9
+n_min = 200
+n_max = 800
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.89
+mcse = 0.015644487847162013
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 200, n_max = 200, observed = 0.89, mcse = 0.015644487847162013, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.9115, mcse = 0.006350895606133045, replicates = 2000, boundary = false, role = "gated" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.905, mcse = 0.014660746911395748, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs::randomized_binary_treatment_two_modifiers_heteroskedastic_linear_effect_cohort_50_200"
+test = "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs::cohort_linear_effect_randomized_p3_l90"
+facets = ["core", "estimator.cohort_linear_effect", "suite.cohort_linear_effect_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_confounded_p4_l95"
+query = "CohortMeanConditionalEffect"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "declared_cohort_linear_effect"
+inference = "Frequentist"
+estimator = "cohort.linear_effect.ols_hc3"
+interval_method = "student_t_hc3_sandwich"
+se_kind = "hc3_sandwich"
+dependence = "independent_rows"
+posterior = ""
+functional = "cohort_mean_conditional_effect"
+identification = "adjustment"
+nominal = 0.95
+n_min = 200
+n_max = 800
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.965
+mcse = 0.009188987974744557
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 200, n_max = 200, observed = 0.965, mcse = 0.009188987974744557, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.9675, mcse = 0.008866192813152663, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.965, mcse = 0.009188987974744557, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs::observed_confounded_binary_treatment_three_modifiers_heteroskedastic_linear_effect_cohort_50_200"
+test = "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs::cohort_linear_effect_confounded_p4_l95"
+facets = ["core", "estimator.cohort_linear_effect", "suite.cohort_linear_effect_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_confounded_p5_l95"
+query = "CohortMeanConditionalEffect"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "declared_cohort_linear_effect"
+inference = "Frequentist"
+estimator = "cohort.linear_effect.ols_hc3"
+interval_method = "student_t_hc3_sandwich"
+se_kind = "hc3_sandwich"
+dependence = "independent_rows"
+posterior = ""
+functional = "cohort_mean_conditional_effect"
+identification = "adjustment"
+nominal = 0.95
+n_min = 200
+n_max = 800
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.95
+mcse = 0.010897247358851688
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 200, n_max = 200, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.9505, mcse = 0.004850244839180801, replicates = 2000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs::observed_confounded_binary_treatment_four_modifiers_heteroskedastic_linear_effect_cohort_50_200"
+test = "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs::cohort_linear_effect_confounded_p5_l95"
+facets = ["core", "estimator.cohort_linear_effect", "suite.cohort_linear_effect_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_high_leverage_cohort_boundary_l95"
+query = "CohortMeanConditionalEffect"
+graph_class = "NotApplicable"
+structure = "boundary.high_leverage_cohort"
+modality = "declared_cohort_linear_effect"
+inference = "Frequentist"
+estimator = "cohort.linear_effect.ols_hc3"
+interval_method = "student_t_hc3_sandwich"
+se_kind = "hc3_sandwich"
+dependence = "independent_rows"
+posterior = ""
+functional = "cohort_mean_conditional_effect"
+identification = "adjustment"
+nominal = 0.95
+n_min = 200
+n_max = 800
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.945
+mcse = 0.011399013115178002
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 200, n_max = 200, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.9725, mcse = 0.00817675822071314, replicates = 400, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs::observed_confounded_binary_treatment_heavy_tailed_modifier_largest_leverage_cohort_50_200"
+test = "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs::cohort_linear_effect_high_leverage_cohort_boundary_l95"
+facets = ["core", "estimator.cohort_linear_effect", "suite.cohort_linear_effect_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_misspecified_effect_boundary_l95"
+query = "CohortMeanConditionalEffect"
+graph_class = "NotApplicable"
+structure = "boundary.misspecified_effect"
+modality = "declared_cohort_linear_effect"
+inference = "Frequentist"
+estimator = "cohort.linear_effect.ols_hc3"
+interval_method = "student_t_hc3_sandwich"
+se_kind = "hc3_sandwich"
+dependence = "independent_rows"
+posterior = ""
+functional = "cohort_mean_conditional_effect"
+identification = "adjustment"
+nominal = 0.95
+n_min = 200
+n_max = 800
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.6225
+mcse = 0.02423807696579908
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 200, n_max = 200, observed = 0.8525, mcse = 0.017730182599172518, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.7575, mcse = 0.021429754431630803, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.6225, mcse = 0.02423807696579908, replicates = 400, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs::observed_confounded_binary_treatment_quadratic_true_effect_linear_basis_cohort_50_200"
+test = "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs::cohort_linear_effect_misspecified_effect_boundary_l95"
+facets = ["core", "estimator.cohort_linear_effect", "suite.cohort_linear_effect_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_randomized_p3_l95"
+query = "CohortMeanConditionalEffect"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "declared_cohort_linear_effect"
+inference = "Frequentist"
+estimator = "cohort.linear_effect.ols_hc3"
+interval_method = "student_t_hc3_sandwich"
+se_kind = "hc3_sandwich"
+dependence = "independent_rows"
+posterior = ""
+functional = "cohort_mean_conditional_effect"
+identification = "adjustment"
+nominal = 0.95
+n_min = 200
+n_max = 800
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9325
+mcse = 0.0125442965127583
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 200, n_max = 200, observed = 0.9325, mcse = 0.0125442965127583, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.965, mcse = 0.009188987974744557, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.9575, mcse = 0.010086345968684594, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs::randomized_binary_treatment_two_modifiers_heteroskedastic_linear_effect_cohort_50_200"
+test = "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs::cohort_linear_effect_randomized_p3_l95"
+facets = ["core", "estimator.cohort_linear_effect", "suite.cohort_linear_effect_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.conditional_effect.cpdag.bayesian.posterior_quantile.l90.conditional_effect_cpdag_bayesian_default_nominal_coverage"
@@ -5695,9 +6271,9 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_frontdoor_latent_district"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_latent_district"
-facets = ["core", "suite.counterfactual_transport_sampled_oracle"]
-calibration_sha = "cffe4a96b8f7833d1704ecd4c677d37e3c10df24"
-surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
+facets = ["core", "estimator.counterfactual_transport", "suite.counterfactual_transport_sampled_oracle"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_mediation_covariate_shift"
@@ -5731,9 +6307,9 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_mediation_covariate_shift"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_mediation_covariate_shift"
-facets = ["core", "suite.counterfactual_transport_sampled_oracle"]
-calibration_sha = "cffe4a96b8f7833d1704ecd4c677d37e3c10df24"
-surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
+facets = ["core", "estimator.counterfactual_transport", "suite.counterfactual_transport_sampled_oracle"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_two_source_joint"
@@ -5767,9 +6343,1215 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_two_source_joint_counterfactual_transport"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_two_source_joint"
-facets = ["core", "suite.counterfactual_transport_sampled_oracle"]
-calibration_sha = "cffe4a96b8f7833d1704ecd4c677d37e3c10df24"
-surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
+facets = ["core", "estimator.counterfactual_transport", "suite.counterfactual_transport_sampled_oracle"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_eight_candidates_l95.separate_streams"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_optimality_confidence_set"
+interval_method = "bonferroni_confidence_set"
+se_kind = "monte_carlo"
+dependence = "declared_independent.independent"
+posterior = ""
+functional = "candidates=8;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 1.0
+mcse = 0.0
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the confidence set contains the true best candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_seven_equal_candidates_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::confidence_set_eight_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_eight_candidates_l95.shared_rho_0_0"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_optimality_confidence_set"
+interval_method = "bonferroni_confidence_set"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=8;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 1.0
+mcse = 0.0
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the confidence set contains the true best candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_seven_equal_candidates_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::confidence_set_eight_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_eight_candidates_l95.shared_rho_0_5"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_optimality_confidence_set"
+interval_method = "bonferroni_confidence_set"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=8;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 1.0
+mcse = 0.0
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the confidence set contains the true best candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_seven_equal_candidates_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::confidence_set_eight_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_sixty_four_candidates_l95.separate_streams"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_optimality_confidence_set"
+interval_method = "bonferroni_confidence_set"
+se_kind = "monte_carlo"
+dependence = "declared_independent.independent"
+posterior = ""
+functional = "candidates=64;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 1.0
+mcse = 0.0
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the confidence set contains the true best candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_sixty_three_equal_candidates_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::confidence_set_sixty_four_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_sixty_four_candidates_l95.shared_rho_0_0"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_optimality_confidence_set"
+interval_method = "bonferroni_confidence_set"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=64;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 1.0
+mcse = 0.0
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the confidence set contains the true best candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_sixty_three_equal_candidates_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::confidence_set_sixty_four_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_sixty_four_candidates_l95.shared_rho_0_5"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_optimality_confidence_set"
+interval_method = "bonferroni_confidence_set"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=64;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 1.0
+mcse = 0.0
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the confidence set contains the true best candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_sixty_three_equal_candidates_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::confidence_set_sixty_four_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_two_candidates_l95.separate_streams"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_optimality_confidence_set"
+interval_method = "bonferroni_confidence_set"
+se_kind = "monte_carlo"
+dependence = "declared_independent.independent"
+posterior = ""
+functional = "candidates=2;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 1.0
+mcse = 0.0
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the confidence set contains the true best candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_one_equal_candidate_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::confidence_set_two_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_two_candidates_l95.shared_rho_0_0"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_optimality_confidence_set"
+interval_method = "bonferroni_confidence_set"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=2;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 1.0
+mcse = 0.0
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the confidence set contains the true best candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_one_equal_candidate_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::confidence_set_two_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_two_candidates_l95.shared_rho_0_5"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_optimality_confidence_set"
+interval_method = "bonferroni_confidence_set"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=2;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 1.0
+mcse = 0.0
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the confidence set contains the true best candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_one_equal_candidate_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::confidence_set_two_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_all_equal_sixty_four_candidates_boundary_l95.shared_rho_0_5"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_selection_corrected_interval"
+interval_method = "simultaneous_wald_normal"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=64;rule=maximize_expected_utility;functional=expected_utility;boundary=all_equal"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.985
+mcse = 0.006077622890571612
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.9925, mcse = 0.004313858481684336, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.985, mcse = 0.006077622890571612, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.995, mcse = 0.0035266839949164726, replicates = 400, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::sixty_four_equal_candidates_gaussian_utilities_shared_stream"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_all_equal_sixty_four_candidates_boundary_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_eight_candidates_l95.separate_streams"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_selection_corrected_interval"
+interval_method = "simultaneous_wald_normal"
+se_kind = "monte_carlo"
+dependence = "declared_independent.independent"
+posterior = ""
+functional = "candidates=8;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.99
+mcse = 0.004974937185533102
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.99, mcse = 0.004974937185533102, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.99, mcse = 0.004974937185533102, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_seven_equal_candidates_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_eight_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_eight_candidates_l95.shared_rho_0_0"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_selection_corrected_interval"
+interval_method = "simultaneous_wald_normal"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=8;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.99
+mcse = 0.004974937185533102
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.9925, mcse = 0.004313858481684336, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.99, mcse = 0.004974937185533102, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_seven_equal_candidates_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_eight_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_eight_candidates_l95.shared_rho_0_5"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_selection_corrected_interval"
+interval_method = "simultaneous_wald_normal"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=8;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9875
+mcse = 0.005555121510822233
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.9875, mcse = 0.005555121510822233, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.995, mcse = 0.0035266839949164726, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.995, mcse = 0.0035266839949164726, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_seven_equal_candidates_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_eight_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_sixty_four_candidates_l95.separate_streams"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_selection_corrected_interval"
+interval_method = "simultaneous_wald_normal"
+se_kind = "monte_carlo"
+dependence = "declared_independent.independent"
+posterior = ""
+functional = "candidates=64;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9925
+mcse = 0.004313858481684336
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.9925, mcse = 0.004313858481684336, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_sixty_three_equal_candidates_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_sixty_four_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_sixty_four_candidates_l95.shared_rho_0_0"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_selection_corrected_interval"
+interval_method = "simultaneous_wald_normal"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=64;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 1.0
+mcse = 0.0
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_sixty_three_equal_candidates_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_sixty_four_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_sixty_four_candidates_l95.shared_rho_0_5"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_selection_corrected_interval"
+interval_method = "simultaneous_wald_normal"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=64;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 1.0
+mcse = 0.0
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_sixty_three_equal_candidates_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_sixty_four_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.separate_streams"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_selection_corrected_interval"
+interval_method = "simultaneous_wald_normal"
+se_kind = "monte_carlo"
+dependence = "declared_independent.independent"
+posterior = ""
+functional = "candidates=2;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.96
+mcse = 0.009797958971132717
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.9625, mcse = 0.009499177595981663, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.9775, mcse = 0.00741514497498194, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_one_equal_candidate_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_two_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_0"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_selection_corrected_interval"
+interval_method = "simultaneous_wald_normal"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=2;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9525
+mcse = 0.010635289135702893
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9725, mcse = 0.00817675822071314, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.975, mcse = 0.007806247497998001, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_one_equal_candidate_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_two_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_5"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_selection_corrected_interval"
+interval_method = "simultaneous_wald_normal"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=2;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.975
+mcse = 0.007806247497998001
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.9825, mcse = 0.006556247020971671, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.975, mcse = 0.007806247497998001, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.975, mcse = 0.007806247497998001, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_one_equal_candidate_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_two_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_sixty_four_candidates_l95.separate_streams"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_utility_interval"
+interval_method = "wald_normal"
+se_kind = "monte_carlo"
+dependence = "declared_independent.independent"
+posterior = ""
+functional = "candidates=64;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9555
+mcse = 0.004610843198374891
+replicates = 2000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.9555, mcse = 0.004610843198374891, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.965, mcse = 0.009188987974744557, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_sixty_three_equal_candidates_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::utility_interval_sixty_four_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_sixty_four_candidates_l95.shared_rho_0_0"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_utility_interval"
+interval_method = "wald_normal"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=64;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9375
+mcse = 0.012103072956898178
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.948, mcse = 0.0049646752159632785, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_sixty_three_equal_candidates_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::utility_interval_sixty_four_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_sixty_four_candidates_l95.shared_rho_0_5"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_utility_interval"
+interval_method = "wald_normal"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=64;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9375
+mcse = 0.012103072956898178
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.952, mcse = 0.004779958158812692, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_sixty_three_equal_candidates_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::utility_interval_sixty_four_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_two_candidates_l95.separate_streams"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_utility_interval"
+interval_method = "wald_normal"
+se_kind = "monte_carlo"
+dependence = "declared_independent.independent"
+posterior = ""
+functional = "candidates=2;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.945
+mcse = 0.011399013115178002
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.9455, mcse = 0.005075911248239078, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_one_equal_candidate_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::utility_interval_two_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_two_candidates_l95.shared_rho_0_0"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_utility_interval"
+interval_method = "wald_normal"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=2;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.942
+mcse = 0.005226662414964259
+replicates = 2000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.942, mcse = 0.005226662414964259, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_one_equal_candidate_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::utility_interval_two_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_two_candidates_l95.shared_rho_0_5"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_utility_interval"
+interval_method = "wald_normal"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=2;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.94
+mcse = 0.011874342087037922
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.9525, mcse = 0.00475624589355933, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.94, mcse = 0.011874342087037922, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_one_equal_candidate_gaussian_utilities"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::utility_interval_two_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_all_equal_boundary_l95.shared_rho_0_5"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_ranking_probability"
+interval_method = "wilson_effective_sample"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=8;rule=maximize_expected_utility;functional=expected_utility;boundary=all_equal"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.935
+mcse = 0.012326293035621046
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.935, mcse = 0.012326293035621046, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.97, mcse = 0.008529361054615993, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::eight_equal_candidates_gaussian_utilities_shared_stream"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::ranking_probability_all_equal_boundary_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_dominant_leader_boundary_l95.shared_rho_0_5"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_ranking_probability"
+interval_method = "wilson_effective_sample"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=8;rule=maximize_expected_utility;functional=expected_utility;boundary=dominant_leader"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.8725
+mcse = 0.016676611616272652
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.965, mcse = 0.009188987974744557, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.905, mcse = 0.014660746911395748, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.8725, mcse = 0.016676611616272652, replicates = 400, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::dominant_leader_eight_candidates_gaussian_utilities_shared_stream"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::ranking_probability_dominant_leader_boundary_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_eight_candidates_l95.shared_rho_0_0"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_ranking_probability"
+interval_method = "wilson_effective_sample"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=8;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.955
+mcse = 0.010365206220813944
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.965, mcse = 0.009188987974744557, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_seven_equal_candidates_gaussian_utilities_shared_stream"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::ranking_probability_eight_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_eight_candidates_l95.shared_rho_0_5"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_ranking_probability"
+interval_method = "wilson_effective_sample"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=8;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9425
+mcse = 0.01163977555625537
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9575, mcse = 0.010086345968684594, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_seven_equal_candidates_gaussian_utilities_shared_stream"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::ranking_probability_eight_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_sixty_four_candidates_l95.shared_rho_0_0"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_ranking_probability"
+interval_method = "wilson_effective_sample"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=64;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.935
+mcse = 0.012326293035621046
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.951, mcse = 0.004826955562256609, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.935, mcse = 0.012326293035621046, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.9495, mcse = 0.0048964145045124596, replicates = 2000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_sixty_three_equal_candidates_gaussian_utilities_shared_stream"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::ranking_probability_sixty_four_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_sixty_four_candidates_l95.shared_rho_0_5"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_ranking_probability"
+interval_method = "wilson_effective_sample"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=64;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9455
+mcse = 0.005075911248239078
+replicates = 2000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.9465, mcse = 0.005031786462082825, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.9455, mcse = 0.005075911248239078, replicates = 2000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_sixty_three_equal_candidates_gaussian_utilities_shared_stream"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::ranking_probability_sixty_four_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_two_candidates_l95.shared_rho_0_0"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_ranking_probability"
+interval_method = "wilson_effective_sample"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=2;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9475
+mcse = 0.01115165346484547
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_one_equal_candidate_gaussian_utilities_shared_stream"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::ranking_probability_two_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.wilson_effective_sample.l95.ranking_probability_two_candidates_l95.shared_rho_0_5"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_ranking_probability"
+interval_method = "wilson_effective_sample"
+se_kind = "monte_carlo"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=2;rule=maximize_expected_utility;functional=expected_utility"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.945
+mcse = 0.011399013115178002
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.9575, mcse = 0.010086345968684594, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_one_equal_candidate_gaussian_utilities_shared_stream"
+test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::ranking_probability_two_candidates_l95"
+facets = ["core", "design", "suite.decision_reliability_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.directional_derivative.dag.bayesian.posterior_quantile.l90.directional_derivative_bayesian_default_nominal_coverage.0"
@@ -10704,6 +12486,222 @@ calibration_sha = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
 surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
 
 [[record]]
+id = "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l90.count_fitted_confounded_signal_l90"
+query = "ObservationConditionalProbability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "count_fitted_finite_tables"
+inference = "Bayesian"
+estimator = "observation.count_fitted_tables.dirichlet"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "independent_rows"
+posterior = "dirichlet.uniform_prior"
+functional = "conditional_probability"
+identification = "conditioning"
+nominal = 0.9
+n_min = 150
+n_max = 600
+replicates_min = 0
+posterior_draws_min = 2000
+unidentified_mass_max = 0.0
+observed = 0.8875
+mcse = 0.015799030824705677
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 150, n_max = 150, observed = 0.8875, mcse = 0.015799030824705677, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 300, n_max = 300, observed = 0.9125, mcse = 0.014128318194321646, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 600, n_max = 600, observed = 0.9075, mcse = 0.014486523910172518, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
+test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l90"
+facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l90.count_fitted_measured_signal_l90"
+query = "ObservationConditionalProbability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "count_fitted_finite_tables"
+inference = "Bayesian"
+estimator = "observation.count_fitted_tables.dirichlet"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "independent_rows"
+posterior = "dirichlet.uniform_prior"
+functional = "conditional_probability"
+identification = "conditioning"
+nominal = 0.9
+n_min = 150
+n_max = 600
+replicates_min = 0
+posterior_draws_min = 2000
+unidentified_mass_max = 0.0
+observed = 0.9015
+mcse = 0.0066632480818291625
+replicates = 2000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 150, n_max = 150, observed = 0.9015, mcse = 0.0066632480818291625, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 300, n_max = 300, observed = 0.91, mcse = 0.014309088021254182, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 600, n_max = 600, observed = 0.9025, mcse = 0.014831870246196198, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_declared_measured_signal_se_090_sp_085_evidence_m1"
+test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_measured_signal_l90"
+facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_confounded_signal_l95"
+query = "ObservationConditionalProbability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "count_fitted_finite_tables"
+inference = "Bayesian"
+estimator = "observation.count_fitted_tables.dirichlet"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "independent_rows"
+posterior = "dirichlet.uniform_prior"
+functional = "conditional_probability"
+identification = "conditioning"
+nominal = 0.95
+n_min = 150
+n_max = 600
+replicates_min = 0
+posterior_draws_min = 2000
+unidentified_mass_max = 0.0
+observed = 0.95
+mcse = 0.010897247358851688
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 150, n_max = 150, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 300, n_max = 300, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 600, n_max = 600, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
+test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l95"
+facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_measured_signal_l95"
+query = "ObservationConditionalProbability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "count_fitted_finite_tables"
+inference = "Bayesian"
+estimator = "observation.count_fitted_tables.dirichlet"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "independent_rows"
+posterior = "dirichlet.uniform_prior"
+functional = "conditional_probability"
+identification = "conditioning"
+nominal = 0.95
+n_min = 150
+n_max = 600
+replicates_min = 0
+posterior_draws_min = 2000
+unidentified_mass_max = 0.0
+observed = 0.94
+mcse = 0.011874342087037922
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 150, n_max = 150, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 300, n_max = 300, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 600, n_max = 600, observed = 0.94, mcse = 0.011874342087037922, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_declared_measured_signal_se_090_sp_085_evidence_m1"
+test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_measured_signal_l95"
+facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_rare_evidence_boundary_l95"
+query = "ObservationConditionalProbability"
+graph_class = "NotApplicable"
+structure = "boundary.rare_evidence"
+modality = "count_fitted_finite_tables"
+inference = "Bayesian"
+estimator = "observation.count_fitted_tables.dirichlet"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "independent_rows"
+posterior = "dirichlet.uniform_prior"
+functional = "conditional_probability"
+identification = "conditioning"
+nominal = 0.95
+n_min = 150
+n_max = 600
+replicates_min = 0
+posterior_draws_min = 2000
+unidentified_mass_max = 0.0
+observed = 0.95
+mcse = 0.010897247358851688
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 150, n_max = 150, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 300, n_max = 300, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 600, n_max = 600, observed = 0.9625, mcse = 0.009499177595981663, replicates = 400, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::rare_conditioning_event_ps1_about_003_counts_fitted_dirichlet_posterior_evidence_s1"
+test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_rare_evidence_boundary_l95"
+facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_sparse_parent_configuration_boundary_l95"
+query = "ObservationConditionalProbability"
+graph_class = "NotApplicable"
+structure = "boundary.sparse_parent_configuration"
+modality = "count_fitted_finite_tables"
+inference = "Bayesian"
+estimator = "observation.count_fitted_tables.dirichlet"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "independent_rows"
+posterior = "dirichlet.uniform_prior"
+functional = "conditional_probability"
+identification = "conditioning"
+nominal = 0.95
+n_min = 150
+n_max = 600
+replicates_min = 0
+posterior_draws_min = 2000
+unidentified_mass_max = 0.0
+observed = 0.93
+mcse = 0.01275735082217307
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 150, n_max = 150, observed = 0.93, mcse = 0.01275735082217307, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 300, n_max = 300, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 600, n_max = 600, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::rare_parent_configuration_pz1_004_counts_fitted_dirichlet_posterior_evidence_s1"
+test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_sparse_parent_configuration_boundary_l95"
+facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
 id = "cov.path_specific_effect.dag.bayesian.posterior_quantile.l90.path_specific_bayesian_nominal_90_coverage"
 query = "PathSpecificEffect"
 graph_class = "Dag"
@@ -11350,6 +13348,258 @@ test = "crates/antecedent/tests/derivative_calibration.rs::point_derivative_orde
 facets = ["core", "estimator.response", "identity.response", "suite.derivative_calibration"]
 calibration_sha = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
 surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+
+[[record]]
+id = "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_crps_mean_l95"
+query = "PredictiveScoreInterval"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "case_scores"
+inference = "Frequentist"
+estimator = "predictive_assessment_score_mean"
+interval_method = "student_t_bartlett_hac"
+se_kind = "analytic_mean_variance"
+dependence = "serial"
+posterior = ""
+functional = "score=crps;law=gaussian;design=held_out_split;overlap=not_fitted"
+identification = "point"
+nominal = 0.95
+n_min = 400
+n_max = 1600
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.93
+mcse = 0.01275735082217307
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 400, n_max = 400, observed = 0.93, mcse = 0.01275735082217307, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 800, n_max = 800, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 1600, n_max = 1600, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_stationary_ar1_phi_0_5_outcomes"
+test = "crates/antecedent/tests/predictive_score_interval_calibration.rs::serial_crps_mean_l95"
+facets = ["core", "estimator.predictive_score_interval", "suite.predictive_score_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_log_score_mean_l95"
+query = "PredictiveScoreInterval"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "case_scores"
+inference = "Frequentist"
+estimator = "predictive_assessment_score_mean"
+interval_method = "student_t_bartlett_hac"
+se_kind = "analytic_mean_variance"
+dependence = "serial"
+posterior = ""
+functional = "score=log_score;law=gaussian;design=held_out_split;overlap=not_fitted"
+identification = "point"
+nominal = 0.95
+n_min = 400
+n_max = 1600
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9375
+mcse = 0.012103072956898178
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 400, n_max = 400, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 800, n_max = 800, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 1600, n_max = 1600, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_stationary_ar1_phi_0_5_outcomes"
+test = "crates/antecedent/tests/predictive_score_interval_calibration.rs::serial_log_score_mean_l95"
+facets = ["core", "estimator.predictive_score_interval", "suite.predictive_score_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_crps_difference_l95"
+query = "PredictiveScoreInterval"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "case_scores"
+inference = "Frequentist"
+estimator = "predictive_assessment_score_difference"
+interval_method = "student_t_cluster_robust"
+se_kind = "analytic_mean_variance"
+dependence = "cluster"
+posterior = ""
+functional = "score=crps;law=gaussian;design=blocked;overlap=not_fitted"
+identification = "point"
+nominal = 0.95
+n_min = 400
+n_max = 1600
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9425
+mcse = 0.01163977555625537
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 400, n_max = 400, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 800, n_max = 800, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 1600, n_max = 1600, observed = 0.9455, mcse = 0.005075911248239078, replicates = 2000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/predictive_score_interval_calibration.rs::two_fixed_gaussian_forecasts_against_clustered_standard_normal_outcomes_size_5"
+test = "crates/antecedent/tests/predictive_score_interval_calibration.rs::cluster_crps_difference_l95"
+facets = ["core", "estimator.predictive_score_interval", "suite.predictive_score_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_crps_difference_l95"
+query = "PredictiveScoreInterval"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "case_scores"
+inference = "Frequentist"
+estimator = "predictive_assessment_score_difference"
+interval_method = "student_t_iid"
+se_kind = "analytic_mean_variance"
+dependence = "iid"
+posterior = ""
+functional = "score=crps;law=gaussian;design=held_out_split;overlap=not_fitted"
+identification = "point"
+nominal = 0.95
+n_min = 400
+n_max = 1600
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9325
+mcse = 0.0125442965127583
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 400, n_max = 400, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 800, n_max = 800, observed = 0.9325, mcse = 0.0125442965127583, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 1600, n_max = 1600, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/predictive_score_interval_calibration.rs::two_fixed_gaussian_forecasts_against_iid_standard_normal_outcomes"
+test = "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_crps_difference_l95"
+facets = ["core", "estimator.predictive_score_interval", "suite.predictive_score_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_crps_mean_l95"
+query = "PredictiveScoreInterval"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "case_scores"
+inference = "Frequentist"
+estimator = "predictive_assessment_score_mean"
+interval_method = "student_t_iid"
+se_kind = "analytic_mean_variance"
+dependence = "iid"
+posterior = ""
+functional = "score=crps;law=gaussian;design=held_out_split;overlap=not_fitted"
+identification = "point"
+nominal = 0.95
+n_min = 400
+n_max = 1600
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.935
+mcse = 0.012326293035621046
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 400, n_max = 400, observed = 0.935, mcse = 0.012326293035621046, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 800, n_max = 800, observed = 0.935, mcse = 0.012326293035621046, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 1600, n_max = 1600, observed = 0.941, mcse = 0.005268728499363013, replicates = 2000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_iid_standard_normal_outcomes"
+test = "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_crps_mean_l95"
+facets = ["core", "estimator.predictive_score_interval", "suite.predictive_score_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_log_score_heavy_tailed_truth_boundary_l95"
+query = "PredictiveScoreInterval"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "case_scores"
+inference = "Frequentist"
+estimator = "predictive_assessment_score_mean"
+interval_method = "student_t_iid"
+se_kind = "analytic_mean_variance"
+dependence = "iid"
+posterior = ""
+functional = "score=log_score;law=gaussian;design=held_out_split;overlap=not_fitted;boundary=heavy_tailed_truth"
+identification = "point"
+nominal = 0.95
+n_min = 400
+n_max = 1600
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.7425
+mcse = 0.021862853770722612
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 400, n_max = 400, observed = 0.7425, mcse = 0.021862853770722612, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 800, n_max = 800, observed = 0.7525, mcse = 0.021577983571223702, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 1600, n_max = 1600, observed = 0.7725, mcse = 0.02096090110181335, replicates = 400, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_iid_student_t3_unit_variance_outcomes"
+test = "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_log_score_heavy_tailed_truth_boundary_l95"
+facets = ["core", "estimator.predictive_score_interval", "suite.predictive_score_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_log_score_mean_l95"
+query = "PredictiveScoreInterval"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "case_scores"
+inference = "Frequentist"
+estimator = "predictive_assessment_score_mean"
+interval_method = "student_t_iid"
+se_kind = "analytic_mean_variance"
+dependence = "iid"
+posterior = ""
+functional = "score=log_score;law=gaussian;design=held_out_split;overlap=not_fitted"
+identification = "point"
+nominal = 0.95
+n_min = 400
+n_max = 1600
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9375
+mcse = 0.012103072956898178
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 400, n_max = 400, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 800, n_max = 800, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 1600, n_max = 1600, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_iid_standard_normal_outcomes"
+test = "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_log_score_mean_l95"
+facets = ["core", "estimator.predictive_score_interval", "suite.predictive_score_interval_calibration"]
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.pulse_effect.temporal_cpdag.bayesian.posterior_quantile.l90.bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage"
@@ -28700,8 +30950,8 @@ grid = [
 dgp = "crates/antecedent/tests/temporal_recalc_calibration.rs::independent_units_binary_shared_shock_checked_adapter"
 test = "crates/antecedent/tests/temporal_recalc_calibration.rs::temporal_checked_effect_basic_l95"
 facets = ["core", "estimator.dependent_temporal_interval", "suite.temporal_recalc_calibration"]
-calibration_sha = "94655823657cf9daa9562e9f4aeda39cd86bcd5c"
-surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.temporal_transport.selection_admg.frequentist.bootstrap_percentile.l95.temporal_checked_effect_percentile_l95"
@@ -28723,21 +30973,21 @@ n_max = 512
 replicates_min = 2000
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9275
-mcse = 0.012965699942540704
+observed = 0.9325
+mcse = 0.0125442965127583
 replicates = 400
 boundary = true
 role = "named_boundary"
 grid = [
-  { point = 0, n_min = 128, n_max = 128, observed = 0.9275, mcse = 0.012965699942540704, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 0, n_min = 128, n_max = 128, observed = 0.9325, mcse = 0.0125442965127583, replicates = 400, boundary = true, role = "named_boundary" },
   { point = 1, n_min = 256, n_max = 256, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = true, role = "named_boundary" },
-  { point = 2, n_min = 512, n_max = 512, observed = 0.94, mcse = 0.011874342087037922, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 512, n_max = 512, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = true, role = "named_boundary" },
 ]
 dgp = "crates/antecedent/tests/temporal_recalc_calibration.rs::independent_units_binary_shared_shock_checked_adapter"
 test = "crates/antecedent/tests/temporal_recalc_calibration.rs::temporal_checked_effect_percentile_l95"
 facets = ["core", "estimator.dependent_temporal_interval", "suite.temporal_recalc_calibration"]
-calibration_sha = "94655823657cf9daa9562e9f4aeda39cd86bcd5c"
-surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_checked_effect_studentized_l95"
@@ -28772,8 +31022,8 @@ grid = [
 dgp = "crates/antecedent/tests/temporal_recalc_calibration.rs::independent_units_binary_shared_shock_checked_adapter"
 test = "crates/antecedent/tests/temporal_recalc_calibration.rs::temporal_checked_effect_studentized_l95"
 facets = ["core", "estimator.dependent_temporal_interval", "suite.temporal_recalc_calibration"]
-calibration_sha = "94655823657cf9daa9562e9f4aeda39cd86bcd5c"
-surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_checked_response_studentized_l95"
@@ -28808,8 +31058,8 @@ grid = [
 dgp = "crates/antecedent/tests/temporal_recalc_calibration.rs::independent_units_binary_shared_shock_checked_adapter"
 test = "crates/antecedent/tests/temporal_recalc_calibration.rs::temporal_checked_response_studentized_l95"
 facets = ["core", "estimator.dependent_temporal_interval", "suite.temporal_recalc_calibration"]
-calibration_sha = "94655823657cf9daa9562e9f4aeda39cd86bcd5c"
-surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_two_step_units_studentized_l95"
@@ -28844,8 +31094,8 @@ grid = [
 dgp = "crates/antecedent-estimate/tests/temporal_unit_calibration.rs::independent_units_shared_shock_fixed_target"
 test = "crates/antecedent-estimate/tests/temporal_unit_calibration.rs::temporal_two_step_units_studentized_l95"
 facets = ["core", "estimator.dependent_temporal_interval", "suite.temporal_unit_calibration"]
-calibration_sha = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.transport_query.admg.bayesian.posterior_quantile.l90.transport_query_admg_bayesian_bootstrap_nominal_coverage"
