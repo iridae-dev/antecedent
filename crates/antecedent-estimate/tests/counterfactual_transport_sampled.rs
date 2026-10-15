@@ -43,7 +43,7 @@ use calibration::{Construction, CoverageTally, RecordKey, ScopeFacts, map_replic
 use counterfactual_transport_adapter as adapter;
 use counterfactual_transport_cases::{Case, CaseGraph, ExpectedClass, Target, all_cases};
 use finite_scm_oracle::{
-    Atom, CfVar, EvidenceSpec, FiniteScm, Mechanism, Population, TargetQuery, bern,
+    Atom, CfVar, EvidenceSpec, FiniteScm, Mechanism, Population, Setting, TargetQuery, bern,
 };
 
 /// Absolute tolerance of a plug-in at the large-sample size below: about five
@@ -803,6 +803,106 @@ fn the_calibration_internal_interval_is_a_candidate_not_a_published_claim() {
     assert!(sampled_transport_wald_interval_internal(&result, 1.5).is_err());
 }
 
+/// Name of the coverage-specific mediation design below.
+const COVERAGE_MEDIATION_CASE: &str = "coverage_mediation_covariate_shift";
+
+/// Smallest mass the coverage design gives any positive-probability cell of an
+/// estimated table. With `K <= 16` cells and `n >= 250` units, a cell of mass
+/// `p` is unseen with probability at most `(1 - p)^250`; at `p >= 0.04` the union
+/// bound `16 * 0.96^250 ~ 6e-4` keeps the unseen-cell refusal far below the
+/// calibration skip cap, so a skipped replicate is not part of the claim's
+/// support range.
+const MIN_COVERAGE_CELL_MASS: f64 = 0.04;
+
+/// A binary-mediator mediation design with covariate shift in `Z`, built for
+/// coverage measurement: `Z = Uz` (source `P(Uz = 1) = 1/2`, target `3/4`),
+/// `X = Z xor Ux`, `M = X xor Z xor Um`, `Y = [M or (X and Z)] xor Uy`, with
+/// `P(Ux = 1) = P(Um = 1) = P(Uy = 1) = 7/16`. Every factor of the observed
+/// joint is `7/16` or `9/16`, so the rarest source cell has mass
+/// `1/2 * (7/16)^3 = 0.0419` and the target `Z` table has cells `1/4` and `3/4`.
+/// The selection node flags only `Z`; the structure is the shared mediation
+/// design (`Z -> X`, `Z -> M`, `Z -> Y`, `X -> M`, `X -> Y`, `M -> Y`), so
+/// `Y_{x,M_{x'}} = sum_{z,m} P(y | x, m, z) P(m | x', z) P*(z)` is identified.
+fn coverage_mediation_population(uz: f64) -> FiniteScm {
+    FiniteScm::new()
+        .exo("Uz", bern(uz))
+        .exo("Ux", bern(0.4375))
+        .exo("Um", bern(0.4375))
+        .exo("Uy", bern(0.4375))
+        .endo("Z", 2, Mechanism::new(|_, u| u[0]))
+        .endo("X", 2, Mechanism::new(|v, u| v[0] ^ u[1]))
+        .endo("M", 2, Mechanism::new(|v, u| (v[1] + v[0] + u[2]) % 2))
+        .endo("Y", 2, Mechanism::new(|v, u| usize::from(v[2] + v[1] * v[0] >= 1) ^ u[3]))
+}
+
+fn coverage_mediation_case() -> Case {
+    let populations = vec![
+        Population::new("source", coverage_mediation_population(0.5)),
+        Population::new("target", coverage_mediation_population(0.75)),
+    ];
+    let query = TargetQuery::new(
+        "target",
+        vec![Atom::new(
+            CfVar::nested(
+                "Y",
+                vec![("X", Setting::Level(1)), ("M", Setting::cf(CfVar::under("M", &[("X", 0)])))],
+            ),
+            1,
+        )],
+        vec![],
+    );
+    let expected_value = query.value(&populations);
+    Case {
+        name: COVERAGE_MEDIATION_CASE,
+        derivation: "Markovian mediation with a binary mediator and an or-threshold outcome; \
+                     selection on Z only; Y_{x,M_{x'}} = sum_{z,m} P(y|x,m,z)P(m|x',z)P*(z); \
+                     every cell of every estimated table has mass at least 0.04",
+        graph: CaseGraph {
+            observed: vec!["Z", "X", "M", "Y"],
+            directed: vec![("Z", "X"), ("Z", "M"), ("Z", "Y"), ("X", "M"), ("X", "Y"), ("M", "Y")],
+            bidirected: vec![],
+            selection: vec![("S_Z", "Z")],
+        },
+        target_population: "target",
+        evidence: vec![
+            EvidenceSpec::new("source", &[], &["Z", "X", "M", "Y"]),
+            EvidenceSpec::new("target", &[], &["Z"]),
+        ],
+        targets: vec![Target {
+            label: "Y_{x1,M_{x0}}",
+            query,
+            expected_value,
+            class: ExpectedClass::Identified,
+        }],
+        populations,
+        alternative: None,
+    }
+}
+
+#[test]
+fn the_coverage_mediation_design_gives_every_positive_cell_at_least_the_required_mass() {
+    let case = coverage_mediation_case();
+    let data = laws_of(&case);
+    let minimum = data
+        .laws()
+        .iter()
+        .flat_map(|law| law.probabilities().iter().copied())
+        .filter(|p| *p > 0.0)
+        .fold(f64::INFINITY, f64::min);
+    assert!(
+        minimum >= MIN_COVERAGE_CELL_MASS,
+        "the rarest positive cell has mass {minimum}, below {MIN_COVERAGE_CELL_MASS}"
+    );
+    // Hand value: 1/2 * (7/16)^3.
+    assert!((minimum - 0.5 * 0.4375_f64.powi(3)).abs() < 1e-12, "{minimum}");
+    // The estimand is identified and its enumerated truth is a probability.
+    let target = &case.targets[0];
+    assert_eq!(target.class, ExpectedClass::Identified);
+    let truth = target.expected_value.expect("the oracle supplies an exact target truth");
+    assert!(truth > 0.0 && truth < 1.0);
+    let _ = derive(&case, target);
+}
+
 #[cfg(feature = "calibration-internal")]
 fn measure_sampled_transport_coverage(
     case_name: &str,
@@ -814,7 +914,11 @@ fn measure_sampled_transport_coverage(
 ) {
     use antecedent_estimate::counterfactual_transport_sampled::sampled_transport_wald_interval_internal;
 
-    let case = case_named(case_name);
+    let case = if case_name == COVERAGE_MEDIATION_CASE {
+        coverage_mediation_case()
+    } else {
+        case_named(case_name)
+    };
     let target = case.targets.iter().find(|target| target.label == target_label).unwrap();
     assert_eq!(target.class, ExpectedClass::Identified);
     let truth = target.expected_value.expect("the oracle supplies an exact target truth");
@@ -873,12 +977,23 @@ fn measure_sampled_transport_coverage(
     tally.assert();
 }
 
+/// Calibration design. Claim: the 95% delta-method Wald interval of a sampled
+/// natural-effect transport functional covers the enumerated target truth.
+/// Whole method: identify, sample tables, `UnseenCellRule::Refuse`, delta-method
+/// standard error, clamped Wald interval. Truth: the finite SCM of
+/// [`coverage_mediation_case`], enumerated by the oracle. Dependence: independent
+/// units per table. Sizes: 250, 1000 and 4000 units per table. Support range:
+/// every positive-probability cell of every estimated table has mass at least
+/// [`MIN_COVERAGE_CELL_MASS`] (asserted by
+/// `the_coverage_mediation_design_gives_every_positive_cell_at_least_the_required_mass`),
+/// so the unseen-cell refusal is a negligible skip and the claim is not
+/// conditioned on a data event; sparser designs are outside the claim.
 #[cfg(feature = "calibration-internal")]
 #[test]
 #[ignore = "calibration: final measurement only"]
 fn sampled_mediation_covariate_shift() {
     measure_sampled_transport_coverage(
-        "nonlinear_mediation_covariate_shift",
+        COVERAGE_MEDIATION_CASE,
         "Y_{x1,M_{x0}}",
         "sampled_mediation_covariate_shift",
         "finite_scm_mediation_covariate_shift",

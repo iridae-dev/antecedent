@@ -911,7 +911,7 @@ fn monte_carlo_problem() -> (DecisionProblem<usize, f64>, DecisionPrior<f64>) {
 }
 
 #[test]
-fn monte_carlo_streams_are_keyed_by_candidate_and_replicate_not_by_draw_count() {
+fn monte_carlo_streams_are_keyed_by_replicate_and_shared_across_candidates() {
     let (problem, prior) = monte_carlo_problem();
     let make = |id: &str, n: u64| {
         let provider: Arc<dyn SignalProvider> =
@@ -946,7 +946,10 @@ fn monte_carlo_streams_are_keyed_by_candidate_and_replicate_not_by_draw_count() 
     };
     assert!(stream(&x).is_some());
     assert_eq!(stream(&x), stream(&y));
+    // Common random numbers: a renamed candidate and a tied twin see the same noise.
     let renamed = run(&problem, &prior, &build(vec![make("mc2", 4)])).unwrap();
-    assert_ne!(stream(&x), stream(&find(&renamed, "mc2")));
-    assert_ne!(x.evsi.to_bits(), find(&renamed, "mc2").evsi.to_bits());
+    assert_eq!(stream(&x), stream(&find(&renamed, "mc2")));
+    assert_eq!(x.evsi.to_bits(), find(&renamed, "mc2").evsi.to_bits());
+    let twins = run(&problem, &prior, &build(vec![make("t1", 4), make("t2", 4)])).unwrap();
+    assert_eq!(find(&twins, "t1").evsi.to_bits(), find(&twins, "t2").evsi.to_bits());
 }

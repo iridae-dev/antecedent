@@ -672,7 +672,7 @@ fn likelihood_value<A>(
     }
     // One candidate has no pair to resolve, so the adaptive loop always stops on its own
     // minimum-batch test: `min_batches` batches of `batch_size` replicates. Replicates are
-    // keyed by (seed, candidate, replicate ordinal), never by how many draws came before.
+    // keyed by (seed, purpose, replicate ordinal), shared across candidates, never by how many draws came before.
     let (evsi, integration, stream_digest) = if let Some(exact) = analysis.exact_evsi(n)? {
         let exact_report = IntegrationReport {
             method: IntegrationMethod::Exact,
@@ -685,14 +685,8 @@ fn likelihood_value<A>(
         (exact, exact_report, None)
     } else {
         let batches = request.rank_config.min_batches.max(1);
-        let EvsiMonteCarlo { mean, stderr, replicates, stream_digest } = analysis
-            .monte_carlo_evsi(
-                n,
-                &candidate.semantic_id,
-                batches,
-                request.rank_config.batch_size,
-                ctx,
-            )?;
+        let EvsiMonteCarlo { mean, stderr, replicates, stream_digest } =
+            analysis.monte_carlo_evsi(n, batches, request.rank_config.batch_size, ctx)?;
         let report = IntegrationReport {
             method: IntegrationMethod::MonteCarlo,
             replicates,
@@ -933,8 +927,9 @@ fn evaluate<A: Clone + Sync>(
     let mut ctx =
         ExecutionContext::production(request.rng_seed, antecedent_core::default_user_threads());
     ctx.cancellation = cancellation.clone();
-    // Each candidate's replicate streams are keyed by (seed, semantic id, replicate), so
-    // neither the index order of `map_indexed` nor the other candidates move them.
+    // Replicate streams are keyed by (seed, purpose, replicate) and shared by every
+    // candidate (common random numbers), so neither the index order of `map_indexed` nor
+    // the catalog moves them.
     let evaluated = ctx.map_indexed(ordered.len(), |index, ctx| {
         if ctx.cancellation.is_cancelled() {
             return Err(EvsiError::Cancelled);

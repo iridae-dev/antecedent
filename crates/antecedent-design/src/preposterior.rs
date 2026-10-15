@@ -531,10 +531,10 @@ impl<'a, O> PreposteriorAnalysis<'a, O> {
 
     /// Monte Carlo EVSI for `n` observations under an execution context.
     ///
-    /// Replicate `r` of the candidate named `label` draws from the stream
-    /// [`evsi_replicate_rng`] keyed by `(run seed, label, r)`: a function of the
-    /// semantic coordinates only, so a replicate's draws do not depend on how many
-    /// replicates or candidates ran before it. Cancellation is checked before every
+    /// Replicate `r` draws from the stream [`evsi_replicate_rng`] keyed by
+    /// `(run seed, purpose, r)`: a function of the semantic coordinates only, shared by
+    /// every candidate (common random numbers, so tied candidates agree exactly) and
+    /// independent of how many replicates or candidates ran before it. Cancellation is checked before every
     /// replicate, so the work between checks is one replicate.
     ///
     /// # Errors
@@ -543,7 +543,6 @@ impl<'a, O> PreposteriorAnalysis<'a, O> {
     pub(crate) fn monte_carlo_evsi(
         &self,
         n: u64,
-        label: &str,
         batches: u32,
         batch_size: u32,
         ctx: &ExecutionContext,
@@ -556,7 +555,7 @@ impl<'a, O> PreposteriorAnalysis<'a, O> {
             if ctx.cancellation.is_cancelled() {
                 return Err(DesignError::Cancelled);
             }
-            let mut rng = evsi_replicate_rng(&ctx.rng, label, replicate);
+            let mut rng = evsi_replicate_rng(&ctx.rng, replicate);
             acc.push(self.draw_evsi_replicate(n, &mut rng, &mut log_lik, &mut weights)?);
         }
         if ctx.cancellation.is_cancelled() {
@@ -566,7 +565,7 @@ impl<'a, O> PreposteriorAnalysis<'a, O> {
             mean: acc.mean(),
             stderr: acc.stderr_of_mean(),
             replicates: acc.count(),
-            stream_digest: evsi_stream_digest(ctx.rng.master_seed(), label),
+            stream_digest: evsi_stream_digest(ctx.rng.master_seed()),
         })
     }
 
@@ -632,27 +631,21 @@ pub(crate) struct EvsiMonteCarlo {
     pub stderr: f64,
     /// Replicates drawn.
     pub replicates: u64,
-    /// Digest of the stream coordinates `(run seed, purpose, candidate label)`.
+    /// Digest of the stream coordinates `(run seed, purpose)`.
     pub stream_digest: String,
 }
 
-/// Generator of one replicate of one candidate's Monte Carlo EVSI, keyed by the
-/// semantic coordinates `(purpose, candidate label, replicate)` under the run seed.
-pub(crate) fn evsi_replicate_rng(rng: &RngFactory, label: &str, replicate: u64) -> CausalRng {
-    let mut h = mix64(EVSI_REPLICATE_PURPOSE ^ replicate);
-    h = mix64(h ^ label.len() as u64);
-    for byte in label.bytes() {
-        h = mix64(h ^ u64::from(byte));
-    }
-    rng.stream_for(StreamDomain::Design, h)
+/// Generator of one Monte Carlo EVSI replicate, keyed by the semantic coordinates
+/// `(purpose, replicate)` under the run seed; shared across candidates.
+pub(crate) fn evsi_replicate_rng(rng: &RngFactory, replicate: u64) -> CausalRng {
+    rng.stream_for(StreamDomain::Design, mix64(EVSI_REPLICATE_PURPOSE ^ replicate))
 }
 
-/// Typed length-delimited digest of a candidate's replicate-stream coordinates.
-fn evsi_stream_digest(run_seed: u64, label: &str) -> String {
+/// Typed length-delimited digest of the replicate-stream coordinates.
+fn evsi_stream_digest(run_seed: u64) -> String {
     CanonicalWriter::new("antecedent.design.evsi_replicate_stream.v1")
         .word(run_seed)
         .word(EVSI_REPLICATE_PURPOSE)
-        .text(label)
         .finish_hex()
 }
 
