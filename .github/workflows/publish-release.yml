@@ -162,24 +162,33 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          pip install "wheel-in/"*.whl pdoc
+          pip install "wheel-in/"*.whl -r requirements-docs.txt
+          python scripts/check_docs_experience.py
+          python scripts/run_doc_examples.py
+          python scripts/render_notebooks.py
+          python scripts/test_docs_publication.py
+          mkdocs build --strict --site-dir site
           python -c "import antecedent; print('antecedent', antecedent.__version__, antecedent.__file__)"
           OUT="${GITHUB_WORKSPACE}/site/python"
           mkdir -p "$OUT"
           cd "$(mktemp -d)"
           python "${GITHUB_WORKSPACE}/scripts/build_python_api_docs.py" "$OUT"
 
+      - name: Verify published HTML
+        run: python scripts/check_docs_site.py site
+
       - name: Pack docs.tar.gz
         run: |
           set -euo pipefail
           mkdir -p dist-docs
           # Narrative markdown + generated conformance
-          tar -czf dist-docs/markdown.tar.gz docs adr README.md CONTRIBUTING.md
+          python3 scripts/package_docs.py dist-docs/markdown.tar.gz
           # rustdoc HTML
           tar -czf dist-docs/rustdoc.tar.gz -C target doc
           # pdoc HTML
           tar -czf dist-docs/python-api.tar.gz -C site python
-          tar -czf docs.tar.gz -C dist-docs markdown.tar.gz rustdoc.tar.gz python-api.tar.gz
+          tar -czf dist-docs/site.tar.gz -C site .
+          tar -czf docs.tar.gz -C dist-docs markdown.tar.gz rustdoc.tar.gz python-api.tar.gz site.tar.gz
           ls -la docs.tar.gz
 
       - name: Upload docs artifact

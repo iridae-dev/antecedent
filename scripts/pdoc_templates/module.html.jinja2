@@ -1,0 +1,39 @@
+{% extends "default/module.html.jinja2" %}
+
+{% block nav_title %}
+    <a class="pdoc-button" href="{{ '../' * (module.modulename.count('.') + 1) }}index.html">← Antecedent guides</a>
+{% endblock %}
+
+{% macro bases(cls) %}
+    {% set public_bases = [] %}
+    {% for base in cls.bases %}
+        {% if not base[1].startswith('_') %}{% set _ = public_bases.append(base) %}{% endif %}
+    {% endfor %}
+    {% if public_bases %}(<wbr>{% for base in public_bases %}<span class="base">{{ base[:2] | link(text=base[2]) }}</span>{% if not loop.last %}, {% endif %}{% endfor %}){% endif %}
+{% endmacro %}
+
+{% macro inherited(cls) %}
+    {% for base, members in cls.inherited_members.items() %}
+        {% for m in members if is_public(m) | trim %}
+            {% if base[0].startswith('antecedent') %}
+                <dd id="{{ m.qualname }}" class="{{ m.kind }}">
+                    {% if m.kind == 'function' %}{{ function(m) }}{% elif m.kind == 'variable' %}{{ variable(m) }}{% endif %}
+                    {{ docstring(m) }}
+                </dd>
+            {% elif base[0] == 'enum' and m.name in ['value', 'name'] %}
+                <dd id="{{ m.qualname }}" class="{{ m.kind }}">{{ variable(m) }}{{ docstring(m) }}</dd>
+            {% elif base[0].startswith('pydantic') and m.name in ['__init__', 'model_construct', 'model_dump', 'model_copy'] %}
+                <dd id="{{ m.qualname }}" class="{{ m.kind }}">
+                    {{ function(m) }}
+                    <p>Data-model operation inherited from Pydantic. <a href="https://pydantic.dev/docs/validation/latest/concepts/models/">Pydantic model reference</a>.</p>
+                </dd>
+            {% endif %}
+        {% endfor %}
+    {% endfor %}
+{% endmacro %}
+
+{% macro docstring(var) %}
+    {% if var.docstring %}
+        <div class="docstring">{{ var.docstring | replace('@public', '') | vendor_links | to_markdown | to_html | linkify(namespace=var.qualname, shorten=False) }}</div>
+    {% endif %}
+{% endmacro %}

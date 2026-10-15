@@ -1,0 +1,20 @@
+#support-lookup .support-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: .65rem 1rem;
+  margin: .8rem 0;
+}
+#support-lookup label { display: flex; flex-direction: column; gap: .25rem; font-size: .75rem; }
+#support-lookup input, #support-lookup select {
+  width: 100%; min-height: 2.1rem; padding: .4rem .5rem;
+  border: 1px solid var(--md-default-fg-color--lighter); border-radius: .2rem;
+  background: var(--md-default-bg-color); color: var(--md-default-fg-color);
+  font: inherit;
+}
+#support-lookup input:focus, #support-lookup select:focus {
+  outline: 2px solid var(--md-accent-fg-color); outline-offset: 2px;
+}
+#support-lookup .support-results { max-height: 34rem; overflow: auto; }
+#support-lookup .support-results table { width: 100%; font-size: .7rem; }
+#support-lookup .support-results th { position: sticky; top: 0; background: var(--md-default-bg-color); }
+#support-count { font-size: .75rem; }

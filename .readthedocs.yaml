@@ -9,6 +9,10 @@ build:
   jobs:
     post_install:
       - bash scripts/rtd_install_antecedent.sh
+    pre_build:
+      - python scripts/run_doc_examples.py
+      - python scripts/render_notebooks.py
+      - python scripts/test_docs_publication.py
     post_build:
       # RTD runs YAML `|` blocks with /bin/sh (no pipefail). Use bash explicitly.
       - bash scripts/rtd_build_python_api.sh
