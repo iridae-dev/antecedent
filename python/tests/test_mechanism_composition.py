@@ -587,20 +587,12 @@ def test_independence_and_a_declared_covariance_give_different_checked_variances
     variance_independent = float(grad @ SIGMA_INDEPENDENT @ grad)
     assert variance_independent == pytest.approx(0.540625, abs=1e-12)
 
+    # A product of path coefficients is nonlinear in the parameters: a declared
+    # independence is not a joint law for it, whatever its justification.
     independent_prepared = compose(uncertain_chain(), dependence=independent())
-    u = independent_prepared.mean_contrast_uncertainty(contrast)
-    assert u.point == pytest.approx(13.5, abs=TOL)
-    assert u.variance == pytest.approx(variance_independent, abs=1e-10)
-    assert u.standard_error == pytest.approx(np.sqrt(variance_independent), abs=1e-10)
-    assert u.method == "first_order_delta_method"
-    assert u.dependence == "declared_independent_by_design"
-    assert u.meaning == "sampling_distribution"
-    by_parameter = {(p.mechanism, p.term): g for p, g in u.gradient}
-    assert by_parameter[("M", INTERCEPT)] == pytest.approx(3.0, abs=1e-9)
-    assert by_parameter[("M", coef("X"))] == pytest.approx(6.0, abs=1e-9)
-    assert by_parameter[("Y", INTERCEPT)] == pytest.approx(1.0, abs=1e-9)
-    assert by_parameter[("Y", coef("X"))] == pytest.approx(2.0, abs=1e-9)
-    assert by_parameter[("Y", coef("M"))] == pytest.approx(4.5, abs=1e-9)
+    error = refusal_of(lambda: independent_prepared.mean_contrast_uncertainty(contrast))
+    assert error.reason_code == "joint_law_required"
+    assert error.details == ("joint_law_propagation.nonlinear_needs_aligned_joint_law",)
 
     # cov(b_MX, b_YM) = 0.002 adds 2 * 6 * 4.5 * 0.002 = 0.108.
     sigma = SIGMA_INDEPENDENT.copy()
@@ -612,7 +604,14 @@ def test_independence_and_a_declared_covariance_give_different_checked_variances
     ).mean_contrast_uncertainty(contrast)
     assert declared.variance == pytest.approx(variance_declared, abs=1e-10)
     assert declared.dependence == "declared_cross_covariance"
-    assert declared.variance - u.variance == pytest.approx(0.108, abs=1e-10)
+    assert declared.variance - variance_independent == pytest.approx(0.108, abs=1e-10)
+    assert declared.point == pytest.approx(13.5, abs=TOL)
+    by_parameter = {(p.mechanism, p.term): g for p, g in declared.gradient}
+    assert by_parameter[("M", INTERCEPT)] == pytest.approx(3.0, abs=1e-9)
+    assert by_parameter[("M", coef("X"))] == pytest.approx(6.0, abs=1e-9)
+    assert by_parameter[("Y", INTERCEPT)] == pytest.approx(1.0, abs=1e-9)
+    assert by_parameter[("Y", coef("X"))] == pytest.approx(2.0, abs=1e-9)
+    assert by_parameter[("Y", coef("M"))] == pytest.approx(4.5, abs=1e-9)
 
     # The same dependence as one aligned joint law, in an arbitrary order.
     order = [
@@ -968,9 +967,9 @@ def test_a_dependence_declared_for_the_earlier_fit_is_unknown_again_after_a_refi
         [refit],
         mc.Dependence.independent_by_design("refit on a new, disjoint trial"),
     )
-    value = refreshed.mean_contrast_uncertainty(contrast_query())
-    assert value.variance == pytest.approx(0.540625, abs=1e-10)
-    assert value.dependence == "declared_independent_by_design"
+    error = refusal_of(lambda: refreshed.mean_contrast_uncertainty(contrast_query()))
+    assert error.reason_code == "joint_law_required"
+    assert error.details == ("joint_law_propagation.nonlinear_needs_aligned_joint_law",)
 
 
 def test_cancellation_stops_before_a_composed_result_and_a_bad_declaration_is_typed():

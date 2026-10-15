@@ -130,8 +130,13 @@ def test_the_native_column_entry_reports_the_alignment_of_a_joint_column() -> No
     assert refusal is None and parsed is not None
     info = json.loads(parsed)
     assert info["evidence_id"] == "snap-column"
-    assert info["alignment"] == "aligned"
-    assert info["alignment_id"] == jl.PropagationDraws.from_artifact_column("y", joint, 1).alignment_id
+    # The entry reports the draw alignment kind ("joint"), plus the alignment identity the
+    # propagation rule derives from it; the wrapper carries both through unchanged.
+    assert info["alignment"] == "joint"
+    assert info["alignment_id"]
+    wrapped = jl.PropagationDraws.from_artifact_column("y", joint, 1)
+    assert wrapped.alignment == "joint"
+    assert info["alignment_id"] == wrapped.alignment_id
     marginals = _artifact("snap-column-marginals", x, y, alignment="independent_marginals")
     parsed, refusal = _native.joint_law_column("y", marginals._native, 1)
     assert refusal is None and parsed is not None

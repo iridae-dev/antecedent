@@ -546,8 +546,11 @@ def test_composition_boundary_shared_data_refuses_paired_draws_without_a_license
     assert receipt.shared_evidence == ("trial-1",)
 
     covariance = comp.DependenceRoute("covariance", "cov-1", "external")
-    receipt = comp.check_paired_draws(pair, [shared_data("native", "external", covariance)])
-    assert receipt.routes == ("cov-1",)
+    # A covariance cannot pair draws row by row.
+    with pytest.raises(comp.DependenceRefusal) as refused:
+        comp.check_paired_draws(pair, [shared_data("native", "external", covariance)])
+    assert refused.value.detail == "composition_boundary.dependence_route_not_licensed"
+    assert_registered_refusal(refused.value)
 
 
 def test_composition_boundary_a_route_must_be_an_aligned_joint_law_of_the_pair() -> None:

@@ -142,8 +142,12 @@ def test_a_point_composition_refuses_laws_intervals_and_the_wrong_family() -> No
     assert interval.detail == "inverse_forward_source.interval_not_licensed"
 
     # A finite-distribution query of a linear-Gaussian composition is refused by the composition.
-    wrong = finite_actions({"0": 0.0, "1": 1.0})
-    refusal_of(lambda: src.composed_forward_source(composition, wrong))
+    wrong = [contrast_action("0")]
+    wrong_family = refusal_of(
+        lambda: src.composed_forward_source(compose(finite_chain()), wrong)
+    )
+    assert wrong_family.reason_code == "route_not_supported"
+    assert wrong_family.detail == "mechanism_composition.request_unsupported"
 
 
 def uncertain_chain() -> list[mc.Mechanism]:
