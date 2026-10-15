@@ -12,7 +12,6 @@ keywords.workspace = true
 categories.workspace = true
 description = "Statistical kernels, regression, and linear-algebra backends for the Antecedent causal inference engine; start with the `antecedent` crate"
 readme = "README.md"
-autotests = false
 
 [lints]
 workspace = true
@@ -39,7 +38,3 @@ harness = false
 [[bench]]
 name = "linalg"
 harness = false
-
-[[test]]
-name = "suite_01"
-path = "tests/suite_01.rs"

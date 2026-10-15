@@ -1092,8 +1092,7 @@ core crates/antecedent/src/analysis/adaptive_procedure_report.rs
 adaptive_interval crates/antecedent-estimate/src/adaptive_measured_interval.rs
 adaptive_interval crates/antecedent-io/src/measured_inference/adaptive_interval.rs
 key adaptive_interval estimator adaptive.*
-allow adaptive_interval crates/antecedent-estimate/src/adaptive_inference.rs adaptive_measured_interval beta_credible_interval weighted_wald_interval
-allow adaptive_interval crates/antecedent-estimate/src/lib.rs adaptive_measured_interval
+allow adaptive_interval crates/antecedent-estimate/src/lib.rs adaptive_inference adaptive_measured_interval antecedent_stats
 allow adaptive_interval crates/antecedent-io/src/measured_inference.rs adaptive_interval refusal
 allow adaptive_interval crates/antecedent/src/analysis/adaptive_inference.rs refusal
 
@@ -1255,21 +1254,21 @@ key estimator.bridge_interval query BridgedClaimInterval
 key estimator.bridge_interval estimator scientific_bridge_*
 suite.scientific_bridge_interval_calibration crates/antecedent/tests/scientific_bridge_interval_calibration.rs
 suite.scientific_bridge_interval_facade_oracle crates/antecedent/tests/scientific_bridge_interval_facade.rs
-allow adaptive_interval crates/antecedent-estimate/src/cohort_linear_effect.rs calibration_basis
+allow adaptive_interval crates/antecedent-estimate/src/cohort_linear_effect.rs antecedent_stats calibration_basis
 allow adaptive_interval crates/antecedent-estimate/src/count_fitted_posterior.rs calibration_basis
-allow adaptive_interval crates/antecedent-estimate/src/nested_markov_uncertainty.rs calibration_basis
-allow adaptive_interval crates/antecedent-estimate/src/recovery_sampled.rs calibration_basis
-allow adaptive_interval crates/antecedent-estimate/src/temporal_dependent_interval.rs calibration_basis
-allow adaptive_interval crates/antecedent-io/src/adaptive_inference_result_artifact.rs refusal
+allow adaptive_interval crates/antecedent-estimate/src/nested_markov_uncertainty.rs antecedent_stats calibration_basis
+allow adaptive_interval crates/antecedent-estimate/src/recovery_sampled.rs antecedent_stats calibration_basis cancelled
+allow adaptive_interval crates/antecedent-estimate/src/temporal_dependent_interval.rs antecedent_stats calibration_basis
+allow adaptive_interval crates/antecedent-io/src/adaptive_inference_result_artifact.rs AdaptiveInferenceError ArmCounts BayesianPosterior Estimand GroupSequentialPlan OutcomeModelPrior PosteriorRule Sidedness SpendingFunction WeightScheme WeightedHistory WeightedOptions adaptive_inference adaptively_weighted_estimate anytime_valid_arm_sequences bayesian_posterior expected_loss_stopping group_sequential_decision refusal standardized_difference
 allow adaptive_interval crates/antecedent-io/src/categorical_treatment_artifact.rs bits
 allow adaptive_interval crates/antecedent-io/src/counterfactual_transport_artifact.rs refusal
-allow adaptive_interval crates/antecedent-io/src/cpdag_completion_artifact.rs refusal
+allow adaptive_interval crates/antecedent-io/src/cpdag_completion_artifact.rs cancelled refusal
 allow adaptive_interval crates/antecedent-io/src/dose_grid_functional_artifact.rs bits refusal
 allow adaptive_interval crates/antecedent-io/src/joint_bayesian_transport_artifact.rs refusal
 allow adaptive_interval crates/antecedent-io/src/latent_class_artifact.rs bits
 allow adaptive_interval crates/antecedent-io/src/learned_joint_transport_artifact.rs refusal
-allow adaptive_interval crates/antecedent-io/src/measured_inference/cohort_interval.rs ROUTE calibration_basis
-allow adaptive_interval crates/antecedent-io/src/measured_inference/count_fitted_interval.rs ROUTE bits calibration_basis
+allow adaptive_interval crates/antecedent-io/src/measured_inference/cohort_interval.rs calibration_basis
+allow adaptive_interval crates/antecedent-io/src/measured_inference/count_fitted_interval.rs bits calibration_basis
 allow adaptive_interval crates/antecedent-io/src/measured_inference/nested.rs calibration_basis
 allow adaptive_interval crates/antecedent-io/src/measured_inference/recovery_temporal.rs calibration_basis refusal sequence
 allow adaptive_interval crates/antecedent-io/src/nested_markov_artifact.rs refusal
@@ -1286,53 +1285,52 @@ allow adaptive_interval crates/antecedent-io/src/temporal_transport_artifact.rs 
 allow adaptive_interval crates/antecedent-io/src/transport_scenario_artifact.rs refusal weighted
 allow adaptive_interval crates/antecedent-io/src/vector_treatment_artifact.rs bits
 allow adaptive_interval crates/antecedent-io/src/width.rs bits
-allow adaptive_interval crates/antecedent/src/analysis/adaptive_procedure_declaration.rs group_sequential refusal
+allow adaptive_interval crates/antecedent/src/analysis/adaptive_procedure_declaration.rs AdaptiveInferenceRefusal AssignmentRule Attribution BetaPrior ContractGap ExposureModel FinalSelection OutcomeObservation ProcedureDeclaration ProcedureSpec Sidedness SpendingFunction StoppingRule adaptive_inference antecedent_stats boundaries cancelled group_sequential refusal
 allow adaptive_interval crates/antecedent/src/analysis/categorical_treatment.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/closed_pilots.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/composition_verification.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/contract.rs refusal
-allow adaptive_interval crates/antecedent/src/analysis/count_fitted_observation.rs ROUTE
 allow adaptive_interval crates/antecedent/src/analysis/counterfactual_transport.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/cross_world_execution.rs refusal
-allow adaptive_interval crates/antecedent/src/analysis/cross_world_interval.rs refusal
+allow adaptive_interval crates/antecedent/src/analysis/cross_world_interval.rs antecedent_stats refusal
 allow adaptive_interval crates/antecedent/src/analysis/decision_claims.rs weighted
 allow adaptive_interval crates/antecedent/src/analysis/decision_reliability.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/design_ranking.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/discovered_transport.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/dose_grid_functional.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/effect_constancy.rs refusal
-allow adaptive_interval crates/antecedent/src/analysis/evidence_ledger.rs refusal
+allow adaptive_interval crates/antecedent/src/analysis/evidence_ledger.rs antecedent_stats cancelled check_cancelled refusal
 allow adaptive_interval crates/antecedent/src/analysis/execute/admg_posterior_response.rs weighted
 allow adaptive_interval crates/antecedent/src/analysis/execute/atom_mix.rs weighted
 allow adaptive_interval crates/antecedent/src/analysis/execute/class_posterior.rs weighted
-allow adaptive_interval crates/antecedent/src/analysis/execute/class_posterior_response.rs weighted
-allow adaptive_interval crates/antecedent/src/analysis/execute/execute_helpers_envelope.rs weighted
-allow adaptive_interval crates/antecedent/src/analysis/execute/response_path.rs weighted
-allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_class_mediation_posterior.rs weighted
+allow adaptive_interval crates/antecedent/src/analysis/execute/class_posterior_response.rs antecedent_stats weighted
+allow adaptive_interval crates/antecedent/src/analysis/execute/execute_helpers_envelope.rs cancelled weighted
+allow adaptive_interval crates/antecedent/src/analysis/execute/response_path.rs antecedent_stats weighted
+allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_class_mediation_posterior.rs cancelled weighted
 allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_class_point.rs weighted
-allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_class_posterior.rs weighted
-allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_class_posterior_response.rs weighted
-allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_path.rs sequence
-allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_posterior_response.rs weighted
+allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_class_posterior.rs cancelled weighted
+allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_class_posterior_response.rs antecedent_stats weighted
+allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_path.rs antecedent_stats cancelled sequence
+allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_posterior_response.rs antecedent_stats cancelled weighted
 allow adaptive_interval crates/antecedent/src/analysis/interface_contract.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/inverse_outcome.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/inverse_sources.rs refusal
-allow adaptive_interval crates/antecedent/src/analysis/joint_law_propagation.rs refusal
+allow adaptive_interval crates/antecedent/src/analysis/joint_law_propagation.rs antecedent_stats refusal
 allow adaptive_interval crates/antecedent/src/analysis/latent_class_effects.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/learned_joint_closed.rs refusal
-allow adaptive_interval crates/antecedent/src/analysis/measurement_model.rs refusal
-allow adaptive_interval crates/antecedent/src/analysis/mechanism_composition.rs refusal
+allow adaptive_interval crates/antecedent/src/analysis/measurement_model.rs antecedent_stats cancelled check_cancelled refusal
+allow adaptive_interval crates/antecedent/src/analysis/mechanism_composition.rs cancelled check_cancelled refusal
 allow adaptive_interval crates/antecedent/src/analysis/mechanism_discrepancy.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/native_claims.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/nonlinear_mediation.rs refusal
-allow adaptive_interval crates/antecedent/src/analysis/observation_query.rs bits refusal
+allow adaptive_interval crates/antecedent/src/analysis/observation_query.rs bits cancelled check_cancelled refusal
 allow adaptive_interval crates/antecedent/src/analysis/predictive_assessment.rs refusal
-allow adaptive_interval crates/antecedent/src/analysis/preflight.rs bits refusal
-allow adaptive_interval crates/antecedent/src/analysis/prepared/retarget.rs refusal
+allow adaptive_interval crates/antecedent/src/analysis/preflight.rs antecedent_stats bits refusal
+allow adaptive_interval crates/antecedent/src/analysis/prepared/retarget.rs cancelled refusal
 allow adaptive_interval crates/antecedent/src/analysis/prepared/sealed/mod.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/prepared/sealed/temporal.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/prepared/support.rs refusal
-allow adaptive_interval crates/antecedent/src/analysis/provider_callbacks.rs refusal
+allow adaptive_interval crates/antecedent/src/analysis/provider_callbacks.rs cancelled refusal
 allow adaptive_interval crates/antecedent/src/analysis/query_license.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/recalc_external.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/recalc_temporal.rs bits refusal sequence
@@ -1414,3 +1412,168 @@ allow registry_mirror crates/antecedent/src/analysis/cross_world_interval.rs int
 allow registry_mirror crates/antecedent/src/analysis/joint_law_composed_basis.rs interval_method
 suite.cross_world_interval_calibration crates/antecedent/tests/cross_world_interval_calibration.rs
 suite.joint_law_composed_interval_calibration crates/antecedent/tests/joint_law_composed_interval_calibration.rs
+adaptive_interval crates/antecedent-estimate/src/adaptive_inference.rs
+allow adaptive_interval crates/antecedent-estimate/src/adjustment.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/adjustment_resume.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/aipw.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent-estimate/src/ancova.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/bayesian/evaluator.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/bayesian/gcomp.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/bayesian/mod.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/bayesian_iv.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/bayesian_mediation.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/bayesian_rd.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/bayesian_robust_ate.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/cell_aipw.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/cluster_dml_aipw.rs cancelled
+allow adaptive_interval crates/antecedent-estimate/src/conditional.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/continuous_dose.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/counterfactual_transport_sampled.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/counterfactual_transport_sampled/interval.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/crossfit_aipw.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent-estimate/src/crossfit_cache.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/descriptive_comparison.rs cancelled
+allow adaptive_interval crates/antecedent-estimate/src/design_compile.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/dml.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent-estimate/src/dose_grid_functional.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/dr.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/effect_constancy.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/effect_estimate.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent-estimate/src/error.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/frontdoor.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/frontdoor_functional.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/functional_distribution.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent-estimate/src/gcomp.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/glm_adjustment.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/interference.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/interference_observational.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/interference_saturation.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/iv.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/joint_cell_factorized.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent-estimate/src/joint_if.rs cancelled
+allow adaptive_interval crates/antecedent-estimate/src/learn_nuisance.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/learned_continuous.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/learned_joint_transport.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/learned_trial.rs cancelled
+allow adaptive_interval crates/antecedent-estimate/src/local_polynomial_ratio.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/marginal_structural_model.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/matched_case_control.rs cancelled
+allow adaptive_interval crates/antecedent-estimate/src/measurement/binary.rs antecedent_stats check_cancelled
+allow adaptive_interval crates/antecedent-estimate/src/measurement/categorical.rs antecedent_stats check_cancelled
+allow adaptive_interval crates/antecedent-estimate/src/measurement/linear.rs antecedent_stats check_cancelled
+allow adaptive_interval crates/antecedent-estimate/src/measurement/mod.rs antecedent_stats check_cancelled
+allow adaptive_interval crates/antecedent-estimate/src/measurement/posterior.rs antecedent_stats check_cancelled
+allow adaptive_interval crates/antecedent-estimate/src/mechanism_discrepancy.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/nested_markov_binary.rs cancelled
+allow adaptive_interval crates/antecedent-estimate/src/nonlinear_mediation.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/observation.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/policy_value.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/prediction.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/propensity/distance.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/propensity/matching.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/propensity/penalized.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/propensity/penalized_report.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent-estimate/src/propensity/prepare.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/propensity/stratification.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/propensity/weighting.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/randomized_neyman.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/randomized_scores.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/rd.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/response/band.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/response/bayes.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/response/crossfit.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/response/curve.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/response/derivative.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/response/mod.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/response/nuisance.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/response/plugin.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/response/policy.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/response/support.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/se.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/serial_dependence.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/smoothed_dose.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent-estimate/src/staggered_event_study.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/static_mediation.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/statistical_transport.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/survival.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/switchback.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/temporal_adjustment.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/temporal_block.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent-estimate/src/temporal_mediation.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/temporal_response/band.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/temporal_response/bootstrap.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent-estimate/src/temporal_response/mod.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent-estimate/src/temporal_response/surface.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent-estimate/src/temporal_sequential.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent-estimate/src/temporal_sequential_tuples.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/util.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent-estimate/src/vector_treatment.rs antecedent_stats
+allow adaptive_interval crates/antecedent-io/src/bridge_interval.rs antecedent_stats
+allow adaptive_interval crates/antecedent-io/src/estimate_wire.rs cancelled
+allow adaptive_interval crates/antecedent-io/src/measured_inference/split_effect.rs antecedent_stats
+allow adaptive_interval crates/antecedent-io/src/transport_effect_wire.rs antecedent_stats
+allow adaptive_interval crates/antecedent-validate/src/bayesian_checks/predictive.rs antecedent_stats
+allow adaptive_interval crates/antecedent-validate/src/bayesian_checks/sbc.rs antecedent_stats
+allow adaptive_interval crates/antecedent-validate/src/bootstrap_refute.rs cancelled
+allow adaptive_interval crates/antecedent-validate/src/common.rs antecedent_stats check_cancelled
+allow adaptive_interval crates/antecedent-validate/src/conflict.rs antecedent_stats
+allow adaptive_interval crates/antecedent-validate/src/error.rs antecedent_stats
+allow adaptive_interval crates/antecedent-validate/src/evalue.rs antecedent_stats
+allow adaptive_interval crates/antecedent-validate/src/graph_refute.rs check_cancelled
+allow adaptive_interval crates/antecedent-validate/src/mechanism_sensitivity.rs cancelled
+allow adaptive_interval crates/antecedent-validate/src/overlap.rs antecedent_stats
+allow adaptive_interval crates/antecedent-validate/src/overlap_rule.rs antecedent_stats
+allow adaptive_interval crates/antecedent-validate/src/predictive_assessment/assess.rs cancelled
+allow adaptive_interval crates/antecedent-validate/src/predictive_assessment/calibration.rs antecedent_stats
+allow adaptive_interval crates/antecedent-validate/src/predictive_assessment/interval.rs antecedent_stats
+allow adaptive_interval crates/antecedent-validate/src/predictive_assessment/refusal.rs cancelled
+allow adaptive_interval crates/antecedent-validate/src/riesz.rs antecedent_stats
+allow adaptive_interval crates/antecedent-validate/src/sensitivity.rs antecedent_stats
+allow adaptive_interval crates/antecedent-validate/src/suite.rs antecedent_stats
+allow adaptive_interval crates/antecedent/src/analysis/adaptive_procedure_report.rs AdaptiveInferenceError AdaptiveInferenceRefusal AnalysisEstimator AnytimeReport Assigned AssignmentRule Attribution BayesianPosterior BayesianReport BetaPrior CellLabel ContractGap DERIVED_UNMEASURED DecisionReport Delivered Estimand EstimandStatement EstimatorLaw Functional GaussianMixtureLaw Gls InversionGrid InversionInterval ObservedTerminal OrderingPValues OutcomeKernel OutcomeStructure PosteriorMeanGap ProcedureLaw RepeatedMeasuresDeclaration RepeatedMeasuresDerivation RepeatedMeasuresRequest RepeatedMeasuresSpec SimulatedLaw SimulationRequest SimulationSummary StagewiseInference StagewiseLook StoppingRule UncertaintyParadigm UnitAssignment UnitSummary WithinUnitCorrelation adaptive_inference admit admit_repeated_measures antecedent_stats anytime_exclusion_probability anytime_valid_report bayesian_report cancelled decision_report derive_repeated_measures enumerate_law exact_fixed_contrast_law inversion_interval ordering_p_values posterior_mean_gaps premise_reason_code procedure_uncertainty simulate_procedure stagewise_inference
+allow adaptive_interval crates/antecedent/src/analysis/batch.rs antecedent_stats
+allow adaptive_interval crates/antecedent/src/analysis/batch_retarget.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent/src/analysis/contract/program_wire.rs antecedent_stats
+allow adaptive_interval crates/antecedent/src/analysis/contract_identity.rs antecedent_stats
+allow adaptive_interval crates/antecedent/src/analysis/execute/bayesian_path.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/bayesian_robust_ate_path.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/checked_bayesian_basis_ate.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/checked_bayesian_basis_cate.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/checked_bayesian_dag_ate.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/checked_bayesian_dag_conditional.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/checked_bayesian_robust_ate.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/checked_bayesian_static_mediation.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/checked_interference.rs antecedent_stats
+allow adaptive_interval crates/antecedent/src/analysis/execute/checked_panel_did.rs antecedent_stats
+allow adaptive_interval crates/antecedent/src/analysis/execute/checked_randomized.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/checked_static_mediation.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/checked_static_response.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/class_envelope_se.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/dbn_mediation_frequentist.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/execute_helpers_parametric.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/execute_helpers_result.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/execute_helpers_route.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/panel_path.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/static_path.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_class_effect_core.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_effect_core.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_mediation_core.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_response_execution.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/transport_interference_path.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/tuple_bootstrap.rs antecedent_stats
+allow adaptive_interval crates/antecedent/src/analysis/helpers.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent/src/analysis/mod.rs AdaptiveInferenceOutcome AdaptiveInferenceRefusal AdaptiveInferenceSession ConsumedAdaptiveResult ConsumedMonitoringContract adaptive_inference consume_adaptive_inference_result_artifact consume_adaptive_monitoring_contract_artifact
+allow adaptive_interval crates/antecedent/src/analysis/prepared/execute_checked.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent/src/analysis/prepared/operations.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent/src/analysis/recalc_adjusted.rs antecedent_stats
+allow adaptive_interval crates/antecedent/src/analysis/recalc_design.rs antecedent_stats
+allow adaptive_interval crates/antecedent/src/analysis/recalc_receipt.rs antecedent_stats
+allow adaptive_interval crates/antecedent/src/analysis/stage.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/statistical.rs antecedent_stats bayesian_posterior
+allow adaptive_interval crates/antecedent/src/cross_world/closed_form.rs antecedent_stats
+allow adaptive_interval crates/antecedent/src/discovery.rs antecedent_stats
+allow adaptive_interval crates/antecedent/src/discovery_defaults.rs antecedent_stats
+allow adaptive_interval crates/antecedent/src/error.rs antecedent_stats cancelled
+allow adaptive_interval crates/antecedent/src/gcm.rs cancelled
+allow adaptive_interval crates/antecedent/src/options.rs antecedent_stats
+allow adaptive_interval crates/antecedent/src/result.rs antecedent_stats

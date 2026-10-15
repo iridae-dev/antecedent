@@ -12,7 +12,6 @@ keywords.workspace = true
 categories.workspace = true
 description = "Frequentist and Bayesian estimators for identified causal effects in the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
-autotests = false
 
 [lints]
 workspace = true
@@ -77,87 +76,3 @@ harness = false
 [[bench]]
 name = "temporal_response"
 harness = false
-
-[[test]]
-name = "adaptive_inference_calibration"
-path = "tests/adaptive_inference_calibration.rs"
-required-features = ["calibration-internal"]
-
-[[test]]
-name = "adaptive_procedure_prior_predictive_calibration"
-path = "tests/adaptive_procedure_prior_predictive_calibration.rs"
-required-features = ["calibration-internal"]
-
-[[test]]
-name = "bootstrap_effect_precision"
-path = "tests/bootstrap_effect_precision.rs"
-
-[[test]]
-name = "cohort_linear_effect_calibration"
-path = "tests/cohort_linear_effect_calibration.rs"
-required-features = ["calibration-internal"]
-
-[[test]]
-name = "count_fitted_posterior_calibration"
-path = "tests/count_fitted_posterior_calibration.rs"
-required-features = ["calibration-internal"]
-
-[[test]]
-name = "counterfactual_transport_execution"
-path = "tests/counterfactual_transport_execution.rs"
-
-[[test]]
-name = "counterfactual_transport_sampled"
-path = "tests/counterfactual_transport_sampled.rs"
-
-[[test]]
-name = "counterfactual_transport_sampled_replicate"
-path = "tests/counterfactual_transport_sampled_replicate.rs"
-
-[[test]]
-name = "coverage_determinism"
-path = "tests/coverage_determinism.rs"
-
-[[test]]
-name = "joint_bayesian_transport_calibration"
-path = "tests/joint_bayesian_transport_calibration.rs"
-
-[[test]]
-name = "learned_joint_calibration"
-path = "tests/learned_joint_calibration.rs"
-
-[[test]]
-name = "mechanism_discrepancy_calibration"
-path = "tests/mechanism_discrepancy_calibration.rs"
-
-[[test]]
-name = "mixed_source_execution"
-path = "tests/mixed_source_execution.rs"
-
-[[test]]
-name = "nested_markov_fisher_calibration"
-path = "tests/nested_markov_fisher_calibration.rs"
-
-[[test]]
-name = "recovery_whole_method_calibration"
-path = "tests/recovery_whole_method_calibration.rs"
-
-[[test]]
-name = "scenario_covariance_calibration"
-path = "tests/scenario_covariance_calibration.rs"
-
-[[test]]
-name = "temporal_unit_calibration"
-path = "tests/temporal_unit_calibration.rs"
-
-[[test]]
-name = "treatment_inference_calibration"
-path = "tests/treatment_inference_calibration.rs"
-
-[[test]]
-name = "suite_01"
-path = "tests/suite_01.rs"
-
-[[test]]
-name = "suite_02"
-path = "tests/suite_02.rs"
