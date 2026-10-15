@@ -12,12 +12,12 @@ BOUND = re.compile(r"\{\{bound:([\w.]+)\}\}")
 
 
 def publication_exclusions():
-    return tomllib.loads((ROOT / "scripts/docs_publication.toml").read_text())["excluded"]
+    return tomllib.loads((ROOT / "scripts/docs_publication.toml").read_text(encoding="utf-8"))["excluded"]
 
 
 @lru_cache(maxsize=1)
 def bound_values():
-    records = tomllib.loads((ROOT / "parity/promotion.toml").read_text())["record"]
+    records = tomllib.loads((ROOT / "parity/promotion.toml").read_text(encoding="utf-8"))["record"]
     return {
         f"{record['id']}.{key}": value
         for record in records
@@ -42,7 +42,7 @@ def render_bounds(markdown):
 
 def on_config(config):
     bound_values.cache_clear()
-    config.extra["documentation_version"] = tomllib.loads((ROOT / "Cargo.toml").read_text())[
+    config.extra["documentation_version"] = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))[
         "workspace"
     ]["package"]["version"]
     from pathspec import GitIgnoreSpec
@@ -59,7 +59,7 @@ def render_examples(markdown):
         path = (ROOT / match.group(1)).resolve()
         if not path.is_relative_to(ROOT / "examples") or not path.is_file():
             raise ValueError(f"Unknown documentation example: {match.group(1)}")
-        return "```python\n" + path.read_text().rstrip() + "\n```"
+        return "```python\n" + path.read_text(encoding="utf-8").rstrip() + "\n```"
 
     return EXAMPLE.sub(substitute, markdown)
 
@@ -113,8 +113,8 @@ def on_files(files, config):
         raise ValueError(
             "Notebook execution record missing: run python scripts/render_notebooks.py first"
         )
-    records = {record["notebook"]: record for record in json.loads(record_path.read_text())}
-    release = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
+    records = {record["notebook"]: record for record in json.loads(record_path.read_text(encoding="utf-8"))}
+    release = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
     for notebook in notebooks:
         record = records.get(notebook.name, {})
         if (

@@ -14,14 +14,14 @@ END = "<!-- generated:example-catalog:end -->"
 def version():
     prep = ROOT / "docs/release-notes/preparation.toml"
     if prep.exists():
-        target = tomllib.loads(prep.read_text()).get("target_version")
+        target = tomllib.loads(prep.read_text(encoding="utf-8")).get("target_version")
         if target:
             return target
-    return tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
+    return tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
 
 
 def entries():
-    return tomllib.loads((ROOT / "examples/catalog.toml").read_text())["example"]
+    return tomllib.loads((ROOT / "examples/catalog.toml").read_text(encoding="utf-8"))["example"]
 
 
 def render(site):
@@ -97,10 +97,10 @@ def main():
     ]:
         expected = expected_page(site)
         if args.check:
-            if path.read_text() != expected:
+            if path.read_text(encoding="utf-8") != expected:
                 errors.append(str(path.relative_to(ROOT)))
         else:
-            path.write_text(expected)
+            path.write_text(expected, encoding="utf-8")
     if errors:
         raise SystemExit("Stale example catalogs: " + ", ".join(errors))
     print("Example catalogs current")

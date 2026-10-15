@@ -23,7 +23,7 @@ def main():
         uri = str(path.relative_to(ROOT / "docs"))
         if uri in excluded or uri.startswith("release-notes/") or uri == "examples.md":
             continue
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         expected = re.sub(
             r"(https://github.com/iridae-dev/antecedent/blob/)(?:main|v[0-9.]+)(/examples/)",
             lambda m: m[1] + "v" + release + m[2],
@@ -44,9 +44,9 @@ def main():
             if args.check:
                 errors.append(uri)
             else:
-                path.write_text(expected)
+                path.write_text(expected, encoding="utf-8")
     for path in (ROOT / "examples/notebooks").glob("*.ipynb"):
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         expected = re.sub(
             r"(https://(?:colab\.research\.google\.com/github|github\.com)/iridae-dev/antecedent/blob/)(?:main|v[0-9.]+)(/examples/)",
             lambda match: match[1] + "v" + release + match[2],
@@ -56,7 +56,7 @@ def main():
             if args.check:
                 errors.append(str(path.relative_to(ROOT)))
             else:
-                path.write_text(expected)
+                path.write_text(expected, encoding="utf-8")
     if errors:
         raise SystemExit("Stale current-release links: " + ", ".join(errors))
     print("Current-release documentation links verified")

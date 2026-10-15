@@ -29,9 +29,9 @@ def main():
         for p in sorted((ROOT / "docs").rglob("*.md"))
         if str(p.relative_to(ROOT / "docs")) not in excluded
     ]
-    with tarfile.open(args.output, "w:gz") as archive:
+    with tarfile.open(args.output, "w:gz", encoding="utf-8") as archive:
         for path in paths:
-            markdown = render_bounds(render_examples(path.read_text()))
+            markdown = render_bounds(render_examples(path.read_text(encoding="utf-8")))
             appendix = None
             if path.is_relative_to(ROOT / "docs"):
                 markdown, appendix = split_release(markdown, str(path.relative_to(ROOT / "docs")))

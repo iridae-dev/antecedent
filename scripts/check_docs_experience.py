@@ -27,12 +27,12 @@ def check():
         uri = str(path.relative_to(ROOT / "docs"))
         if uri in excluded:
             continue
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         try:
             rendered = render_bounds(render_examples(text))
             ast_examples = [ROOT / match.group(1) for match in EXAMPLE.finditer(text)]
             for example in ast_examples:
-                ast.parse(example.read_text())
+                ast.parse(example.read_text(encoding="utf-8"))
             split_release(rendered, uri)
         except (ValueError, SyntaxError) as error:
             errors.append(f"{uri}: {error}")
@@ -52,7 +52,7 @@ def check():
     for notebook in (ROOT / "examples/notebooks").glob("*.ipynb"):
         for ref in re.findall(
             r"(?:github\.com|colab\.research\.google\.com/github)/iridae-dev/antecedent/blob/([^/]+)/examples/",
-            notebook.read_text(),
+            notebook.read_text(encoding="utf-8"),
         ):
             if ref != current:
                 errors.append(f"{notebook.name}: notebook link pins {ref}, expected {current}")
@@ -84,7 +84,7 @@ def check():
             if not row.get(key):
                 errors.append(f"{row['id']}: missing catalog {key}")
     for site, relative in [(False, "examples/README.md"), (True, "docs/examples.md")]:
-        if (ROOT / relative).read_text() != expected_page(site):
+        if (ROOT / relative).read_text(encoding="utf-8") != expected_page(site):
             errors.append(f"{relative}: generated catalog stale")
     return errors
 

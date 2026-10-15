@@ -22,7 +22,7 @@ def main():
     for path in sorted((ROOT / "docs").rglob("*.md")):
         if str(path.relative_to(ROOT / "docs")) in excluded:
             continue
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         contexts = {}
         for context, code in EXEC.findall(text):
             namespace = contexts.setdefault(context, {"__name__": "__main__"})

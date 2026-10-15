@@ -37,7 +37,7 @@ class PublicationTests(unittest.TestCase):
     def test_stale_version_source_or_unexecuted_output_is_refused(self):
         from mkdocs.structure.files import Files
 
-        records = json.loads((ROOT / "target/doc-notebook-previews/execution.json").read_text())
+        records = json.loads((ROOT / "target/doc-notebook-previews/execution.json").read_text(encoding="utf-8"))
         for key, wrong in [
             ("source_sha256", "changed-source"),
             ("antecedent_version", "0.0.0"),
@@ -65,7 +65,7 @@ class PublicationTests(unittest.TestCase):
                 check=True,
                 capture_output=True,
             )
-            with tarfile.open(target) as archive:
+            with tarfile.open(target, encoding="utf-8") as archive:
                 names = set(archive.getnames())
                 for excluded in publication_exclusions():
                     self.assertNotIn("docs/" + excluded, names)

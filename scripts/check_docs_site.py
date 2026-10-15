@@ -26,10 +26,10 @@ class Page(HTMLParser):
 
 
 def check(site):
-    pages = {path: Page(path.read_text()) for path in site.rglob("*.html")}
+    pages = {path: Page(path.read_text(encoding="utf-8")) for path in site.rglob("*.html")}
     errors = []
     for path, page in pages.items():
-        if "{{bound:" in path.read_text():
+        if "{{bound:" in path.read_text(encoding="utf-8"):
             errors.append(f"{path.relative_to(site)}: unresolved bound")
         for href in page.links:
             url = urlsplit(href)

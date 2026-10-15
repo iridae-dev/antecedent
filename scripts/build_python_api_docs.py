@@ -41,7 +41,7 @@ def complete_doc_namespace(public, owner, cls=None):
     filename = getattr(getattr(owner, "__code__", None), "co_filename", None)
     package = globals_.get("__package__", public.__package__)
     if filename and Path(filename).is_file():
-        tree = ast.parse(Path(filename).read_text())
+        tree = ast.parse(Path(filename).read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module != "__future__":
                 wanted = [
@@ -147,7 +147,7 @@ def build(output: Path) -> None:
                         # its actual declaration and verify object identity.
                         package_root = Path(antecedent.__file__).parent
                         for source in package_root.rglob("*.py"):
-                            tree = ast.parse(source.read_text())
+                            tree = ast.parse(source.read_text(encoding="utf-8"))
                             if not any(
                                 isinstance(node, ast.ClassDef) and node.name == cls.__name__
                                 for node in tree.body
@@ -192,7 +192,7 @@ def build(output: Path) -> None:
     absent = [name for name in names if not (output / (name.replace(".", "/") + ".html")).is_file()]
     if absent:
         raise RuntimeError("Public module pages missing: " + ", ".join(absent))
-    root_html = (output / "antecedent.html").read_text()
+    root_html = (output / "antecedent.html").read_text(encoding="utf-8")
     for symbol in ("analyze", "prepare", "identify", "load"):
         if f'id="{symbol}"' not in root_html:
             raise RuntimeError(f"Root reference has no rendered anchor for {symbol}")
