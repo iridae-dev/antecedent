@@ -165,8 +165,18 @@ pub fn whole_path_interval(
     if !(variance.is_finite() && variance >= 0.0 && uncertainty.value.is_finite()) {
         return None;
     }
-    let z = antecedent_stats::special::normal_ppf(0.5 + level / 2.0);
-    let half = z * variance.sqrt();
+    // An independent sample estimates the unit variance from the units themselves, so the
+    // standardized mean follows a t law on `n - 1` degrees of freedom; the fixed-units
+    // predictive variance is a declared model quantity and keeps the normal quantile.
+    let quantile = match uncertainty.unit_sampling {
+        UnitSampling::IndependentSample if uncertainty.units.len() >= 2 => {
+            #[allow(clippy::cast_precision_loss, reason = "unit counts are small")]
+            let degrees = (uncertainty.units.len() - 1) as f64;
+            antecedent_stats::special::student_t_ppf(0.5 + level / 2.0, degrees)
+        }
+        _ => antecedent_stats::special::normal_ppf(0.5 + level / 2.0),
+    };
+    let half = quantile * variance.sqrt();
     Some((uncertainty.value, (uncertainty.value - half, uncertainty.value + half), scalar))
 }
 
