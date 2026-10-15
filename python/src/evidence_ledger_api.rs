@@ -470,7 +470,7 @@ fn lineage_json(lineage: &Lineage) -> Json {
 
 /// A declaration in the form [`parse_declaration`] reads back: observations
 /// as identities, lineage and transport in full.
-fn declaration_json(declaration: &SourceDeclaration) -> Json {
+pub(crate) fn declaration_json(declaration: &SourceDeclaration) -> Json {
     json!({
         "label": declaration.label,
         "kind": declaration.kind.as_str(),
@@ -558,6 +558,11 @@ impl EvidenceLedgerHandle {
     /// The session's ledger, for bridges that resolve observation identities from it.
     pub(crate) fn ledger(&self) -> &EvidenceLedger {
         self.inner.ledger()
+    }
+
+    /// The session itself, for bridges that register further sources in it.
+    pub(crate) fn session_mut(&mut self) -> &mut EvidenceLedgerSession {
+        &mut self.inner
     }
 }
 

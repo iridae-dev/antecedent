@@ -9,12 +9,20 @@
 //! No recovery, error-control or interval statement is produced.
 
 use antecedent::analysis::per_population_discovery::{
-    PerPopulationDiscovery, PerPopulationReport, PopulationRows,
+    PerPopulationDiscovery, PerPopulationReport, PopulationRows, add_per_population_claims,
     request_selection_targets_from_differences,
 };
 use antecedent::analysis::sample_split_analysis::{
     AnalysisBinding, SplitDiscovery, SplitRule, WHOLE_METHOD_CALIBRATION, discover_on_split,
+    split_evidence_sources,
 };
+use antecedent::analysis::selective_discovery::{
+    DeclaredCompletion, DiscoveryClaimKeys, DiscoverySnapshot, add_discovery_claims,
+    discovered_graph_source, discovery_data_source, discovery_rows_source,
+};
+use antecedent_contract::composition_verification::{CompositionGraph, GraphError};
+use antecedent_contract::evidence_ledger::{SourceDeclaration, SourceId, parse_digest_hex};
+use antecedent_discovery::selective::{DataIdentity, StageInputs};
 use antecedent::analysis::sample_split_effect::{
     SplitEffect, estimate_effect_on_split, measure_source,
 };
@@ -38,6 +46,8 @@ use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
+
+use crate::evidence_ledger_api::declaration_json;
 
 const STAGE: &str = "selective_discovery";
 
@@ -552,6 +562,20 @@ impl Adapter {
             Self::Temporal(a) => a.retained_statistics(),
         }
     }
+
+    fn inputs(&self) -> Option<&StageInputs> {
+        match self {
+            Self::Static(a) => a.inputs(),
+            Self::Temporal(a) => a.inputs(),
+        }
+    }
+
+    fn data_identity(&self) -> Option<&DataIdentity> {
+        match self {
+            Self::Static(a) => a.data_identity(),
+            Self::Temporal(a) => a.data_identity(),
+        }
+    }
 }
 
 /// One selective-discovery adapter and the state it retains.
@@ -633,6 +657,35 @@ impl SelectiveDiscoveryHandle {
     /// Statistics currently retained.
     fn retained_statistics(&self) -> usize {
         self.inner.as_ref().map_or(0, Adapter::retained)
+    }
+
+    /// Add this run's data, statistics and structure (and a declared completion) to a
+    /// composition graph. Returns `{"graph", "keys"}` JSON, or a refusal of the graph.
+    #[pyo3(signature = (graph_json, prefix, completion_label=None, completion_identity=None))]
+    fn add_claims(
+        &self,
+        graph_json: Option<&str>,
+        prefix: &str,
+        completion_label: Option<&str>,
+        completion_identity: Option<&str>,
+    ) -> Reply {
+        let adapter = self.inner.as_ref();
+        let (Some(inputs), Some(data), Some(outcome)) = (
+            adapter.and_then(Adapter::inputs),
+            adapter.and_then(Adapter::data_identity),
+            adapter.and_then(Adapter::outcome),
+        ) else {
+            return Err(input_err("run discovery before adding its claims to a graph"));
+        };
+        let completion = declared_completion(completion_label, completion_identity)?;
+        let Some(mut graph) = claim_graph(graph_json)? else {
+            return Ok((None, Some(claim_graph_refusal(graph_json)?)));
+        };
+        let snapshot = DiscoverySnapshot { inputs, data, outcome, completion: completion.as_ref() };
+        match add_discovery_claims(&mut graph, prefix, &snapshot) {
+            Ok(keys) => Ok((Some(claims_json(&graph, &[(None, keys)])), None)),
+            Err(error) => Ok((None, Some(crate::composition_verification_api::graph_refusal(&error)))),
+        }
     }
 
     /// The portable state summary and the artifact bytes with identity, or a refusal.
@@ -1086,6 +1139,27 @@ impl PerPopulationDiscoveryHandle {
         self.inner.as_ref().and_then(PerPopulationDiscovery::report).map(per_population_report_json)
     }
 
+    /// Add every population's discovery stages of the last committed report to a composition
+    /// graph under `{prefix}.{population}`. Returns `{"graph", "keys"}` JSON, or a refusal of
+    /// the graph.
+    fn add_claims(&self, graph_json: Option<&str>, prefix: &str) -> Reply {
+        let driver = self
+            .inner
+            .as_ref()
+            .ok_or_else(|| input_err("handle is unavailable"))?;
+        let Some(mut graph) = claim_graph(graph_json)? else {
+            return Ok((None, Some(claim_graph_refusal(graph_json)?)));
+        };
+        match add_per_population_claims(&mut graph, prefix, driver) {
+            Ok(keys) => {
+                let keyed: Vec<(Option<String>, DiscoveryClaimKeys)> =
+                    keys.into_iter().map(|(label, k)| (Some(label), k)).collect();
+                Ok((Some(claims_json(&graph, &keyed)), None))
+            }
+            Err(error) => Ok((None, Some(crate::composition_verification_api::graph_refusal(&error)))),
+        }
+    }
+
     /// One population's retained outcome as JSON.
     fn outcome_json(&self, population: &str) -> Option<String> {
         self.inner
@@ -1233,6 +1307,27 @@ impl SampleSplitDiscoveryHandle {
     /// The analysis part's columns, in `names` order.
     fn analysis_columns(&self, py: Python<'_>) -> PyResult<Vec<Py<PyArray1<f64>>>> {
         columns_of(py, self.inner.analysis_rows())
+    }
+
+    /// The two parts as evidence-ledger source declarations `(discovery, analysis)`, keyed
+    /// by `snapshot_id` and row index; or a refusal when the receipt does not verify.
+    fn evidence_sources(&self, snapshot_id: &[u8]) -> Reply {
+        match split_evidence_sources(self.inner.receipt(), snapshot_id) {
+            Ok((discovery, analysis)) => Ok((
+                Some(
+                    json!({
+                        "discovery": declaration_json(&discovery),
+                        "analysis": declaration_json(&analysis),
+                    })
+                    .to_string(),
+                ),
+                None,
+            )),
+            Err(error) => match error_json(&error) {
+                Some(refusal) => Ok((None, Some(refusal))),
+                None => Err(discovery_failure(&error)),
+            },
+        }
     }
 
     /// Re-derive the partition from the rule; a refusal when the receipt does not hold.
@@ -1426,7 +1521,111 @@ fn sample_split_effect_measure(
     }
 }
 
+fn declared_completion(
+    label: Option<&str>,
+    identity: Option<&str>,
+) -> PyResult<Option<DeclaredCompletion>> {
+    match (label, identity) {
+        (None, None) => Ok(None),
+        (Some(label), Some(identity)) => {
+            let digest = parse_digest_hex(identity)
+                .ok_or_else(|| input_err("a completion identity is 64 hexadecimal characters"))?;
+            Ok(Some(DeclaredCompletion { label: label.to_owned(), identity: *digest.as_bytes() }))
+        }
+        _ => Err(input_err("a declared completion needs both a label and an identity")),
+    }
+}
+
+/// The graph to add to: empty when none is given, `None` when the declaration does not
+/// validate (the refusal is rendered by [`claim_graph_refusal`]).
+fn claim_graph(graph_json: Option<&str>) -> PyResult<Option<CompositionGraph>> {
+    Ok(parsed_graph(graph_json)?.ok())
+}
+
+fn parsed_graph(graph_json: Option<&str>) -> PyResult<Result<CompositionGraph, GraphError>> {
+    match graph_json {
+        None => Ok(Ok(CompositionGraph::new())),
+        Some(text) => {
+            let value: Json = serde_json::from_str(text)
+                .map_err(|e| input_err(format!("graph is not valid JSON: {e}")))?;
+            crate::composition_verification_api::parse_graph(&value, "graph")
+        }
+    }
+}
+
+fn claim_graph_refusal(graph_json: Option<&str>) -> PyResult<String> {
+    match parsed_graph(graph_json)? {
+        Err(error) => Ok(crate::composition_verification_api::graph_refusal(&error)),
+        Ok(_) => Err(input_err("the graph validated")),
+    }
+}
+
+fn claims_json(graph: &CompositionGraph, keys: &[(Option<String>, DiscoveryClaimKeys)]) -> String {
+    let wire = |k: &DiscoveryClaimKeys| {
+        json!({
+            "data": k.data,
+            "statistics": k.statistics,
+            "graph": k.graph,
+            "completion": k.completion,
+            "downstream_anchor": k.downstream_anchor(),
+        })
+    };
+    let keys = match keys {
+        [(None, only)] => wire(only),
+        many => Json::Object(
+            many.iter()
+                .map(|(label, k)| (label.clone().unwrap_or_default(), wire(k)))
+                .collect(),
+        ),
+    };
+    json!({
+        "graph": crate::composition_verification_api::graph_wire(graph),
+        "keys": keys,
+    })
+    .to_string()
+}
+
+fn declaration_text(declaration: &SourceDeclaration) -> String {
+    declaration_json(declaration).to_string()
+}
+
+/// Declare a contiguous row range of a dataset as an evidence source (JSON declaration).
+#[pyfunction]
+fn selective_discovery_data_source(
+    label: &str,
+    snapshot_id: &[u8],
+    start: u64,
+    stop: u64,
+) -> PyResult<String> {
+    if stop < start {
+        return Err(input_err("a row range ends at or after its start"));
+    }
+    Ok(declaration_text(&discovery_data_source(label, snapshot_id, start..stop)))
+}
+
+/// Declare an explicit set of rows as an evidence source (JSON declaration).
+#[pyfunction]
+fn selective_discovery_rows_source(label: &str, snapshot_id: &[u8], rows: Vec<usize>) -> String {
+    declaration_text(&discovery_rows_source(label, snapshot_id, &rows))
+}
+
+/// Declare a discovered graph as a fitted-model source derived from used data sources.
+#[pyfunction]
+fn selective_discovery_graph_source(label: &str, data_sources: Vec<String>) -> PyResult<String> {
+    let ids = data_sources
+        .iter()
+        .map(|id| {
+            SourceId::from_hex(id)
+                .ok_or_else(|| input_err("a source id is 64 hexadecimal characters"))
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    Ok(declaration_text(&discovered_graph_source(label, ids)))
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(selective_discovery_data_source, module)?)?;
+    module.add_function(wrap_pyfunction!(selective_discovery_rows_source, module)?)?;
+    module.add_function(wrap_pyfunction!(selective_discovery_graph_source, module)?)?;
     module.add_class::<SelectiveDiscoveryHandle>()?;
     module.add_function(wrap_pyfunction!(selective_discovery_resume, module)?)?;
     module.add_function(wrap_pyfunction!(selective_discovery_inspect, module)?)?;

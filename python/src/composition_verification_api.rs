@@ -11,6 +11,10 @@
 
 use std::collections::BTreeMap;
 
+use antecedent::analysis::composition_verification::{
+    registry_record_attests, registry_record_identity, registry_resolved_calibration,
+    unresolved_registry_calibrations,
+};
 use antecedent_contract::composition_verification::{
     CalibrationDeclaration, CalibrationLineage, ClaimRevalidation, CompositionGraph,
     CompositionNode, CompositionView, DependencyKind, GraphError, LineageEntry, NodeKind,
@@ -81,7 +85,7 @@ fn artifact_refusal(error: &CompositionVerificationArtifactError) -> String {
     }
 }
 
-fn graph_refusal(error: &GraphError) -> String {
+pub(crate) fn graph_refusal(error: &GraphError) -> String {
     refusal_json(
         antecedent_core::reason_code!("invalid_argument"),
         "composition_verification.graph_invalid",
@@ -198,7 +202,7 @@ fn parse_node(value: &Json) -> PyResult<CompositionNode> {
 }
 
 /// A graph, or the graph error the declaration produced.
-fn parse_graph(value: &Json, what: &str) -> PyResult<Result<CompositionGraph, GraphError>> {
+pub(crate) fn parse_graph(value: &Json, what: &str) -> PyResult<Result<CompositionGraph, GraphError>> {
     let map = object(value, what)?;
     let mut graph = CompositionGraph::new();
     for node in list(map, "nodes")? {
@@ -216,6 +220,60 @@ fn parse_graph(value: &Json, what: &str) -> PyResult<Result<CompositionGraph, Gr
         }
     }
     Ok(graph.validate().map(|()| graph))
+}
+
+fn calibration_wire(calibration: &CalibrationDeclaration) -> Json {
+    match calibration {
+        CalibrationDeclaration::PointOnly => json!({"kind": "point_only"}),
+        CalibrationDeclaration::Required => json!({"kind": "required"}),
+        CalibrationDeclaration::Held { record, coordinate } => {
+            json!({"kind": "held", "record": record.to_hex(), "coordinate": coordinate.to_hex()})
+        }
+        CalibrationDeclaration::Inherited { from, record, coordinate } => json!({
+            "kind": "inherited", "from": from,
+            "record": record.to_hex(), "coordinate": coordinate.to_hex(),
+        }),
+    }
+}
+
+/// A graph in the declaration form [`parse_graph`] reads back.
+pub(crate) fn graph_wire(graph: &CompositionGraph) -> Json {
+    let nodes: Vec<Json> = graph
+        .nodes()
+        .map(|node| {
+            let mut wire = json!({
+                "key": node.key,
+                "kind": node.kind.as_str(),
+                "identity": node.identity.to_hex(),
+                "trust": node.trust.as_str(),
+                "calibration": calibration_wire(&node.calibration),
+                "assumptions": node.assumptions,
+                "evidence": node.evidence.iter().map(SourceId::to_hex).collect::<Vec<_>>(),
+                "coordinate": node.coordinate.to_hex(),
+            });
+            let map = wire.as_object_mut().expect("a node is an object");
+            if let Some(structure) = &node.structure {
+                map.insert("structure".to_owned(), json!(structure.to_hex()));
+            }
+            if let Some(representation) = &node.representation {
+                map.insert("representation".to_owned(), json!(representation));
+            }
+            if let SupportStanding::Unsupported { coordinates } = &node.support {
+                map.insert("unsupported".to_owned(), json!(coordinates));
+            }
+            if let Some(transformation) = &node.transformation {
+                map.insert("transformation".to_owned(), json!(transformation));
+            }
+            wire
+        })
+        .collect();
+    let edges: Vec<Json> = graph
+        .edges()
+        .map(|e| {
+            json!({"downstream": e.downstream, "upstream": e.upstream, "kind": e.kind.as_str()})
+        })
+        .collect();
+    json!({"nodes": nodes, "edges": edges})
 }
 
 fn parse_effects(value: Option<&Json>) -> PyResult<BTreeMap<String, ObservedEffect>> {
@@ -475,8 +533,47 @@ fn composition_verification_consume(artifact: &[u8], expected_identity: Option<&
     }
 }
 
+/// The digest (hex) under which a shipped coverage record is declared on a node.
+#[pyfunction]
+fn composition_registry_record_identity(record_id: &str) -> String {
+    registry_record_identity(record_id).to_hex()
+}
+
+/// Whether a declared record digest (hex) names a shipped coverage record that currently attests
+/// the code it measured.
+#[pyfunction]
+fn composition_registry_record_attests(record: &str) -> PyResult<bool> {
+    Ok(registry_record_attests(&digest(record, "calibration record")?))
+}
+
+/// A calibration declaration, with a held or inherited record that does not name a currently
+/// attesting shipped record replaced by `required`. Other declarations are returned unchanged.
+#[pyfunction]
+fn composition_registry_resolved_calibration(calibration_json: &str) -> PyResult<String> {
+    let value = parse(calibration_json, "calibration declaration")?;
+    let declaration = parse_calibration(&value)?;
+    Ok(calibration_wire(&registry_resolved_calibration(&declaration)).to_string())
+}
+
+/// The keys of the nodes of a graph whose held or inherited record does not name a currently
+/// attesting shipped record, or the graph refusal.
+#[pyfunction]
+fn composition_registry_unresolved(
+    graph_json: &str,
+) -> PyResult<(Option<Vec<String>>, Option<String>)> {
+    let value = parse(graph_json, "composition graph")?;
+    Ok(match parse_graph(&value, "graph")? {
+        Ok(graph) => (Some(unresolved_registry_calibrations(&graph)), None),
+        Err(error) => (None, Some(graph_refusal(&error))),
+    })
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<CompositionVerificationHandle>()?;
+    module.add_function(wrap_pyfunction!(composition_registry_record_identity, module)?)?;
+    module.add_function(wrap_pyfunction!(composition_registry_record_attests, module)?)?;
+    module.add_function(wrap_pyfunction!(composition_registry_resolved_calibration, module)?)?;
+    module.add_function(wrap_pyfunction!(composition_registry_unresolved, module)?)?;
     module.add_function(wrap_pyfunction!(composition_verification_verify, module)?)?;
     module.add_function(wrap_pyfunction!(composition_verification_consume, module)?)?;
     Ok(())

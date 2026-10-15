@@ -556,6 +556,46 @@ impl EvidenceLedgerSession {
         self.ledger.add_source(source).map_err(|e| EvidenceLedgerRefusal::from_ledger(&e))
     }
 
+    /// Register a provider callback and its declared evidence as a ledger
+    /// source (see
+    /// [`register_callback_source`](super::provider_callbacks::register_callback_source)).
+    /// A refusal leaves the session unchanged.
+    ///
+    /// # Errors
+    /// An invalid declaration, an inner callback that is not registered, or a
+    /// ledger refusal.
+    pub fn register_callback(
+        &mut self,
+        declaration: &super::provider_callbacks::CallbackDeclaration,
+        inner_sources: &BTreeMap<String, SourceId>,
+    ) -> Result<SourceId, super::provider_callbacks::CallbackRegistrationError> {
+        super::provider_callbacks::register_callback_source(
+            &mut self.ledger,
+            declaration,
+            inner_sources,
+        )
+    }
+
+    /// Supersede a registered callback with its replacement (see
+    /// [`supersede_callback_source`](super::provider_callbacks::supersede_callback_source));
+    /// results that rest on the old source are revalidated by the ledger.
+    ///
+    /// # Errors
+    /// As [`Self::register_callback`].
+    pub fn supersede_callback(
+        &mut self,
+        old: SourceId,
+        replacement: &super::provider_callbacks::CallbackDeclaration,
+        inner_sources: &BTreeMap<String, SourceId>,
+    ) -> Result<SourceId, super::provider_callbacks::CallbackRegistrationError> {
+        super::provider_callbacks::supersede_callback_source(
+            &mut self.ledger,
+            old,
+            replacement,
+            inner_sources,
+        )
+    }
+
     /// A declaration for a fitted model or external claim derived from a valid
     /// result, so that a later withdrawal of the result's sources reaches it
     /// through lineage.

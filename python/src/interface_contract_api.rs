@@ -10,7 +10,8 @@
 //! interval or posterior.
 
 use antecedent::analysis::interface_contract::{
-    CalibrationStatus, ComponentConnection, Connection, EvidenceBasis, InterfaceContract,
+    CalibrationStatus, ComponentConnection, ComposedInterfaces, Connection, EvidenceBasis,
+    InterfaceContract, check_interface_composition_with_ledger,
 };
 use antecedent::analysis::{
     InterfaceContractRefusal, check_interface_composition, check_interface_connection,
@@ -24,6 +25,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Value as Json, json};
 
+use crate::evidence_ledger_api::EvidenceLedgerHandle;
 use crate::measurement_model_api::parse;
 
 fn refusal_value(refusal: &InterfaceContractRefusal) -> Json {
@@ -47,7 +49,7 @@ fn refusals_json(refusals: &[InterfaceContractRefusal]) -> String {
     Json::Array(refusals.iter().map(refusal_value).collect()).to_string()
 }
 
-fn contract_of(text: &str, what: &str) -> PyResult<InterfaceContract> {
+pub(crate) fn contract_of(text: &str, what: &str) -> PyResult<InterfaceContract> {
     let value = parse(text, what)?;
     let wire: ContractWire = serde_json::from_value(value)
         .map_err(|error| crate::value_err(format!("invalid {what} declaration: {error}")))?;
@@ -55,7 +57,7 @@ fn contract_of(text: &str, what: &str) -> PyResult<InterfaceContract> {
         .map_err(|error| crate::value_err(format!("invalid {what} declaration: {error}")))
 }
 
-fn connection_json(connection: &Connection) -> String {
+pub(crate) fn connection_json(connection: &Connection) -> String {
     let calibration = match &connection.calibration {
         CalibrationStatus::Measured { record_id } => {
             json!({"status": "measured", "record_id": record_id, "input": null})
@@ -133,13 +135,7 @@ fn interface_contract_check_connection(
     })
 }
 
-/// Check a composition: `components_json` is an array of contracts and
-/// `connections_json` an array of `[producer, port, consumer, port]`.
-#[pyfunction]
-fn interface_contract_check_composition(
-    components_json: &str,
-    connections_json: &str,
-) -> PyResult<Checked> {
+fn components_of(components_json: &str) -> PyResult<Vec<InterfaceContract>> {
     let components_value = parse(components_json, "components")?;
     let items = components_value
         .as_array()
@@ -148,6 +144,10 @@ fn interface_contract_check_composition(
     for item in items {
         components.push(contract_of(&item.to_string(), "component contract")?);
     }
+    Ok(components)
+}
+
+fn connections_of(connections_json: &str) -> PyResult<Vec<ComponentConnection>> {
     let connections_value = parse(connections_json, "connections")?;
     let entries = connections_value
         .as_array()
@@ -165,7 +165,13 @@ fn interface_contract_check_composition(
         };
         connections.push(ComponentConnection::new(producer, produced, consumer, consumed));
     }
-    Ok(match check_interface_composition(&components, &connections) {
+    Ok(connections)
+}
+
+fn composed_checked(
+    decided: Result<ComposedInterfaces, Vec<InterfaceContractRefusal>>,
+) -> Checked {
+    match decided {
         Ok(composed) => (
             Some(
                 json!({
@@ -182,7 +188,37 @@ fn interface_contract_check_composition(
             None,
         ),
         Err(refusals) => (None, Some(refusals_json(&refusals))),
-    })
+    }
+}
+
+/// Check a composition: `components_json` is an array of contracts and
+/// `connections_json` an array of `[producer, port, consumer, port]`.
+#[pyfunction]
+fn interface_contract_check_composition(
+    components_json: &str,
+    connections_json: &str,
+) -> PyResult<Checked> {
+    let components = components_of(components_json)?;
+    let connections = connections_of(connections_json)?;
+    Ok(composed_checked(check_interface_composition(&components, &connections)))
+}
+
+/// Check a composition against an evidence ledger: a requirement of disjoint evidence is decided
+/// from the ledger's row-level observations, so sources that share observations are refused and a
+/// source whose observations are not computable is unknown, never disjoint.
+#[pyfunction]
+fn interface_contract_check_composition_with_ledger(
+    components_json: &str,
+    connections_json: &str,
+    ledger: PyRef<'_, EvidenceLedgerHandle>,
+) -> PyResult<Checked> {
+    let components = components_of(components_json)?;
+    let connections = connections_of(connections_json)?;
+    Ok(composed_checked(check_interface_composition_with_ledger(
+        &components,
+        &connections,
+        ledger.ledger(),
+    )))
 }
 
 type Exported = (Option<(Py<PyBytes>, String, String)>, Option<String>);
@@ -239,6 +275,10 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(interface_contract_identity, module)?)?;
     module.add_function(wrap_pyfunction!(interface_contract_check_connection, module)?)?;
     module.add_function(wrap_pyfunction!(interface_contract_check_composition, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        interface_contract_check_composition_with_ledger,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(interface_contract_export, module)?)?;
     module.add_function(wrap_pyfunction!(interface_contract_consume, module)?)?;
     module.add_function(wrap_pyfunction!(interface_contract_inspect, module)?)?;

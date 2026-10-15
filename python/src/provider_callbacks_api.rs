@@ -15,11 +15,12 @@ use antecedent::analysis::provider_callbacks::{
     CallbackContext, CallbackDeclaration, CallbackDependency, CallbackExecution,
     CallbackExecutionError, CallbackExecutionPolicy, CallbackFailure, CallbackInput, CallbackKind,
     CallbackOperation, CallbackOutcome, CallbackOutput, CallbackPhase, CallbackPlan, CallbackQuery,
-    CallbackRequest, CallbackResultArtifact, CallbackResultRecord, CallbackResume, CallbackSession,
-    CallbackTrust, DependencyDeclaration, DependencyKind, InputSupplier, ProviderCallback,
-    ReplayContract, RetryContract, UpdateDeclaration, ValidatedOutput, output_values_digest,
-    refuse_identification_licence, refuse_interval, refuse_joint_law, refuse_native_trust,
-    refuse_posterior_guarantee,
+    CallbackRegistrationError, CallbackRequest, CallbackResultArtifact, CallbackResultRecord,
+    CallbackResume, CallbackSession, CallbackTrust, DependencyDeclaration, DependencyKind,
+    InputSupplier, ProviderCallback, ReplayContract, RetryContract, UpdateDeclaration,
+    ValidatedOutput, check_claim_to_callback, forecast_law_from_sample, output_values_digest,
+    predictive_law_source, refuse_identification_licence, refuse_interval, refuse_joint_law,
+    refuse_native_trust, refuse_posterior_guarantee,
 };
 use antecedent::analysis::transport_handoff::{
     TransportHandoffRefusal, TransportedClaimOffer, TransportedInputPolicy, consume_for_callback,
@@ -32,12 +33,15 @@ use antecedent_contract::interface_contract::{
 use antecedent_contract::{ExternalRefusal, ProviderObjectIdentity, ScientificQuantity};
 use antecedent_core::{CancellationToken, ExecutionContext};
 use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent_validate::predictive_assessment::{ForecastLaw, LawSource};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value as Json, json};
 
 use crate::bridge::RefusalJson;
+use crate::evidence_ledger_api::EvidenceLedgerHandle;
+use crate::interface_contract_api::{connection_json, contract_of};
 use crate::measurement_model_api::parse;
 
 /// An exported record `(bytes, identity)` or the refusal JSON.
@@ -995,6 +999,29 @@ impl CallbackSessionHandle {
         })
     }
 
+    /// The empirical-sample forecast law of the accepted sample output at a history index, as the
+    /// predictive-assessment law JSON, or the typed refusal when the output is not a sample.
+    fn forecast_law(&self, index: usize) -> PyResult<Checked> {
+        let record = self
+            .inner
+            .history()
+            .get(index)
+            .ok_or_else(|| crate::value_err("history index out of range"))?;
+        let output = match &record.outcome {
+            CallbackOutcome::Computed { output, .. } => output,
+            CallbackOutcome::Unavailable { .. } => {
+                return Err(bad("forecast law", "an unavailable stage has no output"));
+            }
+        };
+        Ok(match forecast_law_from_sample(output) {
+            Ok(ForecastLaw::EmpiricalSample { draws }) => {
+                (Some(json!({"kind": "empirical_sample", "draws": draws}).to_string()), None)
+            }
+            Ok(_) => return Err(bad("forecast law", "a sample output lifts to a sample law")),
+            Err(refusal) => (None, Some(refusal_json(&refusal).to_string())),
+        })
+    }
+
     /// Export one history record as `callback_result_v1`.
     fn export_record(
         &self,
@@ -1112,6 +1139,121 @@ fn callback_closed_refusal(route: &str) -> PyResult<String> {
         other => return Err(bad("closed route", other)),
     };
     Ok(refusal_json(&refusal).to_string())
+}
+
+/// The predictive-assessment law source of a declared callback, as the law-source JSON, or the
+/// refusal of a malformed declaration or a diagnostic standing. Runs nothing.
+#[pyfunction]
+fn callback_predictive_law_source(
+    declaration_json: &str,
+    verification_confirmed: bool,
+) -> PyResult<Checked> {
+    let declaration = declaration_of(declaration_json)?;
+    Ok(match predictive_law_source(&declaration, verification_confirmed) {
+        Ok(LawSource::Provider { identity, trust }) => (
+            Some(
+                json!({
+                    "class": "provider",
+                    "identity": {
+                        "provider_id": identity.provider_id,
+                        "object_id": identity.object_id,
+                        "version_id": identity.version_id,
+                        "snapshot_id": identity.snapshot_id,
+                        "request_id": identity.request_id,
+                    },
+                    "trust": trust.name(),
+                })
+                .to_string(),
+            ),
+            None,
+        ),
+        Ok(_) => return Err(bad("law source", "a callback declares a provider law source")),
+        Err(refusal) => (None, Some(refusal_json(&refusal).to_string())),
+    })
+}
+
+/// Check a producer's claim against one input of a declared callback through the interface
+/// contract. The connection JSON, or a JSON array of every refusal.
+#[pyfunction]
+fn callback_check_claim_connection(
+    producer_json: &str,
+    produced_port: &str,
+    callback_json: &str,
+    input: &str,
+) -> PyResult<Checked> {
+    let producer = contract_of(producer_json, "producer contract")?;
+    let declaration = declaration_of(callback_json)?;
+    Ok(match check_claim_to_callback(&producer, produced_port, &declaration, input) {
+        Ok(connection) => (Some(connection_json(&connection)), None),
+        Err(refusals) => (
+            None,
+            Some(Json::Array(refusals.iter().map(refusal_json).collect()).to_string()),
+        ),
+    })
+}
+
+fn inner_sources_of(text: &str) -> PyResult<BTreeMap<String, SourceId>> {
+    let value = parse(text, "inner sources")?;
+    let map = value.as_object().ok_or_else(|| bad("inner sources", "an object"))?;
+    let mut out = BTreeMap::new();
+    for (identity, source) in map {
+        let id = source
+            .as_str()
+            .and_then(SourceId::from_hex)
+            .ok_or_else(|| bad("inner sources", "a source is not a digest"))?;
+        out.insert(identity.clone(), id);
+    }
+    Ok(out)
+}
+
+fn registration_error_json(error: &CallbackRegistrationError) -> String {
+    match error {
+        CallbackRegistrationError::Declaration(refusal) => refusal_json(refusal).to_string(),
+        CallbackRegistrationError::Ledger(error) => json!({
+            "code": error.code,
+            "stage": "evidence_ledger",
+            "detail": error.detail,
+            "message": error.message,
+            "offending": error.sources.first().map(SourceId::to_hex),
+            "remedy": Json::Null,
+            "sources": error.sources.iter().map(SourceId::to_hex).collect::<Vec<_>>(),
+        })
+        .to_string(),
+    }
+}
+
+/// Register a declared callback and its evidence in an evidence ledger session. The new source
+/// identity (hex), or the refusal; a refusal leaves the ledger unchanged.
+#[pyfunction]
+fn callback_register_source(
+    mut ledger: PyRefMut<'_, EvidenceLedgerHandle>,
+    declaration_json: &str,
+    inner_sources_json: &str,
+) -> PyResult<Refused<String>> {
+    let declaration = declaration_of(declaration_json)?;
+    let inner = inner_sources_of(inner_sources_json)?;
+    Ok(match ledger.session_mut().register_callback(&declaration, &inner) {
+        Ok(id) => (Some(id.to_hex()), None),
+        Err(error) => (None, Some(registration_error_json(&error))),
+    })
+}
+
+/// Supersede a registered callback source with its replacement. The replacement's source
+/// identity (hex), or the refusal.
+#[pyfunction]
+fn callback_supersede_source(
+    mut ledger: PyRefMut<'_, EvidenceLedgerHandle>,
+    old: &str,
+    replacement_json: &str,
+    inner_sources_json: &str,
+) -> PyResult<Refused<String>> {
+    let old = SourceId::from_hex(old).ok_or_else(|| bad("source", "not a digest"))?;
+    let replacement = declaration_of(replacement_json)?;
+    let inner = inner_sources_of(inner_sources_json)?;
+    Ok(match ledger.session_mut().supersede_callback(old, &replacement, &inner) {
+        Ok(id) => (Some(id.to_hex()), None),
+        Err(error) => (None, Some(registration_error_json(&error))),
+    })
 }
 
 // -- transported claim handoff -----------------------------------------------------------------
@@ -1289,6 +1431,10 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(callback_result_consume, module)?)?;
     module.add_function(wrap_pyfunction!(callback_result_inspect, module)?)?;
     module.add_function(wrap_pyfunction!(callback_closed_refusal, module)?)?;
+    module.add_function(wrap_pyfunction!(callback_predictive_law_source, module)?)?;
+    module.add_function(wrap_pyfunction!(callback_check_claim_connection, module)?)?;
+    module.add_function(wrap_pyfunction!(callback_register_source, module)?)?;
+    module.add_function(wrap_pyfunction!(callback_supersede_source, module)?)?;
     module.add_function(wrap_pyfunction!(transport_handoff_seal, module)?)?;
     module.add_function(wrap_pyfunction!(transport_handoff_consume, module)?)?;
     Ok(())

@@ -18,8 +18,12 @@ use std::sync::Arc;
 
 use crate::bridge::{check_declared_size, external_refusal_json, serialization};
 use antecedent::analysis::decision_claims::{
-    ClaimError, OutcomeBinding, ScenarioClaimBinding, atom_leaders, cpdag_claims, scenario_claims,
+    ClaimError, IntervalReading, OutcomeBinding, ScenarioClaimBinding, atom_leaders, cpdag_claims,
+    envelope_identified_utilities, interval_identified_utilities, report_identified_utilities,
+    scenario_claims, weighted_identified_utilities,
 };
+use antecedent_design::decision_adapters::IdentifiedUtility;
+use antecedent_estimate::transport_scenarios::ScenarioSetReport;
 use antecedent_contract::{
     DistributionMeaning, ExternalCapability, ExternalRefusal, ExternalScientificObject,
     ExternalTrustState, LawProviderContract, ProviderObjectIdentity, ProviderTrust,
@@ -1472,6 +1476,163 @@ fn decide_scenario_claims(
     }
 }
 
+fn identified_utilities_json(utilities: &[IdentifiedUtility]) -> String {
+    let items: Vec<Value> = utilities
+        .iter()
+        .map(|u| {
+            json!({
+                "action_id": u.action_id,
+                "lower": u.utility.lower,
+                "upper": u.utility.upper,
+                "hard_exclusions": u.hard_exclusions,
+                "support": {
+                    "overall": u.support.overall.as_str(),
+                    "per_input": u.support.per_input.iter().map(|p| json!({
+                        "action_id": p.action_id,
+                        "input": p.input,
+                        "status": p.status.as_str(),
+                    })).collect::<Vec<_>>(),
+                },
+            })
+        })
+        .collect();
+    Value::Array(items).to_string()
+}
+
+fn support_of(json: &str) -> Result<AtomSupport, String> {
+    let wire: SupportWire = serde_json::from_str(json)
+        .map_err(|e| invalid_json("scenario_decision.invalid_support", Some(e.to_string())))?;
+    support_from(wire)
+}
+
+/// Per-action utility intervals from the report of a scenario set or a CPDAG completion run.
+///
+/// `kind` is `transport` or `cpdag`; `route` is `report` (the weighted range when the
+/// report carries one, else the envelope), `envelope` or `weighted`. The interval covers the
+/// identified scenarios only. Returns the utilities as JSON, or a refusal.
+#[pyfunction]
+#[pyo3(signature = (declaration_json, kind, result, binding_json, support_json, route))]
+fn scenario_identified_utilities(
+    declaration_json: &str,
+    kind: &str,
+    result: &Bound<'_, PyAny>,
+    binding_json: &str,
+    support_json: &str,
+    route: &str,
+) -> PyResult<Pair> {
+    check_size(declaration_json)?;
+    check_size(binding_json)?;
+    check_size(support_json)?;
+    let run = || -> Result<String, String> {
+        let contract = admissible_contract_from_json_refusal(declaration_json)
+            .map_err(|refusal| external_refusal_json(&refusal))?;
+        let wrong =
+            |slot: &str| invalid_json("scenario_decision.wrong_result_type", Some(slot.to_owned()));
+        let (report, names): (Option<ScenarioSetReport>, Vec<String>) = match kind {
+            "transport" => {
+                let stage = result
+                    .extract::<PyRef<'_, PreparedTransportScenariosStage>>()
+                    .map_err(|_| wrong("transport"))?;
+                let (report, names) = stage.last_report().ok_or_else(|| {
+                    invalid_json("scenario_decision.not_estimated", Some("estimate() first".into()))
+                })?;
+                (Some(report.clone()), names.to_vec())
+            }
+            "cpdag" => {
+                let run =
+                    result.extract::<PyRef<'_, CpdagScenarioRun>>().map_err(|_| wrong("cpdag"))?;
+                let (report, names) = run.report_and_names();
+                (report.report.clone(), names.to_vec())
+            }
+            other => {
+                return Err(invalid_json("scenario_decision.unknown_kind", Some(other.into())));
+            }
+        };
+        let binding = binding_from(binding_json, &names)?;
+        let support = support_of(support_json)?;
+        let unavailable = || claim_refusal(&ClaimError::RangeUnavailable);
+        let report = report.ok_or_else(unavailable)?;
+        let utilities = match route {
+            "report" => report_identified_utilities(&contract, &report, &binding, &support),
+            "envelope" => {
+                let envelope = report.envelope.as_ref().ok_or_else(unavailable)?;
+                envelope_identified_utilities(&contract, envelope, &binding, &support)
+            }
+            "weighted" => {
+                let weighted = report.weighted.as_ref().ok_or_else(unavailable)?;
+                weighted_identified_utilities(&contract, weighted, &binding, &support)
+            }
+            other => {
+                return Err(invalid_json(
+                    "scenario_decision.unknown_utility_route",
+                    Some(other.into()),
+                ));
+            }
+        }
+        .map_err(|e| claim_refusal(&e))?;
+        Ok(identified_utilities_json(&utilities))
+    };
+    Ok(match run() {
+        Ok(json) => (Some(json), None),
+        Err(refusal) => (None, Some(refusal)),
+    })
+}
+
+#[derive(Deserialize)]
+struct IntervalWire {
+    quantity: ScientificQuantityWire,
+    interval: antecedent_io::IdentifiedSetIntervalWire,
+}
+
+/// Per-action utility intervals from one identified-set interval per input quantity.
+///
+/// `intervals_json` is a list of `{quantity, interval}`; `reading` is `estimated_bounds` or
+/// `coverage_interval`. Returns the utilities as JSON, or a refusal.
+#[pyfunction]
+#[pyo3(signature = (declaration_json, intervals_json, reading, support_json))]
+fn interval_identified_action_utilities(
+    declaration_json: &str,
+    intervals_json: &str,
+    reading: &str,
+    support_json: &str,
+) -> PyResult<Pair> {
+    check_size(declaration_json)?;
+    check_size(intervals_json)?;
+    check_size(support_json)?;
+    let run = || -> Result<String, String> {
+        let contract = admissible_contract_from_json_refusal(declaration_json)
+            .map_err(|refusal| external_refusal_json(&refusal))?;
+        let reading = match reading {
+            "estimated_bounds" => IntervalReading::EstimatedBounds,
+            "coverage_interval" => IntervalReading::CoverageInterval,
+            other => {
+                return Err(invalid_json("scenario_decision.unknown_reading", Some(other.into())));
+            }
+        };
+        let wires: Vec<IntervalWire> = serde_json::from_str(intervals_json)
+            .map_err(|e| invalid_json("scenario_decision.invalid_interval", Some(e.to_string())))?;
+        let mut intervals = Vec::with_capacity(wires.len());
+        for wire in wires {
+            let quantity = ScientificQuantity::try_from(wire.quantity).map_err(|e| {
+                invalid_json("scenario_decision.invalid_quantity", Some(e.to_owned()))
+            })?;
+            let interval = antecedent_io::identified_set_interval_from_wire(&wire.interval)
+                .map_err(|e| {
+                    invalid_json("scenario_decision.invalid_interval", Some(e.to_string()))
+                })?;
+            intervals.push((quantity, interval));
+        }
+        let support = support_of(support_json)?;
+        let utilities = interval_identified_utilities(&contract, &intervals, reading, &support)
+            .map_err(|e| claim_refusal(&e))?;
+        Ok(identified_utilities_json(&utilities))
+    };
+    Ok(match run() {
+        Ok(json) => (Some(json), None),
+        Err(refusal) => (None, Some(refusal)),
+    })
+}
+
 /// Why a scenario decision stopped: a structured refusal, or an interrupt raised while the native
 /// work had released the GIL.
 enum DecisionStop {
@@ -1991,6 +2152,8 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(composition_check_paired_draws, m)?)?;
     m.add_function(wrap_pyfunction!(composition_check_atoms, m)?)?;
     m.add_function(wrap_pyfunction!(decide_scenario_claims, m)?)?;
+    m.add_function(wrap_pyfunction!(scenario_identified_utilities, m)?)?;
+    m.add_function(wrap_pyfunction!(interval_identified_action_utilities, m)?)?;
     m.add_function(wrap_pyfunction!(proposal_bundle_build, m)?)?;
     m.add_function(wrap_pyfunction!(proposal_ranked_candidates, m)?)
 }
