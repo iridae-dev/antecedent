@@ -32,7 +32,7 @@ SUITE_MARK = "// consolidated-suite"
 
 
 def named_by_scripts() -> set[str]:
-    """Test targets that a script or workflow selects with `--test <name>`."""
+    """Test targets that a script or workflow selects by name (`--test <name>` or a (crate, target) pair)."""
     names: set[str] = set()
     for pattern in ("scripts/*.sh", "scripts/*.py", ".github/workflows/*.yml"):
         for path in ROOT.glob(pattern):
@@ -40,6 +40,9 @@ def named_by_scripts() -> set[str]:
                 continue
             text = path.read_text(encoding="utf-8", errors="ignore")
             names.update(re.findall(r"--test\s+([A-Za-z0-9_]+)", text))
+            names.update(re.findall(r'"--test",\s*"([A-Za-z0-9_]+)"', text))
+            # (crate, target) pairs a registry runs as `cargo test -p <crate> --test <target>`
+            names.update(re.findall(r'\("antecedent[a-z-]*",\s*"([A-Za-z0-9_]+)"\)', text))
     return names
 
 

@@ -9,8 +9,6 @@ mod dbn_mediation_horizon_mass;
 mod dbn_posterior_atom_identity;
 #[path = "dbn_sustained_validation.rs"]
 mod dbn_sustained_validation;
-#[path = "decision_exit_gate.rs"]
-mod decision_exit_gate;
 #[path = "decision_reliability_derived_facade.rs"]
 mod decision_reliability_derived_facade;
 #[path = "decision_reliability_facade.rs"]

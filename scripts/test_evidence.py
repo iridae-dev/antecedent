@@ -38,7 +38,7 @@ from pathlib import Path
 import _py_closure
 import _rust_source as _rust
 from _repo import REPO_ROOT as ROOT
-from _repo import cargo_target_feature_args
+from _repo import cargo_target_feature_args, test_target
 
 PARSE_MARKERS = re.compile(
     r"serde_json::from_str|serde_json::from_slice|from_str::<|json\.loads|"
@@ -328,9 +328,11 @@ def target_root(path: Path) -> tuple[Path, str, list[str]] | None:
     if rel[2] == "tests":
         tests_dir = crate_dir / "tests"
         if len(rel) == 4:
-            target = ["--test", Path(rel[3]).stem]
+            # A file folded into a suite_NN aggregator is compiled as a module of the suite.
+            name, prefix = test_target(rel[1], Path(rel[3]).stem, ROOT)
+            target = ["--test", name]
             target.extend(cargo_target_feature_args(crate_dir / "Cargo.toml", target))
-            return tests_dir / rel[3], crate, target
+            return (tests_dir / f"{name}.rs" if prefix else tests_dir / rel[3]), crate, target
         main = tests_dir / rel[3] / "main.rs"
         if main.is_file():
             target = ["--test", rel[3]]

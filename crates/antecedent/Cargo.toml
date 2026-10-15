@@ -488,6 +488,10 @@ name = "suite_03"
 path = "tests/suite_03.rs"
 
 [[test]]
+name = "decision_exit_gate"
+path = "tests/decision_exit_gate.rs"
+
+[[test]]
 name = "suite_04"
 path = "tests/suite_04.rs"
 
