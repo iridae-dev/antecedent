@@ -3,22 +3,6 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
-#[path = "observation_recovery_lifecycle.rs"]
-mod observation_recovery_lifecycle;
-#[path = "observational_interference_route.rs"]
-mod observational_interference_route;
-#[path = "pag.rs"]
-mod pag;
-#[path = "pag_admg_numeric_pins.rs"]
-mod pag_admg_numeric_pins;
-#[path = "pag_identified_envelope_numeric_pins.rs"]
-mod pag_identified_envelope_numeric_pins;
-#[path = "panel_did_interval_calibration.rs"]
-mod panel_did_interval_calibration;
-#[path = "panel_did_route.rs"]
-mod panel_did_route;
-#[path = "path_specific_edge_gformula_pins.rs"]
-mod path_specific_edge_gformula_pins;
 #[path = "per_population_discovery_facade.rs"]
 mod per_population_discovery_facade;
 #[path = "policy_value_route.rs"]
@@ -63,3 +47,19 @@ mod recalc_cell;
 mod recalc_composite;
 #[path = "recalc_design.rs"]
 mod recalc_design;
+#[path = "recalc_dr.rs"]
+mod recalc_dr;
+#[path = "recalc_external.rs"]
+mod recalc_external;
+#[path = "recalc_joint_bayesian_standing.rs"]
+mod recalc_joint_bayesian_standing;
+#[path = "recalc_receipt.rs"]
+mod recalc_receipt;
+#[path = "recalc_static.rs"]
+mod recalc_static;
+#[path = "recalc_temporal.rs"]
+mod recalc_temporal;
+#[path = "refusal_fields_existing_sites.rs"]
+mod refusal_fields_existing_sites;
+#[path = "refusal_remedy.rs"]
+mod refusal_remedy;

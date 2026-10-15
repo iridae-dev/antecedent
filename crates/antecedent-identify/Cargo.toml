@@ -39,6 +39,10 @@ name = "adjustment"
 harness = false
 
 [[test]]
+name = "causaleffect_transport_subset"
+path = "tests/causaleffect_transport_subset.rs"
+
+[[test]]
 name = "counterfactual_transport_decisions"
 path = "tests/counterfactual_transport_decisions.rs"
 
@@ -49,6 +53,10 @@ path = "tests/finite_scm_oracle_selftest.rs"
 [[test]]
 name = "study_planning_search"
 path = "tests/study_planning_search.rs"
+
+[[test]]
+name = "transport_exact_scm"
+path = "tests/transport_exact_scm.rs"
 
 [[test]]
 name = "suite_01"

@@ -39,8 +39,6 @@ mod batch_analysis;
 mod batch_analyze_many;
 #[path = "batch_retarget.rs"]
 mod batch_retarget;
-#[path = "batch_retarget_calibration.rs"]
-mod batch_retarget_calibration;
 #[path = "batch_retarget_known_truth.rs"]
 mod batch_retarget_known_truth;
 #[path = "bayesian.rs"]
@@ -63,3 +61,5 @@ mod calibration_binding;
 mod calibration_grid_binding;
 #[path = "callback_nested_overlap_facade.rs"]
 mod callback_nested_overlap_facade;
+#[path = "cancellation_expansion_cells.rs"]
+mod cancellation_expansion_cells;

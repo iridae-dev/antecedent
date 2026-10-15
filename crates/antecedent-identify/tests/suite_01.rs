@@ -7,8 +7,6 @@
 mod admg_conditional_transport;
 #[path = "artifact_compat_recovery_identity.rs"]
 mod artifact_compat_recovery_identity;
-#[path = "causaleffect_transport_subset.rs"]
-mod causaleffect_transport_subset;
 #[path = "counterfactual_id_search.rs"]
 mod counterfactual_id_search;
 #[path = "counterfactual_id_y0_parity.rs"]
@@ -41,8 +39,6 @@ mod ordered_response_recovery_chain;
 mod scenario_invariance;
 #[path = "temporal_sequence_spec.rs"]
 mod temporal_sequence_spec;
-#[path = "transport_exact_scm.rs"]
-mod transport_exact_scm;
 #[path = "transport_identification_status.rs"]
 mod transport_identification_status;
 #[path = "z_transport_negative_evidence.rs"]

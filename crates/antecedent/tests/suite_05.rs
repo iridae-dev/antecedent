@@ -3,28 +3,14 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
-#[path = "graph_typed_inputs.rs"]
-mod graph_typed_inputs;
-#[path = "interface_contract_facade.rs"]
-mod interface_contract_facade;
-#[path = "interference_interval_route.rs"]
-mod interference_interval_route;
-#[path = "inverse_cohort_source_facade.rs"]
-mod inverse_cohort_source_facade;
-#[path = "inverse_composition_refusals_facade.rs"]
-mod inverse_composition_refusals_facade;
 #[path = "inverse_forward_sources_facade.rs"]
 mod inverse_forward_sources_facade;
 #[path = "joint_class_response.rs"]
 mod joint_class_response;
 #[path = "joint_law_propagation_facade.rs"]
 mod joint_law_propagation_facade;
-#[path = "joint_sensitivity_calibration.rs"]
-mod joint_sensitivity_calibration;
 #[path = "joint_sensitivity_lifecycle.rs"]
 mod joint_sensitivity_lifecycle;
-#[path = "learned_continuous_calibration.rs"]
-mod learned_continuous_calibration;
 #[path = "learned_continuous_lifecycle.rs"]
 mod learned_continuous_lifecycle;
 #[path = "local_polynomial_ratio_route.rs"]
@@ -45,8 +31,6 @@ mod mechanism_composition_facade;
 mod msm_sensitivity_decision;
 #[path = "multi_source_acceptance.rs"]
 mod multi_source_acceptance;
-#[path = "mz_transport_calibration.rs"]
-mod mz_transport_calibration;
 #[path = "mz_transport_lifecycle.rs"]
 mod mz_transport_lifecycle;
 #[path = "nan_cell_ingest.rs"]
@@ -63,3 +47,19 @@ mod nested_counterfactual_route_evidence;
 mod numeric_pins;
 #[path = "observation_query_facade.rs"]
 mod observation_query_facade;
+#[path = "observation_recovery_lifecycle.rs"]
+mod observation_recovery_lifecycle;
+#[path = "observational_interference_route.rs"]
+mod observational_interference_route;
+#[path = "pag.rs"]
+mod pag;
+#[path = "pag_admg_numeric_pins.rs"]
+mod pag_admg_numeric_pins;
+#[path = "pag_identified_envelope_numeric_pins.rs"]
+mod pag_identified_envelope_numeric_pins;
+#[path = "panel_did_interval_calibration.rs"]
+mod panel_did_interval_calibration;
+#[path = "panel_did_route.rs"]
+mod panel_did_route;
+#[path = "path_specific_edge_gformula_pins.rs"]
+mod path_specific_edge_gformula_pins;

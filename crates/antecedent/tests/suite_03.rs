@@ -3,8 +3,6 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
-#[path = "checked_temporal_class_response_route_evidence.rs"]
-mod checked_temporal_class_response_route_evidence;
 #[path = "checked_temporal_dag_effect_route_evidence.rs"]
 mod checked_temporal_dag_effect_route_evidence;
 #[path = "checked_temporal_dag_response_route_evidence.rs"]
@@ -25,8 +23,6 @@ mod class_aware_response_numeric_pins;
 mod class_posterior_ate;
 #[path = "class_prior_contract.rs"]
 mod class_prior_contract;
-#[path = "cluster_dml_calibration.rs"]
-mod cluster_dml_calibration;
 #[path = "cluster_dml_retarget.rs"]
 mod cluster_dml_retarget;
 #[path = "cohort_decision.rs"]
@@ -37,16 +33,12 @@ mod complier_effect_route;
 mod composed_spread_consumers_facade;
 #[path = "composed_uncertainty_facade.rs"]
 mod composed_uncertainty_facade;
-#[path = "composition_exit_gate.rs"]
-mod composition_exit_gate;
 #[path = "composition_facade.rs"]
 mod composition_facade;
 #[path = "composition_release_fixture.rs"]
 mod composition_release_fixture;
 #[path = "composition_verification_facade.rs"]
 mod composition_verification_facade;
-#[path = "conditional_ipcw.rs"]
-mod conditional_ipcw;
 #[path = "context_effects.rs"]
 mod context_effects;
 #[path = "continuous_dose_policy_route.rs"]
@@ -63,3 +55,11 @@ mod count_fitted_observation_facade;
 mod counterfactual_id_lifecycle;
 #[path = "cpdag_ate_numeric_pins.rs"]
 mod cpdag_ate_numeric_pins;
+#[path = "cross_world_edge_contrast.rs"]
+mod cross_world_edge_contrast;
+#[path = "cross_world_execution_facade.rs"]
+mod cross_world_execution_facade;
+#[path = "dag_path_specific_functional_effect_route_evidence.rs"]
+mod dag_path_specific_functional_effect_route_evidence;
+#[path = "data_modalities.rs"]
+mod data_modalities;

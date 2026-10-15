@@ -3,30 +3,6 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
-#[path = "staged_static_kinds.rs"]
-mod staged_static_kinds;
-#[path = "static_class_bounds.rs"]
-mod static_class_bounds;
-#[path = "statistical_transport_numeric.rs"]
-mod statistical_transport_numeric;
-#[path = "survival_route.rs"]
-mod survival_route;
-#[path = "switchback_interval_route.rs"]
-mod switchback_interval_route;
-#[path = "synthetic_control_route.rs"]
-mod synthetic_control_route;
-#[path = "synthetic_did_randomization_route.rs"]
-mod synthetic_did_randomization_route;
-#[path = "temporal_admg_route_evidence.rs"]
-mod temporal_admg_route_evidence;
-#[path = "temporal_attribution_route_evidence.rs"]
-mod temporal_attribution_route_evidence;
-#[path = "temporal_class_bayesian_envelope.rs"]
-mod temporal_class_bayesian_envelope;
-#[path = "temporal_class_envelope_numeric_pins.rs"]
-mod temporal_class_envelope_numeric_pins;
-#[path = "temporal_class_observation.rs"]
-mod temporal_class_observation;
 #[path = "temporal_class_point_queries.rs"]
 mod temporal_class_point_queries;
 #[path = "temporal_class_posterior.rs"]
@@ -55,11 +31,35 @@ mod temporal_parent_adjustment;
 mod temporal_prior_transfer;
 #[path = "temporal_response_dose_identification.rs"]
 mod temporal_response_dose_identification;
-#[path = "temporal_response_facade.rs"]
-mod temporal_response_facade;
 #[path = "temporal_response_redundancy.rs"]
 mod temporal_response_redundancy;
 #[path = "temporal_soft_mean_mechanisms.rs"]
 mod temporal_soft_mean_mechanisms;
 #[path = "tier_diagnostics.rs"]
 mod tier_diagnostics;
+#[path = "tiered_known_truth.rs"]
+mod tiered_known_truth;
+#[path = "transport_grid_missing_evidence.rs"]
+mod transport_grid_missing_evidence;
+#[path = "transport_revalidation_facade.rs"]
+mod transport_revalidation_facade;
+#[path = "transport_scenarios.rs"]
+mod transport_scenarios;
+#[path = "transport_scenarios_conditional.rs"]
+mod transport_scenarios_conditional;
+#[path = "transport_sensitivity_facade.rs"]
+mod transport_sensitivity_facade;
+#[path = "transport_standing_facade.rs"]
+mod transport_standing_facade;
+#[path = "transported_cohort_facade.rs"]
+mod transported_cohort_facade;
+#[path = "transported_counterfactual_facade.rs"]
+mod transported_counterfactual_facade;
+#[path = "transported_measurement_facade.rs"]
+mod transported_measurement_facade;
+#[path = "transported_mechanism_facade.rs"]
+mod transported_mechanism_facade;
+#[path = "whole_path_account_facade.rs"]
+mod whole_path_account_facade;
+#[path = "workspace_invariants.rs"]
+mod workspace_invariants;

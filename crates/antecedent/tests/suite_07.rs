@@ -3,26 +3,8 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
-#[path = "recalc_dr.rs"]
-mod recalc_dr;
-#[path = "recalc_external.rs"]
-mod recalc_external;
-#[path = "recalc_joint_bayesian_standing.rs"]
-mod recalc_joint_bayesian_standing;
-#[path = "recalc_receipt.rs"]
-mod recalc_receipt;
-#[path = "recalc_static.rs"]
-mod recalc_static;
-#[path = "recalc_temporal.rs"]
-mod recalc_temporal;
-#[path = "refusal_fields_existing_sites.rs"]
-mod refusal_fields_existing_sites;
-#[path = "refusal_remedy.rs"]
-mod refusal_remedy;
 #[path = "refute_validator_not_applicable.rs"]
 mod refute_validator_not_applicable;
-#[path = "response_facade.rs"]
-mod response_facade;
 #[path = "rollout_artifact.rs"]
 mod rollout_artifact;
 #[path = "route_evidence_joint_law_propagation.rs"]
@@ -47,8 +29,6 @@ mod selective_discovery_facade;
 mod sequential_evaluation_facade;
 #[path = "short_series_measurement.rs"]
 mod short_series_measurement;
-#[path = "smoothed_dose_calibration.rs"]
-mod smoothed_dose_calibration;
 #[path = "smoothed_dose_lifecycle.rs"]
 mod smoothed_dose_lifecycle;
 #[path = "source_evidence.rs"]
@@ -61,5 +41,25 @@ mod specification_conformance;
 mod staged_attribution_transport_interference;
 #[path = "staged_bayesian_basis_gcomp.rs"]
 mod staged_bayesian_basis_gcomp;
-#[path = "staged_derivatives.rs"]
-mod staged_derivatives;
+#[path = "static_class_bounds.rs"]
+mod static_class_bounds;
+#[path = "statistical_transport_numeric.rs"]
+mod statistical_transport_numeric;
+#[path = "survival_route.rs"]
+mod survival_route;
+#[path = "switchback_interval_route.rs"]
+mod switchback_interval_route;
+#[path = "synthetic_control_route.rs"]
+mod synthetic_control_route;
+#[path = "synthetic_did_randomization_route.rs"]
+mod synthetic_did_randomization_route;
+#[path = "temporal_admg_route_evidence.rs"]
+mod temporal_admg_route_evidence;
+#[path = "temporal_attribution_route_evidence.rs"]
+mod temporal_attribution_route_evidence;
+#[path = "temporal_class_bayesian_envelope.rs"]
+mod temporal_class_bayesian_envelope;
+#[path = "temporal_class_envelope_numeric_pins.rs"]
+mod temporal_class_envelope_numeric_pins;
+#[path = "temporal_class_observation.rs"]
+mod temporal_class_observation;

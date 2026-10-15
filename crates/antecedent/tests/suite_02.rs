@@ -3,8 +3,6 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
-#[path = "cancellation_expansion_cells.rs"]
-mod cancellation_expansion_cells;
 #[path = "checked_admg_graph_posterior_effect_route_evidence.rs"]
 mod checked_admg_graph_posterior_effect_route_evidence;
 #[path = "checked_attribution_route_evidence.rs"]
@@ -63,3 +61,5 @@ mod checked_static_estimators_route_evidence;
 mod checked_static_mediation_route_evidence;
 #[path = "checked_temporal_class_mediation_route_evidence.rs"]
 mod checked_temporal_class_mediation_route_evidence;
+#[path = "checked_temporal_class_response_route_evidence.rs"]
+mod checked_temporal_class_response_route_evidence;

@@ -180,6 +180,10 @@ name = "artifact_compat_counterfactual_transport_golden"
 path = "tests/artifact_compat_counterfactual_transport_golden.rs"
 
 [[test]]
+name = "batch_retarget_calibration"
+path = "tests/batch_retarget_calibration.rs"
+
+[[test]]
 name = "bayesian_basis_prior_precision"
 path = "tests/bayesian_basis_prior_precision.rs"
 
@@ -264,8 +268,20 @@ name = "class_posterior_calibration"
 path = "tests/class_posterior_calibration.rs"
 
 [[test]]
+name = "cluster_dml_calibration"
+path = "tests/cluster_dml_calibration.rs"
+
+[[test]]
 name = "compiler_consistency"
 path = "tests/compiler_consistency.rs"
+
+[[test]]
+name = "composition_exit_gate"
+path = "tests/composition_exit_gate.rs"
+
+[[test]]
+name = "conditional_ipcw"
+path = "tests/conditional_ipcw.rs"
 
 [[test]]
 name = "counterfactual_transport_lifecycle"
@@ -292,6 +308,10 @@ name = "evidence_synthesis_calibration"
 path = "tests/evidence_synthesis_calibration.rs"
 
 [[test]]
+name = "gcm"
+path = "tests/gcm.rs"
+
+[[test]]
 name = "generic_aipw_precision"
 path = "tests/generic_aipw_precision.rs"
 
@@ -304,8 +324,16 @@ name = "joint_law_composed_interval_calibration"
 path = "tests/joint_law_composed_interval_calibration.rs"
 
 [[test]]
+name = "joint_sensitivity_calibration"
+path = "tests/joint_sensitivity_calibration.rs"
+
+[[test]]
 name = "latency_tiers"
 path = "tests/latency_tiers.rs"
+
+[[test]]
+name = "learned_continuous_calibration"
+path = "tests/learned_continuous_calibration.rs"
 
 [[test]]
 name = "licensed_compiler"
@@ -326,6 +354,10 @@ path = "tests/mixed_source_lifecycle.rs"
 [[test]]
 name = "mixture_interval_calibration"
 path = "tests/mixture_interval_calibration.rs"
+
+[[test]]
+name = "mz_transport_calibration"
+path = "tests/mz_transport_calibration.rs"
 
 [[test]]
 name = "one_shot_checked_aipw"
@@ -360,6 +392,10 @@ name = "refute_second_click"
 path = "tests/refute_second_click.rs"
 
 [[test]]
+name = "response_facade"
+path = "tests/response_facade.rs"
+
+[[test]]
 name = "retained_score_precision"
 path = "tests/retained_score_precision.rs"
 
@@ -378,6 +414,18 @@ path = "tests/scientific_bridge_interval_calibration.rs"
 [[test]]
 name = "shared_workspace"
 path = "tests/shared_workspace.rs"
+
+[[test]]
+name = "smoothed_dose_calibration"
+path = "tests/smoothed_dose_calibration.rs"
+
+[[test]]
+name = "staged_derivatives"
+path = "tests/staged_derivatives.rs"
+
+[[test]]
+name = "staged_static_kinds"
+path = "tests/staged_static_kinds.rs"
 
 [[test]]
 name = "static_calibration"
@@ -408,8 +456,16 @@ name = "temporal_response_calibration"
 path = "tests/temporal_response_calibration.rs"
 
 [[test]]
+name = "temporal_response_facade"
+path = "tests/temporal_response_facade.rs"
+
+[[test]]
 name = "temporal_transport"
 path = "tests/temporal_transport.rs"
+
+[[test]]
+name = "transport_statistical_calibration"
+path = "tests/transport_statistical_calibration.rs"
 
 [[test]]
 name = "transported_constructors_facade"

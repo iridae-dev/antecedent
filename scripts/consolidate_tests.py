@@ -31,6 +31,18 @@ KEEP_PATTERNS = [
 SUITE_MARK = "// consolidated-suite"
 
 
+def named_by_scripts() -> set[str]:
+    """Test targets that a script or workflow selects with `--test <name>`."""
+    names: set[str] = set()
+    for pattern in ("scripts/*.sh", "scripts/*.py", ".github/workflows/*.yml"):
+        for path in ROOT.glob(pattern):
+            if path.name == "consolidate_tests.py":
+                continue
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            names.update(re.findall(r"--test\s+([A-Za-z0-9_]+)", text))
+    return names
+
+
 def declared_targets(manifest: str) -> dict[str, dict]:
     data = tomllib.loads(manifest)
     out: dict[str, dict] = {}
@@ -38,6 +50,9 @@ def declared_targets(manifest: str) -> dict[str, dict]:
         for entry in data.get(key, []):
             out[entry.get("path", f"tests/{entry['name']}.rs")] = {"kind": key, **entry}
     return out
+
+
+NAMED = named_by_scripts()
 
 
 def plan_crate(crate: Path):
@@ -59,7 +74,7 @@ def plan_crate(crate: Path):
         for target in included:
             if target.is_file():
                 text += "\n" + target.read_text(encoding="utf-8", errors="ignore")
-        if rel in declared or any(re.search(p, text, re.M) for p in KEEP_PATTERNS):
+        if rel in declared or path.stem in NAMED or any(re.search(p, text, re.M) for p in KEEP_PATTERNS):
             keep.append((path, declared.get(rel, {})))
         else:
             fold.append(path)

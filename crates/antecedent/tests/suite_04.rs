@@ -3,14 +3,6 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
-#[path = "cross_world_edge_contrast.rs"]
-mod cross_world_edge_contrast;
-#[path = "cross_world_execution_facade.rs"]
-mod cross_world_execution_facade;
-#[path = "dag_path_specific_functional_effect_route_evidence.rs"]
-mod dag_path_specific_functional_effect_route_evidence;
-#[path = "data_modalities.rs"]
-mod data_modalities;
 #[path = "dbn_mediation_horizon_mass.rs"]
 mod dbn_mediation_horizon_mass;
 #[path = "dbn_posterior_atom_identity.rs"]
@@ -57,9 +49,17 @@ mod examples_run;
 mod facade_gaps;
 #[path = "frontdoor_iv_route_evidence.rs"]
 mod frontdoor_iv_route_evidence;
-#[path = "gcm.rs"]
-mod gcm;
 #[path = "graph_interchange.rs"]
 mod graph_interchange;
 #[path = "graph_posterior_repeated_atoms.rs"]
 mod graph_posterior_repeated_atoms;
+#[path = "graph_typed_inputs.rs"]
+mod graph_typed_inputs;
+#[path = "interface_contract_facade.rs"]
+mod interface_contract_facade;
+#[path = "interference_interval_route.rs"]
+mod interference_interval_route;
+#[path = "inverse_cohort_source_facade.rs"]
+mod inverse_cohort_source_facade;
+#[path = "inverse_composition_refusals_facade.rs"]
+mod inverse_composition_refusals_facade;
