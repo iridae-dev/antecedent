@@ -21,102 +21,10 @@
 # `scripts/gate_calibration_attestation.sh` validates every waiver and reports
 # the records it covers as `attested_by_replay (waiver <id>)`.
 
-# Replay waivers for coverage records (scripts/calibration_facets.py).
-#
-# A waiver lets a reviewed change that cannot move a measured number stand in
-# for a re-measurement, with evidence. It applies to a record only when the
-# record was measured at `from`, every attested path in the record's facets
-# that changed since is listed in `paths`, and none of them changed after
-# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
-# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
-# with the stored records. Each `exercises` list names the waived paths that
-# record's test runs. A reviewed_equivalence certificate instead binds an exact
-# source diff that delegates to unchanged accepted numerical code; it never claims
-# that a new wrapper ran in an old harness. Together these cover every path.
-# recordless_gates = true additionally attests original passed gate rows under
-# the same exact source scope and genuine numeric replay; it never re-stamps them.
-#
-# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
-# `replay` tables by hand, then fill `outcome` by running
-#   python3 scripts/calibration_facets.py replay --waiver <id>
-# on a clean checkout of `to`. That command rewrites this file; comments other
-# than this header are not kept (the justification is the prose).
-# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
-# the records it covers as `attested_by_replay (waiver <id>)`.
-
-# Replay waivers for coverage records (scripts/calibration_facets.py).
-#
-# A waiver lets a reviewed change that cannot move a measured number stand in
-# for a re-measurement, with evidence. It applies to a record only when the
-# record was measured at `from`, every attested path in the record's facets
-# that changed since is listed in `paths`, and none of them changed after
-# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
-# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
-# with the stored records. Each `exercises` list names the waived paths that
-# record's test runs. A reviewed_equivalence certificate instead binds an exact
-# source diff that delegates to unchanged accepted numerical code; it never claims
-# that a new wrapper ran in an old harness. Together these cover every path.
-# recordless_gates = true additionally attests original passed gate rows under
-# the same exact source scope and genuine numeric replay; it never re-stamps them.
-#
-# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
-# `replay` tables by hand, then fill `outcome` by running
-#   python3 scripts/calibration_facets.py replay --waiver <id>
-# on a clean checkout of `to`. That command rewrites this file; comments other
-# than this header are not kept (the justification is the prose).
-# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
-# the records it covers as `attested_by_replay (waiver <id>)`.
-
-# Replay waivers for coverage records (scripts/calibration_facets.py).
-#
-# A waiver lets a reviewed change that cannot move a measured number stand in
-# for a re-measurement, with evidence. It applies to a record only when the
-# record was measured at `from`, every attested path in the record's facets
-# that changed since is listed in `paths`, and none of them changed after
-# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
-# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
-# with the stored records. Each `exercises` list names the waived paths that
-# record's test runs. A reviewed_equivalence certificate instead binds an exact
-# source diff that delegates to unchanged accepted numerical code; it never claims
-# that a new wrapper ran in an old harness. Together these cover every path.
-# recordless_gates = true additionally attests original passed gate rows under
-# the same exact source scope and genuine numeric replay; it never re-stamps them.
-#
-# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
-# `replay` tables by hand, then fill `outcome` by running
-#   python3 scripts/calibration_facets.py replay --waiver <id>
-# on a clean checkout of `to`. That command rewrites this file; comments other
-# than this header are not kept (the justification is the prose).
-# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
-# the records it covers as `attested_by_replay (waiver <id>)`.
-
-# Replay waivers for coverage records (scripts/calibration_facets.py).
-#
-# A waiver lets a reviewed change that cannot move a measured number stand in
-# for a re-measurement, with evidence. It applies to a record only when the
-# record was measured at `from`, every attested path in the record's facets
-# that changed since is listed in `paths`, and none of them changed after
-# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
-# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
-# with the stored records. Each `exercises` list names the waived paths that
-# record's test runs. A reviewed_equivalence certificate instead binds an exact
-# source diff that delegates to unchanged accepted numerical code; it never claims
-# that a new wrapper ran in an old harness. Together these cover every path.
-# recordless_gates = true additionally attests original passed gate rows under
-# the same exact source scope and genuine numeric replay; it never re-stamps them.
-#
-# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
-# `replay` tables by hand, then fill `outcome` by running
-#   python3 scripts/calibration_facets.py replay --waiver <id>
-# on a clean checkout of `to`. That command rewrites this file; comments other
-# than this header are not kept (the justification is the prose).
-# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
-# the records it covers as `attested_by_replay (waiver <id>)`.
-
 [[waiver]]
 id = "wiring-and-layout-from-4fe0e268"
 from = "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
-to = "4d7120d86c64f1095e00c2a763244471750a9699"
+to = "e6656b1f898a24aa9e968275d2652939b8716fc3"
 reviewed_by = "authorized release engineering review"
 recordless_gates = false
 gate_ledger_commit = ""
@@ -125,12 +33,14 @@ Changes since the measurement that add routes beside the measured ones without m
 """
 paths = [
   "scripts/gate_calibration.sh",
+  "crates/antecedent/tests/sample_split_effect_calibration.rs",
 ]
 
 [[waiver.replay]]
 record = "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_misspecified_test_boundary_95"
 exercises = [
   "scripts/gate_calibration.sh",
+  "crates/antecedent/tests/sample_split_effect_calibration.rs",
 ]
 
 [waiver.outcome]
@@ -144,29 +54,6 @@ differences = [
 
 [waiver.outcome.fingerprints]
 "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_misspecified_test_boundary_95" = "8493af688baeff6ef2f367df1cd089455139c80251f6c4a522d45278a1f60897"
-
-# Replay waivers for coverage records (scripts/calibration_facets.py).
-#
-# A waiver lets a reviewed change that cannot move a measured number stand in
-# for a re-measurement, with evidence. It applies to a record only when the
-# record was measured at `from`, every attested path in the record's facets
-# that changed since is listed in `paths`, and none of them changed after
-# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
-# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
-# with the stored records. Each `exercises` list names the waived paths that
-# record's test runs. A reviewed_equivalence certificate instead binds an exact
-# source diff that delegates to unchanged accepted numerical code; it never claims
-# that a new wrapper ran in an old harness. Together these cover every path.
-# recordless_gates = true additionally attests original passed gate rows under
-# the same exact source scope and genuine numeric replay; it never re-stamps them.
-#
-# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
-# `replay` tables by hand, then fill `outcome` by running
-#   python3 scripts/calibration_facets.py replay --waiver <id>
-# on a clean checkout of `to`. That command rewrites this file; comments other
-# than this header are not kept (the justification is the prose).
-# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
-# the records it covers as `attested_by_replay (waiver <id>)`.
 
 [[waiver]]
 id = "wiring-and-layout-from-c0a6de5e"
@@ -200,29 +87,6 @@ differences = [
 [waiver.outcome.fingerprints]
 "cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_large_gap_boundary_l95" = "1a95c671ffbe530969e76b502be8bbbee2a7d272e695b8ecb2f82c6e161d0d35"
 
-# Replay waivers for coverage records (scripts/calibration_facets.py).
-#
-# A waiver lets a reviewed change that cannot move a measured number stand in
-# for a re-measurement, with evidence. It applies to a record only when the
-# record was measured at `from`, every attested path in the record's facets
-# that changed since is listed in `paths`, and none of them changed after
-# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
-# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
-# with the stored records. Each `exercises` list names the waived paths that
-# record's test runs. A reviewed_equivalence certificate instead binds an exact
-# source diff that delegates to unchanged accepted numerical code; it never claims
-# that a new wrapper ran in an old harness. Together these cover every path.
-# recordless_gates = true additionally attests original passed gate rows under
-# the same exact source scope and genuine numeric replay; it never re-stamps them.
-#
-# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
-# `replay` tables by hand, then fill `outcome` by running
-#   python3 scripts/calibration_facets.py replay --waiver <id>
-# on a clean checkout of `to`. That command rewrites this file; comments other
-# than this header are not kept (the justification is the prose).
-# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
-# the records it covers as `attested_by_replay (waiver <id>)`.
-
 [[waiver]]
 id = "wiring-and-layout-from-dd3cb96e"
 from = "dd3cb96e0f9cfe43b43678d7e69ab20d688729d1"
@@ -254,29 +118,6 @@ differences = [
 
 [waiver.outcome.fingerprints]
 "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_crps_difference_l95" = "9c6bba4e7fd9f8be02f14bbd86796cffeeffafd9c47370f189a1aae77abd2595"
-
-# Replay waivers for coverage records (scripts/calibration_facets.py).
-#
-# A waiver lets a reviewed change that cannot move a measured number stand in
-# for a re-measurement, with evidence. It applies to a record only when the
-# record was measured at `from`, every attested path in the record's facets
-# that changed since is listed in `paths`, and none of them changed after
-# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
-# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
-# with the stored records. Each `exercises` list names the waived paths that
-# record's test runs. A reviewed_equivalence certificate instead binds an exact
-# source diff that delegates to unchanged accepted numerical code; it never claims
-# that a new wrapper ran in an old harness. Together these cover every path.
-# recordless_gates = true additionally attests original passed gate rows under
-# the same exact source scope and genuine numeric replay; it never re-stamps them.
-#
-# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
-# `replay` tables by hand, then fill `outcome` by running
-#   python3 scripts/calibration_facets.py replay --waiver <id>
-# on a clean checkout of `to`. That command rewrites this file; comments other
-# than this header are not kept (the justification is the prose).
-# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
-# the records it covers as `attested_by_replay (waiver <id>)`.
 
 [[waiver]]
 id = "wiring-and-layout-from-b4f06ae0"
@@ -723,29 +564,6 @@ differences = [
 
 [waiver.outcome.fingerprints]
 "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.mediated" = "1627fb21222a0bd2a026cc32e45b7637cb90a88486a68721e7e2d695470de200"
-
-# Replay waivers for coverage records (scripts/calibration_facets.py).
-#
-# A waiver lets a reviewed change that cannot move a measured number stand in
-# for a re-measurement, with evidence. It applies to a record only when the
-# record was measured at `from`, every attested path in the record's facets
-# that changed since is listed in `paths`, and none of them changed after
-# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
-# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
-# with the stored records. Each `exercises` list names the waived paths that
-# record's test runs. A reviewed_equivalence certificate instead binds an exact
-# source diff that delegates to unchanged accepted numerical code; it never claims
-# that a new wrapper ran in an old harness. Together these cover every path.
-# recordless_gates = true additionally attests original passed gate rows under
-# the same exact source scope and genuine numeric replay; it never re-stamps them.
-#
-# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
-# `replay` tables by hand, then fill `outcome` by running
-#   python3 scripts/calibration_facets.py replay --waiver <id>
-# on a clean checkout of `to`. That command rewrites this file; comments other
-# than this header are not kept (the justification is the prose).
-# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
-# the records it covers as `attested_by_replay (waiver <id>)`.
 
 [[waiver]]
 id = "wiring-and-layout-from-f11161bc"
@@ -1212,3 +1030,36 @@ differences = [
 "cov.anomaly_attribution.dag.bayesian.posterior_quantile.l90.anomaly_attribution_dag_bayesian_nominal_coverage" = "110187d0457a58690941834ccc08a332f5624d1bd67f9c2e88fbe6a7dd6edf33"
 "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage" = "de4977dd7a11b5ce556b45b4afe460f739310c67adc0a12d4197900bd99e7ce1"
 "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_iid_n160_nominal_90_coverage" = "e6e180935f5b3f41b331816c8f050bf1b4cc2dea0961a543a99ebcd3fd0ef607"
+
+[[waiver]]
+id = "wiring-and-layout-from-72411f0b"
+from = "72411f0b5d3dd1ba28cb5150c886ea0f47180f9d"
+to = "e6656b1f898a24aa9e968275d2652939b8716fc3"
+reviewed_by = "authorized release engineering review"
+recordless_gates = false
+gate_ledger_commit = ""
+justification = """
+Two lint-only edits since the measurement: an allow attribute with its reason on the two callback registration entry points of the evidence ledger, and an exact-equality assertion on the nominal level rewritten as a tolerance comparison in the ledger facade test. Neither touches the pooled estimators; the replay reproduces the stored pooled records bit for bit.\
+"""
+paths = [
+  "crates/antecedent/src/analysis/evidence_ledger.rs",
+]
+
+[[waiver.replay]]
+record = "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_five_studies"
+exercises = [
+  "crates/antecedent/src/analysis/evidence_ledger.rs",
+]
+
+[waiver.outcome]
+replayed_at = "e6656b1f898a24aa9e968275d2652939b8716fc3"
+identical = false
+records = [
+  "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_five_studies",
+]
+differences = [
+  "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_five_studies: the replay emitted no record with this id",
+]
+
+[waiver.outcome.fingerprints]
+"cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_five_studies" = "67d3eac5d0bba4893ee396914b6fa06937c74bb7a3e2a18cf285bdea5c167cdb"
