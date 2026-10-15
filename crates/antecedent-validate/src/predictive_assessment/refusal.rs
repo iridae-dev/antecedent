@@ -45,8 +45,16 @@ pub mod detail {
     pub const IN_SAMPLE: &str = "predictive_assessment.in_sample";
     /// What the law was fitted on is not declared.
     pub const OVERLAP_UNKNOWN: &str = "predictive_assessment.overlap_unknown";
-    /// A score or score-difference interval was requested.
+    /// A score or score-difference interval was requested without naming the predictor,
+    /// score and level it is for.
     pub const INTERVAL_NOT_LICENSED: &str = "predictive_assessment.interval_not_licensed";
+    /// A score interval was requested at a design, score, law family, level or number of
+    /// cases that no current attesting coverage record measured.
+    pub const INTERVAL_SCOPE_OUTSIDE_MEASURED: &str =
+        "predictive_assessment.interval_scope_outside_measured";
+    /// A score interval was requested with no declared dependence of the cases.
+    pub const INTERVAL_DEPENDENCE_UNDECLARED: &str =
+        "predictive_assessment.interval_dependence_undeclared";
     /// A predictive score was offered as a causal claim.
     pub const NOT_A_CAUSAL_CLAIM: &str = "predictive_assessment.not_a_causal_claim";
     /// A predictive score was offered as a probability that a claim holds.

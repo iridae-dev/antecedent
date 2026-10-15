@@ -6,8 +6,8 @@
 //! calibration diagnostics. All sums are formed in a canonical case order, so
 //! the result does not depend on how the cases were listed.
 //!
-//! What the result is not: an interval, a calibration guarantee or a causal
-//! claim. See [`PredictiveAssessmentReport::request_score_interval`],
+//! What the report is not: an interval (see [`super::expected_score_interval`] for the
+//! interval of an expected score), a calibration guarantee or a causal claim. See [`PredictiveAssessmentReport::request_score_interval`],
 //! [`PredictiveAssessmentReport::request_causal_validity`] and
 //! [`PredictiveAssessmentReport::request_score_as_probability`].
 //!
@@ -253,7 +253,9 @@ pub struct PredictiveAssessmentReport {
 }
 
 impl PredictiveAssessmentReport {
-    /// Refuse a score or score-difference interval.
+    /// Refuse an unscoped score or score-difference interval request: an interval is
+    /// for one predictor's score (or one pair's difference) at one level, asked with
+    /// [`super::expected_score_interval`].
     ///
     /// # Errors
     /// Always `cell_not_licensed` with `predictive_assessment.interval_not_licensed`.
@@ -294,11 +296,13 @@ pub(crate) fn interval_refusal() -> PredictiveAssessmentError {
     refuse(
         reason_code!("cell_not_licensed"),
         detail::INTERVAL_NOT_LICENSED,
-        "an interval for a score or a score difference is closed: it needs a declared sampling \
-         design and a whole-method coverage measurement at this design's coordinate, and none \
-         exists. The point scores, the paired differences and the Diebold-Mariano style \
-         statistic are reported as diagnostics; an exact finite-law expected score has no \
-         sampling interval to report",
+        "the report states point scores, paired differences and the Diebold-Mariano style \
+         statistic as diagnostics and carries no interval. An interval is a statement about \
+         the expected score of one predictor (or the expected difference of two) under the \
+         declared sampling design: name the predictor, the score and the level and ask \
+         for the expected-score interval, which publishes it only for a held-out or unfitted predictor under \
+         a declared dependence where a current coverage record measured the construction. An \
+         exact finite-law expected score has no sampling interval to report",
     )
 }
 

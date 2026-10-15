@@ -6,13 +6,14 @@
 //! overlap check, the artifact and every refusal are Rust's. A refusal comes
 //! back as structured JSON for the Python layer to raise as a typed exception.
 //!
-//! Nothing here estimates dependence, reports an interval for a score, or reads
-//! a score as causal validity: those requests come back as the typed refusals of
-//! the contract.
+//! Nothing here estimates dependence, builds an interval for a score itself, or
+//! reads a score as causal validity: the interval of an expected score is Rust's
+//! and is published only inside a measured design, and every other request comes
+//! back as the typed refusals of the contract.
 
 use antecedent::analysis::predictive_assessment::{
     PredictiveAssessmentConsumeLimits, PredictiveAssessmentRefusal, PreparedPredictiveAssessment,
-    consume_predictive_assessment_artifact, fit_declaration_from_ledger,
+    ScoreIntervalQuery, consume_predictive_assessment_artifact, fit_declaration_from_ledger,
     observation_keys_from_ledger,
 };
 use antecedent_contract::evidence_ledger::SourceId;
@@ -566,7 +567,53 @@ impl PredictiveAssessmentHandle {
         }
     }
 
-    /// Always the typed refusal: no interval for a score or a score difference.
+    /// The interval of one predictor's expected score (or of the expected difference to
+    /// `reference`) as JSON, or the typed refusal. Published only inside a measured design.
+    fn score_interval(
+        &self,
+        predictor: &str,
+        reference: Option<&str>,
+        score: &str,
+        level: f64,
+    ) -> PyResult<Refused<String>> {
+        let Some(kind) = ScoreKind::from_name(score) else {
+            return Err(crate::value_err(format!("unknown score `{score}`")));
+        };
+        let query = ScoreIntervalQuery {
+            predictor: predictor.to_owned(),
+            reference: reference.map(str::to_owned),
+            score: kind,
+            level,
+        };
+        Ok(match self.inner.expected_score_interval(&query) {
+            Ok(interval) => (
+                Some(
+                    json!({
+                        "predictor": interval.predictor,
+                        "reference": interval.reference,
+                        "score": interval.score.name(),
+                        "mean": interval.mean,
+                        "standard_error": interval.standard_error,
+                        "degrees_of_freedom": interval.degrees_of_freedom,
+                        "lower": interval.lower,
+                        "upper": interval.upper,
+                        "level": interval.level,
+                        "cases": interval.cases,
+                        "dependence": interval.dependence,
+                        "construction": interval.construction,
+                        "coverage_record": interval.coverage_record,
+                        "calibration_sha": interval.calibration_sha,
+                        "assumptions": interval.assumptions,
+                    })
+                    .to_string(),
+                ),
+                None,
+            ),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        })
+    }
+
+    /// The typed refusal of an unscoped interval request (no predictor, score or level).
     fn request_score_interval(&self) -> String {
         match self.inner.request_score_interval() {
             Err(refusal) => refusal_json(&refusal),

@@ -31,8 +31,10 @@
 //!
 //! # What it does not claim
 //!
-//! * No interval for a score or a score difference: that needs a declared
-//!   sampling design with measured coverage and none exists (`cell_not_licensed`).
+//! * No interval for a score or a score difference outside a measured design: the
+//!   interval of an expected score ([`expected_score_interval`]) is published only for a
+//!   held-out or unfitted predictor, under a declared dependence, where a current
+//!   coverage record measured the construction (`cell_not_licensed` elsewhere).
 //!   An exact finite-law expected score has no sampling interval to report.
 //! * No calibration guarantee for the assessed law and no causal validity: a good
 //!   score says the law predicted these observations well, not that any model
@@ -49,6 +51,7 @@ mod compare;
 mod design;
 mod exact;
 mod identity;
+mod interval;
 mod law;
 mod overlap;
 mod refusal;
@@ -70,6 +73,12 @@ pub use compare::{ScoreDifference, variance_of_mean};
 pub use design::{DependenceDeclaration, ValidationDesign, dependence_label};
 pub use exact::{FiniteTruth, exact_expected_score};
 pub use identity::{AssessmentIdentity, IDENTITY_VERSION};
+pub use interval::{
+    ConstructedInterval, IntervalFacts, SCORE_INTERVAL_ASSUMPTIONS,
+    SCORE_INTERVAL_MAX_BANDWIDTH_FRACTION, SCORE_INTERVAL_MIN_CLUSTERS, SCORE_INTERVAL_QUERY,
+    ScoreInterval, ScoreIntervalQuery, construct_expected_score_interval, expected_score_interval,
+    score_interval_basis, score_interval_construction,
+};
 pub use law::{
     ForecastLaw, Horizon, LawKind, LawSource, MAX_CASES, MAX_JOINT_DIMENSION, MAX_LAW_ATOMS,
     MAX_PREDICTORS, ObservationKey, Outcome, PROBABILITY_SUM_TOLERANCE, PredictiveTarget,

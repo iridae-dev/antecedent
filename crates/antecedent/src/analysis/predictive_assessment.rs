@@ -15,9 +15,11 @@
 //! * **One scoring surface.** [`posterior_predictive_predictor`] turns a
 //!   Bayesian posterior predictive check's replicates into sample laws scored
 //!   by the same CRPS and PIT as any other law.
-//! * **Point-only.** Scores, paired differences and diagnostics are point
-//!   values; an interval for a score or a score difference is closed
-//!   ([`PreparedPredictiveAssessment::request_score_interval`] refuses), a
+//! * **Point values and a record-gated interval.** Scores, paired differences and
+//!   diagnostics are point values; the interval of an expected score or score
+//!   difference ([`PreparedPredictiveAssessment::expected_score_interval`]) is published only
+//!   inside a measured design and an unscoped request
+//!   ([`PreparedPredictiveAssessment::request_score_interval`]) refuses, a
 //!   predictive score is not causal validity
 //!   ([`PreparedPredictiveAssessment::request_causal_validity`]) and not the
 //!   probability that a claim holds
@@ -52,8 +54,9 @@ pub use antecedent_io::predictive_assessment_artifact::{
 pub use antecedent_validate::predictive_assessment::{
     AssessmentIdentity, DependenceDeclaration, DistributionDrift, EnsembleCrpsForm, FiniteTruth,
     ForecastLaw, Horizon, LawSource, Outcome, OverlapPolicy, OverlapStatus, PredictiveReplicates,
-    ProviderIdentity, ProviderTrustLabel, RealizedObservations, ScoreDifference,
-    ScoreIntervalRequest, ScoreKind, ValidationDesign, distribution_drift, exact_expected_score,
+    ProviderIdentity, ProviderTrustLabel, RealizedObservations, ScoreDifference, ScoreInterval,
+    ScoreIntervalQuery, ScoreIntervalRequest, ScoreKind, ValidationDesign, distribution_drift,
+    exact_expected_score,
 };
 pub use antecedent_validate::predictive_assessment::{
     FitDeclaration, ObservationKey, PredictiveAssessmentReport, PredictiveAssessmentSpec,
@@ -285,7 +288,30 @@ impl PreparedPredictiveAssessment {
             .map_err(|error| PredictiveAssessmentRefusal::from_artifact(&error))
     }
 
-    /// Refuse a score or score-difference interval.
+    /// The interval of one predictor's expected score, or of the expected difference of
+    /// two predictors' scores, under the declared dependence.
+    ///
+    /// Published only for a held-out or unfitted predictor where a current attesting
+    /// coverage record measured the construction at this design, score, law family,
+    /// level and number of cases; the record is resolved from the shipped coverage table.
+    ///
+    /// # Errors
+    /// `cell_not_licensed` outside a measured design, an undeclared dependence, an
+    /// in-sample or unverified predictor, or a degenerate sample variance.
+    pub fn expected_score_interval(
+        &self,
+        query: &ScoreIntervalQuery,
+    ) -> Result<ScoreInterval, PredictiveAssessmentRefusal> {
+        antecedent_validate::predictive_assessment::expected_score_interval(
+            self.spec(),
+            self.report(),
+            query,
+        )
+        .map_err(|error| PredictiveAssessmentRefusal::from_contract(&error))
+    }
+
+    /// Refuse an unscoped score or score-difference interval request (no predictor,
+    /// score or level named); ask [`Self::expected_score_interval`] for a scoped one.
     ///
     /// # Errors
     /// Always `cell_not_licensed`.

@@ -31,10 +31,12 @@ What is decided here, and what is not:
 * **Scores.** Log score, CRPS, Brier score and the energy score of a joint law, all strictly
   proper losses. A sample is scored as the empirical law it is (``fair=True`` selects the fair
   ensemble estimator, which is not proper for the empirical law).
-* **Point-only.** Differences are paired on the shared observations with a standard error under
-  the declared dependence; diagnostics are labelled ``diagnostic`` and ``unmeasured``. An
-  interval for a score or a difference is closed (:meth:`PredictiveAssessment.score_interval`
-  raises ``cell_not_licensed``), a score is not causal validity
+* **Point values and a record-gated interval.** Differences are paired on the shared observations
+  with a standard error under the declared dependence; diagnostics are labelled ``diagnostic``
+  and ``unmeasured``. :meth:`PredictiveAssessment.score_interval` returns the interval of an
+  expected score or difference only for a held-out or unfitted predictor under a declared
+  dependence where a current coverage record measured the construction, and raises
+  ``cell_not_licensed`` elsewhere; a score is not causal validity
   (:meth:`PredictiveAssessment.causal_validity`) and not the probability of a claim
   (:meth:`PredictiveAssessment.score_as_probability`).
 * **Artifact.** :meth:`PredictiveAssessment.export` writes ``predictive_assessment_v1``;
@@ -82,6 +84,7 @@ __all__ = [
     "PredictiveReport",
     "Predictor",
     "ScoreDifference",
+    "ScoreInterval",
     "Target",
     "ValidationDesign",
     "assess",
@@ -767,6 +770,34 @@ class ScoreDifference(ScientificResult):
 
 
 @dataclass(repr=False, frozen=True, slots=True)
+class ScoreInterval(ScientificResult):
+    """The interval of an expected score (or of an expected score difference).
+
+    ``mean`` is the mean of the case scores (or paired differences) and ``lower``/``upper`` the
+    Student-t interval at ``level`` with ``standard_error`` under the declared ``dependence``.
+    ``coverage_record`` names the current coverage record that licensed it. The interval is a
+    statement about the expected score under the declared sampling design, not about the
+    assessed cases alone and not about causal validity; ``assumptions`` states what it rests on.
+    """
+
+    predictor: str
+    reference: str | None
+    score: str
+    mean: float
+    standard_error: float
+    degrees_of_freedom: float
+    lower: float
+    upper: float
+    level: float
+    cases: int
+    dependence: str
+    construction: str
+    coverage_record: str
+    calibration_sha: str
+    assumptions: str
+
+
+@dataclass(repr=False, frozen=True, slots=True)
 class PredictiveReport(ScientificResult):
     """The scores, paired differences and diagnostics of an assessment."""
 
@@ -959,9 +990,43 @@ class PredictiveAssessment(ScientificResult):
     def _closed(self, payload: str) -> None:
         raise_refusal(payload, PredictiveAssessmentRefusal)
 
-    def score_interval(self) -> None:
-        """Always raises ``cell_not_licensed``: no interval for a score or a difference."""
-        self._closed(self._handle.request_score_interval())
+    def score_interval(
+        self,
+        predictor: str | None = None,
+        score: str | None = None,
+        *,
+        reference: str | None = None,
+        level: float = 0.95,
+    ) -> ScoreInterval:
+        """The interval of a predictor's expected score, or of the expected difference to ``reference``.
+
+        It is published only for a held-out or unfitted predictor under a declared dependence,
+        where a current coverage record measured the construction at this design, score, law
+        family, level and number of cases; the record is resolved in Rust. With no predictor and
+        score named the request is unscoped and raises ``cell_not_licensed``.
+
+        Raises:
+            PredictiveAssessmentRefusal: ``cell_not_licensed`` outside a measured design,
+                ``sampling_dependence_unknown`` with no declared dependence,
+                ``evidence_double_counted`` or ``evidence_overlap_unknown`` for an in-sample or
+                unverified predictor.
+        """
+        if predictor is None and score is None:
+            self._closed(self._handle.request_score_interval())
+            raise AssertionError("an unscoped interval request always refuses")  # pragma: no cover
+        if predictor is None or score is None:
+            raise CausalTypeError("name both the predictor and the score of the interval")
+        if score not in SCORES:
+            raise CausalValueError(f"unknown score `{score}`; use one of {', '.join(SCORES)}")
+        payload = _unwrap(
+            self._handle.score_interval(
+                _name(predictor, "predictor"),
+                None if reference is None else _name(reference, "reference"),
+                score,
+                float(level),
+            )
+        )
+        return ScoreInterval(**json.loads(payload))
 
     def causal_validity(self) -> None:
         """Always raises ``route_not_supported``: a predictive score is not causal validity."""

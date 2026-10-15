@@ -20,7 +20,7 @@ not a guarantee for other observations.
 | Design | held-out split, rolling origin, blocked or clustered, simulation stream | a rolling-origin design whose horizon is not the target's |
 | Dependence | iid (declared), serial with a truncation lag, cluster | iid for a rolling-origin or blocked design: `sampling_dependence_unknown`; a lag shorter than horizon minus one; one cluster |
 | Overlap | held out verified, in sample, unverified, not fitted, decided from row identities | held-out requirement with an in-sample predictor (`evidence_double_counted`) or an undeclared one (`evidence_overlap_unknown`) |
-| Uncertainty | point scores, paired differences, a labelled statistic | an interval or significance level for a score or a difference: `cell_not_licensed` |
+| Uncertainty | point scores, paired differences, a labelled statistic, and the interval of an expected score or score difference inside a measured design | an unscoped interval request, an interval for an in-sample or unverified predictor, an undeclared dependence, a design no coverage record measured, a significance level: `cell_not_licensed` |
 | Meaning | a loss of a law on the observations | a causal claim or the probability of a claim: `route_not_supported` |
 
 ## Scores
@@ -62,10 +62,36 @@ share the observations.
 | `cluster` | `G/(G-1) sum_g (S_g - n_g mean)^2 / n^2` over `G >= 2` clusters |
 
 The Diebold-Mariano style statistic `mean / se` is a labelled diagnostic. No
-p-value, interval or coverage statement is attached. With no declared
+p-value or coverage statement is attached to the report. With no declared
 dependence the standard error is withheld; independence is never assumed. A
 difference also states how many observations the two predictors' fit sets
 share, when both declare them.
+
+## Interval of an expected score
+
+The report describes the assessed cases. The interval answers a different
+question: what expected score does a law have under the declared sampling
+design, given these cases. It is asked for one predictor's score (or one pair's
+difference) at one level.
+
+| Declared dependence | Interval | Reference |
+| --- | --- | --- |
+| `iid` | `mean +- t * sqrt(s^2 / n)` | Student-t, `n - 1` degrees of freedom |
+| `serial`, lag `L`, `(L + 1) / n <= 0.1` | `mean +- t * se` with the Bartlett long-run variance | Student-t, `n / (L + 1) - 1` degrees of freedom |
+| `cluster`, at least ten clusters | `mean +- t * se` with the cluster-robust variance | Student-t, `G - 1` degrees of freedom |
+
+It is published only for a predictor verified held out of the cases (or never
+fitted) and only where a current coverage record measured the construction at
+the design, score, law family (Gaussian here), level (0.95) and number of cases.
+The record is read from the shipped coverage table: a declaration cannot open
+the route. The measured design is a fixed Gaussian forecast against known
+generators (iid outcomes, a stationary AR(1) series, clustered outcomes), over
+100, 200 and 400 cases, for the CRPS, the log score and the CRPS difference of
+two forecasts. A heavy-tailed truth is recorded as a named boundary and does not
+license the route. The interval states its assumptions: cases independent or
+dependent as declared, a finite score variance, a law fixed before the cases
+were seen, and for a rolling-origin design the average expected score over the
+forecast origins.
 
 ## Calibration diagnostics
 
@@ -160,17 +186,19 @@ pa.consume_predictive_assessment_artifact(artifact, result.identity)
 
 `pa.keys(domain, rows)` returns the evidence ledger's observation identities, so
 `pa.FitDeclaration.from_ledger(ledger, sources)` and `pa.ledger_observations`
-decide held out from the same rows. `result.score_interval()`,
-`result.causal_validity()` and `result.score_as_probability()` raise the typed
-refusals of the closed routes. `pa.replicate_laws` turns posterior predictive
+decide held out from the same rows. `result.score_interval("forecast", "crps")`
+(and `reference=`, `level=`) returns the interval inside a measured design and
+raises `cell_not_licensed` elsewhere; `result.score_interval()` with no
+predictor is the unscoped request and always raises. `result.causal_validity()`
+and `result.score_as_probability()` raise the typed refusals of the closed
+routes. `pa.replicate_laws` turns posterior predictive
 replicates into sample laws for the same scoring surface.
 
 ## Closed routes
 
 | Route | Reason | What would license it |
 | --- | --- | --- |
-| interval for a score or a score difference | `cell_not_licensed` | a declared sampling design with measured whole-method coverage at the design's coordinate |
-| callback law | `route_not_supported` | the law as a native family, or as provider-evaluated values declared through the provider contract |
+| unscoped interval request, or a scoped one outside a measured design | `cell_not_licensed` | name the predictor, score and level, declare the dependence, and assess a held-out or unfitted predictor inside a design a current coverage record measured || callback law | `route_not_supported` | the law as a native family, or as provider-evaluated values declared through the provider contract |
 | score as causal validity or as a probability | `route_not_supported` | an identification argument and refutation; a declared prior and likelihood |
 
 ## References
