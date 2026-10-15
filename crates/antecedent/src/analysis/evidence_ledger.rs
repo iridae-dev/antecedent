@@ -564,6 +564,10 @@ impl EvidenceLedgerSession {
     /// # Errors
     /// An invalid declaration, an inner callback that is not registered, or a
     /// ledger refusal.
+    #[allow(
+        clippy::result_large_err,
+        reason = "the registration refusal is the shared callback declaration error"
+    )]
     pub fn register_callback(
         &mut self,
         declaration: &super::provider_callbacks::CallbackDeclaration,
@@ -582,6 +586,10 @@ impl EvidenceLedgerSession {
     ///
     /// # Errors
     /// As [`Self::register_callback`].
+    #[allow(
+        clippy::result_large_err,
+        reason = "the registration refusal is the shared callback declaration error"
+    )]
     pub fn supersede_callback(
         &mut self,
         old: SourceId,
