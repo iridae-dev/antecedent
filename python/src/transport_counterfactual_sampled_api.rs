@@ -166,6 +166,34 @@ impl SampledCounterfactualTransportResultNative {
         let identity = self.wire.identity();
         (identity.premises_digest, identity.data_digest)
     }
+
+    /// Replay the sealed artifact, build the delta Wald interval and bind it to
+    /// its currently attesting coverage record, or refuse `cell_not_licensed`.
+    #[pyo3(signature=(*, memory_bytes=None, cancel=None))]
+    fn measure_interval(
+        &self,
+        py: Python<'_>,
+        memory_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<crate::measured_inference_api::NativeMeasuredInference> {
+        let bytes = self.wire.export().map_err(|e| {
+            let (code, message) = e.refusal();
+            io_refusal(code, message)
+        })?;
+        let identity = self.wire.identity();
+        let ctx = crate::measured_inference_api::context(0, memory_bytes, cancel);
+        crate::detach_catch(py, move || {
+            let measured = SampledCounterfactualTransportArtifactWire::measure(
+                &bytes,
+                &identity,
+                SampledCounterfactualTransportConsumeLimits::default(),
+                &ctx,
+            )
+            .map_err(error)?;
+            crate::measured_inference_api::check_cancelled(&ctx)?;
+            crate::measured_inference_api::NativeMeasuredInference::from_io(measured)
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------

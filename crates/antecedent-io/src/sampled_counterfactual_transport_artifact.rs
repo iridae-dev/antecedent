@@ -37,11 +37,11 @@ use std::sync::Arc;
 use antecedent_contract::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
 use antecedent_core::{ExecutionContext, IdentityDomain, RegimeId, SearchLimits, VariableId};
 use antecedent_estimate::counterfactual_transport_sampled::{
-    DatasetOverlap, OverlapDeclaration, SAMPLED_TRANSPORT_MAX_TABLE_CELLS,
-    SAMPLED_TRANSPORT_MAX_TABLES, SampledAxis, SampledCounterfactualTransportEstimate,
-    SampledRegimeCounts, SampledRegimeCountsParts, SampledTableKey, SampledTransportLimits,
-    SampledTransportRequest, SamplingDesign, UnseenCellRule,
-    estimate_sampled_counterfactual_transport,
+    DatasetOverlap, OverlapDeclaration, SAMPLED_TRANSPORT_INTERVAL_LEVEL,
+    SAMPLED_TRANSPORT_MAX_TABLE_CELLS, SAMPLED_TRANSPORT_MAX_TABLES, SampledAxis,
+    SampledCounterfactualTransportEstimate, SampledRegimeCounts, SampledRegimeCountsParts,
+    SampledTableKey, SampledTransportLimits, SampledTransportRequest, SamplingDesign,
+    UnseenCellRule, estimate_sampled_counterfactual_transport, sampled_transport_interval,
 };
 use antecedent_expr::ExactEvaluationLimits;
 use antecedent_identify::{
@@ -1097,6 +1097,111 @@ pub fn consume_sampled_counterfactual_transport(
             IoError::Refused { code, message }
         },
     )
+}
+
+// ---------------------------------------------------------------------------
+// Measured interval.
+// ---------------------------------------------------------------------------
+
+fn interval_not_measured(message: &str) -> IoError {
+    IoError::Refused {
+        code: antecedent_core::reason_code!("cell_not_licensed"),
+        message: format!("measured_interval.protocol_not_measured: {message}"),
+    }
+}
+
+impl SampledCounterfactualTransportArtifactWire {
+    /// Replay the original sampled artifact (re-deciding the derivation and
+    /// recomputing the estimate from its counts), build the delta Wald interval
+    /// and bind it to the currently attesting coverage record of exactly this
+    /// construction. The original artifact is unchanged and never carries an
+    /// interval.
+    ///
+    /// # Errors
+    /// Any replay refusal of the original artifact, an estimate outside the
+    /// measured design (level, smoothing, unseen cells, conditioning mass,
+    /// sampling design, shared datasets, unequal table totals), or absent,
+    /// stale or boundary evidence for the stored query and sample size.
+    pub fn measure(
+        bytes: &[u8],
+        expected: &SampledCounterfactualTransportExpectedIdentity,
+        limits: SampledCounterfactualTransportConsumeLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<crate::measured_inference::MeasuredInference, IoError> {
+        let consumed = consume_sampled_counterfactual_transport(bytes, expected, limits, ctx)?;
+        if consumed
+            .request
+            .tables
+            .iter()
+            .any(|table| !matches!(table.design(), SamplingDesign::IndependentUnits))
+        {
+            return Err(interval_not_measured(
+                "only independently drawn units were measured; stratified designs are not",
+            ));
+        }
+        if consumed.estimate.datasets.len() != consumed.request.tables.len() {
+            return Err(interval_not_measured(
+                "tables sharing one dataset were not part of the measured construction",
+            ));
+        }
+        let interval = sampled_transport_interval(
+            &consumed.derivation,
+            &consumed.estimate,
+            SAMPLED_TRANSPORT_INTERVAL_LEVEL,
+        )
+        .map_err(interval_not_measured)?;
+        let scope = serde_json::json!({
+            "validation_design": "finite_scm_discrete_counterfactual_transport",
+            "evidence_interpretation": "finite validation grid for the checked query and sample sizes; other queries, smoothed tables, unseen cells and sparse conditioning are not licensed",
+            "declared_model_assumptions": ["independent units within each table", "tables of distinct independent datasets", "stored derivation identifies the query"],
+            "sampling_assumptions_authenticated_from_rows": false,
+            "units_per_table": interval.basis.row_count,
+            "tables": consumed.request.tables.len(),
+            "unseen_rule": consumed.request.unseen_rule.name(),
+            "method": interval.method,
+            "level": interval.level,
+            "derivation_identity": consumed.estimate.derivation_identity,
+            "reported_scalar": "target_probability",
+        });
+        crate::measured_inference::authorize(
+            "sampled_counterfactual_transport",
+            bytes.to_vec(),
+            &consumed.wire.premises_digest,
+            &consumed.wire.data_digest,
+            scope,
+            vec![crate::measured_inference::ScalarExecution {
+                name: "target_probability".into(),
+                point: interval.point,
+                interval: (interval.lower, interval.upper),
+                basis: interval.basis.clone(),
+            }],
+        )
+    }
+
+    /// Consume a measured envelope by replaying its original sampled artifact
+    /// and re-resolving the interval against the current coverage records.
+    ///
+    /// # Errors
+    /// Any source, expected identity, protocol, evidence or scalar mismatch.
+    pub fn consume_measured(
+        bytes: &[u8],
+        expected: &crate::measured_inference::MeasuredExpectation,
+        limits: SampledCounterfactualTransportConsumeLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<crate::measured_inference::MeasuredInference, IoError> {
+        let wire = crate::measured_inference::decode(bytes, expected)?;
+        let measured = Self::measure(
+            &wire.source,
+            &SampledCounterfactualTransportExpectedIdentity {
+                premises_digest: Some(expected.premises_digest.clone()),
+                data_digest: Some(expected.data_digest.clone()),
+            },
+            limits,
+            ctx,
+        )?;
+        crate::measured_inference::compare_replay(&wire, &measured)?;
+        Ok(measured)
+    }
 }
 
 // ---------------------------------------------------------------------------

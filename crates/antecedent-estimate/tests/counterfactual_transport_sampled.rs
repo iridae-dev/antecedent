@@ -912,7 +912,7 @@ fn measure_sampled_transport_coverage(
     seed: u64,
     expected_id: &str,
 ) {
-    use antecedent_estimate::counterfactual_transport_sampled::sampled_transport_wald_interval_internal;
+    use antecedent_estimate::counterfactual_transport_sampled::sampled_transport_interval;
 
     let case = if case_name == COVERAGE_MEDIATION_CASE {
         coverage_mediation_case()
@@ -950,7 +950,7 @@ fn measure_sampled_transport_coverage(
         let ctx = ExecutionContext::for_tests(seed + replicate);
         derivation.replay_checked(&ctx).expect("the stored identified derivation replays");
         let result = estimate(&derivation, tables, UnseenCellRule::Refuse).ok()?;
-        let interval = sampled_transport_wald_interval_internal(&result, 0.95).ok()?;
+        let interval = sampled_transport_interval(&derivation, &result, 0.95).ok()?;
         Some((result, interval))
     });
     for result in results {

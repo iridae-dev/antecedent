@@ -65,6 +65,7 @@
 mod counts;
 mod envelope;
 mod inference;
+mod interval;
 mod overlap;
 
 use std::sync::Arc;
@@ -84,6 +85,11 @@ pub use counts::{
     UnseenCellRule,
 };
 pub use envelope::{STRUCTURAL_ENVELOPE_LABEL, StructuralEnvelope};
+pub use interval::{
+    SAMPLED_TRANSPORT_ESTIMATOR, SAMPLED_TRANSPORT_INTERVAL_LEVEL,
+    SAMPLED_TRANSPORT_INTERVAL_METHOD, SAMPLED_TRANSPORT_MIN_CONDITIONING_MASS,
+    SAMPLED_TRANSPORT_SE_KIND, SampledTransportInterval, sampled_transport_interval,
+};
 pub use overlap::{DatasetOverlap, OverlapDeclaration, OverlapPair};
 
 use counts::{LawFlavor, law_of, table_probabilities};

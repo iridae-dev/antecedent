@@ -432,3 +432,77 @@ fn the_ledger_declares_overlap_and_unknown_stays_unknown() {
     let error = run(declaration).unwrap_err();
     assert_eq!(refusal_code(&error), "route_not_supported", "{error:?}");
 }
+
+fn request_with_units(
+    case: &Case,
+    derivation: &CounterfactualTransportDerivation,
+    seed: u64,
+    units: u64,
+    rule: UnseenCellRule,
+) -> SampledTransportRequest {
+    let adapted = adapter::catalog(case);
+    let data = adapter::laws(case, &adapted);
+    let mut rng = Rng(seed);
+    let tables: Vec<SampledRegimeCounts> = data
+        .laws()
+        .iter()
+        .filter(|law| {
+            derivation
+                .cited
+                .iter()
+                .any(|c| c.regime == law.regime() && c.population.as_ref() == law.population())
+        })
+        .map(|law| table_of(law, multinomial(law.probabilities(), units, &mut rng)))
+        .collect();
+    SampledTransportRequest {
+        tables,
+        overlap: OverlapDeclaration::all_independent(),
+        unseen_rule: rule,
+        limits: SampledTransportLimits::default(),
+    }
+}
+
+fn measure_at(
+    units: u64,
+    rule: UnseenCellRule,
+) -> Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io::IoError> {
+    let case = case_named("transportable_latent_district");
+    let target = case.targets.iter().find(|t| t.label == "Y_{x1}=1").unwrap();
+    let derivation = derive(&case, target);
+    let request = request_with_units(&case, &derivation, 11, units, rule);
+    let ctx = ExecutionContext::for_tests(5);
+    let (wire, _) =
+        sampled_counterfactual_transport_artifact(&derivation, &request, &[], &ctx).unwrap();
+    Wire::measure(&wire.export().unwrap(), &wire.identity(), ConsumeLimits::default(), &ctx)
+}
+
+#[test]
+fn a_measured_construction_reports_an_interval_bound_to_its_coverage_record() {
+    let measured = measure_at(1_000, UnseenCellRule::Refuse).unwrap();
+    let scalar = &measured.report().scalars[0];
+    assert_eq!(scalar.name, "target_probability");
+    assert_eq!(scalar.calibration.status, "calibrated");
+    assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper);
+    // A fresh consumer replays the original artifact and re-resolves the record.
+    let loaded = antecedent_io::measured_inference::MeasuredInference::consume(
+        measured.export(),
+        measured.expectation(),
+        &ExecutionContext::for_tests(77),
+    )
+    .unwrap();
+    assert_eq!(loaded.export(), measured.export());
+}
+
+#[test]
+fn an_unmeasured_sample_size_or_unseen_rule_refuses_cell_not_licensed() {
+    for outcome in [
+        measure_at(20_000, UnseenCellRule::Refuse),
+        measure_at(1_000, UnseenCellRule::AdditiveSmoothing { pseudo_count: 0.5 }),
+    ] {
+        let error = outcome.unwrap_err();
+        assert!(
+            format!("{error:?}").contains("cell_not_licensed"),
+            "an interval outside the measured scope is cell_not_licensed: {error:?}"
+        );
+    }
+}
