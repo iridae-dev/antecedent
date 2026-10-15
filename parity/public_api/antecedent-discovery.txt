@@ -27,6 +27,7 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selectiv
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::SelectiveCi [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::StaticDiscoveryContract [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::TemporalDiscoveryContract [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::reuse::SplitRows [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_discovery::CiScreenedPosterior [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_discovery::Fci [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_discovery::Ges [auto]
@@ -42,6 +43,7 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::SelectiveCi [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::StaticDiscoveryContract [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::TemporalDiscoveryContract [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::reuse::SplitRows [auto]
 impl antecedent_discovery::GraphPosteriorEngine for antecedent_discovery::CiScreenedPosterior
 impl antecedent_discovery::GraphPosteriorEngine for antecedent_discovery::ExactDagPosterior
 impl antecedent_discovery::GraphPosteriorEngine for antecedent_discovery::OrderMcmc
@@ -144,6 +146,12 @@ impl core::clone::Clone for antecedent_discovery::selective::TemporalAlgorithm
 impl core::clone::Clone for antecedent_discovery::selective::TemporalDiscoveryContract
 impl core::clone::Clone for antecedent_discovery::selective::UnresolvedEdge
 impl core::clone::Clone for antecedent_discovery::selective::WorkUnits
+impl core::clone::Clone for antecedent_discovery::selective::populations::PerPopulationReport
+impl core::clone::Clone for antecedent_discovery::selective::populations::PopulationDiscovery
+impl core::clone::Clone for antecedent_discovery::selective::populations::PopulationEdgeComparison
+impl core::clone::Clone for antecedent_discovery::selective::reuse::SampleSplitReceipt
+impl core::clone::Clone for antecedent_discovery::selective::reuse::SplitRows
+impl core::clone::Clone for antecedent_discovery::selective::reuse::SplitRule
 impl core::cmp::Eq for antecedent_discovery::CiMaskType
 impl core::cmp::Eq for antecedent_discovery::CiSoftWeight
 impl core::cmp::Eq for antecedent_discovery::ContextKind
@@ -180,6 +188,7 @@ impl core::cmp::Eq for antecedent_discovery::selective::StructureNode
 impl core::cmp::Eq for antecedent_discovery::selective::TemporalAlgorithm
 impl core::cmp::Eq for antecedent_discovery::selective::UnresolvedEdge
 impl core::cmp::Eq for antecedent_discovery::selective::WorkUnits
+impl core::cmp::Eq for antecedent_discovery::selective::populations::PopulationEdgeComparison
 impl core::cmp::Ord for antecedent_discovery::LaggedLink
 impl core::cmp::Ord for antecedent_discovery::selective::DiscoveryStage
 impl core::cmp::Ord for antecedent_discovery::selective::Mark
@@ -225,6 +234,9 @@ impl core::cmp::PartialEq for antecedent_discovery::selective::StructureNode
 impl core::cmp::PartialEq for antecedent_discovery::selective::TemporalAlgorithm
 impl core::cmp::PartialEq for antecedent_discovery::selective::UnresolvedEdge
 impl core::cmp::PartialEq for antecedent_discovery::selective::WorkUnits
+impl core::cmp::PartialEq for antecedent_discovery::selective::populations::PopulationEdgeComparison
+impl core::cmp::PartialEq for antecedent_discovery::selective::reuse::SampleSplitReceipt
+impl core::cmp::PartialEq for antecedent_discovery::selective::reuse::SplitRule
 impl core::cmp::PartialOrd for antecedent_discovery::LaggedLink
 impl core::cmp::PartialOrd for antecedent_discovery::selective::DiscoveryStage
 impl core::cmp::PartialOrd for antecedent_discovery::selective::Mark
@@ -288,6 +300,7 @@ impl core::default::Default for antecedent_discovery::selective::StatisticStore
 impl core::default::Default for antecedent_discovery::selective::StoreCounters
 impl core::default::Default for antecedent_discovery::selective::TemporalSelectiveDiscovery
 impl core::default::Default for antecedent_discovery::selective::WorkUnits
+impl core::default::Default for antecedent_discovery::selective::populations::PerPopulationDiscovery
 impl core::error::Error for antecedent_discovery::DiscoveryError
 impl core::error::Error for antecedent_discovery::OrientationError
 impl core::error::Error for antecedent_discovery::selective::SelectiveDiscoveryError
@@ -385,6 +398,13 @@ impl core::fmt::Debug for antecedent_discovery::selective::TemporalDiscoveryCont
 impl core::fmt::Debug for antecedent_discovery::selective::TemporalSelectiveDiscovery
 impl core::fmt::Debug for antecedent_discovery::selective::UnresolvedEdge
 impl core::fmt::Debug for antecedent_discovery::selective::WorkUnits
+impl core::fmt::Debug for antecedent_discovery::selective::populations::PerPopulationDiscovery
+impl core::fmt::Debug for antecedent_discovery::selective::populations::PerPopulationReport
+impl core::fmt::Debug for antecedent_discovery::selective::populations::PopulationDiscovery
+impl core::fmt::Debug for antecedent_discovery::selective::populations::PopulationEdgeComparison
+impl core::fmt::Debug for antecedent_discovery::selective::reuse::SampleSplitReceipt
+impl core::fmt::Debug for antecedent_discovery::selective::reuse::SplitRows
+impl core::fmt::Debug for antecedent_discovery::selective::reuse::SplitRule
 impl core::fmt::Display for antecedent_discovery::DiscoveryError
 impl core::fmt::Display for antecedent_discovery::OrientationError
 impl core::fmt::Display for antecedent_discovery::selective::DiscoveredStructureRefusal
@@ -526,6 +546,13 @@ impl core::marker::Freeze for antecedent_discovery::selective::TemporalAlgorithm
 impl core::marker::Freeze for antecedent_discovery::selective::TemporalDiscoveryContract [auto]
 impl core::marker::Freeze for antecedent_discovery::selective::UnresolvedEdge [auto]
 impl core::marker::Freeze for antecedent_discovery::selective::WorkUnits [auto]
+impl core::marker::Freeze for antecedent_discovery::selective::populations::PerPopulationDiscovery [auto]
+impl core::marker::Freeze for antecedent_discovery::selective::populations::PerPopulationReport [auto]
+impl core::marker::Freeze for antecedent_discovery::selective::populations::PopulationDiscovery [auto]
+impl core::marker::Freeze for antecedent_discovery::selective::populations::PopulationEdgeComparison [auto]
+impl core::marker::Freeze for antecedent_discovery::selective::reuse::SampleSplitReceipt [auto]
+impl core::marker::Freeze for antecedent_discovery::selective::reuse::SplitRows [auto]
+impl core::marker::Freeze for antecedent_discovery::selective::reuse::SplitRule [auto]
 impl core::marker::Send for antecedent_discovery::AlgorithmRecord [auto]
 impl core::marker::Send for antecedent_discovery::CandidateCatalog [auto]
 impl core::marker::Send for antecedent_discovery::CiMaskType [auto]
@@ -620,6 +647,13 @@ impl core::marker::Send for antecedent_discovery::selective::TemporalDiscoveryCo
 impl core::marker::Send for antecedent_discovery::selective::TemporalSelectiveDiscovery [auto]
 impl core::marker::Send for antecedent_discovery::selective::UnresolvedEdge [auto]
 impl core::marker::Send for antecedent_discovery::selective::WorkUnits [auto]
+impl core::marker::Send for antecedent_discovery::selective::populations::PerPopulationDiscovery [auto]
+impl core::marker::Send for antecedent_discovery::selective::populations::PerPopulationReport [auto]
+impl core::marker::Send for antecedent_discovery::selective::populations::PopulationDiscovery [auto]
+impl core::marker::Send for antecedent_discovery::selective::populations::PopulationEdgeComparison [auto]
+impl core::marker::Send for antecedent_discovery::selective::reuse::SampleSplitReceipt [auto]
+impl core::marker::Send for antecedent_discovery::selective::reuse::SplitRows [auto]
+impl core::marker::Send for antecedent_discovery::selective::reuse::SplitRule [auto]
 impl core::marker::StructuralPartialEq for antecedent_discovery::CiMaskType
 impl core::marker::StructuralPartialEq for antecedent_discovery::CiSoftWeight
 impl core::marker::StructuralPartialEq for antecedent_discovery::ContextKind
@@ -659,6 +693,9 @@ impl core::marker::StructuralPartialEq for antecedent_discovery::selective::Stru
 impl core::marker::StructuralPartialEq for antecedent_discovery::selective::TemporalAlgorithm
 impl core::marker::StructuralPartialEq for antecedent_discovery::selective::UnresolvedEdge
 impl core::marker::StructuralPartialEq for antecedent_discovery::selective::WorkUnits
+impl core::marker::StructuralPartialEq for antecedent_discovery::selective::populations::PopulationEdgeComparison
+impl core::marker::StructuralPartialEq for antecedent_discovery::selective::reuse::SampleSplitReceipt
+impl core::marker::StructuralPartialEq for antecedent_discovery::selective::reuse::SplitRule
 impl core::marker::Sync for antecedent_discovery::AlgorithmRecord [auto]
 impl core::marker::Sync for antecedent_discovery::CandidateCatalog [auto]
 impl core::marker::Sync for antecedent_discovery::CiMaskType [auto]
@@ -753,6 +790,13 @@ impl core::marker::Sync for antecedent_discovery::selective::TemporalDiscoveryCo
 impl core::marker::Sync for antecedent_discovery::selective::TemporalSelectiveDiscovery [auto]
 impl core::marker::Sync for antecedent_discovery::selective::UnresolvedEdge [auto]
 impl core::marker::Sync for antecedent_discovery::selective::WorkUnits [auto]
+impl core::marker::Sync for antecedent_discovery::selective::populations::PerPopulationDiscovery [auto]
+impl core::marker::Sync for antecedent_discovery::selective::populations::PerPopulationReport [auto]
+impl core::marker::Sync for antecedent_discovery::selective::populations::PopulationDiscovery [auto]
+impl core::marker::Sync for antecedent_discovery::selective::populations::PopulationEdgeComparison [auto]
+impl core::marker::Sync for antecedent_discovery::selective::reuse::SampleSplitReceipt [auto]
+impl core::marker::Sync for antecedent_discovery::selective::reuse::SplitRows [auto]
+impl core::marker::Sync for antecedent_discovery::selective::reuse::SplitRule [auto]
 impl core::marker::Unpin for antecedent_discovery::AlgorithmRecord [auto]
 impl core::marker::Unpin for antecedent_discovery::CandidateCatalog [auto]
 impl core::marker::Unpin for antecedent_discovery::CiMaskType [auto]
@@ -847,6 +891,13 @@ impl core::marker::Unpin for antecedent_discovery::selective::TemporalDiscoveryC
 impl core::marker::Unpin for antecedent_discovery::selective::TemporalSelectiveDiscovery [auto]
 impl core::marker::Unpin for antecedent_discovery::selective::UnresolvedEdge [auto]
 impl core::marker::Unpin for antecedent_discovery::selective::WorkUnits [auto]
+impl core::marker::Unpin for antecedent_discovery::selective::populations::PerPopulationDiscovery [auto]
+impl core::marker::Unpin for antecedent_discovery::selective::populations::PerPopulationReport [auto]
+impl core::marker::Unpin for antecedent_discovery::selective::populations::PopulationDiscovery [auto]
+impl core::marker::Unpin for antecedent_discovery::selective::populations::PopulationEdgeComparison [auto]
+impl core::marker::Unpin for antecedent_discovery::selective::reuse::SampleSplitReceipt [auto]
+impl core::marker::Unpin for antecedent_discovery::selective::reuse::SplitRows [auto]
+impl core::marker::Unpin for antecedent_discovery::selective::reuse::SplitRule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::AlgorithmRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::CandidateCatalog [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::CiMaskType [auto]
@@ -926,6 +977,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::TemporalSelectiveDiscovery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::UnresolvedEdge [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::WorkUnits [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::populations::PerPopulationDiscovery [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::populations::PerPopulationReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::populations::PopulationDiscovery [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::populations::PopulationEdgeComparison [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::reuse::SampleSplitReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::reuse::SplitRule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::AlgorithmRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::CandidateCatalog [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::CiMaskType [auto]
@@ -1005,6 +1062,21 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::T
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::TemporalSelectiveDiscovery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::UnresolvedEdge [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::WorkUnits [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::populations::PerPopulationDiscovery [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::populations::PerPopulationReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::populations::PopulationDiscovery [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::populations::PopulationEdgeComparison [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::reuse::SampleSplitReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::reuse::SplitRule [auto]
+impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::populations::PopulationRows<'a> [auto]
+impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::populations::PopulationRows<'a> [auto]
+impl<'a> core::clone::Clone for antecedent_discovery::selective::populations::PopulationRows<'a>
+impl<'a> core::fmt::Debug for antecedent_discovery::selective::populations::PopulationRows<'a>
+impl<'a> core::marker::Copy for antecedent_discovery::selective::populations::PopulationRows<'a>
+impl<'a> core::marker::Freeze for antecedent_discovery::selective::populations::PopulationRows<'a> [auto]
+impl<'a> core::marker::Send for antecedent_discovery::selective::populations::PopulationRows<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_discovery::selective::populations::PopulationRows<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_discovery::selective::populations::PopulationRows<'a> [auto]
 impl<G, R> core::marker::Freeze for antecedent_discovery::DiscoveryResult<G, R> where G: core::marker::Freeze, R: core::marker::Freeze [auto]
 impl<G, R> core::marker::Send for antecedent_discovery::DiscoveryResult<G, R> where G: core::marker::Send, R: core::marker::Send [auto]
 impl<G, R> core::marker::Sync for antecedent_discovery::DiscoveryResult<G, R> where G: core::marker::Sync, R: core::marker::Sync [auto]
@@ -1050,6 +1122,7 @@ pub enum antecedent_discovery::selective::StaticAlgorithm
 pub enum antecedent_discovery::selective::StoreMode
 pub enum antecedent_discovery::selective::StructureClass
 pub enum antecedent_discovery::selective::TemporalAlgorithm
+pub enum antecedent_discovery::selective::reuse::SplitRule
 pub field antecedent_discovery::AlgorithmRecord::config: alloc::sync::Arc<str>
 pub field antecedent_discovery::AlgorithmRecord::id: alloc::sync::Arc<str>
 pub field antecedent_discovery::CiScreenedPosterior::ci: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>
@@ -1335,6 +1408,35 @@ pub field antecedent_discovery::selective::WorkUnits::orientation_runs: u64
 pub field antecedent_discovery::selective::WorkUnits::orientations_applied: u64
 pub field antecedent_discovery::selective::WorkUnits::score_evaluations: u64
 pub field antecedent_discovery::selective::WorkUnits::search_passes: u64
+pub field antecedent_discovery::selective::populations::PerPopulationReport::edges: alloc::vec::Vec<antecedent_discovery::selective::populations::PopulationEdgeComparison>
+pub field antecedent_discovery::selective::populations::PerPopulationReport::identity: antecedent_discovery::selective::Digest
+pub field antecedent_discovery::selective::populations::PerPopulationReport::populations: alloc::vec::Vec<antecedent_discovery::selective::populations::PopulationDiscovery>
+pub field antecedent_discovery::selective::populations::PopulationDiscovery::data_identity: antecedent_discovery::selective::DataIdentity
+pub field antecedent_discovery::selective::populations::PopulationDiscovery::population: alloc::string::String
+pub field antecedent_discovery::selective::populations::PopulationDiscovery::receipts_identity: core::option::Option<antecedent_discovery::selective::Digest>
+pub field antecedent_discovery::selective::populations::PopulationDiscovery::report: antecedent_discovery::selective::SelectiveRunReport
+pub field antecedent_discovery::selective::populations::PopulationDiscovery::result_identity: antecedent_discovery::selective::Digest
+pub field antecedent_discovery::selective::populations::PopulationDiscovery::retained_statistics: usize
+pub field antecedent_discovery::selective::populations::PopulationDiscovery::search_incomplete: bool
+pub field antecedent_discovery::selective::populations::PopulationDiscovery::structure_identity: antecedent_discovery::selective::Digest
+pub field antecedent_discovery::selective::populations::PopulationDiscovery::unresolved_edges: usize
+pub field antecedent_discovery::selective::populations::PopulationEdgeComparison::a: antecedent_discovery::selective::StructureNode
+pub field antecedent_discovery::selective::populations::PopulationEdgeComparison::b: antecedent_discovery::selective::StructureNode
+pub field antecedent_discovery::selective::populations::PopulationEdgeComparison::marks: alloc::vec::Vec<(alloc::string::String, core::option::Option<(antecedent_discovery::selective::Mark, antecedent_discovery::selective::Mark)>)>
+pub field antecedent_discovery::selective::populations::PopulationRows::data: &'a antecedent_data::dataset::TabularData
+pub field antecedent_discovery::selective::populations::PopulationRows::population: &'a str
+pub field antecedent_discovery::selective::reuse::SampleSplitReceipt::analysis_data: antecedent_discovery::selective::DataIdentity
+pub field antecedent_discovery::selective::reuse::SampleSplitReceipt::analysis_rows_identity: antecedent_discovery::selective::Digest
+pub field antecedent_discovery::selective::reuse::SampleSplitReceipt::discovery_data: antecedent_discovery::selective::DataIdentity
+pub field antecedent_discovery::selective::reuse::SampleSplitReceipt::discovery_rows_identity: antecedent_discovery::selective::Digest
+pub field antecedent_discovery::selective::reuse::SampleSplitReceipt::identity: antecedent_discovery::selective::Digest
+pub field antecedent_discovery::selective::reuse::SampleSplitReceipt::n_analysis: usize
+pub field antecedent_discovery::selective::reuse::SampleSplitReceipt::n_discovery: usize
+pub field antecedent_discovery::selective::reuse::SampleSplitReceipt::n_rows: usize
+pub field antecedent_discovery::selective::reuse::SampleSplitReceipt::rule: antecedent_discovery::selective::reuse::SplitRule
+pub field antecedent_discovery::selective::reuse::SplitRows::analysis: antecedent_data::dataset::TabularData
+pub field antecedent_discovery::selective::reuse::SplitRows::discovery: antecedent_data::dataset::TabularData
+pub field antecedent_discovery::selective::reuse::SplitRows::receipt: antecedent_discovery::selective::reuse::SampleSplitReceipt
 pub fn <antecedent_discovery::CandidateCatalog>::const fn is_empty(&self) -> bool
 pub fn <antecedent_discovery::CandidateCatalog>::const fn len(&self) -> usize
 pub fn <antecedent_discovery::CandidateCatalog>::fn index_of(&self, link: antecedent_discovery::LaggedLink) -> core::option::Option<usize>
@@ -1605,6 +1707,15 @@ pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn resume(
 pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn retained_statistics(&self) -> usize
 pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn run(&mut self, contract: &antecedent_discovery::selective::TemporalDiscoveryContract, data: &antecedent_data::dataset::TimeSeriesData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::selective::SelectiveRunReport, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::WorkUnits>::const fn is_pure_reuse(&self) -> bool
+pub fn <antecedent_discovery::selective::populations::PerPopulationDiscovery>::const fn report(&self) -> core::option::Option<&antecedent_discovery::selective::populations::PerPopulationReport>
+pub fn <antecedent_discovery::selective::populations::PerPopulationDiscovery>::fn adapter(&self, population: &str) -> core::option::Option<&antecedent_discovery::selective::StaticSelectiveDiscovery>
+pub fn <antecedent_discovery::selective::populations::PerPopulationDiscovery>::fn new() -> Self
+pub fn <antecedent_discovery::selective::populations::PerPopulationDiscovery>::fn run(&mut self, contract: &antecedent_discovery::selective::StaticDiscoveryContract, populations: &[antecedent_discovery::selective::populations::PopulationRows<'_>], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<&antecedent_discovery::selective::populations::PerPopulationReport, antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::populations::PerPopulationReport>::fn differing_edges(&self) -> alloc::vec::Vec<&antecedent_discovery::selective::populations::PopulationEdgeComparison>
+pub fn <antecedent_discovery::selective::populations::PopulationEdgeComparison>::fn agrees(&self) -> bool
+pub fn <antecedent_discovery::selective::reuse::SampleSplitReceipt>::fn check_analysis_table(&self, table: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<(), antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::reuse::SampleSplitReceipt>::fn verify(&self) -> core::result::Result<(), antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::reuse::SplitRule>::fn assign(&self, n_rows: usize) -> core::result::Result<(alloc::vec::Vec<usize>, alloc::vec::Vec<usize>), antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn antecedent_discovery::adjacency_mask_from_admg(admg: &antecedent_graph::admg::Admg) -> core::result::Result<u64, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::adjacency_mask_from_cpdag(cpdag: &antecedent_graph::cpdag::Cpdag) -> core::result::Result<u64, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::adjacency_masks_from_pag(pag: &antecedent_graph::pag::Pag) -> core::result::Result<(u64, u64), antecedent_discovery::DiscoveryError>
@@ -1641,6 +1752,7 @@ pub fn antecedent_discovery::selective::identity::static_data_identity(data: &an
 pub fn antecedent_discovery::selective::identity::temporal_data_identity(data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_discovery::selective::DataIdentity, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::selective::observe_orientation<T>(f: impl core::ops::function::FnOnce() -> T) -> (T, antecedent_discovery::selective::OrientationWork)
 pub fn antecedent_discovery::selective::request_selection_diagram(outcome: &antecedent_discovery::selective::DiscoveryOutcome, selection_targets: &[antecedent_core::ids::VariableId]) -> core::result::Result<core::convert::Infallible, antecedent_discovery::selective::DiscoveredStructureRefusal>
+pub fn antecedent_discovery::selective::reuse::split_rows(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], rule: antecedent_discovery::selective::reuse::SplitRule) -> core::result::Result<antecedent_discovery::selective::reuse::SplitRows, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn antecedent_discovery::weakly_minimal::make_sepset_weakly_minimal(engine: &antecedent_discovery::PcmciEngine, frame: &antecedent_data::lagged_frame::LaggedFrame, link: antecedent_discovery::LaggedLink, z: &[(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)], ancs: &[(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)>, antecedent_discovery::DiscoveryError>
 pub mod antecedent_discovery::ci
 pub mod antecedent_discovery::ci_screened_posterior
@@ -1680,8 +1792,10 @@ pub mod antecedent_discovery::selective::claims
 pub mod antecedent_discovery::selective::contract
 pub mod antecedent_discovery::selective::identity
 pub mod antecedent_discovery::selective::outcome
+pub mod antecedent_discovery::selective::populations
 pub mod antecedent_discovery::selective::portable
 pub mod antecedent_discovery::selective::refusal
+pub mod antecedent_discovery::selective::reuse
 pub mod antecedent_discovery::selective::stages
 pub mod antecedent_discovery::selective::store
 pub mod antecedent_discovery::selective::structure
@@ -1779,6 +1893,14 @@ pub struct antecedent_discovery::selective::TemporalSelectiveDiscovery
 pub struct antecedent_discovery::selective::TemporalSelectiveDiscovery has private fields
 pub struct antecedent_discovery::selective::UnresolvedEdge
 pub struct antecedent_discovery::selective::WorkUnits
+pub struct antecedent_discovery::selective::populations::PerPopulationDiscovery
+pub struct antecedent_discovery::selective::populations::PerPopulationDiscovery has private fields
+pub struct antecedent_discovery::selective::populations::PerPopulationReport
+pub struct antecedent_discovery::selective::populations::PopulationDiscovery
+pub struct antecedent_discovery::selective::populations::PopulationEdgeComparison
+pub struct antecedent_discovery::selective::populations::PopulationRows<'a>
+pub struct antecedent_discovery::selective::reuse::SampleSplitReceipt
+pub struct antecedent_discovery::selective::reuse::SplitRows
 pub trait antecedent_discovery::GraphPosteriorEngine
 pub trait antecedent_discovery::LpcmciOrientationRule
 pub trait antecedent_discovery::OrientationRule<G: antecedent_discovery::orientation::CpdagOps>
@@ -2060,3 +2182,5 @@ pub variant antecedent_discovery::selective::StructureClass::TemporalCpdag
 pub variant antecedent_discovery::selective::StructureClass::TemporalDag
 pub variant antecedent_discovery::selective::TemporalAlgorithm::Pcmci
 pub variant antecedent_discovery::selective::TemporalAlgorithm::PcmciPlus
+pub variant antecedent_discovery::selective::reuse::SplitRule::Explicit { discovery_rows: alloc::vec::Vec<usize> }
+pub variant antecedent_discovery::selective::reuse::SplitRule::SeededPermutation { seed: u64, discovery_fraction: f64 }

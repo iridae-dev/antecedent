@@ -383,12 +383,6 @@ status = "internal"
 reason = "standing builder for the facade transported routes; Python states Calibration and Node directly"
 
 [[entry]]
-rust = "antecedent::analysis::composition_verification::query_invalidated"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
 rust = "antecedent::analysis::composition_verification::query_revalidation"
 kind = "fn"
 status = "internal"
@@ -650,7 +644,7 @@ status = "bound"
 python = "antecedent.interface_contract.inspect_interface_contract_artifact"
 
 [[entry]]
-rust = "antecedent::analysis::interface_contract::check_interface_composition_with_ledger"
+rust = "antecedent::analysis::check_interface_composition_with_ledger"
 kind = "fn"
 status = "bound"
 python = "antecedent.interface_contract.check_composition_with_ledger"
@@ -752,13 +746,13 @@ python = "antecedent.joint_law_propagation.PropagationClaim.check_composed_inter
 reason = "tested in python/tests/test_composed_uncertainty.py"
 
 [[entry]]
-rust = "antecedent::analysis::joint_law_propagation::claim_from_artifact"
+rust = "antecedent::analysis::claim_from_artifact"
 kind = "fn"
 status = "bound"
 python = "native:python/src/joint_law_propagation_api.rs"
 
 [[entry]]
-rust = "antecedent::analysis::joint_law_propagation::input_alignment"
+rust = "antecedent::analysis::input_alignment"
 kind = "fn"
 status = "internal"
 reason = "the mapping from an artifact alignment to the rule input alignment, applied inside PropagationDraws.from_artifact_column and the aligned_* routes; no separate call"
@@ -2382,3 +2376,15 @@ rust = "antecedent::counterfactual_id::PreparedCounterfactualId"
 kind = "type"
 status = "bound"
 python = "antecedent.counterfactual_id.PreparedEffectOnTreated"
+[[entry]]
+rust = "antecedent::analysis::inverse_sources::evaluate"
+kind = "fn"
+status = "bound"
+python = "native:python/src/forward_source_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::inverse_sources::seal"
+kind = "fn"
+status = "bound"
+python = "native:python/src/forward_source_api.rs"
+

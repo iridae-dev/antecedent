@@ -51,6 +51,12 @@ impl core::clone::Clone for antecedent_counterfactual::selective::WorldAtom
 impl core::clone::Clone for antecedent_counterfactual::selective::WorldRoute
 impl core::clone::Clone for antecedent_counterfactual::selective::finite_scm::Posterior
 impl core::clone::Clone for antecedent_counterfactual::selective::finite_scm::WorldPlan
+impl core::clone::Clone for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount
+impl core::clone::Clone for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment
+impl core::clone::Clone for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+impl core::clone::Clone for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling
+impl core::clone::Clone for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread
+impl core::clone::Clone for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty
 impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory
 impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::HistoryId
 impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::NamedActionHistory
@@ -116,6 +122,8 @@ impl core::cmp::Eq for antecedent_counterfactual::selective::StageStatus
 impl core::cmp::Eq for antecedent_counterfactual::selective::WorkCounters
 impl core::cmp::Eq for antecedent_counterfactual::selective::WorldAtom
 impl core::cmp::Eq for antecedent_counterfactual::selective::WorldRoute
+impl core::cmp::Eq for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+impl core::cmp::Eq for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling
 impl core::cmp::Eq for antecedent_counterfactual::temporal_cross_world::HistoryId
 impl core::cmp::Eq for antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt
 impl core::cmp::Eq for antecedent_counterfactual::temporal_cross_world::SnapshotId
@@ -143,6 +151,7 @@ impl core::cmp::Ord for antecedent_counterfactual::selective::InterventionKind
 impl core::cmp::Ord for antecedent_counterfactual::selective::ModelClass
 impl core::cmp::Ord for antecedent_counterfactual::selective::PopulationKind
 impl core::cmp::Ord for antecedent_counterfactual::selective::QuantityClass
+impl core::cmp::Ord for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
 impl core::cmp::Ord for antecedent_counterfactual::temporal_cross_world::HistoryId
 impl core::cmp::Ord for antecedent_counterfactual::temporal_cross_world::SnapshotId
 impl core::cmp::Ord for antecedent_counterfactual::temporal_cross_world::TemporalNode
@@ -187,6 +196,12 @@ impl core::cmp::PartialEq for antecedent_counterfactual::selective::WorkCounters
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::WorldAtom
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::WorldRoute
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::finite_scm::Posterior
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty
 impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory
 impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::HistoryId
 impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::NamedActionHistory
@@ -233,6 +248,7 @@ impl core::cmp::PartialOrd for antecedent_counterfactual::selective::Interventio
 impl core::cmp::PartialOrd for antecedent_counterfactual::selective::ModelClass
 impl core::cmp::PartialOrd for antecedent_counterfactual::selective::PopulationKind
 impl core::cmp::PartialOrd for antecedent_counterfactual::selective::QuantityClass
+impl core::cmp::PartialOrd for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
 impl core::cmp::PartialOrd for antecedent_counterfactual::temporal_cross_world::HistoryId
 impl core::cmp::PartialOrd for antecedent_counterfactual::temporal_cross_world::SnapshotId
 impl core::cmp::PartialOrd for antecedent_counterfactual::temporal_cross_world::TemporalNode
@@ -301,6 +317,12 @@ impl core::fmt::Debug for antecedent_counterfactual::selective::WorldAtom
 impl core::fmt::Debug for antecedent_counterfactual::selective::WorldRoute
 impl core::fmt::Debug for antecedent_counterfactual::selective::finite_scm::Posterior
 impl core::fmt::Debug for antecedent_counterfactual::selective::finite_scm::WorldPlan
+impl core::fmt::Debug for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount
+impl core::fmt::Debug for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment
+impl core::fmt::Debug for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+impl core::fmt::Debug for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling
+impl core::fmt::Debug for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread
+impl core::fmt::Debug for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty
 impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory
 impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::HistoryId
 impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::NamedActionHistory
@@ -352,6 +374,7 @@ impl core::hash::Hash for antecedent_counterfactual::selective::InterventionKind
 impl core::hash::Hash for antecedent_counterfactual::selective::ModelClass
 impl core::hash::Hash for antecedent_counterfactual::selective::PopulationKind
 impl core::hash::Hash for antecedent_counterfactual::selective::QuantityClass
+impl core::hash::Hash for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
 impl core::hash::Hash for antecedent_counterfactual::temporal_cross_world::HistoryId
 impl core::hash::Hash for antecedent_counterfactual::temporal_cross_world::SnapshotId
 impl core::hash::Hash for antecedent_counterfactual::temporal_cross_world::TemporalNode
@@ -379,6 +402,10 @@ impl core::marker::Copy for antecedent_counterfactual::selective::StageStatus
 impl core::marker::Copy for antecedent_counterfactual::selective::WorkCounters
 impl core::marker::Copy for antecedent_counterfactual::selective::WorldAtom
 impl core::marker::Copy for antecedent_counterfactual::selective::WorldRoute
+impl core::marker::Copy for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount
+impl core::marker::Copy for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment
+impl core::marker::Copy for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+impl core::marker::Copy for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling
 impl core::marker::Copy for antecedent_counterfactual::temporal_cross_world::TemporalNode
 impl core::marker::Copy for antecedent_counterfactual::transported_gate::PopulationRole
 impl core::marker::Copy for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
@@ -431,6 +458,12 @@ impl core::marker::Freeze for antecedent_counterfactual::selective::WorldAtom [a
 impl core::marker::Freeze for antecedent_counterfactual::selective::WorldRoute [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::finite_scm::Posterior [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::finite_scm::WorldPlan [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty [auto]
 impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory [auto]
 impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::HistoryId [auto]
 impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::NamedActionHistory [auto]
@@ -514,6 +547,12 @@ impl core::marker::Send for antecedent_counterfactual::selective::WorldAtom [aut
 impl core::marker::Send for antecedent_counterfactual::selective::WorldRoute [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::finite_scm::Posterior [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::finite_scm::WorldPlan [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty [auto]
 impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory [auto]
 impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::HistoryId [auto]
 impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::NamedActionHistory [auto]
@@ -587,6 +626,12 @@ impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective:
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::WorldAtom
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::WorldRoute
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::finite_scm::Posterior
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::HistoryId
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::NamedActionHistory
@@ -670,6 +715,12 @@ impl core::marker::Sync for antecedent_counterfactual::selective::WorldAtom [aut
 impl core::marker::Sync for antecedent_counterfactual::selective::WorldRoute [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::finite_scm::Posterior [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::finite_scm::WorldPlan [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty [auto]
 impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory [auto]
 impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::HistoryId [auto]
 impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::NamedActionHistory [auto]
@@ -753,6 +804,12 @@ impl core::marker::Unpin for antecedent_counterfactual::selective::WorldAtom [au
 impl core::marker::Unpin for antecedent_counterfactual::selective::WorldRoute [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::finite_scm::Posterior [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::finite_scm::WorldPlan [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty [auto]
 impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory [auto]
 impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::HistoryId [auto]
 impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::NamedActionHistory [auto]
@@ -835,6 +892,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::sele
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::WorldRoute [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::finite_scm::Posterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::finite_scm::WorldPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::HistoryId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::NamedActionHistory [auto]
@@ -917,6 +980,12 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selecti
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::WorldRoute [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::finite_scm::Posterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::finite_scm::WorldPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::HistoryId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::NamedActionHistory [auto]
@@ -979,6 +1048,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::Nes
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::finite_scm::CompiledScm<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput<'a> [auto]
 pub const <antecedent_counterfactual::selective::ExecutionStage>::ALL: [antecedent_counterfactual::selective::ExecutionStage; 5]
+pub const <antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource>::ALL: [antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource; 4]
 pub const <antecedent_counterfactual::temporal_cross_world::TemporalNode>::ALL: [antecedent_counterfactual::temporal_cross_world::TemporalNode; 5]
 pub const antecedent_counterfactual::RANK_PRESERVING_ASSUMPTION: &str
 pub const antecedent_counterfactual::VERSION: &str
@@ -993,6 +1063,7 @@ pub const antecedent_counterfactual::selective::finite_scm::MAX_VARIABLES: usize
 pub const antecedent_counterfactual::selective::finite_scm::MAX_WORLDS: usize
 pub const antecedent_counterfactual::selective::refusal::EXECUTE_STAGE: &str
 pub const antecedent_counterfactual::selective::stages::PURPOSE_POSTERIOR_STATE: &str
+pub const antecedent_counterfactual::selective::whole_path_uncertainty::WHOLE_PATH_UNCERTAINTY_VERSION: u32
 pub const antecedent_counterfactual::temporal_cross_world::MAX_HORIZON: usize
 pub const antecedent_counterfactual::temporal_cross_world::MAX_UNITS: usize
 pub const antecedent_counterfactual::temporal_cross_world::MAX_WORLDS: usize
@@ -1014,6 +1085,9 @@ pub enum antecedent_counterfactual::selective::NoiseCoupling
 pub enum antecedent_counterfactual::selective::PopulationKind
 pub enum antecedent_counterfactual::selective::QuantityClass
 pub enum antecedent_counterfactual::selective::StageStatus
+pub enum antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment
+pub enum antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+pub enum antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling
 pub enum antecedent_counterfactual::temporal_cross_world::TemporalNode
 pub enum antecedent_counterfactual::transported_gate::PopulationRole
 pub enum antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
@@ -1142,6 +1216,21 @@ pub field antecedent_counterfactual::selective::WorldRoute::source: usize
 pub field antecedent_counterfactual::selective::finite_scm::CompiledScm::joint_states: usize
 pub field antecedent_counterfactual::selective::finite_scm::Posterior::evidence_probability: f64
 pub field antecedent_counterfactual::selective::finite_scm::Posterior::states: alloc::vec::Vec<(u32, f64)>
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount::source: antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount::treatment: antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread::predictive_variance: f64
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread::unit: alloc::string::String
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread::value: f64
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::identity: alloc::string::String
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::label: &'static str
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::realized_mean_predictive_variance: f64
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::routes: alloc::vec::Vec<&'static str>
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::sources: alloc::vec::Vec<antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount>
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::unit_mean_sampling_variance: core::option::Option<f64>
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::unit_sampling: antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::units: alloc::vec::Vec<antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread>
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::value: f64
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::work: antecedent_counterfactual::selective::WorkCounters
 pub field antecedent_counterfactual::temporal_cross_world::FactualUnitHistory::history: antecedent_counterfactual::temporal_cross_world::HistoryId
 pub field antecedent_counterfactual::temporal_cross_world::FactualUnitHistory::times: [u32; 2]
 pub field antecedent_counterfactual::temporal_cross_world::FactualUnitHistory::unit: antecedent_counterfactual::temporal_cross_world::UnitId
@@ -1314,6 +1403,11 @@ pub fn <antecedent_counterfactual::selective::TemporalExecutor>::fn retained_len
 pub fn <antecedent_counterfactual::selective::WorkCounters>::fn since(self, earlier: Self) -> Self
 pub fn <antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>>::fn decode(&self, joint: usize) -> alloc::vec::Vec<usize>
 pub fn <antecedent_counterfactual::selective::finite_scm::WorldPlan>::fn new(scm: &antecedent_counterfactual::selective::FiniteScm, worlds: &[antecedent_counterfactual::selective::FiniteWorld], index: usize) -> Self
+pub fn <antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty>::fn realized_mean_standard_error(&self) -> f64
+pub fn <antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty>::fn source(&self, source: antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource) -> core::option::Option<&antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount>
+pub fn <antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty>::fn unit_mean_standard_error(&self) -> core::option::Option<f64>
 pub fn <antecedent_counterfactual::temporal_cross_world::HistoryId>::fn as_str(&self) -> &str
 pub fn <antecedent_counterfactual::temporal_cross_world::HistoryId>::fn new(id: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt>::fn is_self_consistent(&self) -> bool
@@ -1345,6 +1439,7 @@ pub fn antecedent_counterfactual::selective::finite_scm::validate_units(scm: &an
 pub fn antecedent_counterfactual::selective::finite_scm::validate_worlds(scm: &antecedent_counterfactual::selective::FiniteScm, worlds: &[antecedent_counterfactual::selective::FiniteWorld]) -> core::result::Result<(), antecedent_counterfactual::selective::CrossWorldExecutionError>
 pub fn antecedent_counterfactual::selective::matrix::rows() -> &'static [antecedent_counterfactual::selective::MatrixRow]
 pub fn antecedent_counterfactual::selective::stages::stream_identity(unit: &str, node: &str, purpose: &str) -> alloc::string::String
+pub fn antecedent_counterfactual::selective::whole_path_uncertainty::derive_whole_path_uncertainty(request: &antecedent_counterfactual::selective::FiniteExecutionRequest, result: &antecedent_counterfactual::selective::FiniteExecutionResult, unit_sampling: antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty, antecedent_counterfactual::selective::CrossWorldExecutionError>
 pub fn antecedent_counterfactual::temporal_cross_world::evaluate_temporal_counterfactual(spec: &antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult, antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError>
 pub fn antecedent_counterfactual::transported_gate::refuse_transported_counterfactual(prerequisites: &antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites, required_factors: &[antecedent_counterfactual::transported_gate::RegimeFactorKey], supplied: &alloc::collections::btree::map::BTreeMap<antecedent_counterfactual::transported_gate::RegimeFactorKey, alloc::string::String>) -> antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal
 pub fn antecedent_counterfactual::transported_path_specific::evaluate_transported_path_specific(input: &antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput<'_>) -> core::result::Result<antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult, alloc::boxed::Box<antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal>>
@@ -1357,6 +1452,7 @@ pub mod antecedent_counterfactual::selective::finite_scm
 pub mod antecedent_counterfactual::selective::matrix
 pub mod antecedent_counterfactual::selective::refusal
 pub mod antecedent_counterfactual::selective::stages
+pub mod antecedent_counterfactual::selective::whole_path_uncertainty
 pub mod antecedent_counterfactual::temporal_cross_world
 pub mod antecedent_counterfactual::temporal_cross_world::staged
 pub mod antecedent_counterfactual::transported_gate
@@ -1397,6 +1493,9 @@ pub struct antecedent_counterfactual::selective::finite_scm::CompiledScm<'a>
 pub struct antecedent_counterfactual::selective::finite_scm::Posterior
 pub struct antecedent_counterfactual::selective::finite_scm::WorldPlan
 pub struct antecedent_counterfactual::selective::finite_scm::WorldPlan has private fields
+pub struct antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount
+pub struct antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread
+pub struct antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty
 pub struct antecedent_counterfactual::temporal_cross_world::FactualUnitHistory
 pub struct antecedent_counterfactual::temporal_cross_world::HistoryId
 pub struct antecedent_counterfactual::temporal_cross_world::HistoryId has private fields
@@ -1544,6 +1643,18 @@ pub variant antecedent_counterfactual::selective::QuantityClass::TransportedCros
 pub variant antecedent_counterfactual::selective::StageStatus::Computed
 pub variant antecedent_counterfactual::selective::StageStatus::Declared
 pub variant antecedent_counterfactual::selective::StageStatus::Reused
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment::Exact { observed_weight_defect: f64 }
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment::NotApplicable(&'static str)
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment::Premise
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment::Propagated { variance: f64 }
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment::Unavailable(&'static str)
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource::Numerical
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource::Posterior
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource::Sampling
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource::Structural
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling::FixedUnits
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling::IndependentSample
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling::Undeclared
 pub variant antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError::Cancelled
 pub variant antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError::Refused(alloc::boxed::Box<antecedent_counterfactual::temporal_cross_world::TemporalRefusal>)
 pub variant antecedent_counterfactual::temporal_cross_world::TemporalNode::Action0

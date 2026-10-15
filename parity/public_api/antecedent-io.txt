@@ -61,6 +61,8 @@ impl core::clone::Clone for antecedent_io::admg_conditional_transport_artifact::
 impl core::clone::Clone for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire
 impl core::clone::Clone for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalPointWire
 impl core::clone::Clone for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire
+impl core::clone::Clone for antecedent_io::bridge_interval::BridgedClaimInterval
+impl core::clone::Clone for antecedent_io::bridge_interval::ConstructedBridgeInterval
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::AdjacentStepWire
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::CategoricalResultWire
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
@@ -151,6 +153,13 @@ impl core::clone::Clone for antecedent_io::measured_inference::MeasuredExpectati
 impl core::clone::Clone for antecedent_io::measured_inference::MeasuredInference
 impl core::clone::Clone for antecedent_io::measured_inference::MeasuredInferenceReport
 impl core::clone::Clone for antecedent_io::measured_inference::MeasuredScalarReport
+impl core::clone::Clone for antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire
+impl core::clone::Clone for antecedent_io::measured_inference::cohort_interval::FitRowsWire
+impl core::clone::Clone for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
+impl core::clone::Clone for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
+impl core::clone::Clone for antecedent_io::measured_inference::split_effect::AdjustedEffect
+impl core::clone::Clone for antecedent_io::measured_inference::split_effect::SplitEffectRun
+impl core::clone::Clone for antecedent_io::measured_inference::split_effect::SplitEffectSource
 impl core::clone::Clone for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire
 impl core::clone::Clone for antecedent_io::mechanism_discrepancy_artifact::FitWire
 impl core::clone::Clone for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire
@@ -450,6 +459,8 @@ impl core::cmp::PartialEq for antecedent_io::adaptive_inference_result_artifact:
 impl core::cmp::PartialEq for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire
 impl core::cmp::PartialEq for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalPointWire
 impl core::cmp::PartialEq for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire
+impl core::cmp::PartialEq for antecedent_io::bridge_interval::BridgedClaimInterval
+impl core::cmp::PartialEq for antecedent_io::bridge_interval::ConstructedBridgeInterval
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::AdjacentStepWire
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::CategoricalResultWire
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
@@ -528,6 +539,13 @@ impl core::cmp::PartialEq for antecedent_io::learned_joint_transport_artifact::L
 impl core::cmp::PartialEq for antecedent_io::measured_inference::MeasuredExpectation
 impl core::cmp::PartialEq for antecedent_io::measured_inference::MeasuredInferenceReport
 impl core::cmp::PartialEq for antecedent_io::measured_inference::MeasuredScalarReport
+impl core::cmp::PartialEq for antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire
+impl core::cmp::PartialEq for antecedent_io::measured_inference::cohort_interval::FitRowsWire
+impl core::cmp::PartialEq for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
+impl core::cmp::PartialEq for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
+impl core::cmp::PartialEq for antecedent_io::measured_inference::split_effect::AdjustedEffect
+impl core::cmp::PartialEq for antecedent_io::measured_inference::split_effect::SplitEffectRun
+impl core::cmp::PartialEq for antecedent_io::measured_inference::split_effect::SplitEffectSource
 impl core::cmp::PartialEq for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire
 impl core::cmp::PartialEq for antecedent_io::mechanism_discrepancy_artifact::FitWire
 impl core::cmp::PartialEq for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire
@@ -775,6 +793,8 @@ impl core::fmt::Debug for antecedent_io::admg_conditional_transport_artifact::Ad
 impl core::fmt::Debug for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire
 impl core::fmt::Debug for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalPointWire
 impl core::fmt::Debug for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire
+impl core::fmt::Debug for antecedent_io::bridge_interval::BridgedClaimInterval
+impl core::fmt::Debug for antecedent_io::bridge_interval::ConstructedBridgeInterval
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::AdjacentStepWire
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::CategoricalResultWire
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
@@ -869,6 +889,13 @@ impl core::fmt::Debug for antecedent_io::measured_inference::MeasuredExpectation
 impl core::fmt::Debug for antecedent_io::measured_inference::MeasuredInference
 impl core::fmt::Debug for antecedent_io::measured_inference::MeasuredInferenceReport
 impl core::fmt::Debug for antecedent_io::measured_inference::MeasuredScalarReport
+impl core::fmt::Debug for antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire
+impl core::fmt::Debug for antecedent_io::measured_inference::cohort_interval::FitRowsWire
+impl core::fmt::Debug for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
+impl core::fmt::Debug for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
+impl core::fmt::Debug for antecedent_io::measured_inference::split_effect::AdjustedEffect
+impl core::fmt::Debug for antecedent_io::measured_inference::split_effect::SplitEffectRun
+impl core::fmt::Debug for antecedent_io::measured_inference::split_effect::SplitEffectSource
 impl core::fmt::Debug for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire
 impl core::fmt::Debug for antecedent_io::mechanism_discrepancy_artifact::FitWire
 impl core::fmt::Debug for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire
@@ -1143,6 +1170,8 @@ impl core::marker::Freeze for antecedent_io::admg_conditional_transport_artifact
 impl core::marker::Freeze for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire [auto]
 impl core::marker::Freeze for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditional [auto]
 impl core::marker::Freeze for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction [auto]
+impl core::marker::Freeze for antecedent_io::bridge_interval::BridgedClaimInterval [auto]
+impl core::marker::Freeze for antecedent_io::bridge_interval::ConstructedBridgeInterval [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::AdjacentStepWire [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
@@ -1240,6 +1269,13 @@ impl core::marker::Freeze for antecedent_io::measured_inference::MeasuredInferen
 impl core::marker::Freeze for antecedent_io::measured_inference::MeasuredInferenceReport [auto]
 impl core::marker::Freeze for antecedent_io::measured_inference::MeasuredScalarReport [auto]
 impl core::marker::Freeze for antecedent_io::measured_inference::ScalarExecution [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::cohort_interval::FitRowsWire [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
 impl core::marker::Freeze for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire [auto]
 impl core::marker::Freeze for antecedent_io::mechanism_discrepancy_artifact::FitWire [auto]
 impl core::marker::Freeze for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire [auto]
@@ -1464,6 +1500,8 @@ impl core::marker::Send for antecedent_io::admg_conditional_transport_artifact::
 impl core::marker::Send for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire [auto]
 impl core::marker::Send for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditional [auto]
 impl core::marker::Send for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction [auto]
+impl core::marker::Send for antecedent_io::bridge_interval::BridgedClaimInterval [auto]
+impl core::marker::Send for antecedent_io::bridge_interval::ConstructedBridgeInterval [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::AdjacentStepWire [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
@@ -1561,6 +1599,13 @@ impl core::marker::Send for antecedent_io::measured_inference::MeasuredInference
 impl core::marker::Send for antecedent_io::measured_inference::MeasuredInferenceReport [auto]
 impl core::marker::Send for antecedent_io::measured_inference::MeasuredScalarReport [auto]
 impl core::marker::Send for antecedent_io::measured_inference::ScalarExecution [auto]
+impl core::marker::Send for antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire [auto]
+impl core::marker::Send for antecedent_io::measured_inference::cohort_interval::FitRowsWire [auto]
+impl core::marker::Send for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
+impl core::marker::Send for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
+impl core::marker::Send for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
+impl core::marker::Send for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
+impl core::marker::Send for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
 impl core::marker::Send for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire [auto]
 impl core::marker::Send for antecedent_io::mechanism_discrepancy_artifact::FitWire [auto]
 impl core::marker::Send for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire [auto]
@@ -1779,6 +1824,8 @@ impl core::marker::StructuralPartialEq for antecedent_io::adaptive_inference_res
 impl core::marker::StructuralPartialEq for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire
 impl core::marker::StructuralPartialEq for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalPointWire
 impl core::marker::StructuralPartialEq for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire
+impl core::marker::StructuralPartialEq for antecedent_io::bridge_interval::BridgedClaimInterval
+impl core::marker::StructuralPartialEq for antecedent_io::bridge_interval::ConstructedBridgeInterval
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::AdjacentStepWire
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::CategoricalResultWire
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
@@ -1857,6 +1904,13 @@ impl core::marker::StructuralPartialEq for antecedent_io::learned_joint_transpor
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::MeasuredExpectation
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::MeasuredInferenceReport
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::MeasuredScalarReport
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::cohort_interval::FitRowsWire
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_effect::AdjustedEffect
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_effect::SplitEffectRun
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_effect::SplitEffectSource
 impl core::marker::StructuralPartialEq for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire
 impl core::marker::StructuralPartialEq for antecedent_io::mechanism_discrepancy_artifact::FitWire
 impl core::marker::StructuralPartialEq for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire
@@ -2040,6 +2094,8 @@ impl core::marker::Sync for antecedent_io::admg_conditional_transport_artifact::
 impl core::marker::Sync for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire [auto]
 impl core::marker::Sync for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditional [auto]
 impl core::marker::Sync for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction [auto]
+impl core::marker::Sync for antecedent_io::bridge_interval::BridgedClaimInterval [auto]
+impl core::marker::Sync for antecedent_io::bridge_interval::ConstructedBridgeInterval [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::AdjacentStepWire [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
@@ -2137,6 +2193,13 @@ impl core::marker::Sync for antecedent_io::measured_inference::MeasuredInference
 impl core::marker::Sync for antecedent_io::measured_inference::MeasuredInferenceReport [auto]
 impl core::marker::Sync for antecedent_io::measured_inference::MeasuredScalarReport [auto]
 impl core::marker::Sync for antecedent_io::measured_inference::ScalarExecution [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::cohort_interval::FitRowsWire [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
 impl core::marker::Sync for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire [auto]
 impl core::marker::Sync for antecedent_io::mechanism_discrepancy_artifact::FitWire [auto]
 impl core::marker::Sync for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire [auto]
@@ -2361,6 +2424,8 @@ impl core::marker::Unpin for antecedent_io::admg_conditional_transport_artifact:
 impl core::marker::Unpin for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire [auto]
 impl core::marker::Unpin for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditional [auto]
 impl core::marker::Unpin for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction [auto]
+impl core::marker::Unpin for antecedent_io::bridge_interval::BridgedClaimInterval [auto]
+impl core::marker::Unpin for antecedent_io::bridge_interval::ConstructedBridgeInterval [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::AdjacentStepWire [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
@@ -2458,6 +2523,13 @@ impl core::marker::Unpin for antecedent_io::measured_inference::MeasuredInferenc
 impl core::marker::Unpin for antecedent_io::measured_inference::MeasuredInferenceReport [auto]
 impl core::marker::Unpin for antecedent_io::measured_inference::MeasuredScalarReport [auto]
 impl core::marker::Unpin for antecedent_io::measured_inference::ScalarExecution [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::cohort_interval::FitRowsWire [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
 impl core::marker::Unpin for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire [auto]
 impl core::marker::Unpin for antecedent_io::mechanism_discrepancy_artifact::FitWire [auto]
 impl core::marker::Unpin for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire [auto]
@@ -2681,6 +2753,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::admg_conditional
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditional [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::bridge_interval::BridgedClaimInterval [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::bridge_interval::ConstructedBridgeInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::AdjacentStepWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
@@ -2778,6 +2852,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inferen
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::MeasuredInferenceReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::MeasuredScalarReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::ScalarExecution [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::cohort_interval::FitRowsWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mechanism_discrepancy_artifact::FitWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire [auto]
@@ -3001,6 +3082,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::admg_conditional_tr
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditional [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::bridge_interval::BridgedClaimInterval [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::bridge_interval::ConstructedBridgeInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::AdjacentStepWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
@@ -3098,6 +3181,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::MeasuredInferenceReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::MeasuredScalarReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::ScalarExecution [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::cohort_interval::FitRowsWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mechanism_discrepancy_artifact::FitWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire [auto]
@@ -3383,6 +3473,11 @@ impl serde_core::ser::Serialize for antecedent_io::measured_inference::MeasuredE
 impl serde_core::ser::Serialize for antecedent_io::measured_inference::MeasuredExpectation
 impl serde_core::ser::Serialize for antecedent_io::measured_inference::MeasuredInferenceReport
 impl serde_core::ser::Serialize for antecedent_io::measured_inference::MeasuredScalarReport
+impl serde_core::ser::Serialize for antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire
+impl serde_core::ser::Serialize for antecedent_io::measured_inference::cohort_interval::FitRowsWire
+impl serde_core::ser::Serialize for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
+impl serde_core::ser::Serialize for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
+impl serde_core::ser::Serialize for antecedent_io::measured_inference::split_effect::SplitEffectSource
 impl serde_core::ser::Serialize for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire
 impl serde_core::ser::Serialize for antecedent_io::mechanism_discrepancy_artifact::FitWire
 impl serde_core::ser::Serialize for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire
@@ -3681,6 +3776,11 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::MeasuredExpectation
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::MeasuredInferenceReport
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::MeasuredScalarReport
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::cohort_interval::FitRowsWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::split_effect::SplitEffectSource
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::mechanism_discrepancy_artifact::FitWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire
@@ -3842,6 +3942,12 @@ pub const antecedent_io::admg_conditional_transport_artifact::ADMG_CONDITIONAL_A
 pub const antecedent_io::admg_conditional_transport_artifact::ADMG_CONDITIONAL_OBSTRUCTION_FEATURE: &str
 pub const antecedent_io::admg_conditional_transport_artifact::ADMG_CONDITIONAL_OBSTRUCTION_VERSION: u32
 pub const antecedent_io::admg_conditional_transport_artifact::ADMG_CONDITIONAL_POINT_ONLY: &str
+pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_ASSUMPTIONS: &str
+pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_MAX_LEVEL: f64
+pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_MAX_RATE_SD: f64
+pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_MIN_LEVEL: f64
+pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_MIN_YOUDEN: f64
+pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_QUERY: &str
 pub const antecedent_io::categorical_treatment_artifact::CATEGORICAL_HC_ROW_CAP: usize
 pub const antecedent_io::categorical_treatment_artifact::CATEGORICAL_INFERENCE_CAVEAT: &str
 pub const antecedent_io::categorical_treatment_artifact::CATEGORICAL_MAX_LEVELS: usize
@@ -3881,6 +3987,23 @@ pub const antecedent_io::learned_joint_transport_artifact::LEARNED_JOINT_ARTIFAC
 pub const antecedent_io::learned_joint_transport_artifact::LEARNED_JOINT_ARTIFACT_VERSION: u32
 pub const antecedent_io::learned_joint_transport_artifact::LEARNED_JOINT_CALIBRATION: &str
 pub const antecedent_io::measured_inference::MAX_MEASURED_ARTIFACT_BYTES: usize
+pub const antecedent_io::measured_inference::cohort_interval::ROUTE: &str
+pub const antecedent_io::measured_inference::count_fitted_interval::MEASURED_DRAWS: u32
+pub const antecedent_io::measured_inference::count_fitted_interval::MEASURED_PRIOR_ALPHA: f64
+pub const antecedent_io::measured_inference::count_fitted_interval::ROUTE: &str
+pub const antecedent_io::measured_inference::split_effect::ALPHA: f64
+pub const antecedent_io::measured_inference::split_effect::CI_TEST: &str
+pub const antecedent_io::measured_inference::split_effect::DISCOVERY_FRACTION: f64
+pub const antecedent_io::measured_inference::split_effect::ESTIMATOR: &str
+pub const antecedent_io::measured_inference::split_effect::FUNCTIONAL: &str
+pub const antecedent_io::measured_inference::split_effect::LEVEL: f64
+pub const antecedent_io::measured_inference::split_effect::MAX_VARIABLES: usize
+pub const antecedent_io::measured_inference::split_effect::MIN_VARIABLES: usize
+pub const antecedent_io::measured_inference::split_effect::REUSE_DEPENDENCE: &str
+pub const antecedent_io::measured_inference::split_effect::REUSE_STRUCTURE: &str
+pub const antecedent_io::measured_inference::split_effect::SPLIT_DEPENDENCE: &str
+pub const antecedent_io::measured_inference::split_effect::SPLIT_EFFECT_ROUTE: &str
+pub const antecedent_io::measured_inference::split_effect::SPLIT_STRUCTURE: &str
 pub const antecedent_io::mechanism_discrepancy_artifact::MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES: usize
 pub const antecedent_io::mechanism_discrepancy_artifact::MECHANISM_DISCREPANCY_ARTIFACT_FEATURE: &str
 pub const antecedent_io::mechanism_discrepancy_artifact::MECHANISM_DISCREPANCY_ARTIFACT_VERSION: u16
@@ -4199,6 +4322,22 @@ pub field antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgCondit
 pub field antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction::diagram: antecedent_graph::selection::SelectionDiagram
 pub field antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction::proof: antecedent_identify::sid::conditional::ConditionalNonTransportabilityProof
 pub field antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction::wire: antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire
+pub field antecedent_io::bridge_interval::BridgedClaimInterval::assumptions: &'static str
+pub field antecedent_io::bridge_interval::BridgedClaimInterval::calibration_sha: alloc::string::String
+pub field antecedent_io::bridge_interval::BridgedClaimInterval::construction: &'static str
+pub field antecedent_io::bridge_interval::BridgedClaimInterval::coverage_record: alloc::string::String
+pub field antecedent_io::bridge_interval::BridgedClaimInterval::degrees_of_freedom: core::option::Option<f64>
+pub field antecedent_io::bridge_interval::BridgedClaimInterval::level: f64
+pub field antecedent_io::bridge_interval::BridgedClaimInterval::licensed_by: &'static str
+pub field antecedent_io::bridge_interval::BridgedClaimInterval::lower: f64
+pub field antecedent_io::bridge_interval::BridgedClaimInterval::mapping: antecedent_contract::bridge::mapping::MappingKind
+pub field antecedent_io::bridge_interval::BridgedClaimInterval::source_standard_error: f64
+pub field antecedent_io::bridge_interval::BridgedClaimInterval::source_value: f64
+pub field antecedent_io::bridge_interval::BridgedClaimInterval::standard_error: f64
+pub field antecedent_io::bridge_interval::BridgedClaimInterval::upper: f64
+pub field antecedent_io::bridge_interval::BridgedClaimInterval::value: f64
+pub field antecedent_io::bridge_interval::ConstructedBridgeInterval::basis: antecedent_io_core::calibration::CalibrationBasisWire
+pub field antecedent_io::bridge_interval::ConstructedBridgeInterval::interval: antecedent_io::bridge_interval::BridgedClaimInterval
 pub field antecedent_io::categorical_treatment_artifact::AdjacentStepWire::difference: f64
 pub field antecedent_io::categorical_treatment_artifact::AdjacentStepWire::from: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::AdjacentStepWire::standard_error: f64
@@ -4777,6 +4916,53 @@ pub field antecedent_io::measured_inference::ScalarExecution::basis: antecedent_
 pub field antecedent_io::measured_inference::ScalarExecution::interval: (f64, f64)
 pub field antecedent_io::measured_inference::ScalarExecution::name: alloc::string::String
 pub field antecedent_io::measured_inference::ScalarExecution::point: f64
+pub field antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire::export: alloc::vec::Vec<u8>
+pub field antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire::export_identity: alloc::string::String
+pub field antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire::fit_rows: antecedent_io::measured_inference::cohort_interval::FitRowsWire
+pub field antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire::level: f64
+pub field antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire::source: alloc::vec::Vec<u8>
+pub field antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire::source_identity: alloc::string::String
+pub field antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire::version: u32
+pub field antecedent_io::measured_inference::cohort_interval::FitRowsWire::feature_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::measured_inference::cohort_interval::FitRowsWire::features: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_io::measured_inference::cohort_interval::FitRowsWire::outcome: alloc::vec::Vec<f64>
+pub field antecedent_io::measured_inference::cohort_interval::FitRowsWire::treatment: alloc::vec::Vec<f64>
+pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire::draws: u32
+pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire::evidence: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire::level_bits: u64
+pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire::nodes: alloc::vec::Vec<antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire>
+pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire::prior_alpha_bits: u64
+pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire::rows: u64
+pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire::seed: u64
+pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire::target: alloc::string::String
+pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire::target_level: alloc::string::String
+pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire::version: u32
+pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire::counts: core::option::Option<alloc::vec::Vec<u64>>
+pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire::declared_bits: core::option::Option<alloc::vec::Vec<u64>>
+pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire::levels: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire::name: alloc::string::String
+pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire::parents: alloc::vec::Vec<u32>
+pub field antecedent_io::measured_inference::split_effect::AdjustedEffect::adjustment_set: alloc::vec::Vec<u32>
+pub field antecedent_io::measured_inference::split_effect::AdjustedEffect::degrees_of_freedom: f64
+pub field antecedent_io::measured_inference::split_effect::AdjustedEffect::level: f64
+pub field antecedent_io::measured_inference::split_effect::AdjustedEffect::lower: f64
+pub field antecedent_io::measured_inference::split_effect::AdjustedEffect::point: f64
+pub field antecedent_io::measured_inference::split_effect::AdjustedEffect::rows: u64
+pub field antecedent_io::measured_inference::split_effect::AdjustedEffect::standard_error: f64
+pub field antecedent_io::measured_inference::split_effect::AdjustedEffect::upper: f64
+pub field antecedent_io::measured_inference::split_effect::SplitEffectRun::analysis_rows: u64
+pub field antecedent_io::measured_inference::split_effect::SplitEffectRun::discovery_rows: u64
+pub field antecedent_io::measured_inference::split_effect::SplitEffectRun::effect: antecedent_io::measured_inference::split_effect::AdjustedEffect
+pub field antecedent_io::measured_inference::split_effect::SplitEffectRun::receipt_identity: [u8; 32]
+pub field antecedent_io::measured_inference::split_effect::SplitEffectRun::result_identity: [u8; 32]
+pub field antecedent_io::measured_inference::split_effect::SplitEffectRun::structure_identity: [u8; 32]
+pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::columns: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::discovery_seed: u64
+pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::names: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::outcome: u32
+pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::split_seed: u64
+pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::treatment: u32
+pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::version: u32
 pub field antecedent_io::mechanism_discrepancy_artifact::CoefficientWire::difference: f64
 pub field antecedent_io::mechanism_discrepancy_artifact::CoefficientWire::minimal_detectable_difference: f64
 pub field antecedent_io::mechanism_discrepancy_artifact::CoefficientWire::name: alloc::string::String
@@ -5996,8 +6182,10 @@ pub field antecedent_io::z_transport_artifact::ZTransportPointWire::probabilitie
 pub fn <antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact>::const fn contract(&self) -> &antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractArtifact
 pub fn <antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact>::const fn result(&self) -> &antecedent_io::adaptive_inference_result_artifact::AdaptiveResult
 pub fn <antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact>::const fn spec(&self) -> &antecedent_io::adaptive_inference_result_artifact::AdaptiveResultSpec
+pub fn <antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact>::fn consume_measured_interval(bytes: &[u8], expected: &antecedent_io::measured_inference::MeasuredExpectation, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact>::fn from_bytes(bytes: &[u8], expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError>
 pub fn <antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact>::fn identity(&self) -> &str
+pub fn <antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact>::fn measure_interval(bytes: &[u8], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact>::fn seal(contract: &antecedent_contract::adaptive_design::declaration::AdaptiveDesignContract, spec: &antecedent_io::adaptive_inference_result_artifact::AdaptiveResultSpec, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(Self, antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta), antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError>
 pub fn <antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact>::fn to_bytes(contract: &antecedent_contract::adaptive_design::declaration::AdaptiveDesignContract, spec: &antecedent_io::adaptive_inference_result_artifact::AdaptiveResultSpec, artifact_id: &str, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError>
 pub fn <antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, alloc::string::String, alloc::string::String)>
@@ -6108,6 +6296,18 @@ pub fn <antecedent_io::measured_inference::MeasuredInference>::const fn report(&
 pub fn <antecedent_io::measured_inference::MeasuredInference>::fn consume(bytes: &[u8], expected: &antecedent_io::measured_inference::MeasuredExpectation, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::measured_inference::MeasuredInference>::fn export(&self) -> &[u8]
 pub fn <antecedent_io::measured_inference::MeasuredInference>::fn source_artifact(&self) -> &[u8]
+pub fn <antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire>::fn consume_measured(bytes: &[u8], expected: &antecedent_io::measured_inference::MeasuredExpectation, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire>::fn encode(native: &antecedent_estimate::cohort_linear_effect::NativeCohortFit, source: &antecedent_io_core::cohort_decision::CohortDecisionSource, level: f64) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire>::fn measure(bytes: &[u8], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire>::fn consume_measured(bytes: &[u8], expected: &antecedent_io::measured_inference::MeasuredExpectation) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire>::fn encode(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire>::fn measure(bytes: &[u8]) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire>::fn point(&self) -> core::result::Result<f64, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::split_effect::AdjustedEffect>::fn keyed_basis(&self, structure: &str, dependence: &str) -> antecedent_core::calibration_basis::CalibrationBasis
+pub fn <antecedent_io::measured_inference::split_effect::SplitEffectRun>::fn keyed_basis(&self) -> antecedent_core::calibration_basis::CalibrationBasis
+pub fn <antecedent_io::measured_inference::split_effect::SplitEffectSource>::fn from_bytes(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::split_effect::SplitEffectSource>::fn new(names: alloc::vec::Vec<alloc::string::String>, columns: alloc::vec::Vec<alloc::vec::Vec<f64>>, treatment: u32, outcome: u32, split_seed: u64, discovery_seed: u64) -> Self
+pub fn <antecedent_io::measured_inference::split_effect::SplitEffectSource>::fn to_bytes(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifact>::fn from_bytes(bytes: &[u8], expected: core::option::Option<&antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyIdentity>) -> core::result::Result<Self, antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError>
 pub fn <antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifact>::fn identity(&self) -> &antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyIdentity
 pub fn <antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifact>::fn meta(&self) -> &antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyMeta
@@ -6222,11 +6422,13 @@ pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTa
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>::const fn slot(&self) -> &'static str
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>::fn refusal(&self) -> (&'static str, alloc::string::String)
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire>::fn check_digests(&self, expected: &antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity) -> core::result::Result<(), antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
+pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire>::fn consume_measured(bytes: &[u8], expected: &antecedent_io::measured_inference::MeasuredExpectation, limits: antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire>::fn expected_data_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire>::fn expected_premises_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire>::fn identity(&self) -> antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity
+pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire>::fn measure(bytes: &[u8], expected: &antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity, limits: antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire>::fn sealed(self) -> core::result::Result<Self, antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire>::fn validate_shape(&self) -> core::result::Result<(), antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire>::fn from_estimate(estimate: &antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate) -> Self
@@ -6348,6 +6550,8 @@ pub fn antecedent_io::analysis_wire::effect_estimate_from_wire(w: &antecedent_io
 pub fn antecedent_io::analysis_wire::effect_estimate_to_wire(e: &antecedent_estimate::effect_estimate::EffectEstimate) -> antecedent_io::EffectEstimateWire
 pub fn antecedent_io::analysis_wire::refutation_from_wire(w: &antecedent_io_core::analysis_wire::RefutationReportWire) -> antecedent_validate::common::RefutationReport
 pub fn antecedent_io::analysis_wire::refutation_to_wire(r: &antecedent_validate::common::RefutationReport) -> antecedent_io_core::analysis_wire::RefutationReportWire
+pub fn antecedent_io::bridge_interval::bridged_claim_interval(bridged: &antecedent_contract::bridge::claim::BridgedClaim, source_standard_error: core::option::Option<f64>, level: f64) -> core::result::Result<antecedent_io::bridge_interval::BridgedClaimInterval, antecedent_contract::external_refusal::ExternalRefusal>
+pub fn antecedent_io::bridge_interval::construct_bridged_claim_interval(bridged: &antecedent_contract::bridge::claim::BridgedClaim, source_standard_error: core::option::Option<f64>, level: f64) -> core::result::Result<antecedent_io::bridge_interval::ConstructedBridgeInterval, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent_io::counterfactual_transport_artifact::consume_counterfactual_transport_with_limits(bytes: &[u8], expected: &antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportExpectedIdentity, limits: antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
 pub fn antecedent_io::counterfactual_transport_artifact::identified_counterfactual_transport_artifact(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, data: &antecedent_expr::exact::ExactTransportData, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, variable_names: &[alloc::string::String], point: &antecedent_estimate::counterfactual_transport::CounterfactualTransportPoint) -> core::result::Result<antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
 pub fn antecedent_io::counterfactual_transport_artifact::obstructed_counterfactual_transport_artifact(obstruction: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportObstruction, search: antecedent_core::search::SearchLimits, memory_limit_bytes: u64, variable_names: &[alloc::string::String]) -> core::result::Result<antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
@@ -6361,10 +6565,17 @@ pub fn antecedent_io::encode_causal_posterior_with_payload(posterior: &anteceden
 pub fn antecedent_io::encode_model_bundle(input: &antecedent_io::ModelBundleEncode<'_>) -> core::result::Result<antecedent_io_core::container::EncodedArtifact, antecedent_io_core::error::IoError>
 pub fn antecedent_io::interference_estimate_from_wire(value: &antecedent_io_core::transport_interference_wire::InterferenceEstimateWire) -> antecedent_estimate::interference::InterferenceEstimate
 pub fn antecedent_io::interference_estimate_to_wire(value: &antecedent_estimate::interference::InterferenceEstimate) -> antecedent_io_core::transport_interference_wire::InterferenceEstimateWire
+pub fn antecedent_io::joint_bayesian_transport_artifact::prior_data_overlap_from_ledger(ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, prior_sources: &[antecedent_contract::evidence_ledger::ids::SourceId], likelihood_sources: &[antecedent_contract::evidence_ledger::ids::SourceId]) -> core::result::Result<antecedent_estimate::joint_bayesian_transport::SourceDependence, antecedent_io_core::error::IoError>
+pub fn antecedent_io::joint_bayesian_transport_artifact::source_dependence_from_ledger(ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, sources: &[antecedent_contract::evidence_ledger::ids::SourceId]) -> core::result::Result<antecedent_estimate::joint_bayesian_transport::SourceDependence, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::build_report(route: &str, source: &[u8], premises: &str, data: &str, scope: serde_json::value::Value, executions: alloc::vec::Vec<antecedent_io::measured_inference::ScalarExecution>) -> core::result::Result<antecedent_io::measured_inference::MeasuredInferenceReport, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::decode(bytes: &[u8], expected: &antecedent_io::measured_inference::MeasuredExpectation) -> core::result::Result<antecedent_io::measured_inference::MeasuredEnvelopeWire, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::encode_report(source: &[u8], report: &antecedent_io::measured_inference::MeasuredInferenceReport) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::report_seal(report: &antecedent_io::measured_inference::MeasuredInferenceReport) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::split_effect::adjusted_effect(frame: &antecedent_data::dataset::TabularData, treatment: u32, outcome: u32, adjustment: &[u32], level: f64) -> core::result::Result<antecedent_io::measured_inference::split_effect::AdjustedEffect, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::split_effect::consume_measured(bytes: &[u8], expected: &antecedent_io::measured_inference::MeasuredExpectation, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::split_effect::effect_on_structure(structure: &antecedent_discovery::selective::structure::DiscoveredStructure, frame: &antecedent_data::dataset::TabularData, treatment: u32, outcome: u32, variables: usize, level: f64) -> core::result::Result<antecedent_io::measured_inference::split_effect::AdjustedEffect, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::split_effect::measure(source_bytes: &[u8], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::split_effect::run(source: &antecedent_io::measured_inference::split_effect::SplitEffectSource, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::split_effect::SplitEffectRun, antecedent_io_core::error::IoError>
 pub fn antecedent_io::msm_sensitivity_adapter::msm_sensitivity_artifact(result: &antecedent_validate::msm_sensitivity::MsmSensitivityResult, effect: &antecedent_contract::quantity::ScientificQuantity, point_quantities: &[(antecedent_contract::quantity::ScientificQuantity, alloc::vec::Vec<f64>)], actions: alloc::vec::Vec<antecedent_io_core::sensitivity_artifact::ActionUtility>, causal_contract_id: &str) -> core::result::Result<antecedent_io_core::sensitivity_artifact::SensitivityArtifact, antecedent_io_core::error::IoError>
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport(bytes: &[u8], expected: &antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity, limits: antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport, antecedent_io_core::error::IoError>
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport_with_limits(bytes: &[u8], expected: &antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity, limits: antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport, antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
@@ -6381,6 +6592,7 @@ pub fn antecedent_io::z_transport_artifact::program_variable_name(variable: ante
 pub mod antecedent_io::adaptive_inference_result_artifact
 pub mod antecedent_io::admg_conditional_transport_artifact
 pub mod antecedent_io::analysis_wire
+pub mod antecedent_io::bridge_interval
 pub mod antecedent_io::categorical_treatment_artifact
 pub mod antecedent_io::counterfactual_transport_artifact
 pub mod antecedent_io::cpdag_completion_artifact
@@ -6392,6 +6604,9 @@ pub mod antecedent_io::learned_continuous_artifact
 pub mod antecedent_io::learned_joint_transport_artifact
 pub mod antecedent_io::learned_trial_wire
 pub mod antecedent_io::measured_inference
+pub mod antecedent_io::measured_inference::cohort_interval
+pub mod antecedent_io::measured_inference::count_fitted_interval
+pub mod antecedent_io::measured_inference::split_effect
 pub mod antecedent_io::mechanism_discrepancy_artifact
 pub mod antecedent_io::mixed_source_artifact
 pub mod antecedent_io::model_bundle
@@ -6446,6 +6661,8 @@ pub struct antecedent_io::admg_conditional_transport_artifact::AdmgConditionalPo
 pub struct antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire
 pub struct antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditional
 pub struct antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction
+pub struct antecedent_io::bridge_interval::BridgedClaimInterval
+pub struct antecedent_io::bridge_interval::ConstructedBridgeInterval
 pub struct antecedent_io::categorical_treatment_artifact::AdjacentStepWire
 pub struct antecedent_io::categorical_treatment_artifact::CategoricalResultWire
 pub struct antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
@@ -6539,6 +6756,13 @@ pub struct antecedent_io::measured_inference::MeasuredInference has private fiel
 pub struct antecedent_io::measured_inference::MeasuredInferenceReport
 pub struct antecedent_io::measured_inference::MeasuredScalarReport
 pub struct antecedent_io::measured_inference::ScalarExecution
+pub struct antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire
+pub struct antecedent_io::measured_inference::cohort_interval::FitRowsWire
+pub struct antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
+pub struct antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
+pub struct antecedent_io::measured_inference::split_effect::AdjustedEffect
+pub struct antecedent_io::measured_inference::split_effect::SplitEffectRun
+pub struct antecedent_io::measured_inference::split_effect::SplitEffectSource
 pub struct antecedent_io::mechanism_discrepancy_artifact::CoefficientWire
 pub struct antecedent_io::mechanism_discrepancy_artifact::FitWire
 pub struct antecedent_io::mechanism_discrepancy_artifact::MeasurementWire
@@ -7325,6 +7549,7 @@ pub use antecedent_io::trace = antecedent_io_core::trace
 pub use antecedent_io::transport_catalog_wire = antecedent_io_core::transport_catalog_wire
 pub use antecedent_io::transport_certificate = antecedent_io_core::transport_certificate
 pub use antecedent_io::transport_errors = antecedent_io_core::transport_errors
+pub use antecedent_io::transport_handoff_artifact = antecedent_io_core::transport_handoff_artifact
 pub use antecedent_io::transport_identification_from_wire = transport_interference_wire::transport_identification_from_wire
 pub use antecedent_io::transport_identification_to_wire = transport_interference_wire::transport_identification_to_wire
 pub use antecedent_io::transport_identity = antecedent_io_core::transport_identity
@@ -7350,6 +7575,7 @@ pub use antecedent_io::transport_proof = antecedent_io_core::transport_proof
 pub use antecedent_io::transport_query_from_wire = antecedent_io_core::transport_query_from_wire
 pub use antecedent_io::transport_query_to_wire = antecedent_io_core::transport_query_to_wire
 pub use antecedent_io::transport_query_wire = antecedent_io_core::transport_query_wire
+pub use antecedent_io::transport_revalidation_artifact = antecedent_io_core::transport_revalidation_artifact
 pub use antecedent_io::transport_scenario_artifact::TransportScenarioArtifactError = antecedent_io_core::transport_errors::TransportScenarioArtifactError
 pub use antecedent_io::transported_counterfactual_artifact = antecedent_io_core::transported_counterfactual_artifact
 pub use antecedent_io::validate_contract_section = antecedent_io_core::validate_contract_section

@@ -42,7 +42,6 @@
 #[non_exhaustive] pub enum antecedent_contract::composition_verification::NodeKind
 #[non_exhaustive] pub enum antecedent_contract::composition_verification::NumericalCause
 #[non_exhaustive] pub enum antecedent_contract::composition_verification::ObservedEffect
-#[non_exhaustive] pub enum antecedent_contract::composition_verification::Revalidation
 #[non_exhaustive] pub enum antecedent_contract::composition_verification::TrustStanding
 #[non_exhaustive] pub enum antecedent_contract::composition_verification::ViewError
 #[non_exhaustive] pub enum antecedent_contract::composition_verification::WithdrawalKind
@@ -55,6 +54,7 @@
 #[non_exhaustive] pub enum antecedent_contract::evidence_ledger::SynthesisKind
 #[non_exhaustive] pub enum antecedent_contract::measurement::LatentPosteriorTrust
 #[non_exhaustive] pub enum antecedent_contract::measurement::MeasurementOperation
+#[non_exhaustive] pub enum antecedent_contract::transport_revalidation::TransportReason
 #[non_exhaustive] pub struct antecedent_contract::AcceptanceReport
 #[non_exhaustive] pub struct antecedent_contract::AssumptionSlot
 #[non_exhaustive] pub struct antecedent_contract::BlockedOperation
@@ -99,9 +99,12 @@ impl core::clone::Clone for antecedent_contract::ClaimKind
 impl core::clone::Clone for antecedent_contract::ClaimOperation
 impl core::clone::Clone for antecedent_contract::ColumnClaim
 impl core::clone::Clone for antecedent_contract::ColumnSupport
+impl core::clone::Clone for antecedent_contract::ComposedCoordinate
+impl core::clone::Clone for antecedent_contract::ComposedIntervalPlan
 impl core::clone::Clone for antecedent_contract::CompositionLink
 impl core::clone::Clone for antecedent_contract::CompositionStage
 impl core::clone::Clone for antecedent_contract::ConsumerProfile
+impl core::clone::Clone for antecedent_contract::CoverageRecord
 impl core::clone::Clone for antecedent_contract::DataClassification
 impl core::clone::Clone for antecedent_contract::DependenceDeclaration
 impl core::clone::Clone for antecedent_contract::DerivedClaim
@@ -152,6 +155,7 @@ impl core::clone::Clone for antecedent_contract::MeasuredIndicator
 impl core::clone::Clone for antecedent_contract::MechanismCompositionDeclaration
 impl core::clone::Clone for antecedent_contract::MechanismCompositionPlan
 impl core::clone::Clone for antecedent_contract::MechanismDeclaration
+impl core::clone::Clone for antecedent_contract::MechanismInterfaceBasis
 impl core::clone::Clone for antecedent_contract::MechanismOriginKind
 impl core::clone::Clone for antecedent_contract::NegotiatedExternalOperation
 impl core::clone::Clone for antecedent_contract::NextAction
@@ -243,6 +247,7 @@ impl core::clone::Clone for antecedent_contract::bridge::AssumptionKind
 impl core::clone::Clone for antecedent_contract::bridge::BridgeAssumption
 impl core::clone::Clone for antecedent_contract::bridge::BridgeContract
 impl core::clone::Clone for antecedent_contract::bridge::BridgeEndpoint
+impl core::clone::Clone for antecedent_contract::bridge::BridgeInterfaceBasis
 impl core::clone::Clone for antecedent_contract::bridge::BridgeKind
 impl core::clone::Clone for antecedent_contract::bridge::BridgeMapping
 impl core::clone::Clone for antecedent_contract::bridge::BridgeScope
@@ -283,6 +288,7 @@ impl core::clone::Clone for antecedent_contract::composition_verification::Calib
 impl core::clone::Clone for antecedent_contract::composition_verification::CalibrationLineage
 impl core::clone::Clone for antecedent_contract::composition_verification::CalibrationState
 impl core::clone::Clone for antecedent_contract::composition_verification::ClaimRevalidation
+impl core::clone::Clone for antecedent_contract::composition_verification::ClaimStanding
 impl core::clone::Clone for antecedent_contract::composition_verification::CompositionEdge
 impl core::clone::Clone for antecedent_contract::composition_verification::CompositionGraph
 impl core::clone::Clone for antecedent_contract::composition_verification::CompositionNode
@@ -297,7 +303,6 @@ impl core::clone::Clone for antecedent_contract::composition_verification::Numer
 impl core::clone::Clone for antecedent_contract::composition_verification::NumericalReason
 impl core::clone::Clone for antecedent_contract::composition_verification::ObservedEffect
 impl core::clone::Clone for antecedent_contract::composition_verification::PriorAuthority
-impl core::clone::Clone for antecedent_contract::composition_verification::Revalidation
 impl core::clone::Clone for antecedent_contract::composition_verification::SharedDataRelation
 impl core::clone::Clone for antecedent_contract::composition_verification::SupportStanding
 impl core::clone::Clone for antecedent_contract::composition_verification::TrustStanding
@@ -346,13 +351,30 @@ impl core::clone::Clone for antecedent_contract::interface_contract::ContractOpe
 impl core::clone::Clone for antecedent_contract::interface_contract::DependenceRequirement
 impl core::clone::Clone for antecedent_contract::interface_contract::EvidenceBasis
 impl core::clone::Clone for antecedent_contract::interface_contract::InterfaceContract
+impl core::clone::Clone for antecedent_contract::interface_contract::PortFacts
 impl core::clone::Clone for antecedent_contract::interface_contract::ProducedPort
 impl core::clone::Clone for antecedent_contract::interface_contract::SupportDomain
 impl core::clone::Clone for antecedent_contract::interface_contract::UncertaintyMeaning
 impl core::clone::Clone for antecedent_contract::interface_contract::UncertaintyParadigm
 impl core::clone::Clone for antecedent_contract::measurement::LatentPosteriorTrust
+impl core::clone::Clone for antecedent_contract::measurement::MeasurementInterfaceBasis
 impl core::clone::Clone for antecedent_contract::measurement::MeasurementOperation
 impl core::clone::Clone for antecedent_contract::measurement::MeasurementRouteCard
+impl core::clone::Clone for antecedent_contract::provider_transport::AdmittedProviderSource
+impl core::clone::Clone for antecedent_contract::provider_transport::ProviderTransportSource
+impl core::clone::Clone for antecedent_contract::provider_transport::SourceTrustRequirement
+impl core::clone::Clone for antecedent_contract::provider_transport::TransportedClaimOffer
+impl core::clone::Clone for antecedent_contract::provider_transport::TransportedHandoff
+impl core::clone::Clone for antecedent_contract::provider_transport::TransportedInputPolicy
+impl core::clone::Clone for antecedent_contract::transport_revalidation::SceneCalibration
+impl core::clone::Clone for antecedent_contract::transport_revalidation::SceneClaim
+impl core::clone::Clone for antecedent_contract::transport_revalidation::SceneClaimKind
+impl core::clone::Clone for antecedent_contract::transport_revalidation::SceneSource
+impl core::clone::Clone for antecedent_contract::transport_revalidation::SceneTarget
+impl core::clone::Clone for antecedent_contract::transport_revalidation::TransportClaimRevalidation
+impl core::clone::Clone for antecedent_contract::transport_revalidation::TransportReason
+impl core::clone::Clone for antecedent_contract::transport_revalidation::TransportRevalidation
+impl core::clone::Clone for antecedent_contract::transport_revalidation::TransportScene
 impl core::cmp::Eq for antecedent_contract::AcceptanceReport
 impl core::cmp::Eq for antecedent_contract::AdmissionBasis
 impl core::cmp::Eq for antecedent_contract::AdmissionCoordinate
@@ -368,6 +390,7 @@ impl core::cmp::Eq for antecedent_contract::ClaimFreshness
 impl core::cmp::Eq for antecedent_contract::ClaimKind
 impl core::cmp::Eq for antecedent_contract::ClaimOperation
 impl core::cmp::Eq for antecedent_contract::ColumnClaim
+impl core::cmp::Eq for antecedent_contract::ComposedCoordinate
 impl core::cmp::Eq for antecedent_contract::CompositionLink
 impl core::cmp::Eq for antecedent_contract::CompositionStage
 impl core::cmp::Eq for antecedent_contract::ConsumerProfile
@@ -497,6 +520,7 @@ impl core::cmp::Eq for antecedent_contract::composition_verification::Calibratio
 impl core::cmp::Eq for antecedent_contract::composition_verification::CalibrationLineage
 impl core::cmp::Eq for antecedent_contract::composition_verification::CalibrationState
 impl core::cmp::Eq for antecedent_contract::composition_verification::ClaimRevalidation
+impl core::cmp::Eq for antecedent_contract::composition_verification::ClaimStanding
 impl core::cmp::Eq for antecedent_contract::composition_verification::CompositionEdge
 impl core::cmp::Eq for antecedent_contract::composition_verification::CompositionGraph
 impl core::cmp::Eq for antecedent_contract::composition_verification::CompositionNode
@@ -510,7 +534,6 @@ impl core::cmp::Eq for antecedent_contract::composition_verification::NumericalC
 impl core::cmp::Eq for antecedent_contract::composition_verification::NumericalReason
 impl core::cmp::Eq for antecedent_contract::composition_verification::ObservedEffect
 impl core::cmp::Eq for antecedent_contract::composition_verification::PriorAuthority
-impl core::cmp::Eq for antecedent_contract::composition_verification::Revalidation
 impl core::cmp::Eq for antecedent_contract::composition_verification::SharedDataRelation
 impl core::cmp::Eq for antecedent_contract::composition_verification::SupportStanding
 impl core::cmp::Eq for antecedent_contract::composition_verification::TrustStanding
@@ -556,6 +579,18 @@ impl core::cmp::Eq for antecedent_contract::interface_contract::UncertaintyParad
 impl core::cmp::Eq for antecedent_contract::measurement::LatentPosteriorTrust
 impl core::cmp::Eq for antecedent_contract::measurement::MeasurementOperation
 impl core::cmp::Eq for antecedent_contract::measurement::MeasurementRouteCard
+impl core::cmp::Eq for antecedent_contract::provider_transport::SourceTrustRequirement
+impl core::cmp::Eq for antecedent_contract::provider_transport::TransportedHandoff
+impl core::cmp::Eq for antecedent_contract::provider_transport::TransportedInputPolicy
+impl core::cmp::Eq for antecedent_contract::transport_revalidation::SceneCalibration
+impl core::cmp::Eq for antecedent_contract::transport_revalidation::SceneClaim
+impl core::cmp::Eq for antecedent_contract::transport_revalidation::SceneClaimKind
+impl core::cmp::Eq for antecedent_contract::transport_revalidation::SceneSource
+impl core::cmp::Eq for antecedent_contract::transport_revalidation::SceneTarget
+impl core::cmp::Eq for antecedent_contract::transport_revalidation::TransportClaimRevalidation
+impl core::cmp::Eq for antecedent_contract::transport_revalidation::TransportReason
+impl core::cmp::Eq for antecedent_contract::transport_revalidation::TransportRevalidation
+impl core::cmp::Eq for antecedent_contract::transport_revalidation::TransportScene
 impl core::cmp::Ord for antecedent_contract::AdmissionCoordinate
 impl core::cmp::Ord for antecedent_contract::CompositionStage
 impl core::cmp::Ord for antecedent_contract::EvidenceObligationKind
@@ -591,7 +626,6 @@ impl core::cmp::Ord for antecedent_contract::composition_verification::LineageEd
 impl core::cmp::Ord for antecedent_contract::composition_verification::NodeKind
 impl core::cmp::Ord for antecedent_contract::composition_verification::NumericalCause
 impl core::cmp::Ord for antecedent_contract::composition_verification::NumericalReason
-impl core::cmp::Ord for antecedent_contract::composition_verification::Revalidation
 impl core::cmp::Ord for antecedent_contract::composition_verification::SharedDataRelation
 impl core::cmp::Ord for antecedent_contract::composition_verification::TrustStanding
 impl core::cmp::Ord for antecedent_contract::composition_verification::Withdrawal
@@ -602,6 +636,8 @@ impl core::cmp::Ord for antecedent_contract::evidence_ledger::ResultId
 impl core::cmp::Ord for antecedent_contract::evidence_ledger::SourceId
 impl core::cmp::Ord for antecedent_contract::evidence_ledger::SourceKind
 impl core::cmp::Ord for antecedent_contract::interface_contract::ContractOperation
+impl core::cmp::Ord for antecedent_contract::transport_revalidation::SceneClaimKind
+impl core::cmp::Ord for antecedent_contract::transport_revalidation::TransportReason
 impl core::cmp::PartialEq for antecedent_contract::AcceptanceReport
 impl core::cmp::PartialEq for antecedent_contract::AdmissionBasis
 impl core::cmp::PartialEq for antecedent_contract::AdmissionCoordinate
@@ -623,9 +659,12 @@ impl core::cmp::PartialEq for antecedent_contract::ClaimKind
 impl core::cmp::PartialEq for antecedent_contract::ClaimOperation
 impl core::cmp::PartialEq for antecedent_contract::ColumnClaim
 impl core::cmp::PartialEq for antecedent_contract::ColumnSupport
+impl core::cmp::PartialEq for antecedent_contract::ComposedCoordinate
+impl core::cmp::PartialEq for antecedent_contract::ComposedIntervalPlan
 impl core::cmp::PartialEq for antecedent_contract::CompositionLink
 impl core::cmp::PartialEq for antecedent_contract::CompositionStage
 impl core::cmp::PartialEq for antecedent_contract::ConsumerProfile
+impl core::cmp::PartialEq for antecedent_contract::CoverageRecord
 impl core::cmp::PartialEq for antecedent_contract::DataClassification
 impl core::cmp::PartialEq for antecedent_contract::DependenceDeclaration
 impl core::cmp::PartialEq for antecedent_contract::DerivedClaim
@@ -676,6 +715,7 @@ impl core::cmp::PartialEq for antecedent_contract::MeasuredIndicator
 impl core::cmp::PartialEq for antecedent_contract::MechanismCompositionDeclaration
 impl core::cmp::PartialEq for antecedent_contract::MechanismCompositionPlan
 impl core::cmp::PartialEq for antecedent_contract::MechanismDeclaration
+impl core::cmp::PartialEq for antecedent_contract::MechanismInterfaceBasis
 impl core::cmp::PartialEq for antecedent_contract::MechanismOriginKind
 impl core::cmp::PartialEq for antecedent_contract::NegotiatedExternalOperation
 impl core::cmp::PartialEq for antecedent_contract::NextAction
@@ -766,6 +806,7 @@ impl core::cmp::PartialEq for antecedent_contract::bridge::AssumptionKind
 impl core::cmp::PartialEq for antecedent_contract::bridge::BridgeAssumption
 impl core::cmp::PartialEq for antecedent_contract::bridge::BridgeContract
 impl core::cmp::PartialEq for antecedent_contract::bridge::BridgeEndpoint
+impl core::cmp::PartialEq for antecedent_contract::bridge::BridgeInterfaceBasis
 impl core::cmp::PartialEq for antecedent_contract::bridge::BridgeKind
 impl core::cmp::PartialEq for antecedent_contract::bridge::BridgeMapping
 impl core::cmp::PartialEq for antecedent_contract::bridge::BridgeScope
@@ -806,6 +847,7 @@ impl core::cmp::PartialEq for antecedent_contract::composition_verification::Cal
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::CalibrationLineage
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::CalibrationState
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::ClaimRevalidation
+impl core::cmp::PartialEq for antecedent_contract::composition_verification::ClaimStanding
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::CompositionEdge
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::CompositionGraph
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::CompositionNode
@@ -820,7 +862,6 @@ impl core::cmp::PartialEq for antecedent_contract::composition_verification::Num
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::NumericalReason
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::ObservedEffect
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::PriorAuthority
-impl core::cmp::PartialEq for antecedent_contract::composition_verification::Revalidation
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::SharedDataRelation
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::SupportStanding
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::TrustStanding
@@ -868,13 +909,30 @@ impl core::cmp::PartialEq for antecedent_contract::interface_contract::ContractO
 impl core::cmp::PartialEq for antecedent_contract::interface_contract::DependenceRequirement
 impl core::cmp::PartialEq for antecedent_contract::interface_contract::EvidenceBasis
 impl core::cmp::PartialEq for antecedent_contract::interface_contract::InterfaceContract
+impl core::cmp::PartialEq for antecedent_contract::interface_contract::PortFacts
 impl core::cmp::PartialEq for antecedent_contract::interface_contract::ProducedPort
 impl core::cmp::PartialEq for antecedent_contract::interface_contract::SupportDomain
 impl core::cmp::PartialEq for antecedent_contract::interface_contract::UncertaintyMeaning
 impl core::cmp::PartialEq for antecedent_contract::interface_contract::UncertaintyParadigm
 impl core::cmp::PartialEq for antecedent_contract::measurement::LatentPosteriorTrust
+impl core::cmp::PartialEq for antecedent_contract::measurement::MeasurementInterfaceBasis
 impl core::cmp::PartialEq for antecedent_contract::measurement::MeasurementOperation
 impl core::cmp::PartialEq for antecedent_contract::measurement::MeasurementRouteCard
+impl core::cmp::PartialEq for antecedent_contract::provider_transport::AdmittedProviderSource
+impl core::cmp::PartialEq for antecedent_contract::provider_transport::ProviderTransportSource
+impl core::cmp::PartialEq for antecedent_contract::provider_transport::SourceTrustRequirement
+impl core::cmp::PartialEq for antecedent_contract::provider_transport::TransportedClaimOffer
+impl core::cmp::PartialEq for antecedent_contract::provider_transport::TransportedHandoff
+impl core::cmp::PartialEq for antecedent_contract::provider_transport::TransportedInputPolicy
+impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::SceneCalibration
+impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::SceneClaim
+impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::SceneClaimKind
+impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::SceneSource
+impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::SceneTarget
+impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::TransportClaimRevalidation
+impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::TransportReason
+impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::TransportRevalidation
+impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::TransportScene
 impl core::cmp::PartialOrd for antecedent_contract::AdmissionCoordinate
 impl core::cmp::PartialOrd for antecedent_contract::CompositionStage
 impl core::cmp::PartialOrd for antecedent_contract::EvidenceObligationKind
@@ -910,7 +968,6 @@ impl core::cmp::PartialOrd for antecedent_contract::composition_verification::Li
 impl core::cmp::PartialOrd for antecedent_contract::composition_verification::NodeKind
 impl core::cmp::PartialOrd for antecedent_contract::composition_verification::NumericalCause
 impl core::cmp::PartialOrd for antecedent_contract::composition_verification::NumericalReason
-impl core::cmp::PartialOrd for antecedent_contract::composition_verification::Revalidation
 impl core::cmp::PartialOrd for antecedent_contract::composition_verification::SharedDataRelation
 impl core::cmp::PartialOrd for antecedent_contract::composition_verification::TrustStanding
 impl core::cmp::PartialOrd for antecedent_contract::composition_verification::Withdrawal
@@ -921,6 +978,8 @@ impl core::cmp::PartialOrd for antecedent_contract::evidence_ledger::ResultId
 impl core::cmp::PartialOrd for antecedent_contract::evidence_ledger::SourceId
 impl core::cmp::PartialOrd for antecedent_contract::evidence_ledger::SourceKind
 impl core::cmp::PartialOrd for antecedent_contract::interface_contract::ContractOperation
+impl core::cmp::PartialOrd for antecedent_contract::transport_revalidation::SceneClaimKind
+impl core::cmp::PartialOrd for antecedent_contract::transport_revalidation::TransportReason
 impl core::convert::From<antecedent_contract::composition_verification::GraphError> for antecedent_contract::composition_verification::ViewError
 impl core::default::Default for antecedent_contract::CalibrationView
 impl core::default::Default for antecedent_contract::ExecutionPerformanceRecord
@@ -955,9 +1014,12 @@ impl core::fmt::Debug for antecedent_contract::ClaimKind
 impl core::fmt::Debug for antecedent_contract::ClaimOperation
 impl core::fmt::Debug for antecedent_contract::ColumnClaim
 impl core::fmt::Debug for antecedent_contract::ColumnSupport
+impl core::fmt::Debug for antecedent_contract::ComposedCoordinate
+impl core::fmt::Debug for antecedent_contract::ComposedIntervalPlan
 impl core::fmt::Debug for antecedent_contract::CompositionLink
 impl core::fmt::Debug for antecedent_contract::CompositionStage
 impl core::fmt::Debug for antecedent_contract::ConsumerProfile
+impl core::fmt::Debug for antecedent_contract::CoverageRecord
 impl core::fmt::Debug for antecedent_contract::DataClassification
 impl core::fmt::Debug for antecedent_contract::DependenceDeclaration
 impl core::fmt::Debug for antecedent_contract::DerivedClaim
@@ -1008,6 +1070,7 @@ impl core::fmt::Debug for antecedent_contract::MeasuredIndicator
 impl core::fmt::Debug for antecedent_contract::MechanismCompositionDeclaration
 impl core::fmt::Debug for antecedent_contract::MechanismCompositionPlan
 impl core::fmt::Debug for antecedent_contract::MechanismDeclaration
+impl core::fmt::Debug for antecedent_contract::MechanismInterfaceBasis
 impl core::fmt::Debug for antecedent_contract::MechanismOriginKind
 impl core::fmt::Debug for antecedent_contract::NegotiatedExternalOperation
 impl core::fmt::Debug for antecedent_contract::NextAction
@@ -1099,6 +1162,7 @@ impl core::fmt::Debug for antecedent_contract::bridge::AssumptionKind
 impl core::fmt::Debug for antecedent_contract::bridge::BridgeAssumption
 impl core::fmt::Debug for antecedent_contract::bridge::BridgeContract
 impl core::fmt::Debug for antecedent_contract::bridge::BridgeEndpoint
+impl core::fmt::Debug for antecedent_contract::bridge::BridgeInterfaceBasis
 impl core::fmt::Debug for antecedent_contract::bridge::BridgeKind
 impl core::fmt::Debug for antecedent_contract::bridge::BridgeMapping
 impl core::fmt::Debug for antecedent_contract::bridge::BridgeScope
@@ -1139,6 +1203,7 @@ impl core::fmt::Debug for antecedent_contract::composition_verification::Calibra
 impl core::fmt::Debug for antecedent_contract::composition_verification::CalibrationLineage
 impl core::fmt::Debug for antecedent_contract::composition_verification::CalibrationState
 impl core::fmt::Debug for antecedent_contract::composition_verification::ClaimRevalidation
+impl core::fmt::Debug for antecedent_contract::composition_verification::ClaimStanding
 impl core::fmt::Debug for antecedent_contract::composition_verification::CompositionEdge
 impl core::fmt::Debug for antecedent_contract::composition_verification::CompositionGraph
 impl core::fmt::Debug for antecedent_contract::composition_verification::CompositionNode
@@ -1153,7 +1218,6 @@ impl core::fmt::Debug for antecedent_contract::composition_verification::Numeric
 impl core::fmt::Debug for antecedent_contract::composition_verification::NumericalReason
 impl core::fmt::Debug for antecedent_contract::composition_verification::ObservedEffect
 impl core::fmt::Debug for antecedent_contract::composition_verification::PriorAuthority
-impl core::fmt::Debug for antecedent_contract::composition_verification::Revalidation
 impl core::fmt::Debug for antecedent_contract::composition_verification::SharedDataRelation
 impl core::fmt::Debug for antecedent_contract::composition_verification::SupportStanding
 impl core::fmt::Debug for antecedent_contract::composition_verification::TrustStanding
@@ -1202,13 +1266,30 @@ impl core::fmt::Debug for antecedent_contract::interface_contract::ContractOpera
 impl core::fmt::Debug for antecedent_contract::interface_contract::DependenceRequirement
 impl core::fmt::Debug for antecedent_contract::interface_contract::EvidenceBasis
 impl core::fmt::Debug for antecedent_contract::interface_contract::InterfaceContract
+impl core::fmt::Debug for antecedent_contract::interface_contract::PortFacts
 impl core::fmt::Debug for antecedent_contract::interface_contract::ProducedPort
 impl core::fmt::Debug for antecedent_contract::interface_contract::SupportDomain
 impl core::fmt::Debug for antecedent_contract::interface_contract::UncertaintyMeaning
 impl core::fmt::Debug for antecedent_contract::interface_contract::UncertaintyParadigm
 impl core::fmt::Debug for antecedent_contract::measurement::LatentPosteriorTrust
+impl core::fmt::Debug for antecedent_contract::measurement::MeasurementInterfaceBasis
 impl core::fmt::Debug for antecedent_contract::measurement::MeasurementOperation
 impl core::fmt::Debug for antecedent_contract::measurement::MeasurementRouteCard
+impl core::fmt::Debug for antecedent_contract::provider_transport::AdmittedProviderSource
+impl core::fmt::Debug for antecedent_contract::provider_transport::ProviderTransportSource
+impl core::fmt::Debug for antecedent_contract::provider_transport::SourceTrustRequirement
+impl core::fmt::Debug for antecedent_contract::provider_transport::TransportedClaimOffer
+impl core::fmt::Debug for antecedent_contract::provider_transport::TransportedHandoff
+impl core::fmt::Debug for antecedent_contract::provider_transport::TransportedInputPolicy
+impl core::fmt::Debug for antecedent_contract::transport_revalidation::SceneCalibration
+impl core::fmt::Debug for antecedent_contract::transport_revalidation::SceneClaim
+impl core::fmt::Debug for antecedent_contract::transport_revalidation::SceneClaimKind
+impl core::fmt::Debug for antecedent_contract::transport_revalidation::SceneSource
+impl core::fmt::Debug for antecedent_contract::transport_revalidation::SceneTarget
+impl core::fmt::Debug for antecedent_contract::transport_revalidation::TransportClaimRevalidation
+impl core::fmt::Debug for antecedent_contract::transport_revalidation::TransportReason
+impl core::fmt::Debug for antecedent_contract::transport_revalidation::TransportRevalidation
+impl core::fmt::Debug for antecedent_contract::transport_revalidation::TransportScene
 impl core::fmt::Display for antecedent_contract::EvidenceObligationError
 impl core::fmt::Display for antecedent_contract::ProvenanceError
 impl core::fmt::Display for antecedent_contract::adaptive_design::AdaptiveContractError
@@ -1282,7 +1363,6 @@ impl core::hash::Hash for antecedent_contract::composition_verification::Depende
 impl core::hash::Hash for antecedent_contract::composition_verification::NodeKind
 impl core::hash::Hash for antecedent_contract::composition_verification::NumericalCause
 impl core::hash::Hash for antecedent_contract::composition_verification::NumericalReason
-impl core::hash::Hash for antecedent_contract::composition_verification::Revalidation
 impl core::hash::Hash for antecedent_contract::composition_verification::TrustStanding
 impl core::hash::Hash for antecedent_contract::composition_verification::Withdrawal
 impl core::hash::Hash for antecedent_contract::composition_verification::WithdrawalKind
@@ -1302,6 +1382,10 @@ impl core::hash::Hash for antecedent_contract::interface_contract::DependenceReq
 impl core::hash::Hash for antecedent_contract::interface_contract::UncertaintyMeaning
 impl core::hash::Hash for antecedent_contract::interface_contract::UncertaintyParadigm
 impl core::hash::Hash for antecedent_contract::measurement::MeasurementOperation
+impl core::hash::Hash for antecedent_contract::provider_transport::SourceTrustRequirement
+impl core::hash::Hash for antecedent_contract::provider_transport::TransportedInputPolicy
+impl core::hash::Hash for antecedent_contract::transport_revalidation::SceneClaimKind
+impl core::hash::Hash for antecedent_contract::transport_revalidation::TransportReason
 impl core::marker::Copy for antecedent_contract::AdmissionCoordinate
 impl core::marker::Copy for antecedent_contract::BoundTrustLevel
 impl core::marker::Copy for antecedent_contract::BufferMaterialization
@@ -1380,7 +1464,6 @@ impl core::marker::Copy for antecedent_contract::composition_verification::Depen
 impl core::marker::Copy for antecedent_contract::composition_verification::NodeKind
 impl core::marker::Copy for antecedent_contract::composition_verification::NumericalCause
 impl core::marker::Copy for antecedent_contract::composition_verification::PriorAuthority
-impl core::marker::Copy for antecedent_contract::composition_verification::Revalidation
 impl core::marker::Copy for antecedent_contract::composition_verification::TrustStanding
 impl core::marker::Copy for antecedent_contract::composition_verification::WithdrawalKind
 impl core::marker::Copy for antecedent_contract::evidence_ledger::ClaimClass
@@ -1405,6 +1488,9 @@ impl core::marker::Copy for antecedent_contract::interface_contract::Uncertainty
 impl core::marker::Copy for antecedent_contract::measurement::LatentPosteriorTrust
 impl core::marker::Copy for antecedent_contract::measurement::MeasurementOperation
 impl core::marker::Copy for antecedent_contract::measurement::MeasurementRouteCard
+impl core::marker::Copy for antecedent_contract::provider_transport::SourceTrustRequirement
+impl core::marker::Copy for antecedent_contract::provider_transport::TransportedInputPolicy
+impl core::marker::Copy for antecedent_contract::transport_revalidation::SceneClaimKind
 impl core::marker::Freeze for antecedent_contract::AcceptanceReport [auto]
 impl core::marker::Freeze for antecedent_contract::AdmissionBasis [auto]
 impl core::marker::Freeze for antecedent_contract::AdmissionCoordinate [auto]
@@ -1426,9 +1512,12 @@ impl core::marker::Freeze for antecedent_contract::ClaimKind [auto]
 impl core::marker::Freeze for antecedent_contract::ClaimOperation [auto]
 impl core::marker::Freeze for antecedent_contract::ColumnClaim [auto]
 impl core::marker::Freeze for antecedent_contract::ColumnSupport [auto]
+impl core::marker::Freeze for antecedent_contract::ComposedCoordinate [auto]
+impl core::marker::Freeze for antecedent_contract::ComposedIntervalPlan [auto]
 impl core::marker::Freeze for antecedent_contract::CompositionLink [auto]
 impl core::marker::Freeze for antecedent_contract::CompositionStage [auto]
 impl core::marker::Freeze for antecedent_contract::ConsumerProfile [auto]
+impl core::marker::Freeze for antecedent_contract::CoverageRecord [auto]
 impl core::marker::Freeze for antecedent_contract::DataClassification [auto]
 impl core::marker::Freeze for antecedent_contract::DependenceDeclaration [auto]
 impl core::marker::Freeze for antecedent_contract::DerivedClaim [auto]
@@ -1479,6 +1568,7 @@ impl core::marker::Freeze for antecedent_contract::MeasuredIndicator [auto]
 impl core::marker::Freeze for antecedent_contract::MechanismCompositionDeclaration [auto]
 impl core::marker::Freeze for antecedent_contract::MechanismCompositionPlan [auto]
 impl core::marker::Freeze for antecedent_contract::MechanismDeclaration [auto]
+impl core::marker::Freeze for antecedent_contract::MechanismInterfaceBasis [auto]
 impl core::marker::Freeze for antecedent_contract::MechanismOriginKind [auto]
 impl core::marker::Freeze for antecedent_contract::NegotiatedExternalOperation [auto]
 impl core::marker::Freeze for antecedent_contract::NextAction [auto]
@@ -1570,6 +1660,7 @@ impl core::marker::Freeze for antecedent_contract::bridge::AssumptionKind [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::BridgeAssumption [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::BridgeContract [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::BridgeEndpoint [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::BridgeInterfaceBasis [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::BridgeKind [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::BridgeMapping [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::BridgeScope [auto]
@@ -1610,6 +1701,7 @@ impl core::marker::Freeze for antecedent_contract::composition_verification::Cal
 impl core::marker::Freeze for antecedent_contract::composition_verification::CalibrationLineage [auto]
 impl core::marker::Freeze for antecedent_contract::composition_verification::CalibrationState [auto]
 impl core::marker::Freeze for antecedent_contract::composition_verification::ClaimRevalidation [auto]
+impl core::marker::Freeze for antecedent_contract::composition_verification::ClaimStanding [auto]
 impl core::marker::Freeze for antecedent_contract::composition_verification::CompositionEdge [auto]
 impl core::marker::Freeze for antecedent_contract::composition_verification::CompositionGraph [auto]
 impl core::marker::Freeze for antecedent_contract::composition_verification::CompositionNode [auto]
@@ -1624,7 +1716,6 @@ impl core::marker::Freeze for antecedent_contract::composition_verification::Num
 impl core::marker::Freeze for antecedent_contract::composition_verification::NumericalReason [auto]
 impl core::marker::Freeze for antecedent_contract::composition_verification::ObservedEffect [auto]
 impl core::marker::Freeze for antecedent_contract::composition_verification::PriorAuthority [auto]
-impl core::marker::Freeze for antecedent_contract::composition_verification::Revalidation [auto]
 impl core::marker::Freeze for antecedent_contract::composition_verification::SharedDataRelation [auto]
 impl core::marker::Freeze for antecedent_contract::composition_verification::SupportStanding [auto]
 impl core::marker::Freeze for antecedent_contract::composition_verification::TrustStanding [auto]
@@ -1673,13 +1764,30 @@ impl core::marker::Freeze for antecedent_contract::interface_contract::ContractO
 impl core::marker::Freeze for antecedent_contract::interface_contract::DependenceRequirement [auto]
 impl core::marker::Freeze for antecedent_contract::interface_contract::EvidenceBasis [auto]
 impl core::marker::Freeze for antecedent_contract::interface_contract::InterfaceContract [auto]
+impl core::marker::Freeze for antecedent_contract::interface_contract::PortFacts [auto]
 impl core::marker::Freeze for antecedent_contract::interface_contract::ProducedPort [auto]
 impl core::marker::Freeze for antecedent_contract::interface_contract::SupportDomain [auto]
 impl core::marker::Freeze for antecedent_contract::interface_contract::UncertaintyMeaning [auto]
 impl core::marker::Freeze for antecedent_contract::interface_contract::UncertaintyParadigm [auto]
 impl core::marker::Freeze for antecedent_contract::measurement::LatentPosteriorTrust [auto]
+impl core::marker::Freeze for antecedent_contract::measurement::MeasurementInterfaceBasis [auto]
 impl core::marker::Freeze for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::marker::Freeze for antecedent_contract::measurement::MeasurementRouteCard [auto]
+impl core::marker::Freeze for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
+impl core::marker::Freeze for antecedent_contract::provider_transport::ProviderTransportSource [auto]
+impl core::marker::Freeze for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
+impl core::marker::Freeze for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
+impl core::marker::Freeze for antecedent_contract::provider_transport::TransportedHandoff [auto]
+impl core::marker::Freeze for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
+impl core::marker::Freeze for antecedent_contract::transport_revalidation::SceneCalibration [auto]
+impl core::marker::Freeze for antecedent_contract::transport_revalidation::SceneClaim [auto]
+impl core::marker::Freeze for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
+impl core::marker::Freeze for antecedent_contract::transport_revalidation::SceneSource [auto]
+impl core::marker::Freeze for antecedent_contract::transport_revalidation::SceneTarget [auto]
+impl core::marker::Freeze for antecedent_contract::transport_revalidation::TransportClaimRevalidation [auto]
+impl core::marker::Freeze for antecedent_contract::transport_revalidation::TransportReason [auto]
+impl core::marker::Freeze for antecedent_contract::transport_revalidation::TransportRevalidation [auto]
+impl core::marker::Freeze for antecedent_contract::transport_revalidation::TransportScene [auto]
 impl core::marker::Send for antecedent_contract::AcceptanceReport [auto]
 impl core::marker::Send for antecedent_contract::AdmissionBasis [auto]
 impl core::marker::Send for antecedent_contract::AdmissionCoordinate [auto]
@@ -1701,9 +1809,12 @@ impl core::marker::Send for antecedent_contract::ClaimKind [auto]
 impl core::marker::Send for antecedent_contract::ClaimOperation [auto]
 impl core::marker::Send for antecedent_contract::ColumnClaim [auto]
 impl core::marker::Send for antecedent_contract::ColumnSupport [auto]
+impl core::marker::Send for antecedent_contract::ComposedCoordinate [auto]
+impl core::marker::Send for antecedent_contract::ComposedIntervalPlan [auto]
 impl core::marker::Send for antecedent_contract::CompositionLink [auto]
 impl core::marker::Send for antecedent_contract::CompositionStage [auto]
 impl core::marker::Send for antecedent_contract::ConsumerProfile [auto]
+impl core::marker::Send for antecedent_contract::CoverageRecord [auto]
 impl core::marker::Send for antecedent_contract::DataClassification [auto]
 impl core::marker::Send for antecedent_contract::DependenceDeclaration [auto]
 impl core::marker::Send for antecedent_contract::DerivedClaim [auto]
@@ -1754,6 +1865,7 @@ impl core::marker::Send for antecedent_contract::MeasuredIndicator [auto]
 impl core::marker::Send for antecedent_contract::MechanismCompositionDeclaration [auto]
 impl core::marker::Send for antecedent_contract::MechanismCompositionPlan [auto]
 impl core::marker::Send for antecedent_contract::MechanismDeclaration [auto]
+impl core::marker::Send for antecedent_contract::MechanismInterfaceBasis [auto]
 impl core::marker::Send for antecedent_contract::MechanismOriginKind [auto]
 impl core::marker::Send for antecedent_contract::NegotiatedExternalOperation [auto]
 impl core::marker::Send for antecedent_contract::NextAction [auto]
@@ -1845,6 +1957,7 @@ impl core::marker::Send for antecedent_contract::bridge::AssumptionKind [auto]
 impl core::marker::Send for antecedent_contract::bridge::BridgeAssumption [auto]
 impl core::marker::Send for antecedent_contract::bridge::BridgeContract [auto]
 impl core::marker::Send for antecedent_contract::bridge::BridgeEndpoint [auto]
+impl core::marker::Send for antecedent_contract::bridge::BridgeInterfaceBasis [auto]
 impl core::marker::Send for antecedent_contract::bridge::BridgeKind [auto]
 impl core::marker::Send for antecedent_contract::bridge::BridgeMapping [auto]
 impl core::marker::Send for antecedent_contract::bridge::BridgeScope [auto]
@@ -1885,6 +1998,7 @@ impl core::marker::Send for antecedent_contract::composition_verification::Calib
 impl core::marker::Send for antecedent_contract::composition_verification::CalibrationLineage [auto]
 impl core::marker::Send for antecedent_contract::composition_verification::CalibrationState [auto]
 impl core::marker::Send for antecedent_contract::composition_verification::ClaimRevalidation [auto]
+impl core::marker::Send for antecedent_contract::composition_verification::ClaimStanding [auto]
 impl core::marker::Send for antecedent_contract::composition_verification::CompositionEdge [auto]
 impl core::marker::Send for antecedent_contract::composition_verification::CompositionGraph [auto]
 impl core::marker::Send for antecedent_contract::composition_verification::CompositionNode [auto]
@@ -1899,7 +2013,6 @@ impl core::marker::Send for antecedent_contract::composition_verification::Numer
 impl core::marker::Send for antecedent_contract::composition_verification::NumericalReason [auto]
 impl core::marker::Send for antecedent_contract::composition_verification::ObservedEffect [auto]
 impl core::marker::Send for antecedent_contract::composition_verification::PriorAuthority [auto]
-impl core::marker::Send for antecedent_contract::composition_verification::Revalidation [auto]
 impl core::marker::Send for antecedent_contract::composition_verification::SharedDataRelation [auto]
 impl core::marker::Send for antecedent_contract::composition_verification::SupportStanding [auto]
 impl core::marker::Send for antecedent_contract::composition_verification::TrustStanding [auto]
@@ -1948,13 +2061,30 @@ impl core::marker::Send for antecedent_contract::interface_contract::ContractOpe
 impl core::marker::Send for antecedent_contract::interface_contract::DependenceRequirement [auto]
 impl core::marker::Send for antecedent_contract::interface_contract::EvidenceBasis [auto]
 impl core::marker::Send for antecedent_contract::interface_contract::InterfaceContract [auto]
+impl core::marker::Send for antecedent_contract::interface_contract::PortFacts [auto]
 impl core::marker::Send for antecedent_contract::interface_contract::ProducedPort [auto]
 impl core::marker::Send for antecedent_contract::interface_contract::SupportDomain [auto]
 impl core::marker::Send for antecedent_contract::interface_contract::UncertaintyMeaning [auto]
 impl core::marker::Send for antecedent_contract::interface_contract::UncertaintyParadigm [auto]
 impl core::marker::Send for antecedent_contract::measurement::LatentPosteriorTrust [auto]
+impl core::marker::Send for antecedent_contract::measurement::MeasurementInterfaceBasis [auto]
 impl core::marker::Send for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::marker::Send for antecedent_contract::measurement::MeasurementRouteCard [auto]
+impl core::marker::Send for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
+impl core::marker::Send for antecedent_contract::provider_transport::ProviderTransportSource [auto]
+impl core::marker::Send for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
+impl core::marker::Send for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
+impl core::marker::Send for antecedent_contract::provider_transport::TransportedHandoff [auto]
+impl core::marker::Send for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
+impl core::marker::Send for antecedent_contract::transport_revalidation::SceneCalibration [auto]
+impl core::marker::Send for antecedent_contract::transport_revalidation::SceneClaim [auto]
+impl core::marker::Send for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
+impl core::marker::Send for antecedent_contract::transport_revalidation::SceneSource [auto]
+impl core::marker::Send for antecedent_contract::transport_revalidation::SceneTarget [auto]
+impl core::marker::Send for antecedent_contract::transport_revalidation::TransportClaimRevalidation [auto]
+impl core::marker::Send for antecedent_contract::transport_revalidation::TransportReason [auto]
+impl core::marker::Send for antecedent_contract::transport_revalidation::TransportRevalidation [auto]
+impl core::marker::Send for antecedent_contract::transport_revalidation::TransportScene [auto]
 impl core::marker::StructuralPartialEq for antecedent_contract::AcceptanceReport
 impl core::marker::StructuralPartialEq for antecedent_contract::AdmissionBasis
 impl core::marker::StructuralPartialEq for antecedent_contract::AdmissionCoordinate
@@ -1976,9 +2106,12 @@ impl core::marker::StructuralPartialEq for antecedent_contract::ClaimKind
 impl core::marker::StructuralPartialEq for antecedent_contract::ClaimOperation
 impl core::marker::StructuralPartialEq for antecedent_contract::ColumnClaim
 impl core::marker::StructuralPartialEq for antecedent_contract::ColumnSupport
+impl core::marker::StructuralPartialEq for antecedent_contract::ComposedCoordinate
+impl core::marker::StructuralPartialEq for antecedent_contract::ComposedIntervalPlan
 impl core::marker::StructuralPartialEq for antecedent_contract::CompositionLink
 impl core::marker::StructuralPartialEq for antecedent_contract::CompositionStage
 impl core::marker::StructuralPartialEq for antecedent_contract::ConsumerProfile
+impl core::marker::StructuralPartialEq for antecedent_contract::CoverageRecord
 impl core::marker::StructuralPartialEq for antecedent_contract::DataClassification
 impl core::marker::StructuralPartialEq for antecedent_contract::DependenceDeclaration
 impl core::marker::StructuralPartialEq for antecedent_contract::DerivedClaim
@@ -2029,6 +2162,7 @@ impl core::marker::StructuralPartialEq for antecedent_contract::MeasuredIndicato
 impl core::marker::StructuralPartialEq for antecedent_contract::MechanismCompositionDeclaration
 impl core::marker::StructuralPartialEq for antecedent_contract::MechanismCompositionPlan
 impl core::marker::StructuralPartialEq for antecedent_contract::MechanismDeclaration
+impl core::marker::StructuralPartialEq for antecedent_contract::MechanismInterfaceBasis
 impl core::marker::StructuralPartialEq for antecedent_contract::MechanismOriginKind
 impl core::marker::StructuralPartialEq for antecedent_contract::NegotiatedExternalOperation
 impl core::marker::StructuralPartialEq for antecedent_contract::NextAction
@@ -2119,6 +2253,7 @@ impl core::marker::StructuralPartialEq for antecedent_contract::bridge::Assumpti
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::BridgeAssumption
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::BridgeContract
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::BridgeEndpoint
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::BridgeInterfaceBasis
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::BridgeKind
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::BridgeMapping
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::BridgeScope
@@ -2159,6 +2294,7 @@ impl core::marker::StructuralPartialEq for antecedent_contract::composition_veri
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::CalibrationLineage
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::CalibrationState
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::ClaimRevalidation
+impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::ClaimStanding
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::CompositionEdge
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::CompositionGraph
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::CompositionNode
@@ -2173,7 +2309,6 @@ impl core::marker::StructuralPartialEq for antecedent_contract::composition_veri
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::NumericalReason
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::ObservedEffect
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::PriorAuthority
-impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::Revalidation
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::SharedDataRelation
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::SupportStanding
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::TrustStanding
@@ -2221,13 +2356,30 @@ impl core::marker::StructuralPartialEq for antecedent_contract::interface_contra
 impl core::marker::StructuralPartialEq for antecedent_contract::interface_contract::DependenceRequirement
 impl core::marker::StructuralPartialEq for antecedent_contract::interface_contract::EvidenceBasis
 impl core::marker::StructuralPartialEq for antecedent_contract::interface_contract::InterfaceContract
+impl core::marker::StructuralPartialEq for antecedent_contract::interface_contract::PortFacts
 impl core::marker::StructuralPartialEq for antecedent_contract::interface_contract::ProducedPort
 impl core::marker::StructuralPartialEq for antecedent_contract::interface_contract::SupportDomain
 impl core::marker::StructuralPartialEq for antecedent_contract::interface_contract::UncertaintyMeaning
 impl core::marker::StructuralPartialEq for antecedent_contract::interface_contract::UncertaintyParadigm
 impl core::marker::StructuralPartialEq for antecedent_contract::measurement::LatentPosteriorTrust
+impl core::marker::StructuralPartialEq for antecedent_contract::measurement::MeasurementInterfaceBasis
 impl core::marker::StructuralPartialEq for antecedent_contract::measurement::MeasurementOperation
 impl core::marker::StructuralPartialEq for antecedent_contract::measurement::MeasurementRouteCard
+impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::AdmittedProviderSource
+impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::ProviderTransportSource
+impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::SourceTrustRequirement
+impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::TransportedClaimOffer
+impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::TransportedHandoff
+impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::TransportedInputPolicy
+impl core::marker::StructuralPartialEq for antecedent_contract::transport_revalidation::SceneCalibration
+impl core::marker::StructuralPartialEq for antecedent_contract::transport_revalidation::SceneClaim
+impl core::marker::StructuralPartialEq for antecedent_contract::transport_revalidation::SceneClaimKind
+impl core::marker::StructuralPartialEq for antecedent_contract::transport_revalidation::SceneSource
+impl core::marker::StructuralPartialEq for antecedent_contract::transport_revalidation::SceneTarget
+impl core::marker::StructuralPartialEq for antecedent_contract::transport_revalidation::TransportClaimRevalidation
+impl core::marker::StructuralPartialEq for antecedent_contract::transport_revalidation::TransportReason
+impl core::marker::StructuralPartialEq for antecedent_contract::transport_revalidation::TransportRevalidation
+impl core::marker::StructuralPartialEq for antecedent_contract::transport_revalidation::TransportScene
 impl core::marker::Sync for antecedent_contract::AcceptanceReport [auto]
 impl core::marker::Sync for antecedent_contract::AdmissionBasis [auto]
 impl core::marker::Sync for antecedent_contract::AdmissionCoordinate [auto]
@@ -2249,9 +2401,12 @@ impl core::marker::Sync for antecedent_contract::ClaimKind [auto]
 impl core::marker::Sync for antecedent_contract::ClaimOperation [auto]
 impl core::marker::Sync for antecedent_contract::ColumnClaim [auto]
 impl core::marker::Sync for antecedent_contract::ColumnSupport [auto]
+impl core::marker::Sync for antecedent_contract::ComposedCoordinate [auto]
+impl core::marker::Sync for antecedent_contract::ComposedIntervalPlan [auto]
 impl core::marker::Sync for antecedent_contract::CompositionLink [auto]
 impl core::marker::Sync for antecedent_contract::CompositionStage [auto]
 impl core::marker::Sync for antecedent_contract::ConsumerProfile [auto]
+impl core::marker::Sync for antecedent_contract::CoverageRecord [auto]
 impl core::marker::Sync for antecedent_contract::DataClassification [auto]
 impl core::marker::Sync for antecedent_contract::DependenceDeclaration [auto]
 impl core::marker::Sync for antecedent_contract::DerivedClaim [auto]
@@ -2302,6 +2457,7 @@ impl core::marker::Sync for antecedent_contract::MeasuredIndicator [auto]
 impl core::marker::Sync for antecedent_contract::MechanismCompositionDeclaration [auto]
 impl core::marker::Sync for antecedent_contract::MechanismCompositionPlan [auto]
 impl core::marker::Sync for antecedent_contract::MechanismDeclaration [auto]
+impl core::marker::Sync for antecedent_contract::MechanismInterfaceBasis [auto]
 impl core::marker::Sync for antecedent_contract::MechanismOriginKind [auto]
 impl core::marker::Sync for antecedent_contract::NegotiatedExternalOperation [auto]
 impl core::marker::Sync for antecedent_contract::NextAction [auto]
@@ -2393,6 +2549,7 @@ impl core::marker::Sync for antecedent_contract::bridge::AssumptionKind [auto]
 impl core::marker::Sync for antecedent_contract::bridge::BridgeAssumption [auto]
 impl core::marker::Sync for antecedent_contract::bridge::BridgeContract [auto]
 impl core::marker::Sync for antecedent_contract::bridge::BridgeEndpoint [auto]
+impl core::marker::Sync for antecedent_contract::bridge::BridgeInterfaceBasis [auto]
 impl core::marker::Sync for antecedent_contract::bridge::BridgeKind [auto]
 impl core::marker::Sync for antecedent_contract::bridge::BridgeMapping [auto]
 impl core::marker::Sync for antecedent_contract::bridge::BridgeScope [auto]
@@ -2433,6 +2590,7 @@ impl core::marker::Sync for antecedent_contract::composition_verification::Calib
 impl core::marker::Sync for antecedent_contract::composition_verification::CalibrationLineage [auto]
 impl core::marker::Sync for antecedent_contract::composition_verification::CalibrationState [auto]
 impl core::marker::Sync for antecedent_contract::composition_verification::ClaimRevalidation [auto]
+impl core::marker::Sync for antecedent_contract::composition_verification::ClaimStanding [auto]
 impl core::marker::Sync for antecedent_contract::composition_verification::CompositionEdge [auto]
 impl core::marker::Sync for antecedent_contract::composition_verification::CompositionGraph [auto]
 impl core::marker::Sync for antecedent_contract::composition_verification::CompositionNode [auto]
@@ -2447,7 +2605,6 @@ impl core::marker::Sync for antecedent_contract::composition_verification::Numer
 impl core::marker::Sync for antecedent_contract::composition_verification::NumericalReason [auto]
 impl core::marker::Sync for antecedent_contract::composition_verification::ObservedEffect [auto]
 impl core::marker::Sync for antecedent_contract::composition_verification::PriorAuthority [auto]
-impl core::marker::Sync for antecedent_contract::composition_verification::Revalidation [auto]
 impl core::marker::Sync for antecedent_contract::composition_verification::SharedDataRelation [auto]
 impl core::marker::Sync for antecedent_contract::composition_verification::SupportStanding [auto]
 impl core::marker::Sync for antecedent_contract::composition_verification::TrustStanding [auto]
@@ -2496,13 +2653,30 @@ impl core::marker::Sync for antecedent_contract::interface_contract::ContractOpe
 impl core::marker::Sync for antecedent_contract::interface_contract::DependenceRequirement [auto]
 impl core::marker::Sync for antecedent_contract::interface_contract::EvidenceBasis [auto]
 impl core::marker::Sync for antecedent_contract::interface_contract::InterfaceContract [auto]
+impl core::marker::Sync for antecedent_contract::interface_contract::PortFacts [auto]
 impl core::marker::Sync for antecedent_contract::interface_contract::ProducedPort [auto]
 impl core::marker::Sync for antecedent_contract::interface_contract::SupportDomain [auto]
 impl core::marker::Sync for antecedent_contract::interface_contract::UncertaintyMeaning [auto]
 impl core::marker::Sync for antecedent_contract::interface_contract::UncertaintyParadigm [auto]
 impl core::marker::Sync for antecedent_contract::measurement::LatentPosteriorTrust [auto]
+impl core::marker::Sync for antecedent_contract::measurement::MeasurementInterfaceBasis [auto]
 impl core::marker::Sync for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::marker::Sync for antecedent_contract::measurement::MeasurementRouteCard [auto]
+impl core::marker::Sync for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
+impl core::marker::Sync for antecedent_contract::provider_transport::ProviderTransportSource [auto]
+impl core::marker::Sync for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
+impl core::marker::Sync for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
+impl core::marker::Sync for antecedent_contract::provider_transport::TransportedHandoff [auto]
+impl core::marker::Sync for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
+impl core::marker::Sync for antecedent_contract::transport_revalidation::SceneCalibration [auto]
+impl core::marker::Sync for antecedent_contract::transport_revalidation::SceneClaim [auto]
+impl core::marker::Sync for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
+impl core::marker::Sync for antecedent_contract::transport_revalidation::SceneSource [auto]
+impl core::marker::Sync for antecedent_contract::transport_revalidation::SceneTarget [auto]
+impl core::marker::Sync for antecedent_contract::transport_revalidation::TransportClaimRevalidation [auto]
+impl core::marker::Sync for antecedent_contract::transport_revalidation::TransportReason [auto]
+impl core::marker::Sync for antecedent_contract::transport_revalidation::TransportRevalidation [auto]
+impl core::marker::Sync for antecedent_contract::transport_revalidation::TransportScene [auto]
 impl core::marker::Unpin for antecedent_contract::AcceptanceReport [auto]
 impl core::marker::Unpin for antecedent_contract::AdmissionBasis [auto]
 impl core::marker::Unpin for antecedent_contract::AdmissionCoordinate [auto]
@@ -2524,9 +2698,12 @@ impl core::marker::Unpin for antecedent_contract::ClaimKind [auto]
 impl core::marker::Unpin for antecedent_contract::ClaimOperation [auto]
 impl core::marker::Unpin for antecedent_contract::ColumnClaim [auto]
 impl core::marker::Unpin for antecedent_contract::ColumnSupport [auto]
+impl core::marker::Unpin for antecedent_contract::ComposedCoordinate [auto]
+impl core::marker::Unpin for antecedent_contract::ComposedIntervalPlan [auto]
 impl core::marker::Unpin for antecedent_contract::CompositionLink [auto]
 impl core::marker::Unpin for antecedent_contract::CompositionStage [auto]
 impl core::marker::Unpin for antecedent_contract::ConsumerProfile [auto]
+impl core::marker::Unpin for antecedent_contract::CoverageRecord [auto]
 impl core::marker::Unpin for antecedent_contract::DataClassification [auto]
 impl core::marker::Unpin for antecedent_contract::DependenceDeclaration [auto]
 impl core::marker::Unpin for antecedent_contract::DerivedClaim [auto]
@@ -2577,6 +2754,7 @@ impl core::marker::Unpin for antecedent_contract::MeasuredIndicator [auto]
 impl core::marker::Unpin for antecedent_contract::MechanismCompositionDeclaration [auto]
 impl core::marker::Unpin for antecedent_contract::MechanismCompositionPlan [auto]
 impl core::marker::Unpin for antecedent_contract::MechanismDeclaration [auto]
+impl core::marker::Unpin for antecedent_contract::MechanismInterfaceBasis [auto]
 impl core::marker::Unpin for antecedent_contract::MechanismOriginKind [auto]
 impl core::marker::Unpin for antecedent_contract::NegotiatedExternalOperation [auto]
 impl core::marker::Unpin for antecedent_contract::NextAction [auto]
@@ -2668,6 +2846,7 @@ impl core::marker::Unpin for antecedent_contract::bridge::AssumptionKind [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::BridgeAssumption [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::BridgeContract [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::BridgeEndpoint [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::BridgeInterfaceBasis [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::BridgeKind [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::BridgeMapping [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::BridgeScope [auto]
@@ -2708,6 +2887,7 @@ impl core::marker::Unpin for antecedent_contract::composition_verification::Cali
 impl core::marker::Unpin for antecedent_contract::composition_verification::CalibrationLineage [auto]
 impl core::marker::Unpin for antecedent_contract::composition_verification::CalibrationState [auto]
 impl core::marker::Unpin for antecedent_contract::composition_verification::ClaimRevalidation [auto]
+impl core::marker::Unpin for antecedent_contract::composition_verification::ClaimStanding [auto]
 impl core::marker::Unpin for antecedent_contract::composition_verification::CompositionEdge [auto]
 impl core::marker::Unpin for antecedent_contract::composition_verification::CompositionGraph [auto]
 impl core::marker::Unpin for antecedent_contract::composition_verification::CompositionNode [auto]
@@ -2722,7 +2902,6 @@ impl core::marker::Unpin for antecedent_contract::composition_verification::Nume
 impl core::marker::Unpin for antecedent_contract::composition_verification::NumericalReason [auto]
 impl core::marker::Unpin for antecedent_contract::composition_verification::ObservedEffect [auto]
 impl core::marker::Unpin for antecedent_contract::composition_verification::PriorAuthority [auto]
-impl core::marker::Unpin for antecedent_contract::composition_verification::Revalidation [auto]
 impl core::marker::Unpin for antecedent_contract::composition_verification::SharedDataRelation [auto]
 impl core::marker::Unpin for antecedent_contract::composition_verification::SupportStanding [auto]
 impl core::marker::Unpin for antecedent_contract::composition_verification::TrustStanding [auto]
@@ -2771,13 +2950,30 @@ impl core::marker::Unpin for antecedent_contract::interface_contract::ContractOp
 impl core::marker::Unpin for antecedent_contract::interface_contract::DependenceRequirement [auto]
 impl core::marker::Unpin for antecedent_contract::interface_contract::EvidenceBasis [auto]
 impl core::marker::Unpin for antecedent_contract::interface_contract::InterfaceContract [auto]
+impl core::marker::Unpin for antecedent_contract::interface_contract::PortFacts [auto]
 impl core::marker::Unpin for antecedent_contract::interface_contract::ProducedPort [auto]
 impl core::marker::Unpin for antecedent_contract::interface_contract::SupportDomain [auto]
 impl core::marker::Unpin for antecedent_contract::interface_contract::UncertaintyMeaning [auto]
 impl core::marker::Unpin for antecedent_contract::interface_contract::UncertaintyParadigm [auto]
 impl core::marker::Unpin for antecedent_contract::measurement::LatentPosteriorTrust [auto]
+impl core::marker::Unpin for antecedent_contract::measurement::MeasurementInterfaceBasis [auto]
 impl core::marker::Unpin for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::marker::Unpin for antecedent_contract::measurement::MeasurementRouteCard [auto]
+impl core::marker::Unpin for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
+impl core::marker::Unpin for antecedent_contract::provider_transport::ProviderTransportSource [auto]
+impl core::marker::Unpin for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
+impl core::marker::Unpin for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
+impl core::marker::Unpin for antecedent_contract::provider_transport::TransportedHandoff [auto]
+impl core::marker::Unpin for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
+impl core::marker::Unpin for antecedent_contract::transport_revalidation::SceneCalibration [auto]
+impl core::marker::Unpin for antecedent_contract::transport_revalidation::SceneClaim [auto]
+impl core::marker::Unpin for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
+impl core::marker::Unpin for antecedent_contract::transport_revalidation::SceneSource [auto]
+impl core::marker::Unpin for antecedent_contract::transport_revalidation::SceneTarget [auto]
+impl core::marker::Unpin for antecedent_contract::transport_revalidation::TransportClaimRevalidation [auto]
+impl core::marker::Unpin for antecedent_contract::transport_revalidation::TransportReason [auto]
+impl core::marker::Unpin for antecedent_contract::transport_revalidation::TransportRevalidation [auto]
+impl core::marker::Unpin for antecedent_contract::transport_revalidation::TransportScene [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::AcceptanceReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::AdmissionBasis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::AdmissionCoordinate [auto]
@@ -2799,9 +2995,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ClaimKind 
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ClaimOperation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ColumnClaim [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ColumnSupport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ComposedCoordinate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ComposedIntervalPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::CompositionLink [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::CompositionStage [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ConsumerProfile [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::CoverageRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DataClassification [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DependenceDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DerivedClaim [auto]
@@ -2852,6 +3051,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::MeasuredIn
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::MechanismCompositionDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::MechanismCompositionPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::MechanismDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::MechanismInterfaceBasis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::MechanismOriginKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::NegotiatedExternalOperation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::NextAction [auto]
@@ -2943,6 +3143,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::As
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgeAssumption [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgeContract [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgeEndpoint [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgeInterfaceBasis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgeKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgeMapping [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgeScope [auto]
@@ -2983,6 +3184,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::compositio
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::CalibrationLineage [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::CalibrationState [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::ClaimRevalidation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::ClaimStanding [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::CompositionEdge [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::CompositionGraph [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::CompositionNode [auto]
@@ -2997,7 +3199,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::compositio
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::NumericalReason [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::ObservedEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::PriorAuthority [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::Revalidation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::SharedDataRelation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::SupportStanding [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::TrustStanding [auto]
@@ -3046,13 +3247,30 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::interface_
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::interface_contract::DependenceRequirement [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::interface_contract::EvidenceBasis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::interface_contract::InterfaceContract [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::interface_contract::PortFacts [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::interface_contract::ProducedPort [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::interface_contract::SupportDomain [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::interface_contract::UncertaintyMeaning [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::interface_contract::UncertaintyParadigm [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::measurement::LatentPosteriorTrust [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::measurement::MeasurementInterfaceBasis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::measurement::MeasurementRouteCard [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::ProviderTransportSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::TransportedHandoff [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::transport_revalidation::SceneCalibration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::transport_revalidation::SceneClaim [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::transport_revalidation::SceneSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::transport_revalidation::SceneTarget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::transport_revalidation::TransportClaimRevalidation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::transport_revalidation::TransportReason [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::transport_revalidation::TransportRevalidation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::transport_revalidation::TransportScene [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::AcceptanceReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::AdmissionBasis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::AdmissionCoordinate [auto]
@@ -3074,9 +3292,12 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ClaimKind [au
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ClaimOperation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ColumnClaim [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ColumnSupport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ComposedCoordinate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ComposedIntervalPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CompositionLink [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CompositionStage [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ConsumerProfile [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CoverageRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DataClassification [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DependenceDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DerivedClaim [auto]
@@ -3127,6 +3348,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::MeasuredIndic
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::MechanismCompositionDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::MechanismCompositionPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::MechanismDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::MechanismInterfaceBasis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::MechanismOriginKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::NegotiatedExternalOperation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::NextAction [auto]
@@ -3218,6 +3440,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::Assum
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgeAssumption [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgeContract [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgeEndpoint [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgeInterfaceBasis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgeKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgeMapping [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgeScope [auto]
@@ -3258,6 +3481,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_v
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::CalibrationLineage [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::CalibrationState [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::ClaimRevalidation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::ClaimStanding [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::CompositionEdge [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::CompositionGraph [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::CompositionNode [auto]
@@ -3272,7 +3496,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_v
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::NumericalReason [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::ObservedEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::PriorAuthority [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::Revalidation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::SharedDataRelation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::SupportStanding [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::TrustStanding [auto]
@@ -3321,13 +3544,30 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::interface_con
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::interface_contract::DependenceRequirement [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::interface_contract::EvidenceBasis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::interface_contract::InterfaceContract [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::interface_contract::PortFacts [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::interface_contract::ProducedPort [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::interface_contract::SupportDomain [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::interface_contract::UncertaintyMeaning [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::interface_contract::UncertaintyParadigm [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::measurement::LatentPosteriorTrust [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::measurement::MeasurementInterfaceBasis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::measurement::MeasurementRouteCard [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::ProviderTransportSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::TransportedHandoff [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::transport_revalidation::SceneCalibration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::transport_revalidation::SceneClaim [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::transport_revalidation::SceneSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::transport_revalidation::SceneTarget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::transport_revalidation::TransportClaimRevalidation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::transport_revalidation::TransportReason [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::transport_revalidation::TransportRevalidation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::transport_revalidation::TransportScene [auto]
 impl<'a> core::clone::Clone for antecedent_contract::ObservationContext<'a>
 impl<'a> core::clone::Clone for antecedent_contract::ObservationSlotsRequest<'a>
 impl<'a> core::clone::Clone for antecedent_contract::ResponseCoordinateLabels<'a>
@@ -3416,17 +3656,20 @@ pub const <antecedent_contract::evidence_ledger::SynthesisKind>::ALL: [Self; 5]
 pub const <antecedent_contract::interface_contract::ContractOperation>::ALL: [Self; 8]
 pub const <antecedent_contract::interface_contract::UncertaintyMeaning>::ALL_MEANINGS: [antecedent_contract::DistributionMeaning; 7]
 pub const <antecedent_contract::interface_contract::UncertaintyParadigm>::ALL: [Self; 4]
+pub const <antecedent_contract::provider_transport::TransportedHandoff>::STANDING: &'static str
 pub const antecedent_contract::ASSUMPTION_RANGE_LABEL: &str
 pub const antecedent_contract::JOINT_LAW_STAGE: &str
 pub const antecedent_contract::MAX_CHAIN_LINKS: usize
 pub const antecedent_contract::MAX_DECLARED_MECHANISMS: usize
 pub const antecedent_contract::MAX_OBLIGATION_COORDINATES: usize
+pub const antecedent_contract::MEASURED_INTERVAL_LABEL: &str
 pub const antecedent_contract::MECHANISM_COMPOSITION_STAGE: &str
+pub const antecedent_contract::MECHANISM_OUTPUT_PORT: &str
 pub const antecedent_contract::MECHANISM_VALUE_FUNCTIONAL: &str
 pub const antecedent_contract::OBSERVATIONAL_REGIME: &str
 pub const antecedent_contract::OBSERVATION_QUERY_STAGE: &str
 pub const antecedent_contract::POINT_ONLY_LABEL: &str
-pub const antecedent_contract::STRUCTURAL_ENVELOPE_LABEL: &str
+pub const antecedent_contract::UNCALIBRATED_SPREAD_LABEL: &str
 pub const antecedent_contract::VERSION: &str
 pub const antecedent_contract::adaptive_design::ADAPTIVE_DESIGN_VERSION: u64
 pub const antecedent_contract::adaptive_design::INTERIM_REUSE_STAGE: &str
@@ -3436,6 +3679,8 @@ pub const antecedent_contract::adaptive_design::MAX_CONTRACT_UNITS: usize
 pub const antecedent_contract::adaptive_design::MAX_UNIT_MEASUREMENTS: usize
 pub const antecedent_contract::bridge::BRIDGE_CLAIM_IDENTITY_VERSION: u64
 pub const antecedent_contract::bridge::BRIDGE_IDENTITY_VERSION: u64
+pub const antecedent_contract::bridge::BRIDGE_SOURCE_PORT: &str
+pub const antecedent_contract::bridge::BRIDGE_TARGET_PORT: &str
 pub const antecedent_contract::bridge::MAX_BRIDGE_ASSUMPTIONS: usize
 pub const antecedent_contract::bridge::MAX_BRIDGE_TEXT_BYTES: usize
 pub const antecedent_contract::bridge::MAX_VALIDATION_TRIALS: usize
@@ -3468,7 +3713,15 @@ pub const antecedent_contract::interface_contract::MAX_COMPOSITION_CONNECTIONS: 
 pub const antecedent_contract::interface_contract::MAX_INTERFACE_PORTS: usize
 pub const antecedent_contract::interface_contract::MAX_INTERFACE_TEXT_BYTES: usize
 pub const antecedent_contract::interface_contract::MAX_PORT_SET_ITEMS: usize
+pub const antecedent_contract::measurement::MEASUREMENT_CONSTRUCT_PORT: &str
+pub const antecedent_contract::measurement::MEASUREMENT_INDICATOR_PORT: &str
 pub const antecedent_contract::mechanism_composition::MECHANISM_PLAN_IDENTITY_VERSION: u64
+pub const antecedent_contract::provider_transport::MAX_PROVIDER_TRANSPORT_ITEMS: usize
+pub const antecedent_contract::provider_transport::MAX_PROVIDER_TRANSPORT_TEXT_BYTES: usize
+pub const antecedent_contract::provider_transport::PROVIDER_SOURCE_PORT: &str
+pub const antecedent_contract::provider_transport::PROVIDER_TRANSPORT_VERSION: u64
+pub const antecedent_contract::provider_transport::TRANSPORT_SOURCE_PORT: &str
+pub const antecedent_contract::transport_revalidation::TRANSPORT_REVALIDATION_VERSION: u64
 pub const fn antecedent_contract::capability_name(capability: antecedent_contract::ExternalCapability) -> &'static str
 pub const fn antecedent_contract::external_refusal::probe_name(kind: antecedent_contract::VerificationProbeKind) -> &'static str
 pub enum antecedent_contract::AdmissionBasis
@@ -3546,6 +3799,10 @@ pub enum antecedent_contract::interface_contract::DependenceRequirement
 pub enum antecedent_contract::interface_contract::EvidenceBasis
 pub enum antecedent_contract::interface_contract::SupportDomain
 pub enum antecedent_contract::interface_contract::UncertaintyParadigm
+pub enum antecedent_contract::provider_transport::SourceTrustRequirement
+pub enum antecedent_contract::provider_transport::TransportedInputPolicy
+pub enum antecedent_contract::transport_revalidation::SceneCalibration
+pub enum antecedent_contract::transport_revalidation::SceneClaimKind
 pub field antecedent_contract::AcceptanceReport::claim_present: bool
 pub field antecedent_contract::AcceptanceReport::recognized: bool
 pub field antecedent_contract::AcceptanceReport::restriction: core::option::Option<alloc::sync::Arc<str>>
@@ -3611,12 +3868,26 @@ pub field antecedent_contract::ClaimFreshness::historically_valid: bool
 pub field antecedent_contract::ClaimFreshness::locally_ready: bool
 pub field antecedent_contract::ClaimFreshness::superseded_by: core::option::Option<antecedent_core::identity::SemanticDigest>
 pub field antecedent_contract::ClaimFreshness::withdrawn: bool
+pub field antecedent_contract::ComposedCoordinate::operation: antecedent_contract::PropagationOperation
+pub field antecedent_contract::ComposedCoordinate::roles: alloc::vec::Vec<&'static str>
+pub field antecedent_contract::ComposedCoordinate::route: antecedent_contract::PropagationRoute
+pub field antecedent_contract::ComposedIntervalPlan::construction: alloc::string::String
+pub field antecedent_contract::ComposedIntervalPlan::coordinate: antecedent_contract::ComposedCoordinate
+pub field antecedent_contract::ComposedIntervalPlan::label: &'static str
+pub field antecedent_contract::ComposedIntervalPlan::nominal_level: f64
+pub field antecedent_contract::ComposedIntervalPlan::propagation: antecedent_contract::PropagationPlan
+pub field antecedent_contract::ComposedIntervalPlan::record_id: alloc::string::String
 pub field antecedent_contract::CompositionLink::declared_parent_digests: core::option::Option<alloc::vec::Vec<alloc::string::String>>
 pub field antecedent_contract::CompositionLink::id: alloc::string::String
 pub field antecedent_contract::CompositionLink::parents: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_contract::CompositionLink::stage: antecedent_contract::CompositionStage
 pub field antecedent_contract::ConsumerProfile::features: alloc::sync::Arc<[alloc::sync::Arc<str>]>
 pub field antecedent_contract::ConsumerProfile::id: alloc::sync::Arc<str>
+pub field antecedent_contract::CoverageRecord::construction: alloc::string::String
+pub field antecedent_contract::CoverageRecord::coordinate_id: alloc::string::String
+pub field antecedent_contract::CoverageRecord::measured: bool
+pub field antecedent_contract::CoverageRecord::nominal_level: f64
+pub field antecedent_contract::CoverageRecord::record_id: alloc::string::String
 pub field antecedent_contract::DerivedClaim::claim: antecedent_contract::ClaimEnvelope
 pub field antecedent_contract::DerivedClaim::operation: antecedent_contract::ClaimOperation
 pub field antecedent_contract::DerivedClaim::parents: alloc::sync::Arc<[antecedent_core::identity::SemanticDigest]>
@@ -3772,6 +4043,13 @@ pub field antecedent_contract::MechanismDeclaration::latent_causes: alloc::vec::
 pub field antecedent_contract::MechanismDeclaration::origin: antecedent_contract::MechanismOriginKind
 pub field antecedent_contract::MechanismDeclaration::output: antecedent_contract::ScientificQuantity
 pub field antecedent_contract::MechanismDeclaration::parents: alloc::vec::Vec<antecedent_contract::ScientificQuantity>
+pub field antecedent_contract::MechanismInterfaceBasis::calibration: core::option::Option<antecedent_contract::interface_contract::CalibrationStatus>
+pub field antecedent_contract::MechanismInterfaceBasis::disjoint_parent_evidence: bool
+pub field antecedent_contract::MechanismInterfaceBasis::evidence: core::option::Option<antecedent_contract::interface_contract::EvidenceBasis>
+pub field antecedent_contract::MechanismInterfaceBasis::offered: alloc::collections::btree::set::BTreeSet<antecedent_contract::interface_contract::ContractOperation>
+pub field antecedent_contract::MechanismInterfaceBasis::output: antecedent_contract::interface_contract::PortFacts
+pub field antecedent_contract::MechanismInterfaceBasis::parent_operation: antecedent_contract::interface_contract::ContractOperation
+pub field antecedent_contract::MechanismInterfaceBasis::parents: alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_contract::interface_contract::PortFacts>
 pub field antecedent_contract::NextAction::description: alloc::sync::Arc<str>
 pub field antecedent_contract::NextAction::id: alloc::sync::Arc<str>
 pub field antecedent_contract::ObligationProvenance::family: alloc::sync::Arc<str>
@@ -3865,6 +4143,7 @@ pub field antecedent_contract::PropagationInput::role: antecedent_contract::Inpu
 pub field antecedent_contract::PropagationPlan::alignment_id: core::option::Option<alloc::string::String>
 pub field antecedent_contract::PropagationPlan::covariance_id: core::option::Option<alloc::string::String>
 pub field antecedent_contract::PropagationPlan::label: &'static str
+pub field antecedent_contract::PropagationPlan::missing_transport_pieces: alloc::vec::Vec<&'static str>
 pub field antecedent_contract::PropagationPlan::operation: antecedent_contract::PropagationOperation
 pub field antecedent_contract::PropagationPlan::route: antecedent_contract::PropagationRoute
 pub field antecedent_contract::PropagationPlan::shared_evidence: alloc::vec::Vec<alloc::string::String>
@@ -4005,6 +4284,10 @@ pub field antecedent_contract::bridge::BridgeContract::target_value: antecedent_
 pub field antecedent_contract::bridge::BridgeContract::transport: core::option::Option<antecedent_contract::bridge::TransportabilityPremise>
 pub field antecedent_contract::bridge::BridgeEndpoint::class: antecedent_contract::bridge::QuantityClass
 pub field antecedent_contract::bridge::BridgeEndpoint::quantity: antecedent_contract::ScientificQuantity
+pub field antecedent_contract::bridge::BridgeInterfaceBasis::calibration: core::option::Option<antecedent_contract::interface_contract::CalibrationStatus>
+pub field antecedent_contract::bridge::BridgeInterfaceBasis::evidence: antecedent_contract::interface_contract::EvidenceBasis
+pub field antecedent_contract::bridge::BridgeInterfaceBasis::source: antecedent_contract::interface_contract::PortFacts
+pub field antecedent_contract::bridge::BridgeInterfaceBasis::target: antecedent_contract::interface_contract::PortFacts
 pub field antecedent_contract::bridge::BridgeScope::population_id: alloc::string::String
 pub field antecedent_contract::bridge::BridgeScope::regime_id: alloc::string::String
 pub field antecedent_contract::bridge::BridgeSource::claim: &'a antecedent_contract::ClaimEnvelope
@@ -4085,11 +4368,14 @@ pub field antecedent_contract::composition_verification::CalibrationLineage::new
 pub field antecedent_contract::composition_verification::CalibrationLineage::state: antecedent_contract::composition_verification::CalibrationState
 pub field antecedent_contract::composition_verification::ClaimRevalidation::authority: antecedent_contract::composition_verification::PriorAuthority
 pub field antecedent_contract::composition_verification::ClaimRevalidation::calibration: antecedent_contract::composition_verification::CalibrationLineage
-pub field antecedent_contract::composition_verification::ClaimRevalidation::class: antecedent_contract::composition_verification::Revalidation
+pub field antecedent_contract::composition_verification::ClaimRevalidation::class: antecedent_core::recalc::Revalidation
 pub field antecedent_contract::composition_verification::ClaimRevalidation::key: alloc::string::String
 pub field antecedent_contract::composition_verification::ClaimRevalidation::kind: antecedent_contract::composition_verification::NodeKind
 pub field antecedent_contract::composition_verification::ClaimRevalidation::numerical: alloc::vec::Vec<antecedent_contract::composition_verification::NumericalReason>
 pub field antecedent_contract::composition_verification::ClaimRevalidation::withdrawals: alloc::vec::Vec<antecedent_contract::composition_verification::Withdrawal>
+pub field antecedent_contract::composition_verification::ClaimStanding::calibration: antecedent_contract::composition_verification::CalibrationDeclaration
+pub field antecedent_contract::composition_verification::ClaimStanding::support: antecedent_contract::composition_verification::SupportStanding
+pub field antecedent_contract::composition_verification::ClaimStanding::trust: antecedent_contract::composition_verification::TrustStanding
 pub field antecedent_contract::composition_verification::CompositionEdge::downstream: alloc::string::String
 pub field antecedent_contract::composition_verification::CompositionEdge::kind: antecedent_contract::composition_verification::DependencyKind
 pub field antecedent_contract::composition_verification::CompositionEdge::upstream: alloc::string::String
@@ -4117,7 +4403,7 @@ pub field antecedent_contract::composition_verification::LineageEdge::downstream
 pub field antecedent_contract::composition_verification::LineageEdge::kind: antecedent_contract::composition_verification::DependencyKind
 pub field antecedent_contract::composition_verification::LineageEdge::upstream: alloc::string::String
 pub field antecedent_contract::composition_verification::LineageEntry::calibration: antecedent_contract::composition_verification::CalibrationLineage
-pub field antecedent_contract::composition_verification::LineageEntry::class: antecedent_contract::composition_verification::Revalidation
+pub field antecedent_contract::composition_verification::LineageEntry::class: antecedent_core::recalc::Revalidation
 pub field antecedent_contract::composition_verification::LineageEntry::identity: antecedent_core::identity::SemanticDigest
 pub field antecedent_contract::composition_verification::LineageEntry::key: alloc::string::String
 pub field antecedent_contract::composition_verification::LineageEntry::kind: antecedent_contract::composition_verification::NodeKind
@@ -4176,7 +4462,7 @@ pub field antecedent_contract::evidence_ledger::ResultRecord::operation: anteced
 pub field antecedent_contract::evidence_ledger::ResultRecord::replaces: core::option::Option<antecedent_contract::evidence_ledger::ResultId>
 pub field antecedent_contract::evidence_ledger::ResultRecord::status: antecedent_contract::evidence_ledger::ResultStatus
 pub field antecedent_contract::evidence_ledger::ResultRecord::transport_identities: alloc::vec::Vec<antecedent_core::identity::SemanticDigest>
-pub field antecedent_contract::evidence_ledger::ResultRevalidation::class: antecedent_contract::composition_verification::Revalidation
+pub field antecedent_contract::evidence_ledger::ResultRevalidation::class: antecedent_core::recalc::Revalidation
 pub field antecedent_contract::evidence_ledger::ResultRevalidation::result: antecedent_contract::evidence_ledger::ResultId
 pub field antecedent_contract::evidence_ledger::SourceDeclaration::kind: antecedent_contract::evidence_ledger::SourceKind
 pub field antecedent_contract::evidence_ledger::SourceDeclaration::label: alloc::string::String
@@ -4216,6 +4502,10 @@ pub field antecedent_contract::interface_contract::ConsumedPort::uncertainty: co
 pub field antecedent_contract::interface_contract::InterfaceContract::component: alloc::string::String
 pub field antecedent_contract::interface_contract::InterfaceContract::consumes: alloc::vec::Vec<antecedent_contract::interface_contract::ConsumedPort>
 pub field antecedent_contract::interface_contract::InterfaceContract::produces: alloc::vec::Vec<antecedent_contract::interface_contract::ProducedPort>
+pub field antecedent_contract::interface_contract::PortFacts::measurement_models: alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub field antecedent_contract::interface_contract::PortFacts::semantic_identity: core::option::Option<alloc::string::String>
+pub field antecedent_contract::interface_contract::PortFacts::support: antecedent_contract::interface_contract::SupportDomain
+pub field antecedent_contract::interface_contract::PortFacts::uncertainty: core::option::Option<antecedent_contract::DistributionMeaning>
 pub field antecedent_contract::interface_contract::ProducedPort::calibration: antecedent_contract::interface_contract::CalibrationStatus
 pub field antecedent_contract::interface_contract::ProducedPort::evidence: antecedent_contract::interface_contract::EvidenceBasis
 pub field antecedent_contract::interface_contract::ProducedPort::measurement_models: alloc::collections::btree::set::BTreeSet<alloc::string::String>
@@ -4227,6 +4517,11 @@ pub field antecedent_contract::interface_contract::ProducedPort::semantic_identi
 pub field antecedent_contract::interface_contract::ProducedPort::support: antecedent_contract::interface_contract::SupportDomain
 pub field antecedent_contract::interface_contract::ProducedPort::uncertainty: core::option::Option<antecedent_contract::interface_contract::UncertaintyMeaning>
 pub field antecedent_contract::interface_contract::UncertaintyMeaning::meaning: antecedent_contract::DistributionMeaning
+pub field antecedent_contract::measurement::MeasurementInterfaceBasis::calibration: core::option::Option<antecedent_contract::interface_contract::CalibrationStatus>
+pub field antecedent_contract::measurement::MeasurementInterfaceBasis::construct: antecedent_contract::interface_contract::PortFacts
+pub field antecedent_contract::measurement::MeasurementInterfaceBasis::evidence: antecedent_contract::interface_contract::EvidenceBasis
+pub field antecedent_contract::measurement::MeasurementInterfaceBasis::indicator: antecedent_contract::interface_contract::PortFacts
+pub field antecedent_contract::measurement::MeasurementInterfaceBasis::operations: alloc::collections::btree::set::BTreeSet<antecedent_contract::interface_contract::ContractOperation>
 pub field antecedent_contract::measurement::MeasurementRequest::arm_id: core::option::Option<&'a str>
 pub field antecedent_contract::measurement::MeasurementRequest::assumed_structure: antecedent_core::measurement_model::ErrorStructure
 pub field antecedent_contract::measurement::MeasurementRequest::construct_id: &'a str
@@ -4238,6 +4533,48 @@ pub field antecedent_contract::measurement::MeasurementRouteCard::allowed: &'sta
 pub field antecedent_contract::measurement::MeasurementRouteCard::assumptions: &'static [&'static str]
 pub field antecedent_contract::measurement::MeasurementRouteCard::refused: &'static [(antecedent_contract::measurement::MeasurementOperation, &'static str)]
 pub field antecedent_contract::measurement::MeasurementRouteCard::route: antecedent_core::measurement_model::MeasurementRoute
+pub field antecedent_contract::provider_transport::ProviderTransportSource::assumptions: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_contract::provider_transport::ProviderTransportSource::component: alloc::string::String
+pub field antecedent_contract::provider_transport::ProviderTransportSource::evidence: antecedent_contract::interface_contract::EvidenceBasis
+pub field antecedent_contract::provider_transport::ProviderTransportSource::object: antecedent_contract::ExternalScientificObject
+pub field antecedent_contract::provider_transport::ProviderTransportSource::quantity: antecedent_contract::ScientificQuantity
+pub field antecedent_contract::provider_transport::ProviderTransportSource::requirement: antecedent_contract::provider_transport::SourceTrustRequirement
+pub field antecedent_contract::provider_transport::ProviderTransportSource::semantic_identity: alloc::string::String
+pub field antecedent_contract::provider_transport::ProviderTransportSource::support: antecedent_contract::interface_contract::SupportDomain
+pub field antecedent_contract::provider_transport::ProviderTransportSource::trust: antecedent_contract::ExternalTrustState
+pub field antecedent_contract::provider_transport::TransportedClaimOffer::component: alloc::string::String
+pub field antecedent_contract::provider_transport::TransportedClaimOffer::evidence: alloc::collections::btree::set::BTreeSet<antecedent_contract::evidence_ledger::SourceId>
+pub field antecedent_contract::provider_transport::TransportedClaimOffer::operations: alloc::collections::btree::set::BTreeSet<antecedent_contract::interface_contract::ContractOperation>
+pub field antecedent_contract::provider_transport::TransportedClaimOffer::port: alloc::string::String
+pub field antecedent_contract::provider_transport::TransportedClaimOffer::quantity: antecedent_contract::ScientificQuantity
+pub field antecedent_contract::provider_transport::TransportedClaimOffer::semantic_identity: alloc::string::String
+pub field antecedent_contract::provider_transport::TransportedClaimOffer::support: antecedent_contract::interface_contract::SupportDomain
+pub field antecedent_contract::provider_transport::TransportedClaimOffer::transport: antecedent_contract::evidence_ledger::TransportIdentity
+pub field antecedent_contract::provider_transport::TransportedClaimOffer::uncertainty: core::option::Option<antecedent_contract::DistributionMeaning>
+pub field antecedent_contract::transport_revalidation::SceneClaim::calibration: antecedent_contract::transport_revalidation::SceneCalibration
+pub field antecedent_contract::transport_revalidation::SceneClaim::identity: antecedent_core::identity::SemanticDigest
+pub field antecedent_contract::transport_revalidation::SceneClaim::key: alloc::string::String
+pub field antecedent_contract::transport_revalidation::SceneClaim::kind: antecedent_contract::transport_revalidation::SceneClaimKind
+pub field antecedent_contract::transport_revalidation::SceneClaim::quantity: antecedent_core::identity::SemanticDigest
+pub field antecedent_contract::transport_revalidation::SceneClaim::rests_on: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_contract::transport_revalidation::SceneClaim::sources: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_contract::transport_revalidation::SceneClaim::structure: core::option::Option<antecedent_core::identity::SemanticDigest>
+pub field antecedent_contract::transport_revalidation::SceneClaim::support: antecedent_contract::composition_verification::SupportStanding
+pub field antecedent_contract::transport_revalidation::SceneClaim::trust: antecedent_contract::composition_verification::TrustStanding
+pub field antecedent_contract::transport_revalidation::SceneSource::identity: antecedent_core::identity::SemanticDigest
+pub field antecedent_contract::transport_revalidation::SceneSource::key: alloc::string::String
+pub field antecedent_contract::transport_revalidation::SceneTarget::identity: antecedent_core::identity::SemanticDigest
+pub field antecedent_contract::transport_revalidation::SceneTarget::support: antecedent_contract::composition_verification::SupportStanding
+pub field antecedent_contract::transport_revalidation::TransportClaimRevalidation::authority: antecedent_contract::composition_verification::PriorAuthority
+pub field antecedent_contract::transport_revalidation::TransportClaimRevalidation::calibration: antecedent_contract::composition_verification::CalibrationState
+pub field antecedent_contract::transport_revalidation::TransportClaimRevalidation::class: antecedent_core::recalc::Revalidation
+pub field antecedent_contract::transport_revalidation::TransportClaimRevalidation::key: alloc::string::String
+pub field antecedent_contract::transport_revalidation::TransportClaimRevalidation::kind: antecedent_contract::transport_revalidation::SceneClaimKind
+pub field antecedent_contract::transport_revalidation::TransportClaimRevalidation::reasons: alloc::vec::Vec<antecedent_contract::transport_revalidation::TransportReason>
+pub field antecedent_contract::transport_revalidation::TransportScene::claims: alloc::vec::Vec<antecedent_contract::transport_revalidation::SceneClaim>
+pub field antecedent_contract::transport_revalidation::TransportScene::selection_diagram: antecedent_core::identity::SemanticDigest
+pub field antecedent_contract::transport_revalidation::TransportScene::sources: alloc::vec::Vec<antecedent_contract::transport_revalidation::SceneSource>
+pub field antecedent_contract::transport_revalidation::TransportScene::target: antecedent_contract::transport_revalidation::SceneTarget
 pub fn <antecedent_contract::AcceptanceReport>::const fn with_claim(self, present: bool) -> Self
 pub fn <antecedent_contract::AcceptanceReport>::fn accepts_as_claim(&self) -> bool
 pub fn <antecedent_contract::AcceptanceReport>::fn accepts_as_verified_program(&self) -> bool
@@ -4289,6 +4626,8 @@ pub fn <antecedent_contract::ColumnClaim>::const fn rows(&self) -> usize
 pub fn <antecedent_contract::ColumnClaim>::fn covers(&self, values: &[f64]) -> bool
 pub fn <antecedent_contract::ColumnClaim>::fn support_counts(&self) -> &[(antecedent_core::response::SupportStatus, usize)]
 pub fn <antecedent_contract::ColumnClaim>::fn values_blake3(&self) -> &str
+pub fn <antecedent_contract::ComposedCoordinate>::fn id(&self) -> alloc::string::String
+pub fn <antecedent_contract::ComposedCoordinate>::fn of(request: &antecedent_contract::PropagationRequest, plan: &antecedent_contract::PropagationPlan) -> Self
 pub fn <antecedent_contract::CompositionStage>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::CompositionStage>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::ConsumerProfile>::fn forwarding() -> Self
@@ -4350,8 +4689,12 @@ pub fn <antecedent_contract::InputRole>::fn from_name(name: &str) -> core::optio
 pub fn <antecedent_contract::LayerEffect>::fn new(layer: antecedent_contract::SemanticLayer, effects: impl core::iter::traits::collect::IntoIterator<Item = antecedent_contract::TransformEffect>) -> Self
 pub fn <antecedent_contract::LayerEffect>::fn union(&self, other: &Self) -> Self
 pub fn <antecedent_contract::LicensedNeighbor>::fn new(coordinate: impl core::convert::Into<alloc::sync::Arc<str>>, changed: impl core::convert::Into<alloc::sync::Arc<[antecedent_contract::PremiseChange]>>, required_action: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
+pub fn <antecedent_contract::MechanismCompositionPlan>::fn check_contrast_uncertainty(&self, outcome: &str, arm_interventions: &[alloc::vec::Vec<alloc::string::String>]) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
 pub fn <antecedent_contract::MechanismCompositionPlan>::fn identity_hex(&self) -> alloc::string::String
+pub fn <antecedent_contract::MechanismCompositionPlan>::fn is_multilinear_in_parameters(&self, outcome: &str, intervened: &[&str]) -> bool
 pub fn <antecedent_contract::MechanismCompositionPlan>::fn uncertainty_route(&self) -> antecedent_contract::UncertaintyRoute
+pub fn <antecedent_contract::MechanismDeclaration>::fn interface_contract(&self, basis: &antecedent_contract::MechanismInterfaceBasis) -> antecedent_contract::interface_contract::InterfaceContract
+pub fn <antecedent_contract::MechanismInterfaceBasis>::fn new(output: antecedent_contract::interface_contract::PortFacts, offered: impl core::iter::traits::collect::IntoIterator<Item = antecedent_contract::interface_contract::ContractOperation>) -> Self
 pub fn <antecedent_contract::MechanismOriginKind>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::NegotiatedExternalOperation>::const fn operation(&self) -> antecedent_contract::ExternalCapability
 pub fn <antecedent_contract::NegotiatedExternalOperation>::fn identity(&self) -> &antecedent_contract::ProviderObjectIdentity
@@ -4493,6 +4836,7 @@ pub fn <antecedent_contract::bridge::AssumptionKind>::fn from_name(name: &str) -
 pub fn <antecedent_contract::bridge::BridgeAssumption>::fn for_measurement_model(id: impl core::convert::Into<alloc::string::String>, model: &antecedent_core::measurement_model::MeasurementModel) -> Self
 pub fn <antecedent_contract::bridge::BridgeContract>::fn check_licensing(&self) -> core::result::Result<antecedent_contract::bridge::Licensing, antecedent_contract::bridge::BridgeRefusal>
 pub fn <antecedent_contract::bridge::BridgeContract>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_contract::bridge::BridgeContract>::fn interface_contract(&self, component: impl core::convert::Into<alloc::string::String>, basis: &antecedent_contract::bridge::BridgeInterfaceBasis) -> antecedent_contract::interface_contract::InterfaceContract
 pub fn <antecedent_contract::bridge::BridgeContract>::fn validate(&self) -> core::result::Result<(), antecedent_contract::bridge::BridgeRefusal>
 pub fn <antecedent_contract::bridge::BridgeKind>::const fn allowed_mappings(self) -> &'static [antecedent_contract::bridge::MappingKind]
 pub fn <antecedent_contract::bridge::BridgeKind>::const fn as_str(self) -> &'static str
@@ -4557,6 +4901,11 @@ pub fn <antecedent_contract::callback_protocol::ValidatedOutput>::fn into_output
 pub fn <antecedent_contract::composition_verification::CalibrationState>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::composition_verification::ClaimRevalidation>::fn refusal(&self) -> core::option::Option<antecedent_contract::ExternalRefusal>
 pub fn <antecedent_contract::composition_verification::ClaimRevalidation>::fn withdrawn_for(&self, kind: antecedent_contract::composition_verification::WithdrawalKind) -> bool
+pub fn <antecedent_contract::composition_verification::ClaimStanding>::const fn native_point() -> Self
+pub fn <antecedent_contract::composition_verification::ClaimStanding>::const fn provider(trust: antecedent_contract::ProviderTrust, calibration: antecedent_contract::composition_verification::CalibrationDeclaration) -> Self
+pub fn <antecedent_contract::composition_verification::ClaimStanding>::const fn undeclared() -> Self
+pub fn <antecedent_contract::composition_verification::ClaimStanding>::fn with_calibration(self, calibration: antecedent_contract::composition_verification::CalibrationDeclaration) -> Self
+pub fn <antecedent_contract::composition_verification::ClaimStanding>::fn with_unsupported(self, coordinates: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn <antecedent_contract::composition_verification::CompositionGraph>::fn add_edge(&mut self, downstream: &str, upstream: &str, kind: antecedent_contract::composition_verification::DependencyKind) -> core::result::Result<(), antecedent_contract::composition_verification::GraphError>
 pub fn <antecedent_contract::composition_verification::CompositionGraph>::fn add_node(&mut self, node: antecedent_contract::composition_verification::CompositionNode) -> core::result::Result<(), antecedent_contract::composition_verification::GraphError>
 pub fn <antecedent_contract::composition_verification::CompositionGraph>::fn ancestors_of(&self, key: &str) -> alloc::collections::btree::set::BTreeSet<&str>
@@ -4574,10 +4923,12 @@ pub fn <antecedent_contract::composition_verification::CompositionNode>::const f
 pub fn <antecedent_contract::composition_verification::CompositionNode>::const fn with_structure(self, structure: antecedent_core::identity::SemanticDigest) -> Self
 pub fn <antecedent_contract::composition_verification::CompositionNode>::const fn with_trust(self, trust: antecedent_contract::composition_verification::TrustStanding) -> Self
 pub fn <antecedent_contract::composition_verification::CompositionNode>::fn new(key: impl core::convert::Into<alloc::string::String>, kind: antecedent_contract::composition_verification::NodeKind, identity: antecedent_core::identity::SemanticDigest) -> Self
+pub fn <antecedent_contract::composition_verification::CompositionNode>::fn standing(&self) -> antecedent_contract::composition_verification::ClaimStanding
 pub fn <antecedent_contract::composition_verification::CompositionNode>::fn with_assumptions(self, assumptions: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn <antecedent_contract::composition_verification::CompositionNode>::fn with_calibration(self, calibration: antecedent_contract::composition_verification::CalibrationDeclaration) -> Self
 pub fn <antecedent_contract::composition_verification::CompositionNode>::fn with_evidence(self, evidence: alloc::vec::Vec<antecedent_contract::evidence_ledger::SourceId>) -> Self
 pub fn <antecedent_contract::composition_verification::CompositionNode>::fn with_representation(self, representation: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent_contract::composition_verification::CompositionNode>::fn with_standing(self, standing: antecedent_contract::composition_verification::ClaimStanding) -> Self
 pub fn <antecedent_contract::composition_verification::CompositionNode>::fn with_transformation(self, name: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_contract::composition_verification::CompositionNode>::fn with_unsupported(self, coordinates: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn <antecedent_contract::composition_verification::CompositionView>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
@@ -4591,18 +4942,18 @@ pub fn <antecedent_contract::composition_verification::GraphRevalidation>::const
 pub fn <antecedent_contract::composition_verification::GraphRevalidation>::fn claim(&self, key: &str) -> core::option::Option<&antecedent_contract::composition_verification::ClaimRevalidation>
 pub fn <antecedent_contract::composition_verification::GraphRevalidation>::fn claims(&self) -> impl core::iter::traits::iterator::Iterator<Item = &antecedent_contract::composition_verification::ClaimRevalidation>
 pub fn <antecedent_contract::composition_verification::GraphRevalidation>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
-pub fn <antecedent_contract::composition_verification::GraphRevalidation>::fn keys_of(&self, class: antecedent_contract::composition_verification::Revalidation) -> alloc::vec::Vec<&str>
+pub fn <antecedent_contract::composition_verification::GraphRevalidation>::fn keys_of(&self, class: antecedent_core::recalc::Revalidation) -> alloc::vec::Vec<&str>
 pub fn <antecedent_contract::composition_verification::GraphRevalidation>::fn removed(&self) -> &[alloc::string::String]
 pub fn <antecedent_contract::composition_verification::GraphRevalidation>::fn require_valid(&self, key: &str) -> core::result::Result<&antecedent_contract::composition_verification::ClaimRevalidation, antecedent_contract::ExternalRefusal>
 pub fn <antecedent_contract::composition_verification::NodeKind>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::composition_verification::NodeKind>::const fn is_boundary(self) -> bool
 pub fn <antecedent_contract::composition_verification::NodeKind>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::composition_verification::NumericalCause>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::composition_verification::ObservedEffect>::fn from_claim_contract(claim: &antecedent_contract::ClaimEnvelope, freshness: &antecedent_contract::ClaimFreshness, current: core::option::Option<&antecedent_core::identity::ContractIdentities>) -> core::option::Option<Self>
 pub fn <antecedent_contract::composition_verification::ObservedEffect>::fn from_freshness(freshness: &antecedent_contract::ClaimFreshness) -> core::option::Option<Self>
 pub fn <antecedent_contract::composition_verification::ObservedEffect>::fn from_result_status(status: &antecedent_contract::evidence_ledger::ResultStatus) -> core::option::Option<Self>
+pub fn <antecedent_contract::composition_verification::ObservedEffect>::fn from_revalidation(class: antecedent_core::recalc::Revalidation, cause: impl core::convert::Into<alloc::string::String>) -> core::option::Option<Self>
 pub fn <antecedent_contract::composition_verification::ObservedEffect>::fn from_stage_status(status: &antecedent_core::recalc::StageStatus) -> core::option::Option<Self>
-pub fn <antecedent_contract::composition_verification::Revalidation>::const fn as_str(self) -> &'static str
-pub fn <antecedent_contract::composition_verification::Revalidation>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::composition_verification::TrustStanding>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::composition_verification::TrustStanding>::const fn of_provider(trust: antecedent_contract::ProviderTrust) -> Self
 pub fn <antecedent_contract::composition_verification::TrustStanding>::fn from_name(name: &str) -> core::option::Option<Self>
@@ -4616,6 +4967,7 @@ pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn classification
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn combine(&mut self, request: antecedent_contract::evidence_ledger::CombinationRequest) -> core::result::Result<antecedent_contract::evidence_ledger::ResultId, antecedent_contract::evidence_ledger::LedgerError>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn declaration_from_result(&self, result: antecedent_contract::evidence_ledger::ResultId, label: impl core::convert::Into<alloc::string::String>, kind: antecedent_contract::evidence_ledger::SourceKind) -> core::result::Result<antecedent_contract::evidence_ledger::SourceDeclaration, antecedent_contract::evidence_ledger::LedgerError>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn dependence(&self, a: antecedent_contract::evidence_ledger::SourceId, b: antecedent_contract::evidence_ledger::SourceId) -> core::result::Result<antecedent_contract::EvidenceDependence, antecedent_contract::evidence_ledger::LedgerError>
+pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn holds(&self, id: antecedent_contract::evidence_ledger::ObservationId) -> bool
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn mass_account(&self, sources: &[antecedent_contract::evidence_ledger::SourceId]) -> core::result::Result<antecedent_contract::evidence_ledger::MassAccount, antecedent_contract::evidence_ledger::LedgerError>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn new() -> Self
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn operations(&self) -> &[antecedent_contract::evidence_ledger::AppliedOperation]
@@ -4630,8 +4982,9 @@ pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn results(&self)
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn revalidate_downstream(&mut self) -> core::result::Result<alloc::vec::Vec<antecedent_contract::evidence_ledger::ResultRevalidation>, antecedent_contract::evidence_ledger::LedgerError>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn shared_observations(&self, a: antecedent_contract::evidence_ledger::SourceId, b: antecedent_contract::evidence_ledger::SourceId) -> core::result::Result<alloc::vec::Vec<antecedent_contract::evidence_ledger::ObservationId>, antecedent_contract::evidence_ledger::LedgerError>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn source(&self, id: antecedent_contract::evidence_ledger::SourceId) -> core::option::Option<&antecedent_contract::evidence_ledger::EvidenceSource>
+pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn source_loss_classification(&self) -> alloc::vec::Vec<antecedent_contract::evidence_ledger::ResultRevalidation>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn sources(&self) -> &[antecedent_contract::evidence_ledger::EvidenceSource]
-pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn standing(&self, id: antecedent_contract::evidence_ledger::ResultId) -> core::option::Option<antecedent_contract::composition_verification::Revalidation>
+pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn standing(&self, id: antecedent_contract::evidence_ledger::ResultId) -> core::option::Option<antecedent_core::recalc::Revalidation>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn state_digest(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn supersede_source(&mut self, target: antecedent_contract::evidence_ledger::SourceId, replacement: antecedent_contract::evidence_ledger::SourceDeclaration) -> core::result::Result<&antecedent_contract::evidence_ledger::AppliedOperation, antecedent_contract::evidence_ledger::LedgerError>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn update_source(&mut self, target: antecedent_contract::evidence_ledger::SourceId, replacement: antecedent_contract::evidence_ledger::SourceDeclaration) -> core::result::Result<&antecedent_contract::evidence_ledger::AppliedOperation, antecedent_contract::evidence_ledger::LedgerError>
@@ -4657,7 +5010,7 @@ pub fn <antecedent_contract::evidence_ledger::ResultId>::const fn digest(&self) 
 pub fn <antecedent_contract::evidence_ledger::ResultId>::const fn from_digest(digest: antecedent_core::identity::SemanticDigest) -> Self
 pub fn <antecedent_contract::evidence_ledger::ResultId>::fn from_hex(text: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::evidence_ledger::ResultId>::fn to_hex(&self) -> alloc::string::String
-pub fn <antecedent_contract::evidence_ledger::ResultStatus>::const fn revalidation(&self) -> antecedent_contract::composition_verification::Revalidation
+pub fn <antecedent_contract::evidence_ledger::ResultStatus>::const fn revalidation(&self) -> antecedent_core::recalc::Revalidation
 pub fn <antecedent_contract::evidence_ledger::SourceDeclaration>::fn new(label: impl core::convert::Into<alloc::string::String>, kind: antecedent_contract::evidence_ledger::SourceKind) -> Self
 pub fn <antecedent_contract::evidence_ledger::SourceDeclaration>::fn with_lineage(self, lineage: antecedent_contract::evidence_ledger::Lineage) -> Self
 pub fn <antecedent_contract::evidence_ledger::SourceDeclaration>::fn with_observations(self, rows: impl core::iter::traits::collect::IntoIterator<Item = antecedent_contract::evidence_ledger::ObservationId>) -> Self
@@ -4700,6 +5053,10 @@ pub fn <antecedent_contract::interface_contract::InterfaceContract>::fn canonica
 pub fn <antecedent_contract::interface_contract::InterfaceContract>::fn consumed(&self, name: &str) -> core::option::Option<&antecedent_contract::interface_contract::ConsumedPort>
 pub fn <antecedent_contract::interface_contract::InterfaceContract>::fn produced(&self, name: &str) -> core::option::Option<&antecedent_contract::interface_contract::ProducedPort>
 pub fn <antecedent_contract::interface_contract::InterfaceContract>::fn validate(&self) -> core::result::Result<(), antecedent_contract::interface_contract::InterfaceRefusal>
+pub fn <antecedent_contract::interface_contract::PortFacts>::fn new(support: antecedent_contract::interface_contract::SupportDomain) -> Self
+pub fn <antecedent_contract::interface_contract::PortFacts>::fn with_measurement_models<S: core::convert::Into<alloc::string::String>>(self, models: impl core::iter::traits::collect::IntoIterator<Item = S>) -> Self
+pub fn <antecedent_contract::interface_contract::PortFacts>::fn with_semantic_identity(self, identity: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent_contract::interface_contract::PortFacts>::fn with_uncertainty(self, meaning: antecedent_contract::DistributionMeaning) -> Self
 pub fn <antecedent_contract::interface_contract::ProducedPort>::fn new(name: impl core::convert::Into<alloc::string::String>, quantity: antecedent_contract::ScientificQuantity, semantic_identity: impl core::convert::Into<alloc::string::String>, support: antecedent_contract::interface_contract::SupportDomain, operations: impl core::iter::traits::collect::IntoIterator<Item = antecedent_contract::interface_contract::ContractOperation>) -> Self
 pub fn <antecedent_contract::interface_contract::ProducedPort>::fn with_calibration(self, calibration: antecedent_contract::interface_contract::CalibrationStatus) -> Self
 pub fn <antecedent_contract::interface_contract::ProducedPort>::fn with_evidence(self, sources: impl core::iter::traits::collect::IntoIterator<Item = antecedent_contract::evidence_ledger::SourceId>) -> Self
@@ -4719,6 +5076,46 @@ pub fn <antecedent_contract::interface_contract::UncertaintyParadigm>::const fn 
 pub fn <antecedent_contract::interface_contract::UncertaintyParadigm>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::measurement::LatentPosteriorTrust>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::measurement::MeasurementOperation>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::provider_transport::AdmittedProviderSource>::const fn is_native_target_data(&self) -> bool
+pub fn <antecedent_contract::provider_transport::AdmittedProviderSource>::const fn source(&self) -> &antecedent_contract::provider_transport::ProviderTransportSource
+pub fn <antecedent_contract::provider_transport::AdmittedProviderSource>::fn canonical_identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_contract::provider_transport::AdmittedProviderSource>::fn interface_contract(&self) -> antecedent_contract::interface_contract::InterfaceContract
+pub fn <antecedent_contract::provider_transport::AdmittedProviderSource>::fn ledger_declaration(&self) -> antecedent_contract::evidence_ledger::SourceDeclaration
+pub fn <antecedent_contract::provider_transport::AdmittedProviderSource>::fn operations(&self) -> alloc::collections::btree::set::BTreeSet<antecedent_contract::interface_contract::ContractOperation>
+pub fn <antecedent_contract::provider_transport::AdmittedProviderSource>::fn population(&self) -> &str
+pub fn <antecedent_contract::provider_transport::AdmittedProviderSource>::fn regime(&self) -> &str
+pub fn <antecedent_contract::provider_transport::AdmittedProviderSource>::fn require_bound_to(&self, transport: &antecedent_contract::evidence_ledger::TransportIdentity) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
+pub fn <antecedent_contract::provider_transport::AdmittedProviderSource>::fn trust(&self) -> antecedent_contract::ProviderTrust
+pub fn <antecedent_contract::provider_transport::ProviderTransportSource>::fn admit(&self) -> core::result::Result<antecedent_contract::provider_transport::AdmittedProviderSource, antecedent_contract::ExternalRefusal>
+pub fn <antecedent_contract::provider_transport::SourceTrustRequirement>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::provider_transport::SourceTrustRequirement>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::provider_transport::TransportedClaimOffer>::fn canonical_identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_contract::provider_transport::TransportedClaimOffer>::fn from_port(component: &str, port: &antecedent_contract::interface_contract::ProducedPort, transport: antecedent_contract::evidence_ledger::TransportIdentity) -> core::result::Result<Self, antecedent_contract::ExternalRefusal>
+pub fn <antecedent_contract::provider_transport::TransportedClaimOffer>::fn interface_contract(&self) -> antecedent_contract::interface_contract::InterfaceContract
+pub fn <antecedent_contract::provider_transport::TransportedClaimOffer>::fn ledger_declaration(&self, label: impl core::convert::Into<alloc::string::String>) -> antecedent_contract::evidence_ledger::SourceDeclaration
+pub fn <antecedent_contract::provider_transport::TransportedClaimOffer>::fn validate(&self) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
+pub fn <antecedent_contract::provider_transport::TransportedHandoff>::const fn connection(&self) -> &antecedent_contract::interface_contract::Connection
+pub fn <antecedent_contract::provider_transport::TransportedHandoff>::const fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_contract::provider_transport::TransportedHandoff>::const fn is_native_target_data(&self) -> bool
+pub fn <antecedent_contract::provider_transport::TransportedHandoff>::const fn policy(&self) -> antecedent_contract::provider_transport::TransportedInputPolicy
+pub fn <antecedent_contract::provider_transport::TransportedHandoff>::const fn standing(&self) -> &'static str
+pub fn <antecedent_contract::provider_transport::TransportedHandoff>::const fn transport(&self) -> &antecedent_contract::evidence_ledger::TransportIdentity
+pub fn <antecedent_contract::provider_transport::TransportedInputPolicy>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::provider_transport::TransportedInputPolicy>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::transport_revalidation::SceneClaim>::fn new(key: impl core::convert::Into<alloc::string::String>, kind: antecedent_contract::transport_revalidation::SceneClaimKind, identity: antecedent_core::identity::SemanticDigest, quantity: antecedent_core::identity::SemanticDigest) -> Self
+pub fn <antecedent_contract::transport_revalidation::TransportClaimRevalidation>::const fn graph_claim(&self) -> &antecedent_contract::composition_verification::ClaimRevalidation
+pub fn <antecedent_contract::transport_revalidation::TransportClaimRevalidation>::fn calibration_withdrawn(&self) -> bool
+pub fn <antecedent_contract::transport_revalidation::TransportClaimRevalidation>::fn refusal(&self) -> core::option::Option<antecedent_contract::ExternalRefusal>
+pub fn <antecedent_contract::transport_revalidation::TransportReason>::const fn as_str(&self) -> &'static str
+pub fn <antecedent_contract::transport_revalidation::TransportReason>::const fn is_withdrawal(&self) -> bool
+pub fn <antecedent_contract::transport_revalidation::TransportReason>::const fn remedy(&self) -> &'static str
+pub fn <antecedent_contract::transport_revalidation::TransportRevalidation>::const fn graph(&self) -> &antecedent_contract::composition_verification::GraphRevalidation
+pub fn <antecedent_contract::transport_revalidation::TransportRevalidation>::fn claim(&self, key: &str) -> core::option::Option<&antecedent_contract::transport_revalidation::TransportClaimRevalidation>
+pub fn <antecedent_contract::transport_revalidation::TransportRevalidation>::fn claims(&self) -> impl core::iter::traits::iterator::Iterator<Item = &antecedent_contract::transport_revalidation::TransportClaimRevalidation>
+pub fn <antecedent_contract::transport_revalidation::TransportRevalidation>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_contract::transport_revalidation::TransportRevalidation>::fn keys_of(&self, class: antecedent_core::recalc::Revalidation) -> alloc::vec::Vec<&str>
+pub fn <antecedent_contract::transport_revalidation::TransportRevalidation>::fn removed(&self) -> &[alloc::string::String]
+pub fn <antecedent_contract::transport_revalidation::TransportScene>::fn graph(&self) -> core::result::Result<antecedent_contract::composition_verification::CompositionGraph, antecedent_contract::composition_verification::GraphError>
 pub fn antecedent_contract::adaptive_design::licensed_routes() -> alloc::vec::Vec<(antecedent_contract::adaptive_design::ProcedureCell, &'static [antecedent_contract::adaptive_design::InferenceParadigm])>
 pub fn antecedent_contract::adaptive_design::procedure_cells() -> alloc::vec::Vec<antecedent_contract::adaptive_design::ProcedureCell>
 pub fn antecedent_contract::adaptive_design::procedure_status(cell: &antecedent_contract::adaptive_design::ProcedureCell) -> antecedent_contract::adaptive_design::CellStatus
@@ -4749,7 +5146,10 @@ pub fn antecedent_contract::callback_protocol::refusal::joint_law_not_conferred(
 pub fn antecedent_contract::callback_protocol::refusal::meaning_not_for_kind(meaning: &str, kind: &str) -> antecedent_contract::callback_protocol::CallbackRefusal
 pub fn antecedent_contract::callback_protocol::refusal::native_trust_claimed() -> antecedent_contract::callback_protocol::CallbackRefusal
 pub fn antecedent_contract::callback_protocol::refusal::native_trust_not_conferred() -> antecedent_contract::callback_protocol::CallbackRefusal
+pub fn antecedent_contract::callback_protocol::refusal::nested_input_overlap_unknown(first: &str, second: &str) -> antecedent_contract::callback_protocol::CallbackRefusal
+pub fn antecedent_contract::callback_protocol::refusal::nested_input_unregistered(input: &str) -> antecedent_contract::callback_protocol::CallbackRefusal
 pub fn antecedent_contract::callback_protocol::refusal::nested_inputs_mismatch() -> antecedent_contract::callback_protocol::CallbackRefusal
+pub fn antecedent_contract::callback_protocol::refusal::nested_inputs_share_evidence(first: &str, second: &str, shared: u64) -> antecedent_contract::callback_protocol::CallbackRefusal
 pub fn antecedent_contract::callback_protocol::refusal::no_idempotency_contract() -> antecedent_contract::callback_protocol::CallbackRefusal
 pub fn antecedent_contract::callback_protocol::refusal::no_operations() -> antecedent_contract::callback_protocol::CallbackRefusal
 pub fn antecedent_contract::callback_protocol::refusal::opaque_dependencies() -> antecedent_contract::callback_protocol::CallbackRefusal
@@ -4778,11 +5178,15 @@ pub fn antecedent_contract::callback_protocol::standing_label(declaration: &ante
 pub fn antecedent_contract::callback_protocol::standing_of(declaration: &antecedent_contract::callback_protocol::CallbackDeclaration, verification_confirmed: bool) -> core::result::Result<antecedent_contract::callback_protocol::ResultStanding, antecedent_contract::callback_protocol::CallbackRefusal>
 pub fn antecedent_contract::callback_protocol::validate_output(query: &antecedent_contract::callback_protocol::CallbackQuery, output: antecedent_contract::callback_protocol::CallbackOutput, support: &antecedent_contract::interface_contract::SupportDomain, max_values: usize) -> core::result::Result<antecedent_contract::callback_protocol::ValidatedOutput, antecedent_contract::callback_protocol::CallbackRefusal>
 pub fn antecedent_contract::capability_from_name(name: &str) -> core::option::Option<antecedent_contract::ExternalCapability>
+pub fn antecedent_contract::check_composed_interval(request: &antecedent_contract::PropagationRequest, record: core::option::Option<&antecedent_contract::CoverageRecord>, construction: &str) -> core::result::Result<antecedent_contract::ComposedIntervalPlan, antecedent_contract::ExternalRefusal>
+pub fn antecedent_contract::check_declared_independence_against_ledger(decl: &antecedent_contract::MechanismCompositionDeclaration, ledger: &antecedent_contract::evidence_ledger::EvidenceLedger) -> core::result::Result<(), alloc::vec::Vec<antecedent_contract::ExternalRefusal>>
 pub fn antecedent_contract::check_external_against_program(binding: &antecedent_contract::ProgramBinding, claim: &antecedent_contract::ExternalProgramClaim) -> core::result::Result<antecedent_contract::ProgramCheck, antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::check_mechanism_composition(decl: &antecedent_contract::MechanismCompositionDeclaration) -> core::result::Result<antecedent_contract::MechanismCompositionPlan, alloc::vec::Vec<antecedent_contract::ExternalRefusal>>
 pub fn antecedent_contract::check_observation_slots(request: &antecedent_contract::ObservationSlotsRequest<'_>) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::check_propagation(request: &antecedent_contract::PropagationRequest) -> core::result::Result<antecedent_contract::PropagationPlan, antecedent_contract::ExternalRefusal>
+pub fn antecedent_contract::check_propagation_with_ledger(request: &antecedent_contract::PropagationRequest, ledger: &antecedent_contract::evidence_ledger::EvidenceLedger) -> core::result::Result<antecedent_contract::PropagationPlan, antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::check_rows_pairable(alignment: &antecedent_contract::InputAlignment) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
+pub fn antecedent_contract::check_rows_pairable_across(inputs: &[(&str, &antecedent_contract::InputAlignment)]) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::check_static_point_labels(labels: &[antecedent_core::response::SupportStatus], status: antecedent_core::response::SupportStatus, value_len: usize) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::claim::claim_compatibility(parents: &[&antecedent_contract::ClaimEnvelope], operation: antecedent_contract::ClaimOperation, alignment: core::option::Option<&str>) -> antecedent_contract::ClaimCompatibility
 pub fn antecedent_contract::claim::compose_claims(parents: &[&antecedent_contract::ClaimEnvelope], operation: antecedent_contract::ClaimOperation, derived: core::option::Option<antecedent_contract::ClaimEnvelope>, alignment: core::option::Option<&str>) -> antecedent_contract::DerivedClaimOutcome
@@ -4797,7 +5201,9 @@ pub fn antecedent_contract::external_binding::external_values_digest(values: &[f
 pub fn antecedent_contract::external_refusal::probe_from_name(name: &str) -> core::option::Option<antecedent_contract::VerificationProbeKind>
 pub fn antecedent_contract::intent_effects(intent: antecedent_contract::TransformIntent) -> alloc::sync::Arc<[antecedent_contract::LayerEffect]>
 pub fn antecedent_contract::interface_contract::check_composition(components: &[antecedent_contract::interface_contract::InterfaceContract], connections: &[antecedent_contract::interface_contract::ComponentConnection]) -> core::result::Result<antecedent_contract::interface_contract::ComposedInterfaces, alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>>
+pub fn antecedent_contract::interface_contract::check_composition_with_ledger(components: &[antecedent_contract::interface_contract::InterfaceContract], connections: &[antecedent_contract::interface_contract::ComponentConnection], ledger: &antecedent_contract::evidence_ledger::EvidenceLedger) -> core::result::Result<antecedent_contract::interface_contract::ComposedInterfaces, alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>>
 pub fn antecedent_contract::interface_contract::check_connection(producer: &antecedent_contract::interface_contract::InterfaceContract, produced_port: &str, consumer: &antecedent_contract::interface_contract::InterfaceContract, consumed_port: &str) -> core::result::Result<antecedent_contract::interface_contract::Connection, alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>>
+pub fn antecedent_contract::interface_contract::disjoint_requirements_without_ledger(components: &[antecedent_contract::interface_contract::InterfaceContract]) -> alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>
 pub fn antecedent_contract::interface_contract::operations_of_capabilities(capabilities: &[antecedent_contract::ExternalCapability]) -> alloc::collections::btree::set::BTreeSet<antecedent_contract::interface_contract::ContractOperation>
 pub fn antecedent_contract::interval_refusal() -> antecedent_contract::ExternalRefusal
 pub fn antecedent_contract::label_coordinates(cells: &[antecedent_contract::ResponseCoordinateSkeleton], labels: &antecedent_contract::ResponseCoordinateLabels<'_>) -> core::result::Result<alloc::vec::Vec<antecedent_contract::ScientificQuantity>, antecedent_contract::ExternalRefusal>
@@ -4808,14 +5214,23 @@ pub fn antecedent_contract::measurement::check_measurement_request(model: &antec
 pub fn antecedent_contract::measurement::check_representation_transfer(model_representation: &antecedent_core::measurement_model::RepresentationVersion, requested: &antecedent_core::measurement_model::RepresentationVersion, mapping: core::option::Option<&antecedent_core::measurement_model::RepresentationMapping>, requires_intervention_meaning: bool, indicator_kind: antecedent_core::measurement_model::MeasurementKind) -> core::result::Result<(), antecedent_contract::measurement::MeasurementRefusal>
 pub fn antecedent_contract::measurement::check_unmodelled_use(kind: antecedent_core::measurement_model::MeasurementKind, requested_as_construct: bool) -> core::result::Result<(), antecedent_contract::measurement::MeasurementRefusal>
 pub fn antecedent_contract::measurement::identification_refusal(kind: &str, observed: f64, bound: f64) -> antecedent_contract::measurement::MeasurementRefusal
+pub fn antecedent_contract::measurement::measurement_interface_contract(component: impl core::convert::Into<alloc::string::String>, model: &antecedent_core::measurement_model::MeasurementModel, indicator: &antecedent_contract::ScientificQuantity, construct: &antecedent_contract::ScientificQuantity, basis: &antecedent_contract::measurement::MeasurementInterfaceBasis) -> core::result::Result<antecedent_contract::interface_contract::InterfaceContract, antecedent_contract::measurement::MeasurementRefusal>
 pub fn antecedent_contract::measurement::model_refusal(error: &antecedent_core::measurement_model::MeasurementModelError) -> antecedent_contract::measurement::MeasurementRefusal
 pub fn antecedent_contract::measurement::route_card(route: antecedent_core::measurement_model::MeasurementRoute) -> antecedent_contract::measurement::MeasurementRouteCard
 pub fn antecedent_contract::mechanism_composition::reason_code_for_kind(kind_tag: &str) -> &'static str
 pub fn antecedent_contract::observation_query::zero_probability_evidence_refusal() -> antecedent_contract::ExternalRefusal
+pub fn antecedent_contract::provider_transport::connect_bound_provider_source(source: &antecedent_contract::provider_transport::AdmittedProviderSource, transport: &antecedent_contract::evidence_ledger::TransportIdentity, consumer: &antecedent_contract::interface_contract::InterfaceContract, consumed_port: &str) -> core::result::Result<antecedent_contract::interface_contract::Connection, alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>>
+pub fn antecedent_contract::provider_transport::connect_provider_source(source: &antecedent_contract::provider_transport::AdmittedProviderSource, consumer: &antecedent_contract::interface_contract::InterfaceContract, consumed_port: &str) -> core::result::Result<antecedent_contract::interface_contract::Connection, alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>>
+pub fn antecedent_contract::provider_transport::hand_to_callback(offer: &antecedent_contract::provider_transport::TransportedClaimOffer, callback: &antecedent_contract::callback_protocol::CallbackDeclaration, input: &str, policy: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_contract::provider_transport::TransportedHandoff, alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>>
+pub fn antecedent_contract::provider_transport::hand_to_consumer(offer: &antecedent_contract::provider_transport::TransportedClaimOffer, consumer: &antecedent_contract::interface_contract::InterfaceContract, consumed_port: &str, policy: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_contract::provider_transport::TransportedHandoff, alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>>
+pub fn antecedent_contract::provider_transport::hand_to_consumer_from_sources(offer: &antecedent_contract::provider_transport::TransportedClaimOffer, sources: &[&antecedent_contract::provider_transport::AdmittedProviderSource], consumer: &antecedent_contract::interface_contract::InterfaceContract, consumed_port: &str, policy: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_contract::provider_transport::TransportedHandoff, alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>>
+pub fn antecedent_contract::provider_transport::transport_source_consumer(component: impl core::convert::Into<alloc::string::String>, quantity: antecedent_contract::ScientificQuantity, semantic_identity: impl core::convert::Into<alloc::string::String>, support: antecedent_contract::interface_contract::SupportDomain, operations: impl core::iter::traits::collect::IntoIterator<Item = antecedent_contract::interface_contract::ContractOperation>) -> antecedent_contract::interface_contract::InterfaceContract
 pub fn antecedent_contract::provider_verification::verify_external_object(object: &antecedent_contract::ExternalScientificObject, probes: &[antecedent_contract::VerificationProbe]) -> core::result::Result<antecedent_contract::ProviderVerificationReceipt, antecedent_contract::ExternalVerificationError>
 pub fn antecedent_contract::provider_verification::verify_provider_requests(evidence_origin: &str, requests: &[(antecedent_contract::VerificationSubject<'_>, &[antecedent_contract::VerificationProbe])]) -> core::result::Result<antecedent_contract::ProviderVerificationReceipt, antecedent_contract::ExternalVerificationError>
 pub fn antecedent_contract::response_coordinate_skeleton(response: &antecedent_core::response::CausalResponse, name_of: &dyn core::ops::function::Fn(antecedent_core::ids::VariableId) -> core::option::Option<alloc::string::String>) -> core::result::Result<alloc::vec::Vec<antecedent_contract::ResponseCoordinateSkeleton>, antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::response_coordinates(response: &antecedent_core::response::CausalResponse, name_of: &dyn core::ops::function::Fn(antecedent_core::ids::VariableId) -> core::option::Option<alloc::string::String>, labels: &antecedent_contract::ResponseCoordinateLabels<'_>) -> core::result::Result<alloc::vec::Vec<antecedent_contract::ScientificQuantity>, antecedent_contract::ExternalRefusal>
+pub fn antecedent_contract::transport_revalidation::revalidate_transport(previous: &antecedent_contract::transport_revalidation::TransportScene, current: &antecedent_contract::transport_revalidation::TransportScene, effects: &alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_contract::composition_verification::ObservedEffect>) -> core::result::Result<antecedent_contract::transport_revalidation::TransportRevalidation, antecedent_contract::composition_verification::GraphError>
+pub fn antecedent_contract::transport_revalidation::transport_coordinate(target: antecedent_core::identity::SemanticDigest, quantity: antecedent_core::identity::SemanticDigest) -> antecedent_core::identity::SemanticDigest
 pub mod antecedent_contract::adaptive_design
 pub mod antecedent_contract::bridge
 pub mod antecedent_contract::callback_protocol
@@ -4838,6 +5253,7 @@ pub mod antecedent_contract::observation_query
 pub mod antecedent_contract::plan
 pub mod antecedent_contract::program_binding
 pub mod antecedent_contract::provenance
+pub mod antecedent_contract::provider_transport
 pub mod antecedent_contract::provider_trust
 pub mod antecedent_contract::provider_verification
 pub mod antecedent_contract::quantity
@@ -4846,6 +5262,7 @@ pub mod antecedent_contract::response_coordinates
 pub mod antecedent_contract::support_labels
 pub mod antecedent_contract::transform
 pub mod antecedent_contract::transport_result
+pub mod antecedent_contract::transport_revalidation
 pub struct antecedent_contract::AttestedEvidence
 pub struct antecedent_contract::BoundExternalClaim
 pub struct antecedent_contract::BoundExternalClaim has private fields
@@ -4854,7 +5271,10 @@ pub struct antecedent_contract::CheckedCausalContract
 pub struct antecedent_contract::CheckedEquivalence
 pub struct antecedent_contract::ColumnClaim
 pub struct antecedent_contract::ColumnClaim has private fields
+pub struct antecedent_contract::ComposedCoordinate
+pub struct antecedent_contract::ComposedIntervalPlan
 pub struct antecedent_contract::CompositionLink
+pub struct antecedent_contract::CoverageRecord
 pub struct antecedent_contract::EvidenceObligation
 pub struct antecedent_contract::EvidenceObligationError
 pub struct antecedent_contract::EvidenceObligationSpec
@@ -4878,6 +5298,7 @@ pub struct antecedent_contract::MeasuredIndicator
 pub struct antecedent_contract::MechanismCompositionDeclaration
 pub struct antecedent_contract::MechanismCompositionPlan
 pub struct antecedent_contract::MechanismDeclaration
+pub struct antecedent_contract::MechanismInterfaceBasis
 pub struct antecedent_contract::NegotiatedExternalOperation
 pub struct antecedent_contract::NegotiatedExternalOperation has private fields
 pub struct antecedent_contract::ObligationProvenance
@@ -4930,6 +5351,7 @@ pub struct antecedent_contract::bridge::AppliedMapping
 pub struct antecedent_contract::bridge::BridgeAssumption
 pub struct antecedent_contract::bridge::BridgeContract
 pub struct antecedent_contract::bridge::BridgeEndpoint
+pub struct antecedent_contract::bridge::BridgeInterfaceBasis
 pub struct antecedent_contract::bridge::BridgeScope
 pub struct antecedent_contract::bridge::BridgeSource<'a>
 pub struct antecedent_contract::bridge::Licensing
@@ -4949,6 +5371,7 @@ pub struct antecedent_contract::composition_verification::BoundaryAssumption
 pub struct antecedent_contract::composition_verification::BoundaryTransformation
 pub struct antecedent_contract::composition_verification::CalibrationLineage
 pub struct antecedent_contract::composition_verification::ClaimRevalidation
+pub struct antecedent_contract::composition_verification::ClaimStanding
 pub struct antecedent_contract::composition_verification::CompositionEdge
 pub struct antecedent_contract::composition_verification::CompositionGraph
 pub struct antecedent_contract::composition_verification::CompositionGraph has private fields
@@ -4988,10 +5411,26 @@ pub struct antecedent_contract::interface_contract::ComposedInterfaces
 pub struct antecedent_contract::interface_contract::Connection
 pub struct antecedent_contract::interface_contract::ConsumedPort
 pub struct antecedent_contract::interface_contract::InterfaceContract
+pub struct antecedent_contract::interface_contract::PortFacts
 pub struct antecedent_contract::interface_contract::ProducedPort
 pub struct antecedent_contract::interface_contract::UncertaintyMeaning
+pub struct antecedent_contract::measurement::MeasurementInterfaceBasis
 pub struct antecedent_contract::measurement::MeasurementRequest<'a>
 pub struct antecedent_contract::measurement::MeasurementRouteCard
+pub struct antecedent_contract::provider_transport::AdmittedProviderSource
+pub struct antecedent_contract::provider_transport::AdmittedProviderSource has private fields
+pub struct antecedent_contract::provider_transport::ProviderTransportSource
+pub struct antecedent_contract::provider_transport::TransportedClaimOffer
+pub struct antecedent_contract::provider_transport::TransportedHandoff
+pub struct antecedent_contract::provider_transport::TransportedHandoff has private fields
+pub struct antecedent_contract::transport_revalidation::SceneClaim
+pub struct antecedent_contract::transport_revalidation::SceneSource
+pub struct antecedent_contract::transport_revalidation::SceneTarget
+pub struct antecedent_contract::transport_revalidation::TransportClaimRevalidation
+pub struct antecedent_contract::transport_revalidation::TransportClaimRevalidation has private fields
+pub struct antecedent_contract::transport_revalidation::TransportRevalidation
+pub struct antecedent_contract::transport_revalidation::TransportRevalidation has private fields
+pub struct antecedent_contract::transport_revalidation::TransportScene
 pub type antecedent_contract::ArtifactId = alloc::sync::Arc<str>
 pub type antecedent_contract::StructuredRefusal = antecedent_contract::ExternalRefusal
 pub type antecedent_contract::bridge::BridgeRefusal = antecedent_contract::ExternalRefusal
@@ -4999,6 +5438,7 @@ pub type antecedent_contract::callback_protocol::CallbackRefusal = antecedent_co
 pub type antecedent_contract::evidence_ledger::SharedObservations = alloc::vec::Vec<antecedent_contract::evidence_ledger::ObservationId>
 pub type antecedent_contract::interface_contract::InterfaceRefusal = antecedent_contract::ExternalRefusal
 pub type antecedent_contract::measurement::MeasurementRefusal = antecedent_contract::ExternalRefusal
+pub use antecedent_contract::STRUCTURAL_ENVELOPE_LABEL = joint_law_rule::STRUCTURAL_ENVELOPE_LABEL
 pub use antecedent_contract::callback_protocol::refusal::CallbackRefusal = antecedent_contract::callback_protocol::CallbackRefusal
 pub use antecedent_contract::capability::BlockedOperation = antecedent_contract::BlockedOperation
 pub use antecedent_contract::capability::LicensedNeighbor = antecedent_contract::LicensedNeighbor
@@ -5033,7 +5473,8 @@ pub use antecedent_contract::composition_provenance::CompositionStage = antecede
 pub use antecedent_contract::composition_provenance::MAX_CHAIN_LINKS = antecedent_contract::MAX_CHAIN_LINKS
 pub use antecedent_contract::composition_provenance::ProvenanceChain = antecedent_contract::ProvenanceChain
 pub use antecedent_contract::composition_provenance::ProvenanceChainError = antecedent_contract::ProvenanceChainError
-pub use antecedent_contract::evidence_ledger::Revalidation = antecedent_contract::composition_verification::Revalidation
+pub use antecedent_contract::composition_verification::Revalidation = crate::evidence_ledger::Revalidation
+pub use antecedent_contract::evidence_ledger::Revalidation = operation::Revalidation
 pub use antecedent_contract::evidence_obligation::EvidenceObligation = antecedent_contract::EvidenceObligation
 pub use antecedent_contract::evidence_obligation::EvidenceObligationError = antecedent_contract::EvidenceObligationError
 pub use antecedent_contract::evidence_obligation::EvidenceObligationKind = antecedent_contract::EvidenceObligationKind
@@ -5083,9 +5524,13 @@ pub use antecedent_contract::external_refusal::capability_from_name = antecedent
 pub use antecedent_contract::external_refusal::capability_name = antecedent_contract::capability_name
 pub use antecedent_contract::external_values_digest = antecedent_contract::external_binding::external_values_digest
 pub use antecedent_contract::joint_law_rule::ASSUMPTION_RANGE_LABEL = antecedent_contract::ASSUMPTION_RANGE_LABEL
+pub use antecedent_contract::joint_law_rule::ComposedCoordinate = antecedent_contract::ComposedCoordinate
+pub use antecedent_contract::joint_law_rule::ComposedIntervalPlan = antecedent_contract::ComposedIntervalPlan
+pub use antecedent_contract::joint_law_rule::CoverageRecord = antecedent_contract::CoverageRecord
 pub use antecedent_contract::joint_law_rule::InputAlignment = antecedent_contract::InputAlignment
 pub use antecedent_contract::joint_law_rule::InputRole = antecedent_contract::InputRole
 pub use antecedent_contract::joint_law_rule::JOINT_LAW_STAGE = antecedent_contract::JOINT_LAW_STAGE
+pub use antecedent_contract::joint_law_rule::MEASURED_INTERVAL_LABEL = antecedent_contract::MEASURED_INTERVAL_LABEL
 pub use antecedent_contract::joint_law_rule::POINT_ONLY_LABEL = antecedent_contract::POINT_ONLY_LABEL
 pub use antecedent_contract::joint_law_rule::PropagationClass = antecedent_contract::PropagationClass
 pub use antecedent_contract::joint_law_rule::PropagationDependence = antecedent_contract::PropagationDependence
@@ -5095,24 +5540,31 @@ pub use antecedent_contract::joint_law_rule::PropagationPlan = antecedent_contra
 pub use antecedent_contract::joint_law_rule::PropagationRequest = antecedent_contract::PropagationRequest
 pub use antecedent_contract::joint_law_rule::PropagationRoute = antecedent_contract::PropagationRoute
 pub use antecedent_contract::joint_law_rule::RequestedReading = antecedent_contract::RequestedReading
-pub use antecedent_contract::joint_law_rule::STRUCTURAL_ENVELOPE_LABEL = antecedent_contract::STRUCTURAL_ENVELOPE_LABEL
+pub use antecedent_contract::joint_law_rule::STRUCTURAL_ENVELOPE_LABEL = antecedent_core::STRUCTURAL_ENVELOPE_LABEL
+pub use antecedent_contract::joint_law_rule::UNCALIBRATED_SPREAD_LABEL = antecedent_contract::UNCALIBRATED_SPREAD_LABEL
+pub use antecedent_contract::joint_law_rule::check_composed_interval = antecedent_contract::check_composed_interval
 pub use antecedent_contract::joint_law_rule::check_propagation = antecedent_contract::check_propagation
+pub use antecedent_contract::joint_law_rule::check_propagation_with_ledger = antecedent_contract::check_propagation_with_ledger
 pub use antecedent_contract::joint_law_rule::check_rows_pairable = antecedent_contract::check_rows_pairable
+pub use antecedent_contract::joint_law_rule::check_rows_pairable_across = antecedent_contract::check_rows_pairable_across
 pub use antecedent_contract::mechanism_composition::AdmissionBasis = antecedent_contract::AdmissionBasis
 pub use antecedent_contract::mechanism_composition::AdmissionCoordinate = antecedent_contract::AdmissionCoordinate
 pub use antecedent_contract::mechanism_composition::DependenceDeclaration = antecedent_contract::DependenceDeclaration
 pub use antecedent_contract::mechanism_composition::LatentCauseDeclaration = antecedent_contract::LatentCauseDeclaration
 pub use antecedent_contract::mechanism_composition::MAX_DECLARED_MECHANISMS = antecedent_contract::MAX_DECLARED_MECHANISMS
 pub use antecedent_contract::mechanism_composition::MECHANISM_COMPOSITION_STAGE = antecedent_contract::MECHANISM_COMPOSITION_STAGE
+pub use antecedent_contract::mechanism_composition::MECHANISM_OUTPUT_PORT = antecedent_contract::MECHANISM_OUTPUT_PORT
 pub use antecedent_contract::mechanism_composition::MECHANISM_VALUE_FUNCTIONAL = antecedent_contract::MECHANISM_VALUE_FUNCTIONAL
 pub use antecedent_contract::mechanism_composition::MechanismCompositionDeclaration = antecedent_contract::MechanismCompositionDeclaration
 pub use antecedent_contract::mechanism_composition::MechanismCompositionPlan = antecedent_contract::MechanismCompositionPlan
 pub use antecedent_contract::mechanism_composition::MechanismDeclaration = antecedent_contract::MechanismDeclaration
+pub use antecedent_contract::mechanism_composition::MechanismInterfaceBasis = antecedent_contract::MechanismInterfaceBasis
 pub use antecedent_contract::mechanism_composition::MechanismOriginKind = antecedent_contract::MechanismOriginKind
 pub use antecedent_contract::mechanism_composition::PlannedMechanism = antecedent_contract::PlannedMechanism
 pub use antecedent_contract::mechanism_composition::PlannedParent = antecedent_contract::PlannedParent
 pub use antecedent_contract::mechanism_composition::TransportAdmission = antecedent_contract::TransportAdmission
 pub use antecedent_contract::mechanism_composition::UncertaintyRoute = antecedent_contract::UncertaintyRoute
+pub use antecedent_contract::mechanism_composition::check_declared_independence_against_ledger = antecedent_contract::check_declared_independence_against_ledger
 pub use antecedent_contract::mechanism_composition::check_mechanism_composition = antecedent_contract::check_mechanism_composition
 pub use antecedent_contract::mechanism_composition::composition_refusal = antecedent_contract::composition_refusal
 pub use antecedent_contract::obligation::ObligationKind = antecedent_contract::ObligationKind
@@ -5343,6 +5795,7 @@ pub variant antecedent_contract::InputAlignment::MomentsOnly
 pub variant antecedent_contract::InputRole::Estimate
 pub variant antecedent_contract::InputRole::SourceSampling
 pub variant antecedent_contract::InputRole::TargetSampling
+pub variant antecedent_contract::InputRole::TransportFunctional
 pub variant antecedent_contract::InputRole::TransportedInterval
 pub variant antecedent_contract::KernelSelection::DenseBackend
 pub variant antecedent_contract::KernelSelection::PortableOptimized
@@ -5434,6 +5887,7 @@ pub variant antecedent_contract::RequestedReading::Envelope
 pub variant antecedent_contract::RequestedReading::Interval
 pub variant antecedent_contract::RequestedReading::Point
 pub variant antecedent_contract::RequestedReading::Posterior
+pub variant antecedent_contract::RequestedReading::Spread
 pub variant antecedent_contract::SemanticApplicability::Impossible
 pub variant antecedent_contract::SemanticApplicability::Licensed
 pub variant antecedent_contract::SemanticApplicability::Unknown
@@ -5671,6 +6125,7 @@ pub variant antecedent_contract::composition_verification::NodeKind::SelectionDi
 pub variant antecedent_contract::composition_verification::NodeKind::TargetPopulation
 pub variant antecedent_contract::composition_verification::NodeKind::TransportedResult
 pub variant antecedent_contract::composition_verification::NumericalCause::Added
+pub variant antecedent_contract::composition_verification::NumericalCause::CalibrationChanged
 pub variant antecedent_contract::composition_verification::NumericalCause::CoordinateChanged
 pub variant antecedent_contract::composition_verification::NumericalCause::DependenciesChanged
 pub variant antecedent_contract::composition_verification::NumericalCause::IdentityChanged
@@ -5678,18 +6133,18 @@ pub variant antecedent_contract::composition_verification::NumericalCause::Obser
 pub variant antecedent_contract::composition_verification::NumericalCause::RepresentationChanged
 pub variant antecedent_contract::composition_verification::NumericalCause::StructureChanged
 pub variant antecedent_contract::composition_verification::NumericalCause::StructureReusedFitNotRetained
+pub variant antecedent_contract::composition_verification::NumericalCause::SupportRestored
+pub variant antecedent_contract::composition_verification::NumericalCause::TrustChanged
 pub variant antecedent_contract::composition_verification::ObservedEffect::Recomputed { cause: alloc::string::String }
 pub variant antecedent_contract::composition_verification::ObservedEffect::Refused { detail: alloc::string::String }
 pub variant antecedent_contract::composition_verification::ObservedEffect::Withdrawn { cause: alloc::string::String }
 pub variant antecedent_contract::composition_verification::PriorAuthority::NotRetained
 pub variant antecedent_contract::composition_verification::PriorAuthority::Retained
-pub variant antecedent_contract::composition_verification::Revalidation::Recompute
-pub variant antecedent_contract::composition_verification::Revalidation::StillValid
-pub variant antecedent_contract::composition_verification::Revalidation::Withdrawn
 pub variant antecedent_contract::composition_verification::SupportStanding::Supported
 pub variant antecedent_contract::composition_verification::SupportStanding::Unsupported { coordinates: alloc::vec::Vec<alloc::string::String> }
 pub variant antecedent_contract::composition_verification::TrustStanding::Held
 pub variant antecedent_contract::composition_verification::TrustStanding::NotApplicable
+pub variant antecedent_contract::composition_verification::TrustStanding::Undeclared
 pub variant antecedent_contract::composition_verification::TrustStanding::Withdrawn
 pub variant antecedent_contract::composition_verification::ViewError::Cancelled
 pub variant antecedent_contract::composition_verification::ViewError::Graph(antecedent_contract::composition_verification::GraphError)
@@ -5806,3 +6261,26 @@ pub variant antecedent_contract::measurement::MeasurementOperation::LinearFuncti
 pub variant antecedent_contract::measurement::MeasurementOperation::NonlinearOutcomeModel
 pub variant antecedent_contract::measurement::MeasurementOperation::RiskDifference
 pub variant antecedent_contract::measurement::MeasurementOperation::TransportToOtherPopulation
+pub variant antecedent_contract::provider_transport::SourceTrustRequirement::AttestationAccepted
+pub variant antecedent_contract::provider_transport::SourceTrustRequirement::ExactRequestVerified
+pub variant antecedent_contract::provider_transport::TransportedInputPolicy::AcceptsTransported
+pub variant antecedent_contract::provider_transport::TransportedInputPolicy::NativeTargetOnly
+pub variant antecedent_contract::transport_revalidation::SceneCalibration::Held { record: antecedent_core::identity::SemanticDigest, established_at_target: antecedent_core::identity::SemanticDigest }
+pub variant antecedent_contract::transport_revalidation::SceneCalibration::Inherited { from: alloc::string::String, record: antecedent_core::identity::SemanticDigest, established_at_target: antecedent_core::identity::SemanticDigest }
+pub variant antecedent_contract::transport_revalidation::SceneCalibration::PointOnly
+pub variant antecedent_contract::transport_revalidation::SceneCalibration::Required
+pub variant antecedent_contract::transport_revalidation::SceneClaimKind::Decision
+pub variant antecedent_contract::transport_revalidation::SceneClaimKind::Transported
+pub variant antecedent_contract::transport_revalidation::TransportReason::CalibrationFromAnotherTarget
+pub variant antecedent_contract::transport_revalidation::TransportReason::CalibrationRecordDiffers
+pub variant antecedent_contract::transport_revalidation::TransportReason::CalibrationUpstreamNotHeld
+pub variant antecedent_contract::transport_revalidation::TransportReason::ClaimAdded { claim: alloc::string::String }
+pub variant antecedent_contract::transport_revalidation::TransportReason::ClaimChanged { claim: alloc::string::String, cause: antecedent_contract::composition_verification::NumericalCause }
+pub variant antecedent_contract::transport_revalidation::TransportReason::ClaimUnsupported { claim: alloc::string::String, coordinates: alloc::string::String }
+pub variant antecedent_contract::transport_revalidation::TransportReason::InputRetired { input: alloc::string::String }
+pub variant antecedent_contract::transport_revalidation::TransportReason::ObservedStale { node: alloc::string::String }
+pub variant antecedent_contract::transport_revalidation::TransportReason::ProviderTrustLost { claim: alloc::string::String }
+pub variant antecedent_contract::transport_revalidation::TransportReason::SelectionDiagramChanged
+pub variant antecedent_contract::transport_revalidation::TransportReason::SourceEvidenceChanged { source: alloc::string::String }
+pub variant antecedent_contract::transport_revalidation::TransportReason::TargetPopulationChanged
+pub variant antecedent_contract::transport_revalidation::TransportReason::TargetUnsupported { coordinates: alloc::string::String }

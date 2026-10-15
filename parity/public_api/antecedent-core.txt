@@ -44,6 +44,9 @@
 #[non_exhaustive] pub enum antecedent_core::query::GraphAssumptionSet
 #[non_exhaustive] pub enum antecedent_core::query::TransportDistributionFamily
 #[non_exhaustive] pub enum antecedent_core::query::TransportQueryScope
+#[non_exhaustive] pub enum antecedent_core::recalc::CalibrationInput
+#[non_exhaustive] pub enum antecedent_core::recalc::CouplingInput
+#[non_exhaustive] pub enum antecedent_core::recalc::ProviderStandingInput
 #[non_exhaustive] pub enum antecedent_core::value::InterventionValueError
 #[non_exhaustive] pub struct antecedent_core::AverageEffectQuery
 #[non_exhaustive] pub struct antecedent_core::CalibrationBasis
@@ -276,15 +279,20 @@ impl core::clone::Clone for antecedent_core::query::TransportDistributionFamily
 impl core::clone::Clone for antecedent_core::query::TransportQueryScope
 impl core::clone::Clone for antecedent_core::recalc::Boundary
 impl core::clone::Clone for antecedent_core::recalc::Branch
+impl core::clone::Clone for antecedent_core::recalc::CalibrationInput
 impl core::clone::Clone for antecedent_core::recalc::ChangeKind
 impl core::clone::Clone for antecedent_core::recalc::ChangedDependency
+impl core::clone::Clone for antecedent_core::recalc::CouplingInput
 impl core::clone::Clone for antecedent_core::recalc::MissingDependency
+impl core::clone::Clone for antecedent_core::recalc::ProviderStandingInput
 impl core::clone::Clone for antecedent_core::recalc::RecalcCapabilities
 impl core::clone::Clone for antecedent_core::recalc::RecalcPlan
 impl core::clone::Clone for antecedent_core::recalc::RefusalReason
+impl core::clone::Clone for antecedent_core::recalc::RepresentationInput
 impl core::clone::Clone for antecedent_core::recalc::RequestSupport
 impl core::clone::Clone for antecedent_core::recalc::ResumeContext
 impl core::clone::Clone for antecedent_core::recalc::RetargetSupport
+impl core::clone::Clone for antecedent_core::recalc::Revalidation
 impl core::clone::Clone for antecedent_core::recalc::Stage
 impl core::clone::Clone for antecedent_core::recalc::StageEntry
 impl core::clone::Clone for antecedent_core::recalc::StageIdentities
@@ -452,15 +460,20 @@ impl core::cmp::Eq for antecedent_core::query::TransportDistributionFamily
 impl core::cmp::Eq for antecedent_core::query::TransportQueryScope
 impl core::cmp::Eq for antecedent_core::recalc::Boundary
 impl core::cmp::Eq for antecedent_core::recalc::Branch
+impl core::cmp::Eq for antecedent_core::recalc::CalibrationInput
 impl core::cmp::Eq for antecedent_core::recalc::ChangeKind
 impl core::cmp::Eq for antecedent_core::recalc::ChangedDependency
+impl core::cmp::Eq for antecedent_core::recalc::CouplingInput
 impl core::cmp::Eq for antecedent_core::recalc::MissingDependency
+impl core::cmp::Eq for antecedent_core::recalc::ProviderStandingInput
 impl core::cmp::Eq for antecedent_core::recalc::RecalcCapabilities
 impl core::cmp::Eq for antecedent_core::recalc::RecalcPlan
 impl core::cmp::Eq for antecedent_core::recalc::RefusalReason
+impl core::cmp::Eq for antecedent_core::recalc::RepresentationInput
 impl core::cmp::Eq for antecedent_core::recalc::RequestSupport
 impl core::cmp::Eq for antecedent_core::recalc::ResumeContext
 impl core::cmp::Eq for antecedent_core::recalc::RetargetSupport
+impl core::cmp::Eq for antecedent_core::recalc::Revalidation
 impl core::cmp::Eq for antecedent_core::recalc::Stage
 impl core::cmp::Eq for antecedent_core::recalc::StageEntry
 impl core::cmp::Eq for antecedent_core::recalc::StageIdentities
@@ -490,6 +503,7 @@ impl core::cmp::Ord for antecedent_core::WorldObservation
 impl core::cmp::Ord for antecedent_core::measurement_model::MeasurementKind
 impl core::cmp::Ord for antecedent_core::measurement_model::MeasurementRoute
 impl core::cmp::Ord for antecedent_core::recalc::Branch
+impl core::cmp::Ord for antecedent_core::recalc::Revalidation
 impl core::cmp::Ord for antecedent_core::recalc::Stage
 impl core::cmp::Ord for antecedent_core::recalc::StageIdentity
 impl core::cmp::PartialEq for antecedent_core::AdaptiveBootstrapBudget
@@ -710,15 +724,20 @@ impl core::cmp::PartialEq for antecedent_core::query::TransportDistributionFamil
 impl core::cmp::PartialEq for antecedent_core::query::TransportQueryScope
 impl core::cmp::PartialEq for antecedent_core::recalc::Boundary
 impl core::cmp::PartialEq for antecedent_core::recalc::Branch
+impl core::cmp::PartialEq for antecedent_core::recalc::CalibrationInput
 impl core::cmp::PartialEq for antecedent_core::recalc::ChangeKind
 impl core::cmp::PartialEq for antecedent_core::recalc::ChangedDependency
+impl core::cmp::PartialEq for antecedent_core::recalc::CouplingInput
 impl core::cmp::PartialEq for antecedent_core::recalc::MissingDependency
+impl core::cmp::PartialEq for antecedent_core::recalc::ProviderStandingInput
 impl core::cmp::PartialEq for antecedent_core::recalc::RecalcCapabilities
 impl core::cmp::PartialEq for antecedent_core::recalc::RecalcPlan
 impl core::cmp::PartialEq for antecedent_core::recalc::RefusalReason
+impl core::cmp::PartialEq for antecedent_core::recalc::RepresentationInput
 impl core::cmp::PartialEq for antecedent_core::recalc::RequestSupport
 impl core::cmp::PartialEq for antecedent_core::recalc::ResumeContext
 impl core::cmp::PartialEq for antecedent_core::recalc::RetargetSupport
+impl core::cmp::PartialEq for antecedent_core::recalc::Revalidation
 impl core::cmp::PartialEq for antecedent_core::recalc::Stage
 impl core::cmp::PartialEq for antecedent_core::recalc::StageEntry
 impl core::cmp::PartialEq for antecedent_core::recalc::StageIdentities
@@ -748,6 +767,7 @@ impl core::cmp::PartialOrd for antecedent_core::WorldObservation
 impl core::cmp::PartialOrd for antecedent_core::measurement_model::MeasurementKind
 impl core::cmp::PartialOrd for antecedent_core::measurement_model::MeasurementRoute
 impl core::cmp::PartialOrd for antecedent_core::recalc::Branch
+impl core::cmp::PartialOrd for antecedent_core::recalc::Revalidation
 impl core::cmp::PartialOrd for antecedent_core::recalc::Stage
 impl core::cmp::PartialOrd for antecedent_core::recalc::StageIdentity
 impl core::convert::From<antecedent_core::AnomalyAttributionQuery> for antecedent_core::CausalQuery
@@ -1026,15 +1046,20 @@ impl core::fmt::Debug for antecedent_core::query::TransportDistributionFamily
 impl core::fmt::Debug for antecedent_core::query::TransportQueryScope
 impl core::fmt::Debug for antecedent_core::recalc::Boundary
 impl core::fmt::Debug for antecedent_core::recalc::Branch
+impl core::fmt::Debug for antecedent_core::recalc::CalibrationInput
 impl core::fmt::Debug for antecedent_core::recalc::ChangeKind
 impl core::fmt::Debug for antecedent_core::recalc::ChangedDependency
+impl core::fmt::Debug for antecedent_core::recalc::CouplingInput
 impl core::fmt::Debug for antecedent_core::recalc::MissingDependency
+impl core::fmt::Debug for antecedent_core::recalc::ProviderStandingInput
 impl core::fmt::Debug for antecedent_core::recalc::RecalcCapabilities
 impl core::fmt::Debug for antecedent_core::recalc::RecalcPlan
 impl core::fmt::Debug for antecedent_core::recalc::RefusalReason
+impl core::fmt::Debug for antecedent_core::recalc::RepresentationInput
 impl core::fmt::Debug for antecedent_core::recalc::RequestSupport
 impl core::fmt::Debug for antecedent_core::recalc::ResumeContext
 impl core::fmt::Debug for antecedent_core::recalc::RetargetSupport
+impl core::fmt::Debug for antecedent_core::recalc::Revalidation
 impl core::fmt::Debug for antecedent_core::recalc::Stage
 impl core::fmt::Debug for antecedent_core::recalc::StageEntry
 impl core::fmt::Debug for antecedent_core::recalc::StageIdentities
@@ -1180,6 +1205,7 @@ impl core::hash::Hash for antecedent_core::query::OutcomeGuarantee
 impl core::hash::Hash for antecedent_core::query::TransportDistributionFamily
 impl core::hash::Hash for antecedent_core::query::TransportQueryScope
 impl core::hash::Hash for antecedent_core::recalc::Branch
+impl core::hash::Hash for antecedent_core::recalc::Revalidation
 impl core::hash::Hash for antecedent_core::recalc::Stage
 impl core::hash::Hash for antecedent_core::recalc::StageIdentity
 impl core::marker::Copy for antecedent_core::AdaptiveBootstrapBudget
@@ -1273,14 +1299,17 @@ impl core::marker::Copy for antecedent_core::query::TransportDistributionFamily
 impl core::marker::Copy for antecedent_core::query::TransportQueryScope
 impl core::marker::Copy for antecedent_core::recalc::Boundary
 impl core::marker::Copy for antecedent_core::recalc::Branch
+impl core::marker::Copy for antecedent_core::recalc::CalibrationInput
 impl core::marker::Copy for antecedent_core::recalc::ChangeKind
 impl core::marker::Copy for antecedent_core::recalc::ChangedDependency
+impl core::marker::Copy for antecedent_core::recalc::CouplingInput
 impl core::marker::Copy for antecedent_core::recalc::MissingDependency
 impl core::marker::Copy for antecedent_core::recalc::RecalcCapabilities
 impl core::marker::Copy for antecedent_core::recalc::RefusalReason
 impl core::marker::Copy for antecedent_core::recalc::RequestSupport
 impl core::marker::Copy for antecedent_core::recalc::ResumeContext
 impl core::marker::Copy for antecedent_core::recalc::RetargetSupport
+impl core::marker::Copy for antecedent_core::recalc::Revalidation
 impl core::marker::Copy for antecedent_core::recalc::Stage
 impl core::marker::Copy for antecedent_core::recalc::StageEntry
 impl core::marker::Copy for antecedent_core::recalc::StageIdentity
@@ -1513,15 +1542,20 @@ impl core::marker::Freeze for antecedent_core::query::TransportDistributionFamil
 impl core::marker::Freeze for antecedent_core::query::TransportQueryScope [auto]
 impl core::marker::Freeze for antecedent_core::recalc::Boundary [auto]
 impl core::marker::Freeze for antecedent_core::recalc::Branch [auto]
+impl core::marker::Freeze for antecedent_core::recalc::CalibrationInput [auto]
 impl core::marker::Freeze for antecedent_core::recalc::ChangeKind [auto]
 impl core::marker::Freeze for antecedent_core::recalc::ChangedDependency [auto]
+impl core::marker::Freeze for antecedent_core::recalc::CouplingInput [auto]
 impl core::marker::Freeze for antecedent_core::recalc::MissingDependency [auto]
+impl core::marker::Freeze for antecedent_core::recalc::ProviderStandingInput [auto]
 impl core::marker::Freeze for antecedent_core::recalc::RecalcCapabilities [auto]
 impl core::marker::Freeze for antecedent_core::recalc::RecalcPlan [auto]
 impl core::marker::Freeze for antecedent_core::recalc::RefusalReason [auto]
+impl core::marker::Freeze for antecedent_core::recalc::RepresentationInput [auto]
 impl core::marker::Freeze for antecedent_core::recalc::RequestSupport [auto]
 impl core::marker::Freeze for antecedent_core::recalc::ResumeContext [auto]
 impl core::marker::Freeze for antecedent_core::recalc::RetargetSupport [auto]
+impl core::marker::Freeze for antecedent_core::recalc::Revalidation [auto]
 impl core::marker::Freeze for antecedent_core::recalc::Stage [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageIdentities [auto]
@@ -1755,15 +1789,20 @@ impl core::marker::Send for antecedent_core::query::TransportDistributionFamily 
 impl core::marker::Send for antecedent_core::query::TransportQueryScope [auto]
 impl core::marker::Send for antecedent_core::recalc::Boundary [auto]
 impl core::marker::Send for antecedent_core::recalc::Branch [auto]
+impl core::marker::Send for antecedent_core::recalc::CalibrationInput [auto]
 impl core::marker::Send for antecedent_core::recalc::ChangeKind [auto]
 impl core::marker::Send for antecedent_core::recalc::ChangedDependency [auto]
+impl core::marker::Send for antecedent_core::recalc::CouplingInput [auto]
 impl core::marker::Send for antecedent_core::recalc::MissingDependency [auto]
+impl core::marker::Send for antecedent_core::recalc::ProviderStandingInput [auto]
 impl core::marker::Send for antecedent_core::recalc::RecalcCapabilities [auto]
 impl core::marker::Send for antecedent_core::recalc::RecalcPlan [auto]
 impl core::marker::Send for antecedent_core::recalc::RefusalReason [auto]
+impl core::marker::Send for antecedent_core::recalc::RepresentationInput [auto]
 impl core::marker::Send for antecedent_core::recalc::RequestSupport [auto]
 impl core::marker::Send for antecedent_core::recalc::ResumeContext [auto]
 impl core::marker::Send for antecedent_core::recalc::RetargetSupport [auto]
+impl core::marker::Send for antecedent_core::recalc::Revalidation [auto]
 impl core::marker::Send for antecedent_core::recalc::Stage [auto]
 impl core::marker::Send for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Send for antecedent_core::recalc::StageIdentities [auto]
@@ -1985,15 +2024,20 @@ impl core::marker::StructuralPartialEq for antecedent_core::query::TransportDist
 impl core::marker::StructuralPartialEq for antecedent_core::query::TransportQueryScope
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::Boundary
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::Branch
+impl core::marker::StructuralPartialEq for antecedent_core::recalc::CalibrationInput
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::ChangeKind
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::ChangedDependency
+impl core::marker::StructuralPartialEq for antecedent_core::recalc::CouplingInput
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::MissingDependency
+impl core::marker::StructuralPartialEq for antecedent_core::recalc::ProviderStandingInput
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::RecalcCapabilities
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::RecalcPlan
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::RefusalReason
+impl core::marker::StructuralPartialEq for antecedent_core::recalc::RepresentationInput
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::RequestSupport
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::ResumeContext
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::RetargetSupport
+impl core::marker::StructuralPartialEq for antecedent_core::recalc::Revalidation
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::Stage
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageEntry
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageIdentities
@@ -2227,15 +2271,20 @@ impl core::marker::Sync for antecedent_core::query::TransportDistributionFamily 
 impl core::marker::Sync for antecedent_core::query::TransportQueryScope [auto]
 impl core::marker::Sync for antecedent_core::recalc::Boundary [auto]
 impl core::marker::Sync for antecedent_core::recalc::Branch [auto]
+impl core::marker::Sync for antecedent_core::recalc::CalibrationInput [auto]
 impl core::marker::Sync for antecedent_core::recalc::ChangeKind [auto]
 impl core::marker::Sync for antecedent_core::recalc::ChangedDependency [auto]
+impl core::marker::Sync for antecedent_core::recalc::CouplingInput [auto]
 impl core::marker::Sync for antecedent_core::recalc::MissingDependency [auto]
+impl core::marker::Sync for antecedent_core::recalc::ProviderStandingInput [auto]
 impl core::marker::Sync for antecedent_core::recalc::RecalcCapabilities [auto]
 impl core::marker::Sync for antecedent_core::recalc::RecalcPlan [auto]
 impl core::marker::Sync for antecedent_core::recalc::RefusalReason [auto]
+impl core::marker::Sync for antecedent_core::recalc::RepresentationInput [auto]
 impl core::marker::Sync for antecedent_core::recalc::RequestSupport [auto]
 impl core::marker::Sync for antecedent_core::recalc::ResumeContext [auto]
 impl core::marker::Sync for antecedent_core::recalc::RetargetSupport [auto]
+impl core::marker::Sync for antecedent_core::recalc::Revalidation [auto]
 impl core::marker::Sync for antecedent_core::recalc::Stage [auto]
 impl core::marker::Sync for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Sync for antecedent_core::recalc::StageIdentities [auto]
@@ -2469,15 +2518,20 @@ impl core::marker::Unpin for antecedent_core::query::TransportDistributionFamily
 impl core::marker::Unpin for antecedent_core::query::TransportQueryScope [auto]
 impl core::marker::Unpin for antecedent_core::recalc::Boundary [auto]
 impl core::marker::Unpin for antecedent_core::recalc::Branch [auto]
+impl core::marker::Unpin for antecedent_core::recalc::CalibrationInput [auto]
 impl core::marker::Unpin for antecedent_core::recalc::ChangeKind [auto]
 impl core::marker::Unpin for antecedent_core::recalc::ChangedDependency [auto]
+impl core::marker::Unpin for antecedent_core::recalc::CouplingInput [auto]
 impl core::marker::Unpin for antecedent_core::recalc::MissingDependency [auto]
+impl core::marker::Unpin for antecedent_core::recalc::ProviderStandingInput [auto]
 impl core::marker::Unpin for antecedent_core::recalc::RecalcCapabilities [auto]
 impl core::marker::Unpin for antecedent_core::recalc::RecalcPlan [auto]
 impl core::marker::Unpin for antecedent_core::recalc::RefusalReason [auto]
+impl core::marker::Unpin for antecedent_core::recalc::RepresentationInput [auto]
 impl core::marker::Unpin for antecedent_core::recalc::RequestSupport [auto]
 impl core::marker::Unpin for antecedent_core::recalc::ResumeContext [auto]
 impl core::marker::Unpin for antecedent_core::recalc::RetargetSupport [auto]
+impl core::marker::Unpin for antecedent_core::recalc::Revalidation [auto]
 impl core::marker::Unpin for antecedent_core::recalc::Stage [auto]
 impl core::marker::Unpin for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Unpin for antecedent_core::recalc::StageIdentities [auto]
@@ -2711,15 +2765,20 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::query::Transpo
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::query::TransportQueryScope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::Boundary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::Branch [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::CalibrationInput [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::ChangeKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::ChangedDependency [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::CouplingInput [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::MissingDependency [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::ProviderStandingInput [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::RecalcCapabilities [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::RecalcPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::RefusalReason [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::RepresentationInput [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::RequestSupport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::ResumeContext [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::RetargetSupport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::Revalidation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::Stage [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageEntry [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageIdentities [auto]
@@ -2952,15 +3011,20 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::query::TransportD
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::query::TransportQueryScope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::Boundary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::Branch [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::CalibrationInput [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::ChangeKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::ChangedDependency [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::CouplingInput [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::MissingDependency [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::ProviderStandingInput [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::RecalcCapabilities [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::RecalcPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::RefusalReason [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::RepresentationInput [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::RequestSupport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::ResumeContext [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::RetargetSupport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::Revalidation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::Stage [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageEntry [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageIdentities [auto]
@@ -3054,6 +3118,7 @@ pub const antecedent_core::MAX_NONPARAMETRIC_RESPONSE_DIM: usize
 pub const antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS: usize
 pub const antecedent_core::MAX_TEMPORAL_RESPONSE_HORIZONS: usize
 pub const antecedent_core::POSTERIOR_MASS_TOLERANCE: f64
+pub const antecedent_core::STRUCTURAL_ENVELOPE_LABEL: &str
 pub const antecedent_core::TEMPORAL_OBSERVATION_UNLICENSED: &str
 pub const antecedent_core::VERSION: &str
 pub const antecedent_core::measurement_model::MEASUREMENT_MODEL_FORMAT: u16
@@ -3061,6 +3126,7 @@ pub const antecedent_core::reason_code::PREFIX: &str
 pub const antecedent_core::reason_code::REASON_CODES: &[&str]
 pub const antecedent_core::reason_code::RUNTIME_REFUSAL_CODES: &[&str]
 pub const antecedent_core::recalc::MAX_EXTERNAL_BRANCHES: u8
+pub const antecedent_core::recalc::STANDING_INPUT_VERSION: u64
 pub const fn antecedent_core::derive_stream(master: u64, stream_id: u64) -> u64
 pub const fn antecedent_core::execution::mix64(z: u64) -> u64
 pub const fn antecedent_core::reason_code::is_registered(code: &str) -> bool
@@ -3129,6 +3195,7 @@ pub enum antecedent_core::recalc::MissingDependency
 pub enum antecedent_core::recalc::RefusalReason
 pub enum antecedent_core::recalc::RequestSupport
 pub enum antecedent_core::recalc::RetargetSupport
+pub enum antecedent_core::recalc::Revalidation
 pub enum antecedent_core::recalc::Stage
 pub enum antecedent_core::recalc::StageStatus
 pub field antecedent_core::AdaptiveBootstrapBudget::enabled: bool
@@ -3639,6 +3706,8 @@ pub field antecedent_core::query::TheoremReference::version: alloc::sync::Arc<st
 pub field antecedent_core::recalc::RecalcCapabilities::boundary: antecedent_core::recalc::Boundary
 pub field antecedent_core::recalc::RecalcCapabilities::request: antecedent_core::recalc::RequestSupport
 pub field antecedent_core::recalc::RecalcCapabilities::retarget: antecedent_core::recalc::RetargetSupport
+pub field antecedent_core::recalc::RepresentationInput::family: alloc::string::String
+pub field antecedent_core::recalc::RepresentationInput::version: alloc::string::String
 pub field antecedent_core::recalc::ResumeContext::portable_fit: bool
 pub field antecedent_core::recalc::ResumeContext::portable_scores: bool
 pub field antecedent_core::recalc::ResumeContext::scores_snapshot_bound: bool
@@ -4170,6 +4239,10 @@ pub fn <antecedent_core::query::TransportDistributionFamily>::const fn as_str(se
 pub fn <antecedent_core::query::TransportQueryScope>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::recalc::Branch>::const fn index(self) -> u8
 pub fn <antecedent_core::recalc::Branch>::const fn new(index: u8) -> core::option::Option<Self>
+pub fn <antecedent_core::recalc::CalibrationInput>::fn identity(&self) -> antecedent_core::recalc::StageIdentity
+pub fn <antecedent_core::recalc::ChangeKind>::const fn revalidation(self) -> antecedent_core::recalc::Revalidation
+pub fn <antecedent_core::recalc::CouplingInput>::fn identity(&self) -> antecedent_core::recalc::StageIdentity
+pub fn <antecedent_core::recalc::ProviderStandingInput>::fn identity(&self, branch: antecedent_core::recalc::Branch) -> antecedent_core::recalc::StageIdentity
 pub fn <antecedent_core::recalc::RecalcCapabilities>::const fn fresh_process(retarget: antecedent_core::recalc::RetargetSupport, resume: antecedent_core::recalc::ResumeContext) -> Self
 pub fn <antecedent_core::recalc::RecalcCapabilities>::const fn in_process(retarget: antecedent_core::recalc::RetargetSupport) -> Self
 pub fn <antecedent_core::recalc::RecalcPlan>::fn canonical_identity(&self) -> antecedent_core::recalc::StageIdentity
@@ -4182,10 +4255,17 @@ pub fn <antecedent_core::recalc::RecalcPlan>::fn recomputed(&self) -> alloc::vec
 pub fn <antecedent_core::recalc::RecalcPlan>::fn recomputed_computations(&self) -> alloc::vec::Vec<antecedent_core::recalc::Stage>
 pub fn <antecedent_core::recalc::RecalcPlan>::fn refused(&self) -> alloc::vec::Vec<antecedent_core::recalc::Stage>
 pub fn <antecedent_core::recalc::RecalcPlan>::fn reused(&self) -> alloc::vec::Vec<antecedent_core::recalc::Stage>
+pub fn <antecedent_core::recalc::RecalcPlan>::fn revalidation(&self, stage: antecedent_core::recalc::Stage) -> core::option::Option<antecedent_core::recalc::Revalidation>
 pub fn <antecedent_core::recalc::RecalcPlan>::fn status(&self, stage: antecedent_core::recalc::Stage) -> core::option::Option<&antecedent_core::recalc::StageStatus>
 pub fn <antecedent_core::recalc::RefusalReason>::const fn detail(&self) -> &'static str
 pub fn <antecedent_core::recalc::RefusalReason>::const fn reason_code(&self) -> &'static str
+pub fn <antecedent_core::recalc::RepresentationInput>::fn identity(&self) -> antecedent_core::recalc::StageIdentity
+pub fn <antecedent_core::recalc::RepresentationInput>::fn new(family: impl core::convert::Into<alloc::string::String>, version: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent_core::recalc::Revalidation>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::recalc::Revalidation>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_core::recalc::Revalidation>::fn worst(self, other: Self) -> Self
 pub fn <antecedent_core::recalc::Stage>::const fn is_input(self) -> bool
+pub fn <antecedent_core::recalc::Stage>::const fn is_standing(self) -> bool
 pub fn <antecedent_core::recalc::Stage>::fn all() -> alloc::vec::Vec<Self>
 pub fn <antecedent_core::recalc::Stage>::fn dependencies(self, retarget: antecedent_core::recalc::RetargetSupport) -> alloc::vec::Vec<Self>
 pub fn <antecedent_core::recalc::Stage>::fn label(self) -> alloc::string::String
@@ -4195,13 +4275,19 @@ pub fn <antecedent_core::recalc::StageIdentities>::fn new() -> Self
 pub fn <antecedent_core::recalc::StageIdentities>::fn own(&self, stage: antecedent_core::recalc::Stage) -> antecedent_core::recalc::StageIdentity
 pub fn <antecedent_core::recalc::StageIdentities>::fn remove(&mut self, stage: antecedent_core::recalc::Stage)
 pub fn <antecedent_core::recalc::StageIdentities>::fn set(&mut self, stage: antecedent_core::recalc::Stage, own: antecedent_core::recalc::StageIdentity)
+pub fn <antecedent_core::recalc::StageIdentities>::fn set_calibration(&mut self, input: &antecedent_core::recalc::CalibrationInput)
+pub fn <antecedent_core::recalc::StageIdentities>::fn set_coupling(&mut self, input: &antecedent_core::recalc::CouplingInput)
+pub fn <antecedent_core::recalc::StageIdentities>::fn set_provider_standing(&mut self, branch: antecedent_core::recalc::Branch, input: &antecedent_core::recalc::ProviderStandingInput)
+pub fn <antecedent_core::recalc::StageIdentities>::fn set_representation(&mut self, input: &antecedent_core::recalc::RepresentationInput)
 pub fn <antecedent_core::recalc::StageIdentities>::fn with(self, stage: antecedent_core::recalc::Stage, own: antecedent_core::recalc::StageIdentity) -> Self
 pub fn <antecedent_core::recalc::StageIdentity>::const fn as_bytes(&self) -> &[u8; 32]
 pub fn <antecedent_core::recalc::StageIdentity>::const fn from_bytes(bytes: [u8; 32]) -> Self
 pub fn <antecedent_core::recalc::StageIdentity>::fn from_hex(text: &str) -> core::option::Option<Self>
 pub fn <antecedent_core::recalc::StageIdentity>::fn is_absent(&self) -> bool
 pub fn <antecedent_core::recalc::StageIdentity>::fn of(label: &str, parts: &[&[u8]]) -> Self
+pub fn <antecedent_core::recalc::StageIdentity>::fn revalidation_since(&self, retained: core::option::Option<Self>) -> antecedent_core::recalc::Revalidation
 pub fn <antecedent_core::recalc::StageIdentity>::fn to_hex(&self) -> alloc::string::String
+pub fn <antecedent_core::recalc::StageStatus>::const fn revalidation(&self) -> antecedent_core::recalc::Revalidation
 pub fn <antecedent_core::recalc::StageStatus>::const fn tag(&self) -> &'static str
 pub fn antecedent_core::blake3_hex(bytes: &[u8]) -> alloc::string::String
 pub fn antecedent_core::default_user_threads() -> u32
@@ -4415,6 +4501,7 @@ pub struct antecedent_core::recalc::Branch has private fields
 pub struct antecedent_core::recalc::RecalcCapabilities
 pub struct antecedent_core::recalc::RecalcPlan
 pub struct antecedent_core::recalc::RecalcPlan has private fields
+pub struct antecedent_core::recalc::RepresentationInput
 pub struct antecedent_core::recalc::ResumeContext
 pub struct antecedent_core::recalc::StageEntry
 pub struct antecedent_core::recalc::StageIdentities
@@ -5121,15 +5208,27 @@ pub variant antecedent_core::query::TransportDistributionFamily::PositiveLaws
 pub variant antecedent_core::query::TransportQueryScope::TargetInterventionalResponse
 pub variant antecedent_core::recalc::Boundary::FreshProcess(antecedent_core::recalc::ResumeContext)
 pub variant antecedent_core::recalc::Boundary::InProcess
+pub variant antecedent_core::recalc::CalibrationInput::Held { record: antecedent_core::recalc::StageIdentity, coordinate: antecedent_core::recalc::StageIdentity }
+pub variant antecedent_core::recalc::CalibrationInput::PointOnly
+pub variant antecedent_core::recalc::CalibrationInput::Unmeasured
+pub variant antecedent_core::recalc::CalibrationInput::Withdrawn { record: antecedent_core::recalc::StageIdentity }
 pub variant antecedent_core::recalc::ChangeKind::Added
 pub variant antecedent_core::recalc::ChangeKind::Modified
 pub variant antecedent_core::recalc::ChangeKind::Removed
 pub variant antecedent_core::recalc::ChangedDependency::FreshProcess
 pub variant antecedent_core::recalc::ChangedDependency::Own { stage: antecedent_core::recalc::Stage, change: antecedent_core::recalc::ChangeKind }
 pub variant antecedent_core::recalc::ChangedDependency::Upstream { via: antecedent_core::recalc::Stage, origin: antecedent_core::recalc::Stage, change: antecedent_core::recalc::ChangeKind }
+pub variant antecedent_core::recalc::CouplingInput::AlignedJoint { alignment: antecedent_core::recalc::StageIdentity }
+pub variant antecedent_core::recalc::CouplingInput::DeclaredIndependent
+pub variant antecedent_core::recalc::CouplingInput::None
+pub variant antecedent_core::recalc::CouplingInput::SharedExogenous { source: antecedent_core::recalc::StageIdentity }
+pub variant antecedent_core::recalc::CouplingInput::Unknown
 pub variant antecedent_core::recalc::MissingDependency::Data
 pub variant antecedent_core::recalc::MissingDependency::Fit
 pub variant antecedent_core::recalc::MissingDependency::Provider
+pub variant antecedent_core::recalc::ProviderStandingInput::Revoked
+pub variant antecedent_core::recalc::ProviderStandingInput::Unverified
+pub variant antecedent_core::recalc::ProviderStandingInput::Verified { level: alloc::string::String, receipt: antecedent_core::recalc::StageIdentity }
 pub variant antecedent_core::recalc::RefusalReason::Blocked { by: antecedent_core::recalc::Stage }
 pub variant antecedent_core::recalc::RefusalReason::OffGrid { licensed_route: core::option::Option<&'static str> }
 pub variant antecedent_core::recalc::RefusalReason::RetargetIncompatible
@@ -5141,6 +5240,11 @@ pub variant antecedent_core::recalc::RequestSupport::Unsupported { licensed_rout
 pub variant antecedent_core::recalc::RetargetSupport::Incompatible
 pub variant antecedent_core::recalc::RetargetSupport::Licensed
 pub variant antecedent_core::recalc::RetargetSupport::NotDeclared
+pub variant antecedent_core::recalc::Revalidation::Recompute
+pub variant antecedent_core::recalc::Revalidation::StillValid
+pub variant antecedent_core::recalc::Revalidation::Withdrawn
+pub variant antecedent_core::recalc::Stage::Calibration
+pub variant antecedent_core::recalc::Stage::Coupling
 pub variant antecedent_core::recalc::Stage::DataSnapshot
 pub variant antecedent_core::recalc::Stage::Decision
 pub variant antecedent_core::recalc::Stage::Evidence
@@ -5151,8 +5255,10 @@ pub variant antecedent_core::recalc::Stage::Law
 pub variant antecedent_core::recalc::Stage::LearnerFoldsRng
 pub variant antecedent_core::recalc::Stage::Prior(antecedent_core::recalc::Branch)
 pub variant antecedent_core::recalc::Stage::ProviderRequest(antecedent_core::recalc::Branch)
+pub variant antecedent_core::recalc::Stage::ProviderStanding(antecedent_core::recalc::Branch)
 pub variant antecedent_core::recalc::Stage::Query
 pub variant antecedent_core::recalc::Stage::Regime
+pub variant antecedent_core::recalc::Stage::Representation
 pub variant antecedent_core::recalc::Stage::RowDesign
 pub variant antecedent_core::recalc::Stage::ScoreArtifact
 pub variant antecedent_core::recalc::Stage::SourcePopulation

@@ -50,6 +50,14 @@ impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Diagnostic
 impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Options
 impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Posterior
 impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Prior
+impl core::clone::Clone for antecedent_learn::transported_effect::FeatureOverlap
+impl core::clone::Clone for antecedent_learn::transported_effect::OverlapAssessment
+impl core::clone::Clone for antecedent_learn::transported_effect::SelectionShiftDeclaration
+impl core::clone::Clone for antecedent_learn::transported_effect::TargetCohort
+impl core::clone::Clone for antecedent_learn::transported_effect::TransportRefusal
+impl core::clone::Clone for antecedent_learn::transported_effect::TransportedCohortEffect
+impl core::clone::Clone for antecedent_learn::transported_effect::TransportedInference
+impl core::clone::Clone for antecedent_learn::transported_effect::TransportedRequest
 impl core::cmp::Eq for antecedent_learn::BasisTargetPopulation
 impl core::cmp::Eq for antecedent_learn::ForestSpec
 impl core::cmp::Eq for antecedent_learn::Layout
@@ -61,6 +69,10 @@ impl core::cmp::Eq for antecedent_learn::PolynomialBasis
 impl core::cmp::Eq for antecedent_learn::PosteriorPredictionProvenance
 impl core::cmp::Eq for antecedent_learn::PredictionTask
 impl core::cmp::Eq for antecedent_learn::SupportReport
+impl core::cmp::Eq for antecedent_learn::transported_effect::SelectionShiftDeclaration
+impl core::cmp::Eq for antecedent_learn::transported_effect::TransportRefusal
+impl core::cmp::Eq for antecedent_learn::transported_effect::TransportedInference
+impl core::cmp::Eq for antecedent_learn::transported_effect::TransportedRequest
 impl core::cmp::PartialEq for antecedent_learn::BasisRegressionPosterior
 impl core::cmp::PartialEq for antecedent_learn::BasisTargetPopulation
 impl core::cmp::PartialEq for antecedent_learn::BayesianBasisEffect
@@ -96,6 +108,14 @@ impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Diagnost
 impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Options
 impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Posterior
 impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Prior
+impl core::cmp::PartialEq for antecedent_learn::transported_effect::FeatureOverlap
+impl core::cmp::PartialEq for antecedent_learn::transported_effect::OverlapAssessment
+impl core::cmp::PartialEq for antecedent_learn::transported_effect::SelectionShiftDeclaration
+impl core::cmp::PartialEq for antecedent_learn::transported_effect::TargetCohort
+impl core::cmp::PartialEq for antecedent_learn::transported_effect::TransportRefusal
+impl core::cmp::PartialEq for antecedent_learn::transported_effect::TransportedCohortEffect
+impl core::cmp::PartialEq for antecedent_learn::transported_effect::TransportedInference
+impl core::cmp::PartialEq for antecedent_learn::transported_effect::TransportedRequest
 impl core::convert::From<antecedent_prob::error::ProbError> for antecedent_learn::LearnError
 impl core::convert::From<antecedent_stats::error::StatsError> for antecedent_learn::LearnError
 impl core::default::Default for antecedent_learn::BayesianBasisGComputation
@@ -115,6 +135,7 @@ impl core::default::Default for antecedent_learn::nested_markov_bayesian::Prior
 impl core::error::Error for antecedent_learn::FittedEffectError
 impl core::error::Error for antecedent_learn::LearnError
 impl core::error::Error for antecedent_learn::nested_markov_bayesian::BayesianRefusal
+impl core::error::Error for antecedent_learn::transported_effect::TransportRefusal
 impl core::fmt::Debug for antecedent_learn::BasisRegressionPosterior
 impl core::fmt::Debug for antecedent_learn::BasisTargetPopulation
 impl core::fmt::Debug for antecedent_learn::BayesianBasisEffect
@@ -157,9 +178,18 @@ impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Diagnostics
 impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Options
 impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Posterior
 impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Prior
+impl core::fmt::Debug for antecedent_learn::transported_effect::FeatureOverlap
+impl core::fmt::Debug for antecedent_learn::transported_effect::OverlapAssessment
+impl core::fmt::Debug for antecedent_learn::transported_effect::SelectionShiftDeclaration
+impl core::fmt::Debug for antecedent_learn::transported_effect::TargetCohort
+impl core::fmt::Debug for antecedent_learn::transported_effect::TransportRefusal
+impl core::fmt::Debug for antecedent_learn::transported_effect::TransportedCohortEffect
+impl core::fmt::Debug for antecedent_learn::transported_effect::TransportedInference
+impl core::fmt::Debug for antecedent_learn::transported_effect::TransportedRequest
 impl core::fmt::Display for antecedent_learn::FittedEffectError
 impl core::fmt::Display for antecedent_learn::LearnError
 impl core::fmt::Display for antecedent_learn::nested_markov_bayesian::BayesianRefusal
+impl core::fmt::Display for antecedent_learn::transported_effect::TransportRefusal
 impl core::marker::Copy for antecedent_learn::BasisTargetPopulation
 impl core::marker::Copy for antecedent_learn::BayesianBasisGComputation
 impl core::marker::Copy for antecedent_learn::BayesianBasisSpec
@@ -182,6 +212,8 @@ impl core::marker::Copy for antecedent_learn::PredictionTask
 impl core::marker::Copy for antecedent_learn::RidgeLogisticLearner
 impl core::marker::Copy for antecedent_learn::RidgeSpec
 impl core::marker::Copy for antecedent_learn::SupportReport
+impl core::marker::Copy for antecedent_learn::transported_effect::TransportedInference
+impl core::marker::Copy for antecedent_learn::transported_effect::TransportedRequest
 impl core::marker::Freeze for antecedent_learn::BasisRegressionPosterior [auto]
 impl core::marker::Freeze for antecedent_learn::BasisTargetPopulation [auto]
 impl core::marker::Freeze for antecedent_learn::BayesianBasisEffect [auto]
@@ -225,6 +257,14 @@ impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Diagnost
 impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::marker::Freeze for antecedent_learn::transported_effect::FeatureOverlap [auto]
+impl core::marker::Freeze for antecedent_learn::transported_effect::OverlapAssessment [auto]
+impl core::marker::Freeze for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
+impl core::marker::Freeze for antecedent_learn::transported_effect::TargetCohort [auto]
+impl core::marker::Freeze for antecedent_learn::transported_effect::TransportRefusal [auto]
+impl core::marker::Freeze for antecedent_learn::transported_effect::TransportedCohortEffect [auto]
+impl core::marker::Freeze for antecedent_learn::transported_effect::TransportedInference [auto]
+impl core::marker::Freeze for antecedent_learn::transported_effect::TransportedRequest [auto]
 impl core::marker::Send for antecedent_learn::BasisRegressionPosterior [auto]
 impl core::marker::Send for antecedent_learn::BasisTargetPopulation [auto]
 impl core::marker::Send for antecedent_learn::BayesianBasisEffect [auto]
@@ -268,6 +308,14 @@ impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Diagnostic
 impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::marker::Send for antecedent_learn::transported_effect::FeatureOverlap [auto]
+impl core::marker::Send for antecedent_learn::transported_effect::OverlapAssessment [auto]
+impl core::marker::Send for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
+impl core::marker::Send for antecedent_learn::transported_effect::TargetCohort [auto]
+impl core::marker::Send for antecedent_learn::transported_effect::TransportRefusal [auto]
+impl core::marker::Send for antecedent_learn::transported_effect::TransportedCohortEffect [auto]
+impl core::marker::Send for antecedent_learn::transported_effect::TransportedInference [auto]
+impl core::marker::Send for antecedent_learn::transported_effect::TransportedRequest [auto]
 impl core::marker::StructuralPartialEq for antecedent_learn::BasisRegressionPosterior
 impl core::marker::StructuralPartialEq for antecedent_learn::BasisTargetPopulation
 impl core::marker::StructuralPartialEq for antecedent_learn::BayesianBasisEffect
@@ -303,6 +351,14 @@ impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayes
 impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::Options
 impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::Posterior
 impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::Prior
+impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::FeatureOverlap
+impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::OverlapAssessment
+impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::SelectionShiftDeclaration
+impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::TargetCohort
+impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::TransportRefusal
+impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::TransportedCohortEffect
+impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::TransportedInference
+impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::TransportedRequest
 impl core::marker::Sync for antecedent_learn::BasisRegressionPosterior [auto]
 impl core::marker::Sync for antecedent_learn::BasisTargetPopulation [auto]
 impl core::marker::Sync for antecedent_learn::BayesianBasisEffect [auto]
@@ -346,6 +402,14 @@ impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Diagnostic
 impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::marker::Sync for antecedent_learn::transported_effect::FeatureOverlap [auto]
+impl core::marker::Sync for antecedent_learn::transported_effect::OverlapAssessment [auto]
+impl core::marker::Sync for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
+impl core::marker::Sync for antecedent_learn::transported_effect::TargetCohort [auto]
+impl core::marker::Sync for antecedent_learn::transported_effect::TransportRefusal [auto]
+impl core::marker::Sync for antecedent_learn::transported_effect::TransportedCohortEffect [auto]
+impl core::marker::Sync for antecedent_learn::transported_effect::TransportedInference [auto]
+impl core::marker::Sync for antecedent_learn::transported_effect::TransportedRequest [auto]
 impl core::marker::Unpin for antecedent_learn::BasisRegressionPosterior [auto]
 impl core::marker::Unpin for antecedent_learn::BasisTargetPopulation [auto]
 impl core::marker::Unpin for antecedent_learn::BayesianBasisEffect [auto]
@@ -389,6 +453,14 @@ impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Diagnosti
 impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::marker::Unpin for antecedent_learn::transported_effect::FeatureOverlap [auto]
+impl core::marker::Unpin for antecedent_learn::transported_effect::OverlapAssessment [auto]
+impl core::marker::Unpin for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
+impl core::marker::Unpin for antecedent_learn::transported_effect::TargetCohort [auto]
+impl core::marker::Unpin for antecedent_learn::transported_effect::TransportRefusal [auto]
+impl core::marker::Unpin for antecedent_learn::transported_effect::TransportedCohortEffect [auto]
+impl core::marker::Unpin for antecedent_learn::transported_effect::TransportedInference [auto]
+impl core::marker::Unpin for antecedent_learn::transported_effect::TransportedRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::BasisRegressionPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::BasisTargetPopulation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::BayesianBasisEffect [auto]
@@ -431,6 +503,14 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::FeatureOverlap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::OverlapAssessment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::TargetCohort [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::TransportRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::TransportedCohortEffect [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::TransportedInference [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::TransportedRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::BasisRegressionPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::BasisTargetPopulation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::BayesianBasisEffect [auto]
@@ -473,6 +553,14 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_ba
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::FeatureOverlap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::OverlapAssessment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::TargetCohort [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::TransportRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::TransportedCohortEffect [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::TransportedInference [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::TransportedRequest [auto]
 impl serde_core::ser::Serialize for antecedent_learn::EffectSupport
 impl serde_core::ser::Serialize for antecedent_learn::ElasticNetSpec
 impl serde_core::ser::Serialize for antecedent_learn::FeatureRange
@@ -580,6 +668,9 @@ pub const antecedent_learn::nested_markov_bayesian::COORDINATES: [&str; 14]
 pub const antecedent_learn::nested_markov_bayesian::METHOD: &str
 pub const antecedent_learn::nested_markov_bayesian::OUTPUTS: usize
 pub const antecedent_learn::nested_markov_bayesian::RNG: &str
+pub const antecedent_learn::transported_effect::SELECTION_SHIFT_ASSUMPTION: &str
+pub const antecedent_learn::transported_effect::TRANSPORTED_POINT_SCOPE: &str
+pub const antecedent_learn::transported_effect::TRANSPORT_WEIGHT_SUM_TOLERANCE: f64
 pub enum antecedent_learn::BasisTargetPopulation
 pub enum antecedent_learn::Layout
 pub enum antecedent_learn::LearnerSpec
@@ -587,6 +678,8 @@ pub enum antecedent_learn::PredictionMap
 pub enum antecedent_learn::PredictionNode
 pub enum antecedent_learn::PredictionTask
 pub enum antecedent_learn::nested_markov_bayesian::BayesianRefusal
+pub enum antecedent_learn::transported_effect::TransportedInference
+pub enum antecedent_learn::transported_effect::TransportedRequest
 pub field antecedent_learn::BasisData::covariates_colmajor: &'a [f64]
 pub field antecedent_learn::BasisData::fold_ids: core::option::Option<&'a [u16]>
 pub field antecedent_learn::BasisData::n_covariates: usize
@@ -701,6 +794,41 @@ pub field antecedent_learn::nested_markov_bayesian::Posterior::proposals: usize
 pub field antecedent_learn::nested_markov_bayesian::Posterior::samples: alloc::vec::Vec<[f64; 14]>
 pub field antecedent_learn::nested_markov_bayesian::Prior::alpha: [f64; 11]
 pub field antecedent_learn::nested_markov_bayesian::Prior::beta: [f64; 11]
+pub field antecedent_learn::transported_effect::FeatureOverlap::disjoint: bool
+pub field antecedent_learn::transported_effect::FeatureOverlap::feature: alloc::string::String
+pub field antecedent_learn::transported_effect::FeatureOverlap::mass_outside: f64
+pub field antecedent_learn::transported_effect::FeatureOverlap::rows_outside: usize
+pub field antecedent_learn::transported_effect::FeatureOverlap::source_hi: f64
+pub field antecedent_learn::transported_effect::FeatureOverlap::source_lo: f64
+pub field antecedent_learn::transported_effect::FeatureOverlap::target_hi: f64
+pub field antecedent_learn::transported_effect::FeatureOverlap::target_lo: f64
+pub field antecedent_learn::transported_effect::OverlapAssessment::features: alloc::vec::Vec<antecedent_learn::transported_effect::FeatureOverlap>
+pub field antecedent_learn::transported_effect::OverlapAssessment::first_feature: core::option::Option<usize>
+pub field antecedent_learn::transported_effect::OverlapAssessment::first_row: core::option::Option<usize>
+pub field antecedent_learn::transported_effect::OverlapAssessment::mass_outside: f64
+pub field antecedent_learn::transported_effect::OverlapAssessment::rows_checked: usize
+pub field antecedent_learn::transported_effect::OverlapAssessment::rows_outside: usize
+pub field antecedent_learn::transported_effect::OverlapAssessment::source_rows: u64
+pub field antecedent_learn::transported_effect::SelectionShiftDeclaration::effect_modifiers: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_learn::transported_effect::SelectionShiftDeclaration::selection_children: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_learn::transported_effect::SelectionShiftDeclaration::selection_node: alloc::string::String
+pub field antecedent_learn::transported_effect::SelectionShiftDeclaration::source_population: alloc::string::String
+pub field antecedent_learn::transported_effect::SelectionShiftDeclaration::target_population: alloc::string::String
+pub field antecedent_learn::transported_effect::TargetCohort::columns: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_learn::transported_effect::TargetCohort::features: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_learn::transported_effect::TargetCohort::population_id: alloc::string::String
+pub field antecedent_learn::transported_effect::TargetCohort::row_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_learn::transported_effect::TargetCohort::weights: alloc::vec::Vec<f64>
+pub field antecedent_learn::transported_effect::TransportRefusal::code: &'static str
+pub field antecedent_learn::transported_effect::TransportRefusal::detail: &'static str
+pub field antecedent_learn::transported_effect::TransportRefusal::remedy: &'static str
+pub field antecedent_learn::transported_effect::TransportRefusal::subject: alloc::string::String
+pub field antecedent_learn::transported_effect::TransportedCohortEffect::cohort_digest: alloc::string::String
+pub field antecedent_learn::transported_effect::TransportedCohortEffect::declaration: antecedent_learn::transported_effect::SelectionShiftDeclaration
+pub field antecedent_learn::transported_effect::TransportedCohortEffect::mean_contrast: f64
+pub field antecedent_learn::transported_effect::TransportedCohortEffect::model_identity: alloc::string::String
+pub field antecedent_learn::transported_effect::TransportedCohortEffect::overlap: antecedent_learn::transported_effect::OverlapAssessment
+pub field antecedent_learn::transported_effect::TransportedCohortEffect::row_contrasts: alloc::vec::Vec<f64>
 pub fn <antecedent_learn::BasisRegressionPosterior>::fn draw(&self, draw: usize, coefficient: usize) -> core::option::Option<f64>
 pub fn <antecedent_learn::BasisRegressionPosterior>::fn n_coefficients(&self) -> usize
 pub fn <antecedent_learn::BayesianBasisGComputation>::const fn estimator_id(&self) -> &'static str
@@ -757,6 +885,16 @@ pub fn <antecedent_learn::TargetView<'a>>::const fn is_empty(self) -> bool
 pub fn <antecedent_learn::TargetView<'a>>::const fn len(self) -> usize
 pub fn <antecedent_learn::TargetView<'a>>::const fn new(values: &'a [f64]) -> Self
 pub fn <antecedent_learn::TargetView<'a>>::const fn values(self) -> &'a [f64]
+pub fn <antecedent_learn::transported_effect::OverlapAssessment>::fn any_disjoint(&self) -> bool
+pub fn <antecedent_learn::transported_effect::OverlapAssessment>::fn fully_covered(&self) -> bool
+pub fn <antecedent_learn::transported_effect::SelectionShiftDeclaration>::fn new(source_population: &str, target_population: &str, selection_node: &str, selection_children: &[&str], effect_modifiers: &[&str]) -> Self
+pub fn <antecedent_learn::transported_effect::TargetCohort>::fn validate(&self) -> core::result::Result<(), antecedent_learn::transported_effect::TransportRefusal>
+pub fn <antecedent_learn::transported_effect::TransportedCohortEffect>::fn assumptions(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn <antecedent_learn::transported_effect::TransportedCohortEffect>::fn identity(&self) -> &str
+pub fn <antecedent_learn::transported_effect::TransportedCohortEffect>::fn inference(&self) -> antecedent_learn::transported_effect::TransportedInference
+pub fn <antecedent_learn::transported_effect::TransportedCohortEffect>::fn interval_refusal(&self) -> antecedent_learn::transported_effect::TransportRefusal
+pub fn <antecedent_learn::transported_effect::TransportedCohortEffect>::fn law_refusal(&self) -> antecedent_learn::transported_effect::TransportRefusal
+pub fn <antecedent_learn::transported_effect::TransportedRequest>::fn refusal(self) -> antecedent_learn::transported_effect::TransportRefusal
 pub fn antecedent_learn::assign_folds(n_rows: usize, folds: usize, rng: &mut antecedent_core::execution::CausalRng, strata: core::option::Option<&[u32]>) -> core::result::Result<alloc::vec::Vec<u16>, antecedent_learn::LearnError>
 pub fn antecedent_learn::bayesian_basis_regression::information_rank(design: &antecedent_learn::BasisDesign<'_>) -> core::result::Result<antecedent_learn::InformationRank, antecedent_learn::LearnError>
 pub fn antecedent_learn::cross_fit_selected(factory: &dyn antecedent_learn::LearnerFactory, x: antecedent_learn::DesignView<'_>, y: antecedent_learn::TargetView<'_>, fold_assignment: &[u16], eligible: &[bool], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_learn::CrossFittedPrediction, antecedent_learn::LearnError>
@@ -768,6 +906,8 @@ pub fn antecedent_learn::nested_markov_bayesian::fit(counts: &[u64; 16], prior: 
 pub fn antecedent_learn::nested_markov_bayesian::probabilities(p: &[f64; 11]) -> core::option::Option<[f64; 16]>
 pub fn antecedent_learn::resolve(spec: antecedent_learn::LearnerSpec) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::LearnerFactory>, antecedent_learn::LearnError>
 pub fn antecedent_learn::resolve_for(spec: antecedent_learn::LearnerSpec, task: antecedent_learn::PredictionTask) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::LearnerFactory>, antecedent_learn::LearnError>
+pub fn antecedent_learn::transported_effect::assess_overlap(support: &antecedent_learn::EffectSupport, feature_names: &[alloc::string::String], columns: &[&[f64]], weights: &[f64]) -> core::result::Result<antecedent_learn::transported_effect::OverlapAssessment, antecedent_learn::transported_effect::TransportRefusal>
+pub fn antecedent_learn::transported_effect::transport_cohort_effect(effect: &antecedent_learn::FittedEffect, feature_names: &[alloc::string::String], model_identity: &str, model_population: &str, cohort: &antecedent_learn::transported_effect::TargetCohort, shift: core::option::Option<&antecedent_learn::transported_effect::SelectionShiftDeclaration>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_learn::transported_effect::TransportedCohortEffect, antecedent_learn::transported_effect::TransportRefusal>
 pub mod antecedent_learn::auto
 pub mod antecedent_learn::bayesian_basis
 pub mod antecedent_learn::bayesian_basis_regression
@@ -787,6 +927,7 @@ pub mod antecedent_learn::posterior_prediction
 pub mod antecedent_learn::ridge
 pub mod antecedent_learn::spec
 pub mod antecedent_learn::transform
+pub mod antecedent_learn::transported_effect
 pub struct antecedent_learn::BasisData<'a>
 pub struct antecedent_learn::BasisDesign<'a>
 pub struct antecedent_learn::BasisRegressionPosterior
@@ -836,6 +977,13 @@ pub struct antecedent_learn::nested_markov_bayesian::Diagnostics
 pub struct antecedent_learn::nested_markov_bayesian::Options
 pub struct antecedent_learn::nested_markov_bayesian::Posterior
 pub struct antecedent_learn::nested_markov_bayesian::Prior
+pub struct antecedent_learn::transported_effect::FeatureOverlap
+pub struct antecedent_learn::transported_effect::OverlapAssessment
+pub struct antecedent_learn::transported_effect::SelectionShiftDeclaration
+pub struct antecedent_learn::transported_effect::TargetCohort
+pub struct antecedent_learn::transported_effect::TransportRefusal
+pub struct antecedent_learn::transported_effect::TransportedCohortEffect
+pub struct antecedent_learn::transported_effect::TransportedCohortEffect has private fields
 pub trait antecedent_learn::FittedPredictor: core::marker::Send + core::marker::Sync
 pub trait antecedent_learn::FittedTransformer: core::marker::Send + core::marker::Sync
 pub trait antecedent_learn::LearnerFactory: core::marker::Send + core::marker::Sync
@@ -932,3 +1080,6 @@ pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Budget(&'
 pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Invalid(&'static str)
 pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Nonconvergence
 pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Numerical(&'static str)
+pub variant antecedent_learn::transported_effect::TransportedInference::PointOnly
+pub variant antecedent_learn::transported_effect::TransportedRequest::Interval
+pub variant antecedent_learn::transported_effect::TransportedRequest::Law

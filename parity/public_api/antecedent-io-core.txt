@@ -19,7 +19,14 @@
 #[doc(hidden)] pub fn <antecedent_io_core::selective_discovery_artifact::SelectiveDiscoveryArtifact>::fn from_meta(meta: &antecedent_io_core::selective_discovery_artifact::SelectiveDiscoveryMeta, expected_identity: core::option::Option<&str>) -> core::result::Result<Self, antecedent_io_core::selective_discovery_artifact::SelectiveDiscoveryArtifactError>
 #[doc(hidden)] pub fn <antecedent_io_core::selective_discovery_artifact::SelectiveDiscoveryArtifact>::fn meta_to_bytes(meta: &antecedent_io_core::selective_discovery_artifact::SelectiveDiscoveryMeta, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::selective_discovery_artifact::SelectiveDiscoveryArtifactError>
 #[doc(hidden)] pub fn <antecedent_io_core::selective_discovery_artifact::SelectiveDiscoveryArtifact>::fn reseal_identity(meta: &mut antecedent_io_core::selective_discovery_artifact::SelectiveDiscoveryMeta)
+#[doc(hidden)] pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::fn from_meta(meta: &antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta, expected_identity: core::option::Option<&str>) -> core::result::Result<Self, antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError>
+#[doc(hidden)] pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::fn meta_to_bytes(meta: &antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError>
+#[doc(hidden)] pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::fn reseal_identity(meta: &mut antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta)
+#[doc(hidden)] pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::fn selection_diagram(&self) -> antecedent_core::identity::SemanticDigest
 #[doc(hidden)] pub fn <antecedent_io_core::transport_point_wire::MzTransportPointWire>::fn replays(&self, recomputed: &Self) -> bool
+#[doc(hidden)] pub fn <antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact>::fn from_meta(meta: &antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta, expected_identity: core::option::Option<&str>) -> core::result::Result<Self, antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError>
+#[doc(hidden)] pub fn <antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact>::fn meta_to_bytes(meta: &antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError>
+#[doc(hidden)] pub fn <antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact>::fn reseal_identity(meta: &mut antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta) -> core::result::Result<(), antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError>
 #[doc(hidden)] pub fn antecedent_io_core::analysis_wire::identification_status_pascal(status: antecedent_core::identification::IdentificationStatus) -> &'static str
 #[doc(hidden)] pub fn antecedent_io_core::counterfactual_id_artifact::counterfactual_id_data_digest(law: &antecedent_io_core::counterfactual_id_artifact::CounterfactualIdLawWire) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
 #[doc(hidden)] pub fn antecedent_io_core::counterfactual_transport_wire::counterfactual_transport_data_digest(catalog: &antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire, laws: &[antecedent_io_core::exact_law_wire::ExactLawWire]) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
@@ -59,6 +66,8 @@
 #[non_exhaustive] pub enum antecedent_io_core::transport_errors::TemporalTransportArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::transport_errors::TransportScenarioArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::transport_errors::ZTransportArtifactError
+#[non_exhaustive] pub enum antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError
+#[non_exhaustive] pub enum antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifactError
 impl antecedent_io_core::artifact_codec::CanonicalSize for antecedent_core::identity::CanonicalWriter
 impl antecedent_io_core::artifact_codec::VersionWord for u16
@@ -647,6 +656,10 @@ impl core::clone::Clone for antecedent_io_core::transport_errors::SmoothedDoseAr
 impl core::clone::Clone for antecedent_io_core::transport_errors::TemporalTransportArtifactError
 impl core::clone::Clone for antecedent_io_core::transport_errors::TransportScenarioArtifactError
 impl core::clone::Clone for antecedent_io_core::transport_errors::ZTransportArtifactError
+impl core::clone::Clone for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact
+impl core::clone::Clone for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError
+impl core::clone::Clone for antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta
+impl core::clone::Clone for antecedent_io_core::transport_handoff_artifact::TransportIdentityWire
 impl core::clone::Clone for antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire
 impl core::clone::Clone for antecedent_io_core::transport_point_wire::MzTransportPointWire
 impl core::clone::Clone for antecedent_io_core::transport_proof::TransportProofWire
@@ -654,6 +667,14 @@ impl core::clone::Clone for antecedent_io_core::transport_query_wire::MixedSourc
 impl core::clone::Clone for antecedent_io_core::transport_query_wire::MzSourceWire
 impl core::clone::Clone for antecedent_io_core::transport_query_wire::MzTransportQueryWire
 impl core::clone::Clone for antecedent_io_core::transport_query_wire::ZTransportQueryWire
+impl core::clone::Clone for antecedent_io_core::transport_revalidation_artifact::ClaimReportWire
+impl core::clone::Clone for antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire
+impl core::clone::Clone for antecedent_io_core::transport_revalidation_artifact::SceneClaimWire
+impl core::clone::Clone for antecedent_io_core::transport_revalidation_artifact::SceneSourceWire
+impl core::clone::Clone for antecedent_io_core::transport_revalidation_artifact::SceneWire
+impl core::clone::Clone for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact
+impl core::clone::Clone for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError
+impl core::clone::Clone for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta
 impl core::clone::Clone for antecedent_io_core::transported_counterfactual_artifact::AffineWire
 impl core::clone::Clone for antecedent_io_core::transported_counterfactual_artifact::AssignmentWire
 impl core::clone::Clone for antecedent_io_core::transported_counterfactual_artifact::DerivationWire
@@ -982,7 +1003,17 @@ impl core::cmp::Eq for antecedent_io_core::transport_errors::SmoothedDoseArtifac
 impl core::cmp::Eq for antecedent_io_core::transport_errors::TemporalTransportArtifactError
 impl core::cmp::Eq for antecedent_io_core::transport_errors::TransportScenarioArtifactError
 impl core::cmp::Eq for antecedent_io_core::transport_errors::ZTransportArtifactError
+impl core::cmp::Eq for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError
+impl core::cmp::Eq for antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta
+impl core::cmp::Eq for antecedent_io_core::transport_handoff_artifact::TransportIdentityWire
 impl core::cmp::Eq for antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire
+impl core::cmp::Eq for antecedent_io_core::transport_revalidation_artifact::ClaimReportWire
+impl core::cmp::Eq for antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire
+impl core::cmp::Eq for antecedent_io_core::transport_revalidation_artifact::SceneClaimWire
+impl core::cmp::Eq for antecedent_io_core::transport_revalidation_artifact::SceneSourceWire
+impl core::cmp::Eq for antecedent_io_core::transport_revalidation_artifact::SceneWire
+impl core::cmp::Eq for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError
+impl core::cmp::Eq for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta
 impl core::cmp::Eq for antecedent_io_core::transported_counterfactual_artifact::DerivationWire
 impl core::cmp::Eq for antecedent_io_core::transported_counterfactual_artifact::EvidenceWire
 impl core::cmp::Eq for antecedent_io_core::transported_counterfactual_artifact::PremisesWire
@@ -1547,12 +1578,22 @@ impl core::cmp::PartialEq for antecedent_io_core::transport_errors::SmoothedDose
 impl core::cmp::PartialEq for antecedent_io_core::transport_errors::TemporalTransportArtifactError
 impl core::cmp::PartialEq for antecedent_io_core::transport_errors::TransportScenarioArtifactError
 impl core::cmp::PartialEq for antecedent_io_core::transport_errors::ZTransportArtifactError
+impl core::cmp::PartialEq for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError
+impl core::cmp::PartialEq for antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta
+impl core::cmp::PartialEq for antecedent_io_core::transport_handoff_artifact::TransportIdentityWire
 impl core::cmp::PartialEq for antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire
 impl core::cmp::PartialEq for antecedent_io_core::transport_point_wire::MzTransportPointWire
 impl core::cmp::PartialEq for antecedent_io_core::transport_query_wire::MixedSourceQueryWire
 impl core::cmp::PartialEq for antecedent_io_core::transport_query_wire::MzSourceWire
 impl core::cmp::PartialEq for antecedent_io_core::transport_query_wire::MzTransportQueryWire
 impl core::cmp::PartialEq for antecedent_io_core::transport_query_wire::ZTransportQueryWire
+impl core::cmp::PartialEq for antecedent_io_core::transport_revalidation_artifact::ClaimReportWire
+impl core::cmp::PartialEq for antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire
+impl core::cmp::PartialEq for antecedent_io_core::transport_revalidation_artifact::SceneClaimWire
+impl core::cmp::PartialEq for antecedent_io_core::transport_revalidation_artifact::SceneSourceWire
+impl core::cmp::PartialEq for antecedent_io_core::transport_revalidation_artifact::SceneWire
+impl core::cmp::PartialEq for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError
+impl core::cmp::PartialEq for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta
 impl core::cmp::PartialEq for antecedent_io_core::transported_counterfactual_artifact::AffineWire
 impl core::cmp::PartialEq for antecedent_io_core::transported_counterfactual_artifact::AssignmentWire
 impl core::cmp::PartialEq for antecedent_io_core::transported_counterfactual_artifact::DerivationWire
@@ -1618,6 +1659,8 @@ impl core::convert::From<antecedent_io_core::IoError> for antecedent_io_core::in
 impl core::convert::From<antecedent_io_core::IoError> for antecedent_io_core::recalc_receipt_artifact::RecalcReceiptArtifactError
 impl core::convert::From<antecedent_io_core::IoError> for antecedent_io_core::selective_discovery_artifact::SelectiveDiscoveryArtifactError
 impl core::convert::From<antecedent_io_core::IoError> for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifactError
+impl core::convert::From<antecedent_io_core::IoError> for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError
+impl core::convert::From<antecedent_io_core::IoError> for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError
 impl core::convert::From<antecedent_io_core::IoError> for antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifactError
 impl core::convert::From<antecedent_io_core::transport_errors::AdmgConditionalArtifactError> for antecedent_io_core::IoError
 impl core::convert::From<antecedent_io_core::transport_errors::LearnedContinuousArtifactError> for antecedent_io_core::IoError
@@ -1686,6 +1729,8 @@ impl core::error::Error for antecedent_io_core::transport_errors::SmoothedDoseAr
 impl core::error::Error for antecedent_io_core::transport_errors::TemporalTransportArtifactError
 impl core::error::Error for antecedent_io_core::transport_errors::TransportScenarioArtifactError
 impl core::error::Error for antecedent_io_core::transport_errors::ZTransportArtifactError
+impl core::error::Error for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError
+impl core::error::Error for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError
 impl core::error::Error for antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifactError
 impl core::fmt::Debug for antecedent_io_core::AdaptiveBudgetWire
 impl core::fmt::Debug for antecedent_io_core::AdmgJson
@@ -2273,6 +2318,10 @@ impl core::fmt::Debug for antecedent_io_core::transport_errors::SmoothedDoseArti
 impl core::fmt::Debug for antecedent_io_core::transport_errors::TemporalTransportArtifactError
 impl core::fmt::Debug for antecedent_io_core::transport_errors::TransportScenarioArtifactError
 impl core::fmt::Debug for antecedent_io_core::transport_errors::ZTransportArtifactError
+impl core::fmt::Debug for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact
+impl core::fmt::Debug for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError
+impl core::fmt::Debug for antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta
+impl core::fmt::Debug for antecedent_io_core::transport_handoff_artifact::TransportIdentityWire
 impl core::fmt::Debug for antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire
 impl core::fmt::Debug for antecedent_io_core::transport_point_wire::MzTransportPointWire
 impl core::fmt::Debug for antecedent_io_core::transport_proof::TransportProofWire
@@ -2280,6 +2329,14 @@ impl core::fmt::Debug for antecedent_io_core::transport_query_wire::MixedSourceQ
 impl core::fmt::Debug for antecedent_io_core::transport_query_wire::MzSourceWire
 impl core::fmt::Debug for antecedent_io_core::transport_query_wire::MzTransportQueryWire
 impl core::fmt::Debug for antecedent_io_core::transport_query_wire::ZTransportQueryWire
+impl core::fmt::Debug for antecedent_io_core::transport_revalidation_artifact::ClaimReportWire
+impl core::fmt::Debug for antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire
+impl core::fmt::Debug for antecedent_io_core::transport_revalidation_artifact::SceneClaimWire
+impl core::fmt::Debug for antecedent_io_core::transport_revalidation_artifact::SceneSourceWire
+impl core::fmt::Debug for antecedent_io_core::transport_revalidation_artifact::SceneWire
+impl core::fmt::Debug for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact
+impl core::fmt::Debug for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError
+impl core::fmt::Debug for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta
 impl core::fmt::Debug for antecedent_io_core::transported_counterfactual_artifact::AffineWire
 impl core::fmt::Debug for antecedent_io_core::transported_counterfactual_artifact::AssignmentWire
 impl core::fmt::Debug for antecedent_io_core::transported_counterfactual_artifact::DerivationWire
@@ -2333,6 +2390,8 @@ impl core::fmt::Display for antecedent_io_core::transport_errors::SmoothedDoseAr
 impl core::fmt::Display for antecedent_io_core::transport_errors::TemporalTransportArtifactError
 impl core::fmt::Display for antecedent_io_core::transport_errors::TransportScenarioArtifactError
 impl core::fmt::Display for antecedent_io_core::transport_errors::ZTransportArtifactError
+impl core::fmt::Display for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError
+impl core::fmt::Display for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError
 impl core::fmt::Display for antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifactError
 impl core::hash::Hash for antecedent_io_core::CompatibilityRejectReason
 impl core::hash::Hash for antecedent_io_core::ContractReason
@@ -2985,6 +3044,10 @@ impl core::marker::Freeze for antecedent_io_core::transport_errors::SmoothedDose
 impl core::marker::Freeze for antecedent_io_core::transport_errors::TemporalTransportArtifactError [auto]
 impl core::marker::Freeze for antecedent_io_core::transport_errors::TransportScenarioArtifactError [auto]
 impl core::marker::Freeze for antecedent_io_core::transport_errors::ZTransportArtifactError [auto]
+impl core::marker::Freeze for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact [auto]
+impl core::marker::Freeze for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError [auto]
+impl core::marker::Freeze for antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta [auto]
+impl core::marker::Freeze for antecedent_io_core::transport_handoff_artifact::TransportIdentityWire [auto]
 impl core::marker::Freeze for antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire [auto]
 impl core::marker::Freeze for antecedent_io_core::transport_point_wire::MzTransportPointWire [auto]
 impl core::marker::Freeze for antecedent_io_core::transport_proof::TransportProofWire [auto]
@@ -2992,6 +3055,14 @@ impl core::marker::Freeze for antecedent_io_core::transport_query_wire::MixedSou
 impl core::marker::Freeze for antecedent_io_core::transport_query_wire::MzSourceWire [auto]
 impl core::marker::Freeze for antecedent_io_core::transport_query_wire::MzTransportQueryWire [auto]
 impl core::marker::Freeze for antecedent_io_core::transport_query_wire::ZTransportQueryWire [auto]
+impl core::marker::Freeze for antecedent_io_core::transport_revalidation_artifact::ClaimReportWire [auto]
+impl core::marker::Freeze for antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire [auto]
+impl core::marker::Freeze for antecedent_io_core::transport_revalidation_artifact::SceneClaimWire [auto]
+impl core::marker::Freeze for antecedent_io_core::transport_revalidation_artifact::SceneSourceWire [auto]
+impl core::marker::Freeze for antecedent_io_core::transport_revalidation_artifact::SceneWire [auto]
+impl core::marker::Freeze for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact [auto]
+impl core::marker::Freeze for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError [auto]
+impl core::marker::Freeze for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta [auto]
 impl core::marker::Freeze for antecedent_io_core::transported_counterfactual_artifact::AffineWire [auto]
 impl core::marker::Freeze for antecedent_io_core::transported_counterfactual_artifact::AssignmentWire [auto]
 impl core::marker::Freeze for antecedent_io_core::transported_counterfactual_artifact::DerivationWire [auto]
@@ -3601,6 +3672,10 @@ impl core::marker::Send for antecedent_io_core::transport_errors::SmoothedDoseAr
 impl core::marker::Send for antecedent_io_core::transport_errors::TemporalTransportArtifactError [auto]
 impl core::marker::Send for antecedent_io_core::transport_errors::TransportScenarioArtifactError [auto]
 impl core::marker::Send for antecedent_io_core::transport_errors::ZTransportArtifactError [auto]
+impl core::marker::Send for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact [auto]
+impl core::marker::Send for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError [auto]
+impl core::marker::Send for antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta [auto]
+impl core::marker::Send for antecedent_io_core::transport_handoff_artifact::TransportIdentityWire [auto]
 impl core::marker::Send for antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire [auto]
 impl core::marker::Send for antecedent_io_core::transport_point_wire::MzTransportPointWire [auto]
 impl core::marker::Send for antecedent_io_core::transport_proof::TransportProofWire [auto]
@@ -3608,6 +3683,14 @@ impl core::marker::Send for antecedent_io_core::transport_query_wire::MixedSourc
 impl core::marker::Send for antecedent_io_core::transport_query_wire::MzSourceWire [auto]
 impl core::marker::Send for antecedent_io_core::transport_query_wire::MzTransportQueryWire [auto]
 impl core::marker::Send for antecedent_io_core::transport_query_wire::ZTransportQueryWire [auto]
+impl core::marker::Send for antecedent_io_core::transport_revalidation_artifact::ClaimReportWire [auto]
+impl core::marker::Send for antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire [auto]
+impl core::marker::Send for antecedent_io_core::transport_revalidation_artifact::SceneClaimWire [auto]
+impl core::marker::Send for antecedent_io_core::transport_revalidation_artifact::SceneSourceWire [auto]
+impl core::marker::Send for antecedent_io_core::transport_revalidation_artifact::SceneWire [auto]
+impl core::marker::Send for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact [auto]
+impl core::marker::Send for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError [auto]
+impl core::marker::Send for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta [auto]
 impl core::marker::Send for antecedent_io_core::transported_counterfactual_artifact::AffineWire [auto]
 impl core::marker::Send for antecedent_io_core::transported_counterfactual_artifact::AssignmentWire [auto]
 impl core::marker::Send for antecedent_io_core::transported_counterfactual_artifact::DerivationWire [auto]
@@ -4182,12 +4265,22 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::transport_errors:
 impl core::marker::StructuralPartialEq for antecedent_io_core::transport_errors::TemporalTransportArtifactError
 impl core::marker::StructuralPartialEq for antecedent_io_core::transport_errors::TransportScenarioArtifactError
 impl core::marker::StructuralPartialEq for antecedent_io_core::transport_errors::ZTransportArtifactError
+impl core::marker::StructuralPartialEq for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError
+impl core::marker::StructuralPartialEq for antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta
+impl core::marker::StructuralPartialEq for antecedent_io_core::transport_handoff_artifact::TransportIdentityWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::transport_point_wire::MzTransportPointWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::transport_query_wire::MixedSourceQueryWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::transport_query_wire::MzSourceWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::transport_query_wire::MzTransportQueryWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::transport_query_wire::ZTransportQueryWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::transport_revalidation_artifact::ClaimReportWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::transport_revalidation_artifact::SceneClaimWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::transport_revalidation_artifact::SceneSourceWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::transport_revalidation_artifact::SceneWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError
+impl core::marker::StructuralPartialEq for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta
 impl core::marker::StructuralPartialEq for antecedent_io_core::transported_counterfactual_artifact::AffineWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::transported_counterfactual_artifact::AssignmentWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::transported_counterfactual_artifact::DerivationWire
@@ -4797,6 +4890,10 @@ impl core::marker::Sync for antecedent_io_core::transport_errors::SmoothedDoseAr
 impl core::marker::Sync for antecedent_io_core::transport_errors::TemporalTransportArtifactError [auto]
 impl core::marker::Sync for antecedent_io_core::transport_errors::TransportScenarioArtifactError [auto]
 impl core::marker::Sync for antecedent_io_core::transport_errors::ZTransportArtifactError [auto]
+impl core::marker::Sync for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact [auto]
+impl core::marker::Sync for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError [auto]
+impl core::marker::Sync for antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta [auto]
+impl core::marker::Sync for antecedent_io_core::transport_handoff_artifact::TransportIdentityWire [auto]
 impl core::marker::Sync for antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire [auto]
 impl core::marker::Sync for antecedent_io_core::transport_point_wire::MzTransportPointWire [auto]
 impl core::marker::Sync for antecedent_io_core::transport_proof::TransportProofWire [auto]
@@ -4804,6 +4901,14 @@ impl core::marker::Sync for antecedent_io_core::transport_query_wire::MixedSourc
 impl core::marker::Sync for antecedent_io_core::transport_query_wire::MzSourceWire [auto]
 impl core::marker::Sync for antecedent_io_core::transport_query_wire::MzTransportQueryWire [auto]
 impl core::marker::Sync for antecedent_io_core::transport_query_wire::ZTransportQueryWire [auto]
+impl core::marker::Sync for antecedent_io_core::transport_revalidation_artifact::ClaimReportWire [auto]
+impl core::marker::Sync for antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire [auto]
+impl core::marker::Sync for antecedent_io_core::transport_revalidation_artifact::SceneClaimWire [auto]
+impl core::marker::Sync for antecedent_io_core::transport_revalidation_artifact::SceneSourceWire [auto]
+impl core::marker::Sync for antecedent_io_core::transport_revalidation_artifact::SceneWire [auto]
+impl core::marker::Sync for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact [auto]
+impl core::marker::Sync for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError [auto]
+impl core::marker::Sync for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta [auto]
 impl core::marker::Sync for antecedent_io_core::transported_counterfactual_artifact::AffineWire [auto]
 impl core::marker::Sync for antecedent_io_core::transported_counterfactual_artifact::AssignmentWire [auto]
 impl core::marker::Sync for antecedent_io_core::transported_counterfactual_artifact::DerivationWire [auto]
@@ -5413,6 +5518,10 @@ impl core::marker::Unpin for antecedent_io_core::transport_errors::SmoothedDoseA
 impl core::marker::Unpin for antecedent_io_core::transport_errors::TemporalTransportArtifactError [auto]
 impl core::marker::Unpin for antecedent_io_core::transport_errors::TransportScenarioArtifactError [auto]
 impl core::marker::Unpin for antecedent_io_core::transport_errors::ZTransportArtifactError [auto]
+impl core::marker::Unpin for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact [auto]
+impl core::marker::Unpin for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError [auto]
+impl core::marker::Unpin for antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta [auto]
+impl core::marker::Unpin for antecedent_io_core::transport_handoff_artifact::TransportIdentityWire [auto]
 impl core::marker::Unpin for antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire [auto]
 impl core::marker::Unpin for antecedent_io_core::transport_point_wire::MzTransportPointWire [auto]
 impl core::marker::Unpin for antecedent_io_core::transport_proof::TransportProofWire [auto]
@@ -5420,6 +5529,14 @@ impl core::marker::Unpin for antecedent_io_core::transport_query_wire::MixedSour
 impl core::marker::Unpin for antecedent_io_core::transport_query_wire::MzSourceWire [auto]
 impl core::marker::Unpin for antecedent_io_core::transport_query_wire::MzTransportQueryWire [auto]
 impl core::marker::Unpin for antecedent_io_core::transport_query_wire::ZTransportQueryWire [auto]
+impl core::marker::Unpin for antecedent_io_core::transport_revalidation_artifact::ClaimReportWire [auto]
+impl core::marker::Unpin for antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire [auto]
+impl core::marker::Unpin for antecedent_io_core::transport_revalidation_artifact::SceneClaimWire [auto]
+impl core::marker::Unpin for antecedent_io_core::transport_revalidation_artifact::SceneSourceWire [auto]
+impl core::marker::Unpin for antecedent_io_core::transport_revalidation_artifact::SceneWire [auto]
+impl core::marker::Unpin for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact [auto]
+impl core::marker::Unpin for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError [auto]
+impl core::marker::Unpin for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta [auto]
 impl core::marker::Unpin for antecedent_io_core::transported_counterfactual_artifact::AffineWire [auto]
 impl core::marker::Unpin for antecedent_io_core::transported_counterfactual_artifact::AssignmentWire [auto]
 impl core::marker::Unpin for antecedent_io_core::transported_counterfactual_artifact::DerivationWire [auto]
@@ -6029,6 +6146,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_e
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_errors::TemporalTransportArtifactError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_errors::TransportScenarioArtifactError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_errors::ZTransportArtifactError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_handoff_artifact::TransportIdentityWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_point_wire::MzTransportPointWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_proof::TransportProofWire [auto]
@@ -6036,6 +6157,14 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_q
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_query_wire::MzSourceWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_query_wire::MzTransportQueryWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_query_wire::ZTransportQueryWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_revalidation_artifact::ClaimReportWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_revalidation_artifact::SceneClaimWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_revalidation_artifact::SceneSourceWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_revalidation_artifact::SceneWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transported_counterfactual_artifact::AffineWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transported_counterfactual_artifact::AssignmentWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transported_counterfactual_artifact::DerivationWire [auto]
@@ -6645,6 +6774,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_erro
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_errors::TemporalTransportArtifactError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_errors::TransportScenarioArtifactError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_errors::ZTransportArtifactError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_handoff_artifact::TransportIdentityWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_point_wire::MzTransportPointWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_proof::TransportProofWire [auto]
@@ -6652,6 +6785,14 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_quer
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_query_wire::MzSourceWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_query_wire::MzTransportQueryWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_query_wire::ZTransportQueryWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_revalidation_artifact::ClaimReportWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_revalidation_artifact::SceneClaimWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_revalidation_artifact::SceneSourceWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_revalidation_artifact::SceneWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transported_counterfactual_artifact::AffineWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transported_counterfactual_artifact::AssignmentWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transported_counterfactual_artifact::DerivationWire [auto]
@@ -7144,6 +7285,8 @@ impl serde_core::ser::Serialize for antecedent_io_core::transport_catalog_wire::
 impl serde_core::ser::Serialize for antecedent_io_core::transport_catalog_wire::RegimeBindingWire
 impl serde_core::ser::Serialize for antecedent_io_core::transport_certificate::CertificateOutcome
 impl serde_core::ser::Serialize for antecedent_io_core::transport_certificate::StructuralTransportCertificateWire
+impl serde_core::ser::Serialize for antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta
+impl serde_core::ser::Serialize for antecedent_io_core::transport_handoff_artifact::TransportIdentityWire
 impl serde_core::ser::Serialize for antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire
 impl serde_core::ser::Serialize for antecedent_io_core::transport_point_wire::MzTransportPointWire
 impl serde_core::ser::Serialize for antecedent_io_core::transport_proof::TransportProofWire
@@ -7151,6 +7294,12 @@ impl serde_core::ser::Serialize for antecedent_io_core::transport_query_wire::Mi
 impl serde_core::ser::Serialize for antecedent_io_core::transport_query_wire::MzSourceWire
 impl serde_core::ser::Serialize for antecedent_io_core::transport_query_wire::MzTransportQueryWire
 impl serde_core::ser::Serialize for antecedent_io_core::transport_query_wire::ZTransportQueryWire
+impl serde_core::ser::Serialize for antecedent_io_core::transport_revalidation_artifact::ClaimReportWire
+impl serde_core::ser::Serialize for antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire
+impl serde_core::ser::Serialize for antecedent_io_core::transport_revalidation_artifact::SceneClaimWire
+impl serde_core::ser::Serialize for antecedent_io_core::transport_revalidation_artifact::SceneSourceWire
+impl serde_core::ser::Serialize for antecedent_io_core::transport_revalidation_artifact::SceneWire
+impl serde_core::ser::Serialize for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta
 impl serde_core::ser::Serialize for antecedent_io_core::transported_counterfactual_artifact::AffineWire
 impl serde_core::ser::Serialize for antecedent_io_core::transported_counterfactual_artifact::AssignmentWire
 impl serde_core::ser::Serialize for antecedent_io_core::transported_counterfactual_artifact::DerivationWire
@@ -7684,6 +7833,8 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_cat
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_catalog_wire::RegimeBindingWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_certificate::CertificateOutcome
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_certificate::StructuralTransportCertificateWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_handoff_artifact::TransportIdentityWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_point_wire::MzTransportPointWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_proof::TransportProofWire
@@ -7691,6 +7842,12 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_que
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_query_wire::MzSourceWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_query_wire::MzTransportQueryWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_query_wire::ZTransportQueryWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_revalidation_artifact::ClaimReportWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_revalidation_artifact::SceneClaimWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_revalidation_artifact::SceneSourceWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_revalidation_artifact::SceneWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transported_counterfactual_artifact::AffineWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transported_counterfactual_artifact::AssignmentWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::transported_counterfactual_artifact::DerivationWire
@@ -7866,6 +8023,9 @@ pub const antecedent_io_core::interface_contract_artifact::INTERFACE_CONTRACT_AR
 pub const antecedent_io_core::interface_contract_artifact::INTERFACE_CONTRACT_ARTIFACT_TAG: &str
 pub const antecedent_io_core::interface_contract_artifact::INTERFACE_CONTRACT_ARTIFACT_VERSION: u16
 pub const antecedent_io_core::interface_contract_artifact::MAX_INTERFACE_CONTRACT_ARTIFACT_BYTES: usize
+pub const antecedent_io_core::joint_law_propagation_artifact::MAX_JOINT_LAW_PROPAGATION_ARTIFACT_BYTES: usize
+pub const antecedent_io_core::joint_law_propagation_artifact::MAX_JOINT_LAW_PROPAGATION_SHARED_EVIDENCE: usize
+pub const antecedent_io_core::joint_law_propagation_artifact::MAX_JOINT_LAW_PROPAGATION_TEXT_BYTES: usize
 pub const antecedent_io_core::measurement_model_wire::MAX_MEASUREMENT_IMPUTATIONS: usize
 pub const antecedent_io_core::measurement_model_wire::MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES: usize
 pub const antecedent_io_core::measurement_model_wire::MEASUREMENT_MODEL_ARTIFACT_VERSION: u16
@@ -7904,6 +8064,14 @@ pub const antecedent_io_core::temporal_counterfactual_artifact::TEMPORAL_COUNTER
 pub const antecedent_io_core::temporal_counterfactual_artifact::TEMPORAL_COUNTERFACTUAL_INFERENCE_CLAIM: &str
 pub const antecedent_io_core::temporal_recalc_artifact::TEMPORAL_RECALC_FEATURE: &str
 pub const antecedent_io_core::temporal_recalc_artifact::TEMPORAL_RECALC_INFERENCE: &str
+pub const antecedent_io_core::transport_handoff_artifact::MAX_TRANSPORT_HANDOFF_ARTIFACT_BYTES: usize
+pub const antecedent_io_core::transport_handoff_artifact::TRANSPORT_HANDOFF_ARTIFACT_FEATURE: &str
+pub const antecedent_io_core::transport_handoff_artifact::TRANSPORT_HANDOFF_ARTIFACT_TAG: &str
+pub const antecedent_io_core::transport_handoff_artifact::TRANSPORT_HANDOFF_ARTIFACT_VERSION: u16
+pub const antecedent_io_core::transport_revalidation_artifact::MAX_TRANSPORT_REVALIDATION_ARTIFACT_BYTES: usize
+pub const antecedent_io_core::transport_revalidation_artifact::MAX_TRANSPORT_REVALIDATION_ITEMS: usize
+pub const antecedent_io_core::transport_revalidation_artifact::TRANSPORT_REVALIDATION_ARTIFACT_FEATURE: &str
+pub const antecedent_io_core::transport_revalidation_artifact::TRANSPORT_REVALIDATION_ARTIFACT_VERSION: u16
 pub const antecedent_io_core::transported_counterfactual_artifact::MAX_COVARIATES: usize
 pub const antecedent_io_core::transported_counterfactual_artifact::MAX_DECLARATIONS: usize
 pub const antecedent_io_core::transported_counterfactual_artifact::MAX_MECHANISMS: usize
@@ -9528,6 +9696,7 @@ pub field antecedent_io_core::composition_verification_artifact::CompositionVeri
 pub field antecedent_io_core::composition_verification_artifact::CompositionVerificationMeta::identity: alloc::string::String
 pub field antecedent_io_core::composition_verification_artifact::CompositionVerificationMeta::ledger_state: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::composition_verification_artifact::CompositionVerificationMeta::previous: core::option::Option<antecedent_io_core::composition_verification_artifact::GraphWire>
+pub field antecedent_io_core::composition_verification_artifact::CompositionVerificationMeta::required_features: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io_core::composition_verification_artifact::CompositionVerificationMeta::revalidation: alloc::string::String
 pub field antecedent_io_core::composition_verification_artifact::CompositionVerificationMeta::shared_data: alloc::vec::Vec<antecedent_io_core::composition_verification_artifact::SharedDataWire>
 pub field antecedent_io_core::composition_verification_artifact::CompositionVerificationMeta::version: u16
@@ -10692,6 +10861,23 @@ pub field antecedent_io_core::transport_certificate::StructuralTransportCertific
 pub field antecedent_io_core::transport_certificate::StructuralTransportCertificateWire::target: alloc::string::String
 pub field antecedent_io_core::transport_certificate::StructuralTransportCertificateWire::treatments: alloc::vec::Vec<u32>
 pub field antecedent_io_core::transport_certificate::StructuralTransportCertificateWire::version: u32
+pub field antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta::callback_identity: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta::consumed_port: alloc::string::String
+pub field antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta::consumer_contract: antecedent_io_core::interface_contract_artifact::ContractWire
+pub field antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta::feature: alloc::string::String
+pub field antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta::handoff_identity: alloc::string::String
+pub field antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta::identity: alloc::string::String
+pub field antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta::offer_contract: antecedent_io_core::interface_contract_artifact::ContractWire
+pub field antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta::offer_port: alloc::string::String
+pub field antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta::policy: alloc::string::String
+pub field antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta::provider_trust: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta::required_features: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta::transport: antecedent_io_core::transport_handoff_artifact::TransportIdentityWire
+pub field antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta::version: u16
+pub field antecedent_io_core::transport_handoff_artifact::TransportIdentityWire::assumptions: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::transport_handoff_artifact::TransportIdentityWire::selection_diagram: alloc::string::String
+pub field antecedent_io_core::transport_handoff_artifact::TransportIdentityWire::source_populations: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::transport_handoff_artifact::TransportIdentityWire::target_population: alloc::string::String
 pub field antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire::premises: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire::rule: alloc::string::String
 pub field antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire::selection_targets: alloc::vec::Vec<u32>
@@ -10718,6 +10904,45 @@ pub field antecedent_io_core::transport_query_wire::ZTransportQueryWire::outcome
 pub field antecedent_io_core::transport_query_wire::ZTransportQueryWire::source: alloc::string::String
 pub field antecedent_io_core::transport_query_wire::ZTransportQueryWire::target: alloc::string::String
 pub field antecedent_io_core::transport_query_wire::ZTransportQueryWire::treatments: alloc::vec::Vec<u32>
+pub field antecedent_io_core::transport_revalidation_artifact::ClaimReportWire::authority_retained: bool
+pub field antecedent_io_core::transport_revalidation_artifact::ClaimReportWire::calibration_state: alloc::string::String
+pub field antecedent_io_core::transport_revalidation_artifact::ClaimReportWire::class: alloc::string::String
+pub field antecedent_io_core::transport_revalidation_artifact::ClaimReportWire::key: alloc::string::String
+pub field antecedent_io_core::transport_revalidation_artifact::ClaimReportWire::kind: alloc::string::String
+pub field antecedent_io_core::transport_revalidation_artifact::ClaimReportWire::reasons: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::transport_revalidation_artifact::ClaimReportWire::refusal_code: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::transport_revalidation_artifact::ClaimReportWire::refusal_detail: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire::established_at_target: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire::from: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire::kind: alloc::string::String
+pub field antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire::record: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::transport_revalidation_artifact::SceneClaimWire::calibration: antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire
+pub field antecedent_io_core::transport_revalidation_artifact::SceneClaimWire::identity: alloc::string::String
+pub field antecedent_io_core::transport_revalidation_artifact::SceneClaimWire::key: alloc::string::String
+pub field antecedent_io_core::transport_revalidation_artifact::SceneClaimWire::kind: alloc::string::String
+pub field antecedent_io_core::transport_revalidation_artifact::SceneClaimWire::quantity: alloc::string::String
+pub field antecedent_io_core::transport_revalidation_artifact::SceneClaimWire::rests_on: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::transport_revalidation_artifact::SceneClaimWire::sources: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::transport_revalidation_artifact::SceneClaimWire::structure: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::transport_revalidation_artifact::SceneClaimWire::trust: alloc::string::String
+pub field antecedent_io_core::transport_revalidation_artifact::SceneClaimWire::unsupported: core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub field antecedent_io_core::transport_revalidation_artifact::SceneSourceWire::identity: alloc::string::String
+pub field antecedent_io_core::transport_revalidation_artifact::SceneSourceWire::key: alloc::string::String
+pub field antecedent_io_core::transport_revalidation_artifact::SceneWire::claims: alloc::vec::Vec<antecedent_io_core::transport_revalidation_artifact::SceneClaimWire>
+pub field antecedent_io_core::transport_revalidation_artifact::SceneWire::selection_diagram: alloc::string::String
+pub field antecedent_io_core::transport_revalidation_artifact::SceneWire::sources: alloc::vec::Vec<antecedent_io_core::transport_revalidation_artifact::SceneSourceWire>
+pub field antecedent_io_core::transport_revalidation_artifact::SceneWire::target_identity: alloc::string::String
+pub field antecedent_io_core::transport_revalidation_artifact::SceneWire::target_unsupported: core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub field antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta::claims: alloc::vec::Vec<antecedent_io_core::transport_revalidation_artifact::ClaimReportWire>
+pub field antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta::current: antecedent_io_core::transport_revalidation_artifact::SceneWire
+pub field antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta::effects: alloc::vec::Vec<antecedent_io_core::composition_verification_artifact::EffectWire>
+pub field antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta::feature: alloc::string::String
+pub field antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta::identity: alloc::string::String
+pub field antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta::previous: core::option::Option<antecedent_io_core::transport_revalidation_artifact::SceneWire>
+pub field antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta::removed: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta::required_features: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta::revalidation: alloc::string::String
+pub field antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta::version: u16
 pub field antecedent_io_core::transported_counterfactual_artifact::AffineWire::constant: f64
 pub field antecedent_io_core::transported_counterfactual_artifact::AffineWire::covariate_slopes: alloc::vec::Vec<(alloc::string::String, f64)>
 pub field antecedent_io_core::transported_counterfactual_artifact::AssignmentWire::control_value: f64
@@ -11061,10 +11286,12 @@ pub fn <antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionA
 pub fn <antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifact>::fn seal(request: &antecedent_counterfactual::selective::finite_executor::FiniteExecutionRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError>
 pub fn <antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError>
 pub fn <antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError>::fn refusal(&self) -> core::option::Option<antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionRefusalWire>
+pub fn <antecedent_io_core::distribution_artifact::DistributionArtifact>::fn alignment_identity(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::distribution_artifact::DistributionArtifact>::fn axes(&self) -> [&str; 2]
 pub fn <antecedent_io_core::distribution_artifact::DistributionArtifact>::fn covariance(&self, left: usize, right: usize) -> core::result::Result<f64, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::distribution_artifact::DistributionArtifact>::fn draws(&self) -> &[f64]
 pub fn <antecedent_io_core::distribution_artifact::DistributionArtifact>::fn from_bytes(bytes: &[u8], expected: &antecedent_io_core::distribution_artifact::DistributionIdentity) -> core::result::Result<Self, antecedent_io_core::IoError>
+pub fn <antecedent_io_core::distribution_artifact::DistributionArtifact>::fn input_alignment(&self) -> core::result::Result<antecedent_contract::joint_law_rule::InputAlignment, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::distribution_artifact::DistributionArtifact>::fn interventional_probability_above(&self, coordinate: usize, threshold: f64) -> core::result::Result<f64, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::distribution_artifact::DistributionArtifact>::fn joint_expectation(&self, left: usize, right: usize, function: impl core::ops::function::Fn(f64, f64) -> f64) -> core::result::Result<f64, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::distribution_artifact::DistributionArtifact>::fn mean(&self, coordinate: usize) -> core::result::Result<f64, antecedent_io_core::IoError>
@@ -11224,6 +11451,24 @@ pub fn <antecedent_io_core::transport_errors::AdmgConditionalArtifactError>::fn 
 pub fn <antecedent_io_core::transport_errors::MzTransportArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, &'static str)>
 pub fn <antecedent_io_core::transport_errors::SmoothedDoseArtifactError>::const fn reason_code(&self) -> core::option::Option<&'static str>
 pub fn <antecedent_io_core::transport_errors::ZTransportArtifactError>::const fn transport_outcome_kind(&self) -> antecedent_core::query::transport_contract::TransportOutcomeKind
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::const fn consumer(&self) -> &antecedent_contract::interface_contract::declaration::InterfaceContract
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::const fn handoff(&self) -> &antecedent_contract::provider_transport::TransportedHandoff
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::const fn is_native_target_data(&self) -> bool
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::const fn offer(&self) -> &antecedent_contract::provider_transport::TransportedClaimOffer
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::const fn provider_trust(&self) -> core::option::Option<antecedent_contract::provider_trust::ProviderTrust>
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::fn consumed_port(&self) -> &str
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::fn from_bytes(bytes: &[u8], expected_identity: core::option::Option<&str>) -> core::result::Result<Self, antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError>
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::fn handoff_identity(&self) -> alloc::string::String
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::fn identity(&self) -> &str
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::fn inspect(bytes: &[u8]) -> core::result::Result<antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta, antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError>
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::fn seal(offer: &antecedent_contract::provider_transport::TransportedClaimOffer, consumer: &antecedent_contract::interface_contract::declaration::InterfaceContract, consumed_port: &str, policy: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<(Self, antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta), antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError>
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::fn seal_for_callback(offer: &antecedent_contract::provider_transport::TransportedClaimOffer, callback: &antecedent_contract::callback_protocol::declaration::CallbackDeclaration, input: &str, policy: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<(Self, antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta), antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError>
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::fn seal_with_provider_trust(offer: &antecedent_contract::provider_transport::TransportedClaimOffer, consumer: &antecedent_contract::interface_contract::declaration::InterfaceContract, consumed_port: &str, policy: antecedent_contract::provider_transport::TransportedInputPolicy, provider_trust: antecedent_contract::provider_trust::ProviderTrust) -> core::result::Result<(Self, antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta), antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError>
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::fn to_bytes(offer: &antecedent_contract::provider_transport::TransportedClaimOffer, consumer: &antecedent_contract::interface_contract::declaration::InterfaceContract, consumed_port: &str, policy: antecedent_contract::provider_transport::TransportedInputPolicy, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError>
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::fn to_bytes_with_provider_trust(offer: &antecedent_contract::provider_transport::TransportedClaimOffer, consumer: &antecedent_contract::interface_contract::declaration::InterfaceContract, consumed_port: &str, policy: antecedent_contract::provider_transport::TransportedInputPolicy, provider_trust: antecedent_contract::provider_trust::ProviderTrust, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError>
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::fn transport(&self) -> &antecedent_contract::evidence_ledger::source::TransportIdentity
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact>::fn verify_against_callback(&self, callback: &antecedent_contract::callback_protocol::declaration::CallbackDeclaration) -> core::result::Result<(), antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError>
+pub fn <antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, alloc::string::String, alloc::string::String)>
 pub fn <antecedent_io_core::transport_point_wire::MzTransportPointWire>::fn from_distribution(distribution: &antecedent_expr::exact_plan::ExactDistribution) -> Self
 pub fn <antecedent_io_core::transport_proof::TransportProofWire>::fn check(&self, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::sid::ClassicalTransportQuery, limits: antecedent_identify::sid::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::sid::ClassicalTransportDerivation, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::transport_proof::TransportProofWire>::fn from_checked(proof: &antecedent_identify::sid::ClassicalTransportDerivation) -> core::result::Result<Self, antecedent_io_core::IoError>
@@ -11234,6 +11479,17 @@ pub fn <antecedent_io_core::transport_query_wire::MzTransportQueryWire>::fn from
 pub fn <antecedent_io_core::transport_query_wire::MzTransportQueryWire>::fn to_query(&self) -> antecedent_identify::sid::mz_transport::MzTransportQuery
 pub fn <antecedent_io_core::transport_query_wire::ZTransportQueryWire>::fn from_query(query: &antecedent_identify::sid::z_transport::ZTransportQuery) -> Self
 pub fn <antecedent_io_core::transport_query_wire::ZTransportQueryWire>::fn to_query(&self) -> antecedent_identify::sid::z_transport::ZTransportQuery
+pub fn <antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact>::const fn current(&self) -> &antecedent_contract::transport_revalidation::TransportScene
+pub fn <antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact>::const fn effects(&self) -> &alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_contract::composition_verification::revalidate::ObservedEffect>
+pub fn <antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact>::const fn previous(&self) -> core::option::Option<&antecedent_contract::transport_revalidation::TransportScene>
+pub fn <antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact>::const fn revalidation(&self) -> &antecedent_contract::transport_revalidation::TransportRevalidation
+pub fn <antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact>::fn from_bytes(bytes: &[u8], expected_identity: core::option::Option<&str>) -> core::result::Result<Self, antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError>
+pub fn <antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact>::fn identity(&self) -> &str
+pub fn <antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact>::fn inspect(bytes: &[u8]) -> core::result::Result<antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta, antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError>
+pub fn <antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact>::fn revalidation_identity(&self) -> alloc::string::String
+pub fn <antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact>::fn seal(previous: core::option::Option<&antecedent_contract::transport_revalidation::TransportScene>, current: &antecedent_contract::transport_revalidation::TransportScene, effects: &alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_contract::composition_verification::revalidate::ObservedEffect>) -> core::result::Result<(Self, antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta), antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError>
+pub fn <antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact>::fn to_bytes(previous: core::option::Option<&antecedent_contract::transport_revalidation::TransportScene>, current: &antecedent_contract::transport_revalidation::TransportScene, effects: &alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_contract::composition_verification::revalidate::ObservedEffect>, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError>
+pub fn <antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, alloc::string::String, alloc::string::String)>
 pub fn <antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifact>::const fn identity(&self) -> &antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualIdentity
 pub fn <antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifact>::const fn meta(&self) -> &antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualMeta
 pub fn <antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifact>::const fn request(&self) -> &antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualRequestWire
@@ -11456,6 +11712,7 @@ pub fn antecedent_io_core::interventional_distribution_from_wire(w: &antecedent_
 pub fn antecedent_io_core::interventional_distribution_to_wire(q: &antecedent_core::query::distribution::InterventionalDistributionQuery) -> core::result::Result<antecedent_io_core::InterventionalDistributionQueryWire, antecedent_io_core::IoError>
 pub fn antecedent_io_core::is_supported_source(v: antecedent_io_core::FormatVersion) -> bool
 pub fn antecedent_io_core::joint_law_propagation_artifact::joint_law_propagation_identity(rule: &antecedent_io_core::PropagationRuleWire, inputs: &[antecedent_io_core::PropagationInputWire], request: &antecedent_io_core::PropagationRequestWire, route: &str, label: &str, alignment_id: core::option::Option<&str>, covariance_id: core::option::Option<&str>, shared_evidence: &[alloc::string::String]) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
+pub fn antecedent_io_core::joint_law_propagation_artifact::verdict_code(verdict: antecedent_stats::joint_law::DecisionVerdict) -> u64
 pub fn antecedent_io_core::logical_plan_from_wire(w: &antecedent_io_core::LogicalAnalysisPlanWire) -> core::result::Result<antecedent_contract::plan::LogicalAnalysisPlanRecord, antecedent_io_core::IoError>
 pub fn antecedent_io_core::logical_plan_to_wire(p: &antecedent_contract::plan::LogicalAnalysisPlanRecord) -> antecedent_io_core::LogicalAnalysisPlanWire
 pub fn antecedent_io_core::lower_plan(plan: &antecedent_contract::mechanism_composition::MechanismCompositionPlan, numbers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_io_core::MechanismNumbers>, dependence: antecedent_model::compose::descriptor::PosteriorDependence) -> core::result::Result<antecedent_model::compose::descriptor::ComposedModelSpec, antecedent_io_core::MechanismCompositionArtifactError>
@@ -11576,10 +11833,12 @@ pub mod antecedent_io_core::trace
 pub mod antecedent_io_core::transport_catalog_wire
 pub mod antecedent_io_core::transport_certificate
 pub mod antecedent_io_core::transport_errors
+pub mod antecedent_io_core::transport_handoff_artifact
 pub mod antecedent_io_core::transport_interference_wire
 pub mod antecedent_io_core::transport_point_wire
 pub mod antecedent_io_core::transport_proof
 pub mod antecedent_io_core::transport_query_wire
+pub mod antecedent_io_core::transport_revalidation_artifact
 pub mod antecedent_io_core::transported_counterfactual_artifact
 pub mod antecedent_io_core::wire
 pub static antecedent_io_core::coverage_records_data::ATTESTING_RECORD_IDS: antecedent_io_core::coverage_records_data::StaticTable<&str>
@@ -12073,6 +12332,10 @@ pub struct antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire
 pub struct antecedent_io_core::transport_catalog_wire::EvidenceRegimeWire
 pub struct antecedent_io_core::transport_catalog_wire::RegimeBindingWire
 pub struct antecedent_io_core::transport_certificate::StructuralTransportCertificateWire
+pub struct antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact
+pub struct antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact has private fields
+pub struct antecedent_io_core::transport_handoff_artifact::TransportHandoffMeta
+pub struct antecedent_io_core::transport_handoff_artifact::TransportIdentityWire
 pub struct antecedent_io_core::transport_interference_wire::InterferenceTransportCertificateWire
 pub struct antecedent_io_core::transport_point_wire::MzTransportPointWire
 pub struct antecedent_io_core::transport_proof::TransportProofWire
@@ -12080,6 +12343,14 @@ pub struct antecedent_io_core::transport_query_wire::MixedSourceQueryWire
 pub struct antecedent_io_core::transport_query_wire::MzSourceWire
 pub struct antecedent_io_core::transport_query_wire::MzTransportQueryWire
 pub struct antecedent_io_core::transport_query_wire::ZTransportQueryWire
+pub struct antecedent_io_core::transport_revalidation_artifact::ClaimReportWire
+pub struct antecedent_io_core::transport_revalidation_artifact::SceneCalibrationWire
+pub struct antecedent_io_core::transport_revalidation_artifact::SceneClaimWire
+pub struct antecedent_io_core::transport_revalidation_artifact::SceneSourceWire
+pub struct antecedent_io_core::transport_revalidation_artifact::SceneWire
+pub struct antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact
+pub struct antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifact has private fields
+pub struct antecedent_io_core::transport_revalidation_artifact::TransportRevalidationMeta
 pub struct antecedent_io_core::transported_counterfactual_artifact::AffineWire
 pub struct antecedent_io_core::transported_counterfactual_artifact::AssignmentWire
 pub struct antecedent_io_core::transported_counterfactual_artifact::DerivationWire
@@ -13084,12 +13355,15 @@ pub variant antecedent_io_core::PriorSpecIdentityWire::CoefficientCorrelation { 
 pub variant antecedent_io_core::PriorSpecIdentityWire::GaussianCoefficients { mean: antecedent_io_core::PayloadDigestWire, variance: antecedent_io_core::PayloadDigestWire }
 pub variant antecedent_io_core::PriorSpecIdentityWire::KnownResidualVariance(u64)
 pub variant antecedent_io_core::PriorSpecIdentityWire::ResidualInvGamma { shape_bits: u64, scale_bits: u64 }
+pub variant antecedent_io_core::PropagationRequestWire::AlignedExceedance { functional: alloc::string::String, x: alloc::vec::Vec<u64>, y: alloc::vec::Vec<u64>, threshold: u64, cutoff: u64, band_level: u64 }
 pub variant antecedent_io_core::PropagationRequestWire::AlignedFunctional { functional: alloc::string::String, x: alloc::vec::Vec<u64>, y: alloc::vec::Vec<u64> }
+pub variant antecedent_io_core::PropagationRequestWire::AlignedFunctionalSpread { functional: alloc::string::String, x: alloc::vec::Vec<u64>, y: alloc::vec::Vec<u64> }
 pub variant antecedent_io_core::PropagationRequestWire::AlignedLinearCombination { a: u64, b: u64, x: alloc::vec::Vec<u64>, y: alloc::vec::Vec<u64> }
 pub variant antecedent_io_core::PropagationRequestWire::CorrelationRange { x_mean: u64, x_sd: u64, y_mean: u64, y_sd: u64, a: u64, b: u64 }
 pub variant antecedent_io_core::PropagationRequestWire::FrechetEnvelope { query: antecedent_io_core::EnvelopeQueryWire, x: antecedent_io_core::MarginalWire, y: antecedent_io_core::MarginalWire }
 pub variant antecedent_io_core::PropagationRequestWire::LinearCombination { coefficients: alloc::vec::Vec<u64>, means: alloc::vec::Vec<u64>, covariance: alloc::vec::Vec<u64> }
 pub variant antecedent_io_core::PropagationRequestWire::Mixture { weights: alloc::vec::Vec<u64>, means: alloc::vec::Vec<u64>, variances: alloc::vec::Vec<u64> }
+pub variant antecedent_io_core::PropagationRequestWire::MixtureExceedance { weights: alloc::vec::Vec<u64>, components: alloc::vec::Vec<alloc::vec::Vec<u64>>, threshold: u64 }
 pub variant antecedent_io_core::PropagationRequestWire::PooledCorrelationRange { estimates: alloc::vec::Vec<u64>, standard_errors: alloc::vec::Vec<u64> }
 pub variant antecedent_io_core::RandomizationDesignWire::Bernoulli
 pub variant antecedent_io_core::RandomizationDesignWire::Cluster { treated_clusters: usize }
@@ -13540,6 +13814,22 @@ pub variant antecedent_io_core::transport_errors::ZTransportArtifactError::Premi
 pub variant antecedent_io_core::transport_errors::ZTransportArtifactError::ProgramMismatch(&'static str)
 pub variant antecedent_io_core::transport_errors::ZTransportArtifactError::ProofMismatch(antecedent_identify::error::IdentificationError)
 pub variant antecedent_io_core::transport_errors::ZTransportArtifactError::UnsupportedSemantics(&'static str)
+pub variant antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError::Decode(alloc::string::String)
+pub variant antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError::Encode(alloc::string::String)
+pub variant antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError::IdentityMismatch { field: &'static str }
+pub variant antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError::LimitsExceeded(&'static str)
+pub variant antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError::Malformed(alloc::string::String)
+pub variant antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError::Refused { code: &'static str, detail: alloc::string::String, message: alloc::string::String }
+pub variant antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError::UnsupportedSemantics(&'static str)
+pub variant antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError::UnsupportedVersion { version: u16 }
+pub variant antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError::Decode(alloc::string::String)
+pub variant antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError::Encode(alloc::string::String)
+pub variant antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError::IdentityMismatch { field: &'static str }
+pub variant antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError::LimitsExceeded(&'static str)
+pub variant antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError::Malformed(alloc::string::String)
+pub variant antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError::ReplayMismatch(&'static str)
+pub variant antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError::UnsupportedSemantics(&'static str)
+pub variant antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError::UnsupportedVersion { version: u16 }
 pub variant antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifactError::Decode(alloc::string::String)
 pub variant antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifactError::Encode(alloc::string::String)
 pub variant antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifactError::IdentityMismatch { field: &'static str }

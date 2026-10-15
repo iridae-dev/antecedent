@@ -5,6 +5,7 @@
 #[non_exhaustive] pub enum antecedent_state::StateError
 impl core::clone::Clone for antecedent_state::CachedResult
 impl core::clone::Clone for antecedent_state::CausalState
+impl core::clone::Clone for antecedent_state::ChangedInput
 impl core::clone::Clone for antecedent_state::ConstraintId
 impl core::clone::Clone for antecedent_state::DataBatchRef
 impl core::clone::Clone for antecedent_state::DataCatalog
@@ -39,6 +40,7 @@ impl core::clone::Clone for antecedent_state::StateError
 impl core::clone::Clone for antecedent_state::StateEvent
 impl core::clone::Clone for antecedent_state::StreamingCovariance
 impl core::clone::Clone for antecedent_state::SuffStatStore
+impl core::cmp::Eq for antecedent_state::ChangedInput
 impl core::cmp::Eq for antecedent_state::ConstraintId
 impl core::cmp::Eq for antecedent_state::DataBatchRef
 impl core::cmp::Eq for antecedent_state::DataVersion
@@ -55,6 +57,7 @@ impl core::cmp::Eq for antecedent_state::ParentSetOp
 impl core::cmp::Eq for antecedent_state::PublishedLineage
 impl core::cmp::Eq for antecedent_state::RetentionPolicy
 impl core::cmp::Eq for antecedent_state::StateError
+impl core::cmp::PartialEq for antecedent_state::ChangedInput
 impl core::cmp::PartialEq for antecedent_state::ConstraintId
 impl core::cmp::PartialEq for antecedent_state::DataBatchRef
 impl core::cmp::PartialEq for antecedent_state::DataVersion
@@ -88,6 +91,7 @@ impl core::default::Default for antecedent_state::SuffStatStore
 impl core::error::Error for antecedent_state::StateError
 impl core::fmt::Debug for antecedent_state::CachedResult
 impl core::fmt::Debug for antecedent_state::CausalState
+impl core::fmt::Debug for antecedent_state::ChangedInput
 impl core::fmt::Debug for antecedent_state::ConstraintId
 impl core::fmt::Debug for antecedent_state::DataBatchRef
 impl core::fmt::Debug for antecedent_state::DataCatalog
@@ -130,6 +134,7 @@ impl core::hash::Hash for antecedent_state::GraphScoreCacheKey
 impl core::hash::Hash for antecedent_state::GraphScoreFamily
 impl core::hash::Hash for antecedent_state::LagIndexCacheKey
 impl core::hash::Hash for antecedent_state::RetentionPolicy
+impl core::marker::Copy for antecedent_state::ChangedInput
 impl core::marker::Copy for antecedent_state::DataVersion
 impl core::marker::Copy for antecedent_state::GraphScoreFamily
 impl core::marker::Copy for antecedent_state::LgssmParams
@@ -138,6 +143,7 @@ impl core::marker::Copy for antecedent_state::ResultPublication
 impl core::marker::Copy for antecedent_state::RetentionPolicy
 impl core::marker::Freeze for antecedent_state::CachedResult [auto]
 impl core::marker::Freeze for antecedent_state::CausalState [auto]
+impl core::marker::Freeze for antecedent_state::ChangedInput [auto]
 impl core::marker::Freeze for antecedent_state::ConstraintId [auto]
 impl core::marker::Freeze for antecedent_state::DataBatchRef [auto]
 impl core::marker::Freeze for antecedent_state::DataCatalog [auto]
@@ -174,6 +180,7 @@ impl core::marker::Freeze for antecedent_state::StreamingCovariance [auto]
 impl core::marker::Freeze for antecedent_state::SuffStatStore [auto]
 impl core::marker::Send for antecedent_state::CachedResult [auto]
 impl core::marker::Send for antecedent_state::CausalState [auto]
+impl core::marker::Send for antecedent_state::ChangedInput [auto]
 impl core::marker::Send for antecedent_state::ConstraintId [auto]
 impl core::marker::Send for antecedent_state::DataBatchRef [auto]
 impl core::marker::Send for antecedent_state::DataCatalog [auto]
@@ -208,6 +215,7 @@ impl core::marker::Send for antecedent_state::StateError [auto]
 impl core::marker::Send for antecedent_state::StateEvent [auto]
 impl core::marker::Send for antecedent_state::StreamingCovariance [auto]
 impl core::marker::Send for antecedent_state::SuffStatStore [auto]
+impl core::marker::StructuralPartialEq for antecedent_state::ChangedInput
 impl core::marker::StructuralPartialEq for antecedent_state::ConstraintId
 impl core::marker::StructuralPartialEq for antecedent_state::DataBatchRef
 impl core::marker::StructuralPartialEq for antecedent_state::DataVersion
@@ -229,6 +237,7 @@ impl core::marker::StructuralPartialEq for antecedent_state::StateError
 impl core::marker::StructuralPartialEq for antecedent_state::StreamingCovariance
 impl core::marker::Sync for antecedent_state::CachedResult [auto]
 impl core::marker::Sync for antecedent_state::CausalState [auto]
+impl core::marker::Sync for antecedent_state::ChangedInput [auto]
 impl core::marker::Sync for antecedent_state::ConstraintId [auto]
 impl core::marker::Sync for antecedent_state::DataBatchRef [auto]
 impl core::marker::Sync for antecedent_state::DataCatalog [auto]
@@ -265,6 +274,7 @@ impl core::marker::Sync for antecedent_state::StreamingCovariance [auto]
 impl core::marker::Sync for antecedent_state::SuffStatStore [auto]
 impl core::marker::Unpin for antecedent_state::CachedResult [auto]
 impl core::marker::Unpin for antecedent_state::CausalState [auto]
+impl core::marker::Unpin for antecedent_state::ChangedInput [auto]
 impl core::marker::Unpin for antecedent_state::ConstraintId [auto]
 impl core::marker::Unpin for antecedent_state::DataBatchRef [auto]
 impl core::marker::Unpin for antecedent_state::DataCatalog [auto]
@@ -301,6 +311,7 @@ impl core::marker::Unpin for antecedent_state::StreamingCovariance [auto]
 impl core::marker::Unpin for antecedent_state::SuffStatStore [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::CachedResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::CausalState [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::ChangedInput [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::ConstraintId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::DataBatchRef [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::DataCatalog [auto]
@@ -337,6 +348,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::StreamingCova
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::SuffStatStore [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::CachedResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::CausalState [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::ChangedInput [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::ConstraintId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::DataBatchRef [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::DataCatalog [auto]
@@ -390,6 +402,9 @@ pub field antecedent_state::CausalState::models: antecedent_state::ModelStore
 pub field antecedent_state::CausalState::queries: antecedent_state::QueryStore
 pub field antecedent_state::CausalState::suff_stats: antecedent_state::SuffStatStore
 pub field antecedent_state::CausalState::version: antecedent_core::ids::StateVersion
+pub field antecedent_state::ChangedInput::change: antecedent_core::recalc::ChangeKind
+pub field antecedent_state::ChangedInput::identity: antecedent_core::recalc::StageIdentity
+pub field antecedent_state::ChangedInput::stage: antecedent_core::recalc::Stage
 pub field antecedent_state::ConstraintId::0: alloc::sync::Arc<str>
 pub field antecedent_state::DataBatchRef::bytes: u64
 pub field antecedent_state::DataBatchRef::id: alloc::sync::Arc<str>
@@ -413,6 +428,7 @@ pub field antecedent_state::GraphScoreData::n_vars: usize
 pub field antecedent_state::InterventionRecord::fingerprint: u64
 pub field antecedent_state::InterventionRecord::id: alloc::sync::Arc<str>
 pub field antecedent_state::InvalidationEntry::at_version: antecedent_core::ids::StateVersion
+pub field antecedent_state::InvalidationEntry::input: core::option::Option<antecedent_state::ChangedInput>
 pub field antecedent_state::InvalidationEntry::reason: alloc::sync::Arc<str>
 pub field antecedent_state::InvalidationEntry::target: antecedent_state::InvalidationTarget
 pub field antecedent_state::InvalidationLog::entries: alloc::vec::Vec<antecedent_state::InvalidationEntry>
@@ -435,15 +451,18 @@ pub field antecedent_state::ParticleFilterState::n_particles: usize
 pub field antecedent_state::ParticleFilterState::particles: alloc::vec::Vec<f64>
 pub field antecedent_state::PublishedLineage::data_snapshot: antecedent_core::identity::SemanticDigest
 pub field antecedent_state::PublishedLineage::data_version: antecedent_state::DataVersion
+pub field antecedent_state::PublishedLineage::identities: core::option::Option<antecedent_core::identity::ContractIdentities>
 pub field antecedent_state::PublishedLineage::lineage: antecedent_core::identity::SemanticDigest
 pub field antecedent_state::QueryRecord::id: antecedent_core::ids::QueryId
 pub field antecedent_state::QueryRecord::last_published: core::option::Option<antecedent_state::PublishedLineage>
+pub field antecedent_state::QueryRecord::pending_inputs: alloc::vec::Vec<antecedent_state::ChangedInput>
 pub field antecedent_state::QueryRecord::query: antecedent_core::query::CausalQuery
 pub field antecedent_state::QueryRecord::result_valid_at: core::option::Option<antecedent_core::ids::StateVersion>
 pub field antecedent_state::QueryStore::queries: std::collections::hash::map::HashMap<antecedent_core::ids::QueryId, antecedent_state::QueryRecord>
 pub field antecedent_state::ResultPublication::bytes: u64
 pub field antecedent_state::ResultPublication::data_snapshot: core::option::Option<antecedent_core::identity::SemanticDigest>
 pub field antecedent_state::ResultPublication::fingerprint: u64
+pub field antecedent_state::ResultPublication::identities: core::option::Option<antecedent_core::identity::ContractIdentities>
 pub field antecedent_state::ResultPublication::lineage: core::option::Option<antecedent_core::identity::SemanticDigest>
 pub field antecedent_state::ResultPublication::query: antecedent_core::ids::QueryId
 pub field antecedent_state::ResultStore::results: std::collections::hash::map::HashMap<antecedent_core::ids::QueryId, antecedent_state::CachedResult>
@@ -466,21 +485,27 @@ pub field antecedent_state::SuffStatStore::ols: std::collections::hash::map::Has
 pub field antecedent_state::SuffStatStore::particle_filters: std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::ParticleFilterState>
 pub fn <antecedent_state::CausalState>::fn apply(&mut self, event: antecedent_state::StateEvent) -> core::result::Result<antecedent_core::ids::StateVersion, antecedent_state::StateError>
 pub fn <antecedent_state::CausalState>::fn data_version(&self) -> antecedent_state::DataVersion
+pub fn <antecedent_state::CausalState>::fn input_identities(&self) -> antecedent_core::recalc::StageIdentities
 pub fn <antecedent_state::CausalState>::fn is_stale(&self, query: antecedent_core::ids::QueryId) -> bool
 pub fn <antecedent_state::CausalState>::fn new(cache_budget: antecedent_core::execution::CacheBudget) -> Self
 pub fn <antecedent_state::CausalState>::fn publish_results(&mut self, updates: &[antecedent_state::ResultPublication]) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::CausalState>::fn publish_results_at(&mut self, expected: antecedent_core::ids::StateVersion, updates: &[antecedent_state::ResultPublication]) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::CausalState>::fn refresh_results(&mut self, updates: &[(antecedent_core::ids::QueryId, u64, u64)]) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::CausalState>::fn refresh_results_at(&mut self, expected: antecedent_core::ids::StateVersion, updates: &[(antecedent_core::ids::QueryId, u64, u64)]) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::CausalState>::fn revalidation(&self, query: antecedent_core::ids::QueryId) -> core::option::Option<antecedent_core::recalc::Revalidation>
 pub fn <antecedent_state::CausalState>::fn stale_queries(&self) -> alloc::vec::Vec<antecedent_core::ids::QueryId>
+pub fn <antecedent_state::ChangedInput>::const fn revalidation(&self) -> antecedent_core::recalc::Revalidation
 pub fn <antecedent_state::DataCatalog>::fn new() -> Self
 pub fn <antecedent_state::DataVersion>::const fn next(self) -> Self
 pub fn <antecedent_state::DataVersion>::const fn raw(self) -> u64
 pub fn <antecedent_state::GraphScoreData>::const fn fingerprint(&self) -> u64
 pub fn <antecedent_state::GraphScoreData>::fn new(n_rows: usize, n_vars: usize, columns: alloc::sync::Arc<[f64]>) -> core::result::Result<Self, antecedent_state::StateError>
+pub fn <antecedent_state::InvalidationEntry>::fn revalidation(&self) -> antecedent_core::recalc::Revalidation
 pub fn <antecedent_state::InvalidationLog>::fn new() -> Self
 pub fn <antecedent_state::InvalidationLog>::fn push(&mut self, at_version: antecedent_core::ids::StateVersion, target: antecedent_state::InvalidationTarget, reason: impl core::convert::Into<alloc::sync::Arc<str>>)
+pub fn <antecedent_state::InvalidationLog>::fn push_input(&mut self, at_version: antecedent_core::ids::StateVersion, target: antecedent_state::InvalidationTarget, reason: impl core::convert::Into<alloc::sync::Arc<str>>, input: antecedent_state::ChangedInput)
 pub fn <antecedent_state::InvalidationLog>::fn query_stale_since(&self, query: antecedent_core::ids::QueryId, since: antecedent_core::ids::StateVersion) -> bool
+pub fn <antecedent_state::InvalidationLog>::fn revalidation_since(&self, query: antecedent_core::ids::QueryId, since: antecedent_core::ids::StateVersion) -> antecedent_core::recalc::Revalidation
 pub fn <antecedent_state::LinearOlsSuffStats>::fn append_batch(&mut self, rows_rowmajor: &[f64], y: &[f64]) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::LinearOlsSuffStats>::fn append_row(&mut self, row: &[f64], y: f64) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::LinearOlsSuffStats>::fn new(ncols: usize) -> Self
@@ -530,6 +555,7 @@ pub mod antecedent_state::store
 pub mod antecedent_state::suff_stats
 pub struct antecedent_state::CachedResult
 pub struct antecedent_state::CausalState
+pub struct antecedent_state::ChangedInput
 pub struct antecedent_state::ConstraintId
 pub struct antecedent_state::DataBatchRef
 pub struct antecedent_state::DataCatalog
@@ -577,6 +603,7 @@ pub use antecedent_state::graph_score::GraphScoreFamily = antecedent_state::Grap
 pub use antecedent_state::graph_score::LocalScoreCache = antecedent_state::LocalScoreCache
 pub use antecedent_state::graph_score::ParentSetOp = antecedent_state::ParentSetOp
 pub use antecedent_state::graph_score::full_graph_score = antecedent_state::full_graph_score
+pub use antecedent_state::invalidation::ChangedInput = antecedent_state::ChangedInput
 pub use antecedent_state::invalidation::InvalidationEntry = antecedent_state::InvalidationEntry
 pub use antecedent_state::invalidation::InvalidationLog = antecedent_state::InvalidationLog
 pub use antecedent_state::invalidation::InvalidationTarget = antecedent_state::InvalidationTarget

@@ -122,6 +122,7 @@ impl core::clone::Clone for antecedent_validate::bayesian_checks::ResidualStatis
 impl core::clone::Clone for antecedent_validate::predictive_assessment::AssessmentIdentity
 impl core::clone::Clone for antecedent_validate::predictive_assessment::AssessmentUncertainty
 impl core::clone::Clone for antecedent_validate::predictive_assessment::CalibrationDiagnostics
+impl core::clone::Clone for antecedent_validate::predictive_assessment::ConstructedInterval
 impl core::clone::Clone for antecedent_validate::predictive_assessment::CoverageDiagnostic
 impl core::clone::Clone for antecedent_validate::predictive_assessment::DependenceDeclaration
 impl core::clone::Clone for antecedent_validate::predictive_assessment::DistributionDrift
@@ -151,6 +152,8 @@ impl core::clone::Clone for antecedent_validate::predictive_assessment::Realized
 impl core::clone::Clone for antecedent_validate::predictive_assessment::ReliabilityBin
 impl core::clone::Clone for antecedent_validate::predictive_assessment::ReliabilityDiagnostic
 impl core::clone::Clone for antecedent_validate::predictive_assessment::ScoreDifference
+impl core::clone::Clone for antecedent_validate::predictive_assessment::ScoreInterval
+impl core::clone::Clone for antecedent_validate::predictive_assessment::ScoreIntervalQuery
 impl core::clone::Clone for antecedent_validate::predictive_assessment::ScoreIntervalRequest
 impl core::clone::Clone for antecedent_validate::predictive_assessment::ScoreKind
 impl core::clone::Clone for antecedent_validate::predictive_assessment::ScoreSummary
@@ -241,6 +244,7 @@ impl core::cmp::PartialEq for antecedent_validate::bayesian_checks::ResidualStat
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::AssessmentIdentity
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::AssessmentUncertainty
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::CalibrationDiagnostics
+impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::ConstructedInterval
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::CoverageDiagnostic
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::DependenceDeclaration
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::DistributionDrift
@@ -270,6 +274,8 @@ impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::Realiz
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::ReliabilityBin
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::ReliabilityDiagnostic
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::ScoreDifference
+impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::ScoreInterval
+impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::ScoreIntervalQuery
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::ScoreIntervalRequest
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::ScoreKind
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::ScoreSummary
@@ -411,6 +417,7 @@ impl core::fmt::Debug for antecedent_validate::common::AlignedRefit
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::AssessmentIdentity
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::AssessmentUncertainty
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::CalibrationDiagnostics
+impl core::fmt::Debug for antecedent_validate::predictive_assessment::ConstructedInterval
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::CoverageDiagnostic
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::DependenceDeclaration
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::DistributionDrift
@@ -440,6 +447,8 @@ impl core::fmt::Debug for antecedent_validate::predictive_assessment::RealizedOb
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::ReliabilityBin
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::ReliabilityDiagnostic
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::ScoreDifference
+impl core::fmt::Debug for antecedent_validate::predictive_assessment::ScoreInterval
+impl core::fmt::Debug for antecedent_validate::predictive_assessment::ScoreIntervalQuery
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::ScoreIntervalRequest
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::ScoreKind
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::ScoreSummary
@@ -596,6 +605,7 @@ impl core::marker::Freeze for antecedent_validate::common::AlignedRefit [auto]
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::AssessmentIdentity [auto]
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::AssessmentUncertainty [auto]
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::CalibrationDiagnostics [auto]
+impl core::marker::Freeze for antecedent_validate::predictive_assessment::ConstructedInterval [auto]
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::CoverageDiagnostic [auto]
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::DependenceDeclaration [auto]
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::DistributionDrift [auto]
@@ -625,6 +635,8 @@ impl core::marker::Freeze for antecedent_validate::predictive_assessment::Realiz
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::ReliabilityBin [auto]
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::ReliabilityDiagnostic [auto]
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::ScoreDifference [auto]
+impl core::marker::Freeze for antecedent_validate::predictive_assessment::ScoreInterval [auto]
+impl core::marker::Freeze for antecedent_validate::predictive_assessment::ScoreIntervalQuery [auto]
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::ScoreIntervalRequest [auto]
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::ScoreKind [auto]
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::ScoreSummary [auto]
@@ -721,6 +733,7 @@ impl core::marker::Send for antecedent_validate::bayesian_checks::ResidualStatis
 impl core::marker::Send for antecedent_validate::predictive_assessment::AssessmentIdentity [auto]
 impl core::marker::Send for antecedent_validate::predictive_assessment::AssessmentUncertainty [auto]
 impl core::marker::Send for antecedent_validate::predictive_assessment::CalibrationDiagnostics [auto]
+impl core::marker::Send for antecedent_validate::predictive_assessment::ConstructedInterval [auto]
 impl core::marker::Send for antecedent_validate::predictive_assessment::CoverageDiagnostic [auto]
 impl core::marker::Send for antecedent_validate::predictive_assessment::DependenceDeclaration [auto]
 impl core::marker::Send for antecedent_validate::predictive_assessment::DistributionDrift [auto]
@@ -750,6 +763,8 @@ impl core::marker::Send for antecedent_validate::predictive_assessment::Realized
 impl core::marker::Send for antecedent_validate::predictive_assessment::ReliabilityBin [auto]
 impl core::marker::Send for antecedent_validate::predictive_assessment::ReliabilityDiagnostic [auto]
 impl core::marker::Send for antecedent_validate::predictive_assessment::ScoreDifference [auto]
+impl core::marker::Send for antecedent_validate::predictive_assessment::ScoreInterval [auto]
+impl core::marker::Send for antecedent_validate::predictive_assessment::ScoreIntervalQuery [auto]
 impl core::marker::Send for antecedent_validate::predictive_assessment::ScoreIntervalRequest [auto]
 impl core::marker::Send for antecedent_validate::predictive_assessment::ScoreKind [auto]
 impl core::marker::Send for antecedent_validate::predictive_assessment::ScoreSummary [auto]
@@ -803,6 +818,7 @@ impl core::marker::StructuralPartialEq for antecedent_validate::bayesian_checks:
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::AssessmentIdentity
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::AssessmentUncertainty
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::CalibrationDiagnostics
+impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::ConstructedInterval
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::CoverageDiagnostic
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::DependenceDeclaration
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::DistributionDrift
@@ -814,7 +830,6 @@ impl core::marker::StructuralPartialEq for antecedent_validate::predictive_asses
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::Horizon
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::LawKind
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::LawSource
-impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::ObservationKey
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::Outcome
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::OverlapPolicy
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::OverlapStatus
@@ -832,6 +847,8 @@ impl core::marker::StructuralPartialEq for antecedent_validate::predictive_asses
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::ReliabilityBin
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::ReliabilityDiagnostic
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::ScoreDifference
+impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::ScoreInterval
+impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::ScoreIntervalQuery
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::ScoreIntervalRequest
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::ScoreKind
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::ScoreSummary
@@ -928,6 +945,7 @@ impl core::marker::Sync for antecedent_validate::bayesian_checks::ResidualStatis
 impl core::marker::Sync for antecedent_validate::predictive_assessment::AssessmentIdentity [auto]
 impl core::marker::Sync for antecedent_validate::predictive_assessment::AssessmentUncertainty [auto]
 impl core::marker::Sync for antecedent_validate::predictive_assessment::CalibrationDiagnostics [auto]
+impl core::marker::Sync for antecedent_validate::predictive_assessment::ConstructedInterval [auto]
 impl core::marker::Sync for antecedent_validate::predictive_assessment::CoverageDiagnostic [auto]
 impl core::marker::Sync for antecedent_validate::predictive_assessment::DependenceDeclaration [auto]
 impl core::marker::Sync for antecedent_validate::predictive_assessment::DistributionDrift [auto]
@@ -957,6 +975,8 @@ impl core::marker::Sync for antecedent_validate::predictive_assessment::Realized
 impl core::marker::Sync for antecedent_validate::predictive_assessment::ReliabilityBin [auto]
 impl core::marker::Sync for antecedent_validate::predictive_assessment::ReliabilityDiagnostic [auto]
 impl core::marker::Sync for antecedent_validate::predictive_assessment::ScoreDifference [auto]
+impl core::marker::Sync for antecedent_validate::predictive_assessment::ScoreInterval [auto]
+impl core::marker::Sync for antecedent_validate::predictive_assessment::ScoreIntervalQuery [auto]
 impl core::marker::Sync for antecedent_validate::predictive_assessment::ScoreIntervalRequest [auto]
 impl core::marker::Sync for antecedent_validate::predictive_assessment::ScoreKind [auto]
 impl core::marker::Sync for antecedent_validate::predictive_assessment::ScoreSummary [auto]
@@ -1054,6 +1074,7 @@ impl core::marker::Unpin for antecedent_validate::common::AlignedRefit [auto]
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::AssessmentIdentity [auto]
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::AssessmentUncertainty [auto]
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::CalibrationDiagnostics [auto]
+impl core::marker::Unpin for antecedent_validate::predictive_assessment::ConstructedInterval [auto]
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::CoverageDiagnostic [auto]
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::DependenceDeclaration [auto]
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::DistributionDrift [auto]
@@ -1083,6 +1104,8 @@ impl core::marker::Unpin for antecedent_validate::predictive_assessment::Realize
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::ReliabilityBin [auto]
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::ReliabilityDiagnostic [auto]
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::ScoreDifference [auto]
+impl core::marker::Unpin for antecedent_validate::predictive_assessment::ScoreInterval [auto]
+impl core::marker::Unpin for antecedent_validate::predictive_assessment::ScoreIntervalQuery [auto]
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::ScoreIntervalRequest [auto]
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::ScoreKind [auto]
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::ScoreSummary [auto]
@@ -1169,6 +1192,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::bayesian_c
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::AssessmentIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::AssessmentUncertainty [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::CalibrationDiagnostics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::ConstructedInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::CoverageDiagnostic [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::DependenceDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::DistributionDrift [auto]
@@ -1198,6 +1222,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::ReliabilityBin [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::ReliabilityDiagnostic [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::ScoreDifference [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::ScoreInterval [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::ScoreIntervalQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::ScoreIntervalRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::ScoreKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::ScoreSummary [auto]
@@ -1284,6 +1310,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::bayesian_chec
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::AssessmentIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::AssessmentUncertainty [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::CalibrationDiagnostics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::ConstructedInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::CoverageDiagnostic [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::DependenceDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::DistributionDrift [auto]
@@ -1313,6 +1340,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_as
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::ReliabilityBin [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::ReliabilityDiagnostic [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::ScoreDifference [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::ScoreInterval [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::ScoreIntervalQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::ScoreIntervalRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::ScoreKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::ScoreSummary [auto]
@@ -1349,11 +1378,14 @@ impl<'a> core::clone::Clone for antecedent_validate::PanelSliceTemplate<'a>
 impl<'a> core::clone::Clone for antecedent_validate::PreparedRefutation<'a>
 impl<'a> core::clone::Clone for antecedent_validate::RefutationProblem<'a>
 impl<'a> core::clone::Clone for antecedent_validate::TemporalRefitContext<'a>
+impl<'a> core::clone::Clone for antecedent_validate::predictive_assessment::IntervalFacts<'a>
+impl<'a> core::cmp::PartialEq for antecedent_validate::predictive_assessment::IntervalFacts<'a>
 impl<'a> core::fmt::Debug for antecedent_validate::ExternalAlphaSensitivity<'a>
 impl<'a> core::fmt::Debug for antecedent_validate::PanelSliceTemplate<'a>
 impl<'a> core::fmt::Debug for antecedent_validate::PreparedRefutation<'a>
 impl<'a> core::fmt::Debug for antecedent_validate::RefutationProblem<'a>
 impl<'a> core::fmt::Debug for antecedent_validate::TemporalRefitContext<'a>
+impl<'a> core::fmt::Debug for antecedent_validate::predictive_assessment::IntervalFacts<'a>
 impl<'a> core::marker::Copy for antecedent_validate::ExternalAlphaSensitivity<'a>
 impl<'a> core::marker::Copy for antecedent_validate::RefutationProblem<'a>
 impl<'a> core::marker::Copy for antecedent_validate::TemporalRefitContext<'a>
@@ -1363,23 +1395,30 @@ impl<'a> core::marker::Freeze for antecedent_validate::PanelSliceTemplate<'a> [a
 impl<'a> core::marker::Freeze for antecedent_validate::PreparedRefutation<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_validate::RefutationProblem<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_validate::TemporalRefitContext<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
 impl<'a> core::marker::Send for antecedent_validate::BayesianSuiteContext<'a> [auto]
 impl<'a> core::marker::Send for antecedent_validate::ExternalAlphaSensitivity<'a> [auto]
 impl<'a> core::marker::Send for antecedent_validate::PanelSliceTemplate<'a> [auto]
 impl<'a> core::marker::Send for antecedent_validate::TemporalRefitContext<'a> [auto]
+impl<'a> core::marker::Send for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
+impl<'a> core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::IntervalFacts<'a>
 impl<'a> core::marker::Sync for antecedent_validate::BayesianSuiteContext<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_validate::ExternalAlphaSensitivity<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_validate::PanelSliceTemplate<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_validate::TemporalRefitContext<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_validate::BayesianSuiteContext<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_validate::ExternalAlphaSensitivity<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_validate::PanelSliceTemplate<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_validate::PreparedRefutation<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_validate::RefutationProblem<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_validate::TemporalRefitContext<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::BayesianSuiteContext<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::ExternalAlphaSensitivity<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::ExternalAlphaSensitivity<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::IntervalFacts<'a> [auto]
 pub const <antecedent_validate::bayesian_checks::ResidualStatistic>::ALL: [Self; 4]
 pub const <antecedent_validate::predictive_assessment::ScoreKind>::ALL: [Self; 4]
 pub const antecedent_validate::DEFAULT_EVALUE_THRESHOLD: f64
@@ -1425,13 +1464,19 @@ pub const antecedent_validate::predictive_assessment::MAX_PREDICTORS: usize
 pub const antecedent_validate::predictive_assessment::PROBABILITY_SUM_TOLERANCE: f64
 pub const antecedent_validate::predictive_assessment::PSI_PSEUDOCOUNT: f64
 pub const antecedent_validate::predictive_assessment::REPLAY_TOLERANCE: f64
+pub const antecedent_validate::predictive_assessment::SCORE_INTERVAL_ASSUMPTIONS: &str
+pub const antecedent_validate::predictive_assessment::SCORE_INTERVAL_MAX_BANDWIDTH_FRACTION: f64
+pub const antecedent_validate::predictive_assessment::SCORE_INTERVAL_MIN_CLUSTERS: usize
+pub const antecedent_validate::predictive_assessment::SCORE_INTERVAL_QUERY: &str
 pub const antecedent_validate::predictive_assessment::detail::BOUNDS_EXCEEDED: &str
 pub const antecedent_validate::predictive_assessment::detail::CANCELLED: &str
 pub const antecedent_validate::predictive_assessment::detail::DESIGN_INVALID: &str
 pub const antecedent_validate::predictive_assessment::detail::DIAGNOSTIC_NOT_DEFINED: &str
 pub const antecedent_validate::predictive_assessment::detail::HORIZON_MISMATCH: &str
 pub const antecedent_validate::predictive_assessment::detail::IID_NOT_LICENSED: &str
+pub const antecedent_validate::predictive_assessment::detail::INTERVAL_DEPENDENCE_UNDECLARED: &str
 pub const antecedent_validate::predictive_assessment::detail::INTERVAL_NOT_LICENSED: &str
+pub const antecedent_validate::predictive_assessment::detail::INTERVAL_SCOPE_OUTSIDE_MEASURED: &str
 pub const antecedent_validate::predictive_assessment::detail::INVALID_LAW: &str
 pub const antecedent_validate::predictive_assessment::detail::INVALID_OBSERVATIONS: &str
 pub const antecedent_validate::predictive_assessment::detail::IN_SAMPLE: &str
@@ -1863,6 +1908,8 @@ pub field antecedent_validate::predictive_assessment::CalibrationDiagnostics::la
 pub field antecedent_validate::predictive_assessment::CalibrationDiagnostics::mean_predictive_sd: core::option::Option<f64>
 pub field antecedent_validate::predictive_assessment::CalibrationDiagnostics::pit: core::option::Option<antecedent_validate::predictive_assessment::PitDiagnostic>
 pub field antecedent_validate::predictive_assessment::CalibrationDiagnostics::reliability: core::option::Option<antecedent_validate::predictive_assessment::ReliabilityDiagnostic>
+pub field antecedent_validate::predictive_assessment::ConstructedInterval::basis: antecedent_io_core::calibration::CalibrationBasisWire
+pub field antecedent_validate::predictive_assessment::ConstructedInterval::interval: antecedent_validate::predictive_assessment::ScoreInterval
 pub field antecedent_validate::predictive_assessment::CoverageDiagnostic::empirical_coverage: f64
 pub field antecedent_validate::predictive_assessment::CoverageDiagnostic::level: f64
 pub field antecedent_validate::predictive_assessment::CoverageDiagnostic::mean_width: f64
@@ -1877,6 +1924,14 @@ pub field antecedent_validate::predictive_assessment::DistributionDrift::route: 
 pub field antecedent_validate::predictive_assessment::FoldScore::cases: usize
 pub field antecedent_validate::predictive_assessment::FoldScore::fold: u64
 pub field antecedent_validate::predictive_assessment::FoldScore::mean: f64
+pub field antecedent_validate::predictive_assessment::IntervalFacts::cases: usize
+pub field antecedent_validate::predictive_assessment::IntervalFacts::dependence: &'a str
+pub field antecedent_validate::predictive_assessment::IntervalFacts::design: &'a str
+pub field antecedent_validate::predictive_assessment::IntervalFacts::difference: bool
+pub field antecedent_validate::predictive_assessment::IntervalFacts::law: &'a str
+pub field antecedent_validate::predictive_assessment::IntervalFacts::level: f64
+pub field antecedent_validate::predictive_assessment::IntervalFacts::overlap: &'a str
+pub field antecedent_validate::predictive_assessment::IntervalFacts::score: antecedent_validate::predictive_assessment::ScoreKind
 pub field antecedent_validate::predictive_assessment::PitDiagnostic::bins: usize
 pub field antecedent_validate::predictive_assessment::PitDiagnostic::chi_square: f64
 pub field antecedent_validate::predictive_assessment::PitDiagnostic::counts: alloc::vec::Vec<f64>
@@ -1952,6 +2007,25 @@ pub field antecedent_validate::predictive_assessment::ScoreDifference::reference
 pub field antecedent_validate::predictive_assessment::ScoreDifference::score: antecedent_validate::predictive_assessment::ScoreKind
 pub field antecedent_validate::predictive_assessment::ScoreDifference::shared_observations: usize
 pub field antecedent_validate::predictive_assessment::ScoreDifference::standard_error: core::option::Option<f64>
+pub field antecedent_validate::predictive_assessment::ScoreInterval::assumptions: &'static str
+pub field antecedent_validate::predictive_assessment::ScoreInterval::calibration_sha: alloc::string::String
+pub field antecedent_validate::predictive_assessment::ScoreInterval::cases: usize
+pub field antecedent_validate::predictive_assessment::ScoreInterval::construction: &'static str
+pub field antecedent_validate::predictive_assessment::ScoreInterval::coverage_record: alloc::string::String
+pub field antecedent_validate::predictive_assessment::ScoreInterval::degrees_of_freedom: f64
+pub field antecedent_validate::predictive_assessment::ScoreInterval::dependence: &'static str
+pub field antecedent_validate::predictive_assessment::ScoreInterval::level: f64
+pub field antecedent_validate::predictive_assessment::ScoreInterval::lower: f64
+pub field antecedent_validate::predictive_assessment::ScoreInterval::mean: f64
+pub field antecedent_validate::predictive_assessment::ScoreInterval::predictor: alloc::string::String
+pub field antecedent_validate::predictive_assessment::ScoreInterval::reference: core::option::Option<alloc::string::String>
+pub field antecedent_validate::predictive_assessment::ScoreInterval::score: antecedent_validate::predictive_assessment::ScoreKind
+pub field antecedent_validate::predictive_assessment::ScoreInterval::standard_error: f64
+pub field antecedent_validate::predictive_assessment::ScoreInterval::upper: f64
+pub field antecedent_validate::predictive_assessment::ScoreIntervalQuery::level: f64
+pub field antecedent_validate::predictive_assessment::ScoreIntervalQuery::predictor: alloc::string::String
+pub field antecedent_validate::predictive_assessment::ScoreIntervalQuery::reference: core::option::Option<alloc::string::String>
+pub field antecedent_validate::predictive_assessment::ScoreIntervalQuery::score: antecedent_validate::predictive_assessment::ScoreKind
 pub field antecedent_validate::predictive_assessment::ScoreIntervalRequest::level: f64
 pub field antecedent_validate::predictive_assessment::ScoreIntervalRequest::method: alloc::string::String
 pub field antecedent_validate::predictive_assessment::ScoreSummary::cases: usize
@@ -2102,6 +2176,7 @@ pub fn <antecedent_validate::predictive_assessment::LawKind>::const fn name(self
 pub fn <antecedent_validate::predictive_assessment::LawSource>::const fn class(&self) -> &'static str
 pub fn <antecedent_validate::predictive_assessment::ObservationKey>::const fn as_bytes(&self) -> &[u8; 32]
 pub fn <antecedent_validate::predictive_assessment::ObservationKey>::const fn from_bytes(bytes: [u8; 32]) -> Self
+pub fn <antecedent_validate::predictive_assessment::ObservationKey>::const fn is_caller_minted(&self) -> bool
 pub fn <antecedent_validate::predictive_assessment::ObservationKey>::fn from_key(domain: &str, key: &[u8]) -> Self
 pub fn <antecedent_validate::predictive_assessment::ObservationKey>::fn to_hex(&self) -> alloc::string::String
 pub fn <antecedent_validate::predictive_assessment::OverlapStatus>::const fn label(&self) -> &'static str
@@ -2145,15 +2220,19 @@ pub fn antecedent_validate::msm_dirichlet_posterior(strata: &[antecedent_validat
 pub fn antecedent_validate::predictive_assessment::assess_predictive_laws(spec: &antecedent_validate::predictive_assessment::PredictiveAssessmentSpec, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::predictive_assessment::PredictiveAssessmentReport, antecedent_validate::predictive_assessment::PredictiveAssessmentError>
 pub fn antecedent_validate::predictive_assessment::brier_binary(probability: f64, outcome: bool) -> f64
 pub fn antecedent_validate::predictive_assessment::brier_categorical(probabilities: &[f64], outcome: usize) -> f64
+pub fn antecedent_validate::predictive_assessment::construct_expected_score_interval(spec: &antecedent_validate::predictive_assessment::PredictiveAssessmentSpec, report: &antecedent_validate::predictive_assessment::PredictiveAssessmentReport, query: &antecedent_validate::predictive_assessment::ScoreIntervalQuery) -> core::result::Result<antecedent_validate::predictive_assessment::ConstructedInterval, antecedent_validate::predictive_assessment::PredictiveAssessmentError>
 pub fn antecedent_validate::predictive_assessment::crps_ensemble_energy_sorted(sorted: &[f64], y: f64, fair: bool) -> f64
 pub fn antecedent_validate::predictive_assessment::crps_gaussian(mean: f64, sd: f64, y: f64) -> f64
 pub fn antecedent_validate::predictive_assessment::crps_weighted_atoms(atoms: &[(f64, f64)], y: f64) -> f64
 pub fn antecedent_validate::predictive_assessment::distribution_drift(reference: &[f64], comparison: &[f64], bins: usize) -> core::result::Result<antecedent_validate::predictive_assessment::DistributionDrift, antecedent_validate::predictive_assessment::PredictiveAssessmentError>
 pub fn antecedent_validate::predictive_assessment::energy_score_weighted(atoms: &[f64], weights: &[f64], dimension: usize, y: &[f64]) -> f64
 pub fn antecedent_validate::predictive_assessment::exact_expected_score(kind: antecedent_validate::predictive_assessment::ScoreKind, forecast: &antecedent_validate::predictive_assessment::ForecastLaw, truth: &antecedent_validate::predictive_assessment::FiniteTruth) -> core::result::Result<f64, antecedent_validate::predictive_assessment::PredictiveAssessmentError>
+pub fn antecedent_validate::predictive_assessment::expected_score_interval(spec: &antecedent_validate::predictive_assessment::PredictiveAssessmentSpec, report: &antecedent_validate::predictive_assessment::PredictiveAssessmentReport, query: &antecedent_validate::predictive_assessment::ScoreIntervalQuery) -> core::result::Result<antecedent_validate::predictive_assessment::ScoreInterval, antecedent_validate::predictive_assessment::PredictiveAssessmentError>
 pub fn antecedent_validate::predictive_assessment::log_score_gaussian(mean: f64, sd: f64, y: f64) -> f64
 pub fn antecedent_validate::predictive_assessment::pit_available_for(kind: antecedent_validate::predictive_assessment::LawKind) -> bool
 pub fn antecedent_validate::predictive_assessment::score_case(kind: antecedent_validate::predictive_assessment::ScoreKind, form: antecedent_validate::predictive_assessment::EnsembleCrpsForm, law: &antecedent_validate::predictive_assessment::ForecastLaw, outcome: &antecedent_validate::predictive_assessment::Outcome) -> core::result::Result<f64, antecedent_validate::predictive_assessment::PredictiveAssessmentError>
+pub fn antecedent_validate::predictive_assessment::score_interval_basis(facts: &antecedent_validate::predictive_assessment::IntervalFacts<'_>) -> antecedent_io_core::calibration::CalibrationBasisWire
+pub fn antecedent_validate::predictive_assessment::score_interval_construction(dependence: &str) -> (&'static str, &'static str)
 pub fn antecedent_validate::predictive_assessment::variance_of_mean(d: &[f64], dependence: &antecedent_validate::predictive_assessment::DependenceDeclaration, cluster: core::option::Option<&[u32]>) -> core::result::Result<f64, antecedent_validate::predictive_assessment::PredictiveAssessmentError>
 pub mod antecedent_validate::bayesian_checks
 pub mod antecedent_validate::bootstrap_refute
@@ -2266,9 +2345,11 @@ pub struct antecedent_validate::common::AlignedRefit
 pub struct antecedent_validate::predictive_assessment::AssessmentIdentity
 pub struct antecedent_validate::predictive_assessment::AssessmentUncertainty
 pub struct antecedent_validate::predictive_assessment::CalibrationDiagnostics
+pub struct antecedent_validate::predictive_assessment::ConstructedInterval
 pub struct antecedent_validate::predictive_assessment::CoverageDiagnostic
 pub struct antecedent_validate::predictive_assessment::DistributionDrift
 pub struct antecedent_validate::predictive_assessment::FoldScore
+pub struct antecedent_validate::predictive_assessment::IntervalFacts<'a>
 pub struct antecedent_validate::predictive_assessment::ObservationKey
 pub struct antecedent_validate::predictive_assessment::ObservationKey has private fields
 pub struct antecedent_validate::predictive_assessment::PitDiagnostic
@@ -2285,6 +2366,8 @@ pub struct antecedent_validate::predictive_assessment::RealizedObservations
 pub struct antecedent_validate::predictive_assessment::ReliabilityBin
 pub struct antecedent_validate::predictive_assessment::ReliabilityDiagnostic
 pub struct antecedent_validate::predictive_assessment::ScoreDifference
+pub struct antecedent_validate::predictive_assessment::ScoreInterval
+pub struct antecedent_validate::predictive_assessment::ScoreIntervalQuery
 pub struct antecedent_validate::predictive_assessment::ScoreIntervalRequest
 pub struct antecedent_validate::predictive_assessment::ScoreSummary
 pub trait antecedent_validate::CustomEffectValidator: core::marker::Send + core::marker::Sync
