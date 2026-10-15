@@ -371,6 +371,191 @@ calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
 surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
+id = "cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_arm_mean_record_l95"
+query = "AdaptiveExperimentContrast"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "adaptive_trial_history"
+inference = "Frequentist"
+estimator = "adaptive.epsilon_greedy.confidence_sequence"
+interval_method = "confidence_sequence"
+se_kind = ""
+dependence = "adaptive_assignment_time_uniform_all_looks"
+posterior = ""
+functional = "arm_mean:treatment"
+identification = "point"
+nominal = 0.95
+n_min = 200
+n_max = 800
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9925
+mcse = 0.004313858481684336
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the true value covered by the time-uniform interval at every one of ten looks and at the end" }
+grid = [
+  { point = 0, n_min = 200, n_max = 200, observed = 0.9925, mcse = 0.004313858481684336, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::two_bernoulli_arms_0.4_0.6_epsilon_greedy_0.3_confidence_sequence_every_look"
+test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::anytime_valid_sequence_arm_mean_record_l95"
+facets = ["adaptive_interval", "core"]
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_contrast_record_l95"
+query = "AdaptiveExperimentContrast"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "adaptive_trial_history"
+inference = "Frequentist"
+estimator = "adaptive.epsilon_greedy.confidence_sequence"
+interval_method = "confidence_sequence"
+se_kind = ""
+dependence = "adaptive_assignment_time_uniform_all_looks"
+posterior = ""
+functional = "arm_contrast:treatment_minus_control"
+identification = "point"
+nominal = 0.95
+n_min = 200
+n_max = 800
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 1.0
+mcse = 0.0
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the true value covered by the time-uniform interval at every one of ten looks and at the end" }
+grid = [
+  { point = 0, n_min = 200, n_max = 200, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 400, n_max = 400, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 800, n_max = 800, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::two_bernoulli_arms_0.4_0.6_epsilon_greedy_0.3_confidence_sequence_contrast_every_look"
+test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::anytime_valid_sequence_contrast_record_l95"
+facets = ["adaptive_interval", "core"]
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.adaptive_experiment_contrast.not_applicable.frequentist.repeated_confidence_interval.l95.group_sequential_repeated_interval_large_effect_l95"
+query = "AdaptiveExperimentContrast"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "adaptive_trial_history"
+inference = "Frequentist"
+estimator = "adaptive.group_sequential.repeated_interval"
+interval_method = "repeated_confidence_interval"
+se_kind = ""
+dependence = "fixed_randomization_group_sequential_boundary"
+posterior = ""
+functional = "arm_contrast:treatment_minus_control"
+identification = "point"
+nominal = 0.95
+n_min = 120
+n_max = 480
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.975
+mcse = 0.007806247497998001
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the true effect covered by the repeated confidence interval read at the stopping look" }
+grid = [
+  { point = 0, n_min = 120, n_max = 120, observed = 0.975, mcse = 0.007806247497998001, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 240, n_max = 240, observed = 0.9875, mcse = 0.005555121510822233, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 480, n_max = 480, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::fixed_randomization_three_looks_obrien_fleming_two_sided_effect_0.8"
+test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::group_sequential_repeated_interval_large_effect_l95"
+facets = ["adaptive_interval", "core"]
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.adaptive_experiment_contrast.not_applicable.frequentist.repeated_confidence_interval.l95.group_sequential_repeated_interval_moderate_effect_l95"
+query = "AdaptiveExperimentContrast"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "adaptive_trial_history"
+inference = "Frequentist"
+estimator = "adaptive.group_sequential.repeated_interval"
+interval_method = "repeated_confidence_interval"
+se_kind = ""
+dependence = "fixed_randomization_group_sequential_boundary"
+posterior = ""
+functional = "arm_contrast:treatment_minus_control"
+identification = "point"
+nominal = 0.95
+n_min = 120
+n_max = 480
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.965
+mcse = 0.009188987974744557
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the true effect covered by the repeated confidence interval read at the stopping look" }
+grid = [
+  { point = 0, n_min = 120, n_max = 120, observed = 0.965, mcse = 0.009188987974744557, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 240, n_max = 240, observed = 0.9725, mcse = 0.00817675822071314, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 480, n_max = 480, observed = 0.9775, mcse = 0.00741514497498194, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::fixed_randomization_three_looks_obrien_fleming_two_sided_effect_0.3"
+test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::group_sequential_repeated_interval_moderate_effect_l95"
+facets = ["adaptive_interval", "core"]
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.adaptive_experiment_contrast.not_applicable.frequentist.repeated_confidence_interval.l95.group_sequential_repeated_interval_null_effect_l95"
+query = "AdaptiveExperimentContrast"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "adaptive_trial_history"
+inference = "Frequentist"
+estimator = "adaptive.group_sequential.repeated_interval"
+interval_method = "repeated_confidence_interval"
+se_kind = ""
+dependence = "fixed_randomization_group_sequential_boundary"
+posterior = ""
+functional = "arm_contrast:treatment_minus_control"
+identification = "point"
+nominal = 0.95
+n_min = 120
+n_max = 480
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.935
+mcse = 0.012326293035621046
+replicates = 400
+boundary = false
+role = "one_sided"
+one_sided = { side = "upper", target = "the true effect covered by the repeated confidence interval read at the stopping look" }
+grid = [
+  { point = 0, n_min = 120, n_max = 120, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 240, n_max = 240, observed = 0.935, mcse = 0.012326293035621046, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 480, n_max = 480, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::fixed_randomization_three_looks_obrien_fleming_two_sided_effect_0.0"
+test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::group_sequential_repeated_interval_null_effect_l95"
+facets = ["adaptive_interval", "core"]
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
 id = "cov.anomaly_attribution.dag.bayesian.posterior_quantile.l90.anomaly_attribution_dag_bayesian_nominal_coverage"
 query = "AnomalyAttribution"
 graph_class = "Dag"
@@ -4944,6 +5129,186 @@ calibration_sha = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
 surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
+id = "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_aligned_bootstrap_gaussian_l95"
+query = "ComposedQuantity"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "composed_estimates"
+inference = "Frequentist"
+estimator = "joint_law.aligned_joint_law"
+interval_method = "normal_approximation"
+se_kind = ""
+dependence = "aligned_joint_law"
+posterior = ""
+functional = "contrast|aligned_joint_law|estimate,estimate"
+identification = "point"
+nominal = 0.95
+n_min = 100
+n_max = 400
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.945
+mcse = 0.011399013115178002
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 100, n_max = 100, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 200, n_max = 200, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 400, n_max = 400, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::bivariate_normal_rho_0.6_aligned_bootstrap_draws_of_the_sample_means"
+test = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::composed_contrast_aligned_bootstrap_gaussian_l95"
+facets = ["core", "joint_law_composed", "suite.joint_law_composed_interval_calibration"]
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_independent_samples_gaussian_l95"
+query = "ComposedQuantity"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "composed_estimates"
+inference = "Frequentist"
+estimator = "joint_law.linear_moments"
+interval_method = "normal_approximation"
+se_kind = ""
+dependence = "declared_independent_distinct_evidence"
+posterior = ""
+functional = "contrast|linear_moments|estimate,estimate"
+identification = "point"
+nominal = 0.95
+n_min = 100
+n_max = 400
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9475
+mcse = 0.01115165346484547
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 100, n_max = 100, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 200, n_max = 200, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 400, n_max = 400, observed = 0.9575, mcse = 0.010086345968684594, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::two_independent_normal_samples_sample_means_diagonal_covariance"
+test = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::composed_contrast_independent_samples_gaussian_l95"
+facets = ["core", "joint_law_composed", "suite.joint_law_composed_interval_calibration"]
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_shared_rows_gaussian_negative_correlation_l95"
+query = "ComposedQuantity"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "composed_estimates"
+inference = "Frequentist"
+estimator = "joint_law.linear_moments"
+interval_method = "normal_approximation"
+se_kind = ""
+dependence = "supplied_covariance"
+posterior = ""
+functional = "contrast|linear_moments|estimate,estimate"
+identification = "point"
+nominal = 0.95
+n_min = 100
+n_max = 400
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.95
+mcse = 0.010897247358851688
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 100, n_max = 100, observed = 0.9575, mcse = 0.010086345968684594, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 200, n_max = 200, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 400, n_max = 400, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::bivariate_normal_rho_-0.5_sample_means_covariance_estimated_from_rows"
+test = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::composed_contrast_shared_rows_gaussian_negative_correlation_l95"
+facets = ["core", "joint_law_composed", "suite.joint_law_composed_interval_calibration"]
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_shared_rows_gaussian_positive_correlation_l95"
+query = "ComposedQuantity"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "composed_estimates"
+inference = "Frequentist"
+estimator = "joint_law.linear_moments"
+interval_method = "normal_approximation"
+se_kind = ""
+dependence = "supplied_covariance"
+posterior = ""
+functional = "contrast|linear_moments|estimate,estimate"
+identification = "point"
+nominal = 0.95
+n_min = 100
+n_max = 400
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9325
+mcse = 0.0125442965127583
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 100, n_max = 100, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 200, n_max = 200, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 400, n_max = 400, observed = 0.9325, mcse = 0.0125442965127583, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::bivariate_normal_rho_0.6_sample_means_covariance_estimated_from_rows"
+test = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::composed_contrast_shared_rows_gaussian_positive_correlation_l95"
+facets = ["core", "joint_law_composed", "suite.joint_law_composed_interval_calibration"]
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_shared_rows_skewed_pair_l95"
+query = "ComposedQuantity"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "composed_estimates"
+inference = "Frequentist"
+estimator = "joint_law.linear_moments"
+interval_method = "normal_approximation"
+se_kind = ""
+dependence = "supplied_covariance"
+posterior = ""
+functional = "contrast|linear_moments|estimate,estimate"
+identification = "point"
+nominal = 0.95
+n_min = 100
+n_max = 400
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.945
+mcse = 0.011399013115178002
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 100, n_max = 100, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 200, n_max = 200, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 400, n_max = 400, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::exponential_pair_shared_evidence_sample_means_covariance_estimated_from_rows"
+test = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::composed_contrast_shared_rows_skewed_pair_l95"
+facets = ["core", "joint_law_composed", "suite.joint_law_composed_interval_calibration"]
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
 id = "cov.conditional_effect.cpdag.bayesian.posterior_quantile.l90.conditional_effect_cpdag_bayesian_default_nominal_coverage"
 query = "ConditionalEffect"
 graph_class = "Cpdag"
@@ -6240,6 +6605,78 @@ calibration_sha = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
 surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
 
 [[record]]
+id = "cov.counterfactual.dag.frequentist.normal_approximation.l95.cross_world_interval_fixed_units_balanced_types_l95"
+query = "Counterfactual"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "cross_world.finite_scm.whole_path"
+interval_method = "normal_approximation"
+se_kind = ""
+dependence = "fixed_units"
+posterior = ""
+functional = "counterfactual_probability"
+identification = "point"
+nominal = 0.95
+n_min = 45
+n_max = 120
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.93
+mcse = 0.01275735082217307
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 45, n_max = 45, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 60, n_max = 60, observed = 0.93, mcse = 0.01275735082217307, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 120, n_max = 120, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/cross_world_interval_calibration.rs::response_type_scm_x_0.4_types_0.2_0.5_0.1_0.2_fixed_units_realized_outcomes"
+test = "crates/antecedent/tests/cross_world_interval_calibration.rs::cross_world_interval_fixed_units_balanced_types_l95"
+facets = ["core", "cross_world_interval", "mechanism", "suite.cross_world_interval_calibration"]
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.counterfactual.dag.frequentist.normal_approximation.l95.cross_world_interval_independent_sample_rare_types_l95"
+query = "Counterfactual"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "cross_world.finite_scm.whole_path"
+interval_method = "normal_approximation"
+se_kind = ""
+dependence = "independent_sample"
+posterior = ""
+functional = "counterfactual_probability"
+identification = "point"
+nominal = 0.95
+n_min = 45
+n_max = 120
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9475
+mcse = 0.01115165346484547
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 45, n_max = 45, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 60, n_max = 60, observed = 0.9575, mcse = 0.010086345968684594, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 120, n_max = 120, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/cross_world_interval_calibration.rs::response_type_scm_x_0.4_types_0.05_0.45_0.05_0.45_independent_sample_exact_abduction"
+test = "crates/antecedent/tests/cross_world_interval_calibration.rs::cross_world_interval_independent_sample_rare_types_l95"
+facets = ["core", "cross_world_interval", "mechanism", "suite.cross_world_interval_calibration"]
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
 id = "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_latent_district"
 query = "CounterfactualTransport"
 graph_class = "Admg"
@@ -6272,7 +6709,7 @@ grid = [
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_frontdoor_latent_district"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_latent_district"
 facets = ["core", "estimator.counterfactual_transport", "suite.counterfactual_transport_sampled_oracle"]
-calibration_sha = "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
 surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
@@ -6308,7 +6745,7 @@ grid = [
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_mediation_covariate_shift"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_mediation_covariate_shift"
 facets = ["core", "estimator.counterfactual_transport", "suite.counterfactual_transport_sampled_oracle"]
-calibration_sha = "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
 surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
@@ -6344,7 +6781,7 @@ grid = [
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_two_source_joint_counterfactual_transport"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_two_source_joint"
 facets = ["core", "estimator.counterfactual_transport", "suite.counterfactual_transport_sampled_oracle"]
-calibration_sha = "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
 surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
@@ -13456,6 +13893,150 @@ test = "crates/antecedent/tests/derivative_calibration.rs::point_derivative_orde
 facets = ["core", "estimator.response", "identity.response", "suite.derivative_calibration"]
 calibration_sha = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
 surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+
+[[record]]
+id = "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_five_studies"
+query = "PooledEffect"
+graph_class = "NoGraph"
+structure = "fixed"
+modality = "summary"
+inference = "Frequentist"
+estimator = "evidence.synthesis.random_effects"
+interval_method = "hksj_t"
+se_kind = "hartung_knapp"
+dependence = "independent"
+posterior = ""
+functional = "pooled_mean;random_effects_dl;studies=5"
+identification = "point"
+nominal = 0.95
+n_min = 375
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9525
+mcse = 0.010635289135702893
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 375, n_max = 375, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/evidence_synthesis_calibration.rs::heterogeneous_gaussian_studies_unequal_scale"
+test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_five_studies"
+facets = ["core", "estimator.evidence_synthesis", "suite.evidence_synthesis_calibration"]
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_ten_studies"
+query = "PooledEffect"
+graph_class = "NoGraph"
+structure = "fixed"
+modality = "summary"
+inference = "Frequentist"
+estimator = "evidence.synthesis.random_effects"
+interval_method = "hksj_t"
+se_kind = "hartung_knapp"
+dependence = "independent"
+posterior = ""
+functional = "pooled_mean;random_effects_dl;studies=10"
+identification = "point"
+nominal = 0.95
+n_min = 750
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.95
+mcse = 0.010897247358851688
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 750, n_max = 750, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/evidence_synthesis_calibration.rs::heterogeneous_gaussian_studies_unequal_scale"
+test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_ten_studies"
+facets = ["core", "estimator.evidence_synthesis", "suite.evidence_synthesis_calibration"]
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_five_studies"
+query = "PooledEffect"
+graph_class = "NoGraph"
+structure = "fixed"
+modality = "summary"
+inference = "Frequentist"
+estimator = "evidence.synthesis.fixed_effect_gls"
+interval_method = "wald_z"
+se_kind = "model_variance"
+dependence = "independent"
+posterior = ""
+functional = "pooled_mean;fixed_effect;studies=5"
+identification = "point"
+nominal = 0.95
+n_min = 375
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9475
+mcse = 0.01115165346484547
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 375, n_max = 375, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/evidence_synthesis_calibration.rs::homogeneous_gaussian_studies_unequal_scale"
+test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_fixed_effect_five_studies"
+facets = ["core", "estimator.evidence_synthesis", "suite.evidence_synthesis_calibration"]
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_ten_studies"
+query = "PooledEffect"
+graph_class = "NoGraph"
+structure = "fixed"
+modality = "summary"
+inference = "Frequentist"
+estimator = "evidence.synthesis.fixed_effect_gls"
+interval_method = "wald_z"
+se_kind = "model_variance"
+dependence = "independent"
+posterior = ""
+functional = "pooled_mean;fixed_effect;studies=10"
+identification = "point"
+nominal = 0.95
+n_min = 750
+n_max = 2000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.945
+mcse = 0.011399013115178002
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 750, n_max = 750, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 2000, n_max = 2000, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/evidence_synthesis_calibration.rs::homogeneous_gaussian_studies_unequal_scale"
+test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_fixed_effect_ten_studies"
+facets = ["core", "estimator.evidence_synthesis", "suite.evidence_synthesis_calibration"]
+calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
 id = "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_crps_difference_l95"
