@@ -295,8 +295,8 @@ grid = [
 dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::two_bernoulli_arms_0.4_0.6_epsilon_greedy_0.3_lag_10_posterior_probability_stop"
 test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::epsilon_greedy_weighted_contrast_delayed_outcomes_l95"
 facets = ["core"]
-calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+calibration_sha = "cffe4a96b8f7833d1704ecd4c677d37e3c10df24"
+surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
 
 [[record]]
 id = "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_thin_exploration_boundary_l95"
@@ -331,8 +331,8 @@ grid = [
 dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::two_bernoulli_arms_0.4_0.6_epsilon_greedy_0.05_posterior_probability_stop"
 test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::epsilon_greedy_weighted_contrast_thin_exploration_boundary_l95"
 facets = ["core"]
-calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+calibration_sha = "cffe4a96b8f7833d1704ecd4c677d37e3c10df24"
+surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
 
 [[record]]
 id = "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_whole_procedure_l95"
@@ -367,8 +367,8 @@ grid = [
 dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::two_bernoulli_arms_0.4_0.6_epsilon_greedy_0.3_posterior_probability_stop"
 test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::epsilon_greedy_weighted_contrast_whole_procedure_l95"
 facets = ["core"]
-calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+calibration_sha = "cffe4a96b8f7833d1704ecd4c677d37e3c10df24"
+surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
 
 [[record]]
 id = "cov.anomaly_attribution.dag.bayesian.posterior_quantile.l90.anomaly_attribution_dag_bayesian_nominal_coverage"
@@ -5696,7 +5696,7 @@ grid = [
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_frontdoor_latent_district"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_latent_district"
 facets = ["core", "suite.counterfactual_transport_sampled_oracle"]
-calibration_sha = "94655823657cf9daa9562e9f4aeda39cd86bcd5c"
+calibration_sha = "cffe4a96b8f7833d1704ecd4c677d37e3c10df24"
 surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
 
 [[record]]
@@ -5732,7 +5732,7 @@ grid = [
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_mediation_covariate_shift"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_mediation_covariate_shift"
 facets = ["core", "suite.counterfactual_transport_sampled_oracle"]
-calibration_sha = "94655823657cf9daa9562e9f4aeda39cd86bcd5c"
+calibration_sha = "cffe4a96b8f7833d1704ecd4c677d37e3c10df24"
 surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
 
 [[record]]
@@ -5768,7 +5768,7 @@ grid = [
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_two_source_joint_counterfactual_transport"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_two_source_joint"
 facets = ["core", "suite.counterfactual_transport_sampled_oracle"]
-calibration_sha = "94655823657cf9daa9562e9f4aeda39cd86bcd5c"
+calibration_sha = "cffe4a96b8f7833d1704ecd4c677d37e3c10df24"
 surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
 
 [[record]]
