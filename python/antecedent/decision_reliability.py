@@ -34,8 +34,8 @@ dependence) and reports three uncertainties **separately**, never summed::
 Everything is a point diagnostic labelled uncalibrated. Ranking probabilities (best, top-``k``,
 better than a baseline) are Monte Carlo estimates under the supplied law over the candidates as
 supplied, refused for adaptively generated candidates without a :class:`CandidateSearchRecord`.
-:meth:`DecisionReliability.publish` and :func:`publish` always raise ``cell_not_licensed`` until a
-coverage record measures the route at its coordinate, and
+:meth:`DecisionReliability.publish` and :func:`publish` return only where a current coverage record
+measured the route at its coordinate and raise ``cell_not_licensed`` everywhere else, and
 :meth:`DecisionReliability.combined_uncertainty` always raises
 ``uncertainty_components_not_combined``.
 
@@ -49,10 +49,10 @@ from the carried draws and refuses any edited draw, stream, declaration or claim
 copied from the report, the Monte Carlo component (Wald intervals for utilities and differences, Wilson
 intervals at the effective sample size for ranking probabilities) and the selection component (a
 confidence set for the best candidate and a selection-corrected interval, next to the held-out
-interval when the decision was re-evaluated). It is labelled ``derived_unmeasured`` and never
-``measured``: :meth:`DerivedUncertainty.publish` raises ``cell_not_licensed`` until a coverage
-record measures it at its coordinate, and :func:`coverage_design` returns that measurement design as
-data. A derivation is never stored beside the artifact: :func:`consume_derived_uncertainty`
+interval when the decision was re-evaluated). The derivation is a construction, not a claim:
+:meth:`DerivedUncertainty.publish` returns only where a current coverage record measured the route
+at its coordinate and raises ``cell_not_licensed`` everywhere else, and :func:`coverage_design`
+returns the measurement design as data. A derivation is never stored beside the artifact: :func:`consume_derived_uncertainty`
 recomputes it from the carried draws.
 
 **Producer connection.** :func:`reach_carrier` takes per-draw utilities kept by a cohort decision
@@ -671,8 +671,8 @@ class DecisionReliability(ScientificResult):
         """Publish a ranking probability, confidence set or interval as a calibrated claim.
 
         Raises:
-            DecisionReliabilityRefusal: ``cell_not_licensed`` until a coverage record measures the
-                route at this report's coordinate.
+            DecisionReliabilityRefusal: ``cell_not_licensed`` unless a current coverage record
+                measured the route at this report's coordinate (at the default level 0.95).
         """
         publish(route, self.report.coordinate)
 
@@ -790,8 +790,9 @@ def rank(
 def publish(route: str, coordinate: Mapping[str, Any]) -> None:
     """Publish a ranking or optimality route at a calibration coordinate.
 
-    Every route refuses with ``cell_not_licensed`` until a coverage record measures it at its
-    coordinate (candidate-set size, Monte Carlo budget, selection rule).
+    A route is published only where a current coverage record measured it at its coordinate
+    (candidate-set size, Monte Carlo budget, selection rule, coupling, serial dependence); every
+    other request refuses with ``cell_not_licensed``.
 
     Raises:
         DecisionReliabilityRefusal: ``cell_not_licensed``.
@@ -920,8 +921,9 @@ class DerivedUncertainty(ScientificResult):
         """Publish a route from this derivation as a calibrated claim.
 
         Raises:
-            DecisionReliabilityRefusal: ``cell_not_licensed`` until a coverage record measures the
-                route at :attr:`coordinate`.
+            DecisionReliabilityRefusal: ``cell_not_licensed`` unless a current coverage record
+                measured the route at :attr:`coordinate` and at the derivation's level (ranking
+                probabilities and utilities only for marginal intervals).
         """
         _check_choice(route, _ROUTES, "route")
         _refuse(_native.decision_reliability_publish_derived(route, _dumps(self.raw)))
@@ -966,8 +968,8 @@ def derive_uncertainty(
 ) -> DerivedUncertainty:
     """Derive the three uncertainty components (source, Monte Carlo, selection) from draws.
 
-    The result is labelled ``derived_unmeasured``; publishing it as a calibrated claim refuses
-    ``cell_not_licensed``.
+    The result is a construction; publishing it as a calibrated claim refuses
+    ``cell_not_licensed`` outside a measured record.
 
     Raises:
         DecisionReliabilityRefusal: anything :func:`assess` refuses, a level outside

@@ -7,11 +7,13 @@ optimistic; a ranking over a finite set says nothing about candidates a search
 did not keep. This page describes what the decision-reliability object reports,
 what it refuses, and what stays closed.
 
-Everything here is a **point diagnostic labelled uncalibrated**. No ranking or
-optimality probability, confidence set or selection-corrected interval is
-published: those routes refuse with `cell_not_licensed` until a coverage record
-measures them at their coordinate (candidate-set size, Monte Carlo budget,
-selection rule).
+Everything in a report is a **point diagnostic labelled uncalibrated**. A
+ranking or optimality probability, confidence set or selection-corrected
+interval is *published* only where a current coverage record measured that
+construction at the coordinate (candidate-set size, Monte Carlo budget,
+selection rule, coupling, serial dependence, level); every other request
+refuses with `cell_not_licensed`. The record is resolved from the shipped
+coverage table: a caller cannot supply or declare one.
 
 ## Input: `DecisionDraws`
 
@@ -114,15 +116,30 @@ forgery. New draws are a new assessment; nothing is refreshed in place.
 ## Calibration decision
 
 Published ranking and optimality probabilities, and intervals for a selected
-decision, are claims about the whole procedure. The design that will measure
-them is `KnownOptimumDesign`: a finite candidate set with known true utilities
-(so the true optimum, the true value of the selected candidate and the true
-ranking are known), Monte Carlo utilities on a selection stream and an
-independent validation stream, over candidate-set sizes 2, 8 and 64, budgets of
-100, 1000 and 10000 draws, shared-stream correlations 0, 0.5 and 0.9, and
-selection rules expected utility, threshold probability and `CVaR`. Component
-Monte Carlo error alone does not cover the selected decision. Nothing has been
-measured, so every probability and interval route is closed.
+decision, are claims about the whole procedure. They are measured with
+`KnownOptimumDesign`: a finite candidate set with known true utilities (so the
+true optimum, the true value of the selected candidate and the true ranking are
+known), Monte Carlo utilities on a selection stream, over candidate-set sizes
+2, 8 and 64, per-candidate budgets of 500, 1000 and 2000 draws, shared-stream
+correlations 0 and 0.5 (ranking) and separate streams (the other routes),
+expected-utility selection and level 0.95. Component Monte Carlo error alone
+does not cover the selected decision, which is why the confidence set and the
+selection-corrected interval are measured as their own routes:
+
+| Route | Construction | Truth scored | Acceptance |
+| --- | --- | --- | --- |
+| `ranking_probability` | Wilson interval at the effective sample size | closed-form quadrature of the per-draw probability that the leader is best | nominal band and precision floor and ceiling |
+| `utility_interval` | Wald interval at the Monte Carlo standard error | the candidate's true mean | nominal band and precision floor and ceiling |
+| `optimality_confidence_set` | Bonferroni confidence set for the best retained candidate | membership of the true optimum | at least nominal (conservative by construction) |
+| `selection_corrected_interval` | simultaneous interval over the candidates considered | true value of the candidate the rule selected | at least nominal (conservative by construction) |
+
+A statement is about the supplied law and the candidates as supplied: the
+probability that a candidate is best is per draw of the law, and the confidence
+set is for the best retained candidate. A named boundary (all candidates equal,
+a dominant leader) is recorded under its own key and never licenses a route.
+Autocorrelated streams, importance weights, adaptively generated candidates,
+budgets outside the measured range and levels other than 0.95 are refused.
+`DerivedUncertainty.publish` returns normally only inside a measured record.
 
 ## Refusals
 
@@ -133,7 +150,7 @@ measured, so every probability and interval route is closed.
 | `uncertainty_components_not_combined` | one combined number requested |
 | `joint_law_required` | candidates compared by index although stream identities contradict the declared coupling |
 | `sampling_dependence_unknown` | candidate coupling or serial dependence undeclared |
-| `cell_not_licensed` | a published probability or interval requested |
+| `cell_not_licensed` | a published probability or interval requested at a coordinate no current coverage record measured |
 | `route_not_supported` | weighted quantile or `CVaR`, or weights on dependent or independent-candidate draws |
 
 ## Python
@@ -155,7 +172,7 @@ for candidate in result.report.monte_carlo_error.candidates:
     print(candidate.id, candidate.estimate.value, candidate.estimate.standard_error)
 result.inspect()
 result.report.to_dict()                 # independent JSON-safe copy
-result.publish("ranking_probability")   # raises cell_not_licensed
+result.publish("ranking_probability")   # raises cell_not_licensed outside a measured record
 ```
 
 `coupling` and `within_stream` default to `"unknown"` and are refused until

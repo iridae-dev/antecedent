@@ -542,6 +542,9 @@ pub fn assess(
         functional: request.functional.kind().to_owned(),
         coupling: selection_draws.coupling,
         paradigm: selection_draws.source,
+        within_stream: selection_draws.within_stream,
+        importance_weighted: selection_draws.weights.is_some(),
+        adaptively_generated: selection_draws.origin == CandidateOrigin::AdaptivelyGenerated,
     };
     Ok(ReliabilityReport {
         version: RELIABILITY_REPORT_VERSION,

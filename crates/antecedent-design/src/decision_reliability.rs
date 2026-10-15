@@ -23,15 +23,18 @@
 //! * a **derived** uncertainty method ([`interval`]): numerical intervals at the
 //!   effective sample size, a confidence set for the best candidate and a
 //!   selection-aware interval for the selected value, with the three components kept
-//!   separate and labelled derived-unmeasured;
+//!   separate (the construction is derived; publishing it is a separate, record-gated
+//!   step);
 //! * the producer connection ([`producer`]): the cohort-decision and
 //!   sequential-evaluation outputs reach the carrier only as per-draw utilities from a
 //!   declared joint law, and refuse with a typed reason while they are point-only.
 //!
-//! No ranking probability or interval is published here. Every such route is closed
-//! with a typed `cell_not_licensed` refusal until it is measured at its coordinate
-//! (candidate-set size, Monte Carlo budget, selection rule); the simulation design
-//! that will measure it lives in [`calibration`] and [`coverage_design`].
+//! A ranking probability or interval is published only where a current coverage record
+//! measured it at the coordinate (candidate-set size, Monte Carlo budget, selection
+//! rule, coupling, serial dependence): [`calibration::license_route_at`] resolves the
+//! record. Every other request is refused with a typed `cell_not_licensed`. The
+//! simulation design that measures the routes lives in [`calibration`] and
+//! [`coverage_design`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -56,8 +59,10 @@ pub use artifact::{
     MAX_DECISION_RELIABILITY_BYTES, consume,
 };
 pub use calibration::{
-    CalibrationCoordinate, ClosedRoute, KnownOptimumDesign, NoiseCoupling, PublishedRoute,
-    ReplicateOutcome, closed_routes, license_route, simulate_replicate, simulate_selection_draws,
+    CalibrationCoordinate, ClosedRoute, DEFAULT_LICENSE_LEVEL, KnownOptimumDesign, NoiseCoupling,
+    PublishedRoute, RECORD_QUERY, ReplicateOutcome, calibration_basis, closed_routes,
+    license_route, license_route_at, record_functional, simulate_replicate,
+    simulate_selection_draws,
 };
 pub use coverage_design::{CoverageCell, TruthKind, coverage_design};
 pub use draws::{

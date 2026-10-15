@@ -1,21 +1,27 @@
-//! Calibration coordinates, closed routes and the known-optimum simulation design.
+//! Calibration coordinates, licensed routes and the known-optimum simulation design.
 //!
 //! A ranking or optimality probability, or an interval for a selected decision, is a
 //! claim about the *whole procedure*: the candidate-set size, the Monte Carlo budget and
 //! the selection rule together. Component Monte Carlo error alone does not cover the
-//! selected decision. Until a coverage record measures a route at its coordinate, every
-//! such route is closed with a typed `cell_not_licensed` refusal and only point
-//! diagnostics are published.
+//! selected decision. A route is licensed at a coordinate exactly when a current,
+//! attesting, non-boundary coverage record measured that construction and the
+//! coordinate lies inside the range it measured ([`license_route_at`] resolves the
+//! record through the shipped coverage table). At any other coordinate the route is
+//! closed with a typed `cell_not_licensed` refusal and only point diagnostics are
+//! published.
 //!
-//! [`KnownOptimumDesign`] is the data-generating process the measurement will use: a
+//! [`KnownOptimumDesign`] is the data-generating process the measurement uses: a
 //! finite candidate set with known true utilities (so the true optimum, the true value
 //! of the selected candidate and the true ranking are known), noisy Monte Carlo
-//! utilities on a selection stream, and an independent validation stream. It is run in
-//! tests as a value oracle for the selection bias; it is not run here as a measurement.
+//! utilities on a selection stream, and an independent validation stream.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
+use antecedent_io_core::calibration::{
+    CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
+};
+use antecedent_io_core::contract_section::CalibrationStatus;
 use antecedent_kernels::standard_normal;
 use serde::{Deserialize, Serialize};
 
@@ -48,6 +54,26 @@ pub struct CalibrationCoordinate {
     pub coupling: CandidateCoupling,
     /// Paradigm of the source law.
     pub paradigm: SourceParadigm,
+    /// Serial dependence of the draws within a candidate's stream. A report written
+    /// before this field existed reads as `unknown`, which no record covers.
+    #[serde(default = "unknown_within_stream")]
+    pub within_stream: WithinStreamDependence,
+    /// Whether importance weights were applied. Absent reads as weighted, which no
+    /// record covers.
+    #[serde(default = "assume_flagged")]
+    pub importance_weighted: bool,
+    /// Whether the candidates came from an adaptive search. Absent reads as adaptive,
+    /// which no record covers.
+    #[serde(default = "assume_flagged")]
+    pub adaptively_generated: bool,
+}
+
+const fn unknown_within_stream() -> WithinStreamDependence {
+    WithinStreamDependence::Unknown
+}
+
+const fn assume_flagged() -> bool {
+    true
 }
 
 impl CalibrationCoordinate {
@@ -56,13 +82,16 @@ impl CalibrationCoordinate {
     pub fn describe(&self) -> String {
         format!(
             "candidate_set_size={}/mc_budget={}/selection_rule={}/functional={}/coupling={}/\
-             paradigm={}",
+             paradigm={}/within_stream={}/importance_weighted={}/adaptively_generated={}",
             self.candidate_set_size,
             self.mc_budget,
             self.selection_rule,
             self.functional,
             self.coupling.as_str(),
-            self.paradigm.as_str()
+            self.paradigm.as_str(),
+            self.within_stream.as_str(),
+            self.importance_weighted,
+            self.adaptively_generated
         )
     }
 }
@@ -117,25 +146,117 @@ pub struct ClosedRoute {
     pub remedy: String,
 }
 
-/// Coordinates a coverage record has measured. Empty: no route is calibrated, and a
-/// route opens only when a measured record for its exact coordinate is added here by
-/// the calibration attestation, never by a caller.
-const MEASURED_COORDINATES: &[(&str, &str)] = &[];
+/// Query axis name every decision-reliability coverage record carries.
+pub const RECORD_QUERY: &str = "DecisionReliability";
+/// Nominal level [`license_route`] resolves at.
+pub const DEFAULT_LICENSE_LEVEL: f64 = 0.95;
 
-fn is_measured(route: PublishedRoute, coordinate: &CalibrationCoordinate) -> bool {
-    MEASURED_COORDINATES.iter().any(|&(r, c)| r == route.as_str() && c == coordinate.describe())
+impl PublishedRoute {
+    /// Estimator label and interval method of the record that licenses the route.
+    #[must_use]
+    pub const fn record_construction(self) -> (&'static str, &'static str) {
+        match self {
+            Self::RankingProbability => {
+                ("decision_reliability_ranking_probability", "wilson_effective_sample")
+            }
+            Self::OptimalityConfidenceSet => {
+                ("decision_reliability_optimality_confidence_set", "bonferroni_confidence_set")
+            }
+            Self::UtilityInterval => ("decision_reliability_utility_interval", "wald_normal"),
+            Self::SelectionCorrectedInterval => {
+                ("decision_reliability_selection_corrected_interval", "simultaneous_wald_normal")
+            }
+        }
+    }
 }
 
-/// Ask for a published route at a coordinate.
+/// The `functional` label a record is keyed under at a coordinate: the candidate-set
+/// size, the selection rule and the functional family are part of what was measured.
+#[must_use]
+pub fn record_functional(coordinate: &CalibrationCoordinate) -> String {
+    format!(
+        "candidates={};rule={};functional={}",
+        coordinate.candidate_set_size, coordinate.selection_rule, coordinate.functional
+    )
+}
+
+/// The calibration basis of `route` at `coordinate` and nominal `level`: the key a
+/// coverage record must equal and the execution scope (the per-candidate Monte Carlo
+/// budget is the row count) it must cover. `None` when the coordinate carries a
+/// declaration no record can cover (undeclared serial dependence, weights, adaptive
+/// candidates or an unknown coupling).
+#[must_use]
+pub fn calibration_basis(
+    route: PublishedRoute,
+    coordinate: &CalibrationCoordinate,
+    level: f64,
+) -> Option<CalibrationBasisWire> {
+    if coordinate.within_stream == WithinStreamDependence::Unknown
+        || coordinate.importance_weighted
+        || coordinate.adaptively_generated
+        || coordinate.coupling == CandidateCoupling::Unknown
+    {
+        return None;
+    }
+    let (estimator, interval_method) = route.record_construction();
+    Some(CalibrationBasisWire {
+        key: CalibrationKeyWire {
+            query: RECORD_QUERY.to_owned(),
+            graph_class: "NotApplicable".to_owned(),
+            structure: "fixed".to_owned(),
+            modality: "decision_draws".to_owned(),
+            inference: "Frequentist".to_owned(),
+            estimator: estimator.to_owned(),
+            interval_method: interval_method.to_owned(),
+            se_kind: "monte_carlo".to_owned(),
+            dependence: format!(
+                "{}.{}",
+                coordinate.coupling.as_str(),
+                coordinate.within_stream.as_str()
+            ),
+            posterior: String::new(),
+            functional: record_functional(coordinate),
+            level,
+            identification: "point".to_owned(),
+        },
+        scope: CalibrationScopeWire {
+            row_count: coordinate.mc_budget,
+            replicates_ok: None,
+            posterior_draws: None,
+            unidentified_mass: 0.0,
+        },
+    })
+}
+
+/// Ask for a published route at a coordinate, at [`DEFAULT_LICENSE_LEVEL`].
 ///
 /// # Errors
-/// [`ReliabilityError::CellNotLicensed`] for every route until a coverage record
-/// measures it at this coordinate.
+/// [`ReliabilityError::CellNotLicensed`] unless a coverage record measured this route
+/// at this coordinate.
 pub fn license_route(
     route: PublishedRoute,
     coordinate: &CalibrationCoordinate,
 ) -> Result<(), ReliabilityError> {
-    if is_measured(route, coordinate) {
+    license_route_at(route, coordinate, DEFAULT_LICENSE_LEVEL)
+}
+
+/// Ask for a published route at a coordinate and nominal level.
+///
+/// The route is licensed only when the shipped coverage table holds a current,
+/// attesting, non-boundary record whose construction equals [`calibration_basis`] and
+/// whose measured sample-size range contains the coordinate's Monte Carlo budget.
+/// Nothing a caller passes can open a route.
+///
+/// # Errors
+/// [`ReliabilityError::CellNotLicensed`] for every other coordinate.
+pub fn license_route_at(
+    route: PublishedRoute,
+    coordinate: &CalibrationCoordinate,
+    level: f64,
+) -> Result<(), ReliabilityError> {
+    let licensed = calibration_basis(route, coordinate, level)
+        .is_some_and(|basis| calibration_slot(&basis).status == CalibrationStatus::Calibrated);
+    if licensed {
         Ok(())
     } else {
         Err(ReliabilityError::CellNotLicensed {

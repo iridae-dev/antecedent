@@ -28,10 +28,11 @@
 //! considered but did not retain are counted, never covered: the confidence set is for
 //! the best *retained* candidate.
 //!
-//! The derivation is **unmeasured**: it carries [`DerivedStanding::DerivedUnmeasured`]
-//! and [`DerivedUncertainty::publish`] refuses with `cell_not_licensed` until a coverage
-//! record measures the route at its coordinate (candidate-set size, Monte Carlo budget,
-//! selection rule).
+//! The derivation itself carries [`DerivedStanding::DerivedUnmeasured`]: it is a
+//! construction, not a claim. [`DerivedUncertainty::publish`] returns `Ok` only when a
+//! current, attesting coverage record measured the route at its coordinate
+//! (candidate-set size, Monte Carlo budget, selection rule, coupling and serial
+//! dependence) and refuses with `cell_not_licensed` everywhere else.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -40,7 +41,7 @@ use antecedent_kernels::norm_inv;
 use serde::{Deserialize, Serialize};
 
 use super::ReliabilityError;
-use super::calibration::{CalibrationCoordinate, PublishedRoute, license_route};
+use super::calibration::{CalibrationCoordinate, PublishedRoute, license_route_at};
 use super::draws::{CandidateCoupling, DecisionDraws};
 use super::mc_error::{McEstimate, PairCoupling, estimate_difference};
 use super::report::{
@@ -312,7 +313,19 @@ impl DerivedUncertainty {
     /// [`ReliabilityError::CellNotLicensed`] until a coverage record measures the route
     /// at [`Self::coordinate`].
     pub fn publish(&self, route: PublishedRoute) -> Result<(), ReliabilityError> {
-        license_route(route, &self.coordinate)
+        // The measured utility and ranking-probability intervals are marginal; a
+        // simultaneous (Bonferroni over every reported interval) request is a different
+        // construction no record measured. The confidence set and the selection-corrected
+        // interval are simultaneous by construction.
+        let marginal_only =
+            matches!(route, PublishedRoute::RankingProbability | PublishedRoute::UtilityInterval);
+        if marginal_only && self.request.multiplicity != IntervalMultiplicity::Marginal {
+            return Err(ReliabilityError::CellNotLicensed {
+                route: route.as_str(),
+                coordinate: self.coordinate.describe(),
+            });
+        }
+        license_route_at(route, &self.coordinate, self.request.level)
     }
 
     /// One combined uncertainty number.
