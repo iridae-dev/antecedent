@@ -48,7 +48,7 @@ import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT as REPO
-from _repo import ensure_scripts_on_path
+from _repo import ensure_scripts_on_path, test_target
 
 ROOT = Path(os.environ.get("INTERVAL_SURFACES_ROOT", REPO))
 ensure_scripts_on_path()
@@ -311,9 +311,10 @@ def run_refusals(tests: list[dict]) -> list[str]:
         if crate is None:
             failures.append(f"cannot place refusal test {t['test']} in a crate")
             continue
-        names = rust.setdefault((crate, Path(t["test"]).stem), [])
-        if t["assertion"] not in names:
-            names.append(t["assertion"])
+        target, prefix = test_target(crate, Path(t["test"]).stem, ROOT)
+        names = rust.setdefault((crate, target), [])
+        if prefix + t["assertion"] not in names:
+            names.append(prefix + t["assertion"])
     for (crate, target), names in sorted(rust.items()):
         cmd = ["cargo", "test", "-p", crate, "--test", target, "--", "--exact", *names]
         proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)

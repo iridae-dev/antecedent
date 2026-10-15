@@ -19,7 +19,7 @@ from collections import defaultdict
 from functools import cache
 from pathlib import Path
 
-from _repo import cargo_target_feature_args
+from _repo import cargo_target_feature_args, test_target
 
 root = Path(sys.argv[1]).resolve()
 ledger = Path(sys.argv[2])
@@ -192,8 +192,9 @@ for row in rows:
         continue
     crate, kind, stem = m.groups()
     if kind == "tests":
-        target = ["--test", stem.split("/")[0]]
-        module = None
+        name, prefix = test_target(crate, stem.split("/")[0], root)
+        target = ["--test", name]
+        module = prefix or None
     else:
         target = ["--lib"]
         module = lib_module(test_rel)

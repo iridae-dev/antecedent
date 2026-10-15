@@ -8,6 +8,7 @@ round-trip the support-matrix times sign. Go through these helpers (or pass
 
 from __future__ import annotations
 
+import re
 import sys
 import tomllib
 from pathlib import Path
@@ -90,3 +91,22 @@ def workspace_package_version(root: Path | None = None) -> str:
     if not isinstance(version, str) or not version:
         raise ValueError("Cargo.toml workspace.package.version is missing")
     return version
+
+
+def test_target(crate: str, stem: str, root: Path = REPO_ROOT) -> tuple[str, str]:
+    """The test target that compiles `crates/<crate>/tests/<stem>.rs`, and the module prefix of its tests.
+
+    A file with its own `[[test]]` target is that target with an empty prefix; a file
+    folded into a `suite_NN.rs` aggregator by `scripts/consolidate_tests.py` runs inside
+    the suite binary under the module named after the file (`<stem>::`).
+    """
+    crate_dir = root / "crates" / crate
+    manifest = tomllib.loads((crate_dir / "Cargo.toml").read_text(encoding="utf-8"))
+    for entry in manifest.get("test", []):
+        if entry.get("path", f"tests/{entry['name']}.rs") == f"tests/{stem}.rs":
+            return entry["name"], ""
+    include = re.compile(rf'#\[path\s*=\s*"{re.escape(stem)}\.rs"\]\s*mod\s+{re.escape(stem)}\s*;')
+    for suite in sorted((crate_dir / "tests").glob("suite_*.rs")):
+        if include.search(suite.read_text(encoding="utf-8")):
+            return suite.stem, f"{stem}::"
+    return stem, ""
