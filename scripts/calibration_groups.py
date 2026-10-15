@@ -210,6 +210,19 @@ def _suite_owner(root: Path, head: str) -> str | None:
     return owners[0] if owners else None
 
 
+@cache
+def _suite_features(root: Path, package: str, suite: str) -> tuple[str, ...]:
+    """The Cargo features a test target declares as required, in manifest order."""
+    for name, member in _workspace_packages(root):
+        if name != package:
+            continue
+        manifest = tomllib.loads((member / "Cargo.toml").read_text(encoding="utf-8"))
+        for test in manifest.get("test", []):
+            if test.get("name") == suite:
+                return tuple(test.get("required-features", []))
+    return ()
+
+
 def _suite_file(head: str) -> bool:
     return _suite_owner(ROOT, head) is not None
 
@@ -417,14 +430,21 @@ def prebuild(groups: list[Group]) -> int:
     packages = sorted({g.head for g in groups if _package(g.head)})
     for package in packages:
         commands.append(["cargo", "test", "--release", "-p", package, "--lib", "--no-run"])
-    suites_by_package: dict[str, set[str]] = {}
+    # A suite that declares required features is built with exactly those features,
+    # the way scripts/gate_calibration.sh runs it, so the binary is reused and the
+    # package's other suites are not rebuilt with a different feature set.
+    suites_by_package: dict[tuple[str, tuple[str, ...]], set[str]] = {}
     for group in groups:
         owner = _suite_owner(ROOT, group.head)
         if owner is not None:
-            suites_by_package.setdefault(owner, set()).add(group.head)
-    for package, suites in sorted(suites_by_package.items()):
+            features = _suite_features(ROOT, owner, group.head)
+            suites_by_package.setdefault((owner, features), set()).add(group.head)
+    for (package, features), suites in sorted(suites_by_package.items()):
         tests = [arg for suite in sorted(suites) for arg in ("--test", suite)]
-        commands.append(["cargo", "test", "--release", "-p", package, *tests, "--no-run"])
+        feature_args = ["--features", ",".join(features)] if features else []
+        commands.append(
+            ["cargo", "test", "--release", "-p", package, *feature_args, *tests, "--no-run"]
+        )
     for command in commands:
         print(f"== build: {' '.join(command)}", flush=True)
         if subprocess.run(command, cwd=ROOT).returncode != 0:
