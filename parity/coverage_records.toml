@@ -13999,7 +13999,7 @@ grid = [
 dgp = "crates/antecedent/tests/evidence_synthesis_calibration.rs::heterogeneous_gaussian_studies_unequal_scale"
 test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_five_studies"
 facets = ["core", "estimator.evidence_synthesis", "suite.evidence_synthesis_calibration"]
-calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+calibration_sha = "72411f0b5d3dd1ba28cb5150c886ea0f47180f9d"
 surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
@@ -14035,7 +14035,7 @@ grid = [
 dgp = "crates/antecedent/tests/evidence_synthesis_calibration.rs::heterogeneous_gaussian_studies_unequal_scale"
 test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_ten_studies"
 facets = ["core", "estimator.evidence_synthesis", "suite.evidence_synthesis_calibration"]
-calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+calibration_sha = "72411f0b5d3dd1ba28cb5150c886ea0f47180f9d"
 surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
@@ -14071,7 +14071,7 @@ grid = [
 dgp = "crates/antecedent/tests/evidence_synthesis_calibration.rs::homogeneous_gaussian_studies_unequal_scale"
 test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_fixed_effect_five_studies"
 facets = ["core", "estimator.evidence_synthesis", "suite.evidence_synthesis_calibration"]
-calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+calibration_sha = "72411f0b5d3dd1ba28cb5150c886ea0f47180f9d"
 surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
@@ -14107,7 +14107,7 @@ grid = [
 dgp = "crates/antecedent/tests/evidence_synthesis_calibration.rs::homogeneous_gaussian_studies_unequal_scale"
 test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_fixed_effect_ten_studies"
 facets = ["core", "estimator.evidence_synthesis", "suite.evidence_synthesis_calibration"]
-calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+calibration_sha = "72411f0b5d3dd1ba28cb5150c886ea0f47180f9d"
 surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
@@ -18499,42 +18499,6 @@ grid = [
 dgp = "crates/antecedent/tests/common/fixtures.rs::pag_series"
 test = "crates/antecedent/tests/temporal_class_calibration.rs::frequentist_temporal_pag_point_identified_set_interval_nominal_90_coverage"
 facets = ["core", "estimator.temporal_adjustment", "identity.envelope", "identity.temporal", "suite.temporal_class_calibration"]
-calibration_sha = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
-
-[[record]]
-id = "cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95"
-query = "RecoveredEffect"
-graph_class = "MGraph"
-structure = "fixed"
-modality = "tabular"
-inference = "Frequentist"
-estimator = "sampled_observation_recovery"
-interval_method = "bootstrap_bca"
-se_kind = ""
-dependence = "iid"
-posterior = ""
-functional = "recovered_effect:recovery_scientific.v2:binary_observation_recovery.v1|f06727f20e40df05a53343d71aefdc7f53f98956e7abfc8c03f612361f629b12:treated=3ff0000000000000:control=0000000000000000"
-identification = "point"
-nominal = 0.95
-n_min = 1000
-n_max = 4000
-replicates_min = 2000
-posterior_draws_min = 0
-unidentified_mass_max = 0.0
-observed = 0.93
-mcse = 0.01275735082217307
-replicates = 400
-boundary = false
-role = "gated"
-grid = [
-  { point = 0, n_min = 1000, n_max = 1000, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "gated" },
-  { point = 1, n_min = 2000, n_max = 2000, observed = 0.93, mcse = 0.01275735082217307, replicates = 400, boundary = false, role = "gated" },
-  { point = 2, n_min = 4000, n_max = 4000, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
-]
-dgp = "crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs::binary_confounded_missingness_scm"
-test = "crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs::binary_missingness_whole_row_recovery_bca_l95"
-facets = ["core", "estimator.sampled_recovery", "suite.recovery_whole_method_calibration"]
 calibration_sha = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
 surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
 
