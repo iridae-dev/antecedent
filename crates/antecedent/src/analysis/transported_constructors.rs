@@ -65,26 +65,26 @@ use antecedent_core::ExecutionContext;
 use antecedent_design::decision_transported_source::TransportedRefusal;
 use antecedent_design::sequential_evaluation::SequentialEvaluationError;
 
-pub use antecedent_design::adaptive_trial_transport::{
+pub use super::design_exports::design_crate::adaptive_trial_transport::{
     AdaptiveTransportEstimate, AdaptiveTransportPremises, AdaptiveTransportRequest, TrialMechanism,
     TrialSelectionDiagram, transport_adaptive_trial, verify_adaptive_transport,
 };
-pub use antecedent_design::decision_transported_source::{
+pub use super::design_exports::design_crate::decision_transported_source::{
     TransportDeclaration, TransportReceipt, TransportedResponse, TransportedRoute,
 };
-pub use antecedent_design::temporal_policy_transport::{
+pub use super::design_exports::design_crate::temporal_policy_transport::{
     ActionAlphabet, HistoryAlphabet, TemporalPolicyEvaluation, TemporalPolicyRequest,
     TemporalTarget, TimeInvariance, evaluate_temporal_policy, verify_temporal_policy,
 };
-pub use antecedent_design::transported_bridge::{
+pub use super::design_exports::design_crate::transported_bridge::{
     BridgeSelectionDiagram, SURROGATE_TRANSPORT_PREMISE_ID, TransportedSurrogateBridge,
 };
-pub use antecedent_design::transported_policy::{
+pub use super::design_exports::design_crate::transported_policy::{
     MechanismStatus, ModelMechanism, SelectionDiagram, TransportPremises,
     TransportedPolicyEvaluation, TransportedPolicyRequest, evaluate_transported_policy,
     verify_transported_policy,
 };
-pub use antecedent_design::transported_synthesis::{
+pub use super::design_exports::design_crate::transported_synthesis::{
     TransportedContribution, TransportedSynthesis, TransportedSynthesisMethod,
     TransportedSynthesisRefusal,
 };
@@ -111,7 +111,7 @@ pub struct TransportedConstruction<E> {
     pub response: TransportedResponse,
 }
 
-pub use antecedent_design::decision_transported_source::{
+pub use super::design_exports::design_crate::decision_transported_source::{
     AdaptiveTransportedValue, period_population_label,
 };
 

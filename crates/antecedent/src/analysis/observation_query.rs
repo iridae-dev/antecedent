@@ -62,10 +62,10 @@ use antecedent_io::observation_query_artifact::{
     ObservationQueryArtifactError, ObservationQueryArtifactWire,
 };
 
+pub use super::mechanism_exports::model_crate::observation_query::Direction;
 pub use antecedent_io::observation_query_artifact::{
     MeasuredSlotWire, ObservationQueryWire, ObservationResultWire,
 };
-pub use antecedent_model::observation_query::Direction;
 
 use super::PreparedMechanismComposition;
 

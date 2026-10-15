@@ -35,15 +35,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_contract::ScientificQuantity;
-use antecedent_design::decision_transported_source::{
-    TransportedResponse, TransportedRoute, TransportedValue,
-};
-pub use antecedent_design::transport_sensitivity::{
+pub use super::design_exports::design_crate::transport_sensitivity::{
     REFERENCE_ACTION_ID, TRANSPORT_ASSUMPTION_RANGE_INTERPRETATION, TRANSPORT_SENSITIVITY_VERSION,
     TRANSPORTED_ACTION_ID, TransportAssumptionRange, TransportPremise, TransportRoute,
     TransportSensitivityRefusal, TransportSensitivitySpec, ViolationFamily,
     transport_assumption_range,
+};
+use antecedent_contract::ScientificQuantity;
+use antecedent_design::decision_transported_source::{
+    TransportedResponse, TransportedRoute, TransportedValue,
 };
 
 use super::sensitivity_decision::SensitivityArtifact;

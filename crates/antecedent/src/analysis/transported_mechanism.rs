@@ -55,6 +55,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+pub use super::mechanism_exports::model_crate::mechanism_transport::{
+    DETAIL_DIAGRAM_SOURCE_MISMATCH, DETAIL_DIAGRAM_TARGET_MISMATCH, DETAIL_DUPLICATE_MECHANISM,
+    DETAIL_FAMILY_UNSUPPORTED, DETAIL_ORIGIN_NOT_FITTED, DETAIL_SELECTION_INTO_LATENT,
+    DETAIL_SELECTION_INTO_MECHANISM, DETAIL_TARGET_NOT_NATIVE, MECHANISM_TRANSPORT_VERSION,
+    MechanismDisposition, MechanismRole, MechanismTransportRequest,
+    TransportedFunctionalUncertainty, TransportedLinearGaussian, UNCERTAINTY_SCOPE, refusal_code,
+    selection_targets, transport_linear_gaussian,
+};
 use antecedent_contract::ExternalRefusal;
 use antecedent_core::ExecutionContext;
 use antecedent_io::mechanism_composition_artifact::{
@@ -64,14 +72,6 @@ use antecedent_model::compose::{
     CompositionError, InvarianceDeclaration, MeanContrast, MechanismContext, MechanismDescriptor,
     MechanismForm, MechanismOrigin, MechanismProvenance, PosteriorDependence,
     SelectionDiagramDeclaration, SelectionNodeDeclaration,
-};
-pub use antecedent_model::mechanism_transport::{
-    DETAIL_DIAGRAM_SOURCE_MISMATCH, DETAIL_DIAGRAM_TARGET_MISMATCH, DETAIL_DUPLICATE_MECHANISM,
-    DETAIL_FAMILY_UNSUPPORTED, DETAIL_ORIGIN_NOT_FITTED, DETAIL_SELECTION_INTO_LATENT,
-    DETAIL_SELECTION_INTO_MECHANISM, DETAIL_TARGET_NOT_NATIVE, MECHANISM_TRANSPORT_VERSION,
-    MechanismDisposition, MechanismRole, MechanismTransportRequest,
-    TransportedFunctionalUncertainty, TransportedLinearGaussian, UNCERTAINTY_SCOPE, refusal_code,
-    selection_targets, transport_linear_gaussian,
 };
 
 use super::mechanism_composition::{

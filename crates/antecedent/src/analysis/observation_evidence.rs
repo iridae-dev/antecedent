@@ -20,7 +20,7 @@
 use antecedent_contract::InferenceBasis;
 use antecedent_core::ExecutionContext;
 
-pub use antecedent_model::observation_query::Direction;
+pub use super::mechanism_exports::model_crate::observation_query::Direction;
 
 use super::observation_query::{
     ObservationClaim, ObservationQueryRefusal, ObservationQueryWire, seal_declared_query,

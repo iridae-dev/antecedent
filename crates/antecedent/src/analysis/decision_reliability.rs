@@ -34,8 +34,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::ExecutionContext;
-pub use antecedent_design::decision_reliability::{
+pub use super::design_exports::design_crate::decision_reliability::{
     BatchPlan, CalibrationCoordinate, CandidateCoupling, CandidateDraws, CandidateOrigin,
     CandidateSearchRecord, DecisionChoice, DecisionDraws, DecisionReliabilityArtifact,
     DecisionReliabilityExpectation, DrawSegment, Functional, KnownOptimumDesign, NoiseCoupling,
@@ -43,7 +42,7 @@ pub use antecedent_design::decision_reliability::{
     SelectionUncertainty, SourceParadigm, SourceUncertainty, StreamId, StreamPurpose,
     ThresholdSide, UncertaintyReporting, ValidationKind, ValidationPlan, WithinStreamDependence,
 };
-pub use antecedent_design::decision_reliability::{
+pub use super::design_exports::design_crate::decision_reliability::{
     CohortUtilityDraws, ConfidenceSetBasis, CoverageCell, DERIVED_UNCERTAINTY_VERSION,
     DerivedStanding, DerivedUncertainty, IntervalMultiplicity, IntervalRequest,
     JointLawDeclaration, JointLawStanding, MIN_NORMAL_ESS, NumericalComponent, NumericalInterval,
@@ -52,6 +51,7 @@ pub use antecedent_design::decision_reliability::{
     RolloutNoise, RolloutUtilityDraws, SelectionComponent, SelectionCorrectedInterval, TruthKind,
     UtilityInterval,
 };
+use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::{
     ReliabilityError, assess, consume, coverage_design, derive_uncertainty, license_route,
     reach_carrier,

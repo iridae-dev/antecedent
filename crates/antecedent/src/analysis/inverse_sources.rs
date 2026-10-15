@@ -62,25 +62,25 @@ use antecedent_io::cohort_decision::CohortDecisionSource;
 use antecedent_io::distribution_artifact::DistributionArtifact;
 use antecedent_model::compose::MechanismFamily;
 
-pub use antecedent_contract::provider_transport::TransportedInputPolicy;
-pub use antecedent_design::decision_transported_source::{
+pub use super::design_exports::design_crate::decision_transported_source::{
     TransportDeclaration, TransportReceipt, TransportedRefusal, TransportedResponse,
     TransportedRoute, TransportedValue,
 };
-pub use antecedent_design::inverse_forward_source::{
+pub use super::design_exports::design_crate::inverse_forward_source::{
     ComposedActionResponse, ComposedFamily, ComposedResponse, FORWARD_ORIGIN_VERSION,
     ForwardOrigin, ForwardRepresentation, ForwardSourceKind, ForwardSourceRefusal, InverseDemand,
     LicensedForwardSource, SourcedInverseResult, forward_claim_digest, query_needs_law,
 };
+pub use super::design_exports::design_crate::inverse_observational_scenarios::{
+    MAX_OBSERVATIONAL_SCENARIOS, OBSERVATIONAL_SCENARIO_SCOPE_NOTE, OBSERVATIONAL_SCENARIO_VERSION,
+    ObservationalScenarioError, ObservationalScenarioQuery, ObservationalScenarioResult,
+    OutcomeEvent, ScenarioCell, ScenarioCondition, ScenarioReport,
+};
+pub use antecedent_contract::provider_transport::TransportedInputPolicy;
 use antecedent_design::inverse_forward_source::{
     cohort_forward_source, composed_forward_source, composed_forward_source_accepting,
     evaluate_inverse_on_source, seal_on_source, seal_per_action_on_source,
     transported_forward_source,
-};
-pub use antecedent_design::inverse_observational_scenarios::{
-    MAX_OBSERVATIONAL_SCENARIOS, OBSERVATIONAL_SCENARIO_SCOPE_NOTE, OBSERVATIONAL_SCENARIO_VERSION,
-    ObservationalScenarioError, ObservationalScenarioQuery, ObservationalScenarioResult,
-    OutcomeEvent, ScenarioCell, ScenarioCondition, ScenarioReport,
 };
 use antecedent_design::inverse_observational_scenarios::{
     evaluate_observational_scenarios, verify_observational_scenarios,

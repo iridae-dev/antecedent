@@ -46,17 +46,17 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::ExecutionContext;
-pub use antecedent_model::discretized_scm::{
+pub use super::mechanism_exports::model_crate::discretized_scm::{
     ArmDiagnostic, BRIDGE_CALIBRATION, BRIDGE_ERROR_SCOPE, BRIDGE_INFERENCE, BridgeRefusal,
     DISCRETIZED_SCM_VERSION, DiscreteArm, DiscreteContrast, DiscretizationMethod,
     DiscretizationPlan, DiscretizedContrast, DiscretizedLinearGaussian, InferenceParadigm,
     MAX_BRIDGE_LEVELS, MIN_BRIDGE_LEVELS, PARITY_TABLE, ParadigmCell, ParityRoute, ParityRow,
     parity_row, require_paradigm,
 };
-pub use antecedent_model::discretized_scm_artifact::{
+pub use super::mechanism_exports::model_crate::discretized_scm_artifact::{
     ArtifactRefusal as DiscretizedCompositionArtifactRefusal, DISCRETIZED_SCM_ARTIFACT_VERSION,
 };
+use antecedent_core::ExecutionContext;
 
 use antecedent_model::discretized_scm_artifact::{consume_discretized_scm, export_discretized_scm};
 

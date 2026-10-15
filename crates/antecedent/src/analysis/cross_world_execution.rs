@@ -54,11 +54,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-pub use antecedent_counterfactual::selective::whole_path_uncertainty::{
+pub use super::mechanism_exports::counterfactual_crate::selective::whole_path_uncertainty::{
     SourceAccount, SourceTreatment, UncertaintySource, UnitSampling, UnitSpread,
     WHOLE_PATH_UNCERTAINTY_VERSION, WholePathUncertainty, derive_whole_path_uncertainty,
 };
-pub use antecedent_counterfactual::selective::{
+pub use super::mechanism_exports::counterfactual_crate::selective::{
     CapabilityStatus, ConditioningKind, CouplingKind, CrossWorldExecutionError, CrossWorldRefusal,
     EvidenceKind, ExecutionReceipt, ExecutionStage, ExogenousInference, ExogenousVariable,
     FactualUnit, FiniteExecutionRequest, FiniteExecutionResult, FiniteQuantity, FiniteScm,

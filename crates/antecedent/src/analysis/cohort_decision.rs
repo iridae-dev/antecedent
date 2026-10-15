@@ -26,10 +26,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::ExecutionContext;
-pub use antecedent_design::cohort_decision_input::{
+pub use super::design_exports::design_crate::cohort_decision_input::{
     cohort_decision_input, cohort_forward_claim, cohort_mean_source, cohort_trust_evidence,
 };
+use antecedent_core::ExecutionContext;
 use antecedent_design::composition_boundary::{
     BoundaryError, SupportPolicy, SupportedDecision, TrustRequirement, evaluate_with_support,
 };

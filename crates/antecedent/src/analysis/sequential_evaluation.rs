@@ -30,8 +30,7 @@
 use antecedent_core::ExecutionContext;
 use antecedent_io::IoError;
 
-pub use antecedent_contract::evidence_ledger::EvidenceLedger;
-pub use antecedent_design::sequential_evaluation::{
+pub use super::design_exports::design_crate::sequential_evaluation::{
     ActionRole, ActionSpec, ActionSupport, BeliefTracker, CensoringRule, ComparisonKind,
     ComparisonReport, ComparisonRow, ComparisonSpec, ContingentPolicy, DecisionReceipt,
     DelayedOutcome, EvaluationLimits, FiniteSequentialModel, HistoryKey, HistoryReceipt,
@@ -44,11 +43,12 @@ pub use antecedent_design::sequential_evaluation::{
     evaluate_policy, request_interval, rollout_policy, stream_uniform,
     value_of_collecting_evidence,
 };
-pub use antecedent_design::sequential_evaluation_artifact::{
+pub use super::design_exports::design_crate::sequential_evaluation_artifact::{
     EvaluationIdentities, ExpectedEvaluation, MAX_SEQUENTIAL_EVALUATION_ARTIFACT_BYTES,
     OffPolicyInput, SEQUENTIAL_EVALUATION_ARTIFACT_FEATURE, SEQUENTIAL_EVALUATION_ARTIFACT_VERSION,
     SequentialEvaluationArtifact, SequentialEvaluationBody,
 };
+pub use antecedent_contract::evidence_ledger::EvidenceLedger;
 
 /// Evaluate a fixed policy by exact enumeration with the default bounds.
 ///
