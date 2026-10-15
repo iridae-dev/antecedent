@@ -280,13 +280,38 @@ differences = [
 "cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_checked_effect_basic_l95" = "0f779cd7099bb39357a14fcf0d2f171d98acfadf71cd4168774b5cd9ce4b2da0"
 "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_two_step_units_studentized_l95" = "c1e5dfb6eb336e7d16849764c75f9f35bcffa9d95f804f8b7aaf786703fa7560"
 
+# Replay waivers for coverage records (scripts/calibration_facets.py).
+#
+# A waiver lets a reviewed change that cannot move a measured number stand in
+# for a re-measurement, with evidence. It applies to a record only when the
+# record was measured at `from`, every attested path in the record's facets
+# that changed since is listed in `paths`, and none of them changed after
+# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
+# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
+# with the stored records. Each `exercises` list names the waived paths that
+# record's test runs. A reviewed_equivalence certificate instead binds an exact
+# source diff that delegates to unchanged accepted numerical code; it never claims
+# that a new wrapper ran in an old harness. Together these cover every path.
+# recordless_gates = true additionally attests original passed gate rows under
+# the same exact source scope and genuine numeric replay; it never re-stamps them.
+#
+# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
+# `replay` tables by hand, then fill `outcome` by running
+#   python3 scripts/calibration_facets.py replay --waiver <id>
+# on a clean checkout of `to`. That command rewrites this file; comments other
+# than this header are not kept (the justification is the prose).
+# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
+# the records it covers as `attested_by_replay (waiver <id>)`.
+
 [[waiver]]
 id = "gate-grid-labels-and-boundary-assertions"
 from = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
-to = "bcecb0b2bd1a3072292dc05f7fabf0e82d06d737"
+to = "d39b12b5b6a17ade4f89587d71731bef7d523ede"
 reviewed_by = "authorized release engineering review"
+recordless_gates = false
+gate_ledger_commit = ""
 justification = """
-The gate script gained a case label so two whole-file groups run once per grid point; no group that already ran per grid point is relabelled, and the script changes neither the cargo invocations nor the environment of any measured group. The bayesian_temporal and temporal_frequentist edits add named-boundary values to assertion arrays and persist an info-only tally's raw state; they neither draw replicates nor change a tally. The temporal_recalc_calibration edit parameterizes the base sample size per test: the basic and studentized tests keep 128, so their grid, seeds and truths are unchanged, and the percentile test claims a different range and is re-measured, not waived. Each replay below re-runs a measured record through the changed script or file and compares every emitted field bit for bit.
+The gate script gained a case label so two whole-file groups run once per grid point; no group that already ran per grid point is relabelled, and the script changes neither the cargo invocations nor the environment of any measured group. The bayesian_temporal and temporal_frequentist edits add named-boundary values to assertion arrays and persist an info-only tally's raw state; they neither draw replicates nor change a tally. The temporal_recalc_calibration edit parameterizes the base sample size per test: the basic and studentized tests keep 128, so their grid, seeds and truths are unchanged, and the percentile test claims a different range and is re-measured, not waived. Each replay below re-runs a measured record through the changed script or file and compares every emitted field bit for bit.\
 """
 paths = [
   "scripts/gate_calibration.sh",
@@ -324,3 +349,23 @@ record = "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentize
 exercises = [
   "crates/antecedent/tests/temporal_recalc_calibration.rs",
 ]
+
+[waiver.outcome]
+replayed_at = "d39b12b5b6a17ade4f89587d71731bef7d523ede"
+identical = true
+records = [
+  "cov.anomaly_attribution.dag.bayesian.posterior_quantile.l90.anomaly_attribution_dag_bayesian_nominal_coverage",
+  "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage",
+  "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_iid_n160_nominal_90_coverage",
+  "cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_checked_effect_basic_l95",
+  "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_checked_effect_studentized_l95",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.anomaly_attribution.dag.bayesian.posterior_quantile.l90.anomaly_attribution_dag_bayesian_nominal_coverage" = "110187d0457a58690941834ccc08a332f5624d1bd67f9c2e88fbe6a7dd6edf33"
+"cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage" = "de4977dd7a11b5ce556b45b4afe460f739310c67adc0a12d4197900bd99e7ce1"
+"cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_iid_n160_nominal_90_coverage" = "e6e180935f5b3f41b331816c8f050bf1b4cc2dea0961a543a99ebcd3fd0ef607"
+"cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_checked_effect_basic_l95" = "658434e3546558d32c964c8cd761514ba1d17d5816ee68c5e454c28a66727d7c"
+"cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_checked_effect_studentized_l95" = "e13a02a54b72b9e0e40cbffdb2a89d73de6b6da9cdd4e38623442c79dcb30ea9"
