@@ -135,6 +135,12 @@ similar_names = "allow"
 # compiles stay cheap. Line tables keep panic locations without full debuginfo.
 [profile.dev]
 debug = "line-tables-only"
+split-debuginfo = "unpacked"
+
+# Test binaries carry no debug info: panic locations come from `#[track_caller]`, not from
+# the debug sections, and each binary links the crate under test.
+[profile.test]
+debug = false
 
 [profile.dev.package.faer]
 opt-level = 2
