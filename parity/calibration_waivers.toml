@@ -45,250 +45,6 @@
 # the records it covers as `attested_by_replay (waiver <id>)`.
 
 [[waiver]]
-id = "gate-grid-labels-and-boundary-assertions"
-from = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
-to = "997f3656336a504db43508c64f96be5ad06216ee"
-reviewed_by = "authorized release engineering review"
-recordless_gates = false
-gate_ledger_commit = ""
-justification = """
-The gate script gained a case label so two whole-file groups run once per grid point; no group that already ran per grid point is relabelled, and the script changes neither the cargo invocations nor the environment of any measured group. The bayesian_temporal and temporal_frequentist edits add named-boundary values to assertion arrays and persist an info-only tally's raw state; they neither draw replicates nor change a tally. Each replay below re-runs a measured record through the changed script or file and compares every emitted field bit for bit.\
-"""
-paths = [
-  "scripts/gate_calibration.sh",
-  "crates/antecedent/tests/bayesian_temporal.rs",
-  "crates/antecedent/tests/temporal_frequentist.rs",
-]
-
-[[waiver.replay]]
-record = "cov.anomaly_attribution.dag.bayesian.posterior_quantile.l90.anomaly_attribution_dag_bayesian_nominal_coverage"
-exercises = [
-  "scripts/gate_calibration.sh",
-]
-
-[[waiver.replay]]
-record = "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage"
-exercises = [
-  "crates/antecedent/tests/bayesian_temporal.rs",
-]
-
-[[waiver.replay]]
-record = "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_iid_n160_nominal_90_coverage"
-exercises = [
-  "crates/antecedent/tests/temporal_frequentist.rs",
-]
-
-[waiver.outcome]
-replayed_at = "997f3656336a504db43508c64f96be5ad06216ee"
-identical = true
-records = [
-  "cov.anomaly_attribution.dag.bayesian.posterior_quantile.l90.anomaly_attribution_dag_bayesian_nominal_coverage",
-  "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage",
-  "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_iid_n160_nominal_90_coverage",
-]
-differences = [
-]
-
-[waiver.outcome.fingerprints]
-"cov.anomaly_attribution.dag.bayesian.posterior_quantile.l90.anomaly_attribution_dag_bayesian_nominal_coverage" = "110187d0457a58690941834ccc08a332f5624d1bd67f9c2e88fbe6a7dd6edf33"
-"cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage" = "de4977dd7a11b5ce556b45b4afe460f739310c67adc0a12d4197900bd99e7ce1"
-"cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_iid_n160_nominal_90_coverage" = "e6e180935f5b3f41b331816c8f050bf1b4cc2dea0961a543a99ebcd3fd0ef607"
-
-# Replay waivers for coverage records (scripts/calibration_facets.py).
-#
-# A waiver lets a reviewed change that cannot move a measured number stand in
-# for a re-measurement, with evidence. It applies to a record only when the
-# record was measured at `from`, every attested path in the record's facets
-# that changed since is listed in `paths`, and none of them changed after
-# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
-# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
-# with the stored records. Each `exercises` list names the waived paths that
-# record's test runs. A reviewed_equivalence certificate instead binds an exact
-# source diff that delegates to unchanged accepted numerical code; it never claims
-# that a new wrapper ran in an old harness. Together these cover every path.
-# recordless_gates = true additionally attests original passed gate rows under
-# the same exact source scope and genuine numeric replay; it never re-stamps them.
-#
-# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
-# `replay` tables by hand, then fill `outcome` by running
-#   python3 scripts/calibration_facets.py replay --waiver <id>
-# on a clean checkout of `to`. That command rewrites this file; comments other
-# than this header are not kept (the justification is the prose).
-# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
-# the records it covers as `attested_by_replay (waiver <id>)`.
-
-[[waiver]]
-id = "facade-export-routing-from-first-measurement"
-from = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
-to = "f08004aac795bbb01f1a88ac2d86db628e701e26"
-reviewed_by = "authorized release engineering review"
-recordless_gates = false
-gate_ledger_commit = ""
-justification = """
-The facade modules route their design-crate and model-crate re-exports through two export modules so the calibration surface can name the facet that owns them. Every public path resolves to the same item as before, and no function body, constant or numeric expression in these files changes; the edits are `pub use` path rewrites and module declarations. Each certificate binds the exact before and after blobs.\
-"""
-paths = [
-  "crates/antecedent/src/analysis/cohort_decision.rs",
-  "crates/antecedent/src/analysis/cross_world_execution.rs",
-  "crates/antecedent/src/analysis/decision_reliability.rs",
-  "crates/antecedent/src/analysis/discretized_composition.rs",
-  "crates/antecedent/src/analysis/inverse_sources.rs",
-  "crates/antecedent/src/analysis/mod.rs",
-  "crates/antecedent/src/analysis/observation_evidence.rs",
-  "crates/antecedent/src/analysis/observation_query.rs",
-  "crates/antecedent/src/analysis/sequential_evaluation.rs",
-  "crates/antecedent/src/analysis/surface/scientific.rs",
-  "crates/antecedent/src/analysis/transport_sensitivity.rs",
-  "crates/antecedent/src/analysis/transported_constructors.rs",
-  "crates/antecedent/src/analysis/transported_mechanism.rs",
-]
-
-[[waiver.replay]]
-record = "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_iid_n160_nominal_90_coverage"
-exercises = [
-  "crates/antecedent/src/analysis/mod.rs",
-]
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/cohort_decision.rs"
-from_blob = "0784b9da79ed0446ca31a02c1e790c8faeceb5d0"
-to_blob = "bdb625ec17d67dd094d5686b7f3f03192fa6cb0b"
-kind = "proof_delegation"
-rationale = "Rewrites `pub use` paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
-invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/cross_world_execution.rs"
-from_blob = "39c27944b6450f3e563174a39a041b9af9f1794a"
-to_blob = "0d897eb8d9d58b450af1ff0d0d7b8368d56df4b9"
-kind = "proof_delegation"
-rationale = "Rewrites `pub use` paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
-invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/decision_reliability.rs"
-from_blob = "d0b97babe6ab9799b58c151b8b580ed6638b619c"
-to_blob = "0baf795fd05e2091951c3d2d4e076fe207d4d29c"
-kind = "proof_delegation"
-rationale = "Rewrites `pub use` paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
-invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/discretized_composition.rs"
-from_blob = "dc404b697651ed7cbc2efd5e2f7dca2f6d0d80fc"
-to_blob = "88800b81471f8cec47e9c83d9ad35108bdf632c6"
-kind = "proof_delegation"
-rationale = "Rewrites `pub use` paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
-invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/inverse_sources.rs"
-from_blob = "ea0bb4407cd237447e3f785dfd181401d4324bc5"
-to_blob = "0001c87425af87c6a209354787e9545c11939c4e"
-kind = "proof_delegation"
-rationale = "Rewrites `pub use` paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
-invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/mod.rs"
-from_blob = "cc12702bc5ca5d1f395ab81b59ded699e369ac52"
-to_blob = "0f4883fc9b390c1897c1a6ba37e1568039ea963b"
-kind = "proof_delegation"
-rationale = "Rewrites `pub use` paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
-invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/observation_evidence.rs"
-from_blob = "61fdefaba1bbe836ce152409ffca418cd8495536"
-to_blob = "5dd9b620921b72e9e0249423addf6f3d12c2143d"
-kind = "proof_delegation"
-rationale = "Rewrites `pub use` paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
-invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/observation_query.rs"
-from_blob = "af29c3d4d2d623ec0160b4285eb9ab304df667f0"
-to_blob = "8888ea81f4b57a931766b2ac0e069969d91f61dc"
-kind = "proof_delegation"
-rationale = "Rewrites `pub use` paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
-invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/sequential_evaluation.rs"
-from_blob = "68366c196446e782b3dece91eb3da5f5d28ce631"
-to_blob = "bc77df1e33648e552e73892f9881cb731d80d17b"
-kind = "proof_delegation"
-rationale = "Rewrites `pub use` paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
-invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/surface/scientific.rs"
-from_blob = "662ac9af1f168dc8ef9509b5568b61353ce989ea"
-to_blob = "014ac7de9e722dd2f29699947f182f066bced689"
-kind = "proof_delegation"
-rationale = "Rewrites `pub use` paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
-invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/transport_sensitivity.rs"
-from_blob = "5f47d32419526bde8dff406bb2c07604afe378e6"
-to_blob = "33c1af3a86342eedad33766928ae6f522e5d9e34"
-kind = "proof_delegation"
-rationale = "Rewrites `pub use` paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
-invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/transported_constructors.rs"
-from_blob = "9ba9b9eade69401c7c19003f2b5cd8004653e711"
-to_blob = "aa86637e206d6f877d9a8c9af3e3739142b58cd0"
-kind = "proof_delegation"
-rationale = "Rewrites `pub use` paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
-invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/transported_mechanism.rs"
-from_blob = "6d156a7b23565a549d9926b3ea903770e7cefc68"
-to_blob = "07ab99a05af585f6c5775b4c42ce61f0901b7241"
-kind = "proof_delegation"
-rationale = "Rewrites `pub use` paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
-invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
-
-[waiver.outcome]
-replayed_at = "f08004aac795bbb01f1a88ac2d86db628e701e26"
-identical = true
-records = [
-  "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_iid_n160_nominal_90_coverage",
-]
-differences = [
-]
-
-[waiver.outcome.fingerprints]
-"cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_iid_n160_nominal_90_coverage" = "e6e180935f5b3f41b331816c8f050bf1b4cc2dea0961a543a99ebcd3fd0ef607"
-
-# Replay waivers for coverage records (scripts/calibration_facets.py).
-#
-# A waiver lets a reviewed change that cannot move a measured number stand in
-# for a re-measurement, with evidence. It applies to a record only when the
-# record was measured at `from`, every attested path in the record's facets
-# that changed since is listed in `paths`, and none of them changed after
-# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
-# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
-# with the stored records. Each `exercises` list names the waived paths that
-# record's test runs. A reviewed_equivalence certificate instead binds an exact
-# source diff that delegates to unchanged accepted numerical code; it never claims
-# that a new wrapper ran in an old harness. Together these cover every path.
-# recordless_gates = true additionally attests original passed gate rows under
-# the same exact source scope and genuine numeric replay; it never re-stamps them.
-#
-# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
-# `replay` tables by hand, then fill `outcome` by running
-#   python3 scripts/calibration_facets.py replay --waiver <id>
-# on a clean checkout of `to`. That command rewrites this file; comments other
-# than this header are not kept (the justification is the prose).
-# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
-# the records it covers as `attested_by_replay (waiver <id>)`.
-
-[[waiver]]
 id = "facade-export-routing-from-third-measurement"
 from = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
 to = "f08004aac795bbb01f1a88ac2d86db628e701e26"
@@ -435,3 +191,367 @@ differences = [
 
 [waiver.outcome.fingerprints]
 "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_checked_effect_studentized_l95" = "e13a02a54b72b9e0e40cbffdb2a89d73de6b6da9cdd4e38623442c79dcb30ea9"
+
+# Replay waivers for coverage records (scripts/calibration_facets.py).
+#
+# A waiver lets a reviewed change that cannot move a measured number stand in
+# for a re-measurement, with evidence. It applies to a record only when the
+# record was measured at `from`, every attested path in the record's facets
+# that changed since is listed in `paths`, and none of them changed after
+# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
+# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
+# with the stored records. Each `exercises` list names the waived paths that
+# record's test runs. A reviewed_equivalence certificate instead binds an exact
+# source diff that delegates to unchanged accepted numerical code; it never claims
+# that a new wrapper ran in an old harness. Together these cover every path.
+# recordless_gates = true additionally attests original passed gate rows under
+# the same exact source scope and genuine numeric replay; it never re-stamps them.
+#
+# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
+# `replay` tables by hand, then fill `outcome` by running
+#   python3 scripts/calibration_facets.py replay --waiver <id>
+# on a clean checkout of `to`. That command rewrites this file; comments other
+# than this header are not kept (the justification is the prose).
+# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
+# the records it covers as `attested_by_replay (waiver <id>)`.
+
+[[waiver]]
+id = "gate-labels-boundary-assertions-and-export-routing"
+from = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
+to = "9b2a19d32548aa877b423dfdcd7395686fb2a670"
+reviewed_by = "authorized release engineering review"
+recordless_gates = false
+gate_ledger_commit = ""
+justification = """
+Three groups of edits, none of which draws a replicate or changes a tally or an interval. The gate script gained a case label so two whole-file groups run once per grid point; no group that already ran per grid point is relabelled, and no cargo invocation or environment of a measured group changes. The bayesian_temporal and temporal_frequentist edits add named-boundary values to assertion arrays and persist an info-only tally's raw state. The facade modules route their design-crate and model-crate re-exports through two export modules; every public path resolves to the same item, and no body, constant or arithmetic changes in those files. Each replay re-runs a measured record through the changed script or file and compares every emitted field bit for bit; each facade certificate binds the exact before and after blobs.\
+"""
+paths = [
+  "crates/antecedent/src/analysis/mechanism_exports.rs",
+  "scripts/gate_calibration.sh",
+  "crates/antecedent/tests/bayesian_temporal.rs",
+  "crates/antecedent/tests/temporal_frequentist.rs",
+  "crates/antecedent/src/analysis/cohort_decision.rs",
+  "crates/antecedent/src/analysis/cross_world_execution.rs",
+  "crates/antecedent/src/analysis/decision_reliability.rs",
+  "crates/antecedent/src/analysis/discretized_composition.rs",
+  "crates/antecedent/src/analysis/inverse_sources.rs",
+  "crates/antecedent/src/analysis/mod.rs",
+  "crates/antecedent/src/analysis/observation_evidence.rs",
+  "crates/antecedent/src/analysis/observation_query.rs",
+  "crates/antecedent/src/analysis/sequential_evaluation.rs",
+  "crates/antecedent/src/analysis/surface/scientific.rs",
+  "crates/antecedent/src/analysis/transport_sensitivity.rs",
+  "crates/antecedent/src/analysis/transported_constructors.rs",
+  "crates/antecedent/src/analysis/transported_mechanism.rs",
+]
+
+[[waiver.replay]]
+record = "cov.anomaly_attribution.dag.bayesian.posterior_quantile.l90.anomaly_attribution_dag_bayesian_nominal_coverage"
+exercises = [
+  "scripts/gate_calibration.sh",
+  "crates/antecedent/src/analysis/mechanism_exports.rs",
+]
+
+[[waiver.replay]]
+record = "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage"
+exercises = [
+  "crates/antecedent/tests/bayesian_temporal.rs",
+  "crates/antecedent/src/analysis/mod.rs",
+]
+
+[[waiver.replay]]
+record = "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_iid_n160_nominal_90_coverage"
+exercises = [
+  "crates/antecedent/tests/temporal_frequentist.rs",
+]
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/cohort_decision.rs"
+from_blob = "0784b9da79ed0446ca31a02c1e790c8faeceb5d0"
+to_blob = "bdb625ec17d67dd094d5686b7f3f03192fa6cb0b"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/cross_world_execution.rs"
+from_blob = "39c27944b6450f3e563174a39a041b9af9f1794a"
+to_blob = "0d897eb8d9d58b450af1ff0d0d7b8368d56df4b9"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/decision_reliability.rs"
+from_blob = "d0b97babe6ab9799b58c151b8b580ed6638b619c"
+to_blob = "0baf795fd05e2091951c3d2d4e076fe207d4d29c"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/discretized_composition.rs"
+from_blob = "dc404b697651ed7cbc2efd5e2f7dca2f6d0d80fc"
+to_blob = "88800b81471f8cec47e9c83d9ad35108bdf632c6"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/inverse_sources.rs"
+from_blob = "ea0bb4407cd237447e3f785dfd181401d4324bc5"
+to_blob = "0001c87425af87c6a209354787e9545c11939c4e"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/mod.rs"
+from_blob = "cc12702bc5ca5d1f395ab81b59ded699e369ac52"
+to_blob = "0f4883fc9b390c1897c1a6ba37e1568039ea963b"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/observation_evidence.rs"
+from_blob = "61fdefaba1bbe836ce152409ffca418cd8495536"
+to_blob = "5dd9b620921b72e9e0249423addf6f3d12c2143d"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/observation_query.rs"
+from_blob = "af29c3d4d2d623ec0160b4285eb9ab304df667f0"
+to_blob = "8888ea81f4b57a931766b2ac0e069969d91f61dc"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/sequential_evaluation.rs"
+from_blob = "68366c196446e782b3dece91eb3da5f5d28ce631"
+to_blob = "bc77df1e33648e552e73892f9881cb731d80d17b"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/surface/scientific.rs"
+from_blob = "662ac9af1f168dc8ef9509b5568b61353ce989ea"
+to_blob = "014ac7de9e722dd2f29699947f182f066bced689"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/transport_sensitivity.rs"
+from_blob = "5f47d32419526bde8dff406bb2c07604afe378e6"
+to_blob = "33c1af3a86342eedad33766928ae6f522e5d9e34"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/transported_constructors.rs"
+from_blob = "9ba9b9eade69401c7c19003f2b5cd8004653e711"
+to_blob = "aa86637e206d6f877d9a8c9af3e3739142b58cd0"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/transported_mechanism.rs"
+from_blob = "6d156a7b23565a549d9926b3ea903770e7cefc68"
+to_blob = "07ab99a05af585f6c5775b4c42ce61f0901b7241"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[waiver.outcome]
+replayed_at = "9b2a19d32548aa877b423dfdcd7395686fb2a670"
+identical = true
+records = [
+  "cov.anomaly_attribution.dag.bayesian.posterior_quantile.l90.anomaly_attribution_dag_bayesian_nominal_coverage",
+  "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage",
+  "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_iid_n160_nominal_90_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.anomaly_attribution.dag.bayesian.posterior_quantile.l90.anomaly_attribution_dag_bayesian_nominal_coverage" = "110187d0457a58690941834ccc08a332f5624d1bd67f9c2e88fbe6a7dd6edf33"
+"cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage" = "de4977dd7a11b5ce556b45b4afe460f739310c67adc0a12d4197900bd99e7ce1"
+"cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_iid_n160_nominal_90_coverage" = "e6e180935f5b3f41b331816c8f050bf1b4cc2dea0961a543a99ebcd3fd0ef607"
+
+# Replay waivers for coverage records (scripts/calibration_facets.py).
+#
+# A waiver lets a reviewed change that cannot move a measured number stand in
+# for a re-measurement, with evidence. It applies to a record only when the
+# record was measured at `from`, every attested path in the record's facets
+# that changed since is listed in `paths`, and none of them changed after
+# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
+# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
+# with the stored records. Each `exercises` list names the waived paths that
+# record's test runs. A reviewed_equivalence certificate instead binds an exact
+# source diff that delegates to unchanged accepted numerical code; it never claims
+# that a new wrapper ran in an old harness. Together these cover every path.
+# recordless_gates = true additionally attests original passed gate rows under
+# the same exact source scope and genuine numeric replay; it never re-stamps them.
+#
+# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
+# `replay` tables by hand, then fill `outcome` by running
+#   python3 scripts/calibration_facets.py replay --waiver <id>
+# on a clean checkout of `to`. That command rewrites this file; comments other
+# than this header are not kept (the justification is the prose).
+# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
+# the records it covers as `attested_by_replay (waiver <id>)`.
+
+[[waiver]]
+id = "facade-export-routing-from-second-collection"
+from = "b4f06ae0abce384b1f774de5385ee09ee6bf0df4"
+to = "9b2a19d32548aa877b423dfdcd7395686fb2a670"
+reviewed_by = "authorized release engineering review"
+recordless_gates = false
+gate_ledger_commit = ""
+justification = """
+The facade modules route their design-crate and model-crate re-exports through two export modules so the calibration surface can name the facet that owns them. Every public path resolves to the same item, and no function body, constant or numeric expression in these files changes. Each certificate binds the exact before and after blobs, and a measured record that runs through the facade is replayed bit for bit.\
+"""
+paths = [
+  "crates/antecedent/src/analysis/cohort_decision.rs",
+  "crates/antecedent/src/analysis/cross_world_execution.rs",
+  "crates/antecedent/src/analysis/decision_reliability.rs",
+  "crates/antecedent/src/analysis/discretized_composition.rs",
+  "crates/antecedent/src/analysis/inverse_sources.rs",
+  "crates/antecedent/src/analysis/mod.rs",
+  "crates/antecedent/src/analysis/observation_evidence.rs",
+  "crates/antecedent/src/analysis/observation_query.rs",
+  "crates/antecedent/src/analysis/sequential_evaluation.rs",
+  "crates/antecedent/src/analysis/surface/scientific.rs",
+  "crates/antecedent/src/analysis/transport_sensitivity.rs",
+  "crates/antecedent/src/analysis/transported_constructors.rs",
+  "crates/antecedent/src/analysis/transported_mechanism.rs",
+]
+
+[[waiver.replay]]
+record = "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.mediated"
+exercises = [
+  "crates/antecedent/src/analysis/mod.rs",
+]
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/cohort_decision.rs"
+from_blob = "0784b9da79ed0446ca31a02c1e790c8faeceb5d0"
+to_blob = "bdb625ec17d67dd094d5686b7f3f03192fa6cb0b"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/cross_world_execution.rs"
+from_blob = "39c27944b6450f3e563174a39a041b9af9f1794a"
+to_blob = "0d897eb8d9d58b450af1ff0d0d7b8368d56df4b9"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/decision_reliability.rs"
+from_blob = "d0b97babe6ab9799b58c151b8b580ed6638b619c"
+to_blob = "0baf795fd05e2091951c3d2d4e076fe207d4d29c"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/discretized_composition.rs"
+from_blob = "dc404b697651ed7cbc2efd5e2f7dca2f6d0d80fc"
+to_blob = "88800b81471f8cec47e9c83d9ad35108bdf632c6"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/inverse_sources.rs"
+from_blob = "ea0bb4407cd237447e3f785dfd181401d4324bc5"
+to_blob = "0001c87425af87c6a209354787e9545c11939c4e"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/mod.rs"
+from_blob = "cc12702bc5ca5d1f395ab81b59ded699e369ac52"
+to_blob = "0f4883fc9b390c1897c1a6ba37e1568039ea963b"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/observation_evidence.rs"
+from_blob = "61fdefaba1bbe836ce152409ffca418cd8495536"
+to_blob = "5dd9b620921b72e9e0249423addf6f3d12c2143d"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/observation_query.rs"
+from_blob = "af29c3d4d2d623ec0160b4285eb9ab304df667f0"
+to_blob = "8888ea81f4b57a931766b2ac0e069969d91f61dc"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/sequential_evaluation.rs"
+from_blob = "68366c196446e782b3dece91eb3da5f5d28ce631"
+to_blob = "bc77df1e33648e552e73892f9881cb731d80d17b"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/surface/scientific.rs"
+from_blob = "662ac9af1f168dc8ef9509b5568b61353ce989ea"
+to_blob = "014ac7de9e722dd2f29699947f182f066bced689"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/transport_sensitivity.rs"
+from_blob = "5f47d32419526bde8dff406bb2c07604afe378e6"
+to_blob = "33c1af3a86342eedad33766928ae6f522e5d9e34"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/transported_constructors.rs"
+from_blob = "9ba9b9eade69401c7c19003f2b5cd8004653e711"
+to_blob = "aa86637e206d6f877d9a8c9af3e3739142b58cd0"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/transported_mechanism.rs"
+from_blob = "6d156a7b23565a549d9926b3ea903770e7cefc68"
+to_blob = "07ab99a05af585f6c5775b4c42ce61f0901b7241"
+kind = "proof_delegation"
+rationale = "Rewrites pub use paths and module declarations so design-crate and model-crate items are reached through the export modules; every re-exported item is the same item and no body, constant or arithmetic changes."
+invariant_evidence = "Exact baseline and final Git objects; the facade and its tests compile against the unchanged public paths, and the measured estimators do not call these modules."
+
+[waiver.outcome]
+replayed_at = "9b2a19d32548aa877b423dfdcd7395686fb2a670"
+identical = true
+records = [
+  "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.mediated",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.mediated" = "1627fb21222a0bd2a026cc32e45b7637cb90a88486a68721e7e2d695470de200"
