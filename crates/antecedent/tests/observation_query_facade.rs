@@ -438,7 +438,10 @@ fn closed_interval_and_calibration_routes_refuse() {
     let claim = prepared.condition_on("Y", &[direct("S", "1")], &ctx()).unwrap();
     let interval = claim.interval().unwrap_err();
     assert_eq!(interval.code(), "cell_not_licensed");
-    assert_eq!(refusal_details(&interval), ["observation_query.interval_route_closed"]);
+    assert_eq!(
+        refusal_details(&interval),
+        ["observation_query.declared_model_has_no_sampling_interval"]
+    );
     assert!(interval.refusals[0].remedy.is_some());
     let calibrated = claim.calibrated_probability().unwrap_err();
     assert_eq!(calibrated.code(), "cell_not_licensed");

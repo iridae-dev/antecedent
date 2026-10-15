@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import json
 import math
+import struct
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -48,6 +49,7 @@ from typing import Any
 from . import _native
 from ._artifact_protocol import ExportedArtifact
 from ._freeze import thaw
+from ._measured_inference import MeasuredInference
 from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
@@ -56,6 +58,7 @@ from .errors import CausalTypeError, CausalValueError
 __all__ = [
     "Assigned",
     "ConsumedObservationClaim",
+    "CountFittedObservation",
     "Hypothetical",
     "Measured",
     "ObservationClaim",
@@ -67,6 +70,7 @@ __all__ = [
     "condition_versus_intervene",
     "conjugate_posterior",
     "consume_observation_query_artifact",
+    "count_fitted_observation",
     "finite_posterior",
     "intervene_on",
     "required_bayes_factor",
@@ -419,7 +423,7 @@ class ObservationClaim(ScientificResult):
 
         Raises:
             ObservationQueryRefusal: ``cell_not_licensed`` with
-                ``observation_query.interval_route_closed``.
+                ``observation_query.declared_model_has_no_sampling_interval``.
         """
         raise_refusal(_native.observation_query_closed("interval"), ObservationQueryRefusal)
 
@@ -738,3 +742,109 @@ def consume_observation_query_artifact(
         inference_basis=wire["inference_basis"],
         claim=claim,
     )
+
+
+# ------------------------------------------------------------------ count-fitted tables
+
+
+def _bits(value: float) -> int:
+    return int(struct.unpack("<Q", struct.pack("<d", float(value)))[0])
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class CountFittedObservation(ScientificResult):
+    """A conditional probability computed from tables fitted to counts.
+
+    The retained per-parent-configuration counts and the row count give every fitted
+    conditional an independent Dirichlet posterior. :attr:`point` is the labelled value under
+    the posterior-mean tables. :meth:`interval` returns the equal-tailed posterior interval as
+    a measured scalar bound to a currently attesting coverage record, or raises the typed
+    refusal. A declared model's probability, by contrast, is exact and has no sampling
+    interval (:meth:`ObservationClaim.interval`).
+    """
+
+    _source: bytes = field(repr=False)
+
+    @property
+    def point(self) -> float:
+        """The probability under the posterior-mean tables (uniform Dirichlet prior)."""
+        value, refusal = _native.count_fitted_observation_point(self._source)
+        raise_refusal(refusal, ObservationQueryRefusal)
+        if value is None:  # pragma: no cover - the native contract
+            raise CausalValueError("the native point value returned neither value nor refusal")
+        return float(value)
+
+    def export(self) -> bytes:
+        """The retained counts and question (canonical bytes)."""
+        return self._source
+
+    def interval(self, *, level: float = 0.95, cancel: Any = None) -> MeasuredInference:
+        """The measured posterior interval at ``level`` (0.90 and 0.95 are measured).
+
+        Raises:
+            ObservationQueryRefusal: ``cell_not_licensed`` when no currently attesting coverage
+                record governs this construction (level, prior, draws, rows, sample size).
+        """
+        measured, refusal = _native.count_fitted_observation_interval(
+            self._source, _number(level, "level"), cancel=cancel
+        )
+        raise_refusal(refusal, ObservationQueryRefusal)
+        if measured is None:  # pragma: no cover - the native contract
+            raise CausalValueError("the native interval returned neither result nor refusal")
+        return MeasuredInference._from_native(measured)
+
+    def calibrated_probability(self, *, level: float = 0.95, cancel: Any = None) -> MeasuredInference:
+        """The calibration claim of the posterior probability: the same measured interval."""
+        return self.interval(level=level, cancel=cancel)
+
+
+def count_fitted_observation(
+    levels: Mapping[str, Sequence[str]],
+    *,
+    parents: Mapping[str, Sequence[str]] | None = None,
+    counts: Mapping[str, Sequence[int]] | None = None,
+    declared: Mapping[str, Sequence[float]] | None = None,
+    rows: int,
+    target: str,
+    target_level: str,
+    evidence: Mapping[str, str] | None = None,
+    seed: int | None = None,
+) -> CountFittedObservation:
+    """Retain tables fitted to counts and ask ``P(target = target_level | evidence)``.
+
+    ``levels`` maps each variable, in topological order, to its level names. ``counts[v]`` is
+    the flattened count table of a fitted variable (rows are parent configurations with the
+    first parent varying slowest, columns its levels); ``declared[v]`` is a fixed conditional
+    (for example a measured signal with known sensitivity and specificity), flattened the same
+    way. Every fitted variable must have been counted from the same ``rows`` complete rows.
+    """
+    parents = parents or {}
+    counts = counts or {}
+    declared = declared or {}
+    order = list(levels)
+    nodes = []
+    for name in order:
+        in_counts, in_declared = name in counts, name in declared
+        if in_counts == in_declared:
+            raise CausalValueError(f"{name}: give exactly one of counts= and declared=")
+        nodes.append(
+            {
+                "name": _name(name, "variable"),
+                "levels": [_name(level, "level") for level in levels[name]],
+                "parents": [order.index(p) for p in parents.get(name, ())],
+                "counts": [_count(c, "count") for c in counts[name]] if in_counts else None,
+                "declared_bits": [_bits(p) for p in declared[name]] if in_declared else None,
+            }
+        )
+    source, refusal = _native.count_fitted_observation_build(
+        _dumps(nodes),
+        _count(rows, "rows"),
+        _name(target, "target"),
+        _name(target_level, "target_level"),
+        _dumps([[k, v] for k, v in (evidence or {}).items()]),
+        seed,
+    )
+    raise_refusal(refusal, ObservationQueryRefusal)
+    if source is None:  # pragma: no cover - the native contract
+        raise CausalValueError("the native builder returned neither a source nor a refusal")
+    return CountFittedObservation(bytes(source))

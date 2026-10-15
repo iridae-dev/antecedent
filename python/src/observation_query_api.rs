@@ -529,7 +529,109 @@ fn observation_query_consume(
     })
 }
 
+type CountFittedBytes = (Option<Vec<u8>>, Option<String>);
+
+/// Retain tables fitted to counts and the question: `(source bytes, refusal json)`.
+#[pyfunction]
+#[pyo3(signature = (nodes_json, rows, target, target_level, evidence_json, seed=None))]
+fn count_fitted_observation_build(
+    nodes_json: &str,
+    rows: u64,
+    target: &str,
+    target_level: &str,
+    evidence_json: &str,
+    seed: Option<u64>,
+) -> PyResult<CountFittedBytes> {
+    use antecedent::analysis::count_fitted_observation::{
+        CountFittedNodeWire, CountFittedObservation,
+    };
+    if nodes_json.len() > 4 * 1024 * 1024 || evidence_json.len() > 64 * 1024 {
+        return Err(crate::value_err_code(
+            antecedent_core::reason_code!("invalid_argument"),
+            "observation_query.count_fitted_bounds_exceeded",
+        ));
+    }
+    let nodes: Vec<CountFittedNodeWire> = serde_json::from_str(nodes_json)
+        .map_err(|e| {
+            crate::value_err_code(
+                antecedent_core::reason_code!("invalid_argument"),
+                format!("observation_query.invalid_request: {e}"),
+            )
+        })?;
+    let evidence: Vec<(String, String)> = serde_json::from_str(evidence_json)
+        .map_err(|e| {
+            crate::value_err_code(
+                antecedent_core::reason_code!("invalid_argument"),
+                format!("observation_query.invalid_request: {e}"),
+            )
+        })?;
+    match CountFittedObservation::new(nodes, rows, target, target_level, &evidence, seed) {
+        Ok(claim) => match claim.source().encode() {
+            Ok(bytes) => Ok((Some(bytes), None)),
+            Err(error) => Err(crate::transport_common::error(error)),
+        },
+        Err(refusal) => Ok((None, Some(refusals_json(refusal.code(), &refusal.refusals)))),
+    }
+}
+
+fn count_fitted_of(
+    bytes: &[u8],
+) -> PyResult<
+    Result<
+        antecedent::analysis::count_fitted_observation::CountFittedObservation,
+        ObservationQueryRefusal,
+    >,
+> {
+    use antecedent::analysis::count_fitted_observation::{
+        CountFittedIntervalArtifactWire, CountFittedObservation,
+    };
+    let wire: CountFittedIntervalArtifactWire =
+        antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;
+    Ok(CountFittedObservation::from_source(wire))
+}
+
+/// The labelled point value under the posterior-mean tables: `(value json, refusal json)`.
+#[pyfunction]
+fn count_fitted_observation_point(bytes: &[u8]) -> PyResult<Refused<f64>> {
+    Ok(match count_fitted_of(bytes)? {
+        Ok(claim) => match claim.point() {
+            Ok(value) => (Some(value), None),
+            Err(refusal) => refused(&refusal),
+        },
+        Err(refusal) => refused(&refusal),
+    })
+}
+
+/// The measured posterior interval or the typed refusal:
+/// `(measured inference, refusal json)`.
+#[pyfunction]
+#[pyo3(signature = (bytes, level, *, cancel=None))]
+fn count_fitted_observation_interval(
+    py: Python<'_>,
+    bytes: &[u8],
+    level: f64,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<(Option<crate::measured_inference_api::NativeMeasuredInference>, Option<String>)> {
+    let claim = match count_fitted_of(bytes)? {
+        Ok(claim) => claim,
+        Err(refusal) => return Ok((None, refused::<()>(&refusal).1)),
+    };
+    crate::detach_catch(py, move || {
+        let ctx = execution_context(0, None, cancel);
+        match claim.interval(level, &ctx) {
+            Ok(measured) => Ok((
+                Some(crate::measured_inference_api::NativeMeasuredInference::from_io(measured)?),
+                None,
+            )),
+            Err(refusal) => Ok((None, refused::<()>(&refusal).1)),
+        }
+    })
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(count_fitted_observation_build, module)?)?;
+    module.add_function(wrap_pyfunction!(count_fitted_observation_point, module)?)?;
+    module.add_function(wrap_pyfunction!(count_fitted_observation_interval, module)?)?;
     module.add_function(wrap_pyfunction!(observation_query_observe, module)?)?;
     module.add_function(wrap_pyfunction!(observation_query_pair, module)?)?;
     module.add_function(wrap_pyfunction!(observation_query_threshold, module)?)?;

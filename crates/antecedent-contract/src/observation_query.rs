@@ -535,17 +535,18 @@ fn categorical_likelihood(
 
 // ------------------------------------------------------------ closed routes
 
-/// The refusal of an interval (credible, confidence or prediction) for any
-/// observation-conditioned value.
+/// The refusal of a sampling interval for the value of a declared model: its posterior
+/// probability is an exact number with no sampling distribution. A probability computed
+/// from tables fitted to counts has its own measured interval route.
 #[must_use]
 pub fn interval_refusal() -> ExternalRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("cell_not_licensed"),
         OBSERVATION_QUERY_STAGE,
-        "observation_query.interval_route_closed",
+        "observation_query.declared_model_has_no_sampling_interval",
     )
     .with_remedy(
-        "none available yet: the exact value under the declared model, or the labelled point value of a fitted model, is the result; an interval needs a measured whole-method coverage record",
+        "a declared model's posterior probability is an exact number with no sampling distribution, so it has no sampling interval; for a probability computed from tables fitted to counts, request the count-fitted interval, which reports posterior quantiles bound to a currently attesting coverage record",
     )
 }
 
@@ -558,7 +559,7 @@ pub fn calibration_refusal() -> ExternalRefusal {
         "observation_query.calibrated_probability_closed",
     )
     .with_remedy(
-        "none available yet: a probability computed from a model fitted to a sample is a point value with no claim about how often it is right; calibration needs a measured whole-method record at this query's coordinate",
+        "a declared model's probability is an exact number and makes no claim about how often it is right; a probability computed from tables fitted to counts is reported with posterior quantiles only through the count-fitted interval, bound to a currently attesting whole-method coverage record",
     )
 }
 

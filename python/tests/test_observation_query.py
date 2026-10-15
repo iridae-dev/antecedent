@@ -394,7 +394,7 @@ def test_interval_and_calibrated_probability_are_closed():
     with pytest.raises(ObservationQueryRefusal) as interval:
         claim.interval()
     assert interval.value.reason_code == "cell_not_licensed"
-    assert interval.value.detail == "observation_query.interval_route_closed"
+    assert interval.value.detail == "observation_query.declared_model_has_no_sampling_interval"
     with pytest.raises(ObservationQueryRefusal) as calibrated:
         claim.calibrated_probability()
     assert calibrated.value.reason_code == "cell_not_licensed"
@@ -506,3 +506,48 @@ def test_a_refreshed_composition_gives_a_new_claim_and_leaves_the_earlier_one():
     assert after.distribution["1"] == pytest.approx(flat, abs=TOL)
     pair = oq.condition_versus_intervene(refreshed, "Y", {"S": "1"})
     assert pair.paired.max_abs_difference == pytest.approx(0.0, abs=TOL)
+
+
+# ------------------------------------------------------------------ count-fitted tables
+
+
+def _count_fitted():
+    return oq.count_fitted_observation(
+        {"Z": ["0", "1"], "Y": ["0", "1"]},
+        parents={"Y": ["Z"]},
+        counts={"Z": [60, 40], "Y": [48, 12, 10, 30]},
+        rows=100,
+        target="Y",
+        target_level="1",
+        evidence={"Z": "1"},
+        seed=7,
+    )
+
+
+def test_count_fitted_point_is_the_posterior_mean_of_the_fitted_conditional():
+    assert abs(_count_fitted().point - 31.0 / 42.0) < 1e-12
+
+
+def test_count_fitted_interval_is_measured_or_a_typed_refusal():
+    claim = _count_fitted()
+    try:
+        measured = claim.interval(level=0.95)
+    except ObservationQueryRefusal as refusal:
+        assert refusal.reason_code == "cell_not_licensed"
+        assert refusal.detail in (
+            "measured_inference.record_not_attesting",
+            "measured_interval.protocol_not_measured",
+        )
+    else:
+        scalar = measured.scalars[0]
+        assert scalar.lower <= scalar.point <= scalar.upper
+    with pytest.raises(ObservationQueryRefusal) as unmeasured:
+        claim.interval(level=0.5)
+    assert unmeasured.value.reason_code == "cell_not_licensed"
+
+
+def test_a_declared_model_interval_has_no_sampling_distribution():
+    claim = oq.condition_on(confounded(), "Y", {"S": "1"})
+    with pytest.raises(ObservationQueryRefusal) as interval:
+        claim.interval()
+    assert interval.value.detail == "observation_query.declared_model_has_no_sampling_interval"

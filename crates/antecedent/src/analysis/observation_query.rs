@@ -92,6 +92,10 @@ impl ObservationQueryRefusal {
         Self::one(ExternalRefusal::new(code, stage, detail).with_offending(subject.into()))
     }
 
+    pub(crate) fn of_cancelled() -> Self {
+        cancelled()
+    }
+
     /// The code of the first refusal.
     #[must_use]
     pub fn code(&self) -> &'static str {
@@ -258,7 +262,7 @@ impl ObservationClaim {
     /// An interval for any observation-conditioned value.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with `observation_query.interval_route_closed`.
+    /// Always `cell_not_licensed` with `observation_query.declared_model_has_no_sampling_interval`.
     pub fn interval(&self) -> Result<std::convert::Infallible, ObservationQueryRefusal> {
         Err(ObservationQueryRefusal::one(interval_refusal()))
     }
