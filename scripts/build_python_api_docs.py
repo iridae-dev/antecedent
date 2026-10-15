@@ -86,7 +86,7 @@ def build(output: Path) -> None:
 
     def vendor_links(text):
         return re.sub(
-            r"\]\(\.\./(concepts|api|errors)/([^)]*?)\.md(#[^)]*)?\)",
+            r"\]\(\.\./(concepts|api|errors|integrations|examples|usage)/([^)]*?)\.md(#[^)]*)?\)",
             lambda match: (
                 "](https://pydantic.dev/docs/validation/latest/"
                 + match[1]
