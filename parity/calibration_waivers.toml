@@ -24,7 +24,7 @@
 [[waiver]]
 id = "wiring-and-layout-from-4fe0e268"
 from = "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
-to = "e6656b1f898a24aa9e968275d2652939b8716fc3"
+to = "c1856e1a30f747de92d264f87ce54e6d2a459887"
 reviewed_by = "authorized release engineering review"
 recordless_gates = false
 gate_ledger_commit = ""
@@ -44,7 +44,7 @@ exercises = [
 ]
 
 [waiver.outcome]
-replayed_at = "4d7120d86c64f1095e00c2a763244471750a9699"
+replayed_at = "c1856e1a30f747de92d264f87ce54e6d2a459887"
 identical = true
 records = [
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_misspecified_test_boundary_95",
@@ -1034,7 +1034,7 @@ differences = [
 [[waiver]]
 id = "wiring-and-layout-from-72411f0b"
 from = "72411f0b5d3dd1ba28cb5150c886ea0f47180f9d"
-to = "e6656b1f898a24aa9e968275d2652939b8716fc3"
+to = "c1856e1a30f747de92d264f87ce54e6d2a459887"
 reviewed_by = "authorized release engineering review"
 recordless_gates = false
 gate_ledger_commit = ""
@@ -1052,13 +1052,12 @@ exercises = [
 ]
 
 [waiver.outcome]
-replayed_at = "e6656b1f898a24aa9e968275d2652939b8716fc3"
-identical = false
+replayed_at = "c1856e1a30f747de92d264f87ce54e6d2a459887"
+identical = true
 records = [
   "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_five_studies",
 ]
 differences = [
-  "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_five_studies: the replay emitted no record with this id",
 ]
 
 [waiver.outcome.fingerprints]
