@@ -149,7 +149,7 @@ It constructs its own trial table, graph, target and evidence declaration before
 
 Not-certified, missing evidence, local support failure, an uncalibrated interval, and a budget refusal are different outcomes. Do not treat them as one error.
 
-A transport result exports through its own day-1 view, not the contracted execution the sections above describe. `ant.load(result.export())` rebuilds the result view from the verified identification and specialist artifacts and returns that view (`AnalysisResult` or `CausalResponseView`), not a `LoadedResult`: there is no `acceptance` slot to read, it is not a verified analysis program, and it does not restore a live study.
+A transport result exports through its own day-1 view, not the contracted execution the sections above describe. `ant.load(result.export())` rebuilds the result view from the verified identification and specialist artifacts and returns that view (`AnalysisResult` or `CausalResponseView`), not a `LoadedResult`. Its `acceptance` is an `ArtifactAcceptance`: `verified` and `answer_available` read as on a loaded analysis, and `identity_bound` says whether an expected identity was checked. It is not a verified analysis program, and it does not restore a live study.
 
 See the [2.0 transport migration](migrations/2.0-transport-day1.md), the [failure guide](guides/transport-failure.md), and [theorem scope](guides/transport-scope.md).
 

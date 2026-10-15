@@ -39,6 +39,16 @@ class ArtifactAcceptance(ScientificResult):
     resumable: bool
     recognized: bool = True
 
+    @property
+    def verified(self) -> bool:
+        """True when the consumer verified the artifact (``status == "verified"``)."""
+        return self.status == "verified"
+
+    @property
+    def answer_available(self) -> bool:
+        """Whether the recorded answer is kept on load (verified or sealed), as on ``Acceptance``."""
+        return self.status in ("verified", "sealed")
+
 
 @dataclass(repr=False, frozen=True, slots=True)
 class ExportedArtifact(ScientificResult, Generic[T]):
