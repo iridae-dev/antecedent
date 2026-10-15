@@ -7,3 +7,5 @@
 mod z_transport_repair;
 #[path = "z_transport_surrogate_calibration.rs"]
 mod z_transport_surrogate_calibration;
+#[path = "predictive_score_interval_facade.rs"]
+mod predictive_score_interval_facade;

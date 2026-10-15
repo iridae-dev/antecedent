@@ -133,6 +133,9 @@ jobs:
       - name: Lint allows carry reasons
         run: bash scripts/gate_lint_allows.sh
 
+      - name: Every test file is compiled
+        run: python3 scripts/check_test_targets.py
+
       - name: Split Rust suites preserve workspace features
         if: matrix.os == 'ubuntu-latest' && matrix.suite == 'rest'
         run: python3 scripts/check_rust_ci_feature_parity.py "$RUST_CI_REST_FEATURES" "$RUST_CI_FACADE_FEATURES"

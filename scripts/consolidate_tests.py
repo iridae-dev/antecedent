@@ -49,9 +49,9 @@ def named_by_scripts() -> set[str]:
 def declared_targets(manifest: str) -> dict[str, dict]:
     data = tomllib.loads(manifest)
     out: dict[str, dict] = {}
-    for key in ("test", "bench"):
+    for key, folder in (("test", "tests"), ("bench", "benches")):
         for entry in data.get(key, []):
-            out[entry.get("path", f"tests/{entry['name']}.rs")] = {"kind": key, **entry}
+            out[entry.get("path", f"{folder}/{entry['name']}.rs")] = {"kind": key, **entry}
     return out
 
 
