@@ -5143,25 +5143,61 @@ posterior = ""
 functional = "contrast|aligned_joint_law|estimate,estimate"
 identification = "point"
 nominal = 0.95
-n_min = 100
-n_max = 400
+n_min = 200
+n_max = 800
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.945
-mcse = 0.011399013115178002
+observed = 0.9325
+mcse = 0.0125442965127583
 replicates = 400
 boundary = false
 role = "gated"
 grid = [
-  { point = 0, n_min = 100, n_max = 100, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
-  { point = 1, n_min = 200, n_max = 200, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
-  { point = 2, n_min = 400, n_max = 400, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { point = 0, n_min = 200, n_max = 200, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.9325, mcse = 0.0125442965127583, replicates = 400, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::bivariate_normal_rho_0.6_aligned_bootstrap_draws_of_the_sample_means"
 test = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::composed_contrast_aligned_bootstrap_gaussian_l95"
 facets = ["core", "joint_law_composed", "suite.joint_law_composed_interval_calibration"]
-calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+calibration_sha = "775528fbe13740483bf8c2b227eaa70fa075c8a5"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_aligned_bootstrap_skewed_pair_l95"
+query = "ComposedQuantity"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "composed_estimates"
+inference = "Frequentist"
+estimator = "joint_law.aligned_joint_law"
+interval_method = "normal_approximation"
+se_kind = ""
+dependence = "aligned_joint_law"
+posterior = ""
+functional = "contrast|aligned_joint_law|estimate,estimate"
+identification = "point"
+nominal = 0.95
+n_min = 200
+n_max = 800
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.935
+mcse = 0.012326293035621046
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 200, n_max = 200, observed = 0.935, mcse = 0.012326293035621046, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::exponential_pair_shared_evidence_aligned_bootstrap_draws_of_the_sample_means"
+test = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::composed_contrast_aligned_bootstrap_skewed_pair_l95"
+facets = ["core", "joint_law_composed", "suite.joint_law_composed_interval_calibration"]
+calibration_sha = "775528fbe13740483bf8c2b227eaa70fa075c8a5"
 surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
@@ -5179,25 +5215,25 @@ posterior = ""
 functional = "contrast|linear_moments|estimate,estimate"
 identification = "point"
 nominal = 0.95
-n_min = 100
-n_max = 400
+n_min = 200
+n_max = 800
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9475
-mcse = 0.01115165346484547
+observed = 0.9375
+mcse = 0.012103072956898178
 replicates = 400
 boundary = false
 role = "gated"
 grid = [
-  { point = 0, n_min = 100, n_max = 100, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
-  { point = 1, n_min = 200, n_max = 200, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
-  { point = 2, n_min = 400, n_max = 400, observed = 0.9575, mcse = 0.010086345968684594, replicates = 400, boundary = false, role = "gated" },
+  { point = 0, n_min = 200, n_max = 200, observed = 0.9575, mcse = 0.010086345968684594, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.97, mcse = 0.008529361054615993, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::two_independent_normal_samples_sample_means_diagonal_covariance"
 test = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::composed_contrast_independent_samples_gaussian_l95"
 facets = ["core", "joint_law_composed", "suite.joint_law_composed_interval_calibration"]
-calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+calibration_sha = "775528fbe13740483bf8c2b227eaa70fa075c8a5"
 surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
@@ -5215,25 +5251,25 @@ posterior = ""
 functional = "contrast|linear_moments|estimate,estimate"
 identification = "point"
 nominal = 0.95
-n_min = 100
-n_max = 400
+n_min = 200
+n_max = 800
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.95
-mcse = 0.010897247358851688
+observed = 0.945
+mcse = 0.011399013115178002
 replicates = 400
 boundary = false
 role = "gated"
 grid = [
-  { point = 0, n_min = 100, n_max = 100, observed = 0.9575, mcse = 0.010086345968684594, replicates = 400, boundary = false, role = "gated" },
-  { point = 1, n_min = 200, n_max = 200, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
-  { point = 2, n_min = 400, n_max = 400, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { point = 0, n_min = 200, n_max = 200, observed = 0.9625, mcse = 0.009499177595981663, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.965, mcse = 0.009188987974744557, replicates = 400, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::bivariate_normal_rho_-0.5_sample_means_covariance_estimated_from_rows"
 test = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::composed_contrast_shared_rows_gaussian_negative_correlation_l95"
 facets = ["core", "joint_law_composed", "suite.joint_law_composed_interval_calibration"]
-calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+calibration_sha = "775528fbe13740483bf8c2b227eaa70fa075c8a5"
 surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
@@ -5251,25 +5287,25 @@ posterior = ""
 functional = "contrast|linear_moments|estimate,estimate"
 identification = "point"
 nominal = 0.95
-n_min = 100
-n_max = 400
+n_min = 200
+n_max = 800
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9325
-mcse = 0.0125442965127583
+observed = 0.9375
+mcse = 0.012103072956898178
 replicates = 400
 boundary = false
 role = "gated"
 grid = [
-  { point = 0, n_min = 100, n_max = 100, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
-  { point = 1, n_min = 200, n_max = 200, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
-  { point = 2, n_min = 400, n_max = 400, observed = 0.9325, mcse = 0.0125442965127583, replicates = 400, boundary = false, role = "gated" },
+  { point = 0, n_min = 200, n_max = 200, observed = 0.97, mcse = 0.008529361054615993, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::bivariate_normal_rho_0.6_sample_means_covariance_estimated_from_rows"
 test = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::composed_contrast_shared_rows_gaussian_positive_correlation_l95"
 facets = ["core", "joint_law_composed", "suite.joint_law_composed_interval_calibration"]
-calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+calibration_sha = "775528fbe13740483bf8c2b227eaa70fa075c8a5"
 surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
@@ -5287,25 +5323,25 @@ posterior = ""
 functional = "contrast|linear_moments|estimate,estimate"
 identification = "point"
 nominal = 0.95
-n_min = 100
-n_max = 400
+n_min = 200
+n_max = 800
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.945
-mcse = 0.011399013115178002
+observed = 0.9425
+mcse = 0.01163977555625537
 replicates = 400
 boundary = false
 role = "gated"
 grid = [
-  { point = 0, n_min = 100, n_max = 100, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
-  { point = 1, n_min = 200, n_max = 200, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
-  { point = 2, n_min = 400, n_max = 400, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+  { point = 0, n_min = 200, n_max = 200, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::exponential_pair_shared_evidence_sample_means_covariance_estimated_from_rows"
 test = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::composed_contrast_shared_rows_skewed_pair_l95"
 facets = ["core", "joint_law_composed", "suite.joint_law_composed_interval_calibration"]
-calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+calibration_sha = "775528fbe13740483bf8c2b227eaa70fa075c8a5"
 surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
@@ -6619,25 +6655,61 @@ posterior = ""
 functional = "counterfactual_probability"
 identification = "point"
 nominal = 0.95
-n_min = 45
-n_max = 120
+n_min = 60
+n_max = 240
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.93
-mcse = 0.01275735082217307
+observed = 0.9375
+mcse = 0.012103072956898178
 replicates = 400
 boundary = false
 role = "gated"
 grid = [
-  { point = 0, n_min = 45, n_max = 45, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
-  { point = 1, n_min = 60, n_max = 60, observed = 0.93, mcse = 0.01275735082217307, replicates = 400, boundary = false, role = "gated" },
-  { point = 2, n_min = 120, n_max = 120, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { point = 0, n_min = 60, n_max = 60, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 120, n_max = 120, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 240, n_max = 240, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/cross_world_interval_calibration.rs::response_type_scm_x_0.4_types_0.2_0.5_0.1_0.2_fixed_units_realized_outcomes"
 test = "crates/antecedent/tests/cross_world_interval_calibration.rs::cross_world_interval_fixed_units_balanced_types_l95"
 facets = ["core", "cross_world_interval", "mechanism", "suite.cross_world_interval_calibration"]
-calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+calibration_sha = "775528fbe13740483bf8c2b227eaa70fa075c8a5"
+surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
+
+[[record]]
+id = "cov.counterfactual.dag.frequentist.normal_approximation.l95.cross_world_interval_independent_sample_balanced_types_l95"
+query = "Counterfactual"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "cross_world.finite_scm.whole_path"
+interval_method = "normal_approximation"
+se_kind = ""
+dependence = "independent_sample"
+posterior = ""
+functional = "counterfactual_probability"
+identification = "point"
+nominal = 0.95
+n_min = 60
+n_max = 240
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9325
+mcse = 0.0125442965127583
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 60, n_max = 60, observed = 0.9325, mcse = 0.0125442965127583, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 120, n_max = 120, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 240, n_max = 240, observed = 0.97, mcse = 0.008529361054615993, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/cross_world_interval_calibration.rs::response_type_scm_x_0.4_types_0.2_0.5_0.1_0.2_independent_sample_exact_abduction"
+test = "crates/antecedent/tests/cross_world_interval_calibration.rs::cross_world_interval_independent_sample_balanced_types_l95"
+facets = ["core", "cross_world_interval", "mechanism", "suite.cross_world_interval_calibration"]
+calibration_sha = "775528fbe13740483bf8c2b227eaa70fa075c8a5"
 surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
@@ -6655,25 +6727,25 @@ posterior = ""
 functional = "counterfactual_probability"
 identification = "point"
 nominal = 0.95
-n_min = 45
-n_max = 120
+n_min = 60
+n_max = 240
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9475
-mcse = 0.01115165346484547
+observed = 0.9375
+mcse = 0.012103072956898178
 replicates = 400
 boundary = false
 role = "gated"
 grid = [
-  { point = 0, n_min = 45, n_max = 45, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
-  { point = 1, n_min = 60, n_max = 60, observed = 0.9575, mcse = 0.010086345968684594, replicates = 400, boundary = false, role = "gated" },
-  { point = 2, n_min = 120, n_max = 120, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { point = 0, n_min = 60, n_max = 60, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 120, n_max = 120, observed = 0.9575, mcse = 0.010086345968684594, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 240, n_max = 240, observed = 0.97, mcse = 0.008529361054615993, replicates = 400, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/cross_world_interval_calibration.rs::response_type_scm_x_0.4_types_0.05_0.45_0.05_0.45_independent_sample_exact_abduction"
 test = "crates/antecedent/tests/cross_world_interval_calibration.rs::cross_world_interval_independent_sample_rare_types_l95"
 facets = ["core", "cross_world_interval", "mechanism", "suite.cross_world_interval_calibration"]
-calibration_sha = "4db004b221a01fa7e2042e783a053382a4cc19ad"
+calibration_sha = "775528fbe13740483bf8c2b227eaa70fa075c8a5"
 surface_list_blob = "cf537e0787949f58f23daf85df83cb2b606e166d"
 
 [[record]]
