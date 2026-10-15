@@ -273,3 +273,5 @@ guard, not a record.
 No coverage record licenses the fallback interval. The estimate is a point under the identification assumptions of the
 AIPW average effect plus consistency of the penalized and OLS nuisances; none of that, and not
 (RC), is checked by the library.
+
+Implementation limits are listed in [supported input bounds](../supported-bounds.md).

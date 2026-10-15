@@ -19,4 +19,4 @@ Structural transport uses `antecedent.transport.Transport` with explicit target 
 
 Design-family studies live on their own stage modules — `antecedent.experiment`, `antecedent.policy`, `antecedent.quasi`, `antecedent.survival`, and `antecedent.regimes` — that prepare and analyze as retained studies. `antecedent.factorial.estimate` is a separate point utility, not a retained study. On the experiment, policy, regime, and interference queries, row-aligned inputs may be named by a data column; `prepare` resolves those names and freezes the design. Their interval claims are rows of the [graphless support matrix](../docs/graphless-support-matrix.md), separate from the geometric matrix.
 
-Read the [Python workflow](../docs/python-workflow.md), [supported analyses](../docs/supported-analyses.md), and [release notes](../docs/release-notes/v2.3.0.md). The [support matrix](../docs/support-matrix.md) remains authoritative.
+Read the [Python workflow](../docs/python-workflow.md), [supported analyses](../docs/supported-analyses.md), and [release notes](../docs/release-notes/v2.4.0.md). The [support matrix](../docs/support-matrix.md) remains authoritative.

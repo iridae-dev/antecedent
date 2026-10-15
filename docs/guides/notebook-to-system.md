@@ -1,39 +1,43 @@
 # From a notebook to a scientific system
 
-The same specialized scientific objects support exploration and durable consumption. Preparation establishes a scientific question and retains native identification; estimation produces a frozen execution; export preserves bytes and independently retained expectations.
+![A prepared study creates separate immutable results; exported bytes and a separately retained expectation reach an independent consumer.](../assets/retained-executions.svg)
 
-```python
-import antecedent as ant
+Start with one reviewed question, then preserve its meaning as observations, design and consumers change. This tutorial uses synthetic data and the same public API as the runnable script. No bootstrap interval is requested here; inspect the actual standing of every result before using uncertainty downstream.
 
-study = ant.prepare(data, graph=edges,
-                    query=ant.AverageEffect("treatment", "outcome"),
-                    bootstrap=0, refute=False)
-study.identification       # cached identification, assumptions and derivation
-study.inspect_plan()       # preparation; no fit has run
-result = study.estimate()
-result.inspect()           # answer, standing, assumptions and limitations
-checked = result.refute(suite="cheap")
-updated = study.refresh(new_observations)
-revised = study.reprepare(new_design_data)
+```bash
+python examples/python/notebook_to_system_24.py
 ```
 
-Named design columns may be omitted during observation updates. Supplying changed assignments or design IDs requires repreparation. A result always refers to its original execution; `result.refute()` remains attached to that execution after later study refreshes.
+Install the matching package or development checkout using [installation](../installation.md). The [companion notebook](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/notebook_to_system_24.ipynb) presents the same journey interactively.
 
-Persist a result as bytes and retain its expected identities in a separate trusted record:
+## 1. Prepare the question before fitting
 
-```python
-artifact = checked.artifact()
-artifact_path.write_bytes(artifact.data)
-expected = artifact.expectation
+The script declares a graph, an average effect and a synthetic table. `ant.prepare` retains identification. `study.last_result` is `None`, and `study.inspect_plan()` describes a prepared, unexecuted question. Its uncertainty is unavailable because there is no execution yet.
 
-# In an independent consumer, obtain expected from the retained trusted record.
-loaded = ant.load(artifact_path.read_bytes(), expected=expected)
-loaded.answer
-loaded.acceptance          # identity binding, replayability, resumability
-```
+## 2. Estimate and inspect an immutable execution
 
-Specialized producers use the same persistence protocol and return their own typed consumed results. Metadata inspection uses `ant.artifacts.inspect(...)`; loading never runs a callback or recreates a live study. Bundles accept scientific bytes, envelopes and supported exporting objects.
+`study.estimate()` computes the effect. `result.refute(suite="cheap")` adds the requested diagnostics for that execution. The script asserts that refutation preserves the estimated value. Passing diagnostics does not establish that the graph is true or that an interval is calibrated.
 
-For composition, pass a complete compatible mean producer directly to a decision or inverse query. If its scientific coordinates are incomplete, use `producer.as_mean_source(quantity=...)` with explicit units, population, regime and functional meaning. This adapter preserves a mean's standing; additional laws or joint uncertainty still require their existing declarations and licenses.
+## 3. Refresh observations without rewriting history
 
-Run `examples/python/notebook_to_system_24.py` for a complete reproducible journey with synthetic data, deferred refutation, guarded observation refresh, explicit repreparation, composition and fresh-process consumption. Its companion is `examples/notebooks/notebook_to_system_24.ipynb`. See the [2.4 migration guide](../migrations/2.4-python-ux.md) for changed interfaces.
+The updated outcome adds one treatment unit, so the refreshed estimated effect increases by exactly one. The preceding `result` still describes its original snapshot. Refuting it after refresh checks that original execution, not the latest table.
+
+## 4. Reprepare when the scientific design changes
+
+The second study names randomized assignments and unit IDs by column. A changed assignment column refuses refresh and leaves the preceding successful result intact. Outcome-only refresh keeps the design. `study.reprepare(changed_design)` creates a new study, resolves the named declarations and repeats scientific checks. Reversing assignments reverses the effect in this example.
+
+## 5. Bind a mean to a consumer's scientific quantity
+
+The composition example supplies a mixture mean. Its adapter explicitly declares units, population and regime before a decision consumes it. That binding preserves the source's standing; a mean does not supply a joint law or an interval.
+
+## 6. Export and consume in a fresh process
+
+`checked.artifact()` yields bytes plus an expectation the producer can retain separately. The fresh subprocess reads the bytes and separately retained identity and checks that the answer is preserved. Loading never invokes a callback or recreates a live study. See [the producer/consumer recipe](artifact-handoff.md) for persistent files and invalid-consumption examples.
+
+## Complete runnable source
+
+<!-- example: examples/python/notebook_to_system_24.py -->
+
+Expect prepared and executed inspection reports followed by `Fresh-process consumption preserved the answer and identity bindings.` The assertions check the designed numerical changes, immutable execution, refused design update, composition binding and fresh-process load.
+
+Continue with [measurement to decision](../tutorials/measurement-to-decision.md), [refusal and repair](refusal-recipes.md), or [the 2.4 migration](../migrations/2.4-python-ux.md).

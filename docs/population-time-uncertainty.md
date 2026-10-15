@@ -118,7 +118,7 @@ Original variable labels have a 256 UTF-8 byte limit. Default fit options are
   information or posterior receipt. Changing prior, fit/sampler settings,
   counts, identity or source-report standing refuses. An MLE or Fisher
   record cannot supply a Bayesian license. See the
-  [Bayesian scientific design](nested-markov-bayesian-calibration.md).
+  [Bayesian scientific design](https://github.com/iridae-dev/antecedent/blob/v2.4.0/docs/nested-markov-bayesian-calibration.md).
 
 ## A4: temporal extensions and effect constancy
 

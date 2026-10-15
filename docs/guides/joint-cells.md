@@ -204,3 +204,5 @@ a ridge conditional and once per cell and fold of a declared learner's outcome m
 cancelled fit is `cancelled_no_claim` (`joint_cells.cancelled`) with no fit and no score table.
 `estimate_joint_cell_cost` states the planned conditional and outcome fits from the same
 declaration (see the cost section of the preflight guide).
+
+Implementation limits are listed in [supported input bounds](../supported-bounds.md).

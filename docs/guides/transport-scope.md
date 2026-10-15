@@ -951,3 +951,5 @@ remeasurement is not claimed here.
 - Outcome map: [`transport-failure.md`](transport-failure.md)
 - Architecture: [`architecture/transport-exact.md`](../architecture/transport-exact.md),
   [`architecture/transport-meta-grid.md`](../architecture/transport-meta-grid.md)
+
+Implementation limits are listed in [supported input bounds](../supported-bounds.md).

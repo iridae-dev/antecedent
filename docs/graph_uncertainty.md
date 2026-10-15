@@ -91,7 +91,7 @@ graph is true.
 ## Worked vignette: marketing channel structural uncertainty
 
 Full walkthrough:
-[`examples/notebooks/marketing_channel_structural_uncertainty.ipynb`](https://github.com/iridae-dev/antecedent/blob/main/examples/notebooks/marketing_channel_structural_uncertainty.ipynb).
+[`examples/notebooks/marketing_channel_structural_uncertainty.ipynb`](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb).
 
 Synthetic weekly spend / demand / pipeline data are generated so the true effect
 of paid-search spend on qualified pipeline is **1.5** (£k pipeline per £k
@@ -144,7 +144,7 @@ state.
 
 ## Further reading
 
-- Notebook: [marketing channel structural uncertainty](https://github.com/iridae-dev/antecedent/blob/main/examples/notebooks/marketing_channel_structural_uncertainty.ipynb)
+- Notebook: [marketing channel structural uncertainty](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb)
 - Conformance: [graph effect envelope](conformance/bayesian__graph_effect_envelope.md),
   [PAG envelope unidentified mass](conformance/pag__envelope_unidentified_mass.md),
   [known-truth mixtures](conformance/bayesian__known_truth_mixtures.md)

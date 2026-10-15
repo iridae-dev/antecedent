@@ -1,5 +1,14 @@
 # Transported cohort decisions and measurement models
 
+## Run a small example
+
+Carry sensitivity and specificity from a source clinic under an explicit invariance premise and compare the target correction with the closed form.
+
+<!-- example: examples/python/transported_measurement.py -->
+
+Continue below for the exact contracts and refused adjacent requests.
+
+
 Two routes carry something already learned in one population to a declared
 target population. Both are point-only and both state the premise they stand on.
 Neither inspects target outcomes, and neither produces an interval.

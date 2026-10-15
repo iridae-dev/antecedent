@@ -316,3 +316,5 @@ is unchanged and refuses version 3; the v3 reader refuses version 2.
 
 Replay proves the numbers follow from the stored premises, not that the premises
 are right.
+
+Implementation limits are listed in [supported input bounds](../supported-bounds.md).

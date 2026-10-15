@@ -1,5 +1,23 @@
 # Development
 
+## Documentation preview and checks
+
+In a separate checkout or worktree with the matching Antecedent installed:
+
+```bash
+python -m pip install -r requirements-docs.txt
+python scripts/generate_example_catalog.py --check
+python scripts/generate_doc_release_links.py --check
+python scripts/check_docs_experience.py
+python scripts/render_notebooks.py
+mkdocs build --strict
+python scripts/build_python_api_docs.py site/python
+mkdocs serve
+```
+
+Notebook rendering executes setup cells and code in real isolated kernels. It produces HTML in `target/doc-notebook-previews`; source notebooks keep no saved outputs. Avoid running calibration or release-registry generators just to preview prose. The publication manifest excludes branch audits and one-off measurements while retaining evidence source paths. See [documentation sources](https://github.com/iridae-dev/antecedent/blob/v2.4.0/docs/README.md) for editorial conventions.
+
+
 Product name: **Antecedent**. Python distribution/import: `antecedent`. Rust
 day-1 facade: `antecedent` (`cargo add antecedent`). Supporting crates are
 `antecedent-*` on crates.io.

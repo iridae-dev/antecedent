@@ -320,3 +320,5 @@ the flexible-learner refusal),
 component ownership, row-order and seed replay, single-component refusal) and
 `python/tests/test_cluster_dml.py` (including the `dml`, `dr.learner` and `causal.forest`
 cluster-option refusal and the dyadic dataclass and analysis).
+
+Implementation limits are listed in [supported input bounds](../supported-bounds.md).

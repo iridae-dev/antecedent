@@ -1,5 +1,14 @@
 # Composed uncertainty: spread, exceedance and the whole path
 
+## Run a small example
+
+Compute the product of two columns from one aligned synthetic law; check the hand-derived mean and variance before requesting an interval.
+
+<!-- example: examples/python/composed_uncertainty.py -->
+
+Continue below for the exact contracts and refused adjacent requests.
+
+
 A quantity computed from several uncertain inputs has the spread of the
 composition, not of its components. Two routes read that spread at the composed
 coordinate. Neither produces an interval without a measured record.

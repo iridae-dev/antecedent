@@ -2,15 +2,15 @@
 
 Support depends on the question, graph, how the graph was obtained, inference method, and validation settings. In these docs, **licensed** means that this combination has a supported execution path with recorded evidence and limits. It does not establish that your graph is correct or your data are adequate, and it does not mean the cell's interval coverage was measured: the [support matrix](support-matrix.md) counts the licensed cells that have no coverage measurement for their estimator.
 
-Start with the closest worked example, then check its exact settings:
+Use [support lookup](support-lookup.md) to filter exact graph-based cells, or [the graphless matrix](graphless-support-matrix.md) for design-family studies. Start with the closest worked example, then check its exact settings:
 
 | Your question | Example or guide | Check before using it |
 |---|---|---|
 | What is the average effect? | [Python quickstart](python-workflow.md) | Graph assumptions and data support |
-| How can I adjust for treatment selection? | [Weighting example](examples.md#python-scripts) | Propensity overlap and target population |
-| What if edge directions remain uncertain? | [Partial-graph example](examples.md#python-scripts) | Whether the answer is bounds or partial |
+| How can I adjust for treatment selection? | [Weighting example](examples.md) | Propensity overlap and target population |
+| What if edge directions remain uncertain? | [Partial-graph example](examples.md) | Whether the answer is bounds or partial |
 | How does the outcome change with dose? | [Causal responses](causal-responses.md) | Support over the requested dose range |
-| How does an intervention act over time? | [Temporal examples](examples.md#python-scripts) | Graph lags, requested horizons, and uncertainty |
+| How does an intervention act over time? | [Temporal examples](examples.md) | Graph lags, requested horizons, and uncertainty |
 | Can I reuse earlier evidence? | [Prior bank](priors.md) | Compatibility of the source and target analyses |
 | Is the outcome censored or selected? | [Observation contract](observation-contract.md) | The mechanism and its separate identifying assumptions |
 | Can I transfer effects or model interference? | [Transport and interference](transport-interference.md) and `antecedent.transport.Transport` | Target, evidence, and the [support matrix](support-matrix.md); 1.11 names moved — see the [migration](migrations/2.0-transport-day1.md) |

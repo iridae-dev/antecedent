@@ -1,5 +1,14 @@
 # Provider-sourced transport
 
+## Run a small example
+
+Check the connection between a declared transported offer and a callback input, persist the receipt, and refuse a native-only consumer. This recipe covers handoff rather than source admission or numerical transport identification.
+
+<!-- example: examples/python/provider_transport.py -->
+
+Continue below for the exact contracts and refused adjacent requests.
+
+
 An external provider can supply a quantity as source evidence for a transport,
 and a transported claim can be handed to an external consumer. Both go through
 the one interface contract and are decided from declarations before any number

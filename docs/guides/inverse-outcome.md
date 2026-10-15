@@ -120,3 +120,5 @@ retain one time coordinate.
 | `transport_budget_cancel` | `inverse.cancelled` | cancelled mid-enumeration; never a verdict |
 
 The probability, quantile and observational refusals are raised before any input is read.
+
+Implementation limits are listed in [supported input bounds](../supported-bounds.md).

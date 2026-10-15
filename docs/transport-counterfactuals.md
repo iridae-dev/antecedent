@@ -384,8 +384,8 @@ invariance, and carry the remaining assumption into the decision as a range with
 [sensitivity and robustness](sensitivity-and-robustness.md).
 
 Runnable examples:
-[`transported_counterfactual.py`](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/transported_counterfactual.py) and
-[`scenario_invariance.py`](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/scenario_invariance.py).
+[`transported_counterfactual.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/python/transported_counterfactual.py) and
+[`scenario_invariance.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/python/scenario_invariance.py).
 
 Related: [the lifecycle](lifecycle.md),
 [transport and interference](transport-interference.md).

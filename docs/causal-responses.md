@@ -667,8 +667,8 @@ censoring, and other unsupported mechanism/assumption/estimator combinations
 fail closed rather than returning the response of the observed proxy.
 
 See the runnable, deterministic notebooks for a
-[complete-observation response](https://github.com/iridae-dev/antecedent/blob/main/examples/notebooks/continuous_causal_response.ipynb)
-and the [pricing/availability distinction](https://github.com/iridae-dev/antecedent/blob/main/examples/notebooks/pricing_availability_latent_demand.ipynb).
+[complete-observation response](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/continuous_causal_response.ipynb)
+and the [pricing/availability distinction](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/pricing_availability_latent_demand.ipynb).
 
 ### Static intervention-level uncertainty
 

@@ -1,5 +1,14 @@
 # Adaptive procedure uncertainty by paradigm
 
+## Run a small example
+
+Enumerate the declared two-unit procedure, preserving its undefined contrast mass. The report is conditional on the supplied truths and design.
+
+<!-- example: examples/python/adaptive_procedure.py -->
+
+Continue below for the exact contracts and refused adjacent requests.
+
+
 An adaptive experiment's data are shaped by the assignment policy, outcome delay
 and loss, exposure failure, the stopping rule and the final selection. This
 route derives the uncertainty of the complete declared procedure and keeps

@@ -16,6 +16,18 @@ python -m pip install antecedent pdoc
 python -m pdoc antecedent -o site/python
 ```
 
+## Go directly to a public symbol
+
+| Task | Reference |
+| --- | --- |
+| Analyze or prepare | <a href="../python/antecedent.html#analyze">analyze</a>, <a href="../python/antecedent.html#prepare">prepare</a> |
+| Persist and consume | <a href="../python/antecedent.html#load">load</a>, <a href="../python/antecedent/artifacts.html">artifacts</a> |
+| Interpret a result | <a href="../python/antecedent/results.html">results</a> |
+| Correct measurement | <a href="../python/antecedent/measurement_models.html">measurement_models</a> |
+| Track evidence overlap | <a href="../python/antecedent/evidence_ledger.html">evidence_ledger</a> |
+| Declare adaptive procedures | <a href="../python/antecedent/adaptive_inference.html">adaptive_inference</a> |
+| Bind a callback contract | <a href="../python/antecedent/provider_callbacks.html">provider_callbacks</a> |
+
 ## Task guides
 
 The Python surface is documented by task in these guides:
@@ -39,7 +51,7 @@ The Python surface is documented by task in these guides:
 
 Every stage module is also reachable lazily from the root, for example `antecedent.design`, without a separate import.
 
-For Rust, use `cargo doc -p antecedent --open` for this checkout, or visit the [published crate reference](https://docs.rs/antecedent).
+For Rust, use `cargo doc -p antecedent --open` for this checkout, or visit the [published crate reference](https://docs.rs/antecedent/2.4.0/antecedent/).
 
 ## Python 2.4 continuity
 

@@ -95,3 +95,5 @@ this cell takes neither.
 No interval is reported. A Wald interval `beta_hat +- z / sqrt(I(beta_hat))` rests on
 asymptotics (many informative sets, bounded set size, a fixed `beta`, independent sets)
 that no coverage record measures, so the route stays closed until one does.
+
+Implementation limits are listed in [supported input bounds](../supported-bounds.md).

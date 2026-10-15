@@ -108,3 +108,5 @@ published.
   Python `raw_vs_adjusted` and `raw_reporting_transform` take `cancel=`). A cancelled pass is
   `cancelled_no_claim` (`descriptive_comparison.cancelled`) with no contrast, never a verdict
   on the data.
+
+Implementation limits are listed in [supported input bounds](../supported-bounds.md).
