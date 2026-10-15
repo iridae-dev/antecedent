@@ -9,7 +9,7 @@ copied_tests = false
 papers = [
 ]
 implementation_deviations = [
-  "Intentionally implements nothing: the interval route stays closed until whole-method coverage is measured.",
+  "Implements the Wald z interval of the fixed-effect pooled mean and the Hartung-Knapp-Sidik-Jonkman t interval of the random-effects mean in the facade; each is reported only through a currently attesting coverage record of the whole method, and refuses cell_not_licensed otherwise.",
 ]
 upstream_implementations_observed = []
 test_sources = [

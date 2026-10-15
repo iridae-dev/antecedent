@@ -782,14 +782,38 @@ impl EvidenceLedgerHandle {
         }
     }
 
-    /// Always the typed refusal: the ledger licenses no interval, posterior
-    /// or coverage statement for pooled evidence.
-    fn pooled_interval(&self, result: &str) -> PyResult<String> {
+    /// The measured 95% interval of a pooled result, or the typed refusal
+    /// (`cell_not_licensed`) when no currently attesting coverage record
+    /// governs the construction.
+    fn pooled_interval(&self, result: &str) -> PyResult<Refused<String>> {
         let result = result_id(result)?;
-        match self.inner.pooled_interval(result) {
-            Err(refusal) => Ok(refusal_json(&refusal)),
-            Ok(never) => match never {},
-        }
+        Ok(match self.inner.pooled_interval(result) {
+            Ok(interval) => {
+                let slot = interval.report.scalars.first().map(|s| {
+                    json!({
+                        "status": s.calibration.status,
+                        "record_id": s.calibration.record_id,
+                        "calibration_sha": s.calibration.calibration_sha,
+                    })
+                });
+                (
+                    Some(
+                        json!({
+                            "result": interval.result.to_hex(),
+                            "method": interval.method,
+                            "estimate": interval.estimate,
+                            "lower": interval.lower,
+                            "upper": interval.upper,
+                            "level": interval.level,
+                            "calibration": slot,
+                        })
+                        .to_string(),
+                    ),
+                    None,
+                )
+            }
+            Err(refusal) => refused(&refusal),
+        })
     }
 
     /// The numbers of a result that is still valid. `(None, None)` is a valid

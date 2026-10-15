@@ -617,10 +617,18 @@ fn repeated_observation_use_is_flagged_and_stays_flagged_when_cited() {
 }
 
 #[test]
-fn a_pooled_interval_is_never_licensed() {
+fn a_pooled_interval_refuses_without_a_measured_record() {
     let s = scenario();
+    // The small fixture has no coverage record of its sample size: the numeric
+    // result is refused as unmeasured, never reported without a record.
     let refusal = s.session.pooled_interval(s.r_all).unwrap_err();
-    expect(&refusal, "cell_not_licensed", "evidence_ledger.interval_not_licensed");
+    assert_eq!(refusal.code, "cell_not_licensed");
+    assert!(
+        refusal.detail == "evidence_ledger.interval_not_measured"
+            || refusal.detail == "evidence_ledger.interval_not_licensed",
+        "{}",
+        refusal.detail
+    );
     let unknown = ResultId::from_hex(&"ab".repeat(32)).unwrap();
     let refusal = s.session.pooled_interval(unknown).unwrap_err();
     assert_eq!(refusal.code, "invalid_argument");

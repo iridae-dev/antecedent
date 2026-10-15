@@ -15,7 +15,7 @@ Overlap that is not declared stays unknown; independence is never assumed.
 | Combinations | statistical pooling, Bayesian borrowing, causal transport, evidence reuse, repeated observation use (five distinct operations) | an operation does not imply another |
 | Transport | a transported claim carries its source populations, selection-diagram digest and assumptions | counting one source as native target data and as transported |
 | Revision | add, update, replace, withdraw, supersede, revalidate-downstream, each with an identity and a downstream classification | using a withdrawn or superseded source, citing a stale result |
-| Uncertainty | point values; an assumption range for unknown dependence | any interval, posterior or coverage statement |
+| Uncertainty | point values; an assumption range for unknown dependence; a pooled-mean interval for a measured construction | a posterior, or an interval without a currently attesting coverage record |
 
 ## Mass accounting
 
@@ -83,7 +83,10 @@ source are refused before any number; the numbers are then computed with
 both succeed. `revise_source` applies add, update, replace, supersede and
 withdraw and returns the downstream classification. `synthesis` refuses a
 result that is no longer valid, so stale numbers are never served, and
-`pooled_interval` always refuses.
+`pooled_interval` reports a 95% interval only for a measured construction
+(fixed-effect Wald z, or random-effects Hartung-Knapp t) bound to a currently
+attesting coverage record, and otherwise refuses `cell_not_licensed`. A result
+with no numbers, a borrowing posterior and an assumption range refuse.
 
 `refresh` with added or retired evidence:
 
@@ -116,7 +119,8 @@ that does not replay, including a consistently resealed edit.
 `refresh` (returns a new session and leaves this one untouched) and `export`.
 A refused request raises `EvidenceLedgerRefusal` with its registered
 `reason_code` and `evidence_ledger.*` `detail`, and leaves the session as it
-was; `pooled_interval` always raises `cell_not_licensed`.
+was; `pooled_interval` returns the measured interval and its coverage record,
+or raises `cell_not_licensed` when no record governs the construction.
 `consume_evidence_ledger_artifact` replays the operations, recomputes the
 syntheses and refuses another retained identity.
 

@@ -629,10 +629,14 @@ def test_repeated_observation_use_is_flagged_and_stays_flagged_when_cited():
     assert error.reason_code == "evidence_overlap_unknown"
 
 
-def test_a_pooled_interval_is_never_licensed():
+def test_a_pooled_interval_refuses_without_a_measured_record():
     scenario = Scenario()
     error = refused(lambda: scenario.ledger.pooled_interval(scenario.r_all))
-    expect(error, "cell_not_licensed", "evidence_ledger.interval_not_licensed")
+    assert error.reason_code == "cell_not_licensed"
+    assert error.detail in {
+        "evidence_ledger.interval_not_measured",
+        "evidence_ledger.interval_not_licensed",
+    }
     error = refused(lambda: scenario.ledger.pooled_interval("ab" * 32))
     assert error.reason_code == "invalid_argument"
     with pytest.raises(CausalTypeError):

@@ -29,8 +29,10 @@ What the ledger decides, and what it does not:
   is preserved, never estimated), random effects is DerSimonian-Laird or restricted maximum
   likelihood, borrowing uses a declared finite prior on the between-study standard deviation, and a
   dependence range returns the exact extremes over the declared correlation interval, labelled
-  ``assumption_range``. No interval, posterior or coverage statement is made:
-  :meth:`EvidenceLedger.pooled_interval` always raises ``cell_not_licensed``.
+  ``assumption_range``. An interval is reported only by :meth:`EvidenceLedger.pooled_interval`,
+  bound to a currently attesting coverage record of the exact construction (fixed effect,
+  declared covariance, or random effects by Hartung-Knapp); anything else raises
+  ``cell_not_licensed``.
 * **Atomic.** A refused request leaves the session exactly as it was; so does a refused
   :meth:`EvidenceLedger.refresh`, which applies a batch of added and retired evidence to a copy.
 * **No stale use.** Retiring a source reclassifies every result that rested on it as
@@ -1040,10 +1042,18 @@ class EvidenceLedger(ScientificResult):
         classification = json.loads(_unwrap(self._handle.revalidate_downstream()))
         return {r["result"]: r["class"] for r in classification}
 
-    def pooled_interval(self, result: str) -> None:
-        """Always raises ``cell_not_licensed``: the ledger licenses no interval, posterior or
-        coverage statement for pooled evidence until its coverage is measured."""
-        raise_refusal(self._handle.pooled_interval(_name(result, "result")), EvidenceLedgerRefusal)
+    def pooled_interval(self, result: str) -> dict[str, Any]:
+        """The measured 95% interval of a pooled result.
+
+        Fixed-effect and declared-covariance pooling report the Wald ``z`` interval; random
+        effects reports the Hartung-Knapp-Sidik-Jonkman ``t`` interval. The returned mapping
+        carries ``lower``, ``upper``, ``level`` and the governing coverage record under
+        ``calibration``. Raises ``cell_not_licensed`` (:class:`EvidenceLedgerRefusal`) for a
+        result with no numbers, a hierarchical borrowing or dependence range, or a
+        construction, study count or sample size with no currently attesting coverage record.
+        """
+        raw = _unwrap(self._handle.pooled_interval(_name(result, "result")))
+        return dict(json.loads(raw))
 
     def synthesis(self, result: str) -> SynthesisValue | None:
         """The numbers of a result that is still valid.
