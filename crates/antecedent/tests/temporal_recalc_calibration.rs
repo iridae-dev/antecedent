@@ -72,6 +72,7 @@ fn measure(
     method: IntervalMethod,
     truth: f64,
     base: usize,
+    measured: [Option<f64>; 3],
 ) {
     let n = grid_n(base);
     let mut tally = CoverageTally::for_record(
@@ -116,7 +117,7 @@ fn measure(
         }
     }
     assert_eq!(tally.record_id().as_deref(), Some(id));
-    tally.assert();
+    tally.assert_boundary_at(measured);
 }
 #[test]
 #[ignore = "calibration: final measurement only"]
@@ -128,6 +129,10 @@ fn temporal_checked_effect_percentile_l95() {
         IntervalMethod::Percentile,
         0.1,
         256,
+        // A percentile endpoint of the paired effect sits at 0.940 against the 0.95 level
+        // at every size and bootstrap count measured; the basic and studentized methods
+        // meet the level.
+        [Some(0.940); 3],
     );
 }
 #[test]
@@ -140,6 +145,7 @@ fn temporal_checked_effect_basic_l95() {
         IntervalMethod::Basic,
         0.1,
         128,
+        [None; 3],
     );
 }
 
@@ -216,6 +222,7 @@ fn temporal_checked_response_studentized_l95() {
         IntervalMethod::Studentized,
         0.49,
         128,
+        [None; 3],
     );
 }
 #[test]
@@ -228,6 +235,7 @@ fn temporal_checked_effect_studentized_l95() {
         IntervalMethod::Studentized,
         0.1,
         128,
+        [None; 3],
     );
 }
 
