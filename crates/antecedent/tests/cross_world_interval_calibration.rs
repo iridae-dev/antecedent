@@ -123,7 +123,7 @@ fn request(units: Vec<FactualUnit>, q: [f64; 4]) -> FiniteExecutionRequest {
 }
 
 fn design(test: &'static str, dgp: &'static str, q: [f64; 4], sampling: UnitSampling) {
-    let n = grid_n(60);
+    let n = grid_n(120);
     let mut tally = CoverageTally::for_record(
         RecordKey { test, dgp, interval: CROSS_WORLD_CONSTRUCTION },
         CROSS_WORLD_LEVEL,
