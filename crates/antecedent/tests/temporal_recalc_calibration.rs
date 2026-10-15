@@ -72,7 +72,7 @@ fn measure(
     method: IntervalMethod,
     truth: f64,
 ) {
-    let n = grid_n(128);
+    let n = grid_n(256);
     let mut tally = CoverageTally::for_record(
         RecordKey {
             test,

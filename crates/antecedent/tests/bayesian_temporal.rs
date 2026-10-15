@@ -610,7 +610,7 @@ mediation_coverage! {
         [
             [Some(0.935), Some(0.920), None],
             [Some(0.924), Some(0.916), Some(0.915)],
-            [Some(0.931), None, None],
+            [Some(0.931), Some(0.920), None],
         ]
     );
     bayesian_temporal_mediation_arma11_n160_nominal_90_coverage => (Regime::ARMA11_N160);

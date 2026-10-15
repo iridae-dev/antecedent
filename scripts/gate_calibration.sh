@@ -64,6 +64,8 @@ grid_group() {
     # transport coverage records. The learned-transport weak-overlap and misspecified-nuisance tests print measurements, emit no record,
     # and run once at the base point.
     mz_transport_calibration:*) return 0 ;;
+    # Whole-file groups: one invocation runs every ignored test in the file, once per grid point.
+    panel_calibration|temporal_response_calibration) return 0 ;;
     bayesian_basis_prior_precision:*|adjusted_recalc_precision:*|temporal_recalc_calibration:*|bayesian_recalc_calibration:*|posterior_summary_calibration:*|scenario_covariance_calibration:*|evsi_precision_calibration:*|design_ar_precision_calibration:*|generic_aipw_precision:*|nested_markov_fisher_calibration:*|nested_markov_bayesian_calibration:*|joint_bayesian_transport_calibration:*|learned_joint_calibration:*|quadratic_dose_calibration:*|treatment_inference_calibration:*|bootstrap_effect_precision:*|mechanism_discrepancy_calibration:*|retained_score_precision:*|temporal_unit_calibration:*|recovery_whole_method_calibration:*) return 0 ;;
     learned_continuous_calibration:*_mean_contrast) return 0 ;;
     # Adaptive-procedure coverage records. The group-sequential power comparison is a

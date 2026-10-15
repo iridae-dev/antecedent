@@ -269,6 +269,8 @@ fn boundary(coverage: &Coverage) {
             tally.emit_named_boundary();
             continue;
         }
+        // Info-only slice: its raw state must exist for a recheck to extend.
+        tally.persist();
         let (lo, hi) = common::calibration::coverage_band(n_sim(), 0.9);
         eprintln!(
             "calibration-boundary {tally:?}: coverage={:.3} band=[{lo:.3}, {hi:.3}] \
@@ -735,7 +737,7 @@ mediation_gate!(temporal_dag_mediation_iid_n160_nominal_90_coverage, IID_160);
 mediation_gate!(
     temporal_dag_mediation_ar05_n160_nominal_90_coverage,
     AR05_160,
-    [[None, None, None], [None, None, None], [None, Some(0.914), None]]
+    [[Some(0.890), None, None], [None, None, None], [Some(0.913), Some(0.914), None]]
 );
 mediation_gate!(temporal_dag_mediation_ar09_n400_nominal_90_coverage, AR09_400);
 mediation_gate!(temporal_dag_mediation_ar05_n60_nominal_90_coverage, AR05_60);

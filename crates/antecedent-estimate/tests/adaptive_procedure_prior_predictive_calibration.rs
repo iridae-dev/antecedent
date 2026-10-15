@@ -133,8 +133,9 @@ fn prior_predictive_design(test: &'static str, dgp: &'static str, stop_probabili
             bayesian_posterior(1.0, 1.0, &stopped.counts, &ctx(seed)).expect("posterior");
         (stopped.units, beta_credible_interval_internal(&posterior.arms[1], 0.95), truth[1])
     });
-    for (units, interval, truth) in results {
-        candidate::bind(&mut tally, &basis(units));
+    for (_, interval, truth) in results {
+        // The claim's sample size is the planned horizon, not the realized stopping count.
+        candidate::bind(&mut tally, &basis(n));
         tally.record(interval, truth);
     }
     tally.assert();
