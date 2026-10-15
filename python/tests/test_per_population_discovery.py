@@ -129,3 +129,33 @@ def test_differences_between_populations_are_not_selection_targets() -> None:
     assert "2 edge(s) differ" in str(info.value.remedy)
     with pytest.raises(CausalValueError):
         driver.request_selection_targets(["nope"])
+
+
+def test_every_population_adds_its_own_discovery_stages_to_a_composition_graph() -> None:
+    driver = sd.PerPopulationDiscovery()
+    assert driver.add_claims(None, "pp").keys == {}
+
+    driver.run(CONTRACT, {"north": chain(1), "south": collider(2)})
+    claims = driver.add_claims(None, "pp")
+
+    assert sorted(claims.keys) == ["north", "south"]
+    assert claims.keys["north"].data == "pp.north.data"
+    assert claims.keys["north"].completion is None
+    assert claims.keys["north"].downstream_anchor == "pp.north.graph"
+    assert len(claims.graph.nodes) == 6
+    for label in ("north", "south"):
+        outcome = driver.outcome(label)
+        assert outcome is not None
+        node = claims.graph.node(f"pp.{label}.graph")
+        assert node.structure == outcome.structure_identity
+        assert node.identity == outcome.result_identity
+    # The population label is part of every coordinate: the two populations never share one.
+    assert (
+        claims.graph.node("pp.north.data").coordinate
+        != claims.graph.node("pp.south.data").coordinate
+    )
+
+    with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
+        driver.add_claims(claims.graph, "pp")
+    assert_registered_refusal(info.value)
+    assert info.value.detail == "composition_verification.graph_invalid"

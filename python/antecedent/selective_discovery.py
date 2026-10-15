@@ -77,10 +77,15 @@ from .errors import CausalTypeError, CausalValueError
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
+    from .composition_verification import CompositionGraph
+    from .evidence_ledger import SourceDeclaration
 
 __all__ = [
     "ALGORITHMS",
     "AnalysisBinding",
+    "DiscoveryClaimKeys",
+    "DiscoveryClaims",
+    "PerPopulationClaims",
     "PerPopulationDiscovery",
     "PerPopulationReport",
     "PopulationEdge",
@@ -106,6 +111,9 @@ __all__ = [
     "TemporalContract",
     "WorkUnits",
     "consume_selective_discovery_artifact",
+    "discovered_graph_source",
+    "discovery_data_source",
+    "discovery_rows_source",
     "inspect_selective_discovery_artifact",
     "replace",
     "request_score_search_reuse",
@@ -706,6 +714,39 @@ class SelectiveDiscovery(ScientificResult):
         adapter._names = tuple(contract.variables)
         return adapter, _report(report)
 
+    def add_claims(
+        self,
+        graph: CompositionGraph | None = None,
+        prefix: str = "discovery",
+        *,
+        completion: tuple[str, str] | None = None,
+    ) -> DiscoveryClaims:
+        """Add this run's data, statistics and structure to a composition-verification graph.
+
+        Adds the nodes ``{prefix}.data``, ``{prefix}.statistics`` and ``{prefix}.graph`` (and
+        ``{prefix}.completion`` when ``completion`` is given) to ``graph`` (an empty graph when
+        ``None``) and returns the extended graph with the node keys. New evidence at an unchanged
+        structure recomputes the numbers and keeps the structure; a search that exhausted a bound
+        makes the structure node unsupported. Downstream claims depend on
+        :attr:`DiscoveryClaimKeys.downstream_anchor` with a ``structural_derivation`` edge.
+
+        ``completion`` is a ``(label, identity)`` pair naming the declared completion of the
+        equivalence class (``identity`` is 64 hexadecimal characters).
+
+        Raises:
+            CausalValueError: discovery has not run, or ``completion`` is malformed.
+            SelectiveDiscoveryRefusal: a key that already exists in ``graph``, or a graph that
+                does not validate.
+        """
+        label, identity = (None, None) if completion is None else _completion(completion)
+        text, refusal = self._handle.add_claims(
+            _graph_text(graph), _name(prefix, "prefix"), label, identity
+        )
+        _raise(refusal)
+        assert text is not None
+        wire = json.loads(text)
+        return DiscoveryClaims(_graph_from_wire(wire["graph"]), _claim_keys(wire["keys"]))
+
     def request_recovery_claim(self) -> None:
         """Ask for a recovery or error-control statement about the retained structure.
 
@@ -980,6 +1021,27 @@ class PerPopulationDiscovery(ScientificResult):
         """Statistics retained for ``population``."""
         return int(self._handle.retained_statistics(_name(population, "population")))
 
+    def add_claims(
+        self, graph: CompositionGraph | None = None, prefix: str = "discovery"
+    ) -> PerPopulationClaims:
+        """Add every population's discovery stages of the last committed report to ``graph``.
+
+        Each population is added under the prefix ``{prefix}.{population}`` with no completion,
+        so a downstream claim anchors on the discovered structure of its own population; the
+        population label is part of every node's coordinate. A driver with no committed report
+        adds nothing and returns an empty key mapping.
+
+        Raises:
+            SelectiveDiscoveryRefusal: a key that already exists in ``graph``, or a graph that
+                does not validate.
+        """
+        text, refusal = self._handle.add_claims(_graph_text(graph), _name(prefix, "prefix"))
+        _raise(refusal)
+        assert text is not None
+        wire = json.loads(text)
+        keys = {label: _claim_keys(item) for label, item in wire["keys"].items()}
+        return PerPopulationClaims(_graph_from_wire(wire["graph"]), freeze(keys))
+
     def request_selection_targets(self, candidates: Sequence[str] = ()) -> None:
         """Ask for selection targets read from the edges that differ between populations.
 
@@ -1095,6 +1157,22 @@ class SampleSplit(ScientificResult):
             SelectiveDiscoveryRefusal: ``split_not_disjoint`` or ``split_receipt_mismatch``.
         """
         _raise(self._handle.verify())
+
+    def evidence_sources(self, snapshot_id: bytes) -> tuple[SourceDeclaration, SourceDeclaration]:
+        """The two parts as evidence-ledger sources, ``(discovery, analysis)``.
+
+        Observation identities are keyed by ``snapshot_id`` and the row index, so the two parts
+        are independent of each other and either overlaps the unsplit table (declared with
+        :func:`discovery_data_source` under the same ``snapshot_id``) on exactly the rows it holds.
+
+        Raises:
+            SelectiveDiscoveryRefusal: the receipt no longer verifies.
+        """
+        text, refusal = self._handle.evidence_sources(_snapshot(snapshot_id))
+        _raise(refusal)
+        assert text is not None
+        wire = json.loads(text)
+        return _declaration(wire["discovery"]), _declaration(wire["analysis"])
 
     def check_analysis_table(self, data: Mapping[str, Any]) -> AnalysisBinding:
         """Check that ``data`` is exactly the analysis part and bind it to this discovery.
@@ -1305,3 +1383,167 @@ def sample_split_effect(
         _source=bytes(source),
         _seed=_count(seed, "seed"),
     )
+
+
+# --------------------------------------------------------------------------- claims and evidence
+
+
+@dataclass(frozen=True, slots=True)
+class DiscoveryClaimKeys:
+    """The node keys :meth:`SelectiveDiscovery.add_claims` created."""
+
+    data: str
+    statistics: str
+    graph: str
+    completion: str | None
+    downstream_anchor: str
+
+
+@dataclass(frozen=True, slots=True)
+class DiscoveryClaims:
+    """A composition graph extended with one discovery run, and the keys it added."""
+
+    graph: CompositionGraph
+    keys: DiscoveryClaimKeys
+
+
+@dataclass(frozen=True, slots=True)
+class PerPopulationClaims:
+    """A composition graph extended with each population's discovery, keyed by population."""
+
+    graph: CompositionGraph
+    keys: Mapping[str, DiscoveryClaimKeys]
+
+
+def _snapshot(snapshot_id: object) -> bytes:
+    if not isinstance(snapshot_id, (bytes, bytearray)) or not snapshot_id:
+        raise CausalTypeError("snapshot_id must be non-empty bytes")
+    return bytes(snapshot_id)
+
+
+def _completion(completion: object) -> tuple[str, str]:
+    if (
+        not isinstance(completion, tuple)
+        or len(completion) != 2
+        or not all(isinstance(part, str) for part in completion)
+    ):
+        raise CausalTypeError("completion must be a (label, identity) pair of strings")
+    return completion[0], completion[1]
+
+
+def _claim_keys(wire: Mapping[str, Any]) -> DiscoveryClaimKeys:
+    completion = wire["completion"]
+    return DiscoveryClaimKeys(
+        data=str(wire["data"]),
+        statistics=str(wire["statistics"]),
+        graph=str(wire["graph"]),
+        completion=None if completion is None else str(completion),
+        downstream_anchor=str(wire["downstream_anchor"]),
+    )
+
+
+def _graph_text(graph: CompositionGraph | None) -> str | None:
+    if graph is None:
+        return None
+    from .composition_verification import CompositionGraph as _Graph
+
+    if not isinstance(graph, _Graph):
+        raise CausalTypeError("graph must be a composition_verification.CompositionGraph or None")
+    return json.dumps(graph.to_wire(), sort_keys=True)
+
+
+def _graph_from_wire(wire: Mapping[str, Any]) -> CompositionGraph:
+    from . import composition_verification as cv
+
+    def calibration(item: Mapping[str, Any]) -> cv.Calibration:
+        kind = str(item["kind"])
+        if kind == "held":
+            return cv.Calibration.held(str(item["record"]), str(item["coordinate"]))
+        if kind == "inherited":
+            return cv.Calibration.inherited(
+                str(item["from"]), str(item["record"]), str(item["coordinate"])
+            )
+        return cv.Calibration.required() if kind == "required" else cv.Calibration.point_only()
+
+    nodes = tuple(
+        cv.Node(
+            key=str(n["key"]),
+            kind=str(n["kind"]),
+            identity=str(n["identity"]),
+            structure=n.get("structure"),
+            representation=n.get("representation"),
+            coordinate=n.get("coordinate"),
+            unsupported=tuple(n.get("unsupported", ())),
+            trust=str(n["trust"]),
+            calibration=calibration(n["calibration"]),
+            assumptions=tuple(n["assumptions"]),
+            transformation=n.get("transformation"),
+            evidence=tuple(n["evidence"]),
+        )
+        for n in wire["nodes"]
+    )
+    edges = tuple(
+        cv.Edge(str(e["downstream"]), str(e["upstream"]), str(e["kind"])) for e in wire["edges"]
+    )
+    return cv.CompositionGraph(nodes=nodes, edges=edges)
+
+
+def _declaration(text: str | Mapping[str, Any]) -> SourceDeclaration:
+    from .evidence_ledger import Lineage, SourceDeclaration
+
+    wire = json.loads(text) if isinstance(text, str) else text
+    ids = wire.get("observation_ids")
+    return SourceDeclaration(
+        label=str(wire["label"]),
+        kind=str(wire["kind"]),
+        lineage=Lineage(dict(wire["lineage"])),
+        observation_ids=None if ids is None else tuple(str(i) for i in ids),
+    )
+
+
+def discovery_data_source(label: str, snapshot_id: bytes, rows: range) -> SourceDeclaration:
+    """Declare the rows a discovery run used as an evidence-ledger source.
+
+    Observation identities are keyed by ``snapshot_id`` and the row index, never by which
+    columns were searched. Declare the later analysis's rows with the same ``snapshot_id``: rows
+    both used overlap (the ledger reports the shared observations) and a disjoint row range is
+    independent. A range larger than the ledger's per-source bound is declared without
+    observations, which the ledger treats as unknown overlap, never as independent.
+
+    ``rows`` is a ``range`` with step 1.
+    """
+    if not isinstance(rows, range) or rows.step != 1:
+        raise CausalTypeError("rows must be a range with step 1")
+    stop = max(rows.start, rows.stop)
+    if rows.start < 0:
+        raise CausalValueError("rows must not be negative")
+    text = _native.selective_discovery_data_source(
+        _name(label, "label"), _snapshot(snapshot_id), rows.start, stop
+    )
+    return _declaration(text)
+
+
+def discovery_rows_source(
+    label: str, snapshot_id: bytes, rows: Sequence[int]
+) -> SourceDeclaration:
+    """Declare an explicit set of rows (not necessarily contiguous) as an evidence source.
+
+    As :func:`discovery_data_source`, for a row set such as one part of a sample split.
+    """
+    items = [_count(row, "row", minimum=0) for row in rows]
+    text = _native.selective_discovery_rows_source(
+        _name(label, "label"), _snapshot(snapshot_id), items
+    )
+    return _declaration(text)
+
+
+def discovered_graph_source(label: str, data_sources: Sequence[str]) -> SourceDeclaration:
+    """Declare a discovered graph as a fitted-model source built from data already used.
+
+    ``data_sources`` are the ledger source ids (64 hexadecimal characters) of the discovery
+    rows. A later analysis that treats the graph as evidence is counted as the rows it came
+    from; the declaration makes that lineage explicit.
+    """
+    ids = [str(source) for source in data_sources]
+    text = _native.selective_discovery_graph_source(_name(label, "label"), ids)
+    return _declaration(text)

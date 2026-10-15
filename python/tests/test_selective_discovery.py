@@ -24,7 +24,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from antecedent import selective_discovery as sd
-from antecedent.errors import CausalDiscoveryError, CausalError
+from antecedent.errors import CausalDiscoveryError, CausalError, CausalTypeError, CausalValueError
 from antecedent.state import CancellationToken
 
 from _refusal import assert_registered_refusal
@@ -545,3 +545,89 @@ def test_the_native_failure_is_a_discovery_error_not_a_refusal() -> None:
     with pytest.raises(CausalDiscoveryError):
         adapter.run(contract(), data)
     assert adapter.outcome is None
+
+
+# -- composition claims and evidence sources -------------------------------------------------
+
+
+def _discovered() -> sd.SelectiveDiscovery:
+    rng = np.random.default_rng(3)
+    n = 2000
+    a, b = rng.normal(size=n), rng.normal(size=n)
+    c = 0.8 * a + 0.8 * b + 0.6 * rng.normal(size=n)
+    contract = sd.StaticContract(variables=("a", "b", "c"), alpha=0.001, fdr=None, seed=4)
+    discovery = sd.SelectiveDiscovery("static")
+    discovery.run(contract, {"a": a, "b": b, "c": c})
+    return discovery
+
+
+def test_a_run_adds_data_statistics_and_structure_nodes_with_its_own_identities() -> None:
+    discovery = _discovered()
+    outcome = discovery.outcome
+    assert outcome is not None
+
+    claims = discovery.add_claims(None, "disc")
+    keys = claims.keys
+    assert (keys.data, keys.statistics, keys.graph) == ("disc.data", "disc.statistics", "disc.graph")
+    assert keys.completion is None and keys.downstream_anchor == "disc.graph"
+    graph = claims.graph.node("disc.graph")
+    assert graph.structure == outcome.structure_identity
+    assert graph.identity == outcome.result_identity
+    assert graph.representation == outcome.structure_class
+    assert not graph.unsupported
+    assert {(e.downstream, e.upstream, e.kind) for e in claims.graph.edges} == {
+        ("disc.statistics", "disc.data", "data"),
+        ("disc.graph", "disc.statistics", "data"),
+    }
+
+
+def test_a_declared_completion_becomes_the_anchor_downstream_claims_depend_on() -> None:
+    discovery = _discovered()
+    claims = discovery.add_claims(None, "disc", completion=("reviewed graph", "ab" * 32))
+    assert claims.keys.completion == "disc.completion"
+    assert claims.keys.downstream_anchor == "disc.completion"
+    node = claims.graph.node("disc.completion")
+    assert node.representation == "declared_completion"
+    assert "completion_label=reviewed graph" in node.assumptions
+    assert ("disc.completion", "disc.graph", "structural_derivation") in {
+        (e.downstream, e.upstream, e.kind) for e in claims.graph.edges
+    }
+    with pytest.raises(CausalValueError):
+        discovery.add_claims(None, "x", completion=("label", "not-hex"))
+
+
+def test_claims_refuse_before_a_run_and_on_a_key_that_already_exists() -> None:
+    with pytest.raises(CausalValueError):
+        sd.SelectiveDiscovery("static").add_claims(None, "disc")
+    discovery = _discovered()
+    first = discovery.add_claims(None, "disc")
+    with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
+        discovery.add_claims(first.graph, "disc")
+    assert_registered_refusal(info.value)
+    assert info.value.detail == "composition_verification.graph_invalid"
+
+
+def test_discovery_rows_and_the_discovered_graph_are_declared_as_ledger_sources() -> None:
+    from antecedent import evidence_ledger as el
+
+    snapshot = b"table-v1"
+    ledger = el.EvidenceLedger()
+    first = ledger.add_source(sd.discovery_data_source("first rows", snapshot, range(0, 100)))
+    second = ledger.add_source(sd.discovery_data_source("later rows", snapshot, range(80, 180)))
+    scattered = ledger.add_source(sd.discovery_rows_source("scattered", snapshot, [0, 5, 90]))
+    disjoint = ledger.add_source(sd.discovery_data_source("disjoint", snapshot, range(200, 220)))
+
+    pair = ledger.account_observations([first, second]).pairs[0]
+    assert (pair.overlap, pair.shared) == ("shared_observations", 20)
+    assert ledger.account_observations([first, scattered]).pairs[0].shared == 3
+    assert ledger.account_observations([first, disjoint]).pairs[0].overlap == "independent"
+
+    graph = ledger.add_source(sd.discovered_graph_source("discovered graph", [first]))
+    record = next(s for s in ledger.sources if s.id == graph)
+    assert record.kind == "fitted_model"
+    assert record.lineage_parents == (first,)
+
+    with pytest.raises(CausalTypeError):
+        sd.discovery_data_source("rows", snapshot, range(0, 10, 2))
+    with pytest.raises(CausalValueError):
+        sd.discovered_graph_source("graph", ["not-an-id"])

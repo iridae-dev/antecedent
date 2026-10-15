@@ -14,7 +14,7 @@ import sys
 
 import pytest
 from antecedent import interface_contract as ic
-from antecedent.errors import CausalValueError
+from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.interface_contract import InterfaceContractRefusal
 from antecedent.joint_distribution import ScientificQuantity
 
@@ -243,6 +243,74 @@ def test_inputs_required_disjoint_cannot_share_evidence():
         assert error.reason_code == "interface_contract_assumption_mismatch"
         assert error.detail == "interface_contract.dependence_unknown"
         assert error.remedy
+
+
+def test_a_ledger_decides_disjoint_evidence_at_row_level():
+    from antecedent import evidence_ledger as el
+
+    ledger = el.EvidenceLedger()
+
+    def observed(label, start, stop):
+        return ledger.add_source(
+            el.SourceDeclaration(
+                label, "observation_set", observations=el.rows("cohort", range(start, stop))
+            )
+        )
+
+    first = observed("first", 0, 50)
+    disjoint = observed("disjoint", 50, 100)
+    overlapping = observed("overlapping", 25, 75)
+    undeclared = ledger.add_source(el.SourceDeclaration("vendor", "external_claim"))
+
+    def source(name, evidence):
+        return ic.InterfaceContract(
+            name,
+            produces=[
+                ic.ProducedPort(
+                    "out",
+                    quantity(),
+                    "estimand:ate",
+                    ic.SupportDomain.real(),
+                    operations=("mean",),
+                    evidence=(evidence,),
+                )
+            ],
+        )
+
+    pool = ic.InterfaceContract(
+        "pool",
+        consumes=[
+            ic.ConsumedPort(
+                side,
+                quantity(),
+                "estimand:ate",
+                ic.SupportDomain.real(),
+                operations=("mean",),
+                dependence="disjoint_evidence",
+            )
+            for side in ("left", "right")
+        ],
+    )
+    wires = [("s1", "out", "pool", "left"), ("s2", "out", "pool", "right")]
+
+    def check(second):
+        return ic.check_composition_with_ledger(
+            [source("s1", first), source("s2", second), pool], wires, ledger
+        )
+
+    # Rows 0..50 and 50..100 share nothing: accepted, and the order puts producers first.
+    composed = check(disjoint)
+    assert composed.order.index("pool") > composed.order.index("s1")
+    assert {c.consumed_port for c in composed.connections} == {"left", "right"}
+    # Rows 0..50 and 25..75 share 25 observations.
+    error = refusal_of(lambda: check(overlapping))
+    assert error.detail == "interface_contract.shared_evidence"
+    # A source whose observations are not computable is unknown, never disjoint.
+    unknown = refusal_of(lambda: check(undeclared))
+    assert unknown.detail == "interface_contract.dependence_unknown"
+    assert_registered_refusal(unknown)
+    with pytest.raises(CausalTypeError):
+        ic.check_composition_with_ledger([pool], [], object())
 
 
 # --------------------------------------------------------------------------- artifact

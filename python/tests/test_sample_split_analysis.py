@@ -136,3 +136,27 @@ def test_an_undeclared_rule_is_a_value_error() -> None:
         sd.discover_on_split(CONTRACT, table(8))
     with pytest.raises(CausalValueError):
         sd.discover_on_split(CONTRACT, table(8), discovery_rows=[1], discovery_fraction=0.5, seed=1)
+
+
+def test_the_split_parts_are_independent_ledger_sources_that_overlap_the_table_by_their_rows() -> (
+    None
+):
+    from antecedent import evidence_ledger as el
+
+    split = sd.discover_on_split(CONTRACT, table(4), discovery_fraction=0.4, seed=7)
+    snapshot = b"split-table"
+    discovery, analysis = split.evidence_sources(snapshot)
+    assert discovery.kind == analysis.kind == "observation_set"
+    assert len(discovery.observation_ids or ()) == 200
+    assert len(analysis.observation_ids or ()) == 300
+
+    ledger = el.EvidenceLedger()
+    d, a = ledger.add_source(discovery), ledger.add_source(analysis)
+    whole = ledger.add_source(sd.discovery_data_source("unsplit table", snapshot, range(N)))
+    assert ledger.account_observations([d, a]).pairs[0].overlap == "independent"
+    assert ledger.account_observations([d, whole]).pairs[0].shared == 200
+    assert ledger.account_observations([a, whole]).pairs[0].shared == 300
+
+    # A different snapshot id shares no observation with the table.
+    other = ledger.add_source(sd.discovery_data_source("other table", b"other", range(N)))
+    assert ledger.account_observations([d, other]).pairs[0].overlap == "independent"

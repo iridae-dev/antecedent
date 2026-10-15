@@ -531,3 +531,67 @@ def test_malformed_declarations_are_refused_or_rejected():
     assert refused(lambda: cv.verify_composition(no_edge)).detail == (
         "composition_verification.graph_invalid"
     )
+
+
+# -- shipped coverage records ---------------------------------------------------------------
+
+
+def _shipped_record_id() -> str:
+    """The id of a coverage record that currently governs a measured pooled interval."""
+    ledger = el.EvidenceLedger()
+    sources = [
+        ledger.add_source(
+            el.SourceDeclaration(
+                f"study_{i}",
+                "observation_set",
+                observations=el.rows("cohort", range(i * 100, (i + 1) * 100)),
+            )
+        )
+        for i in range(5)
+    ]
+    summaries = [
+        el.StudySummary(sources[i], 0.5 + 0.01 * (i - 2), 0.01 + 0.002 * i) for i in range(5)
+    ]
+    pooled = ledger.pool_summaries("fixed", summaries).result
+    record_id = ledger.pooled_interval(pooled)["calibration"]["record_id"]
+    assert record_id
+    return str(record_id)
+
+
+def test_a_declared_record_is_backed_only_by_a_currently_attesting_shipped_record():
+    shipped = cv.registry_record_identity(_shipped_record_id())
+    assert len(shipped) == 64
+    assert cv.registry_record_identity("cov.no_such_record") != shipped
+    assert cv.registry_record_attests(shipped) is True
+    # A digest that names no shipped record backs nothing.
+    assert cv.registry_record_attests(RECORD) is False
+    assert cv.registry_record_attests(cv.registry_record_identity("cov.no_such_record")) is False
+    with pytest.raises(CausalValueError):
+        cv.registry_record_attests("not a digest")
+
+    backed = cv.Calibration.held(shipped, SPACE)
+    assert cv.registry_resolved_calibration(backed) == backed
+    unbacked = cv.Calibration.held(RECORD, SPACE)
+    assert cv.registry_resolved_calibration(unbacked) == cv.Calibration.required()
+    inherited = cv.Calibration.inherited("fit", RECORD, SPACE)
+    assert cv.registry_resolved_calibration(inherited) == cv.Calibration.required()
+    # A point-only declaration and a requirement are kept as they are.
+    for kept in (cv.Calibration.point_only(), cv.Calibration.required()):
+        assert cv.registry_resolved_calibration(kept) == kept
+    with pytest.raises(CausalTypeError):
+        cv.registry_resolved_calibration({"kind": "held"})
+
+
+def test_the_nodes_whose_calibration_no_shipped_record_backs_are_named():
+    # `fit` holds and `reported` inherits a record that is not a shipped one.
+    assert sorted(cv.unresolved_registry_calibrations(build())) == ["fit", "reported"]
+    shipped = cv.registry_record_identity(_shipped_record_id())
+    backed = build(fit_calibration=cv.Calibration.held(shipped, SPACE))
+    assert cv.unresolved_registry_calibrations(backed) == ("reported",)
+    none_held = build(fit_calibration=cv.Calibration.point_only())
+    assert cv.unresolved_registry_calibrations(none_held) == ("reported",)
+    with pytest.raises(CausalTypeError):
+        cv.unresolved_registry_calibrations("graph")
+    duplicate = cv.CompositionGraph(nodes=[node("a", "data"), node("a", "data")])
+    error = refused(lambda: cv.unresolved_registry_calibrations(duplicate))
+    assert error.reason_code == "invalid_argument"

@@ -14,6 +14,7 @@ from antecedent.derived import (
     DerivedTreatment,
     SourceColumn,
     check_derived_treatment,
+    estimate_joint_cell_cost,
     factorized_joint_cells,
 )
 from antecedent.errors import CausalCancelledError, CausalUnsupportedError, CausalValueError
@@ -263,3 +264,37 @@ def test_a_cancelled_fit_is_never_a_result():
     token.cancel()
     with pytest.raises((CausalCancelledError, CausalUnsupportedError)):
         factorized_joint_cells(data, declaration(), outcome="y", adjustment=["z"], cancel=token)
+
+
+def test_the_joint_cell_cost_counts_are_the_hand_enumeration_and_never_a_time():
+    one = estimate_joint_cell_cost(
+        2, all_orderings=False, penalties=[0.1, 1.0], inner_folds=5, folds=5, rows=1000
+    )
+    # Orderings [0, 1]: one stratum for component 0 and two for component 1 given component 0.
+    assert one.cells == 4
+    assert one.orderings == 1
+    assert one.conditional_strata == 3
+    assert one.conditional_fits == 15
+    # Ridge route: 2 penalties * (5 inner folds + 1) fits per conditional.
+    assert one.propensity_fits == 15 * 12
+    assert one.outcome_fits == 4 * 5
+    assert one.nuisance_fits == one.propensity_fits + one.outcome_fits
+    assert one.rows == 1000
+    assert one.seconds is None
+    assert one.planning_hint is True
+
+    both = estimate_joint_cell_cost(2, penalties=[0.1, 1.0])
+    # The reversed ordering adds its own two strata: (0 | -), (1 | 0), (1 | -), (0 | 1).
+    assert both.orderings == 2
+    assert both.conditional_strata == 6
+
+
+def test_the_joint_cell_cost_refuses_what_the_fit_refuses():
+    assert refusal(lambda: estimate_joint_cell_cost(2, ordering=[0, 0])).reason_code == (
+        "invalid_argument"
+    )
+    assert refusal(lambda: estimate_joint_cell_cost(2, nuisance="typo")).reason_code == (
+        "invalid_argument"
+    )
+    with pytest.raises(CausalValueError):
+        estimate_joint_cell_cost(2, nuisance="random_forest", penalties=[0.1])

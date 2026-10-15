@@ -48,6 +48,8 @@ from typing import Any, Literal
 from ._native import CpdagScenarioRun as _NativeCpdagRun
 from ._native import PreparedTransportScenariosStage as _NativeScenarioStage
 from ._native import decide_scenario_claims as _decide
+from ._native import interval_identified_action_utilities as _interval_utilities
+from ._native import scenario_identified_utilities as _utilities
 from ._refusal import raise_refusal
 from .decision import Contract, DecisionRefusal, StructuralPolicy
 from .decision_robust import (
@@ -519,6 +521,220 @@ def decide_from_cpdag_completions(
     return _decision("cpdag", contract, run, policy, weights, binding, expected_causal_contract_id)
 
 
+_ROUTES = ("report", "envelope", "weighted")
+_READINGS = ("estimated_bounds", "coverage_interval")
+
+
+@dataclass(frozen=True, slots=True)
+class IdentifiedUtility:
+    """One action's utility as an interval every value of which is compatible with the evidence.
+
+    ``lower`` and ``upper`` are in the contract's utility units. The interval covers the
+    identified scenarios only and says nothing about unidentified or unevaluated ones; it is
+    never renormalized. ``support`` is the empirical support the action's inputs were declared
+    to have.
+    """
+
+    action_id: str
+    lower: float
+    upper: float
+    hard_exclusions: tuple[str, ...]
+    support: Support
+
+
+def _utilities_from_wire(text: str | None) -> tuple[IdentifiedUtility, ...]:
+    assert text is not None
+    return tuple(
+        IdentifiedUtility(
+            action_id=str(item["action_id"]),
+            lower=float(item["lower"]),
+            upper=float(item["upper"]),
+            hard_exclusions=tuple(item["hard_exclusions"]),
+            support=Support(
+                overall=item["support"]["overall"],
+                per_input={
+                    (str(p["action_id"]), int(p["input"])): p["status"]
+                    for p in item["support"]["per_input"]
+                },
+            ),
+        )
+        for item in json.loads(text)
+    )
+
+
+def _utility_support(support: Support | None) -> str:
+    chosen = Support.unassessed() if support is None else support
+    if not isinstance(chosen, Support):
+        raise CausalTypeError("support must be a decision_robust.Support")
+    return json.dumps(chosen._wire())
+
+
+def _identified_utilities(
+    kind: Literal["transport", "cpdag"],
+    contract: AdmissibleContract | Contract,
+    native: Any,
+    binding: str,
+    support: Support | None,
+    route: str,
+) -> tuple[IdentifiedUtility, ...]:
+    if route not in _ROUTES:
+        raise CausalValueError(f"route is one of {', '.join(_ROUTES)}; got {route!r}")
+    result, refusal = _utilities(
+        _contract(contract)._declaration(),
+        kind,
+        native,
+        binding,
+        _utility_support(support),
+        route,
+    )
+    raise_refusal(refusal, ScenarioDecisionRefusal)
+    return _utilities_from_wire(result)
+
+
+def identified_utilities_from_scenarios(
+    contract: AdmissibleContract | Contract,
+    scenario_result: Any,
+    *,
+    outcomes: Sequence[OutcomeBinding],
+    causal_contract_id: str,
+    route: Literal["report", "envelope", "weighted"] = "report",
+    source_id: str = "transport-scenarios",
+    provider_id: str = "transport.scenarios",
+    premises_digest: str | None = None,
+    data_digest: str | None = None,
+    calibration: Calibration = "exact",
+    support: Support | None = None,
+) -> tuple[IdentifiedUtility, ...]:
+    """Interval of each action's utility from an estimated transport scenario set.
+
+    ``scenario_result`` is the stage
+    :func:`~antecedent.transport.advanced.prepare_transport_scenarios` returned, after
+    ``estimate()``. ``route`` reads the interval from the scenario ``envelope``, from the
+    ``weighted`` report (the range the mixture mean takes when unaccounted mass sits anywhere in
+    the declared outcome domain; never renormalized over the identified scenarios), or from the
+    ``report`` (the weighted range when the set declared weights, else the envelope, which
+    refuses while any scenario is unresolved). ``support`` is the empirical support declared for
+    the action inputs; unassessed support is ``missing_evidence``.
+
+    Raises:
+        ScenarioDecisionRefusal: no envelope or weighted range
+            (``decision_claims.range_unavailable``), an unresolved scenario
+            (``decision_claims.unresolved_scenarios``), an action input with no bound outcome
+            or a contract with hard constraints.
+    """
+    if not isinstance(scenario_result, _NativeScenarioStage):
+        raise CausalTypeError(
+            "scenario_result must be the stage prepare_transport_scenarios returned"
+        )
+    exported = ""
+    if not (premises_digest and data_digest):
+        exported = _digest(scenario_result.export())
+    binding = _binding(
+        outcomes,
+        calibration=calibration,
+        source_id=source_id,
+        provider_id=provider_id,
+        causal_contract_id=causal_contract_id,
+        premises_digest=premises_digest or exported,
+        data_digest=data_digest or exported,
+        support=None,
+        default_support=None,
+    )
+    return _identified_utilities("transport", contract, scenario_result, binding, support, route)
+
+
+def identified_utilities_from_cpdag_completions(
+    contract: AdmissibleContract | Contract,
+    completions: Any,
+    *,
+    outcomes: Sequence[OutcomeBinding],
+    causal_contract_id: str,
+    route: Literal["report", "envelope", "weighted"] = "report",
+    source_id: str = "cpdag-completions",
+    provider_id: str = "cpdag.completions",
+    premises_digest: str | None = None,
+    data_digest: str | None = None,
+    calibration: Calibration = "exact",
+    support: Support | None = None,
+) -> tuple[IdentifiedUtility, ...]:
+    """Interval of each action's utility from the DAG completions of a CPDAG.
+
+    As :func:`identified_utilities_from_scenarios`, over the completions' report. Completions
+    are never weighted, so ``weighted`` refuses (``decision_claims.range_unavailable``) and a
+    ``report`` read refuses while any completion is unresolved.
+    """
+    run = getattr(completions, "_run", None)
+    if not isinstance(run, _NativeCpdagRun):
+        raise ScenarioDecisionRefusal(
+            {
+                "code": "not_executed",
+                "stage": "adapt",
+                "detail": "scenario_decision.no_native_run",
+                "offending": None,
+                "expected": "a result produced by cpdag_completion_scenarios in this process",
+                "supplied": type(completions).__name__,
+                "remedy": "re-run the completion scenarios; a consumed artifact holds no run",
+            }
+        )
+    retained_premises = premises_digest or getattr(completions, "premises_digest", None)
+    retained_data = data_digest or getattr(completions, "data_digest", None)
+    exported = ""
+    if not (retained_premises and retained_data):
+        exported = _digest(completions.export())
+    binding = _binding(
+        outcomes,
+        calibration=calibration,
+        source_id=source_id,
+        provider_id=provider_id,
+        causal_contract_id=causal_contract_id,
+        premises_digest=retained_premises or exported,
+        data_digest=retained_data or exported,
+        support=None,
+        default_support=None,
+    )
+    return _identified_utilities("cpdag", contract, run, binding, support, route)
+
+
+def identified_utilities_from_intervals(
+    contract: AdmissibleContract | Contract,
+    intervals: Sequence[tuple[ScientificQuantity, Mapping[str, Any]]],
+    *,
+    reading: Literal["estimated_bounds", "coverage_interval"] = "estimated_bounds",
+    support: Support | None = None,
+) -> tuple[IdentifiedUtility, ...]:
+    """Interval of each action's utility from one identified-set interval per input quantity.
+
+    ``intervals`` pairs each input's quantity with its identified-set interval as a mapping of
+    ``level``, ``lower``, ``upper``, ``bound_lower``, ``bound_upper``, ``lower_se``,
+    ``upper_se``, ``critical_value``, ``width_retained``, ``completions``, ``replicates``,
+    ``method`` and optionally ``truncated``. ``reading`` selects the estimated bounds
+    ``[bound_lower, bound_upper]`` or the supplied ``[lower, upper]`` uncertainty endpoints,
+    which are read for one shared scientific quantity only and whose calibration is not
+    authenticated here.
+
+    Raises:
+        ScenarioDecisionRefusal: an interval over a truncated completion enumeration
+            (``decision_claims.unresolved_scenarios``), duplicate quantities, coverage endpoints
+            of distinct input quantities, an input with no interval, or a contract with hard
+            constraints.
+    """
+    if reading not in _READINGS:
+        raise CausalValueError(f"reading is one of {', '.join(_READINGS)}; got {reading!r}")
+    wire = []
+    for quantity, interval in intervals:
+        if not isinstance(quantity, ScientificQuantity):
+            raise CausalTypeError("each interval is paired with a ScientificQuantity")
+        wire.append({"quantity": quantity._wire(), "interval": dict(interval)})
+    result, refusal = _interval_utilities(
+        _contract(contract)._declaration(),
+        json.dumps(wire),
+        reading,
+        _utility_support(support),
+    )
+    raise_refusal(refusal, ScenarioDecisionRefusal)
+    return _utilities_from_wire(result)
+
+
 def _from_wire(wire: Mapping[str, Any]) -> ScenarioDecision:
     structural = wire["structural"]
     by_atom = {a["id"]: a for a in structural["atoms"]}
@@ -585,6 +801,7 @@ def _from_wire(wire: Mapping[str, Any]) -> ScenarioDecision:
 
 __all__ = [
     "ActionAcrossAtoms",
+    "IdentifiedUtility",
     "OutcomeBinding",
     "ScenarioAtom",
     "ScenarioDecision",
@@ -593,4 +810,7 @@ __all__ = [
     "StructuralVerdict",
     "decide_from_cpdag_completions",
     "decide_from_scenarios",
+    "identified_utilities_from_cpdag_completions",
+    "identified_utilities_from_intervals",
+    "identified_utilities_from_scenarios",
 ]

@@ -657,3 +657,127 @@ def test_provider_objects_need_an_identity():
             mean_only(),
             pc.Request(pc.Query.mean()),  # type: ignore[arg-type]
         )
+
+
+# -- predictive law source and forecast law -----------------------------------------------------
+
+
+def test_a_callback_declares_a_predictive_law_source_with_the_trust_it_earned():
+    attested = declaration().predictive_law_source()
+    assert attested.wire == {
+        "class": "provider",
+        "identity": {
+            "provider_id": "lab",
+            "object_id": "gaussian",
+            "version_id": "1.0",
+            "snapshot_id": "snap-1",
+            "request_id": "req-1",
+        },
+        "trust": "externally_attested",
+    }
+    claimed = declaration(trust=pc.Trust.verified_extension("ab" * 32))
+    # The claim alone is not a verification: the host must confirm it.
+    refusal_of(claimed.predictive_law_source)
+    confirmed = claimed.predictive_law_source(verification_confirmed=True)
+    assert confirmed.wire["trust"] == "verified_extension"
+    # No claim at all, and an opaque dependency set, are diagnostic only.
+    refusal_of(declaration(trust=pc.Trust.unverified()).predictive_law_source)
+    refusal_of(declaration(dependencies=pc.Dependencies.opaque()).predictive_law_source)
+
+
+def test_sample_output_lifts_to_an_empirical_forecast_law_and_a_mean_does_not():
+    session = pc.CallbackSession()
+    sample = session.execute(gaussian(), declaration(), pc.Request(pc.Query.sample(7), seed=5))
+    law = session.forecast_law(sample)
+    assert law.to_wire() == {"kind": "empirical_sample", "draws": list(sample.output.values)}
+    assert len(law.draws) == 7
+    mean = session.execute(gaussian(), mean_only(), pc.Request(pc.Query.mean(), seed=5))
+    error = refusal_of(session.forecast_law, mean)
+    assert error.detail == "callback_protocol.request_mismatch"
+    # An execution of another session is not this session's result.
+    other = pc.CallbackSession()
+    refusal_of(other.forecast_law, sample)
+
+
+# -- a claim connected to a callback input; a callback registered as evidence -------------------
+
+
+def nested_pair():
+    inner = declaration(
+        component="inner",
+        replay=pc.Replay.deterministic_pure(),
+        operations=("mean",),
+        evidence=(),
+    )
+    outer = declaration(
+        component="shifted",
+        kind="nested",
+        provider=pc.ProviderIdentity("lab", "shifted", "1.0", "snap-1", "req-1"),
+        replay=pc.Replay.deterministic_pure(),
+        operations=("mean",),
+        inputs=(pc.Input.from_callback("inner", inner),),
+        evidence=(),
+    )
+    return inner, outer
+
+
+def test_a_producer_claim_connects_to_a_callback_input_or_is_refused_with_every_defect():
+    from antecedent import interface_contract as ic
+
+    _, outer = nested_pair()
+
+    def claim(population="trial"):
+        port = ic.ProducedPort(
+            "effect",
+            quantity(population=population),
+            "estimand:outcome_law",
+            ic.SupportDomain.real(),
+            operations=("mean",),
+        )
+        return ic.InterfaceContract("producer", produces=[port])
+
+    connection = pc.check_claim_to_callback(claim(), "effect", outer, "inner")
+    assert connection.producer == "producer"
+    assert connection.produced_port == "effect"
+    assert connection.consumed_port == "inner"
+    assert connection.operations == ("mean",)
+    # A different population is a scientific mismatch even though the shapes agree.
+    with pytest.raises(pc.CallbackRefusal) as caught:
+        pc.check_claim_to_callback(claim("elsewhere"), "effect", outer, "inner")
+    assert_registered_refusal(caught.value)
+    assert len(caught.value.refusals) >= 1
+    # An input the callback does not declare is refused too.
+    with pytest.raises(pc.CallbackRefusal):
+        pc.check_claim_to_callback(claim(), "effect", outer, "no_such_input")
+
+
+def test_a_callback_registers_in_the_ledger_with_its_inner_callback_and_supersedes_cleanly():
+    from antecedent.evidence_ledger import EvidenceLedger, EvidenceLedgerRefusal
+
+    inner, outer = nested_pair()
+    ledger = EvidenceLedger()
+    inner_source = pc.register_callback_source(ledger, inner)
+    assert [s.label for s in ledger.sources] == [f"callback:{inner.identity}"]
+    assert ledger.sources[0].kind == "external_claim"
+    # A nested callback names its inner callback's source or it is not registered; the ledger is
+    # exactly as it was.
+    error = refusal_of(pc.register_callback_source, ledger, outer)
+    assert error.detail == "callback_protocol.request_mismatch"
+    assert len(ledger.sources) == 1
+    outer_source = pc.register_callback_source(
+        ledger, outer, inner_sources={inner.identity: inner_source}
+    )
+    record = next(s for s in ledger.sources if s.id == outer_source)
+    assert record.lineage_parents == (inner_source,)
+    assert record.label == f"callback:{outer.identity}"
+    # A new provider version supersedes the registered one; the old source is retired.
+    replacement = dataclasses.replace(inner, provider=identity("2.0"))
+    new_source = pc.supersede_callback_source(ledger, inner_source, replacement)
+    assert new_source not in {inner_source, outer_source}
+    status = {s.id: s.status for s in ledger.sources}
+    assert status[inner_source] == "superseded"
+    assert status[new_source] == "active"
+    # Superseding a retired source is the ledger's refusal, not the callback route's.
+    with pytest.raises(EvidenceLedgerRefusal) as caught:
+        pc.supersede_callback_source(ledger, inner_source, replacement)
+    assert_registered_refusal(caught.value)

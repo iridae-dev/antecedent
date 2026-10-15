@@ -75,6 +75,7 @@ __all__ = [
     "ProducedPort",
     "SupportDomain",
     "check_composition",
+    "check_composition_with_ledger",
     "check_connection",
     "consume_interface_contract_artifact",
     "contract_identity",
@@ -594,6 +595,10 @@ def check_composition(
         _dumps([c._wire() for c in components]),
         _dumps([list(c) for c in connections]),
     )
+    return _composed(wire, refusal)
+
+
+def _composed(wire: str | None, refusal: str | None) -> ComposedInterfaces:
     _raise(refusal)
     assert wire is not None
     data = json.loads(wire)
@@ -602,6 +607,34 @@ def check_composition(
         connections=tuple(_connection(c) for c in data["connections"]),
         identity=data["identity"],
     )
+
+
+def check_composition_with_ledger(
+    components: Sequence[InterfaceContract],
+    connections: Iterable[tuple[str, str, str, str]],
+    ledger: Any,
+) -> ComposedInterfaces:
+    """Check a composition, deciding disjointness from an evidence ledger's observations.
+
+    As :func:`check_composition`, except that a consumed port that requires disjoint evidence is
+    decided from ``ledger`` (an :class:`~antecedent.evidence_ledger.EvidenceLedger`) at row level
+    rather than from declared source identities: sources that share observations are refused
+    (``interface_contract.shared_evidence``), and a source whose observations are not computable is
+    unknown, never disjoint.
+
+    Raises:
+        InterfaceContractRefusal: any defect of the groups of checks that failed, as for
+            :func:`check_composition`, plus shared or unknown observation overlap.
+    """
+    handle = getattr(ledger, "_handle", None)
+    if handle is None:
+        raise CausalTypeError("ledger must be an EvidenceLedger")
+    wire, refusal = _native.interface_contract_check_composition_with_ledger(
+        _dumps([c._wire() for c in components]),
+        _dumps([list(c) for c in connections]),
+        handle,
+    )
+    return _composed(wire, refusal)
 
 
 # --------------------------------------------------------------------------- artifact

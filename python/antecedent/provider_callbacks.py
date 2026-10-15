@@ -72,6 +72,9 @@ from .scientific_bridge import _quantity_wire
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
+    from .evidence_ledger import EvidenceLedger
+    from .interface_contract import Connection, InterfaceContract
+    from .predictive_assessment import EmpiricalSample, LawSource
 
 __all__ = [
     "CallbackConsumed",
@@ -98,6 +101,7 @@ __all__ = [
     "Request",
     "Support",
     "Trust",
+    "check_claim_to_callback",
     "consume_callback_result",
     "inspect_callback_result",
     "refuse_identification_licence",
@@ -105,6 +109,8 @@ __all__ = [
     "refuse_joint_law",
     "refuse_native_trust",
     "refuse_posterior_guarantee",
+    "register_callback_source",
+    "supersede_callback_source",
     "values_digest",
 ]
 
@@ -533,6 +539,27 @@ class CallbackDeclaration:
             CallbackRefusal: the first defect.
         """
         return self.identity
+
+    def predictive_law_source(self, *, verification_confirmed: bool = False) -> LawSource:
+        """The predictive-assessment law source of this callback.
+
+        The result is a provider source for
+        :class:`~antecedent.predictive_assessment.Predictor`. Its trust is ``verified_extension``
+        only when the declaration claims an exact-request verification *and*
+        ``verification_confirmed`` says the host confirmed it; otherwise the supplier's word is
+        all there is and the trust is ``externally_attested``. Nothing runs.
+
+        Raises:
+            CallbackRefusal: a malformed declaration, or a standing that cannot back a law.
+        """
+        from .predictive_assessment import LawSource
+
+        wire, refusal = _native.callback_predictive_law_source(
+            _dumps(self._wire()), bool(verification_confirmed)
+        )
+        _raise(refusal)
+        assert wire is not None
+        return LawSource(json.loads(wire))
 
 
 # -- requests ----------------------------------------------------------------------------------
@@ -1064,6 +1091,23 @@ class CallbackSession:
             name: self._check_execution(execution) for name, execution in (inputs or {}).items()
         }
 
+    def forecast_law(self, result: CallbackExecution) -> EmpiricalSample:
+        """Lift the sample output of an accepted execution to a forecast law.
+
+        The draws are scored as the empirical distribution they are; nothing is inferred about the
+        callback's law beyond them.
+
+        Raises:
+            CallbackRefusal: the output is not a sample.
+        """
+        from .predictive_assessment import EmpiricalSample
+
+        index = self._check_execution(result)
+        wire, refusal = self._handle.forecast_law(index)
+        _raise(refusal)
+        assert wire is not None
+        return EmpiricalSample(tuple(float(v) for v in json.loads(wire)["draws"]))
+
     @bytes_export
     def export(self, result: CallbackExecution | int, artifact_id: str) -> ExportedCallbackResult:
         """Seal one history record as ``callback_result_v1``.
@@ -1122,6 +1166,112 @@ def inspect_callback_result(artifact: bytes) -> dict[str, Any]:
     _raise(refusal)
     assert wire is not None
     return json.loads(wire)
+
+
+def check_claim_to_callback(
+    producer: InterfaceContract,
+    produced_port: str,
+    declaration: CallbackDeclaration,
+    input: str,  # noqa: A002
+) -> Connection:
+    """Decide whether a producer's claim may feed one input of a callback.
+
+    The producer is an :class:`~antecedent.interface_contract.InterfaceContract` (a transported
+    claim, an observed summary); the callback is checked through the same interface contract as
+    any other consumer, from the declarations alone. Nothing runs and no calibration label is
+    raised.
+
+    Raises:
+        CallbackRefusal: any defect; ``refusals`` lists every one.
+    """
+    from .interface_contract import _connection
+
+    wire, refusal = _native.callback_check_claim_connection(
+        _dumps(producer._wire()),
+        _name(produced_port, "produced_port"),
+        _dumps(declaration._wire()),
+        _name(input, "input"),
+    )
+    if refusal is not None:
+        found = json.loads(refusal)
+        error = CallbackRefusal(found[0])
+        #: Every refusal found, the first included.
+        error.refusals = tuple(CallbackRefusal(item) for item in found)
+        raise error
+    assert wire is not None
+    return _connection(json.loads(wire))
+
+
+def _inner_wire(inner_sources: Mapping[str, str] | None) -> str:
+    return _dumps(
+        {
+            _name(identity, "inner callback identity"): _name(source, "inner source")
+            for identity, source in (inner_sources or {}).items()
+        }
+    )
+
+
+def _ledger_result(pair: tuple[str | None, str | None]) -> str:
+    from .evidence_ledger import EvidenceLedgerRefusal
+
+    source, refusal = pair
+    if refusal is not None:
+        wire = json.loads(refusal)
+        if wire.get("stage") == "evidence_ledger":
+            raise EvidenceLedgerRefusal(wire)
+        raise CallbackRefusal(wire)
+    assert source is not None
+    return source
+
+
+def register_callback_source(
+    ledger: EvidenceLedger,
+    declaration: CallbackDeclaration,
+    *,
+    inner_sources: Mapping[str, str] | None = None,
+) -> str:
+    """Register a callback and its declared evidence in an evidence ledger.
+
+    The returned source identity (hex) lets the ledger compute the callback's overlap with its
+    inner callbacks and with other evidence instead of taking it as asserted. ``inner_sources``
+    maps the declaration identity of each inner callback to the ledger source it was registered
+    as. A refusal leaves the ledger unchanged.
+
+    Raises:
+        CallbackRefusal: an invalid declaration, or an inner callback that is not registered.
+        EvidenceLedgerRefusal: the ledger refused the source.
+    """
+    return _ledger_result(
+        _native.callback_register_source(
+            ledger._handle, _dumps(declaration._wire()), _inner_wire(inner_sources)
+        )
+    )
+
+
+def supersede_callback_source(
+    ledger: EvidenceLedger,
+    old: str,
+    replacement: CallbackDeclaration,
+    *,
+    inner_sources: Mapping[str, str] | None = None,
+) -> str:
+    """Supersede a registered callback with its replacement (a new version, a changed dependency).
+
+    The ledger revalidates results that rest on the old source: they are reclassified rather than
+    silently kept. Returns the replacement's source identity (hex).
+
+    Raises:
+        CallbackRefusal: an invalid replacement.
+        EvidenceLedgerRefusal: the ledger refused (an unknown or already retired source).
+    """
+    return _ledger_result(
+        _native.callback_supersede_source(
+            ledger._handle,
+            _name(old, "old"),
+            _dumps(replacement._wire()),
+            _inner_wire(inner_sources),
+        )
+    )
 
 
 def values_digest(values: Iterable[float]) -> str:

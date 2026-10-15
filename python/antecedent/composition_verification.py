@@ -80,7 +80,11 @@ __all__ = [
     "consume_composition_verification_artifact",
     "digest",
     "ledger_effects",
+    "registry_record_attests",
+    "registry_record_identity",
+    "registry_resolved_calibration",
     "shared_data_from_ledger",
+    "unresolved_registry_calibrations",
     "verify_composition",
 ]
 
@@ -745,6 +749,57 @@ def _wrap(handle: Any) -> CompositionVerification:
         shared_data=_shared(summary["shared_data"]),
         _handle=handle,
     )
+
+
+# --------------------------------------------------------------------------- registry
+
+
+def registry_record_identity(record_id: str) -> str:
+    """The digest (hex) under which a shipped coverage record is declared on a node.
+
+    Pass it as the ``record`` of :meth:`Calibration.held` or :meth:`Calibration.inherited` to
+    claim the shipped record named ``record_id``.
+    """
+    return str(_native.composition_registry_record_identity(_name(record_id, "record_id")))
+
+
+def registry_record_attests(record: str) -> bool:
+    """Whether ``record`` (a digest from :func:`registry_record_identity`) names a shipped
+    coverage record that currently attests the code it measured.
+
+    A digest that names no shipped record, or a record the current build no longer attests,
+    is ``False``.
+    """
+    return bool(_native.composition_registry_record_attests(_hex(record, "record")))
+
+
+def registry_resolved_calibration(calibration: Calibration) -> Calibration:
+    """``calibration`` with an unbacked claim replaced by :meth:`Calibration.required`.
+
+    A held or inherited record that does not name a currently attesting shipped record means an
+    uncertainty statement is wanted at the node but nothing backs it. A point-only declaration
+    and a requirement are returned as they are.
+    """
+    if not isinstance(calibration, Calibration):
+        raise CausalTypeError("calibration must be a Calibration")
+    wire = json.loads(
+        _native.composition_registry_resolved_calibration(_dumps(calibration.to_wire()))
+    )
+    return Calibration(
+        wire["kind"], wire.get("record"), wire.get("coordinate"), wire.get("from")
+    )
+
+
+def unresolved_registry_calibrations(graph: CompositionGraph) -> tuple[str, ...]:
+    """Keys of the nodes of ``graph`` whose held or inherited record is not a currently
+    attesting shipped record.
+
+    Raises:
+        CompositionVerificationRefusal: ``invalid_argument`` for an invalid graph.
+    """
+    if not isinstance(graph, CompositionGraph):
+        raise CausalTypeError("graph must be a CompositionGraph")
+    return tuple(_unwrap(_native.composition_registry_unresolved(_dumps(graph.to_wire()))))
 
 
 # --------------------------------------------------------------------------- entry points

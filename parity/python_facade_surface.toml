@@ -175,8 +175,9 @@ python = "native:python/src/derived_treatment_api.rs"
 [[entry]]
 rust = "antecedent::analysis::api::estimate_joint_cell_cost"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.derived.estimate_joint_cell_cost"
+reason = "planning-time fit counts of the factorized joint-cell fit; tested in python/tests/test_derived_treatment.py"
 
 [[entry]]
 rust = "antecedent::analysis::api::estimate_with_rank_drop"
@@ -187,8 +188,9 @@ python = "antecedent.preflight.estimate_with_rank_drop"
 [[entry]]
 rust = "antecedent::analysis::api::export_admg_conditional_obstruction"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "native:python/src/transport_admg_conditional_api.rs"
+reason = "the proven stage export_obstruction; tested in python/tests/test_transport_admg_conditional.py"
 
 [[entry]]
 rust = "antecedent::analysis::api::export_scenario_covariance"
@@ -223,8 +225,8 @@ python = "antecedent.preflight.plan_rank_drop"
 [[entry]]
 rust = "antecedent::analysis::api::posterior_predictive_predictor"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "missing"
+reason = "the predictor needs the Rust-typed prepared Bayesian problem and posterior, which Python holds no handle to; replicate_laws lifts replicates Python already has, but the posterior-predictive draws themselves are not exposed; no binding added yet"
 
 [[entry]]
 rust = "antecedent::analysis::api::preflight_design"
@@ -260,8 +262,9 @@ reason = "callback interface check through the interface contract entry"
 [[entry]]
 rust = "antecedent::analysis::check_claim_to_callback"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.provider_callbacks.check_claim_to_callback"
+reason = "tested in python/tests/test_provider_callbacks.py"
 
 [[entry]]
 rust = "antecedent::analysis::check_interface_composition"
@@ -321,8 +324,9 @@ python = "native:python/src/cohort_decision_api.rs"
 [[entry]]
 rust = "antecedent::analysis::composition::consume"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "native:python/src/composition_bundle_api.rs"
+reason = "consume_composition_bundle; tested in python/tests/test_composition_bundle.py"
 
 [[entry]]
 rust = "antecedent::analysis::composition::consume_with_limits"
@@ -345,8 +349,8 @@ python = "antecedent.composition_verification.consume_composition_verification_a
 [[entry]]
 rust = "antecedent::analysis::composition_verification::contract_effects"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "internal"
+reason = "builds observed effects from Rust-typed claim envelopes; Python states effects directly with composition_verification.Effect and verify_composition"
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::freshness_effects"
@@ -369,14 +373,14 @@ python = "antecedent.composition_verification.ledger_effects"
 [[entry]]
 rust = "antecedent::analysis::composition_verification::library_transported_node"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "internal"
+reason = "node builder for the facade transported routes; Python builds composition_verification.Node directly"
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::library_transported_standing"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "internal"
+reason = "standing builder for the facade transported routes; Python states Calibration and Node directly"
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::query_invalidated"
@@ -387,26 +391,29 @@ reason = "composition-graph or planner plumbing executed behind the prepared stu
 [[entry]]
 rust = "antecedent::analysis::composition_verification::query_revalidation"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "internal"
+reason = "reads the Rust invalidation log for one query; Python states the resulting effect with composition_verification.Effect"
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::registry_record_attests"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.composition_verification.registry_record_attests"
+reason = "tested in python/tests/test_composition_verification.py"
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::registry_record_identity"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.composition_verification.registry_record_identity"
+reason = "tested in python/tests/test_composition_verification.py"
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::registry_resolved_calibration"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.composition_verification.registry_resolved_calibration"
+reason = "tested in python/tests/test_composition_verification.py"
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::stage_effects"
@@ -423,14 +430,15 @@ reason = "composition-graph or planner plumbing executed behind the prepared stu
 [[entry]]
 rust = "antecedent::analysis::composition_verification::stage_node_with_standing"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "internal"
+reason = "node builder over a Rust RecalcPlan; Python builds composition_verification.Node directly"
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::unresolved_registry_calibrations"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.composition_verification.unresolved_registry_calibrations"
+reason = "tested in python/tests/test_composition_verification.py"
 
 [[entry]]
 rust = "antecedent::analysis::consume_callback_result"
@@ -459,14 +467,16 @@ python = "antecedent.joint_law_propagation.consume_joint_law_propagation_artifac
 [[entry]]
 rust = "antecedent::analysis::cross_world_interval::whole_path_interval"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.cross_world_execution.CrossWorldExecution.measured_interval"
+reason = "tested in python/tests/test_cross_world_execution.py"
 
 [[entry]]
 rust = "antecedent::analysis::cross_world_interval::whole_path_interval_basis"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.cross_world_execution.CrossWorldExecution.measured_interval"
+reason = "the calibration basis behind the interval; tested in python/tests/test_cross_world_execution.py"
 
 [[entry]]
 rust = "antecedent::analysis::decision_claims::atom_leaders"
@@ -483,32 +493,37 @@ python = "native:python/src/composition_api.rs"
 [[entry]]
 rust = "antecedent::analysis::decision_claims::envelope_identified_utilities"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.scenario_decision.identified_utilities_from_scenarios"
+reason = "route=envelope reads the structural envelope; tested in python/tests/test_scenario_decision.py"
 
 [[entry]]
 rust = "antecedent::analysis::decision_claims::evaluate_cpdag_decision"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.scenario_decision.decide_from_cpdag_completions"
+reason = "tested in python/tests/test_scenario_decision.py"
 
 [[entry]]
 rust = "antecedent::analysis::decision_claims::evaluate_scenario_decision"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.scenario_decision.decide_from_scenarios"
+reason = "tested in python/tests/test_scenario_decision.py"
 
 [[entry]]
 rust = "antecedent::analysis::decision_claims::interval_identified_utilities"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.scenario_decision.identified_utilities_from_intervals"
+reason = "tested in python/tests/test_scenario_decision.py"
 
 [[entry]]
 rust = "antecedent::analysis::decision_claims::report_identified_utilities"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.scenario_decision.identified_utilities_from_scenarios"
+reason = "route=report (the default), also over CPDAG completions through identified_utilities_from_cpdag_completions; tested in python/tests/test_scenario_decision.py"
 
 [[entry]]
 rust = "antecedent::analysis::decision_claims::scenario_claims"
@@ -519,8 +534,9 @@ python = "native:python/src/composition_api.rs"
 [[entry]]
 rust = "antecedent::analysis::decision_claims::weighted_identified_utilities"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.scenario_decision.identified_utilities_from_scenarios"
+reason = "route=weighted reads the weighted range; refusal tested in python/tests/test_scenario_decision.py"
 
 [[entry]]
 rust = "antecedent::analysis::decision_reliability::consume_derived_uncertainty"
@@ -561,8 +577,9 @@ python = "native:python/src/decision_reliability_api.rs"
 [[entry]]
 rust = "antecedent::analysis::design_ranking::evaluate"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "native:python/src/design_ranking_api.rs"
+reason = "evaluate_design_ranking; tested in python/tests/test_design_ranking.py"
 
 [[entry]]
 rust = "antecedent::analysis::design_ranking::rank_structural"
@@ -616,8 +633,9 @@ python = "antecedent.interface_contract.export_interface_contract"
 [[entry]]
 rust = "antecedent::analysis::forecast_law_from_sample"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.provider_callbacks.CallbackSession.forecast_law"
+reason = "tested in python/tests/test_provider_callbacks.py"
 
 [[entry]]
 rust = "antecedent::analysis::inspect_callback_result"
@@ -634,8 +652,9 @@ python = "antecedent.interface_contract.inspect_interface_contract_artifact"
 [[entry]]
 rust = "antecedent::analysis::interface_contract::check_interface_composition_with_ledger"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.interface_contract.check_composition_with_ledger"
+reason = "tested in python/tests/test_interface_contract.py"
 
 [[entry]]
 rust = "antecedent::analysis::inverse_query::consume"
@@ -658,8 +677,9 @@ python = "antecedent.inverse_query.InverseResult.export"
 [[entry]]
 rust = "antecedent::analysis::inverse_query::seal"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "native:python/src/inverse_query_api.rs"
+reason = "InverseQueryArtifact::new behind antecedent.inverse_query.evaluate; tested in python/tests/test_inverse_query.py"
 
 [[entry]]
 rust = "antecedent::analysis::inverse_sources::cohort_source"
@@ -713,20 +733,23 @@ python = "native:python/src/forward_source_api.rs"
 [[entry]]
 rust = "antecedent::analysis::joint_law_composed_basis::composed_basis"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval"
+reason = "tested in python/tests/test_composed_uncertainty.py"
 
 [[entry]]
 rust = "antecedent::analysis::joint_law_composed_basis::dependence_label"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval"
+reason = "tested in python/tests/test_composed_uncertainty.py"
 
 [[entry]]
 rust = "antecedent::analysis::joint_law_composed_basis::resolve"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval"
+reason = "tested in python/tests/test_composed_uncertainty.py"
 
 [[entry]]
 rust = "antecedent::analysis::joint_law_propagation::claim_from_artifact"
@@ -737,14 +760,15 @@ python = "native:python/src/joint_law_propagation_api.rs"
 [[entry]]
 rust = "antecedent::analysis::joint_law_propagation::input_alignment"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "internal"
+reason = "the mapping from an artifact alignment to the rule input alignment, applied inside PropagationDraws.from_artifact_column and the aligned_* routes; no separate call"
 
 [[entry]]
 rust = "antecedent::analysis::joint_law_propagation::propagate"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "native:python/src/joint_law_propagation_api.rs"
+reason = "the linear-moment and undeclared-mixture routes call propagate; tested in python/tests/test_joint_law_propagation.py"
 
 [[entry]]
 rust = "antecedent::analysis::joint_law_propagation::propagate_aligned_functional"
@@ -913,8 +937,9 @@ python = "antecedent.observation_query.consume_observation_query_artifact"
 [[entry]]
 rust = "antecedent::analysis::per_population_discovery::add_per_population_claims"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.selective_discovery.PerPopulationDiscovery.add_claims"
+reason = "tested in python/tests/test_per_population_discovery.py"
 
 [[entry]]
 rust = "antecedent::analysis::per_population_discovery::discover_per_population"
@@ -932,14 +957,16 @@ python = "native:python/src/selective_discovery_api.rs"
 [[entry]]
 rust = "antecedent::analysis::predictive_law_source"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.provider_callbacks.CallbackDeclaration.predictive_law_source"
+reason = "tested in python/tests/test_provider_callbacks.py"
 
 [[entry]]
 rust = "antecedent::analysis::proposal_arrival::execute"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "native:python/src/proposal_arrival_api.rs"
+reason = "antecedent.proposal_arrival.consume_arrival executes the checked formula on delivered counts; tested in python/tests/test_proposal_arrival.py"
 
 [[entry]]
 rust = "antecedent::analysis::provider_callbacks::refuse_identification_licence"
@@ -974,14 +1001,16 @@ python = "antecedent.provider_callbacks.refuse_posterior_guarantee"
 [[entry]]
 rust = "antecedent::analysis::provider_callbacks::register_callback_source"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.provider_callbacks.register_callback_source"
+reason = "tested in python/tests/test_provider_callbacks.py"
 
 [[entry]]
 rust = "antecedent::analysis::provider_callbacks::supersede_callback_source"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.provider_callbacks.supersede_callback_source"
+reason = "tested in python/tests/test_provider_callbacks.py"
 
 [[entry]]
 rust = "antecedent::analysis::provider_callbacks::verification_holds"
@@ -1058,8 +1087,8 @@ reason = "composition-graph or planner plumbing executed behind the prepared stu
 [[entry]]
 rust = "antecedent::analysis::recalc_joint_bayesian::execute_joint_bayesian_with_receipt"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "internal"
+reason = "the route behind JointBayesianSession, which is antecedent.recalc_bayesian.BayesianSession.execute"
 
 [[entry]]
 rust = "antecedent::analysis::recalc_receipt::execute_with_receipt"
@@ -1118,8 +1147,9 @@ python = "native:python/src/repair_api.rs"
 [[entry]]
 rust = "antecedent::analysis::repair::repair_with_artifact"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "native:python/src/repair_api.rs"
+reason = "repair runs repair_contract and RepairReportArtifact::build, the two steps of this entry; tested in python/tests/test_repair.py"
 
 [[entry]]
 rust = "antecedent::analysis::repair::unresolved_obligations"
@@ -1136,8 +1166,9 @@ python = "antecedent.selective_discovery.discover_on_split"
 [[entry]]
 rust = "antecedent::analysis::sample_split_analysis::split_evidence_sources"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.selective_discovery.SampleSplit.evidence_sources"
+reason = "tested in python/tests/test_sample_split_analysis.py"
 
 [[entry]]
 rust = "antecedent::analysis::sample_split_effect::estimate_effect_on_split"
@@ -1160,14 +1191,16 @@ reason = "composition-graph or planner plumbing executed behind the prepared stu
 [[entry]]
 rust = "antecedent::analysis::selective_discovery::add_discovery_claims"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.selective_discovery.SelectiveDiscovery.add_claims"
+reason = "tested in python/tests/test_selective_discovery.py"
 
 [[entry]]
 rust = "antecedent::analysis::selective_discovery::discovered_graph_source"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.selective_discovery.discovered_graph_source"
+reason = "tested in python/tests/test_selective_discovery.py"
 
 [[entry]]
 rust = "antecedent::analysis::selective_discovery::discovered_structure_refusal"
@@ -1178,20 +1211,23 @@ reason = "composition-graph or planner plumbing executed behind the prepared stu
 [[entry]]
 rust = "antecedent::analysis::selective_discovery::discovery_data_source"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.selective_discovery.discovery_data_source"
+reason = "tested in python/tests/test_selective_discovery.py and python/tests/test_sample_split_analysis.py"
 
 [[entry]]
 rust = "antecedent::analysis::selective_discovery::discovery_rows_source"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.selective_discovery.discovery_rows_source"
+reason = "tested in python/tests/test_selective_discovery.py"
 
 [[entry]]
 rust = "antecedent::analysis::selective_discovery::revalidate_after_discovery"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "bound"
+python = "antecedent.composition_verification.verify_composition"
+reason = "revalidate with no extra effects is verify_composition with a previous graph and no effects; tested in python/tests/test_composition_verification.py"
 
 [[entry]]
 rust = "antecedent::analysis::sensitivity_decision::consume"
@@ -1269,26 +1305,26 @@ python = "antecedent.transport.revalidation.claim_node_key"
 [[entry]]
 rust = "antecedent::analysis::transport_revalidation::invalidation_effects_for_claims"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "internal"
+reason = "reads the Rust state's invalidation log, which Python holds no handle to; Python states the resulting observed effects through the effects argument of antecedent.transport.revalidation, tested in python/tests/test_transport_revalidation.py"
 
 [[entry]]
 rust = "antecedent::analysis::transport_revalidation::provenance_trust"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "internal"
+reason = "step of revalidate; Python reaches it through the transport revalidation scene (python/src/transport_revalidation_api.rs)"
 
 [[entry]]
 rust = "antecedent::analysis::transport_revalidation::response_coordinate"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "internal"
+reason = "step of revalidate and of the transported-claim node; Python reaches it through the transport revalidation scene"
 
 [[entry]]
 rust = "antecedent::analysis::transport_revalidation::response_support"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "internal"
+reason = "step of revalidate; Python reaches it through the transport revalidation scene (python/src/transport_revalidation_api.rs)"
 
 [[entry]]
 rust = "antecedent::analysis::transport_revalidation::revalidate"
@@ -1305,20 +1341,20 @@ python = "antecedent.transport.revalidation.source_node_key"
 [[entry]]
 rust = "antecedent::analysis::transport_revalidation::transported_claim_node"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "internal"
+reason = "node and standing builders of revalidate and the transported constructors; Python reaches them through the transport revalidation scene"
 
 [[entry]]
 rust = "antecedent::analysis::transport_revalidation::transported_claim_standing"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "internal"
+reason = "node and standing builders of revalidate and the transported constructors; Python reaches them through the transport revalidation scene"
 
 [[entry]]
 rust = "antecedent::analysis::transport_sensitivity::route_of"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "internal"
+reason = "step of transport_range, reached through antecedent.transport.sensitivity.transport_sensitivity"
 
 [[entry]]
 rust = "antecedent::analysis::transport_sensitivity::transport_range"
@@ -1336,8 +1372,8 @@ reason = "the sensitivity result exports the artifact"
 [[entry]]
 rust = "antecedent::analysis::transport_sensitivity::transport_sensitivity_spec"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "internal"
+reason = "step of transport_range, reached through antecedent.transport.sensitivity.transport_sensitivity"
 
 [[entry]]
 rust = "antecedent::analysis::transported_cohort::transport_cohort_effect_from_result"
@@ -1366,8 +1402,8 @@ python = "native:python/src/transported_constructors_api.rs"
 [[entry]]
 rust = "antecedent::analysis::transported_constructors::synthesis_refusal"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "internal"
+reason = "maps a synthesis refusal to its external wire form; Python raises it from the synthesis constructors (python/tests/test_transported_constructors.py)"
 
 [[entry]]
 rust = "antecedent::analysis::transported_constructors::temporal_policy_response"
@@ -1483,8 +1519,8 @@ python = "native:python/src/cross_world_api.rs"
 [[entry]]
 rust = "antecedent::design::preview_design_rank"
 kind = "fn"
-status = "unverified"
-reason = "no Python entry found by name; a Python counterpart under another name was not confirmed"
+status = "internal"
+reason = "inspects ranking obligations against a prepared CausalContract that Python never holds as an object; rank_designs takes graph weights, not a prepared contract, and refuses incomplete or unlicensed inputs itself"
 
 [[entry]]
 rust = "antecedent::design::rank_designs"
