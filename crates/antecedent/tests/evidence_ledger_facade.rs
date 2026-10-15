@@ -644,7 +644,7 @@ fn a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record() {
         let interval = session.pooled_interval(result).unwrap();
         assert_eq!(interval.method, method);
         assert!(interval.lower < interval.estimate && interval.estimate < interval.upper);
-        assert_eq!(interval.level, 0.95);
+        assert!((interval.level - 0.95).abs() < 1e-12);
         let slot = &interval.report.scalars[0].calibration;
         assert_eq!(slot.status, "calibrated");
         assert!(slot.record_id.is_some());
