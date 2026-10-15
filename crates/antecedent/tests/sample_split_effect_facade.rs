@@ -22,29 +22,36 @@ use antecedent_io::measured_inference::split_effect::SplitEffectSource;
 
 const SEED: u64 = 4_242;
 const SPLIT_SEED: u64 = 17;
-const ROWS: usize = 2_000;
+const ROWS: usize = 6_000;
 /// A row count whose halves lie inside the measured analysis range.
-const MEASURED_ROWS: usize = 600;
+const MEASURED_ROWS: usize = 1_200;
 /// Columns `z1 w x y z3`; the true coefficient of `x` on `y` is `XY`.
-const XY: f64 = 0.7;
+const XY: f64 = 1.2;
 
+/// `SplitMix64` stream: every draw is a finalized hash of a counter, so consecutive draws
+/// carry none of the serial structure of a bare congruential generator.
 struct Lcg(u64);
 
 impl Lcg {
+    fn unit(&mut self) -> f64 {
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^= z >> 31;
+        (f64::from(u32::try_from(z >> 40).unwrap()) + 0.5) / f64::from(1u32 << 24)
+    }
+
     fn normal(&mut self) -> f64 {
-        let mut unit = || {
-            self.0 = self
-                .0
-                .wrapping_mul(6_364_136_223_846_793_005)
-                .wrapping_add(1_442_695_040_888_963_407);
-            (f64::from(u32::try_from(self.0 >> 40).unwrap()) + 0.5) / f64::from(1u32 << 24)
-        };
-        let (u, v) = (unit(), unit());
+        let (u, v) = (self.unit(), self.unit());
         (-2.0 * u.ln()).sqrt() * (2.0 * std::f64::consts::PI * v).cos()
     }
 }
 
-/// `z1 -> x <- w`, `x -> y <- z3`, `w -> y`: every edge is oriented by a collider.
+/// `z1 -> x <- w`, `x -> y <- z3`, `w -> y`: every edge is oriented by a collider. The weights
+/// keep every adjacent pair's partial correlation above 0.3 under every conditioning set
+/// (a positive `w -> x` and `w -> y` of equal size nearly cancel `w ⟂ x | y`, and PC then
+/// drops the edge), so the skeleton is recovered at 3000 discovery rows.
 fn collider_table(seed: u64) -> TabularData {
     collider_table_of(seed, ROWS)
 }
@@ -54,8 +61,8 @@ fn collider_table_of(seed: u64, rows: usize) -> TabularData {
     let (mut z1, mut w, mut x, mut y, mut z3) = (vec![], vec![], vec![], vec![], vec![]);
     for _ in 0..rows {
         let (a, b, c) = (rng.normal(), rng.normal(), rng.normal());
-        let t = 0.9 * a + 0.8 * b + rng.normal();
-        let o = XY * t + 0.9 * b + 0.8 * c + rng.normal();
+        let t = 0.8 * a - 0.6 * b + rng.normal();
+        let o = XY * t + 1.4 * b + 0.8 * c + rng.normal();
         z1.push(a);
         w.push(b);
         x.push(t);
@@ -203,8 +210,8 @@ fn the_effect_is_the_adjusted_least_squares_coefficient_on_the_analysis_rows() {
     assert!((estimate.standard_error() - se).abs() < 1e-9);
     let (lo, hi) = estimate.interval();
     assert!(lo < estimate.effect() && estimate.effect() < hi);
-    // About 1.96 standard errors either side: a Student quantile on 996 degrees of freedom.
-    assert!(((hi - lo) / (2.0 * se) - 1.9611).abs() < 5e-3);
+    // About 1.96 standard errors either side: a Student quantile on about 3000 degrees of freedom.
+    assert!(((hi - lo) / (2.0 * se) - 1.9608).abs() < 5e-3);
     assert!(lo <= XY && XY <= hi, "truth {XY} outside [{lo}, {hi}]");
 }
 
@@ -271,7 +278,7 @@ fn attestation_is_a_lookup_against_current_records_and_replays_when_it_holds() {
 
 #[test]
 fn an_interval_outside_the_measured_row_range_is_never_attested() {
-    // 1000 analysis rows lie above the largest measured analysis count, so no record can
+    // 3000 analysis rows lie above the largest measured analysis count (1200), so no record can
     // cover the execution whatever has been measured: the interval is computed and
     // `measure` refuses it with cell_not_licensed rather than relabelling it.
     let data = collider_table(7);

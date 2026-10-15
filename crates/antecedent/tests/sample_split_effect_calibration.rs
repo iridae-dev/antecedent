@@ -12,10 +12,12 @@
 //! Linear-Gaussian DAGs of five, six or seven variables (replicate `k` uses `5 + k % 3`),
 //! each with a fully orientable equivalence class built from colliders:
 //! `Z1 -> X <- W`, `X -> Y <- Z3`, `W -> Y` (and `Z2 -> X`, `Z4 -> Y` at six and seven
-//! variables). Edge weights have magnitude in `[0.6, 1.0]` with random signs, unit-variance
-//! noise, and the weights are redrawn until the `W -> Y` edge does not nearly cancel the
-//! `W -> X -> Y` path (`|b_wy + b_wx b_xy| >= 0.4`), so faithfulness holds with margin.
-//! Rows are `grid_n(400)`; each half has half of them.
+//! variables). Unit-variance noise; `Z` edges have magnitude in `[0.6, 1.0]`, `W -> X` in
+//! `[0.5, 0.8]`, `X -> Y` in `[1.0, 1.4]`, all with random signs, and `W -> Y` in `[1.2, 1.5]`
+//! with the sign opposing the `W -> X -> Y` path. Draws are redrawn until every true edge's
+//! population partial correlation stays at least 0.22 over every conditioning set: a collider
+//! child can cancel a confounder's dependence given the child, and PC then drops the edge.
+//! Rows are `grid_n(1200)`: 600, 1200 and 2400, half to each part.
 //!
 //! A replicate that reports no interval (an unresolved structure, a conflict) is not scored
 //! as covered or missed: coverage is the coverage *of reported intervals*, and the share of
@@ -71,9 +73,11 @@ use common::calibration::{
     stream_seed, uniform,
 };
 
-const BASE_ROWS: usize = 400;
+const BASE_ROWS: usize = 1200;
 const MIN_REPORTED_SHARE: f64 = 0.9;
 const INTERVAL: &str = "analytic_se";
+/// Smallest population partial correlation of any true edge the licensed family admits.
+const MIN_MARGIN: f64 = 0.22;
 
 /// Edge weights of one replicate's DAG.
 #[derive(Clone, Copy, Debug)]
@@ -113,33 +117,128 @@ fn variable_count(rep: u64) -> usize {
     5 + (rep % 3) as usize
 }
 
-fn draw_edges(family: Family, seed: u64) -> Edges {
-    let (low, high) = match family {
-        Family::WeakEdges => (0.05, 0.25),
-        _ => (0.6, 1.0),
+/// Smallest absolute population partial correlation of an adjacent pair over every
+/// conditioning set of the other variables. A value near zero means PC can separate a true
+/// edge on some tested set (a collider child cancelling a confounder's direct dependence),
+/// which is a near-unfaithful law the licensed family excludes.
+fn faithfulness_margin(shape: Layout, edges: &Edges) -> f64 {
+    let p = shape.variables;
+    let at = |i: usize| u32::try_from(i).expect("small index");
+    let weight = |parent: u32, child: u32| -> f64 {
+        let (w, x, y) = (at(shape.w), at(shape.x), at(shape.y));
+        let z3 = y + 1;
+        match (parent, child) {
+            (0, c) if c == x => edges.z1x,
+            (1, c) if c == x && shape.variables >= 6 => edges.z2x,
+            (a, c) if a == w && c == x => edges.wx,
+            (a, c) if a == w && c == y => edges.wy,
+            (a, c) if a == x && c == y => edges.xy,
+            (a, c) if a == z3 && c == y => edges.z3y,
+            _ => edges.z4y,
+        }
     };
+    let pairs: Vec<(usize, usize)> =
+        true_edges(shape).into_iter().map(|(a, b)| (a as usize, b as usize)).collect();
+    // Covariance of a linear-Gaussian DAG with unit noise: (I - B)^-1 (I - B)^-T.
+    let mut i_minus_b = vec![vec![0.0; p]; p];
+    for (i, row) in i_minus_b.iter_mut().enumerate() {
+        row[i] = 1.0;
+    }
+    for &(parent, child) in &pairs {
+        i_minus_b[child][parent] -= weight(parent as u32, child as u32);
+    }
+    let a = invert(&i_minus_b);
+    let mut cov = vec![vec![0.0; p]; p];
+    for i in 0..p {
+        for j in 0..p {
+            cov[i][j] = (0..p).map(|k| a[i][k] * a[j][k]).sum();
+        }
+    }
+    let mut margin = f64::INFINITY;
+    for &(u, v) in &pairs {
+        let others: Vec<usize> = (0..p).filter(|&i| i != u && i != v).collect();
+        for mask in 0..(1u32 << others.len()) {
+            let mut index = vec![u, v];
+            index.extend(others.iter().enumerate().filter(|(k, _)| mask >> k & 1 == 1).map(|(_, &i)| i));
+            let sub: Vec<Vec<f64>> =
+                index.iter().map(|&i| index.iter().map(|&j| cov[i][j]).collect()).collect();
+            let precision = invert(&sub);
+            let r = -precision[0][1] / (precision[0][0] * precision[1][1]).sqrt();
+            margin = margin.min(r.abs());
+        }
+    }
+    margin
+}
+
+/// Inverse by Gauss-Jordan elimination with partial pivoting.
+fn invert(matrix: &[Vec<f64>]) -> Vec<Vec<f64>> {
+    let n = matrix.len();
+    let mut a: Vec<Vec<f64>> = matrix.to_vec();
+    let mut inverse: Vec<Vec<f64>> =
+        (0..n).map(|i| (0..n).map(|j| f64::from(u8::from(i == j))).collect()).collect();
+    for col in 0..n {
+        let pivot = (col..n).max_by(|&p, &q| a[p][col].abs().total_cmp(&a[q][col].abs())).unwrap();
+        a.swap(col, pivot);
+        inverse.swap(col, pivot);
+        let d = a[col][col];
+        for j in 0..n {
+            a[col][j] /= d;
+            inverse[col][j] /= d;
+        }
+        for row in 0..n {
+            if row != col {
+                let f = a[row][col];
+                for j in 0..n {
+                    let (sa, si) = (f * a[col][j], f * inverse[col][j]);
+                    a[row][j] -= sa;
+                    inverse[row][j] -= si;
+                }
+            }
+        }
+    }
+    inverse
+}
+
+fn draw_edges(family: Family, seed: u64, shape: Layout) -> Edges {
     let mut next = uniform(seed, 0x57_17);
-    let mut weight = move || {
+    let mut signed = move |low: f64, high: f64| {
         let magnitude = low + (high - low) * next();
-        let sign = if next() < 0.5 { -1.0 } else { 1.0 };
-        sign * magnitude
+        if next() < 0.5 { -magnitude } else { magnitude }
     };
     loop {
-        let mut edges = Edges {
-            z1x: weight(),
-            z2x: weight(),
-            wx: weight(),
-            xy: weight(),
-            wy: weight(),
-            z3y: weight(),
-            z4y: weight(),
+        let mut edges = match family {
+            Family::WeakEdges => Edges {
+                z1x: signed(0.05, 0.25),
+                z2x: signed(0.05, 0.25),
+                wx: signed(0.05, 0.25),
+                xy: signed(0.05, 0.25),
+                wy: signed(0.05, 0.25),
+                z3y: signed(0.05, 0.25),
+                z4y: signed(0.05, 0.25),
+            },
+            _ => {
+                // The confounder's direct effect on the outcome opposes its path through the
+                // treatment and is larger, which keeps `W` and `X` dependent given `Y`.
+                let wx = signed(0.5, 0.8);
+                let xy = signed(1.0, 1.4);
+                let wy = -(wx * xy).signum() * (1.2 + 0.3 * signed(0.0, 1.0).abs());
+                Edges {
+                    z1x: signed(0.6, 1.0),
+                    z2x: signed(0.6, 1.0),
+                    wx,
+                    xy,
+                    wy,
+                    z3y: signed(0.6, 1.0),
+                    z4y: signed(0.6, 1.0),
+                }
+            }
         };
         match family {
             Family::CancellingEdge => {
                 edges.wy = -edges.wx * edges.xy;
                 return edges;
             }
-            Family::Licensed if (edges.wy + edges.wx * edges.xy).abs() < 0.4 => {}
+            Family::Licensed if faithfulness_margin(shape, &edges) < MIN_MARGIN => {}
             _ => return edges,
         }
     }
@@ -148,8 +247,8 @@ fn draw_edges(family: Family, seed: u64) -> Edges {
 /// The table of one replicate, columns `z1 [z2] w x y z3 [z4]`.
 fn family_data(family: Family, rep: u64, n: usize) -> (TabularData, Edges, Layout) {
     let seed = stream_seed(0x5911_7EFF, rep);
-    let edges = draw_edges(family, seed);
     let shape = layout(variable_count(rep));
+    let edges = draw_edges(family, seed, shape);
     let mut noise = gaussian(stream_seed(seed, 1));
     let has_z2 = shape.variables >= 6;
     let has_z4 = shape.variables == 7;

@@ -3,7 +3,7 @@
 Oracles: the generating law is ``z1 -> x <- w``, ``x -> y <- z3``, ``w -> y`` with the true
 coefficient of ``x`` on ``y`` equal to ``XY``; every edge is oriented by a collider, so the
 treatment's parents are exactly ``z1`` and ``w`` and the interval must cover ``XY``. The
-analysis half of a 2000-row table holds 1000 rows, which no measured grid point reaches, so an
+analysis half of a 6000-row table holds 3000 rows, which no measured grid point reaches, so an
 attestation there is a typed refusal whatever has been measured.
 """
 
@@ -16,20 +16,20 @@ from antecedent.errors import CausalValueError
 
 from _refusal import assert_registered_refusal
 
-XY = 0.7
+XY = 1.2
 SPLIT_SEED = 17
 SEED = 4242
 
 
-def collider_table(seed: int, rows: int = 2000) -> dict[str, np.ndarray]:
+def collider_table(seed: int, rows: int = 6000) -> dict[str, np.ndarray]:
     rng = np.random.default_rng(seed)
     z1, w, z3 = rng.normal(size=rows), rng.normal(size=rows), rng.normal(size=rows)
-    x = 0.9 * z1 + 0.8 * w + rng.normal(size=rows)
-    y = XY * x + 0.9 * w + 0.8 * z3 + rng.normal(size=rows)
+    x = 0.8 * z1 - 0.6 * w + rng.normal(size=rows)
+    y = XY * x + 1.4 * w + 0.8 * z3 + rng.normal(size=rows)
     return {"z1": z1, "w": w, "x": x, "y": y, "z3": z3}
 
 
-def chain_table(seed: int, rows: int = 2000) -> dict[str, np.ndarray]:
+def chain_table(seed: int, rows: int = 6000) -> dict[str, np.ndarray]:
     rng = np.random.default_rng(seed)
     columns = [rng.normal(size=rows)]
     for _ in range(4):
@@ -42,14 +42,14 @@ def test_the_effect_adjusts_for_the_treatments_parents_and_covers_the_truth() ->
         collider_table(1), treatment="x", outcome="y", split_seed=SPLIT_SEED, seed=SEED
     )
     assert set(estimate.adjustment_set) == {"z1", "w"}
-    assert estimate.discovery_rows == 1000
-    assert estimate.analysis_rows == 1000
+    assert estimate.discovery_rows == 3000
+    assert estimate.analysis_rows == 3000
     assert estimate.level == pytest.approx(0.95)
     assert estimate.lower < estimate.effect < estimate.upper
     assert estimate.lower <= XY <= estimate.upper
     half_width = (estimate.upper - estimate.lower) / 2
-    # A Student quantile on about 995 degrees of freedom times the standard error.
-    assert half_width == pytest.approx(1.9623 * estimate.standard_error, rel=2e-3)
+    # A Student quantile on about 2995 degrees of freedom times the standard error.
+    assert half_width == pytest.approx(1.9608 * estimate.standard_error, rel=2e-3)
 
 
 def test_the_basis_is_keyed_under_the_split_structure_not_a_known_graph() -> None:
@@ -61,7 +61,7 @@ def test_the_basis_is_keyed_under_the_split_structure_not_a_known_graph() -> Non
     assert basis["dependence"] == "disjoint_rows"
     assert basis["query"] == "AverageEffect"
     assert basis["estimator"] != "linear.adjustment.ate"
-    assert basis["row_count"] == 1000
+    assert basis["row_count"] == 3000
     assert basis["structure"] not in {"fixed", "graph_posterior"}
 
 
