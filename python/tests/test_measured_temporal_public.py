@@ -13,6 +13,7 @@ import pytest
 from antecedent import _native
 from antecedent.errors import CausalCancelledError, CausalError, CausalTypeError
 from antecedent.inference import MeasuredInference
+from antecedent.recalc import RecalcRefusal
 from antecedent.recalc_temporal import (
     CheckedTemporalIntervalConfig,
     TemporalEffect,
@@ -84,6 +85,14 @@ def test_normal_checked_source_measured_scalar_independent_math_and_fresh_consum
     req = request(functional)
     session = TemporalSession()
     session.execute(req, seed=41)
+    if method == "percentile":
+        # Its record is a named boundary (measured below the level) over 128 to 512
+        # units, so no calibrated claim is reported at this size or any other.
+        with pytest.raises(RecalcRefusal, match="record_not_attesting"):
+            session.dependent_interval(
+                config=CheckedTemporalIntervalConfig(method=method, bootstrap_seed=9171)
+            )
+        return
     result = session.dependent_interval(
         config=CheckedTemporalIntervalConfig(method=method, bootstrap_seed=9171)
     )

@@ -677,6 +677,57 @@ fn quantile(sorted: &[f64], p: f64) -> f64 {
     antecedent_stats::quantile_sorted(sorted, p, antecedent_stats::QuantileRule::Interpolated)
 }
 
+/// Bias-corrected and accelerated percentile endpoints (Efron 1987): the bias constant
+/// is the normal score of the replicate mass below the point estimate, and the
+/// acceleration is the skewness of the complete delete-one-unit jackknife. `None` when
+/// a leave-one-out estimate is unsupported or the constants are not finite, so the
+/// plain percentile endpoints stand.
+fn bias_corrected_accelerated<E: TemporalEstimator + ?Sized>(
+    all: &[&UnitHistories],
+    estimator: &E,
+    point: f64,
+    sorted: &[f64],
+    tail: f64,
+) -> Option<(f64, f64)> {
+    use antecedent_kernels::{norm_cdf, norm_inv};
+    #[allow(clippy::cast_precision_loss, reason = "replicate counts are at most 2000")]
+    let total = sorted.len() as f64;
+    let below = sorted.iter().filter(|v| **v < point).count() as f64;
+    #[allow(clippy::float_cmp, reason = "exact ties with the point estimate are the bias count")]
+    let equal = sorted.iter().filter(|v| **v == point).count() as f64;
+    let fraction = (below + 0.5 * equal) / total;
+    if !(fraction > 0.0 && fraction < 1.0) {
+        return None;
+    }
+    let bias = norm_inv(fraction);
+    let mut jackknife = Vec::with_capacity(all.len());
+    for skip in 0..all.len() {
+        let rest = all
+            .iter()
+            .enumerate()
+            .filter_map(|(index, unit)| (index != skip).then_some(*unit))
+            .collect::<Vec<_>>();
+        jackknife.push(estimator.estimate(&rest).ok()?);
+    }
+    #[allow(clippy::cast_precision_loss, reason = "unit counts are small")]
+    let mean = jackknife.iter().sum::<f64>() / jackknife.len() as f64;
+    let cubes = jackknife.iter().map(|v| (mean - v).powi(3)).sum::<f64>();
+    let squares = jackknife.iter().map(|v| (mean - v).powi(2)).sum::<f64>();
+    if squares <= 0.0 || !squares.is_finite() {
+        return None;
+    }
+    let acceleration = cubes / (6.0 * squares.powf(1.5));
+    let adjust = |z: f64| {
+        let shifted = bias + z;
+        norm_cdf(bias + shifted / (1.0 - acceleration * shifted))
+    };
+    let (p_low, p_high) = (adjust(norm_inv(tail)), adjust(norm_inv(1.0 - tail)));
+    if !(p_low.is_finite() && p_high.is_finite() && p_low < p_high) {
+        return None;
+    }
+    Some((quantile(sorted, p_low.clamp(0.0, 1.0)), quantile(sorted, p_high.clamp(0.0, 1.0))))
+}
+
 fn draw_units(panel: &TemporalUnitPanel, replicate_id: u64) -> (Vec<&UnitHistories>, u64) {
     let n = panel.units.len();
     let wide = u128::try_from(n).unwrap_or(1);
@@ -920,7 +971,9 @@ pub fn checked_paired_effect_interval<E: TemporalEstimator + ?Sized>(
     let tail = (1.0 - config.level) / 2.0;
     let (low, high) = (quantile(&points, tail), quantile(&points, 1.0 - tail));
     let (lower, upper) = match config.method {
-        IntervalMethod::Percentile => (low, high),
+        IntervalMethod::Percentile => {
+            bias_corrected_accelerated(&all, estimator, point, &points, tail).unwrap_or((low, high))
+        }
         IntervalMethod::Basic => (2.0_f64.mul_add(point, -high), 2.0_f64.mul_add(point, -low)),
         IntervalMethod::Studentized => {
             return Err(EstimationError::unsupported(
