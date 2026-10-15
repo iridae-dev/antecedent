@@ -160,7 +160,7 @@ fn faithfulness_margin(shape: Layout, edges: &Edges) -> f64 {
         for mask in 0..(1u32 << others.len()) {
             let mut index = vec![u, v];
             index.extend(
-                others.iter().enumerate().filter(|(k, _)| mask >> k & 1 == 1).map(|(_, &i)| i),
+                others.iter().enumerate().filter(|(k, _)| (mask >> k) & 1 == 1).map(|(_, &i)| i),
             );
             let sub: Vec<Vec<f64>> =
                 index.iter().map(|&i| index.iter().map(|&j| cov[i][j]).collect()).collect();
