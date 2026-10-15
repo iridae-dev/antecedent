@@ -97,7 +97,8 @@ fn measure(
         )?;
         session.candidate_interval_internal(
             &DependentIntervalConfig {
-                replicates: 500,
+                // A percentile endpoint at 500 replicates is too coarse for a 95% claim.
+                replicates: if method == IntervalMethod::Percentile { 2000 } else { 500 },
                 seed: seed + 100_000,
                 method,
                 ..DependentIntervalConfig::default()

@@ -338,7 +338,8 @@ fn weighted_design(
     });
     for result in results {
         match result {
-            Some((units, interval)) => {
+            Some((_, interval)) => {
+                // The claim's sample size is the planned horizon, not the stopping count.
                 candidate::bind(
                     &mut tally,
                     &basis(
@@ -347,7 +348,7 @@ fn weighted_design(
                         "Frequentist",
                         "arm_contrast:treatment_minus_control",
                         "adaptive_assignment_stopped_by_posterior_rule",
-                        units,
+                        n,
                     ),
                 );
                 tally.record(interval, truth[1] - truth[0]);
