@@ -250,6 +250,42 @@ def test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record()
         execution.posterior()
     assert error.value.detail == "cross_world_execution.posterior_route_closed"
 
+    # Sixty units under a declared sampling are inside the measured range: the interval is
+    # bound to its attesting record and is conditional on the declared model.
+    evidence = [{"x": 0, "y": 0}, {"x": 1, "y": 1}, {"x": 1, "y": 0}, {"x": 0, "y": 1}]
+    units = tuple(cw.FactualUnit(f"u{i}", evidence[i % 4]) for i in range(60))
+    request = cw.CrossWorldRequest(
+        scm=_response_scm(),
+        units=units,
+        worlds=(_do("x0", 0), _do("x1", 1)),
+        quantity=cw.probability("x0", "y", 0),
+    )
+    sealed = cw.seal(request)
+    for sampling, scalar in (
+        ("independent_sample", "population_mean_counterfactual_probability"),
+        ("fixed_units", "realized_counterfactual_mean"),
+    ):
+        interval = sealed.measured_interval(sampling)
+        assert interval.scalar == scalar
+        assert interval.unit_sampling == sampling
+        assert interval.lower <= interval.point <= interval.upper
+        assert interval.level == 0.95
+        assert interval.record_id.startswith("cov.counterfactual.dag.")
+        assert interval.label == "measured_interval_under_the_declared_model"
+    # Fewer units than the measured range have no attesting record.
+    small = cw.seal(
+        cw.CrossWorldRequest(
+            scm=_response_scm(),
+            units=units[:10],
+            worlds=(_do("x0", 0), _do("x1", 1)),
+            quantity=cw.probability("x0", "y", 0),
+        )
+    )
+    with pytest.raises(R) as error:
+        small.measured_interval("independent_sample")
+    assert error.value.reason_code == "cell_not_licensed"
+    assert error.value.detail == "cross_world_execution.interval_route_closed"
+
 
 def test_unsupported_requests_are_scientific_refusals() -> None:
     executor = cw.CrossWorldExecutor()

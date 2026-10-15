@@ -497,6 +497,62 @@ def test_the_closed_routes_raise_typed_refusals() -> None:
     expect(error, "cell_not_licensed", "predictive_assessment.interval_not_licensed")
 
 
+def test_a_scoped_score_interval_is_published_inside_a_measured_design_and_refused_outside() -> None:
+    # 800 iid cases of a fixed (never fitted) Gaussian forecast on a held-out split, level 0.95:
+    # inside the measured iid records (400 to 1600 cases).
+    n = 800
+    laws = [pa.Gaussian(0.3, 1.2)] * n
+    result = pa.assess(
+        observed(normals(n, 7)),
+        [predictor("a", laws)],
+        pa.ValidationDesign.held_out_split(),
+        scores=("crps", "log_score"),
+        dependence=pa.Dependence.iid(),
+    )
+    interval = result.score_interval("a", "crps")
+    assert interval.lower < interval.mean < interval.upper
+    assert interval.cases == n
+    assert interval.construction == "student_t_iid"
+    assert interval.coverage_record.startswith("cov.predictive_score_interval.")
+    assert "finite variance" in interval.assumptions
+    # An unscoped request is still the closed route.
+    expect(
+        refused(result.score_interval),
+        "cell_not_licensed",
+        "predictive_assessment.interval_not_licensed",
+    )
+    # Below the measured number of cases, and at another level: the typed out-of-scope refusal.
+    small = pa.assess(
+        observed(normals(100, 7)),
+        [predictor("a", [pa.Gaussian(0.3, 1.2)] * 100)],
+        pa.ValidationDesign.held_out_split(),
+        scores=("crps",),
+        dependence=pa.Dependence.iid(),
+    )
+    expect(
+        refused(lambda: small.score_interval("a", "crps")),
+        "cell_not_licensed",
+        "predictive_assessment.interval_scope_outside_measured",
+    )
+    expect(
+        refused(lambda: result.score_interval("a", "crps", level=0.9)),
+        "cell_not_licensed",
+        "predictive_assessment.interval_scope_outside_measured",
+    )
+    # No declared dependence: independence is never assumed.
+    undeclared = pa.assess(
+        observed(normals(n, 7)),
+        [predictor("a", laws)],
+        pa.ValidationDesign.held_out_split(),
+        scores=("crps",),
+    )
+    expect(
+        refused(lambda: undeclared.score_interval("a", "crps")),
+        "sampling_dependence_unknown",
+        "predictive_assessment.interval_dependence_undeclared",
+    )
+
+
 def test_malformed_declarations_are_typed_input_errors() -> None:
     obs = observed([0.1, 0.2])
     laws = [pa.Gaussian(0.0, 1.0)] * 2

@@ -629,6 +629,29 @@ def test_repeated_observation_use_is_flagged_and_stays_flagged_when_cited():
     assert error.reason_code == "evidence_overlap_unknown"
 
 
+def test_a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record():
+    ledger = el.EvidenceLedger()
+    sources = [ledger.add_source(data(f"study_{i}", i * 100, (i + 1) * 100)) for i in range(5)]
+
+    def summaries(shift: float, count: int = 5):
+        return [
+            summary(sources[i], 0.5 + shift * (i - 2), 0.01 + 0.002 * i) for i in range(count)
+        ]
+
+    fixed = ledger.pool_summaries("fixed", summaries(0.01)).result
+    random = ledger.random_effects("random", summaries(0.05)).result
+    for result, method in ((fixed, "wald_z"), (random, "hksj_t")):
+        interval = ledger.pooled_interval(result)
+        assert interval["method"] == method
+        assert interval["lower"] < interval["estimate"] < interval["upper"]
+        assert interval["level"] == 0.95
+        assert interval["calibration"]["status"] == "calibrated"
+        assert interval["calibration"]["record_id"]
+    three = ledger.pool_summaries("three", summaries(0.01, 3)).result
+    error = refused(lambda: ledger.pooled_interval(three))
+    expect(error, "cell_not_licensed", "evidence_ledger.interval_not_measured")
+
+
 def test_a_pooled_interval_refuses_without_a_measured_record():
     scenario = Scenario()
     error = refused(lambda: scenario.ledger.pooled_interval(scenario.r_all))

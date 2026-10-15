@@ -783,11 +783,13 @@ fn the_three_components_are_separate_fields_and_a_combined_number_is_refused() {
 
 #[test]
 fn every_published_ranking_or_interval_route_is_closed_at_its_coordinate() {
-    let draws = gaussian_pair(0.5, 500, false);
+    // 100 draws per candidate is below the measured range (500 to 2000): no current
+    // coverage record covers it, so every route refuses with the typed reason.
+    let draws = gaussian_pair(0.5, 100, false);
     let report = assess(&draws, None, &ReliabilityRequest::expected_utility(), &ctx()).unwrap();
     let coordinate: &CalibrationCoordinate = &report.coordinate;
     assert_eq!(coordinate.candidate_set_size, 2);
-    assert_eq!(coordinate.mc_budget, 500);
+    assert_eq!(coordinate.mc_budget, 100);
     assert_eq!(coordinate.selection_rule, "maximize_expected_utility");
     assert_eq!(report.closed_routes.len(), PublishedRoute::ALL.len());
     for route in PublishedRoute::ALL {
@@ -798,6 +800,36 @@ fn every_published_ranking_or_interval_route_is_closed_at_its_coordinate() {
         assert!(refusal.offending.unwrap().contains("candidate_set_size=2"));
     }
     assert!(report.closed_routes.iter().all(|r| r.code == "cell_not_licensed"));
+}
+
+#[test]
+fn every_published_route_is_licensed_inside_a_measured_coverage_record() {
+    // Two candidates on a shared stream with 1000 draws each, expected-utility selection,
+    // independent unweighted enumerated draws, level 0.95: inside the measured records of
+    // the ranking probability, the utility interval, the confidence set and the
+    // selection-corrected interval (500 to 2000 draws, shared correlation 0 and 0.5).
+    let draws = gaussian_pair(0.5, 1000, false);
+    let report = assess(&draws, None, &ReliabilityRequest::expected_utility(), &ctx()).unwrap();
+    assert_eq!(report.coordinate.mc_budget, 1000);
+    for route in PublishedRoute::ALL {
+        license_route(route, &report.coordinate)
+            .unwrap_or_else(|error| panic!("{} is measured here: {error:?}", route.as_str()));
+    }
+    assert!(report.closed_routes.is_empty());
+    // The same coordinate at another level, and with serially dependent draws, is not.
+    let at_ninety = antecedent_design::decision_reliability::license_route_at(
+        PublishedRoute::RankingProbability,
+        &report.coordinate,
+        0.9,
+    )
+    .unwrap_err();
+    assert_eq!(at_ninety.reason_code(), "cell_not_licensed");
+    let mut dependent = report.coordinate.clone();
+    dependent.within_stream = antecedent_design::decision_reliability::WithinStreamDependence::Autocorrelated;
+    assert_eq!(
+        license_route(PublishedRoute::UtilityInterval, &dependent).unwrap_err().reason_code(),
+        "cell_not_licensed"
+    );
 }
 
 #[test]

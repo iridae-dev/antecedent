@@ -165,19 +165,23 @@ def test_composed_interval_opens_only_with_a_measured_record_at_its_coordinate()
     # The caller supplies no record: the registry decides. A claim whose composed key has no
     # currently attesting record is closed, whatever construction is named.
     assert not hasattr(jl, "CoverageRecord")
-    for construction in ("normal_approximation", "aligned_draw_equal_tail_exchangeable_rank"):
-        try:
-            interval = claim.check_composed_interval(construction, evidence_rows=200)
-        except R as refusal:
-            assert refusal.reason_code == "cell_not_licensed"
-            assert refusal.detail in {
-                "joint_law_propagation.interval_route_closed",
-                "joint_law_propagation.coverage_record_unmeasured",
-            }
-            assert refusal.remedy
-        else:
-            assert interval.label == "measured_interval"
-            assert interval.record_id
+    # Inside the measured scope the interval is bound to its attesting record.
+    interval = claim.check_composed_interval("normal_approximation", evidence_rows=200)
+    assert interval.label == "measured_interval"
+    assert interval.record_id.startswith("cov.composed_quantity.")
+    assert interval.nominal_level == 0.95
+    half = 1.959963984540054 * math.sqrt(1.61)
+    assert interval.lower == pytest.approx(-0.7 - half, abs=1e-6)
+    assert interval.upper == pytest.approx(-0.7 + half, abs=1e-6)
+    # Another construction or a smaller evidence size has no attesting record.
+    with pytest.raises(R) as error:
+        claim.check_composed_interval("aligned_draw_equal_tail_exchangeable_rank", evidence_rows=200)
+    assert error.value.reason_code == "cell_not_licensed"
+    assert error.value.detail == "joint_law_propagation.interval_route_closed"
+    with pytest.raises(R) as error:
+        claim.check_composed_interval("normal_approximation", evidence_rows=100)
+    assert error.value.detail == "joint_law_propagation.coverage_record_unmeasured"
+    assert error.value.remedy
     with pytest.raises(CausalValueError):
         claim.check_composed_interval("normal_approximation", evidence_rows=0)
 

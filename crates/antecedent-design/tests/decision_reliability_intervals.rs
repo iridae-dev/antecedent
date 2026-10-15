@@ -486,6 +486,60 @@ fn a_derivation_is_unmeasured_so_every_route_and_the_combined_number_stay_closed
     assert!(derived.assumptions.iter().any(|a| a.contains("treated_as_known")));
 }
 
+#[test]
+fn a_derivation_is_published_inside_a_measured_record_and_refused_outside_it() {
+    let design = |n_draws: usize| KnownOptimumDesign {
+        true_means: vec![0.5, 0.0],
+        noise_sd: 1.0,
+        n_draws,
+        coupling: NoiseCoupling::SharedStream { correlation: 0.5 },
+    };
+    let stream = StreamId::new(77, StreamPurpose::Selection, 0, "measured");
+    let request = ReliabilityRequest {
+        ranking: Some(RankingRequest::default()),
+        ..expected_utility_request()
+    };
+    // 1000 draws, two candidates, shared stream: inside every measured record.
+    let draws = simulate_selection_draws(&design(1000), &stream).unwrap();
+    let derived =
+        derive_uncertainty(&draws, None, &request, &IntervalRequest::marginal(0.95), &ctx())
+            .unwrap();
+    for route in PublishedRoute::ALL {
+        derived.publish(route).unwrap_or_else(|error| {
+            panic!("{} is measured at this coordinate: {error:?}", route.as_str())
+        });
+    }
+    // Another level, simultaneous multiplicity and an unmeasured budget are refused.
+    let other_level =
+        derive_uncertainty(&draws, None, &request, &IntervalRequest::marginal(0.9), &ctx())
+            .unwrap();
+    assert_eq!(
+        other_level.publish(PublishedRoute::UtilityInterval).unwrap_err().reason_code(),
+        "cell_not_licensed"
+    );
+    let simultaneous = derive_uncertainty(
+        &draws,
+        None,
+        &request,
+        &IntervalRequest { level: 0.95, multiplicity: IntervalMultiplicity::Simultaneous },
+        &ctx(),
+    )
+    .unwrap();
+    assert_eq!(
+        simultaneous.publish(PublishedRoute::RankingProbability).unwrap_err().reason_code(),
+        "cell_not_licensed"
+    );
+    let small = simulate_selection_draws(&design(100), &stream).unwrap();
+    let small_derived =
+        derive_uncertainty(&small, None, &request, &IntervalRequest::marginal(0.95), &ctx())
+            .unwrap();
+    for route in PublishedRoute::ALL {
+        let error = small_derived.publish(route).unwrap_err();
+        assert_eq!(error.reason_code(), "cell_not_licensed");
+        assert!(error.to_refusal().offending.unwrap().contains("mc_budget=100"));
+    }
+}
+
 // ---- fresh consumer -----------------------------------------------------------------
 
 #[test]

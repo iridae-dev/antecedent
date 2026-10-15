@@ -279,23 +279,27 @@ fn a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate() {
     assert_eq!(&*basis.estimator, "joint_law.aligned_joint_law");
     assert_eq!(basis.row_count, 200);
 
-    // Without a currently attesting record the interval reading is closed, whatever the
-    // construction, and an evidence size of zero is invalid.
-    for construction in ["normal_approximation", "aligned_draw_equal_tail_exchangeable_rank"] {
-        match claim.check_composed_interval(construction, 200) {
-            Ok(licence) => assert_eq!(licence.label(), "measured_interval"),
-            Err(error) => {
-                assert_eq!(error.code(), "cell_not_licensed");
-                assert!(
-                    error.details() == vec!["joint_law_propagation.interval_route_closed"]
-                        || error.details()
-                            == vec!["joint_law_propagation.coverage_record_unmeasured"],
-                    "{:?}",
-                    error.details()
-                );
-            }
-        }
-    }
+    // Inside the measured scope (a normal approximation of a linear contrast of aligned
+    // draws, from 200 observations) the interval is bound to its attesting record. Mean -0.7,
+    // variance 1.61, z(0.975) = 1.959964.
+    let licence = claim.check_composed_interval("normal_approximation", 200).expect("licensed");
+    assert_eq!(licence.label(), "measured_interval");
+    assert!(licence.record_id().starts_with("cov.composed_quantity."));
+    assert!((licence.nominal_level() - 0.95).abs() < 1e-12);
+    let half = 1.959_963_984_540_054 * 1.61_f64.sqrt();
+    let (lower, upper) = licence.bounds().expect("bounds");
+    assert!((lower - (-0.7 - half)).abs() < 1e-6, "lower {lower}");
+    assert!((upper - (-0.7 + half)).abs() < 1e-6, "upper {upper}");
+
+    // Below the measured size, or with a construction that was not measured, it is closed.
+    let error = claim.check_composed_interval("normal_approximation", 100).expect_err("size");
+    assert_eq!(error.code(), "cell_not_licensed");
+    assert_eq!(error.details(), vec!["joint_law_propagation.coverage_record_unmeasured"]);
+    let error = claim
+        .check_composed_interval("aligned_draw_equal_tail_exchangeable_rank", 200)
+        .expect_err("construction");
+    assert_eq!(error.code(), "cell_not_licensed");
+    assert_eq!(error.details(), vec!["joint_law_propagation.interval_route_closed"]);
     let error = claim.check_composed_interval("normal_approximation", 0).expect_err("rows");
     assert_eq!(error.code(), "invalid_argument");
 

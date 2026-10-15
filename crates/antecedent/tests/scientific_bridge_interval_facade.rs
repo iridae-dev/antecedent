@@ -320,6 +320,53 @@ fn a_correction_propagates_the_source_and_both_rate_variances_by_the_delta_metho
 }
 
 #[test]
+fn a_correction_inside_a_measured_record_is_published_bound_to_it() {
+    // Rates estimated from a stated validation sample of 400 units (measured: 100 to 400),
+    // Youden 0.7, rate standard errors 0.02, level 0.95.
+    let contract = correction_contract();
+    let result = derive(&contract, 0.31, "probability", Some(0.02));
+    let interval = result.bridged_interval(0.95).expect("measured");
+    let p = 11.0_f64 / 70.0;
+    assert!(close(interval.value, p, 1e-12));
+    assert!(interval.lower < p && p < interval.upper);
+    assert_eq!(interval.licensed_by, "coverage_record");
+    assert!(
+        interval.coverage_record.starts_with("cov.bridged_claim_interval."),
+        "{}",
+        interval.coverage_record
+    );
+    assert!(!interval.calibration_sha.is_empty());
+    assert!(interval.assumptions.contains("unresolved obligations"));
+}
+
+#[test]
+fn a_trial_level_prediction_interval_inside_a_measured_record_is_published_bound_to_it() {
+    // Twenty validation trials (measured: 15 to 40) on a noisy line.
+    let trials: Vec<TrialEffectPair> = (0..20)
+        .map(|i| {
+            let x = 0.5 + 1.5 * f64::from(i) / 19.0;
+            TrialEffectPair {
+                surrogate_effect: x,
+                terminal_effect: 0.1 + 0.9 * x + 0.1 * f64::from(i).sin(),
+            }
+        })
+        .collect();
+    let mut contract = surrogate_contract();
+    if let BridgeMapping::TrialLevelLinear(validation) = &mut contract.mapping {
+        validation.trials = trials;
+        validation.min_trials = 4;
+        validation.min_r_squared = 0.5;
+    }
+    let result = derive(&contract, 1.2, "mmol_per_l", Some(0.1));
+    let interval = result.bridged_interval(0.95).expect("measured");
+    assert!(interval.lower < interval.value && interval.value < interval.upper);
+    assert_eq!(interval.mapping.as_str(), "trial_level_linear");
+    assert_eq!(interval.licensed_by, "coverage_record");
+    assert!(interval.degrees_of_freedom == Some(18.0));
+    assert!(interval.coverage_record.contains("student_t_prediction_interval"));
+}
+
+#[test]
 fn an_interval_without_the_source_standard_error_is_refused_with_its_remedy() {
     let contract = affine_contract();
     let result = derive(&contract, 0.5, "probability", None);

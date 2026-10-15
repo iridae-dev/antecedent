@@ -312,15 +312,77 @@ fn a_measured_interval_names_the_measured_cell_and_refuses_every_other_procedure
         size_weighted: false,
     };
     assert!(session.measured_interval(&weighting, "weighting", &ctx()).is_err());
-    // The measured construction is recognized: it is never refused as an unmeasured protocol.
+    // The measured construction at a horizon below the measured range is outside its record.
     let measured =
         AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
-    match session.measured_interval(&measured, "measured", &ctx()) {
-        Ok(interval) => assert_eq!(interval.report().calibration, "calibrated"),
-        Err(refusal) => {
-            assert_ne!(refusal.detail, "measured_interval.protocol_not_measured");
-        }
-    }
+    let refusal = session.measured_interval(&measured, "short", &ctx()).unwrap_err();
+    assert_eq!(refusal.code, "cell_not_licensed");
+}
+
+#[test]
+fn a_thompson_credible_interval_inside_the_measured_range_is_bound_to_its_record() {
+    let session = session(thompson_trial([0.3, 0.5], 200, &[100, 200], 5));
+    let request = AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
+    let interval = session.measured_interval(&request, "thompson", &ctx()).expect("measured");
+    let report = interval.report();
+    assert_eq!(report.calibration, "calibrated");
+    let scalar = &report.scalars[0];
+    assert_eq!(scalar.name, "treatment_success_probability");
+    assert!(scalar.lower < scalar.point && scalar.point < scalar.upper);
+    assert!(scalar.calibration.record_id.as_deref().is_some_and(|id| id.contains("prior_predictive")));
+}
+
+#[test]
+fn a_weighted_contrast_and_a_confidence_sequence_are_bound_to_their_records() {
+    let mut declaration = repeated_measures_trial([0.0, 0.4], 400, 11);
+    declaration.probability_floor = 0.01;
+    let session = session(declaration);
+    let request = AdaptiveRequest::AdaptiveWeighting {
+        look: 0,
+        plus_arm: 1,
+        minus_arm: Some(0),
+        scheme: "variance_stabilizing".to_owned(),
+        prior_mean: 0.5,
+        prior_strength: 1.0,
+        size_weighted: false,
+    };
+    let weighted = session.measured_interval(&request, "weighted", &ctx()).expect("measured");
+    assert_eq!(weighted.report().scalars[0].name, "treatment_minus_control");
+    assert_eq!(weighted.report().calibration, "calibrated");
+    // An unmeasured weighting scheme borrows no record.
+    let uniform = contrast_request(false);
+    let refusal = session.measured_interval(&uniform, "uniform", &ctx()).unwrap_err();
+    assert_eq!(refusal.detail, "measured_interval.protocol_not_measured");
+
+    let bandit = AdaptiveInferenceSession::prepare(epsilon_greedy_trial(
+        [0.4, 0.6],
+        0.3,
+        400,
+        &[200, 400],
+        7,
+    ))
+    .expect("contract");
+    let sequence = AdaptiveRequest::ConfidenceSequence {
+        look: 1,
+        alpha: 0.05,
+        tuning_samples: 100.0,
+        contrast: Some((1, 0)),
+    };
+    let interval = bandit.measured_interval(&sequence, "sequence", &ctx()).expect("measured");
+    assert_eq!(interval.report().scalars[0].name, "treatment_minus_control");
+}
+
+#[test]
+fn a_group_sequential_repeated_interval_is_bound_to_its_record() {
+    let session = session(group_sequential_trial(0.3, 240, &[80, 160, 240], 9));
+    let request = AdaptiveRequest::GroupSequential { look: 2, control_arm: 0, treatment_arm: 1 };
+    let interval = session.measured_interval(&request, "gs", &ctx()).expect("measured");
+    let scalar = &interval.report().scalars[0];
+    assert_eq!(scalar.name, "treatment_minus_control");
+    assert!(scalar.lower < scalar.point && scalar.point < scalar.upper);
+    // A stagewise-adjusted reading and another arm pair are not the measured design.
+    let reversed = AdaptiveRequest::GroupSequential { look: 2, control_arm: 1, treatment_arm: 0 };
+    assert!(session.measured_interval(&reversed, "gs-reversed", &ctx()).is_err());
 }
 
 #[test]

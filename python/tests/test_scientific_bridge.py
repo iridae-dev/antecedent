@@ -808,6 +808,47 @@ def test_no_interval_posterior_or_joint_law_is_licensed():
     )
 
 
+def test_a_scoped_interval_needs_the_source_standard_error_and_a_measured_design():
+    import math
+
+    contract = surrogate_contract()
+    quantity = outcome("trial:biomarker", units="mmol_per_l")
+    # No source standard error: refused naming it.
+    claim = sb.prepare_scientific_bridge(contract).derive(surrogate_source())
+    refused(
+        lambda: claim.interval(0.95),
+        "cell_not_licensed",
+        "scientific_bridge.interval_source_uncertainty_required",
+    )
+    # Four validation trials are below the measured 15 to 40: refused with the typed reason.
+    claim = sb.prepare_scientific_bridge(contract).derive(
+        sb.SourceClaim.declared("biomarker-effect", 0.8, quantity, standard_error=0.1)
+    )
+    refused(
+        lambda: claim.interval(0.95),
+        "cell_not_licensed",
+        "scientific_bridge.interval_scope_outside_measured",
+    )
+    # Twenty validation trials, source standard error declared: published, bound to a record.
+    trials = [
+        (0.5 + 1.5 * i / 19.0, 0.1 + 0.9 * (0.5 + 1.5 * i / 19.0) + 0.1 * math.sin(i))
+        for i in range(20)
+    ]
+    wide = surrogate_contract(
+        mapping=sb.TrialLevelMapping(trials=trials, min_trials=4, min_r_squared=0.5)
+    )
+    claim = sb.prepare_scientific_bridge(wide).derive(
+        sb.SourceClaim.declared("biomarker-effect", 1.2, quantity, standard_error=0.1)
+    )
+    interval = claim.interval(0.95)
+    assert interval.lower < interval.value < interval.upper
+    assert interval.licensed_by == "coverage_record"
+    assert interval.coverage_record.startswith("cov.bridged_claim_interval.")
+    assert interval.degrees_of_freedom == 18.0
+    # An unscoped request is still refused.
+    refused(claim.interval, "cell_not_licensed", "scientific_bridge.interval_not_licensed")
+
+
 # --------------------------------------------------------------------------- artifact
 
 

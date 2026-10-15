@@ -323,6 +323,22 @@ def test_every_published_ranking_or_interval_route_is_closed() -> None:
         dr.publish("not_a_route", result.report.coordinate)
 
 
+def test_every_published_route_is_licensed_inside_a_measured_coverage_record() -> None:
+    # Two candidates, 1000 draws, shared stream, expected-utility selection, level 0.95:
+    # inside the measured records (500 to 2000 draws per candidate).
+    result = dr.assess(_draws(_gaussian([0.5, 0.0], 1000, seed=5, rho=0.5)))
+    assert result.report.coordinate["mc_budget"] == 1000
+    assert len(result.report.closed_routes) == 0
+    for route in (
+        "ranking_probability",
+        "optimality_confidence_set",
+        "utility_interval",
+        "selection_corrected_interval",
+    ):
+        result.publish(route)
+        dr.publish(route, result.report.coordinate)
+
+
 # ------------------------------------------------------------------ artifact
 
 

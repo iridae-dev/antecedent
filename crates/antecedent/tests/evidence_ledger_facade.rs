@@ -617,6 +617,52 @@ fn repeated_observation_use_is_flagged_and_stays_flagged_when_cited() {
 }
 
 #[test]
+fn a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record() {
+    // Five studies of 100 observations each: inside the measured fixed-effect
+    // and random-effects constructions.
+    let mut session = StudyBuilder::evidence_ledger();
+    let sources: Vec<SourceId> = (0..5)
+        .map(|i| session.add_source(data(&format!("study_{i}"), i * 100..(i + 1) * 100)).unwrap())
+        .collect();
+    let summaries = |shift: f64| -> Vec<StudySummary> {
+        sources
+            .iter()
+            .enumerate()
+            .map(|(i, s)| summary(*s, 0.5 + shift * (i as f64 - 2.0), 0.01 + 0.002 * i as f64))
+            .collect()
+    };
+    let c = ctx();
+    let fixed = session
+        .pool_summaries(pooling("fixed", summaries(0.01)), PoolingDeclaration::Independent, &c)
+        .unwrap()
+        .result;
+    let random = session
+        .random_effects(pooling("random", summaries(0.05)), BetweenStudy::DerSimonianLaird, &c)
+        .unwrap()
+        .result;
+    for (result, method) in [(fixed, "wald_z"), (random, "hksj_t")] {
+        let interval = session.pooled_interval(result).unwrap();
+        assert_eq!(interval.method, method);
+        assert!(interval.lower < interval.estimate && interval.estimate < interval.upper);
+        assert_eq!(interval.level, 0.95);
+        let slot = &interval.report.scalars[0].calibration;
+        assert_eq!(slot.status, "calibrated");
+        assert!(slot.record_id.is_some());
+    }
+    // Three studies are outside the measured study counts: typed refusal.
+    let three = session
+        .pool_summaries(
+            pooling("three", summaries(0.01)[..3].to_vec()),
+            PoolingDeclaration::Independent,
+            &c,
+        )
+        .unwrap()
+        .result;
+    let refusal = session.pooled_interval(three).unwrap_err();
+    expect(&refusal, "cell_not_licensed", "evidence_ledger.interval_not_measured");
+}
+
+#[test]
 fn a_pooled_interval_refuses_without_a_measured_record() {
     let s = scenario();
     // The small fixture has no coverage record of its sample size: the numeric
