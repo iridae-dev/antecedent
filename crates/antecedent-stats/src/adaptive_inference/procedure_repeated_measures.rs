@@ -49,7 +49,6 @@
 #![allow(
     clippy::needless_range_loop,
     clippy::cast_possible_wrap,
-    clippy::cast_possible_truncation,
     reason = "the correlation matrix and weight vectors are addressed by unit-measurement index"
 )]
 
@@ -322,6 +321,10 @@ impl Covariance {
                 correlation: Some(correlation),
             } => {
                 let m = *measurements as usize;
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "a lag between measurement indices is far below i32::MAX"
+                )]
                 let (dependence, matrix) = match *correlation {
                     WithinUnitCorrelation::CompoundSymmetric { rho } => {
                         (Dependence::CompoundSymmetric(rho), correlation_matrix(m, |_, _| rho))

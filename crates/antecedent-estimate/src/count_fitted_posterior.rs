@@ -20,7 +20,6 @@
 
 #![allow(
     clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
     clippy::needless_range_loop,
     reason = "small dense finite-table arithmetic over bounded cardinalities"
 )]
