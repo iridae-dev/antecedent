@@ -9498,7 +9498,6 @@ checked_execution = [
 limitations = "Each PAG completion keeps its Bayesian posterior response; full validation runs overlap and sampling-stability checks against each evaluable atom's posterior-mean intervention level, mixing reports only when atoms share an estimand. Frozen graph weights, unidentified mass, failed mass, and subsampled-out mass remain in structural_response. ATE-shaped contrast refuters do not apply; this check is not a calibration claim."
 calibration = ["cov.intervention_response.pag.bayesian.posterior_quantile.l90.intervention_response_pag_graph_posterior_bayesian_nominal_coverage", "cov.intervention_response.pag.bayesian.posterior_quantile.l95.intervention_response_pag_graph_posterior_bayesian_nominal_coverage"]
 
-
 [[cell]]
 query = "AverageDerivative"
 graph_class = "TemporalDag"
