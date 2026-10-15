@@ -5696,8 +5696,8 @@ grid = [
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_frontdoor_latent_district"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_latent_district"
 facets = ["core", "suite.counterfactual_transport_sampled_oracle"]
-calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+calibration_sha = "94655823657cf9daa9562e9f4aeda39cd86bcd5c"
+surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
 
 [[record]]
 id = "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_mediation_covariate_shift"
@@ -5732,8 +5732,8 @@ grid = [
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_mediation_covariate_shift"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_mediation_covariate_shift"
 facets = ["core", "suite.counterfactual_transport_sampled_oracle"]
-calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+calibration_sha = "94655823657cf9daa9562e9f4aeda39cd86bcd5c"
+surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
 
 [[record]]
 id = "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_two_source_joint"
@@ -5768,8 +5768,8 @@ grid = [
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_two_source_joint_counterfactual_transport"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_two_source_joint"
 facets = ["core", "suite.counterfactual_transport_sampled_oracle"]
-calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+calibration_sha = "94655823657cf9daa9562e9f4aeda39cd86bcd5c"
+surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
 
 [[record]]
 id = "cov.directional_derivative.dag.bayesian.posterior_quantile.l90.directional_derivative_bayesian_default_nominal_coverage.0"
@@ -28700,8 +28700,44 @@ grid = [
 dgp = "crates/antecedent/tests/temporal_recalc_calibration.rs::independent_units_binary_shared_shock_checked_adapter"
 test = "crates/antecedent/tests/temporal_recalc_calibration.rs::temporal_checked_effect_basic_l95"
 facets = ["core", "estimator.dependent_temporal_interval", "suite.temporal_recalc_calibration"]
-calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+calibration_sha = "94655823657cf9daa9562e9f4aeda39cd86bcd5c"
+surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
+
+[[record]]
+id = "cov.temporal_transport.selection_admg.frequentist.bootstrap_percentile.l95.temporal_checked_effect_percentile_l95"
+query = "TemporalTransport"
+graph_class = "SelectionAdmg"
+structure = "fixed"
+modality = "panel"
+inference = "Frequentist"
+estimator = "dependent_temporal_interval"
+interval_method = "bootstrap_percentile"
+se_kind = ""
+dependence = "whole_unit"
+posterior = ""
+functional = "checked_initial_shift_paired_sequence_effect"
+identification = "point"
+nominal = 0.95
+n_min = 128
+n_max = 512
+replicates_min = 2000
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9275
+mcse = 0.012965699942540704
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 128, n_max = 128, observed = 0.9275, mcse = 0.012965699942540704, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 256, n_max = 256, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 512, n_max = 512, observed = 0.94, mcse = 0.011874342087037922, replicates = 400, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent/tests/temporal_recalc_calibration.rs::independent_units_binary_shared_shock_checked_adapter"
+test = "crates/antecedent/tests/temporal_recalc_calibration.rs::temporal_checked_effect_percentile_l95"
+facets = ["core", "estimator.dependent_temporal_interval", "suite.temporal_recalc_calibration"]
+calibration_sha = "94655823657cf9daa9562e9f4aeda39cd86bcd5c"
+surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
 
 [[record]]
 id = "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_checked_effect_studentized_l95"
@@ -28736,8 +28772,8 @@ grid = [
 dgp = "crates/antecedent/tests/temporal_recalc_calibration.rs::independent_units_binary_shared_shock_checked_adapter"
 test = "crates/antecedent/tests/temporal_recalc_calibration.rs::temporal_checked_effect_studentized_l95"
 facets = ["core", "estimator.dependent_temporal_interval", "suite.temporal_recalc_calibration"]
-calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+calibration_sha = "94655823657cf9daa9562e9f4aeda39cd86bcd5c"
+surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
 
 [[record]]
 id = "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_checked_response_studentized_l95"
@@ -28772,8 +28808,8 @@ grid = [
 dgp = "crates/antecedent/tests/temporal_recalc_calibration.rs::independent_units_binary_shared_shock_checked_adapter"
 test = "crates/antecedent/tests/temporal_recalc_calibration.rs::temporal_checked_response_studentized_l95"
 facets = ["core", "estimator.dependent_temporal_interval", "suite.temporal_recalc_calibration"]
-calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
-surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+calibration_sha = "94655823657cf9daa9562e9f4aeda39cd86bcd5c"
+surface_list_blob = "f35fbc82364e1299e4ce7c4375af53a3e0aed3bd"
 
 [[record]]
 id = "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_two_step_units_studentized_l95"
