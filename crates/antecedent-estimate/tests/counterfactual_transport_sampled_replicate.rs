@@ -207,7 +207,15 @@ fn a_sparse_replicate_with_an_unseen_cell_refuses_rather_than_filling_zero() {
     // Ten units per table cannot see every one of the design's cells.
     let mut rng = Rng(7);
     let tables = cited_only(&derivation, &sample_laws(&data, 10, &mut rng));
-    let error = estimate(&derivation, tables, UnseenCellRule::Refuse).unwrap_err();
+    // Lower the table minimum so the sparse table reaches the unseen-cell rule.
+    let mut sparse = request(tables, UnseenCellRule::Refuse);
+    sparse.limits.min_table_total = 1;
+    let error = estimate_sampled_counterfactual_transport(
+        &derivation,
+        &sparse,
+        &ExecutionContext::for_tests(7),
+    )
+    .unwrap_err();
     match error {
         EstimationError::Refused { code, message } => {
             assert_eq!(code, "transport_support_failure");

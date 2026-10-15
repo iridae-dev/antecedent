@@ -145,9 +145,14 @@ fn run_fresh_consumer(test: &str, files: &[(String, Vec<u8>)]) {
     for (name, bytes) in files {
         std::fs::write(dir.join(name), bytes).unwrap();
     }
+    // The libtest name of this test carries the module path below the crate root, which a
+    // consolidated suite binary adds to every file's tests.
+    let module = module_path!().split_once("::").map_or("", |(_, rest)| rest);
+    let qualified =
+        if module.is_empty() { test.to_owned() } else { format!("{module}::{test}") };
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .arg("--exact")
-        .arg(test)
+        .arg(&qualified)
         .env(CONSUMER_DIR, &dir)
         .output()
         .unwrap();
