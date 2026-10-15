@@ -1505,13 +1505,13 @@ class TransportedMechanismComposition(ScientificResult):
         """Always raises ``cell_not_licensed``: no coverage includes the transport assumption."""
         raise_refusal(self._handle.interval(), MechanismCompositionRefusal)
 
-    def export(
+    def export(  # type: ignore[override]  # a sealed export carries its query and receipt, not bare bytes
         self,
         query: MeanContrast | Mapping[str, Any],
         *,
         outcome: str | None = None,
         cancel: Any = None,
-    ) -> CompositionExport:  # type: ignore[override]  # a sealed export carries its query and receipt, not bare bytes
+    ) -> CompositionExport:
         """Seal the transported premises (with the diagram and invariances) and one query.
 
         The artifact is the existing ``mechanism_composition_v1`` one;
