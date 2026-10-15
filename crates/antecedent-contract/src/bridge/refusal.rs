@@ -389,7 +389,7 @@ pub fn interval_not_licensed() -> BridgeRefusal {
         "scientific_bridge.interval_not_licensed",
     )
     .with_remedy(
-        "none available yet: a bridged claim is a point value; the mapping's own sampling uncertainty is not propagated and no whole-method coverage is measured",
+        "a bridged claim carries one mean and the contract layer states no uncertainty; name a level and ask for the interval of the bridged value, which needs the source claim's declared standard error and is published only inside a measured design. A posterior and a joint law have no executed bridge",
     )
 }
 

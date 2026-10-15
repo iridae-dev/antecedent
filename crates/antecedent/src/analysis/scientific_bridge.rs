@@ -19,8 +19,10 @@
 //!    and returns a [`ScientificBridgeResult`]: a derived claim with its own
 //!    identity (binding the contract, its assumptions and the source claim),
 //!    its own provenance chain and receipt. The source claim is not modified.
-//!    The derived claim is a point mean: the request for an interval, a
-//!    posterior or a joint law refuses with `cell_not_licensed`, and a
+//!    The derived claim is a point mean. Its interval
+//!    ([`ScientificBridgeResult::bridged_interval`]) needs the source claim's declared
+//!    standard error and is published only inside a measured design; an unscoped
+//!    request, a posterior or a joint law refuses with `cell_not_licensed`, and a
 //!    consumer that requires a predictive law, posterior, identified set or
 //!    joint outcome law refuses with `bridge_substitution_refused`.
 //! 3. **Export** ([`ScientificBridgeResult::export`]) writes
@@ -70,6 +72,7 @@ use antecedent_contract::{ClaimEnvelope, ClaimFreshness};
 use antecedent_core::identity::SemanticDigest;
 use antecedent_io::IoError;
 use antecedent_io::bridge_artifact::{ScientificBridgeArtifact, ScientificBridgeArtifactError};
+pub use antecedent_io::bridge_interval::BridgedClaimInterval;
 
 /// One refusal as plain data: registered reason code, namespaced
 /// `scientific_bridge.*` detail and the explanation of what was refused and
@@ -219,9 +222,29 @@ impl PreparedScientificBridge {
         &self,
         source: &BridgeSource<'_>,
     ) -> Result<ScientificBridgeResult, ScientificBridgeRefusal> {
+        self.derive_with_standard_error(source, None)
+    }
+
+    /// Derive the claim for `source` whose estimate carries `standard_error`.
+    ///
+    /// The standard error is the source claim's own sampling uncertainty, declared with
+    /// the claim: it is held beside the result (it is not part of any identity or of the
+    /// artifact) and is what [`ScientificBridgeResult::bridged_interval`] propagates.
+    ///
+    /// # Errors
+    /// As [`Self::derive`].
+    pub fn derive_with_standard_error(
+        &self,
+        source: &BridgeSource<'_>,
+        standard_error: Option<f64>,
+    ) -> Result<ScientificBridgeResult, ScientificBridgeRefusal> {
         let bridged = derive_bridged_claim(&self.contract, source)
             .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))?;
-        Ok(ScientificBridgeResult { bridged, source: source.claim.clone() })
+        Ok(ScientificBridgeResult {
+            bridged,
+            source: source.claim.clone(),
+            source_standard_error: standard_error,
+        })
     }
 
     /// A prepared bridge for a replacement contract, re-checked in full.
@@ -239,6 +262,7 @@ impl PreparedScientificBridge {
 pub struct ScientificBridgeResult {
     bridged: BridgedClaim,
     source: ClaimEnvelope,
+    source_standard_error: Option<f64>,
 }
 
 /// What an inspection of a bridged claim reports.
@@ -381,10 +405,42 @@ impl ScientificBridgeResult {
             .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))
     }
 
-    /// An interval, posterior or joint law of the bridged claim.
+    /// The source claim's standard error declared with it, when there is one.
+    #[must_use]
+    pub const fn source_standard_error(&self) -> Option<f64> {
+        self.source_standard_error
+    }
+
+    /// The interval of the bridged value at `level`: the source claim's declared
+    /// standard error carried through the mapping together with the mapping's own
+    /// estimation uncertainty.
+    ///
+    /// Published only where a current attesting coverage record measured this
+    /// construction at this bridge kind, mapping and direction (and validated trial
+    /// count); the record is resolved from the shipped coverage table.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` under `scientific_bridge.interval_not_licensed`.
+    /// `cell_not_licensed` with `scientific_bridge.interval_source_uncertainty_required`
+    /// when the source claim declared no standard error, and with
+    /// `scientific_bridge.interval_scope_outside_measured` outside a measured record.
+    pub fn bridged_interval(
+        &self,
+        level: f64,
+    ) -> Result<BridgedClaimInterval, ScientificBridgeRefusal> {
+        antecedent_io::bridge_interval::bridged_claim_interval(
+            &self.bridged,
+            self.source_standard_error,
+            level,
+        )
+        .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))
+    }
+
+    /// An unscoped request for an interval, posterior or joint law of the bridged claim.
+    ///
+    /// # Errors
+    /// Always `cell_not_licensed` under `scientific_bridge.interval_not_licensed`: name
+    /// the level and ask [`Self::bridged_interval`] for the interval of the value; a
+    /// posterior and a joint law have no executed route.
     pub fn interval(&self) -> Result<(), ScientificBridgeRefusal> {
         self.bridged
             .request_interval()

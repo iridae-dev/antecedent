@@ -341,11 +341,14 @@ impl BridgedClaim {
         }
     }
 
-    /// An interval, posterior or joint law of a bridged claim.
+    /// An unscoped request for an interval, posterior or joint law of a bridged
+    /// claim. The claim itself carries one mean and no uncertainty; the interval of
+    /// the bridged value is built from the source claim's declared standard error and
+    /// the mapping's own estimation uncertainty by the layer that holds the coverage
+    /// records (`antecedent_io::bridge_interval`).
     ///
     /// # Errors
-    /// Always `cell_not_licensed`: the mapping's own sampling uncertainty is
-    /// not propagated and no whole-method coverage is measured.
+    /// Always `cell_not_licensed` with `scientific_bridge.interval_not_licensed`.
     pub fn request_interval(&self) -> Result<(), BridgeRefusal> {
         Err(interval_not_licensed())
     }

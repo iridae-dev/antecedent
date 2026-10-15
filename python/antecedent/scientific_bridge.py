@@ -40,8 +40,11 @@ the extra assumptions under which the source answers the downstream question::
 
 A bridge produces a *new* claim with its own identity (binding the contract, every declared
 assumption and the source claim), its own provenance, and a receipt of what it did not establish.
-The source claim is not modified. Everything is point-only: a bridge carries one mean. Asking for
-an interval, a posterior, a predictive law, an identified set or a joint law is refused
+The source claim is not modified. A bridge carries one mean. The interval of that mean
+(:meth:`BridgedClaim.interval` with a ``level``) carries the source claim's declared
+``standard_error`` through the mapping together with the mapping's own estimation uncertainty, and
+is published only inside a measured design; with no ``level``, a posterior, a predictive law, an
+identified set or a joint law the request is refused
 (:meth:`BridgedClaim.interval`, :meth:`BridgedClaim.require_value_kind`).
 
 Every licensing check, mapping, identity and refusal is computed in Rust; this module builds the
@@ -80,6 +83,7 @@ __all__ = [
     "BridgeContract",
     "BridgeExport",
     "BridgedClaim",
+    "BridgedClaimInterval",
     "ConsumedBridge",
     "Freshness",
     "IdentityMapping",
@@ -534,9 +538,14 @@ class SourceClaim:
     evaluated: str = "unknown"
     evidence: Sequence[str] = ()
     execution: str | None = None
+    standard_error: float | None = None
 
     def __post_init__(self) -> None:
         _name(self.claim_id, "claim_id")
+        if self.standard_error is not None:
+            _number(self.standard_error, "standard_error")
+            if self.standard_error < 0:
+                raise CausalValueError("standard_error must be non-negative")
         _choice(self.kind, "kind", _CLAIM_KINDS)
         _choice(self.evaluated, "evaluated", _DOMAIN_STATUSES)
         if self.value is not None:
@@ -563,11 +572,14 @@ class SourceClaim:
         kind: str = "point",
         evaluated: str = "evaluated",
         evidence: Iterable[str] = (),
+        standard_error: float | None = None,
     ) -> SourceClaim:
         """A claim the caller declares, with deterministic content-digest identities.
 
         ``data_snapshot`` names the data the value came from (a label): two claims with the same
-        snapshot share evidence, and a bridge of either shares it too.
+        snapshot share evidence, and a bridge of either shares it too. ``standard_error`` is the
+        claim's own sampling standard error, declared with it: it is not part of any identity and
+        is what :meth:`BridgedClaim.interval` carries through the bridge.
         """
         _name(label, "label")
         wire = _quantity_wire(quantity, "quantity")
@@ -589,11 +601,13 @@ class SourceClaim:
             kind=kind,
             evaluated=evaluated,
             evidence=tuple(evidence),
+            standard_error=standard_error,
         )
 
     def to_wire(self) -> dict[str, Any]:
         """The declaration the native layer reads."""
         return {
+            "standard_error": None if self.standard_error is None else float(self.standard_error),
             "claim": {
                 "claim_id": self.claim_id,
                 "kind": self.kind,
@@ -629,6 +643,36 @@ class Freshness(ScientificResult):
 
     historically_valid: bool
     currently_applicable: bool | None
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class BridgedClaimInterval(ScientificResult):
+    """The interval of a bridged value.
+
+    ``standard_error`` is the source claim's declared ``source_standard_error`` propagated through
+    the mapping together with the mapping's own estimation uncertainty. ``degrees_of_freedom`` is
+    ``None`` for the normal reference. ``licensed_by`` is ``coverage_record`` (a current record,
+    named by ``coverage_record``, measured the construction) or
+    ``exact_transform_of_declared_source_interval`` (an identity or declared affine map adds no
+    uncertainty, so the level is the declared source interval's own). ``assumptions`` states what
+    the interval rests on. It is an interval for the value under the bridge's declared
+    assumptions: those stay unresolved obligations.
+    """
+
+    lower: float
+    upper: float
+    level: float
+    source_value: float
+    value: float
+    source_standard_error: float
+    standard_error: float
+    degrees_of_freedom: float | None
+    mapping: str
+    construction: str
+    licensed_by: str
+    coverage_record: str
+    calibration_sha: str
+    assumptions: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -692,14 +736,29 @@ class BridgedClaim(ScientificResult):
         _choice(requested, "requested", VALUE_KINDS)
         raise_refusal(self._handle.require_value_kind(requested), ScientificBridgeRefusal)
 
-    def interval(self) -> None:
-        """Always raises: no interval, posterior or joint law is licensed for a bridged claim.
+    def interval(self, level: float | None = None) -> BridgedClaimInterval:
+        """The interval of the bridged value at ``level``.
+
+        The source claim's declared ``standard_error`` is carried through the mapping together
+        with the mapping's own estimation uncertainty (the trial-level line's prediction error,
+        or the declared variances of the sensitivity and specificity). It is published only where
+        a current coverage record measured this construction at this bridge kind, mapping,
+        direction and validated trial count, and states what it rests on. With no ``level`` the
+        request is unscoped and, like a posterior or joint law of a bridged claim, always raises.
 
         Raises:
             ScientificBridgeRefusal: ``cell_not_licensed`` /
-                ``scientific_bridge.interval_not_licensed``.
+                ``scientific_bridge.interval_not_licensed`` for an unscoped request;
+                ``scientific_bridge.interval_source_uncertainty_required`` when the source claim
+                declared no ``standard_error``; ``scientific_bridge.interval_scope_outside_measured``
+                outside a measured design.
         """
-        raise_refusal(self._handle.interval(), ScientificBridgeRefusal)
+        scoped = getattr(self._handle, "bridged_interval", None)
+        if level is None or scoped is None:
+            raise_refusal(self._handle.interval(), ScientificBridgeRefusal)
+            raise AssertionError("an unscoped interval request always refuses")  # pragma: no cover
+        payload = _unwrap(scoped(_number(level, "level")))
+        return BridgedClaimInterval(**json.loads(payload))
 
     def freshness(
         self, *, source_withdrawn: bool = False, source_superseded: bool = False

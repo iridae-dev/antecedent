@@ -13,9 +13,9 @@ A bridge produces a *new* claim. The source claim is not modified and stays
 separately inspectable; the derived claim has its own identity (it binds the
 contract, every declared assumption and the source claim identity), its own
 provenance chain, and a handoff receipt that lists what the bridge did not
-establish. Everything is **point-only**: a bridge carries one mean. No
-interval, posterior, predictive law, identified set or joint outcome law is
-produced.
+establish. A bridge carries **one mean**. No posterior, predictive law,
+identified set or joint outcome law is produced; the interval of that mean is
+a separate, scoped request (below) that needs the source claim's standard error.
 
 ## The contract
 
@@ -62,7 +62,9 @@ the declaration or evidence that would license the request.
 | population, regime, horizon, conditioning, quantity or units mismatch | `bridge_binding_mismatch` | `population_mismatch`, `regime_mismatch`, ... |
 | validation minimums not met, an extrapolated surrogate effect, an unattainable recorded prevalence | `bridge_mapping_not_licensed` | `validation_trials_too_few`, `outside_validated_range`, `outside_attainable_range`, ... |
 | a mean, law, posterior, identified set or joint law where another is required | `bridge_substitution_refused` | `value_kind_substitution` |
-| an interval, posterior or joint law of a bridged claim | `cell_not_licensed` | `interval_not_licensed` |
+| an interval of a bridged claim with no level named, or a posterior or joint law | `cell_not_licensed` | `interval_not_licensed` |
+| an interval of a bridged value with no source standard error | `cell_not_licensed` | `interval_source_uncertainty_required` |
+| an interval at a design no coverage record measured | `cell_not_licensed` | `interval_scope_outside_measured` |
 
 The two closed pairs refuse whatever is declared: no calibration bridge is
 licensed for a model score, and no assumption turns the importance of a feature
@@ -123,7 +125,11 @@ claim.value, claim.fit.r_squared, claim.unresolved   # 0.796, 529/535, ("assumpt
 exported = claim.artifact("surrogate-bridge")
 again = sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
 claim.require_value_kind("predictive_law")            # refused: value_kind_substitution
-claim.interval()                                      # refused: cell_not_licensed
+claim.interval()                                      # refused: cell_not_licensed (unscoped)
+
+claim = bridge.derive(sb.SourceClaim.declared("biomarker-effect", 0.8, surrogate, standard_error=0.1))
+claim.interval(0.95)                                  # the interval of the bridged value, inside a
+                                                      # measured design; refused outside it
 ```
 
 Refusals are `ScientificBridgeRefusal` (a `CausalUnsupportedError`) with `reason_code`, `detail`
@@ -133,10 +139,36 @@ and functional meaning match the consumer. `claim.as_mean_source()` exposes the 
 `results.MeanSource` explicitly. The handoff remains point-only; see
 [producer-consumer-matrix.md](producer-consumer-matrix.md).
 
+## Interval of a bridged value
+
+A bridged value is a function of the source estimate and of what the mapping
+was estimated from, so its interval has two parts, both stated and nothing
+else: the source claim's **declared standard error** (a declared point value
+states none, so the request refuses without one) and the mapping's own
+estimation uncertainty.
+
+| Mapping | Interval | Reference |
+| --- | --- | --- |
+| identity, declared affine | the source interval mapped (ends ordered); the map is declared exact | normal |
+| trial-level line, `k` validation trials | `value +- t * sqrt(s^2 (1 + 1/k + (x - xbar)^2 / Sxx) + slope^2 se^2)`, the prediction interval of a new trial's terminal effect | Student-t, `k - 2` degrees of freedom |
+| binary-misclassification correction | delta method: `Var(p) = (se_q^2 + p^2 Var(Se) + (1 - p)^2 Var(Sp)) / J^2`, `J = Se + Sp - 1`, clipped to `[0, 1]` | normal |
+
+An identity or affine map adds no uncertainty and nothing to measure, so its
+interval is licensed as an exact transform of the declared source interval.
+The estimating mappings are published only where a current coverage record
+measured the construction (surrogate bridges over 15, 20 and 40 validation
+trials; corrections with rates estimated from 100, 200 and 400 validation
+units, Youden index at least 0.3, rate standard errors at most 0.05; level
+0.95), and the record is read from the shipped coverage table. The trial
+effects are treated as exact points, as the mapping does; the declared
+assumptions of the bridge stay unresolved obligations; invariance across
+populations is a declared premise; none of this is individual-level surrogacy.
+The interval is not stored in the artifact: the source standard error is held
+beside the derived result and is supplied again to a consumer that wants it.
+
 ## What is not licensed
 
-No interval or posterior for a bridged value (whole-method coverage is not
-measured; the mapping's own sampling uncertainty is not propagated), no law or
-set transformation, no calibration of a model score, no individual-level
+No posterior for a bridged value, no interval outside a measured design or
+without the source standard error, no law or set transformation, no calibration of a model score, no individual-level
 surrogacy, no extrapolation of a trial-level relationship beyond the validated
 range, no differential measurement error without the claim's arm.

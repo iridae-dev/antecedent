@@ -439,7 +439,15 @@ impl PreparedBridgeHandle {
         let claim = parse_claim(member(map, "claim")?)?;
         let quantity = parse_quantity(member(map, "quantity")?)?;
         let source = BridgeSource { claim: &claim, quantity: &quantity };
-        Ok(match self.inner.derive(&source) {
+        let standard_error = match present(map, "standard_error") {
+            None => None,
+            Some(number) => Some(
+                number
+                    .as_f64()
+                    .ok_or_else(|| crate::value_err("source `standard_error` must be a number"))?,
+            ),
+        };
+        Ok(match self.inner.derive_with_standard_error(&source, standard_error) {
             Ok(inner) => (Some(BridgedClaimHandle { inner }), None),
             Err(refusal) => (None, Some(refusal_json(&refusal))),
         })
@@ -474,11 +482,41 @@ impl BridgedClaimHandle {
         Ok(self.inner.require_value_kind(kind).err().map(|r| refusal_json(&r)))
     }
 
-    /// Always the typed refusal: no interval, posterior or joint law.
+    /// The typed refusal of an unscoped request: no level named, or a posterior or
+    /// joint law.
     fn interval(&self) -> String {
         match self.inner.interval() {
             Err(refusal) => refusal_json(&refusal),
             Ok(()) => String::new(),
+        }
+    }
+
+    /// The interval of the bridged value at `level` as JSON, or the typed refusal.
+    fn bridged_interval(&self, level: f64) -> (Option<String>, Option<String>) {
+        match self.inner.bridged_interval(level) {
+            Ok(interval) => (
+                Some(
+                    json!({
+                        "lower": interval.lower,
+                        "upper": interval.upper,
+                        "level": interval.level,
+                        "source_value": interval.source_value,
+                        "value": interval.value,
+                        "source_standard_error": interval.source_standard_error,
+                        "standard_error": interval.standard_error,
+                        "degrees_of_freedom": interval.degrees_of_freedom,
+                        "mapping": interval.mapping.as_str(),
+                        "construction": interval.construction,
+                        "licensed_by": interval.licensed_by,
+                        "coverage_record": interval.coverage_record,
+                        "calibration_sha": interval.calibration_sha,
+                        "assumptions": interval.assumptions,
+                    })
+                    .to_string(),
+                ),
+                None,
+            ),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
         }
     }
 
