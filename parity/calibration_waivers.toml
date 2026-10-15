@@ -90,10 +90,667 @@
 # `scripts/gate_calibration_attestation.sh` validates every waiver and reports
 # the records it covers as `attested_by_replay (waiver <id>)`.
 
+# Replay waivers for coverage records (scripts/calibration_facets.py).
+#
+# A waiver lets a reviewed change that cannot move a measured number stand in
+# for a re-measurement, with evidence. It applies to a record only when the
+# record was measured at `from`, every attested path in the record's facets
+# that changed since is listed in `paths`, and none of them changed after
+# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
+# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
+# with the stored records. Each `exercises` list names the waived paths that
+# record's test runs. A reviewed_equivalence certificate instead binds an exact
+# source diff that delegates to unchanged accepted numerical code; it never claims
+# that a new wrapper ran in an old harness. Together these cover every path.
+# recordless_gates = true additionally attests original passed gate rows under
+# the same exact source scope and genuine numeric replay; it never re-stamps them.
+#
+# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
+# `replay` tables by hand, then fill `outcome` by running
+#   python3 scripts/calibration_facets.py replay --waiver <id>
+# on a clean checkout of `to`. That command rewrites this file; comments other
+# than this header are not kept (the justification is the prose).
+# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
+# the records it covers as `attested_by_replay (waiver <id>)`.
+
+[[waiver]]
+id = "wiring-and-layout-from-4fe0e268"
+from = "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
+to = "4d7120d86c64f1095e00c2a763244471750a9699"
+reviewed_by = "authorized release engineering review"
+recordless_gates = false
+gate_ledger_commit = ""
+justification = """
+Changes since the measurement that add routes beside the measured ones without moving a measured number: new modules and their dispatch lines, facade re-export paths, refusal and remedy strings, package manifests that declare the new test targets and the consolidated integration-test layout, and the gate script's added groups and run functions. No existing group's cargo invocation, environment, seed domain or tally changes. The replay re-runs a measured record through the changed script and compares every emitted field bit for bit; each certificate binds the exact before and after blobs.\
+"""
+paths = [
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_misspecified_test_boundary_95"
+exercises = [
+  "scripts/gate_calibration.sh",
+]
+
+[waiver.outcome]
+replayed_at = "4d7120d86c64f1095e00c2a763244471750a9699"
+identical = true
+records = [
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_misspecified_test_boundary_95",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_misspecified_test_boundary_95" = "8493af688baeff6ef2f367df1cd089455139c80251f6c4a522d45278a1f60897"
+
+# Replay waivers for coverage records (scripts/calibration_facets.py).
+#
+# A waiver lets a reviewed change that cannot move a measured number stand in
+# for a re-measurement, with evidence. It applies to a record only when the
+# record was measured at `from`, every attested path in the record's facets
+# that changed since is listed in `paths`, and none of them changed after
+# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
+# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
+# with the stored records. Each `exercises` list names the waived paths that
+# record's test runs. A reviewed_equivalence certificate instead binds an exact
+# source diff that delegates to unchanged accepted numerical code; it never claims
+# that a new wrapper ran in an old harness. Together these cover every path.
+# recordless_gates = true additionally attests original passed gate rows under
+# the same exact source scope and genuine numeric replay; it never re-stamps them.
+#
+# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
+# `replay` tables by hand, then fill `outcome` by running
+#   python3 scripts/calibration_facets.py replay --waiver <id>
+# on a clean checkout of `to`. That command rewrites this file; comments other
+# than this header are not kept (the justification is the prose).
+# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
+# the records it covers as `attested_by_replay (waiver <id>)`.
+
+[[waiver]]
+id = "wiring-and-layout-from-c0a6de5e"
+from = "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+to = "4d7120d86c64f1095e00c2a763244471750a9699"
+reviewed_by = "authorized release engineering review"
+recordless_gates = false
+gate_ledger_commit = ""
+justification = """
+Changes since the measurement that add routes beside the measured ones without moving a measured number: new modules and their dispatch lines, facade re-export paths, refusal and remedy strings, package manifests that declare the new test targets and the consolidated integration-test layout, and the gate script's added groups and run functions. No existing group's cargo invocation, environment, seed domain or tally changes. The replay re-runs a measured record through the changed script and compares every emitted field bit for bit; each certificate binds the exact before and after blobs.\
+"""
+paths = [
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_large_gap_boundary_l95"
+exercises = [
+  "scripts/gate_calibration.sh",
+]
+
+[waiver.outcome]
+replayed_at = "4d7120d86c64f1095e00c2a763244471750a9699"
+identical = true
+records = [
+  "cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_large_gap_boundary_l95",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_large_gap_boundary_l95" = "1a95c671ffbe530969e76b502be8bbbee2a7d272e695b8ecb2f82c6e161d0d35"
+
+# Replay waivers for coverage records (scripts/calibration_facets.py).
+#
+# A waiver lets a reviewed change that cannot move a measured number stand in
+# for a re-measurement, with evidence. It applies to a record only when the
+# record was measured at `from`, every attested path in the record's facets
+# that changed since is listed in `paths`, and none of them changed after
+# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
+# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
+# with the stored records. Each `exercises` list names the waived paths that
+# record's test runs. A reviewed_equivalence certificate instead binds an exact
+# source diff that delegates to unchanged accepted numerical code; it never claims
+# that a new wrapper ran in an old harness. Together these cover every path.
+# recordless_gates = true additionally attests original passed gate rows under
+# the same exact source scope and genuine numeric replay; it never re-stamps them.
+#
+# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
+# `replay` tables by hand, then fill `outcome` by running
+#   python3 scripts/calibration_facets.py replay --waiver <id>
+# on a clean checkout of `to`. That command rewrites this file; comments other
+# than this header are not kept (the justification is the prose).
+# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
+# the records it covers as `attested_by_replay (waiver <id>)`.
+
+[[waiver]]
+id = "wiring-and-layout-from-dd3cb96e"
+from = "dd3cb96e0f9cfe43b43678d7e69ab20d688729d1"
+to = "4d7120d86c64f1095e00c2a763244471750a9699"
+reviewed_by = "authorized release engineering review"
+recordless_gates = false
+gate_ledger_commit = ""
+justification = """
+Changes since the measurement that add routes beside the measured ones without moving a measured number: new modules and their dispatch lines, facade re-export paths, refusal and remedy strings, package manifests that declare the new test targets and the consolidated integration-test layout, and the gate script's added groups and run functions. No existing group's cargo invocation, environment, seed domain or tally changes. The replay re-runs a measured record through the changed script and compares every emitted field bit for bit; each certificate binds the exact before and after blobs.\
+"""
+paths = [
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_crps_difference_l95"
+exercises = [
+  "scripts/gate_calibration.sh",
+]
+
+[waiver.outcome]
+replayed_at = "4d7120d86c64f1095e00c2a763244471750a9699"
+identical = true
+records = [
+  "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_crps_difference_l95",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_crps_difference_l95" = "9c6bba4e7fd9f8be02f14bbd86796cffeeffafd9c47370f189a1aae77abd2595"
+
+# Replay waivers for coverage records (scripts/calibration_facets.py).
+#
+# A waiver lets a reviewed change that cannot move a measured number stand in
+# for a re-measurement, with evidence. It applies to a record only when the
+# record was measured at `from`, every attested path in the record's facets
+# that changed since is listed in `paths`, and none of them changed after
+# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
+# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
+# with the stored records. Each `exercises` list names the waived paths that
+# record's test runs. A reviewed_equivalence certificate instead binds an exact
+# source diff that delegates to unchanged accepted numerical code; it never claims
+# that a new wrapper ran in an old harness. Together these cover every path.
+# recordless_gates = true additionally attests original passed gate rows under
+# the same exact source scope and genuine numeric replay; it never re-stamps them.
+#
+# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
+# `replay` tables by hand, then fill `outcome` by running
+#   python3 scripts/calibration_facets.py replay --waiver <id>
+# on a clean checkout of `to`. That command rewrites this file; comments other
+# than this header are not kept (the justification is the prose).
+# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
+# the records it covers as `attested_by_replay (waiver <id>)`.
+
+[[waiver]]
+id = "wiring-and-layout-from-b4f06ae0"
+from = "b4f06ae0abce384b1f774de5385ee09ee6bf0df4"
+to = "4d7120d86c64f1095e00c2a763244471750a9699"
+reviewed_by = "authorized release engineering review"
+recordless_gates = false
+gate_ledger_commit = ""
+justification = """
+Changes since the measurement that add routes beside the measured ones without moving a measured number: new modules and their dispatch lines, facade re-export paths, refusal and remedy strings, package manifests that declare the new test targets and the consolidated integration-test layout, and the gate script's added groups and run functions. No existing group's cargo invocation, environment, seed domain or tally changes. The replay re-runs a measured record through the changed script and compares every emitted field bit for bit; each certificate binds the exact before and after blobs.\
+"""
+paths = [
+  "scripts/gate_calibration.sh",
+  "Cargo.toml",
+  "crates/antecedent-contract/Cargo.toml",
+  "crates/antecedent-contract/src/bridge.rs",
+  "crates/antecedent-contract/src/bridge/claim.rs",
+  "crates/antecedent-contract/src/bridge/refusal.rs",
+  "crates/antecedent-contract/src/observation_query.rs",
+  "crates/antecedent-core/Cargo.toml",
+  "crates/antecedent-counterfactual/Cargo.toml",
+  "crates/antecedent-data/Cargo.toml",
+  "crates/antecedent-design/Cargo.toml",
+  "crates/antecedent-discovery/Cargo.toml",
+  "crates/antecedent-discovery/src/selective/claims.rs",
+  "crates/antecedent-estimate/src/lib.rs",
+  "crates/antecedent-graph/Cargo.toml",
+  "crates/antecedent-identify/Cargo.toml",
+  "crates/antecedent-io-core/Cargo.toml",
+  "crates/antecedent-io-core/src/cohort_decision.rs",
+  "crates/antecedent-io-core/src/cohort_decision/tests.rs",
+  "crates/antecedent-io/Cargo.toml",
+  "crates/antecedent-io/src/lib.rs",
+  "crates/antecedent-io/src/measured_inference.rs",
+  "crates/antecedent-state/Cargo.toml",
+  "crates/antecedent-validate/Cargo.toml",
+  "crates/antecedent-validate/src/predictive_assessment/assess.rs",
+  "crates/antecedent-validate/src/predictive_assessment/mod.rs",
+  "crates/antecedent-validate/src/predictive_assessment/refusal.rs",
+  "crates/antecedent/Cargo.toml",
+  "crates/antecedent/src/analysis/adaptive_inference.rs",
+  "crates/antecedent/src/analysis/cohort_decision.rs",
+  "crates/antecedent/src/analysis/composition_verification.rs",
+  "crates/antecedent/src/analysis/cross_world_execution.rs",
+  "crates/antecedent/src/analysis/decision_reliability.rs",
+  "crates/antecedent/src/analysis/discretized_composition.rs",
+  "crates/antecedent/src/analysis/inverse_sources.rs",
+  "crates/antecedent/src/analysis/joint_law_propagation.rs",
+  "crates/antecedent/src/analysis/mod.rs",
+  "crates/antecedent/src/analysis/observation_evidence.rs",
+  "crates/antecedent/src/analysis/observation_query.rs",
+  "crates/antecedent/src/analysis/predictive_assessment.rs",
+  "crates/antecedent/src/analysis/sample_split_analysis.rs",
+  "crates/antecedent/src/analysis/scientific_bridge.rs",
+  "crates/antecedent/src/analysis/sequential_evaluation.rs",
+  "crates/antecedent/src/analysis/surface/scientific.rs",
+  "crates/antecedent/src/analysis/transport_sensitivity.rs",
+  "crates/antecedent/src/analysis/transported_constructors.rs",
+  "crates/antecedent/src/analysis/transported_mechanism.rs",
+]
+
+[[waiver.replay]]
+record = "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.mediated"
+exercises = [
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.reviewed_equivalence]]
+path = "Cargo.toml"
+from_blob = "5f1a81ba329403baabea52c2f9bee5dbab85f8ab"
+to_blob = "51182f0667ad37787ea3f9550df64e6af1bc5a68"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-contract/Cargo.toml"
+from_blob = "c335ee3cb57ea599d4c2a92ea5f9bbb0a77e4d02"
+to_blob = "ab933e42dd30465eb6cc7cdd1775bfb84c345094"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-contract/src/bridge.rs"
+from_blob = "e61b97202858efb8b7a29edc0d9755b22e80fb70"
+to_blob = "3ea39efe0c59178065fdf293436221e3f8becbf8"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-contract/src/bridge/claim.rs"
+from_blob = "5b22129158cf93fa8e9428e855cc1bbc7b51f7ff"
+to_blob = "e3544066bb3e6f38b55e84101364199292811c8f"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-contract/src/bridge/refusal.rs"
+from_blob = "55dcaea536dc01e6d788e87667c7dd9d358e84f9"
+to_blob = "5c9601ba122f9ba7ab6644bc34cc165053de4bc2"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-contract/src/observation_query.rs"
+from_blob = "5a2a6000f6c9559c6a707824e6aa77d3f811ecb9"
+to_blob = "faac2524e03cb95211c66b799c3dc4925cc600a9"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-core/Cargo.toml"
+from_blob = "1c2d1299a2afe6166bd4aa27a8c43ee40d67a7de"
+to_blob = "c53949f88e7187805c8584173e1b9b09c7c2b3d8"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-counterfactual/Cargo.toml"
+from_blob = "6b36aa6be15b10d34153bb828b1bf50551970b4c"
+to_blob = "a3c52ffab846d9ad7bbbf6989bab15eef167c585"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-data/Cargo.toml"
+from_blob = "190059c3a0795342a849341757788312fadd524d"
+to_blob = "9ad12eaee2fdfcb74d3c3d200042b3c36f74bf25"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-design/Cargo.toml"
+from_blob = "d94628c802ddcb130272b41c09ea5f12783bf6bc"
+to_blob = "466de4b482ce8df5bb0b386565fba8c7579d488f"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-discovery/Cargo.toml"
+from_blob = "3b7087de573db4a40ce2753ac07eff36f6375f9c"
+to_blob = "cbae6a0439fa5f69c0f748f74281b99f683bf5ad"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-discovery/src/selective/claims.rs"
+from_blob = "44fe0a7dc2c60bab981d6ec4b04078549364cf55"
+to_blob = "eead26954d4efc9bfad5364b8543ccffabb26296"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-estimate/src/lib.rs"
+from_blob = "e5ab18fca56d38348e44e8d3c20a7314c5eccdc8"
+to_blob = "38c73ad9da31a04f9185164b121c81b210e128ce"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-graph/Cargo.toml"
+from_blob = "0d542402d690498fbe6cc8a979e5a90c1f9d63ce"
+to_blob = "80dc4ff57fabd412171f501e3d4a5f2a5de8bf1c"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-identify/Cargo.toml"
+from_blob = "9ac6a2f08beb2a04e057c4c4d78e3d1c9dc306d9"
+to_blob = "33fa1d47064beb8a4a04daf14f1b92acc056266c"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io-core/Cargo.toml"
+from_blob = "ca3c10bd9710a9a85703f9f98e332294936a1b36"
+to_blob = "c6fa77625544dd84209f75694628641997c5e5c4"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io-core/src/cohort_decision.rs"
+from_blob = "368286287be9d1effc95ed27e0963d3f02fe7c4b"
+to_blob = "eab1e736f5f6e88259b5879f0e69bc5f0c1c2293"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io-core/src/cohort_decision/tests.rs"
+from_blob = "68950b5142feacc9491ad6c9e5460dd17bcc351c"
+to_blob = "06025faf920faaf4d8782cee5bb673e029ce0da6"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io/Cargo.toml"
+from_blob = "6843768b79bcabb90f41bd14654a70c0ee675805"
+to_blob = "7d7d1201f78d6fe4342d65704e003951a21e98f7"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io/src/lib.rs"
+from_blob = "b1cd6d416125e641ab3143fb27e30cd354f11042"
+to_blob = "f9533343f5ac66c1c33d155006ba5252a14964b9"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io/src/measured_inference.rs"
+from_blob = "9ca8ee8159249148faa9cd5aed90720ab81450c1"
+to_blob = "9610b9fbdb54cd240e85cceb2088a36809a445c3"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-state/Cargo.toml"
+from_blob = "d0d39c38d50e67b6b4bfd94f1e0f43a3d84692bc"
+to_blob = "3952968da734a41e371163322b3ce5c0c7256ece"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-validate/Cargo.toml"
+from_blob = "ce701d06c3598377e7371643c609b8dc45bbb9e5"
+to_blob = "a3541b1e06be4eaa79a6486ea00182a774c75ce3"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-validate/src/predictive_assessment/assess.rs"
+from_blob = "66498de6c42658be4a321b2216496a2baf6da4b3"
+to_blob = "78c78b4762ef137b253888e1ad311922aeb107f2"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-validate/src/predictive_assessment/mod.rs"
+from_blob = "e7a1a7c1439074c10dd6f6a6fbe0459a42a0609e"
+to_blob = "bbc649a3c0b45d5b3e2e9ede1312464070d05acf"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-validate/src/predictive_assessment/refusal.rs"
+from_blob = "81c43e08c3aa0ae6cc4419beed577462dff0e8de"
+to_blob = "8131a611690bd6a91a863563d29b6bee996351ef"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/Cargo.toml"
+from_blob = "85b5d58175bccdd199520cdd3af22f0ed1defe0f"
+to_blob = "b634d116e15cc5b17fd74daf1ee1f9596f095603"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/adaptive_inference.rs"
+from_blob = "02977baecb090a610ff0aeb4e1176b917d4a2835"
+to_blob = "cc05556c4f710dcd96e8473cda6d2f6637fdbead"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/cohort_decision.rs"
+from_blob = "0784b9da79ed0446ca31a02c1e790c8faeceb5d0"
+to_blob = "4b530129fdc304f38a62a8fd27c0deda73a69898"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/composition_verification.rs"
+from_blob = "50adceb4ea3aa36a27a28f72259a401dc2a8c1de"
+to_blob = "cb757899c198331d208e6e28ddbf2e7bb660cdaf"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/cross_world_execution.rs"
+from_blob = "39c27944b6450f3e563174a39a041b9af9f1794a"
+to_blob = "f6be73e8db0c81f6644705d9da8c6aafb02a21ed"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/decision_reliability.rs"
+from_blob = "d0b97babe6ab9799b58c151b8b580ed6638b619c"
+to_blob = "0baf795fd05e2091951c3d2d4e076fe207d4d29c"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/discretized_composition.rs"
+from_blob = "dc404b697651ed7cbc2efd5e2f7dca2f6d0d80fc"
+to_blob = "88800b81471f8cec47e9c83d9ad35108bdf632c6"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/inverse_sources.rs"
+from_blob = "ea0bb4407cd237447e3f785dfd181401d4324bc5"
+to_blob = "0001c87425af87c6a209354787e9545c11939c4e"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/joint_law_propagation.rs"
+from_blob = "ffd3ce457834c0b1430dea31f405bbe23fcffc4e"
+to_blob = "32f9ca7d1300d2d170808a1f8c35f073e11dcb61"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/mod.rs"
+from_blob = "cc12702bc5ca5d1f395ab81b59ded699e369ac52"
+to_blob = "e973695f5390d4dccd01064a245ae75f5ada93b2"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/observation_evidence.rs"
+from_blob = "61fdefaba1bbe836ce152409ffca418cd8495536"
+to_blob = "5dd9b620921b72e9e0249423addf6f3d12c2143d"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/observation_query.rs"
+from_blob = "af29c3d4d2d623ec0160b4285eb9ab304df667f0"
+to_blob = "94798f9113ada467a4a8a92c9d0a651e4fa5b501"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/predictive_assessment.rs"
+from_blob = "18d285547c58880af707aa4f42270d286765a794"
+to_blob = "bfd5ac067c806c65907e076cb60b7cb665455912"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/sample_split_analysis.rs"
+from_blob = "77ce81cfd437f463e8f7bdbc2815fa913b147e99"
+to_blob = "c5c699665255b170be1023b319b9ad815bcd9c5d"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/scientific_bridge.rs"
+from_blob = "1c699a227ee1b7398bb88eb9ab5e391c7c21755b"
+to_blob = "f61a4096323c8685afb6f7a897ec38875b692ffe"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/sequential_evaluation.rs"
+from_blob = "68366c196446e782b3dece91eb3da5f5d28ce631"
+to_blob = "bc77df1e33648e552e73892f9881cb731d80d17b"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/surface/scientific.rs"
+from_blob = "662ac9af1f168dc8ef9509b5568b61353ce989ea"
+to_blob = "014ac7de9e722dd2f29699947f182f066bced689"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/transport_sensitivity.rs"
+from_blob = "5f47d32419526bde8dff406bb2c07604afe378e6"
+to_blob = "33c1af3a86342eedad33766928ae6f522e5d9e34"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/transported_constructors.rs"
+from_blob = "9ba9b9eade69401c7c19003f2b5cd8004653e711"
+to_blob = "aa86637e206d6f877d9a8c9af3e3739142b58cd0"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/transported_mechanism.rs"
+from_blob = "6d156a7b23565a549d9926b3ea903770e7cefc68"
+to_blob = "07ab99a05af585f6c5775b4c42ce61f0901b7241"
+kind = "proof_delegation"
+rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
+invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
+
+[waiver.outcome]
+replayed_at = "4d7120d86c64f1095e00c2a763244471750a9699"
+identical = true
+records = [
+  "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.mediated",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.mediated" = "1627fb21222a0bd2a026cc32e45b7637cb90a88486a68721e7e2d695470de200"
+
+# Replay waivers for coverage records (scripts/calibration_facets.py).
+#
+# A waiver lets a reviewed change that cannot move a measured number stand in
+# for a re-measurement, with evidence. It applies to a record only when the
+# record was measured at `from`, every attested path in the record's facets
+# that changed since is listed in `paths`, and none of them changed after
+# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
+# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
+# with the stored records. Each `exercises` list names the waived paths that
+# record's test runs. A reviewed_equivalence certificate instead binds an exact
+# source diff that delegates to unchanged accepted numerical code; it never claims
+# that a new wrapper ran in an old harness. Together these cover every path.
+# recordless_gates = true additionally attests original passed gate rows under
+# the same exact source scope and genuine numeric replay; it never re-stamps them.
+#
+# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
+# `replay` tables by hand, then fill `outcome` by running
+#   python3 scripts/calibration_facets.py replay --waiver <id>
+# on a clean checkout of `to`. That command rewrites this file; comments other
+# than this header are not kept (the justification is the prose).
+# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
+# the records it covers as `attested_by_replay (waiver <id>)`.
+
 [[waiver]]
 id = "wiring-and-layout-from-f11161bc"
 from = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
-to = "62b63f869fb68380906a4a2cf6cdb170349ae507"
+to = "4d7120d86c64f1095e00c2a763244471750a9699"
 reviewed_by = "authorized release engineering review"
 recordless_gates = false
 gate_ledger_commit = ""
@@ -541,7 +1198,7 @@ rationale = "Adds routes, dispatch lines, manifest entries or path rewrites besi
 invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
 
 [waiver.outcome]
-replayed_at = "62b63f869fb68380906a4a2cf6cdb170349ae507"
+replayed_at = "4d7120d86c64f1095e00c2a763244471750a9699"
 identical = true
 records = [
   "cov.anomaly_attribution.dag.bayesian.posterior_quantile.l90.anomaly_attribution_dag_bayesian_nominal_coverage",
@@ -555,1248 +1212,3 @@ differences = [
 "cov.anomaly_attribution.dag.bayesian.posterior_quantile.l90.anomaly_attribution_dag_bayesian_nominal_coverage" = "110187d0457a58690941834ccc08a332f5624d1bd67f9c2e88fbe6a7dd6edf33"
 "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage" = "de4977dd7a11b5ce556b45b4afe460f739310c67adc0a12d4197900bd99e7ce1"
 "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_iid_n160_nominal_90_coverage" = "e6e180935f5b3f41b331816c8f050bf1b4cc2dea0961a543a99ebcd3fd0ef607"
-
-# Replay waivers for coverage records (scripts/calibration_facets.py).
-#
-# A waiver lets a reviewed change that cannot move a measured number stand in
-# for a re-measurement, with evidence. It applies to a record only when the
-# record was measured at `from`, every attested path in the record's facets
-# that changed since is listed in `paths`, and none of them changed after
-# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
-# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
-# with the stored records. Each `exercises` list names the waived paths that
-# record's test runs. A reviewed_equivalence certificate instead binds an exact
-# source diff that delegates to unchanged accepted numerical code; it never claims
-# that a new wrapper ran in an old harness. Together these cover every path.
-# recordless_gates = true additionally attests original passed gate rows under
-# the same exact source scope and genuine numeric replay; it never re-stamps them.
-#
-# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
-# `replay` tables by hand, then fill `outcome` by running
-#   python3 scripts/calibration_facets.py replay --waiver <id>
-# on a clean checkout of `to`. That command rewrites this file; comments other
-# than this header are not kept (the justification is the prose).
-# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
-# the records it covers as `attested_by_replay (waiver <id>)`.
-
-[[waiver]]
-id = "wiring-and-layout-from-b4f06ae0"
-from = "b4f06ae0abce384b1f774de5385ee09ee6bf0df4"
-to = "62b63f869fb68380906a4a2cf6cdb170349ae507"
-reviewed_by = "authorized release engineering review"
-recordless_gates = false
-gate_ledger_commit = ""
-justification = """
-Changes since the measurement that add routes beside the measured ones without moving a measured number: new modules and their dispatch lines, facade re-export paths, refusal and remedy strings, package manifests that declare the new test targets and the consolidated integration-test layout, and the gate script's added groups and run functions. No existing group's cargo invocation, environment, seed domain or tally changes. The replay re-runs a measured record through the changed script and compares every emitted field bit for bit; each certificate binds the exact before and after blobs.\
-"""
-paths = [
-  "scripts/gate_calibration.sh",
-  "Cargo.toml",
-  "crates/antecedent-contract/Cargo.toml",
-  "crates/antecedent-contract/src/bridge.rs",
-  "crates/antecedent-contract/src/bridge/claim.rs",
-  "crates/antecedent-contract/src/bridge/refusal.rs",
-  "crates/antecedent-contract/src/observation_query.rs",
-  "crates/antecedent-core/Cargo.toml",
-  "crates/antecedent-counterfactual/Cargo.toml",
-  "crates/antecedent-data/Cargo.toml",
-  "crates/antecedent-design/Cargo.toml",
-  "crates/antecedent-discovery/Cargo.toml",
-  "crates/antecedent-discovery/src/selective/claims.rs",
-  "crates/antecedent-estimate/src/lib.rs",
-  "crates/antecedent-graph/Cargo.toml",
-  "crates/antecedent-identify/Cargo.toml",
-  "crates/antecedent-io-core/Cargo.toml",
-  "crates/antecedent-io-core/src/cohort_decision.rs",
-  "crates/antecedent-io-core/src/cohort_decision/tests.rs",
-  "crates/antecedent-io/Cargo.toml",
-  "crates/antecedent-io/src/lib.rs",
-  "crates/antecedent-io/src/measured_inference.rs",
-  "crates/antecedent-state/Cargo.toml",
-  "crates/antecedent-validate/Cargo.toml",
-  "crates/antecedent-validate/src/predictive_assessment/assess.rs",
-  "crates/antecedent-validate/src/predictive_assessment/mod.rs",
-  "crates/antecedent-validate/src/predictive_assessment/refusal.rs",
-  "crates/antecedent/Cargo.toml",
-  "crates/antecedent/src/analysis/adaptive_inference.rs",
-  "crates/antecedent/src/analysis/cohort_decision.rs",
-  "crates/antecedent/src/analysis/composition_verification.rs",
-  "crates/antecedent/src/analysis/cross_world_execution.rs",
-  "crates/antecedent/src/analysis/decision_reliability.rs",
-  "crates/antecedent/src/analysis/discretized_composition.rs",
-  "crates/antecedent/src/analysis/inverse_sources.rs",
-  "crates/antecedent/src/analysis/joint_law_propagation.rs",
-  "crates/antecedent/src/analysis/mod.rs",
-  "crates/antecedent/src/analysis/observation_evidence.rs",
-  "crates/antecedent/src/analysis/observation_query.rs",
-  "crates/antecedent/src/analysis/predictive_assessment.rs",
-  "crates/antecedent/src/analysis/sample_split_analysis.rs",
-  "crates/antecedent/src/analysis/scientific_bridge.rs",
-  "crates/antecedent/src/analysis/sequential_evaluation.rs",
-  "crates/antecedent/src/analysis/surface/scientific.rs",
-  "crates/antecedent/src/analysis/transport_sensitivity.rs",
-  "crates/antecedent/src/analysis/transported_constructors.rs",
-  "crates/antecedent/src/analysis/transported_mechanism.rs",
-]
-
-[[waiver.replay]]
-record = "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.mediated"
-exercises = [
-  "scripts/gate_calibration.sh",
-]
-
-[[waiver.reviewed_equivalence]]
-path = "Cargo.toml"
-from_blob = "5f1a81ba329403baabea52c2f9bee5dbab85f8ab"
-to_blob = "51182f0667ad37787ea3f9550df64e6af1bc5a68"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-contract/Cargo.toml"
-from_blob = "c335ee3cb57ea599d4c2a92ea5f9bbb0a77e4d02"
-to_blob = "ab933e42dd30465eb6cc7cdd1775bfb84c345094"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-contract/src/bridge.rs"
-from_blob = "e61b97202858efb8b7a29edc0d9755b22e80fb70"
-to_blob = "3ea39efe0c59178065fdf293436221e3f8becbf8"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-contract/src/bridge/claim.rs"
-from_blob = "5b22129158cf93fa8e9428e855cc1bbc7b51f7ff"
-to_blob = "e3544066bb3e6f38b55e84101364199292811c8f"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-contract/src/bridge/refusal.rs"
-from_blob = "55dcaea536dc01e6d788e87667c7dd9d358e84f9"
-to_blob = "5c9601ba122f9ba7ab6644bc34cc165053de4bc2"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-contract/src/observation_query.rs"
-from_blob = "5a2a6000f6c9559c6a707824e6aa77d3f811ecb9"
-to_blob = "faac2524e03cb95211c66b799c3dc4925cc600a9"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-core/Cargo.toml"
-from_blob = "1c2d1299a2afe6166bd4aa27a8c43ee40d67a7de"
-to_blob = "c53949f88e7187805c8584173e1b9b09c7c2b3d8"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-counterfactual/Cargo.toml"
-from_blob = "6b36aa6be15b10d34153bb828b1bf50551970b4c"
-to_blob = "a3c52ffab846d9ad7bbbf6989bab15eef167c585"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-data/Cargo.toml"
-from_blob = "190059c3a0795342a849341757788312fadd524d"
-to_blob = "9ad12eaee2fdfcb74d3c3d200042b3c36f74bf25"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-design/Cargo.toml"
-from_blob = "d94628c802ddcb130272b41c09ea5f12783bf6bc"
-to_blob = "466de4b482ce8df5bb0b386565fba8c7579d488f"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-discovery/Cargo.toml"
-from_blob = "3b7087de573db4a40ce2753ac07eff36f6375f9c"
-to_blob = "cbae6a0439fa5f69c0f748f74281b99f683bf5ad"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-discovery/src/selective/claims.rs"
-from_blob = "44fe0a7dc2c60bab981d6ec4b04078549364cf55"
-to_blob = "eead26954d4efc9bfad5364b8543ccffabb26296"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-estimate/src/lib.rs"
-from_blob = "e5ab18fca56d38348e44e8d3c20a7314c5eccdc8"
-to_blob = "38c73ad9da31a04f9185164b121c81b210e128ce"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-graph/Cargo.toml"
-from_blob = "0d542402d690498fbe6cc8a979e5a90c1f9d63ce"
-to_blob = "80dc4ff57fabd412171f501e3d4a5f2a5de8bf1c"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-identify/Cargo.toml"
-from_blob = "9ac6a2f08beb2a04e057c4c4d78e3d1c9dc306d9"
-to_blob = "33fa1d47064beb8a4a04daf14f1b92acc056266c"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io-core/Cargo.toml"
-from_blob = "ca3c10bd9710a9a85703f9f98e332294936a1b36"
-to_blob = "c6fa77625544dd84209f75694628641997c5e5c4"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io-core/src/cohort_decision.rs"
-from_blob = "368286287be9d1effc95ed27e0963d3f02fe7c4b"
-to_blob = "eab1e736f5f6e88259b5879f0e69bc5f0c1c2293"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io-core/src/cohort_decision/tests.rs"
-from_blob = "68950b5142feacc9491ad6c9e5460dd17bcc351c"
-to_blob = "06025faf920faaf4d8782cee5bb673e029ce0da6"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io/Cargo.toml"
-from_blob = "6843768b79bcabb90f41bd14654a70c0ee675805"
-to_blob = "7d7d1201f78d6fe4342d65704e003951a21e98f7"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io/src/lib.rs"
-from_blob = "b1cd6d416125e641ab3143fb27e30cd354f11042"
-to_blob = "f9533343f5ac66c1c33d155006ba5252a14964b9"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io/src/measured_inference.rs"
-from_blob = "9ca8ee8159249148faa9cd5aed90720ab81450c1"
-to_blob = "9610b9fbdb54cd240e85cceb2088a36809a445c3"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-state/Cargo.toml"
-from_blob = "d0d39c38d50e67b6b4bfd94f1e0f43a3d84692bc"
-to_blob = "3952968da734a41e371163322b3ce5c0c7256ece"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-validate/Cargo.toml"
-from_blob = "ce701d06c3598377e7371643c609b8dc45bbb9e5"
-to_blob = "a3541b1e06be4eaa79a6486ea00182a774c75ce3"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-validate/src/predictive_assessment/assess.rs"
-from_blob = "66498de6c42658be4a321b2216496a2baf6da4b3"
-to_blob = "78c78b4762ef137b253888e1ad311922aeb107f2"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-validate/src/predictive_assessment/mod.rs"
-from_blob = "e7a1a7c1439074c10dd6f6a6fbe0459a42a0609e"
-to_blob = "bbc649a3c0b45d5b3e2e9ede1312464070d05acf"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-validate/src/predictive_assessment/refusal.rs"
-from_blob = "81c43e08c3aa0ae6cc4419beed577462dff0e8de"
-to_blob = "8131a611690bd6a91a863563d29b6bee996351ef"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/Cargo.toml"
-from_blob = "85b5d58175bccdd199520cdd3af22f0ed1defe0f"
-to_blob = "b634d116e15cc5b17fd74daf1ee1f9596f095603"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/adaptive_inference.rs"
-from_blob = "02977baecb090a610ff0aeb4e1176b917d4a2835"
-to_blob = "cc05556c4f710dcd96e8473cda6d2f6637fdbead"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/cohort_decision.rs"
-from_blob = "0784b9da79ed0446ca31a02c1e790c8faeceb5d0"
-to_blob = "4b530129fdc304f38a62a8fd27c0deda73a69898"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/composition_verification.rs"
-from_blob = "50adceb4ea3aa36a27a28f72259a401dc2a8c1de"
-to_blob = "cb757899c198331d208e6e28ddbf2e7bb660cdaf"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/cross_world_execution.rs"
-from_blob = "39c27944b6450f3e563174a39a041b9af9f1794a"
-to_blob = "f6be73e8db0c81f6644705d9da8c6aafb02a21ed"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/decision_reliability.rs"
-from_blob = "d0b97babe6ab9799b58c151b8b580ed6638b619c"
-to_blob = "0baf795fd05e2091951c3d2d4e076fe207d4d29c"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/discretized_composition.rs"
-from_blob = "dc404b697651ed7cbc2efd5e2f7dca2f6d0d80fc"
-to_blob = "88800b81471f8cec47e9c83d9ad35108bdf632c6"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/inverse_sources.rs"
-from_blob = "ea0bb4407cd237447e3f785dfd181401d4324bc5"
-to_blob = "0001c87425af87c6a209354787e9545c11939c4e"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/joint_law_propagation.rs"
-from_blob = "ffd3ce457834c0b1430dea31f405bbe23fcffc4e"
-to_blob = "32f9ca7d1300d2d170808a1f8c35f073e11dcb61"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/mod.rs"
-from_blob = "cc12702bc5ca5d1f395ab81b59ded699e369ac52"
-to_blob = "e973695f5390d4dccd01064a245ae75f5ada93b2"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/observation_evidence.rs"
-from_blob = "61fdefaba1bbe836ce152409ffca418cd8495536"
-to_blob = "5dd9b620921b72e9e0249423addf6f3d12c2143d"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/observation_query.rs"
-from_blob = "af29c3d4d2d623ec0160b4285eb9ab304df667f0"
-to_blob = "94798f9113ada467a4a8a92c9d0a651e4fa5b501"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/predictive_assessment.rs"
-from_blob = "18d285547c58880af707aa4f42270d286765a794"
-to_blob = "bfd5ac067c806c65907e076cb60b7cb665455912"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/sample_split_analysis.rs"
-from_blob = "77ce81cfd437f463e8f7bdbc2815fa913b147e99"
-to_blob = "c5c699665255b170be1023b319b9ad815bcd9c5d"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/scientific_bridge.rs"
-from_blob = "1c699a227ee1b7398bb88eb9ab5e391c7c21755b"
-to_blob = "f61a4096323c8685afb6f7a897ec38875b692ffe"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/sequential_evaluation.rs"
-from_blob = "68366c196446e782b3dece91eb3da5f5d28ce631"
-to_blob = "bc77df1e33648e552e73892f9881cb731d80d17b"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/surface/scientific.rs"
-from_blob = "662ac9af1f168dc8ef9509b5568b61353ce989ea"
-to_blob = "014ac7de9e722dd2f29699947f182f066bced689"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/transport_sensitivity.rs"
-from_blob = "5f47d32419526bde8dff406bb2c07604afe378e6"
-to_blob = "33c1af3a86342eedad33766928ae6f522e5d9e34"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/transported_constructors.rs"
-from_blob = "9ba9b9eade69401c7c19003f2b5cd8004653e711"
-to_blob = "aa86637e206d6f877d9a8c9af3e3739142b58cd0"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/transported_mechanism.rs"
-from_blob = "6d156a7b23565a549d9926b3ea903770e7cefc68"
-to_blob = "07ab99a05af585f6c5775b4c42ce61f0901b7241"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[waiver.outcome]
-replayed_at = "62b63f869fb68380906a4a2cf6cdb170349ae507"
-identical = true
-records = [
-  "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.mediated",
-]
-differences = [
-]
-
-[waiver.outcome.fingerprints]
-"cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.mediated" = "1627fb21222a0bd2a026cc32e45b7637cb90a88486a68721e7e2d695470de200"
-
-# Replay waivers for coverage records (scripts/calibration_facets.py).
-#
-# A waiver lets a reviewed change that cannot move a measured number stand in
-# for a re-measurement, with evidence. It applies to a record only when the
-# record was measured at `from`, every attested path in the record's facets
-# that changed since is listed in `paths`, and none of them changed after
-# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
-# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
-# with the stored records. Each `exercises` list names the waived paths that
-# record's test runs. A reviewed_equivalence certificate instead binds an exact
-# source diff that delegates to unchanged accepted numerical code; it never claims
-# that a new wrapper ran in an old harness. Together these cover every path.
-# recordless_gates = true additionally attests original passed gate rows under
-# the same exact source scope and genuine numeric replay; it never re-stamps them.
-#
-# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
-# `replay` tables by hand, then fill `outcome` by running
-#   python3 scripts/calibration_facets.py replay --waiver <id>
-# on a clean checkout of `to`. That command rewrites this file; comments other
-# than this header are not kept (the justification is the prose).
-# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
-# the records it covers as `attested_by_replay (waiver <id>)`.
-
-[[waiver]]
-id = "wiring-and-layout-from-cffe4a96"
-from = "cffe4a96b8f7833d1704ecd4c677d37e3c10df24"
-to = "62b63f869fb68380906a4a2cf6cdb170349ae507"
-reviewed_by = "authorized release engineering review"
-recordless_gates = false
-gate_ledger_commit = ""
-justification = """
-Changes since the measurement that add routes beside the measured ones without moving a measured number: new modules and their dispatch lines, facade re-export paths, refusal and remedy strings, package manifests that declare the new test targets and the consolidated integration-test layout, and the gate script's added groups and run functions. No existing group's cargo invocation, environment, seed domain or tally changes. The replay re-runs a measured record through the changed script and compares every emitted field bit for bit; each certificate binds the exact before and after blobs.\
-"""
-paths = [
-  "scripts/gate_calibration.sh",
-  "Cargo.toml",
-  "crates/antecedent-contract/Cargo.toml",
-  "crates/antecedent-contract/src/bridge.rs",
-  "crates/antecedent-contract/src/bridge/claim.rs",
-  "crates/antecedent-contract/src/bridge/refusal.rs",
-  "crates/antecedent-contract/src/observation_query.rs",
-  "crates/antecedent-core/Cargo.toml",
-  "crates/antecedent-counterfactual/Cargo.toml",
-  "crates/antecedent-data/Cargo.toml",
-  "crates/antecedent-design/Cargo.toml",
-  "crates/antecedent-discovery/Cargo.toml",
-  "crates/antecedent-discovery/src/selective/claims.rs",
-  "crates/antecedent-estimate/src/lib.rs",
-  "crates/antecedent-graph/Cargo.toml",
-  "crates/antecedent-identify/Cargo.toml",
-  "crates/antecedent-io-core/Cargo.toml",
-  "crates/antecedent-io-core/src/cohort_decision.rs",
-  "crates/antecedent-io-core/src/cohort_decision/tests.rs",
-  "crates/antecedent-io/Cargo.toml",
-  "crates/antecedent-io/src/lib.rs",
-  "crates/antecedent-io/src/measured_inference.rs",
-  "crates/antecedent-state/Cargo.toml",
-  "crates/antecedent-validate/Cargo.toml",
-  "crates/antecedent-validate/src/predictive_assessment/assess.rs",
-  "crates/antecedent-validate/src/predictive_assessment/mod.rs",
-  "crates/antecedent-validate/src/predictive_assessment/refusal.rs",
-  "crates/antecedent/Cargo.toml",
-  "crates/antecedent/src/analysis/adaptive_inference.rs",
-  "crates/antecedent/src/analysis/cohort_decision.rs",
-  "crates/antecedent/src/analysis/composition_verification.rs",
-  "crates/antecedent/src/analysis/cross_world_execution.rs",
-  "crates/antecedent/src/analysis/joint_law_propagation.rs",
-  "crates/antecedent/src/analysis/mod.rs",
-  "crates/antecedent/src/analysis/observation_query.rs",
-  "crates/antecedent/src/analysis/predictive_assessment.rs",
-  "crates/antecedent/src/analysis/sample_split_analysis.rs",
-  "crates/antecedent/src/analysis/scientific_bridge.rs",
-]
-
-[[waiver.replay]]
-record = "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_delayed_outcomes_l95"
-exercises = [
-  "scripts/gate_calibration.sh",
-]
-
-[[waiver.reviewed_equivalence]]
-path = "Cargo.toml"
-from_blob = "5f1a81ba329403baabea52c2f9bee5dbab85f8ab"
-to_blob = "51182f0667ad37787ea3f9550df64e6af1bc5a68"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-contract/Cargo.toml"
-from_blob = "c335ee3cb57ea599d4c2a92ea5f9bbb0a77e4d02"
-to_blob = "ab933e42dd30465eb6cc7cdd1775bfb84c345094"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-contract/src/bridge.rs"
-from_blob = "e61b97202858efb8b7a29edc0d9755b22e80fb70"
-to_blob = "3ea39efe0c59178065fdf293436221e3f8becbf8"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-contract/src/bridge/claim.rs"
-from_blob = "5b22129158cf93fa8e9428e855cc1bbc7b51f7ff"
-to_blob = "e3544066bb3e6f38b55e84101364199292811c8f"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-contract/src/bridge/refusal.rs"
-from_blob = "55dcaea536dc01e6d788e87667c7dd9d358e84f9"
-to_blob = "5c9601ba122f9ba7ab6644bc34cc165053de4bc2"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-contract/src/observation_query.rs"
-from_blob = "5a2a6000f6c9559c6a707824e6aa77d3f811ecb9"
-to_blob = "faac2524e03cb95211c66b799c3dc4925cc600a9"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-core/Cargo.toml"
-from_blob = "1c2d1299a2afe6166bd4aa27a8c43ee40d67a7de"
-to_blob = "c53949f88e7187805c8584173e1b9b09c7c2b3d8"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-counterfactual/Cargo.toml"
-from_blob = "6b36aa6be15b10d34153bb828b1bf50551970b4c"
-to_blob = "a3c52ffab846d9ad7bbbf6989bab15eef167c585"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-data/Cargo.toml"
-from_blob = "190059c3a0795342a849341757788312fadd524d"
-to_blob = "9ad12eaee2fdfcb74d3c3d200042b3c36f74bf25"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-design/Cargo.toml"
-from_blob = "d94628c802ddcb130272b41c09ea5f12783bf6bc"
-to_blob = "466de4b482ce8df5bb0b386565fba8c7579d488f"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-discovery/Cargo.toml"
-from_blob = "3b7087de573db4a40ce2753ac07eff36f6375f9c"
-to_blob = "cbae6a0439fa5f69c0f748f74281b99f683bf5ad"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-discovery/src/selective/claims.rs"
-from_blob = "44fe0a7dc2c60bab981d6ec4b04078549364cf55"
-to_blob = "eead26954d4efc9bfad5364b8543ccffabb26296"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-estimate/src/lib.rs"
-from_blob = "e5ab18fca56d38348e44e8d3c20a7314c5eccdc8"
-to_blob = "38c73ad9da31a04f9185164b121c81b210e128ce"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-graph/Cargo.toml"
-from_blob = "0d542402d690498fbe6cc8a979e5a90c1f9d63ce"
-to_blob = "80dc4ff57fabd412171f501e3d4a5f2a5de8bf1c"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-identify/Cargo.toml"
-from_blob = "9ac6a2f08beb2a04e057c4c4d78e3d1c9dc306d9"
-to_blob = "33fa1d47064beb8a4a04daf14f1b92acc056266c"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io-core/Cargo.toml"
-from_blob = "ca3c10bd9710a9a85703f9f98e332294936a1b36"
-to_blob = "c6fa77625544dd84209f75694628641997c5e5c4"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io-core/src/cohort_decision.rs"
-from_blob = "368286287be9d1effc95ed27e0963d3f02fe7c4b"
-to_blob = "eab1e736f5f6e88259b5879f0e69bc5f0c1c2293"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io-core/src/cohort_decision/tests.rs"
-from_blob = "68950b5142feacc9491ad6c9e5460dd17bcc351c"
-to_blob = "06025faf920faaf4d8782cee5bb673e029ce0da6"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io/Cargo.toml"
-from_blob = "6843768b79bcabb90f41bd14654a70c0ee675805"
-to_blob = "7d7d1201f78d6fe4342d65704e003951a21e98f7"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io/src/lib.rs"
-from_blob = "b1cd6d416125e641ab3143fb27e30cd354f11042"
-to_blob = "f9533343f5ac66c1c33d155006ba5252a14964b9"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io/src/measured_inference.rs"
-from_blob = "9ca8ee8159249148faa9cd5aed90720ab81450c1"
-to_blob = "9610b9fbdb54cd240e85cceb2088a36809a445c3"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-state/Cargo.toml"
-from_blob = "d0d39c38d50e67b6b4bfd94f1e0f43a3d84692bc"
-to_blob = "3952968da734a41e371163322b3ce5c0c7256ece"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-validate/Cargo.toml"
-from_blob = "ce701d06c3598377e7371643c609b8dc45bbb9e5"
-to_blob = "a3541b1e06be4eaa79a6486ea00182a774c75ce3"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-validate/src/predictive_assessment/assess.rs"
-from_blob = "66498de6c42658be4a321b2216496a2baf6da4b3"
-to_blob = "78c78b4762ef137b253888e1ad311922aeb107f2"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-validate/src/predictive_assessment/mod.rs"
-from_blob = "e7a1a7c1439074c10dd6f6a6fbe0459a42a0609e"
-to_blob = "bbc649a3c0b45d5b3e2e9ede1312464070d05acf"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-validate/src/predictive_assessment/refusal.rs"
-from_blob = "81c43e08c3aa0ae6cc4419beed577462dff0e8de"
-to_blob = "8131a611690bd6a91a863563d29b6bee996351ef"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/Cargo.toml"
-from_blob = "85b5d58175bccdd199520cdd3af22f0ed1defe0f"
-to_blob = "b634d116e15cc5b17fd74daf1ee1f9596f095603"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/adaptive_inference.rs"
-from_blob = "02977baecb090a610ff0aeb4e1176b917d4a2835"
-to_blob = "cc05556c4f710dcd96e8473cda6d2f6637fdbead"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/cohort_decision.rs"
-from_blob = "bdb625ec17d67dd094d5686b7f3f03192fa6cb0b"
-to_blob = "4b530129fdc304f38a62a8fd27c0deda73a69898"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/composition_verification.rs"
-from_blob = "50adceb4ea3aa36a27a28f72259a401dc2a8c1de"
-to_blob = "cb757899c198331d208e6e28ddbf2e7bb660cdaf"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/cross_world_execution.rs"
-from_blob = "0d897eb8d9d58b450af1ff0d0d7b8368d56df4b9"
-to_blob = "f6be73e8db0c81f6644705d9da8c6aafb02a21ed"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/joint_law_propagation.rs"
-from_blob = "ffd3ce457834c0b1430dea31f405bbe23fcffc4e"
-to_blob = "32f9ca7d1300d2d170808a1f8c35f073e11dcb61"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/mod.rs"
-from_blob = "0f4883fc9b390c1897c1a6ba37e1568039ea963b"
-to_blob = "e973695f5390d4dccd01064a245ae75f5ada93b2"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/observation_query.rs"
-from_blob = "8888ea81f4b57a931766b2ac0e069969d91f61dc"
-to_blob = "94798f9113ada467a4a8a92c9d0a651e4fa5b501"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/predictive_assessment.rs"
-from_blob = "18d285547c58880af707aa4f42270d286765a794"
-to_blob = "bfd5ac067c806c65907e076cb60b7cb665455912"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/sample_split_analysis.rs"
-from_blob = "77ce81cfd437f463e8f7bdbc2815fa913b147e99"
-to_blob = "c5c699665255b170be1023b319b9ad815bcd9c5d"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/scientific_bridge.rs"
-from_blob = "1c699a227ee1b7398bb88eb9ab5e391c7c21755b"
-to_blob = "f61a4096323c8685afb6f7a897ec38875b692ffe"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[waiver.outcome]
-replayed_at = "62b63f869fb68380906a4a2cf6cdb170349ae507"
-identical = true
-records = [
-  "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_delayed_outcomes_l95",
-]
-differences = [
-]
-
-[waiver.outcome.fingerprints]
-"cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_delayed_outcomes_l95" = "ebc4695001aa9caa4e220590feb8cd4ccf06f6a037b9cdba06086c4ad98c15b5"
-
-# Replay waivers for coverage records (scripts/calibration_facets.py).
-#
-# A waiver lets a reviewed change that cannot move a measured number stand in
-# for a re-measurement, with evidence. It applies to a record only when the
-# record was measured at `from`, every attested path in the record's facets
-# that changed since is listed in `paths`, and none of them changed after
-# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
-# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
-# with the stored records. Each `exercises` list names the waived paths that
-# record's test runs. A reviewed_equivalence certificate instead binds an exact
-# source diff that delegates to unchanged accepted numerical code; it never claims
-# that a new wrapper ran in an old harness. Together these cover every path.
-# recordless_gates = true additionally attests original passed gate rows under
-# the same exact source scope and genuine numeric replay; it never re-stamps them.
-#
-# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
-# `replay` tables by hand, then fill `outcome` by running
-#   python3 scripts/calibration_facets.py replay --waiver <id>
-# on a clean checkout of `to`. That command rewrites this file; comments other
-# than this header are not kept (the justification is the prose).
-# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
-# the records it covers as `attested_by_replay (waiver <id>)`.
-
-[[waiver]]
-id = "wiring-and-layout-from-94655823"
-from = "94655823657cf9daa9562e9f4aeda39cd86bcd5c"
-to = "62b63f869fb68380906a4a2cf6cdb170349ae507"
-reviewed_by = "authorized release engineering review"
-recordless_gates = false
-gate_ledger_commit = ""
-justification = """
-Changes since the measurement that add routes beside the measured ones without moving a measured number: new modules and their dispatch lines, facade re-export paths, refusal and remedy strings, package manifests that declare the new test targets and the consolidated integration-test layout, and the gate script's added groups and run functions. No existing group's cargo invocation, environment, seed domain or tally changes. The replay re-runs a measured record through the changed script and compares every emitted field bit for bit; each certificate binds the exact before and after blobs.\
-"""
-paths = [
-  "scripts/gate_calibration.sh",
-  "Cargo.toml",
-  "crates/antecedent-contract/Cargo.toml",
-  "crates/antecedent-contract/src/bridge.rs",
-  "crates/antecedent-contract/src/bridge/claim.rs",
-  "crates/antecedent-contract/src/bridge/refusal.rs",
-  "crates/antecedent-contract/src/observation_query.rs",
-  "crates/antecedent-core/Cargo.toml",
-  "crates/antecedent-counterfactual/Cargo.toml",
-  "crates/antecedent-data/Cargo.toml",
-  "crates/antecedent-design/Cargo.toml",
-  "crates/antecedent-discovery/Cargo.toml",
-  "crates/antecedent-discovery/src/selective/claims.rs",
-  "crates/antecedent-estimate/src/lib.rs",
-  "crates/antecedent-graph/Cargo.toml",
-  "crates/antecedent-identify/Cargo.toml",
-  "crates/antecedent-io-core/Cargo.toml",
-  "crates/antecedent-io-core/src/cohort_decision.rs",
-  "crates/antecedent-io-core/src/cohort_decision/tests.rs",
-  "crates/antecedent-io/Cargo.toml",
-  "crates/antecedent-io/src/lib.rs",
-  "crates/antecedent-io/src/measured_inference.rs",
-  "crates/antecedent-state/Cargo.toml",
-  "crates/antecedent-validate/Cargo.toml",
-  "crates/antecedent-validate/src/predictive_assessment/assess.rs",
-  "crates/antecedent-validate/src/predictive_assessment/mod.rs",
-  "crates/antecedent-validate/src/predictive_assessment/refusal.rs",
-  "crates/antecedent/Cargo.toml",
-  "crates/antecedent/src/analysis/adaptive_inference.rs",
-  "crates/antecedent/src/analysis/cohort_decision.rs",
-  "crates/antecedent/src/analysis/composition_verification.rs",
-  "crates/antecedent/src/analysis/cross_world_execution.rs",
-  "crates/antecedent/src/analysis/joint_law_propagation.rs",
-  "crates/antecedent/src/analysis/mod.rs",
-  "crates/antecedent/src/analysis/observation_query.rs",
-  "crates/antecedent/src/analysis/predictive_assessment.rs",
-  "crates/antecedent/src/analysis/sample_split_analysis.rs",
-  "crates/antecedent/src/analysis/scientific_bridge.rs",
-]
-
-[[waiver.replay]]
-record = "cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_checked_effect_basic_l95"
-exercises = [
-  "scripts/gate_calibration.sh",
-]
-
-[[waiver.reviewed_equivalence]]
-path = "Cargo.toml"
-from_blob = "5f1a81ba329403baabea52c2f9bee5dbab85f8ab"
-to_blob = "51182f0667ad37787ea3f9550df64e6af1bc5a68"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-contract/Cargo.toml"
-from_blob = "c335ee3cb57ea599d4c2a92ea5f9bbb0a77e4d02"
-to_blob = "ab933e42dd30465eb6cc7cdd1775bfb84c345094"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-contract/src/bridge.rs"
-from_blob = "e61b97202858efb8b7a29edc0d9755b22e80fb70"
-to_blob = "3ea39efe0c59178065fdf293436221e3f8becbf8"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-contract/src/bridge/claim.rs"
-from_blob = "5b22129158cf93fa8e9428e855cc1bbc7b51f7ff"
-to_blob = "e3544066bb3e6f38b55e84101364199292811c8f"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-contract/src/bridge/refusal.rs"
-from_blob = "55dcaea536dc01e6d788e87667c7dd9d358e84f9"
-to_blob = "5c9601ba122f9ba7ab6644bc34cc165053de4bc2"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-contract/src/observation_query.rs"
-from_blob = "5a2a6000f6c9559c6a707824e6aa77d3f811ecb9"
-to_blob = "faac2524e03cb95211c66b799c3dc4925cc600a9"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-core/Cargo.toml"
-from_blob = "1c2d1299a2afe6166bd4aa27a8c43ee40d67a7de"
-to_blob = "c53949f88e7187805c8584173e1b9b09c7c2b3d8"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-counterfactual/Cargo.toml"
-from_blob = "6b36aa6be15b10d34153bb828b1bf50551970b4c"
-to_blob = "a3c52ffab846d9ad7bbbf6989bab15eef167c585"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-data/Cargo.toml"
-from_blob = "190059c3a0795342a849341757788312fadd524d"
-to_blob = "9ad12eaee2fdfcb74d3c3d200042b3c36f74bf25"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-design/Cargo.toml"
-from_blob = "d94628c802ddcb130272b41c09ea5f12783bf6bc"
-to_blob = "466de4b482ce8df5bb0b386565fba8c7579d488f"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-discovery/Cargo.toml"
-from_blob = "3b7087de573db4a40ce2753ac07eff36f6375f9c"
-to_blob = "cbae6a0439fa5f69c0f748f74281b99f683bf5ad"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-discovery/src/selective/claims.rs"
-from_blob = "44fe0a7dc2c60bab981d6ec4b04078549364cf55"
-to_blob = "eead26954d4efc9bfad5364b8543ccffabb26296"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-estimate/src/lib.rs"
-from_blob = "e5ab18fca56d38348e44e8d3c20a7314c5eccdc8"
-to_blob = "38c73ad9da31a04f9185164b121c81b210e128ce"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-graph/Cargo.toml"
-from_blob = "0d542402d690498fbe6cc8a979e5a90c1f9d63ce"
-to_blob = "80dc4ff57fabd412171f501e3d4a5f2a5de8bf1c"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-identify/Cargo.toml"
-from_blob = "9ac6a2f08beb2a04e057c4c4d78e3d1c9dc306d9"
-to_blob = "33fa1d47064beb8a4a04daf14f1b92acc056266c"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io-core/Cargo.toml"
-from_blob = "ca3c10bd9710a9a85703f9f98e332294936a1b36"
-to_blob = "c6fa77625544dd84209f75694628641997c5e5c4"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io-core/src/cohort_decision.rs"
-from_blob = "368286287be9d1effc95ed27e0963d3f02fe7c4b"
-to_blob = "eab1e736f5f6e88259b5879f0e69bc5f0c1c2293"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io-core/src/cohort_decision/tests.rs"
-from_blob = "68950b5142feacc9491ad6c9e5460dd17bcc351c"
-to_blob = "06025faf920faaf4d8782cee5bb673e029ce0da6"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io/Cargo.toml"
-from_blob = "6843768b79bcabb90f41bd14654a70c0ee675805"
-to_blob = "7d7d1201f78d6fe4342d65704e003951a21e98f7"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io/src/lib.rs"
-from_blob = "b1cd6d416125e641ab3143fb27e30cd354f11042"
-to_blob = "f9533343f5ac66c1c33d155006ba5252a14964b9"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-io/src/measured_inference.rs"
-from_blob = "9ca8ee8159249148faa9cd5aed90720ab81450c1"
-to_blob = "9610b9fbdb54cd240e85cceb2088a36809a445c3"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-state/Cargo.toml"
-from_blob = "d0d39c38d50e67b6b4bfd94f1e0f43a3d84692bc"
-to_blob = "3952968da734a41e371163322b3ce5c0c7256ece"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-validate/Cargo.toml"
-from_blob = "ce701d06c3598377e7371643c609b8dc45bbb9e5"
-to_blob = "a3541b1e06be4eaa79a6486ea00182a774c75ce3"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-validate/src/predictive_assessment/assess.rs"
-from_blob = "66498de6c42658be4a321b2216496a2baf6da4b3"
-to_blob = "78c78b4762ef137b253888e1ad311922aeb107f2"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-validate/src/predictive_assessment/mod.rs"
-from_blob = "e7a1a7c1439074c10dd6f6a6fbe0459a42a0609e"
-to_blob = "bbc649a3c0b45d5b3e2e9ede1312464070d05acf"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent-validate/src/predictive_assessment/refusal.rs"
-from_blob = "81c43e08c3aa0ae6cc4419beed577462dff0e8de"
-to_blob = "8131a611690bd6a91a863563d29b6bee996351ef"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/Cargo.toml"
-from_blob = "85b5d58175bccdd199520cdd3af22f0ed1defe0f"
-to_blob = "b634d116e15cc5b17fd74daf1ee1f9596f095603"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/adaptive_inference.rs"
-from_blob = "02977baecb090a610ff0aeb4e1176b917d4a2835"
-to_blob = "cc05556c4f710dcd96e8473cda6d2f6637fdbead"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/cohort_decision.rs"
-from_blob = "bdb625ec17d67dd094d5686b7f3f03192fa6cb0b"
-to_blob = "4b530129fdc304f38a62a8fd27c0deda73a69898"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/composition_verification.rs"
-from_blob = "50adceb4ea3aa36a27a28f72259a401dc2a8c1de"
-to_blob = "cb757899c198331d208e6e28ddbf2e7bb660cdaf"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/cross_world_execution.rs"
-from_blob = "0d897eb8d9d58b450af1ff0d0d7b8368d56df4b9"
-to_blob = "f6be73e8db0c81f6644705d9da8c6aafb02a21ed"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/joint_law_propagation.rs"
-from_blob = "ffd3ce457834c0b1430dea31f405bbe23fcffc4e"
-to_blob = "32f9ca7d1300d2d170808a1f8c35f073e11dcb61"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/mod.rs"
-from_blob = "0f4883fc9b390c1897c1a6ba37e1568039ea963b"
-to_blob = "e973695f5390d4dccd01064a245ae75f5ada93b2"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/observation_query.rs"
-from_blob = "8888ea81f4b57a931766b2ac0e069969d91f61dc"
-to_blob = "94798f9113ada467a4a8a92c9d0a651e4fa5b501"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/predictive_assessment.rs"
-from_blob = "18d285547c58880af707aa4f42270d286765a794"
-to_blob = "bfd5ac067c806c65907e076cb60b7cb665455912"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/sample_split_analysis.rs"
-from_blob = "77ce81cfd437f463e8f7bdbc2815fa913b147e99"
-to_blob = "c5c699665255b170be1023b319b9ad815bcd9c5d"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[[waiver.reviewed_equivalence]]
-path = "crates/antecedent/src/analysis/scientific_bridge.rs"
-from_blob = "1c699a227ee1b7398bb88eb9ab5e391c7c21755b"
-to_blob = "f61a4096323c8685afb6f7a897ec38875b692ffe"
-kind = "proof_delegation"
-rationale = "Adds routes, dispatch lines, manifest entries or path rewrites beside the measured ones; no existing function body, constant or arithmetic that a measured record runs changes."
-invariant_evidence = "Exact baseline and final Git objects; the measured records' own tests and the gate script's unchanged invocations replay bit for bit."
-
-[waiver.outcome]
-replayed_at = "62b63f869fb68380906a4a2cf6cdb170349ae507"
-identical = true
-records = [
-  "cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_checked_effect_basic_l95",
-]
-differences = [
-]
-
-[waiver.outcome.fingerprints]
-"cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_checked_effect_basic_l95" = "658434e3546558d32c964c8cd761514ba1d17d5816ee68c5e454c28a66727d7c"
