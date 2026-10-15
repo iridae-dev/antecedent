@@ -1,0 +1,611 @@
+# One catalog for repository and published documentation. Runtime is a planning
+# estimate after installation, not a performance claim; all data are synthetic.
+
+[[example]]
+id = "adaptive_procedure"
+title = "Declared adaptive procedure"
+summary = "Enumerate a tiny procedure under supplied truths, keeping undefined contrast mass visible."
+python = "examples/python/adaptive_procedure.py"
+topic = "Decisions and composition"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Derived procedure report conditional on declared design and truths"
+
+[[example]]
+id = "analysis_workflow"
+title = "First analysis"
+summary = "Estimate, inspect, refresh and reload one synthetic average effect."
+python = "examples/python/analysis_workflow.py"
+topic = "Start and reuse"
+level = "beginner"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Average-effect execution, immutable refresh history, and saved-result acceptance; inspect interval calibration."
+
+[[example]]
+id = "artifact_consumer"
+title = "Artifact consumer"
+summary = "Check independent consumption, wrong identity and altered bytes."
+python = "examples/python/artifact_consumer.py"
+topic = "Start and reuse"
+level = "beginner"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Identity-bound consumption, wrong-identity and malformed-container refusals; loading does not recreate a live study."
+
+[[example]]
+id = "artifact_producer"
+title = "Artifact producer"
+summary = "Store bytes and a separately retainable producer expectation."
+python = "examples/python/artifact_producer.py"
+topic = "Start and reuse"
+level = "beginner"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Separately retainable scientific identity and bytes; saving does not establish real-world causal validity."
+
+[[example]]
+id = "bench_python_overhead"
+title = "Python ingest performance"
+summary = "Measure Python-to-native ingest overhead with repeatable workload inputs."
+python = "examples/python/bench_python_overhead.py"
+topic = "Performance"
+level = "advanced"
+dependencies = ["pandas"]
+runtime = "up to 5 min"
+claim = "Numerical timing; no scientific claim"
+
+[[example]]
+id = "causal_state_workflow"
+title = "CausalState workflow"
+summary = "Update an analysis as data arrive and identify outdated results"
+python = "examples/python/causal_state_workflow.py"
+rust = "examples/rust/causal_state_workflow.rs"
+topic = "Start and reuse"
+level = "beginner"
+dependencies = []
+runtime = "up to 1 min"
+claim = "State updates and explicit stale-result handling as observations arrive."
+
+[[example]]
+id = "class_preserving_cpdag"
+title = "Uncertain graph directions"
+summary = "Estimate a range of effects when some edge directions are unknown"
+python = "examples/python/class_preserving_cpdag.py"
+rust = "examples/rust/class_preserving_cpdag.rs"
+topic = "Discovery and identification"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Class-preserving bounds or partial answer; a reviewed orientation changes the structural declaration."
+
+[[example]]
+id = "cohesive_ml_transport"
+title = "ML and transport lifecycle"
+summary = "Prepare, estimate, inspect and reload fitted models and transport results"
+python = "examples/python/cohesive_ml_transport.py"
+topic = "Transport"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Supported learner-backed estimation and transport with retained model and artifact identity."
+
+[[example]]
+id = "composed_uncertainty"
+title = "Composed product spread"
+summary = "Compute a product from one aligned law and distinguish its spread from interval coverage."
+python = "examples/python/composed_uncertainty.py"
+topic = "Decisions and composition"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Point and uncalibrated spread under one aligned joint law"
+
+[[example]]
+id = "composition_bundle"
+title = "Composition bundle"
+summary = "Export a composed decision and consume it under a retained identity"
+python = "examples/python/composition_bundle.py"
+topic = "Decisions and composition"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Portable composition with independently retained identities and checked downstream consumption."
+
+[[example]]
+id = "decision_lifecycle"
+title = "Decision lifecycle"
+summary = "Analyze, bind external evidence, inspect, decide, then rank the next study"
+python = "examples/python/decision_lifecycle.py"
+topic = "Decisions and composition"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Checked decision contracts consume native or bound external claims while retaining their different standing."
+
+[[example]]
+id = "discover_then_estimate"
+title = "Discover then estimate"
+summary = "Discover once, accept a DAG, re-estimate many times"
+python = "examples/python/discover_then_estimate.py"
+rust = "examples/rust/discover_then_estimate.rs"
+topic = "Discovery and identification"
+level = "intermediate"
+dependencies = []
+runtime = "up to 5 min"
+claim = "Estimation conditional on an explicitly accepted discovered DAG; acceptance does not make discovery certain."
+
+[[example]]
+id = "dowhy_handoff"
+title = "DoWhy handoff"
+summary = "Exchange a reviewed backdoor graph with DoWhy (optional dependency)"
+python = "examples/python/dowhy_handoff.py"
+topic = "Interoperability"
+level = "intermediate"
+dependencies = ["pandas", "dowhy (optional)"]
+runtime = "up to 1 min"
+claim = "Reviewed backdoor graph exchange; each library owns its own fit and scientific interpretation."
+
+[[example]]
+id = "econml_cate_handoff"
+title = "EconML handoff"
+summary = "Compare adjusted average effects with EconML CATE predictions (optional dependency)"
+python = "examples/python/econml_cate_handoff.py"
+topic = "Interoperability"
+level = "intermediate"
+dependencies = ["econml (optional)"]
+runtime = "up to 1 min"
+claim = "Antecedent supplies adjustment columns; the optional EconML fit owns its conditional-effect output."
+
+[[example]]
+id = "experiment_randomized_effect"
+title = "Randomized experiment"
+summary = "Estimate a randomized ITT effect; design inputs named by data column"
+python = "examples/python/experiment_randomized_effect.py"
+topic = "Estimation and designs"
+level = "beginner"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Randomized ITT under declared assignment probabilities and units; inspect graphless support and interval standing."
+
+[[example]]
+id = "factorial_cell_means"
+title = "Factorial cell means"
+summary = "2x2 Bernoulli factorial main effects and interaction (point utility)"
+python = "examples/python/factorial_cell_means.py"
+topic = "Estimation and designs"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Declared Bernoulli factorial cell means, main effects and interaction."
+
+[[example]]
+id = "ihdp_propensity_e2e"
+title = "IHDP-style propensity / AIPW"
+summary = "Synthetic IHDP-like covariates \u2192 assumed DAG \u2192 IPW + AIPW + refute"
+python = "examples/python/ihdp_propensity_e2e.py"
+topic = "Estimation and designs"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Synthetic IHDP-like covariates under an assumed DAG; IPW and AIPW effects and refutation."
+
+[[example]]
+id = "manufacturing_temporal"
+title = "Manufacturing temporal"
+summary = "Estimate how a pressure change affects later defects"
+python = "examples/python/manufacturing_temporal.py"
+rust = "examples/rust/manufacturing_temporal.rs"
+topic = "Temporal and longitudinal"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Lagged intervention effect under an explicit temporal graph; horizons and support remain part of the claim."
+
+[[example]]
+id = "measurement_to_decision"
+title = "Measurement to decision"
+summary = "Correct exposure prevalence, pool disjoint evidence and revise a finite-model decision."
+python = "examples/python/measurement_to_decision.py"
+topic = "Decisions and composition"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Declared misclassification correction, disjoint fixed-effect pooling, finite mechanisms and affine point decisions."
+
+[[example]]
+id = "mechanism_discrepancy"
+title = "Mechanism discrepancy"
+summary = "Test whether a node's mechanism differs between source and target"
+python = "examples/python/mechanism_discrepancy.py"
+topic = "Transport"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Diagnostic comparison of source and target mechanisms; a diagnostic does not prove invariance."
+
+[[example]]
+id = "msm_sensitivity"
+title = "MSM sensitivity"
+summary = "Marginal-sensitivity bounds and tipping point for a stratified ATE"
+python = "examples/python/msm_sensitivity.py"
+topic = "Estimation and designs"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Assumption-sensitivity range and tipping point for a stratified average effect; not a confidence interval."
+
+[[example]]
+id = "notebook_to_system_24"
+title = "Notebook to system"
+summary = "Retain identification, refute an execution, guard design updates, compose a mean and consume bytes in a fresh process."
+python = "examples/python/notebook_to_system_24.py"
+notebook = "examples/notebooks/notebook_to_system_24.ipynb"
+topic = "Start and reuse"
+level = "beginner"
+dependencies = ["pandas", "matplotlib", "ipykernel"]
+runtime = "up to 5 min"
+claim = "Retained average effect, randomized ITT, declared mean composition, and independent identity-bound consumption."
+
+[[example]]
+id = "pcmci_pulse_benchmark"
+title = "PCMCI pulse discovery"
+summary = "Discover a lagged graph and estimate a pulse effect in simulated data"
+python = "examples/python/pcmci_pulse_benchmark.py"
+topic = "Temporal and longitudinal"
+level = "intermediate"
+dependencies = []
+runtime = "up to 5 min"
+claim = "Pulse effect conditional on an accepted lagged graph discovered from the simulated series."
+
+[[example]]
+id = "policy_value_evaluation"
+title = "Policy value"
+summary = "Held-out value of a fixed binary policy under known propensities"
+python = "examples/python/policy_value_evaluation.py"
+topic = "Estimation and designs"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Held-out value of a fixed binary policy under known assignment propensities."
+
+[[example]]
+id = "prior_bank_surveys"
+title = "Prior bank surveys"
+summary = "Select and combine evidence from earlier surveys"
+python = "examples/python/prior_bank_surveys.py"
+rust = "examples/rust/prior_bank_surveys.rs"
+topic = "Bayesian evidence"
+level = "intermediate"
+dependencies = []
+runtime = "up to 5 min"
+claim = "Declared historical-evidence selection and pooling with source and target compatibility checks."
+
+[[example]]
+id = "propensity_weighting"
+title = "Propensity weighting"
+summary = "Adjust for treatment selection using inverse-probability weights"
+python = "examples/python/propensity_weighting.py"
+rust = "examples/rust/propensity_weighting.rs"
+topic = "Estimation and designs"
+level = "beginner"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Average effect via propensity weighting under a reviewed DAG; inspect overlap and interval standing."
+
+[[example]]
+id = "provider_transport"
+title = "Provider transport handoff"
+summary = "Seal a declared transported offer to a callback input and refuse a native-only consumer."
+python = "examples/python/provider_transport.py"
+topic = "Transport"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Transported external claim; handoff checks do not prove numerical transport"
+
+[[example]]
+id = "quasi_difference_in_differences"
+title = "Difference-in-differences"
+summary = "2x2 and balanced-panel DiD point utilities"
+python = "examples/python/quasi_difference_in_differences.py"
+topic = "Estimation and designs"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Two-period and balanced-panel difference-in-differences under their declared design assumptions."
+
+[[example]]
+id = "rank_designs"
+title = "Rank designs"
+summary = "Rank candidate experiments by identification probability"
+python = "examples/python/rank_designs.py"
+rust = "examples/rust/rank_designs.rs"
+topic = "Decisions and composition"
+level = "intermediate"
+dependencies = []
+runtime = "up to 5 min"
+claim = "Identification-oriented ranking of declared studies; inspect objective, budgets and Monte Carlo readings."
+
+[[example]]
+id = "rank_designs_evsi"
+title = "Expected value of a study"
+summary = "Rank candidate studies by expected value of sample information"
+python = "examples/python/rank_designs_evsi.py"
+topic = "Decisions and composition"
+level = "intermediate"
+dependencies = []
+runtime = "up to 5 min"
+claim = "Expected-value study ranking under the supplied planning model and utility declarations."
+
+[[example]]
+id = "recalc_cell_resume"
+title = "Recalculation with frozen scores"
+summary = "Recompute a decision with zero refits; resume from exported scores"
+python = "examples/python/recalc_cell_resume.py"
+topic = "Decisions and composition"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Retargeting retained scores and portable resume under the original supported data and score identities."
+
+[[example]]
+id = "refusal_recipes"
+title = "Refusal and repair"
+summary = "Refuse changed design assignments and an unlicensed interval, then use valid neighboring routes."
+python = "examples/python/refusal_recipes.py"
+topic = "Start and reuse"
+level = "beginner"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Changed randomized-design bindings and an unlicensed composed interval; explicit repreparation preserves the preceding result."
+
+[[example]]
+id = "regime_value"
+title = "Longitudinal regime value"
+summary = "Value of a static treatment rule by inverse-probability g-formula"
+python = "examples/python/regime_value.py"
+topic = "Temporal and longitudinal"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Static longitudinal-regime value by inverse-probability g-formula under declared histories and probabilities."
+
+[[example]]
+id = "repair_obligations"
+title = "Repair and evidence obligations"
+summary = "State the evidence a contract owes and which study would repair it"
+python = "examples/python/repair_obligations.py"
+topic = "Decisions and composition"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Evidence obligations and declared study repairs; a repair plan is not new observed evidence."
+
+[[example]]
+id = "sales_spreadsheet_e2e"
+title = "Sales analysis"
+summary = "Explore average, mediated, individual, and delayed effects"
+python = "examples/python/sales_spreadsheet_e2e.py"
+rust = "examples/rust/sales_spreadsheet_e2e.rs"
+topic = "Estimation and designs"
+level = "intermediate"
+dependencies = []
+runtime = "up to 5 min"
+claim = "Simulated average, mediated, individual and temporal effects, each under its own declared question."
+
+[[example]]
+id = "scenario_invariance"
+title = "Scenario invariance"
+summary = "Why each transport scenario answers as it does: selection and invariances"
+python = "examples/python/scenario_invariance.py"
+topic = "Transport"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Inspection of explicitly declared transport scenarios and their invariance assumptions."
+
+[[example]]
+id = "sequential_bayes"
+title = "Sequential Bayes"
+summary = "Use one batch\u2019s results as prior evidence for the next"
+python = "examples/python/sequential_bayes.py"
+rust = "examples/rust/sequential_bayes.rs"
+topic = "Bayesian evidence"
+level = "intermediate"
+dependencies = []
+runtime = "up to 5 min"
+claim = "Posterior evidence transferred between compatible analyses under their declared models and evidence policy."
+
+[[example]]
+id = "staged_static_kinds"
+title = "Mediation and individual effects"
+summary = "Separate direct and mediated effects; estimate individual effects"
+python = "examples/python/staged_static_kinds.py"
+rust = "examples/rust/staged_static_kinds.rs"
+topic = "Estimation and designs"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Average, mediated and individual effects under the declared static model and supported query-specific routes."
+
+[[example]]
+id = "survival_rmst"
+title = "Survival RMST"
+summary = "Randomized survival curve and RMST by arm"
+python = "examples/python/survival_rmst.py"
+topic = "Estimation and designs"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Randomized survival and restricted mean survival time under declared observation and assignment assumptions."
+
+[[example]]
+id = "temporal_response_curve"
+title = "Temporal response curve"
+summary = "Compare pressure levels and their effects over time"
+python = "examples/python/temporal_response_curve.py"
+rust = "examples/rust/temporal_response_curve.rs"
+topic = "Temporal and longitudinal"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Temporal response grid under declared lag structure; inspect each requested coordinate and uncertainty."
+
+[[example]]
+id = "transport_exact"
+title = "Transport an exact law"
+summary = "Single-source exact-law transport of a response grid"
+python = "examples/python/transport_exact.py"
+rust = "examples/rust/transport_exact.rs"
+topic = "Transport"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Transported response from supplied exact finite laws; no sampling interval is inferred."
+
+[[example]]
+id = "transport_meta_grid"
+title = "Complementary-source grid"
+summary = "Combined sources identify a target curve; one source does not"
+python = "examples/python/transport_meta_grid.py"
+rust = "examples/rust/transport_meta_grid.rs"
+topic = "Transport"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Complementary finite source laws identify a grid; missing laws retain unsupported coordinates."
+
+[[example]]
+id = "transport_statistical"
+title = "Transport a source table"
+summary = "Single-source empirical transport of a response grid"
+python = "examples/python/transport_statistical.py"
+rust = "examples/rust/transport_statistical.rs"
+topic = "Transport"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Empirical-table transported grid; inspect local support and bootstrap calibration at this coordinate."
+
+[[example]]
+id = "transported_counterfactual"
+title = "Transported counterfactual"
+summary = "Transport direct and indirect effects under a shared additive model; inspect refusals"
+python = "examples/python/transported_counterfactual.py"
+topic = "Transport"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Static transported path-specific contrast under the supported shared affine-additive model."
+
+[[example]]
+id = "transported_measurement"
+title = "Transported measurement"
+summary = "Correct target prevalence under explicitly invariant source sensitivity and specificity."
+python = "examples/python/transported_measurement.py"
+topic = "Transport"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Conditional point and uncalibrated standard error under declared invariance"
+
+[[example]]
+id = "your_data"
+title = "Bring your own table"
+summary = "Read a temporary CSV, check numeric columns, prepare and inspect an average effect."
+python = "examples/python/your_data.py"
+topic = "Start and reuse"
+level = "beginner"
+dependencies = ["pandas"]
+runtime = "up to 1 min"
+claim = "Reviewed numeric table and declared DAG average effect; missing values require an explicit observation policy."
+
+[[example]]
+id = "ate_quickstart"
+title = "ATE quickstart"
+summary = "Build and run an average-effect analysis"
+rust = "examples/rust/ate_quickstart.rs"
+topic = "Estimation and designs"
+level = "beginner"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Parametric linear average-effect point with bootstrap and refutation disabled."
+
+[[example]]
+id = "gcm_do"
+title = "GCM do"
+summary = "Fit a GCM and sample under `do(\u00b7)`"
+rust = "examples/rust/gcm_do.rs"
+topic = "Estimation and designs"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Interventional samples under fitted, declared causal mechanisms."
+
+[[example]]
+id = "identify_only"
+title = "Identify only"
+summary = "Identification without fitting"
+rust = "examples/rust/identify_only.rs"
+topic = "Discovery and identification"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Identification and derivation without numerical fitting."
+
+[[example]]
+id = "continuous_causal_response"
+title = "How does the outcome change with dose?"
+summary = "Inspect supported doses, response values and derivatives."
+notebook = "examples/notebooks/continuous_causal_response.ipynb"
+topic = "Estimation and designs"
+level = "intermediate"
+dependencies = ["pandas", "matplotlib", "ipykernel"]
+runtime = "up to 5 min"
+claim = "Supported response and derivative coordinates under an explicit dose-response model."
+
+[[example]]
+id = "marketing_channel_structural_uncertainty"
+title = "Should we increase paid-search spend?"
+summary = "Compare naive marketing attribution with effects under uncertain graph directions."
+notebook = "examples/notebooks/marketing_channel_structural_uncertainty.ipynb"
+topic = "Discovery and identification"
+level = "intermediate"
+dependencies = ["pandas", "matplotlib", "ipykernel"]
+runtime = "up to 5 min"
+claim = "Attribution conditional on graph completions versus a reviewed graph; preserve unidentified structural mass."
+
+[[example]]
+id = "marketing_experiment_design"
+title = "Which marketing experiment should we run next?"
+summary = "Rank investments that resolve a marketing identification problem."
+notebook = "examples/notebooks/marketing_experiment_design.ipynb"
+topic = "Decisions and composition"
+level = "intermediate"
+dependencies = ["pandas", "matplotlib", "ipykernel"]
+runtime = "up to 5 min"
+claim = "Budgeted study ranking under the declared marketing causal question and study costs."
+
+[[example]]
+id = "pricing_availability_latent_demand"
+title = "Pricing, availability, and latent demand"
+summary = "Distinguish inventory-limited sales from latent demand."
+notebook = "examples/notebooks/pricing_availability_latent_demand.ipynb"
+topic = "Estimation and designs"
+level = "intermediate"
+dependencies = ["pandas", "matplotlib", "ipykernel"]
+runtime = "up to 5 min"
+claim = "Demand response under an explicit censoring premise; unsupported derivative requests are refused."
+
+[[example]]
+id = "sales_campaign_prior_transfer"
+title = "Can last quarter's campaign inform this quarter's sales analysis?"
+summary = "Transfer historical campaign evidence and update it with current observations."
+notebook = "examples/notebooks/sales_campaign_prior_transfer.ipynb"
+topic = "Bayesian evidence"
+level = "intermediate"
+dependencies = ["pandas", "matplotlib", "ipykernel"]
+runtime = "up to 5 min"
+claim = "Historical treatment-effect posterior transfer with target compatibility and new-data updating."
