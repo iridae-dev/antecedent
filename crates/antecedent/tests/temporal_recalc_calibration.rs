@@ -71,8 +71,9 @@ fn measure(
     functional: &TemporalFunctional,
     method: IntervalMethod,
     truth: f64,
+    base: usize,
 ) {
-    let n = grid_n(256);
+    let n = grid_n(base);
     let mut tally = CoverageTally::for_record(
         RecordKey {
             test,
@@ -125,6 +126,7 @@ fn temporal_checked_effect_percentile_l95() {
         &TemporalFunctional::Effect { active: [1, 1], control: [0, 0] },
         IntervalMethod::Percentile,
         0.1,
+        256,
     );
 }
 #[test]
@@ -136,6 +138,7 @@ fn temporal_checked_effect_basic_l95() {
         &TemporalFunctional::Effect { active: [1, 1], control: [0, 0] },
         IntervalMethod::Basic,
         0.1,
+        128,
     );
 }
 
@@ -211,6 +214,7 @@ fn temporal_checked_response_studentized_l95() {
         &TemporalFunctional::Response { sequence: [0, 0] },
         IntervalMethod::Studentized,
         0.49,
+        128,
     );
 }
 #[test]
@@ -222,6 +226,7 @@ fn temporal_checked_effect_studentized_l95() {
         &TemporalFunctional::Effect { active: [1, 1], control: [0, 0] },
         IntervalMethod::Studentized,
         0.1,
+        128,
     );
 }
 
