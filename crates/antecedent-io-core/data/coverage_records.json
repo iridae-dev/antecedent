@@ -1936,7 +1936,7 @@
       ],
       "dgp": "crates/antecedent/tests/sample_split_effect_calibration.rs::licensed_family_data",
       "test": "crates/antecedent/tests/sample_split_effect_calibration.rs::sample_split_discovered_effect_nominal_95_coverage",
-      "calibration_sha": "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_full_row_reuse_boundary_95",
@@ -1993,7 +1993,7 @@
       ],
       "dgp": "crates/antecedent/tests/sample_split_effect_calibration.rs::licensed_family_data",
       "test": "crates/antecedent/tests/sample_split_effect_calibration.rs::sample_split_full_row_reuse_boundary_95",
-      "calibration_sha": "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_misspecified_test_boundary_95",
@@ -2050,7 +2050,7 @@
       ],
       "dgp": "crates/antecedent/tests/sample_split_effect_calibration.rs::misspecified_test_family_data",
       "test": "crates/antecedent/tests/sample_split_effect_calibration.rs::sample_split_misspecified_test_boundary_95",
-      "calibration_sha": "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_weak_edges_boundary_95",
@@ -2107,7 +2107,7 @@
       ],
       "dgp": "crates/antecedent/tests/sample_split_effect_calibration.rs::weak_edge_family_data",
       "test": "crates/antecedent/tests/sample_split_effect_calibration.rs::sample_split_weak_edges_boundary_95",
-      "calibration_sha": "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.static_cpdag_ate_envelope_frequentist_nominal_90_coverage",
@@ -9916,7 +9916,7 @@
       ],
       "dgp": "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_frontdoor_latent_district",
       "test": "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_latent_district",
-      "calibration_sha": "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
     },
     {
       "id": "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_mediation_covariate_shift",
@@ -9973,7 +9973,7 @@
       ],
       "dgp": "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_mediation_covariate_shift",
       "test": "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_mediation_covariate_shift",
-      "calibration_sha": "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
     },
     {
       "id": "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_two_source_joint",
@@ -10030,7 +10030,7 @@
       ],
       "dgp": "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_two_source_joint_counterfactual_transport",
       "test": "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_two_source_joint",
-      "calibration_sha": "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
     },
     {
       "id": "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_eight_candidates_l95.separate_streams",
@@ -21091,13 +21091,13 @@
       "calibration_sha": "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
     },
     {
-      "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_crps_mean_l95",
+      "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_crps_difference_l95",
       "query": "PredictiveScoreInterval",
       "graph_class": "NotApplicable",
       "structure": "fixed",
       "modality": "case_scores",
       "inference": "Frequentist",
-      "estimator": "predictive_assessment_score_mean",
+      "estimator": "predictive_assessment_score_difference",
       "interval_method": "student_t_bartlett_hac",
       "se_kind": "analytic_mean_variance",
       "dependence": "serial",
@@ -21105,47 +21105,47 @@
       "functional": "score=crps;law=gaussian;design=held_out_split;overlap=not_fitted",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 400,
-      "n_max": 1600,
+      "n_min": 1600,
+      "n_max": 6400,
       "replicates_min": 0,
       "posterior_draws_min": 0,
       "unidentified_mass_max": "0.0",
-      "observed": "0.93",
-      "mcse": "0.01275735082217307",
+      "observed": "0.935",
+      "mcse": "0.012326293035621046",
       "replicates": 400,
       "boundary": false,
       "grid": [
         {
           "point": 0,
-          "n_min": 400,
-          "n_max": 400,
-          "observed": "0.93",
-          "mcse": "0.01275735082217307",
+          "n_min": 1600,
+          "n_max": 1600,
+          "observed": "0.935",
+          "mcse": "0.012326293035621046",
           "replicates": 400,
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 800,
-          "n_max": 800,
-          "observed": "0.955",
-          "mcse": "0.010365206220813944",
+          "n_min": 3200,
+          "n_max": 3200,
+          "observed": "0.945",
+          "mcse": "0.011399013115178002",
           "replicates": 400,
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 1600,
-          "n_max": 1600,
-          "observed": "0.9525",
-          "mcse": "0.010635289135702893",
+          "n_min": 6400,
+          "n_max": 6400,
+          "observed": "0.95",
+          "mcse": "0.010897247358851688",
           "replicates": 400,
           "boundary": false
         }
       ],
-      "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_stationary_ar1_phi_0_5_outcomes",
-      "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::serial_crps_mean_l95",
-      "calibration_sha": "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+      "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::two_fixed_gaussian_forecasts_against_stationary_ar1_phi_0_5_outcomes",
+      "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::serial_crps_difference_l95",
+      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
     },
     {
       "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_log_score_mean_l95",
@@ -21162,47 +21162,47 @@
       "functional": "score=log_score;law=gaussian;design=held_out_split;overlap=not_fitted",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 400,
-      "n_max": 1600,
+      "n_min": 1600,
+      "n_max": 6400,
       "replicates_min": 0,
       "posterior_draws_min": 0,
       "unidentified_mass_max": "0.0",
-      "observed": "0.9375",
-      "mcse": "0.012103072956898178",
+      "observed": "0.945",
+      "mcse": "0.011399013115178002",
       "replicates": 400,
       "boundary": false,
       "grid": [
         {
           "point": 0,
-          "n_min": 400,
-          "n_max": 400,
-          "observed": "0.9525",
-          "mcse": "0.010635289135702893",
+          "n_min": 1600,
+          "n_max": 1600,
+          "observed": "0.945",
+          "mcse": "0.011399013115178002",
           "replicates": 400,
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 800,
-          "n_max": 800,
-          "observed": "0.9375",
-          "mcse": "0.012103072956898178",
+          "n_min": 3200,
+          "n_max": 3200,
+          "observed": "0.9475",
+          "mcse": "0.01115165346484547",
           "replicates": 400,
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 1600,
-          "n_max": 1600,
-          "observed": "0.96",
-          "mcse": "0.009797958971132717",
+          "n_min": 6400,
+          "n_max": 6400,
+          "observed": "0.965",
+          "mcse": "0.009188987974744557",
           "replicates": 400,
           "boundary": false
         }
       ],
       "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_stationary_ar1_phi_0_5_outcomes",
       "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::serial_log_score_mean_l95",
-      "calibration_sha": "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
     },
     {
       "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_crps_difference_l95",
@@ -21219,29 +21219,86 @@
       "functional": "score=crps;law=gaussian;design=blocked;overlap=not_fitted",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 400,
-      "n_max": 1600,
+      "n_min": 800,
+      "n_max": 3200,
       "replicates_min": 0,
       "posterior_draws_min": 0,
       "unidentified_mass_max": "0.0",
-      "observed": "0.9425",
-      "mcse": "0.01163977555625537",
+      "observed": "0.9475",
+      "mcse": "0.01115165346484547",
       "replicates": 400,
       "boundary": false,
       "grid": [
         {
           "point": 0,
-          "n_min": 400,
-          "n_max": 400,
-          "observed": "0.9425",
-          "mcse": "0.01163977555625537",
+          "n_min": 800,
+          "n_max": 800,
+          "observed": "0.9525",
+          "mcse": "0.010635289135702893",
           "replicates": 400,
           "boundary": false
         },
         {
           "point": 1,
+          "n_min": 1600,
+          "n_max": 1600,
+          "observed": "0.965",
+          "mcse": "0.009188987974744557",
+          "replicates": 400,
+          "boundary": false
+        },
+        {
+          "point": 2,
+          "n_min": 3200,
+          "n_max": 3200,
+          "observed": "0.9475",
+          "mcse": "0.01115165346484547",
+          "replicates": 400,
+          "boundary": false
+        }
+      ],
+      "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::two_fixed_gaussian_forecasts_against_clustered_standard_normal_outcomes_size_5",
+      "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::cluster_crps_difference_l95",
+      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
+    },
+    {
+      "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_crps_mean_l95",
+      "query": "PredictiveScoreInterval",
+      "graph_class": "NotApplicable",
+      "structure": "fixed",
+      "modality": "case_scores",
+      "inference": "Frequentist",
+      "estimator": "predictive_assessment_score_mean",
+      "interval_method": "student_t_cluster_robust",
+      "se_kind": "analytic_mean_variance",
+      "dependence": "cluster",
+      "posterior": "",
+      "functional": "score=crps;law=gaussian;design=blocked;overlap=not_fitted",
+      "identification": "point",
+      "nominal": "0.95",
+      "n_min": 800,
+      "n_max": 3200,
+      "replicates_min": 0,
+      "posterior_draws_min": 0,
+      "unidentified_mass_max": "0.0",
+      "observed": "0.93",
+      "mcse": "0.01275735082217307",
+      "replicates": 400,
+      "boundary": false,
+      "grid": [
+        {
+          "point": 0,
           "n_min": 800,
           "n_max": 800,
+          "observed": "0.93",
+          "mcse": "0.01275735082217307",
+          "replicates": 400,
+          "boundary": false
+        },
+        {
+          "point": 1,
+          "n_min": 1600,
+          "n_max": 1600,
           "observed": "0.955",
           "mcse": "0.010365206220813944",
           "replicates": 400,
@@ -21249,17 +21306,74 @@
         },
         {
           "point": 2,
-          "n_min": 1600,
-          "n_max": 1600,
-          "observed": "0.9455",
-          "mcse": "0.005075911248239078",
-          "replicates": 2000,
+          "n_min": 3200,
+          "n_max": 3200,
+          "observed": "0.95",
+          "mcse": "0.010897247358851688",
+          "replicates": 400,
           "boundary": false
         }
       ],
-      "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::two_fixed_gaussian_forecasts_against_clustered_standard_normal_outcomes_size_5",
-      "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::cluster_crps_difference_l95",
-      "calibration_sha": "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+      "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_clustered_standard_normal_outcomes_size_5",
+      "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::cluster_crps_mean_l95",
+      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
+    },
+    {
+      "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_log_score_mean_l95",
+      "query": "PredictiveScoreInterval",
+      "graph_class": "NotApplicable",
+      "structure": "fixed",
+      "modality": "case_scores",
+      "inference": "Frequentist",
+      "estimator": "predictive_assessment_score_mean",
+      "interval_method": "student_t_cluster_robust",
+      "se_kind": "analytic_mean_variance",
+      "dependence": "cluster",
+      "posterior": "",
+      "functional": "score=log_score;law=gaussian;design=blocked;overlap=not_fitted",
+      "identification": "point",
+      "nominal": "0.95",
+      "n_min": 800,
+      "n_max": 3200,
+      "replicates_min": 0,
+      "posterior_draws_min": 0,
+      "unidentified_mass_max": "0.0",
+      "observed": "0.9325",
+      "mcse": "0.0125442965127583",
+      "replicates": 400,
+      "boundary": false,
+      "grid": [
+        {
+          "point": 0,
+          "n_min": 800,
+          "n_max": 800,
+          "observed": "0.9475",
+          "mcse": "0.01115165346484547",
+          "replicates": 400,
+          "boundary": false
+        },
+        {
+          "point": 1,
+          "n_min": 1600,
+          "n_max": 1600,
+          "observed": "0.9575",
+          "mcse": "0.010086345968684594",
+          "replicates": 400,
+          "boundary": false
+        },
+        {
+          "point": 2,
+          "n_min": 3200,
+          "n_max": 3200,
+          "observed": "0.9325",
+          "mcse": "0.0125442965127583",
+          "replicates": 400,
+          "boundary": false
+        }
+      ],
+      "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_clustered_standard_normal_outcomes_size_5",
+      "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::cluster_log_score_mean_l95",
+      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
     },
     {
       "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_crps_difference_l95",
@@ -21316,7 +21430,7 @@
       ],
       "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::two_fixed_gaussian_forecasts_against_iid_standard_normal_outcomes",
       "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_crps_difference_l95",
-      "calibration_sha": "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
     },
     {
       "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_crps_mean_l95",
@@ -21373,7 +21487,7 @@
       ],
       "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_iid_standard_normal_outcomes",
       "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_crps_mean_l95",
-      "calibration_sha": "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
     },
     {
       "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_log_score_heavy_tailed_truth_boundary_l95",
@@ -21430,7 +21544,7 @@
       ],
       "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_iid_student_t3_unit_variance_outcomes",
       "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_log_score_heavy_tailed_truth_boundary_l95",
-      "calibration_sha": "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
     },
     {
       "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_log_score_mean_l95",
@@ -21487,7 +21601,7 @@
       ],
       "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_iid_standard_normal_outcomes",
       "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_log_score_mean_l95",
-      "calibration_sha": "c0a6de5e84130be27360d73fdf6188b826de6f7f"
+      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
     },
     {
       "id": "cov.pulse_effect.temporal_cpdag.bayesian.posterior_quantile.l90.bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage",
@@ -49455,6 +49569,10 @@
     "cov.average_effect.cpdag.frequentist.analytic_se.l90.class_posterior_frequentist_ate_joint_if_nominal_90_coverage",
     "cov.average_effect.cpdag.frequentist.analytic_se.l90.static_cpdag_ate_envelope_frequentist_nominal_90_coverage",
     "cov.average_effect.cpdag.frequentist.analytic_se.l95.class_posterior_frequentist_ate_joint_if_nominal_90_coverage",
+    "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_discovered_effect_nominal_95_coverage",
+    "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_full_row_reuse_boundary_95",
+    "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_misspecified_test_boundary_95",
+    "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_weak_edges_boundary_95",
     "cov.average_effect.cpdag.frequentist.analytic_se.l95.static_cpdag_ate_envelope_frequentist_nominal_90_coverage",
     "cov.average_effect.dag.bayesian.posterior_quantile.l90.average_effect_dag_bayesian_default_nominal_coverage",
     "cov.average_effect.dag.bayesian.posterior_quantile.l90.average_effect_dag_bayesian_logit_nominal_coverage",
@@ -49788,9 +49906,11 @@
     "cov.point_derivative.dag.bayesian.posterior_quantile.l95.point_derivative_bayesian_default_nominal_coverage",
     "cov.point_derivative.dag.frequentist.analytic_se.l90.point_derivative_frequentist_curvature_nominal_90_coverage",
     "cov.point_derivative.dag.frequentist.analytic_se.l90.point_derivative_order_2_frequentist_curvature_nominal_90_coverage",
-    "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_crps_mean_l95",
+    "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_crps_difference_l95",
     "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_log_score_mean_l95",
     "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_crps_difference_l95",
+    "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_crps_mean_l95",
+    "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_log_score_mean_l95",
     "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_crps_difference_l95",
     "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_crps_mean_l95",
     "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_log_score_heavy_tailed_truth_boundary_l95",
