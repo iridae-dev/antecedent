@@ -1902,7 +1902,7 @@ search = false
 surface = ["python/antecedent/derived.py"]
 surface_rust = ["crates/antecedent-estimate/src/joint_cell_factorized.rs", "crates/antecedent/src/analysis/derived_treatment.rs"]
 surface_pyo3 = ["python/src/derived_treatment_api.rs"]
-surface_values = ["CellEstimate", "CellOrderingSpread", "CellRefusal", "CellStatus", "ConstituentRole", "DeclaredExclusion", "DerivedTreatmentDeclaration", "DerivedTreatmentPlan", "ExclusionRule", "FactorizedJointConfig", "FactorizedJointFit", "InterventionMeaning", "JointCellReport", "JointContrast", "NormalizationCheck", "OrderingSensitivity", "SourceColumn", "TemporalPosition", "Transformation", "ContrastValue", "DerivedTreatment", "JointCell", "JointCellsResult", "OrderingSpread"]
+surface_values = ["CellEstimate", "CellOrderingSpread", "JointCellCost", "CellRefusal", "CellStatus", "ConstituentRole", "DeclaredExclusion", "DerivedTreatmentDeclaration", "DerivedTreatmentPlan", "ExclusionRule", "FactorizedJointConfig", "FactorizedJointFit", "InterventionMeaning", "JointCellReport", "JointContrast", "NormalizationCheck", "OrderingSensitivity", "SourceColumn", "TemporalPosition", "Transformation", "ContrastValue", "DerivedTreatment", "JointCell", "JointCellsResult", "OrderingSpread"]
 bounds = { cancellation = true, max_components = 3, max_orderings = 6, max_folds = 20 }
 refusals = [
   { code = "invalid_argument", detail = "joint_cells.config", when = "Folds outside 2..=20, a clip outside (0, 0.5), a minimum cell ESS below 1, or a non-positive normalization tolerance or negative ordering tolerance." },
@@ -1948,7 +1948,7 @@ routes = [
   { name = "antecedent.check_derived_treatment", stage = "prepare", status = "licensed", claim = "none" },
   { name = "antecedent.estimate_derived_joint_cells", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.derived.check_derived_treatment", stage = "prepare", status = "licensed", claim = "none", covers = ["derived_treatment_check_json"] },
-  { name = "antecedent.derived.factorized_joint_cells", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["factorized_joint_cells_json"] },
+  { name = "antecedent.derived.factorized_joint_cells", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["factorized_joint_cells_json", "estimate_joint_cell_cost", "joint_cell_cost_json"] },
   { name = "antecedent.derived.interval", stage = "uncertainty", status = "closed", permanent_in_release = true, reason_code = "penalized_interval_not_licensed", refusal_test = "python/tests/test_derived_treatment.py", refusal_assertion = "test_intervals_machine_learning_nuisance_and_lasso_are_closed" },
   { name = "antecedent.derived.ml_interval", stage = "uncertainty", status = "closed", permanent_in_release = true, reason_code = "ml_nuisance_not_licensed", refusal_test = "python/tests/test_derived_treatment.py", refusal_assertion = "test_intervals_machine_learning_nuisance_and_lasso_are_closed" },
 ]

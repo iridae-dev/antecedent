@@ -315,7 +315,7 @@ id = "counterfactual.transport_sampled_interval"
 purpose = "measured delta-method interval of sampled counterfactual transport, attested from whole-method coverage records"
 depends_on = ["counterfactual.transport_sampled"]
 record = "counterfactual.transport_sampled_interval"
-record_state = "promoted"
+record_state = "frozen"
 
 [[feature]]
 id = "cohort_decision.mean_contrast"
@@ -336,7 +336,7 @@ id = "cohort_decision.interval"
 purpose = "measured Student-t interval of the declared-cohort mean of a natively fitted linear effect, attested from whole-method coverage records"
 depends_on = ["cohort_decision.mean_contrast"]
 record = "cohort_decision.interval"
-record_state = "promoted"
+record_state = "frozen"
 
 [[feature]]
 id = "cohort_decision.law_valued_request"
@@ -462,7 +462,7 @@ id = "observation_query.calibrated_probability"
 purpose = "declared-model sampling interval closed; measured posterior interval of count-fitted observation probabilities, attested from whole-method coverage records"
 depends_on = ["observation_query.finite_law_conditioning", "observation_query.posterior_update", "observation_query.evidence_requirement"]
 record = "observation_query.calibrated_probability"
-record_state = "promoted"
+record_state = "frozen"
 
 [[feature]]
 id = "scientific_bridge.typed_bridges"
