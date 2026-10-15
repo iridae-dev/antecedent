@@ -263,6 +263,114 @@ calibration_sha = "b4f06ae0abce384b1f774de5385ee09ee6bf0df4"
 surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
 
 [[record]]
+id = "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_delayed_outcomes_l95"
+query = "AdaptiveExperimentContrast"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "adaptive_trial_history"
+inference = "Frequentist"
+estimator = "adaptive.epsilon_greedy.weighted_aipw"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "adaptive_assignment_stopped_by_posterior_rule"
+posterior = ""
+functional = "arm_contrast:treatment_minus_control"
+identification = "point"
+nominal = 0.95
+n_min = 100
+n_max = 400
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.905
+mcse = 0.014660746911395748
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 100, n_max = 100, observed = 0.905, mcse = 0.014660746911395748, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 200, n_max = 200, observed = 0.9175, mcse = 0.013756248580190752, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 400, n_max = 400, observed = 0.94, mcse = 0.011874342087037922, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::two_bernoulli_arms_0.4_0.6_epsilon_greedy_0.3_lag_10_posterior_probability_stop"
+test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::epsilon_greedy_weighted_contrast_delayed_outcomes_l95"
+facets = ["core"]
+calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
+surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+
+[[record]]
+id = "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_thin_exploration_boundary_l95"
+query = "AdaptiveExperimentContrast"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "adaptive_trial_history"
+inference = "Frequentist"
+estimator = "adaptive.epsilon_greedy.weighted_aipw"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "adaptive_assignment_stopped_by_posterior_rule"
+posterior = ""
+functional = "arm_contrast:treatment_minus_control"
+identification = "point"
+nominal = 0.95
+n_min = 100
+n_max = 400
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.7325
+mcse = 0.02213276699827656
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 100, n_max = 100, observed = 0.7325, mcse = 0.02213276699827656, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 200, n_max = 200, observed = 0.825, mcse = 0.018998355191963332, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 400, n_max = 400, observed = 0.905, mcse = 0.014660746911395748, replicates = 400, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::two_bernoulli_arms_0.4_0.6_epsilon_greedy_0.05_posterior_probability_stop"
+test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::epsilon_greedy_weighted_contrast_thin_exploration_boundary_l95"
+facets = ["core"]
+calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
+surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+
+[[record]]
+id = "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_whole_procedure_l95"
+query = "AdaptiveExperimentContrast"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "adaptive_trial_history"
+inference = "Frequentist"
+estimator = "adaptive.epsilon_greedy.weighted_aipw"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "adaptive_assignment_stopped_by_posterior_rule"
+posterior = ""
+functional = "arm_contrast:treatment_minus_control"
+identification = "point"
+nominal = 0.95
+n_min = 100
+n_max = 400
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9025
+mcse = 0.014831870246196198
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 100, n_max = 100, observed = 0.9025, mcse = 0.014831870246196198, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 200, n_max = 200, observed = 0.9225, mcse = 0.013369157602481916, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 400, n_max = 400, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::two_bernoulli_arms_0.4_0.6_epsilon_greedy_0.3_posterior_probability_stop"
+test = "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs::epsilon_greedy_weighted_contrast_whole_procedure_l95"
+facets = ["core"]
+calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
+surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
+
+[[record]]
 id = "cov.anomaly_attribution.dag.bayesian.posterior_quantile.l90.anomaly_attribution_dag_bayesian_nominal_coverage"
 query = "AnomalyAttribution"
 graph_class = "Dag"
@@ -5588,7 +5696,7 @@ grid = [
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_frontdoor_latent_district"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_latent_district"
 facets = ["core", "suite.counterfactual_transport_sampled_oracle"]
-calibration_sha = "b4f06ae0abce384b1f774de5385ee09ee6bf0df4"
+calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
 surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
 
 [[record]]
@@ -5624,7 +5732,7 @@ grid = [
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_mediation_covariate_shift"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_mediation_covariate_shift"
 facets = ["core", "suite.counterfactual_transport_sampled_oracle"]
-calibration_sha = "b4f06ae0abce384b1f774de5385ee09ee6bf0df4"
+calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
 surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
 
 [[record]]
@@ -5660,7 +5768,7 @@ grid = [
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_two_source_joint_counterfactual_transport"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_two_source_joint"
 facets = ["core", "suite.counterfactual_transport_sampled_oracle"]
-calibration_sha = "b4f06ae0abce384b1f774de5385ee09ee6bf0df4"
+calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
 surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
 
 [[record]]
@@ -28592,7 +28700,7 @@ grid = [
 dgp = "crates/antecedent/tests/temporal_recalc_calibration.rs::independent_units_binary_shared_shock_checked_adapter"
 test = "crates/antecedent/tests/temporal_recalc_calibration.rs::temporal_checked_effect_basic_l95"
 facets = ["core", "estimator.dependent_temporal_interval", "suite.temporal_recalc_calibration"]
-calibration_sha = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
+calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
 surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
 
 [[record]]
@@ -28628,7 +28736,7 @@ grid = [
 dgp = "crates/antecedent/tests/temporal_recalc_calibration.rs::independent_units_binary_shared_shock_checked_adapter"
 test = "crates/antecedent/tests/temporal_recalc_calibration.rs::temporal_checked_effect_studentized_l95"
 facets = ["core", "estimator.dependent_temporal_interval", "suite.temporal_recalc_calibration"]
-calibration_sha = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
+calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
 surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
 
 [[record]]
@@ -28664,7 +28772,7 @@ grid = [
 dgp = "crates/antecedent/tests/temporal_recalc_calibration.rs::independent_units_binary_shared_shock_checked_adapter"
 test = "crates/antecedent/tests/temporal_recalc_calibration.rs::temporal_checked_response_studentized_l95"
 facets = ["core", "estimator.dependent_temporal_interval", "suite.temporal_recalc_calibration"]
-calibration_sha = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
+calibration_sha = "3cc14accbe0fd00d91008fb85139cdabd358bb3a"
 surface_list_blob = "a360869a1fcd00ee048d03340816bae75977b3f6"
 
 [[record]]
