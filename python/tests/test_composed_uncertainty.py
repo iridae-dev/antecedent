@@ -162,60 +162,31 @@ def test_composed_interval_opens_only_with_a_measured_record_at_its_coordinate()
     coordinate = claim.coordinate_id()
     assert coordinate == "contrast|aligned_joint_law|estimate,estimate"
 
-    with pytest.raises(R) as error:
-        claim.check_composed_interval(None, "normal_approximation")
-    assert error.value.reason_code == "cell_not_licensed"
-    assert error.value.detail == "joint_law_propagation.interval_route_closed"
+    # The caller supplies no record: the registry decides. A claim whose composed key has no
+    # currently attesting record is closed, whatever construction is named.
+    assert not hasattr(jl, "CoverageRecord")
+    for construction in ("normal_approximation", "aligned_draw_equal_tail_exchangeable_rank"):
+        try:
+            interval = claim.check_composed_interval(construction, evidence_rows=200)
+        except R as refusal:
+            assert refusal.reason_code == "cell_not_licensed"
+            assert refusal.detail in {
+                "joint_law_propagation.interval_route_closed",
+                "joint_law_propagation.coverage_record_unmeasured",
+            }
+            assert refusal.remedy
+        else:
+            assert interval.label == "measured_interval"
+            assert interval.record_id
+    with pytest.raises(CausalValueError):
+        claim.check_composed_interval("normal_approximation", evidence_rows=0)
 
-    def record(**changes: object) -> jl.CoverageRecord:
-        fields: dict[str, object] = {
-            "record_id": "attested-record",
-            "coordinate_id": coordinate,
-            "construction": "normal_approximation",
-            "nominal_level": 0.9,
-            "measured": True,
-        }
-        fields.update(changes)
-        return jl.CoverageRecord(**fields)  # type: ignore[arg-type]
-
-    refusals = {
-        "joint_law_propagation.coverage_record_unmeasured": record(measured=False),
-        "joint_law_propagation.coverage_record_coordinate_mismatch": record(
-            coordinate_id="sum|aligned_joint_law|estimate,estimate"
-        ),
-        "joint_law_propagation.coverage_record_construction_mismatch": record(
-            construction="aligned_draw_equal_tail_exchangeable_rank"
-        ),
-    }
-    for detail, offered in refusals.items():
-        with pytest.raises(R) as error:
-            claim.check_composed_interval(offered, "normal_approximation")
-        assert error.value.reason_code == "cell_not_licensed"
-        assert error.value.detail == detail
-        assert error.value.remedy
-    with pytest.raises(R) as error:
-        claim.check_composed_interval(record(nominal_level=1.5), "normal_approximation")
-    assert error.value.reason_code == "invalid_argument"
-
-    interval = claim.check_composed_interval(record(), "normal_approximation")
-    assert interval.label == "measured_interval"
-    assert interval.record_id == "attested-record"
-    assert interval.nominal_level == 0.9
-    half = 1.6448536269514722 * math.sqrt(1.61)
-    assert interval.lower == pytest.approx(-0.7 - half, abs=1e-6)
-    assert interval.upper == pytest.approx(-0.7 + half, abs=1e-6)
-
-    # A draw-based construction is licensed without ends: the caller builds it.
-    construction = "aligned_draw_equal_tail_exchangeable_rank"
-    licence = claim.check_composed_interval(record(construction=construction), construction)
-    assert licence.lower is None and licence.upper is None
-
-    # Component-interval and posterior readings stay closed whatever a record says.
+    # Component-interval and posterior readings stay closed.
     with pytest.raises(R) as error:
         claim.interval()
     assert error.value.detail == "joint_law_propagation.interval_route_closed"
-    with pytest.raises(CausalTypeError):
-        claim.check_composed_interval("not a record", "normal_approximation")  # type: ignore[arg-type]
+    with pytest.raises(TypeError):
+        claim.check_composed_interval("normal_approximation")  # type: ignore[call-arg]
 
 
 def test_an_envelope_has_no_composed_interval() -> None:
@@ -225,15 +196,8 @@ def test_an_envelope_has_no_composed_interval() -> None:
         jl.PropagationDraws.independent_marginal("x", [0.0, 1.0], evidence_id="s1"),
         jl.PropagationDraws.independent_marginal("y", [0.0, 1.0], evidence_id="s2"),
     )
-    offered = jl.CoverageRecord(
-        record_id="r",
-        coordinate_id="sum|frechet_envelope|estimate,estimate",
-        construction="normal_approximation",
-        nominal_level=0.9,
-        measured=True,
-    )
     with pytest.raises(R) as error:
-        env.check_composed_interval(offered, "normal_approximation")
+        env.check_composed_interval("normal_approximation", evidence_rows=200)
     assert error.value.reason_code == "cell_not_licensed"
     assert error.value.detail == "joint_law_propagation.spread_needs_licensed_dependence"
     with pytest.raises(R):

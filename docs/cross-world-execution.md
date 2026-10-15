@@ -66,19 +66,30 @@ Bounds (registered in `parity/limits.toml`):
 ## Readings and calibration
 
 Every result is `point_only` from exact enumeration of a declared model; model
-adequacy is a premise, not a check. Interval and posterior readings are closed
-with `cell_not_licensed`, and so is a sampled posterior
-(`ExogenousInference::PosteriorSampling`).
+adequacy is a premise, not a check. A posterior reading and a sampled posterior
+(`ExogenousInference::PosteriorSampling`) are closed with `cell_not_licensed`:
+the mechanisms are declared and the exogenous posterior is enumerated exactly, so
+there is no parameter uncertainty a posterior could describe, and sampling only
+adds Monte Carlo error to an exact value. The unqualified `interval()` is closed.
 
-Calibration design recorded for opening a sampled or interval route (not
-measured): the whole abduction-action-prediction path must be measured, not the
-components. Method: seeded posterior draws of the exogenous terms given factual
-evidence, world prediction per draw, interval over the contrast. Data-generating
-process: finite Markovian SCMs with response-type exogenous terms and unit-level
-evidence. Nominal level 0.95. Support range: 2 to 4 levels, up to 3 variables,
-posterior masses from 0.05 to 0.95. Probes: weak and strong evidence, rare
-posterior states, near-deterministic mechanisms. Until a measured record exists
-the route stays closed.
+`measured_interval(unit_sampling)` reads an interval through a declared unit
+sampling from the derived whole-path spread:
+
+| Unit sampling | Interval for | Variance |
+| --- | --- | --- |
+| `independent_sample` | the population mean of the unit counterfactual probabilities | `s^2 / n` of the unit values |
+| `fixed_units` | the mean of the realized counterfactual outcomes of these units | `sum v_i / n^2` |
+
+Both are normal intervals at 0.95, are conditional on the declared mechanisms
+being the truth, and are licensed only by a currently attesting whole-path
+coverage record for the model class (at most three variables of two to four
+levels, exact enumeration, the mechanisms' own population), the quantity, the unit
+sampling and the unit count; otherwise they refuse with `cell_not_licensed`.
+
+Measured design (`cross_world_interval_calibration.rs`): response-type finite
+Markovian SCMs with unit-level evidence of the observed treatment and outcome, the
+quantity `P(Y_{do(X=0)} = 0 | evidence)`, truth by exact population probability
+(independent sample) and by the realized counterfactual outcome (fixed units).
 
 ## Export and resume
 

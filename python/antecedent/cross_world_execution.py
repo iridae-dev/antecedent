@@ -26,9 +26,11 @@ sealed request and result under a *declared* unit sampling, the spread of the un
 abduction-action-prediction path: the enumerated posterior predictive variance of each unit, the
 variance of the realized-outcome mean and, for an independent sample, the sampling variance of
 the mean unit probability. Every source of uncertainty (structural, posterior, sampling,
-numerical) is listed with what the path does with it. The result is an ``uncalibrated_spread``:
-no measured coverage record exists for the path, so an interval or posterior reading stays
-closed. The account is derived from the artifact bytes, never trusted: another set of units,
+numerical) is listed with what the path does with it. The result is an ``uncalibrated_spread``.
+:meth:`CrossWorldExecution.measured_interval` turns the declared spread into an interval only
+where a currently attesting whole-path coverage record exists, conditional on the declared model;
+the unqualified interval, a posterior reading and a sampled abduction stay closed. The account
+is derived from the artifact bytes, never trusted: another set of units,
 mechanisms, quantity or unit sampling is refused by :meth:`WholePathAccount.verify_against`.
 """
 
@@ -60,6 +62,7 @@ __all__ = [
     "FactualUnit",
     "FiniteSCM",
     "FiniteVariable",
+    "MeasuredCrossWorldInterval",
     "SourceAccount",
     "UnitSpread",
     "WholePathAccount",
@@ -539,6 +542,61 @@ class CrossWorldExecution(ScientificResult):
                 with shared evidence declared independent, an exceeded bound, or cancellation.
         """
         return _whole_path(self, unit_sampling, cancel)
+
+    def measured_interval(
+        self,
+        unit_sampling: Literal["fixed_units", "independent_sample"],
+        *,
+        cancel: Any = None,
+    ) -> MeasuredCrossWorldInterval:
+        """The interval of the executed quantity under a declared unit sampling.
+
+        Licensed only by a currently attesting whole-path coverage record for this model class,
+        quantity, unit sampling and unit count. The interval is a statement conditional on the
+        declared mechanisms being the truth: ``independent_sample`` covers the population mean of
+        the unit counterfactual probabilities; ``fixed_units`` covers the mean of the realized
+        counterfactual outcomes of these units. A posterior statement and a sampled abduction stay
+        closed: with declared mechanisms the exogenous posterior is exact.
+
+        Raises:
+            CrossWorldExecutionRefusal: ``cell_not_licensed`` without an attesting record or for
+                a request outside the measured model class, or any refusal of
+                :meth:`whole_path_uncertainty`.
+        """
+        if unit_sampling not in ("fixed_units", "independent_sample"):
+            raise CausalValueError(
+                f"unit_sampling is 'fixed_units' or 'independent_sample'; got {unit_sampling!r}"
+            )
+        payload, refusal = _native.cross_world_measured_interval(
+            self.to_bytes(), unit_sampling, json.dumps(dict(self.identity)), cancel
+        )
+        _refuse(refusal)
+        assert payload is not None
+        info = json.loads(payload)
+        return MeasuredCrossWorldInterval(
+            scalar=str(info["scalar"]),
+            point=float(info["point"]),
+            lower=float(info["lower"]),
+            upper=float(info["upper"]),
+            level=float(info["level"]),
+            unit_sampling=str(info["unit_sampling"]),
+            record_id=str(info["record_id"]),
+            label=str(info["label"]),
+        )
+
+
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class MeasuredCrossWorldInterval(ScientificResult):
+    """A whole-path interval bound to its coverage record, conditional on the declared model."""
+
+    scalar: str
+    point: float
+    lower: float
+    upper: float
+    level: float
+    unit_sampling: str
+    record_id: str
+    label: str
 
 
 def seal(

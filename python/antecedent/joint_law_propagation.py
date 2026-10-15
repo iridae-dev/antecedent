@@ -28,8 +28,9 @@ sampling, transport functional) and their dependence (an aligned law or a covari
 
 :meth:`PropagationClaim.interval` and :meth:`PropagationClaim.posterior` always raise
 ``cell_not_licensed``. An interval at a composed coordinate is licensed only by
-:meth:`PropagationClaim.check_composed_interval` with a *measured* :class:`CoverageRecord` for
-exactly that coordinate (:meth:`PropagationClaim.coordinate_id`) and construction; without one it
+:meth:`PropagationClaim.check_composed_interval`, which resolves the claim's coordinate
+(:meth:`PropagationClaim.coordinate_id`), construction and declared evidence size against the
+shipped, currently attesting coverage records; the caller supplies no record, and without one it
 raises the typed refusal. :meth:`PropagationClaim.export` writes
 ``joint_law_propagation_v1``; :func:`consume_joint_law_propagation_artifact` re-runs the rule and
 replays the result to identical bits and refuses any edit.
@@ -58,7 +59,6 @@ from .joint_distribution import JointDistributionArtifact
 __all__ = [
     "ComposedInterval",
     "ConsumedJointLawPropagation",
-    "CoverageRecord",
     "EnvelopeQuery",
     "JointLawPropagationRefusal",
     "MixtureComponent",
@@ -257,34 +257,6 @@ class MixtureDraws:
         }
 
 
-@dataclass(frozen=True)
-class CoverageRecord:
-    """A coverage record offered for a composed coordinate.
-
-    ``coordinate_id`` is :meth:`PropagationClaim.coordinate_id` of the claim the record was
-    measured at; ``construction`` names the interval construction it covers (for example
-    ``"normal_approximation"``); ``measured`` is true only for a completed, attested measurement
-    (a wired but unmeasured placeholder is refused).
-    """
-
-    record_id: str
-    coordinate_id: str
-    construction: str
-    nominal_level: float
-    measured: bool
-
-    def _json(self) -> str:
-        return json.dumps(
-            {
-                "record_id": _text(self.record_id, "record_id"),
-                "coordinate_id": _text(self.coordinate_id, "coordinate_id"),
-                "construction": _text(self.construction, "construction"),
-                "nominal_level": _real(self.nominal_level, "nominal_level"),
-                "measured": bool(self.measured),
-            }
-        )
-
-
 @dataclass(repr=False, frozen=True)
 class ComposedInterval(ScientificResult):
     """An interval licensed by a measured coverage record at its composed coordinate.
@@ -429,21 +401,29 @@ class PropagationClaim(ScientificResult):
         return coordinate
 
     def check_composed_interval(
-        self, record: CoverageRecord | None, construction: str, *, cancel: Any = None
+        self, construction: str, *, evidence_rows: int, cancel: Any = None
     ) -> ComposedInterval:
-        """The interval reading, licensed only by a measured record at this coordinate.
+        """The interval reading, licensed only by an attesting registry record at this coordinate.
 
-        The sealed artifact is verified and replayed first. With ``record=None`` the reading is
-        closed (``cell_not_licensed``, ``joint_law_propagation.interval_route_closed``); an
-        unmeasured record, a record for another coordinate or construction, and a claim whose
-        dependence route licenses no spread (an envelope) are refused with their own details.
+        The sealed artifact is verified and replayed first, then the claim's coordinate,
+        ``construction`` and ``evidence_rows`` (the declared number of observations behind the
+        least-supported input) are resolved against the shipped coverage records. The caller
+        supplies no record. Without an attesting record the reading is closed
+        (``cell_not_licensed``, ``joint_law_propagation.interval_route_closed`` or
+        ``joint_law_propagation.coverage_record_unmeasured``), and a claim whose dependence route
+        licenses no spread (an envelope) is refused with its own detail.
         """
-        if record is not None and not isinstance(record, CoverageRecord):
-            raise CausalTypeError("record must be a CoverageRecord or None")
+        if (
+            isinstance(evidence_rows, bool)
+            or not isinstance(evidence_rows, int)
+            or not 1 <= evidence_rows < 2**63
+        ):
+            raise CausalValueError("evidence_rows must be an integer of at least one")
+        rows = evidence_rows
         licence, refusal = _native.joint_law_check_composed_interval(
             self._bytes,
-            None if record is None else record._json(),
             _text(construction, "construction"),
+            rows,
             cancel,
         )
         _refuse(refusal)

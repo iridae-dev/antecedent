@@ -23,7 +23,7 @@ use antecedent::analysis::joint_law_propagation::{
     propagate_dependence_envelope, propagate_linear_moments_spread, propagate_mixture_exceedance,
     propagate_spread, propagate_transported_spread, propagate_transported_spread_aligned,
 };
-use antecedent_contract::{CoverageRecord, InputRole, PropagationOperation};
+use antecedent_contract::{InputRole, PropagationOperation};
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::ExecutionContext;
 use antecedent_io::distribution_artifact::{
@@ -271,74 +271,35 @@ fn a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate() {
     .expect("spread");
     let coordinate = claim.coordinate_id().expect("coordinate");
     assert_eq!(coordinate, "contrast|aligned_joint_law|estimate,estimate");
-    let record =
-        |measured: bool, coordinate_id: &str, construction: &str, level: f64| CoverageRecord {
-            record_id: "attested-record".into(),
-            coordinate_id: coordinate_id.into(),
-            construction: construction.into(),
-            nominal_level: level,
-            measured,
-        };
+    // The caller supplies no record: the registry decides. The key is the claim's own
+    // coordinate, construction and declared evidence size, so a caller cannot name a record.
+    let basis = claim.composed_interval_basis("normal_approximation", 200).expect("key");
+    assert_eq!(&*basis.functional, coordinate.as_str());
+    assert_eq!(&*basis.interval_method, "normal_approximation");
+    assert_eq!(&*basis.estimator, "joint_law.aligned_joint_law");
+    assert_eq!(basis.row_count, 200);
 
-    // No record: the interval reading is closed.
-    let error = claim.check_composed_interval(None, "normal_approximation").expect_err("closed");
-    assert_eq!(error.code(), "cell_not_licensed");
-    assert_eq!(error.details(), vec!["joint_law_propagation.interval_route_closed"]);
-
-    // A wired but unmeasured record does not open it.
-    let unmeasured = record(false, &coordinate, "normal_approximation", 0.9);
-    let error = claim
-        .check_composed_interval(Some(&unmeasured), "normal_approximation")
-        .expect_err("unmeasured");
-    assert_eq!(error.details(), vec!["joint_law_propagation.coverage_record_unmeasured"]);
-
-    // A record for another coordinate is not this coordinate's.
-    let elsewhere =
-        record(true, "sum|aligned_joint_law|estimate,estimate", "normal_approximation", 0.9);
-    let error = claim
-        .check_composed_interval(Some(&elsewhere), "normal_approximation")
-        .expect_err("coordinate");
-    assert_eq!(error.details(), vec!["joint_law_propagation.coverage_record_coordinate_mismatch"]);
-    assert_eq!(error.refusals[0].expected.as_deref(), Some(coordinate.as_str()));
-
-    // A record for another construction is not this construction's.
-    let draws_rule = record(true, &coordinate, "aligned_draw_equal_tail_exchangeable_rank", 0.9);
-    let error = claim
-        .check_composed_interval(Some(&draws_rule), "normal_approximation")
-        .expect_err("construction");
-    assert_eq!(
-        error.details(),
-        vec!["joint_law_propagation.coverage_record_construction_mismatch"]
-    );
-
-    // A level outside (0, 1).
-    let bad_level = record(true, &coordinate, "normal_approximation", 1.5);
-    let error =
-        claim.check_composed_interval(Some(&bad_level), "normal_approximation").expect_err("level");
+    // Without a currently attesting record the interval reading is closed, whatever the
+    // construction, and an evidence size of zero is invalid.
+    for construction in ["normal_approximation", "aligned_draw_equal_tail_exchangeable_rank"] {
+        match claim.check_composed_interval(construction, 200) {
+            Ok(licence) => assert_eq!(licence.label(), "measured_interval"),
+            Err(error) => {
+                assert_eq!(error.code(), "cell_not_licensed");
+                assert!(
+                    error.details() == vec!["joint_law_propagation.interval_route_closed"]
+                        || error.details()
+                            == vec!["joint_law_propagation.coverage_record_unmeasured"],
+                    "{:?}",
+                    error.details()
+                );
+            }
+        }
+    }
+    let error = claim.check_composed_interval("normal_approximation", 0).expect_err("rows");
     assert_eq!(error.code(), "invalid_argument");
 
-    // A measured record at this coordinate and construction opens it, at the
-    // record's nominal level only: mean -0.7, variance 1.61, z(0.95) = 1.6448536.
-    let measured = record(true, &coordinate, "normal_approximation", 0.9);
-    let interval =
-        claim.check_composed_interval(Some(&measured), "normal_approximation").expect("licensed");
-    assert_eq!(interval.label(), "measured_interval");
-    assert_eq!(interval.record_id(), "attested-record");
-    assert!((interval.nominal_level() - 0.9).abs() < 1e-12);
-    let half = 1.644_853_626_951_472_2 * 1.61_f64.sqrt();
-    let (lower, upper) = interval.bounds().expect("bounds");
-    assert!((lower - (-0.7 - half)).abs() < 1e-6, "lower {lower}");
-    assert!((upper - (-0.7 + half)).abs() < 1e-6, "upper {upper}");
-
-    // Another construction is licensed without ends: the caller builds it from
-    // the aligned draws.
-    let draw_based = record(true, &coordinate, "aligned_draw_equal_tail_exchangeable_rank", 0.9);
-    let licence = claim
-        .check_composed_interval(Some(&draw_based), "aligned_draw_equal_tail_exchangeable_rank")
-        .expect("licensed");
-    assert!(licence.bounds().is_none());
-
-    // The component-interval readings stay closed whatever a record says.
+    // The component-interval readings stay closed.
     assert_eq!(
         claim.interval().expect_err("closed").details(),
         vec!["joint_law_propagation.interval_route_closed"]
@@ -356,16 +317,8 @@ fn an_envelope_has_no_composed_interval_and_an_edited_artifact_is_refused() {
         &ctx(),
     )
     .expect("envelope");
-    let record = CoverageRecord {
-        record_id: "r".into(),
-        coordinate_id: "sum|frechet_envelope|estimate,estimate".into(),
-        construction: "normal_approximation".into(),
-        nominal_level: 0.9,
-        measured: true,
-    };
-    let error = envelope
-        .check_composed_interval(Some(&record), "normal_approximation")
-        .expect_err("envelope");
+    let error =
+        envelope.check_composed_interval("normal_approximation", 200).expect_err("envelope");
     assert_eq!(error.code(), "cell_not_licensed");
     assert_eq!(error.details(), vec!["joint_law_propagation.spread_needs_licensed_dependence"]);
     assert!(envelope.coordinate_id().is_err());

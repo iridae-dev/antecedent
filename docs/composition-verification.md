@@ -75,7 +75,11 @@ established for one target population is therefore never inherited by a claim
 about another: a changed target is a changed coordinate.
 
 The library measures no coverage. A calibration declaration names a record
-identity and a coordinate that the producer supplies.
+identity and a coordinate that the producer supplies. `verify` takes the
+declaration as declared; `verify_against_registry` resolves every held or
+inherited record against the shipped, currently attesting coverage records
+first (the record is declared under `registry_record_identity(record_id)`), and
+a record that does not resolve reads as a requirement without a record.
 
 ## Observed effects
 
@@ -117,10 +121,12 @@ required).
 
 ## Closed
 
-No interval, posterior or calibration record is produced. An uncertainty
-statement for a revalidated or composed claim, and the inheritance of a record
-across targets, stay closed (`cell_not_licensed`) until whole-method coverage
-is measured at the composed coordinate. A dependence that is not declared as an
+No interval, posterior or calibration record is produced, and none can be:
+verification classifies claims and produces no estimate. An interval belongs to
+the route that produced the claim and is read there, at that route's own measured
+coordinate; a recomputed claim is read through its producing route again. The
+inheritance of a record across targets is closed by logic, since coverage is a
+property of the method at one target (`cell_not_licensed`). A dependence that is not declared as an
 edge is not detected; identities, coordinates, supports, trust standings and
 calibration records are declarations.
 

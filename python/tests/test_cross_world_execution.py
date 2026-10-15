@@ -233,6 +233,24 @@ def test_action_only_change_reuses_abduction_and_changed_evidence_rebuilds() -> 
     assert d.value == pytest.approx(0.4, abs=1e-12)
 
 
+def test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record() -> None:
+    execution = cw.seal(_joint_request())
+    with pytest.raises(CausalValueError):
+        execution.measured_interval("undeclared")  # type: ignore[arg-type]
+    # One unit under an independent sample has no determined sampling variance, so the interval
+    # is closed whatever the registry holds; the unqualified readings stay closed.
+    with pytest.raises(R) as error:
+        execution.measured_interval("independent_sample")
+    assert error.value.reason_code == "cell_not_licensed"
+    assert error.value.detail == "cross_world_execution.interval_route_closed"
+    with pytest.raises(R) as error:
+        execution.interval()
+    assert error.value.detail == "cross_world_execution.interval_route_closed"
+    with pytest.raises(R) as error:
+        execution.posterior()
+    assert error.value.detail == "cross_world_execution.posterior_route_closed"
+
+
 def test_unsupported_requests_are_scientific_refusals() -> None:
     executor = cw.CrossWorldExecutor()
     base = _joint_request()

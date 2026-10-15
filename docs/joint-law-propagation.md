@@ -15,7 +15,8 @@ inputs goes through it.
 | mixture | known weights; the components need no joint law | `invalid_argument` (`mixture_weights_unknown`) |
 | transported interval, or its source-sampling, target-sampling and transport-functional pieces, composed with another claim | an aligned joint law or a supplied covariance; independence is never assumed for these pieces | `joint_law_required` (`transported_dependence_required`) |
 | functional of unpaired marginals | nothing, but the result is a labelled envelope | `cell_not_licensed` if read as a point (`envelope_is_not_a_point`) |
-| interval or posterior of any composed quantity | a measured coverage record at the composed coordinate; none exists | `cell_not_licensed` (`interval_route_closed`, `posterior_route_closed`) |
+| interval of a composed quantity | a currently attesting coverage record in the registry for the composed coordinate, construction and declared evidence size; the caller supplies none | `cell_not_licensed` (`interval_route_closed`, `coverage_record_unmeasured`) |
+| posterior of any composed quantity | a measured calibration; none exists | `cell_not_licensed` (`posterior_route_closed`) |
 
 Each refusal carries a registered reason code, a namespaced
 `joint_law_propagation.*` detail, the offending input and a remedy that names
@@ -81,15 +82,23 @@ cells. Linear terms and mixture components: 256. Aligned draws:
 
 ## Calibration
 
-Closed and unmeasured. A component interval does not cover the composition,
-and no composed coordinate has a measured coverage record. The design recorded
-for a later measurement (in `joint_law.composed_interval`): the whole method is
-the component estimators, their uncertainty and the licensed route, and the
-interval built on the composed value; the nominal target is coverage of a stated
-interval at 0.95 at the composed coordinate; DGPs are correlated and
-independent Gaussian pairs and a skewed pair with shared evidence between
-components; probes are a covariance estimated from the same draws and a
-dependence declared but violated.
+A component interval does not cover the composition. The interval of a composed
+quantity is read through `check_composed_interval(construction, evidence_rows)`,
+which derives the key from the sealed claim (operation, route, input roles,
+dependence declaration, construction and the declared number of observations
+behind the least-supported input) and resolves it against the shipped coverage
+records. The caller supplies no record; without a currently attesting one the
+reading is closed.
+
+The measured design (`joint_law_composed_interval_calibration.rs`): the whole
+method is the component estimators, their sampling covariance and the licensed
+route, and the normal-approximation interval built on the composed value at
+0.95. DGPs are correlated and independent Gaussian pairs and a skewed pair with
+shared evidence; the covariance is estimated from the same rows or draws.
+Linear operations on the linear-moments and aligned-joint-law routes only. A
+declaration of independence that is violated is undetectable and under-covers;
+it is a premise, not a check, and is not a record. Nonlinear operations,
+mixtures, envelopes and transported pieces have no record and stay closed.
 
 ## References
 

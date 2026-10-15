@@ -89,9 +89,11 @@ fn closed_reading(reading: &'static str, detail: &'static str) -> CrossWorldExec
         detail: detail.to_owned(),
         offending: Some(reading.to_owned()),
         remedy: Some(
-            "the whole abduction-action-prediction path has no measured coverage record; the \
-             point value from exact enumeration is the result, and the calibration design that \
-             would open this reading is recorded in docs/cross-world-execution.md"
+            "an unqualified interval or posterior of a declared model is closed: the \
+             point value from exact enumeration is the result. The interval of a named unit \
+             sampling is read with measured_interval, licensed only by a currently attesting \
+             whole-path coverage record; a posterior statement has no parameter uncertainty \
+             to describe and stays closed (docs/cross-world-execution.md)"
                 .to_owned(),
         ),
         missing: vec!["whole_path_calibration_record".to_owned()],

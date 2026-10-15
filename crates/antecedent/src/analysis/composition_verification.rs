@@ -54,10 +54,15 @@
 //!
 //! # What is closed
 //!
-//! The verification states no interval, posterior or calibration record. A
-//! calibration declaration names a record identity and a coordinate that the
-//! producer supplies; whether the record was measured is the producer's
-//! claim and is not checked here.
+//! The verification produces no estimate, so it produces no interval,
+//! posterior or calibration record: an interval belongs to the route that
+//! produced the claim, and a record established for one method at one target
+//! never holds for another. A calibration declaration names a record identity
+//! and a coordinate that the producer supplies. [`CompositionVerification::verify`]
+//! takes the declaration as declared; [`CompositionVerification::verify_against_registry`]
+//! resolves every held or inherited record against the shipped coverage
+//! records first ([`registry_record_identity`]) and treats one that does not
+//! name a currently attesting record as a requirement without a record.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -408,6 +413,75 @@ pub fn query_revalidation(
     log.revalidation_since(query, since)
 }
 
+/// The digest under which a shipped coverage record is declared on a node.
+#[must_use]
+pub fn registry_record_identity(record_id: &str) -> SemanticDigest {
+    let mut writer =
+        CanonicalWriter::new("antecedent.composition_verification.registry_coverage_record");
+    writer.text(record_id);
+    SemanticDigest::from_bytes(writer.finish())
+}
+
+/// Whether `record` names a shipped coverage record that currently attests the
+/// code it measured.
+#[must_use]
+pub fn registry_record_attests(record: &SemanticDigest) -> bool {
+    use antecedent_io::coverage_records_data::{CoverageRecord, RECORDS};
+    RECORDS.iter().any(|row| {
+        let row: &CoverageRecord = std::borrow::Borrow::borrow(&row);
+        registry_record_identity(row.id) == *record
+            && antecedent_io::calibration::record_attests_current_code(row)
+    })
+}
+
+/// A declaration with every record that does not name a currently attesting
+/// shipped record replaced by [`CalibrationDeclaration::Required`]: an
+/// uncertainty statement is wanted at the node but nothing backs it. A point
+/// declaration and a requirement are kept as they are.
+#[must_use]
+pub fn registry_resolved_calibration(
+    declaration: &CalibrationDeclaration,
+) -> CalibrationDeclaration {
+    match declaration {
+        CalibrationDeclaration::Held { record, .. }
+        | CalibrationDeclaration::Inherited { record, .. }
+            if !registry_record_attests(record) =>
+        {
+            CalibrationDeclaration::Required
+        }
+        other => other.clone(),
+    }
+}
+
+/// The keys of the nodes whose held or inherited calibration record does not
+/// name a currently attesting shipped coverage record.
+#[must_use]
+pub fn unresolved_registry_calibrations(graph: &CompositionGraph) -> Vec<String> {
+    graph
+        .nodes()
+        .filter(|node| registry_resolved_calibration(&node.calibration) != node.calibration)
+        .map(|node| node.key.clone())
+        .collect()
+}
+
+/// A graph whose declared calibrations were resolved against the registry.
+fn registry_resolved_graph(
+    graph: &CompositionGraph,
+) -> Result<CompositionGraph, CompositionVerificationRefusal> {
+    let mut resolved = CompositionGraph::new();
+    for node in graph.nodes() {
+        let mut node = node.clone();
+        node.calibration = registry_resolved_calibration(&node.calibration);
+        resolved.add_node(node).map_err(|e| CompositionVerificationRefusal::graph(&e))?;
+    }
+    for edge in graph.edges() {
+        resolved
+            .add_edge(&edge.downstream, &edge.upstream, edge.kind)
+            .map_err(|e| CompositionVerificationRefusal::graph(&e))?;
+    }
+    Ok(resolved)
+}
+
 /// A sealed and replayed composition verification.
 #[derive(Clone, Debug)]
 pub struct CompositionVerification {
@@ -446,6 +520,26 @@ impl CompositionVerification {
             CompositionVerificationArtifact::seal(previous, current, effects, &relations, state)
                 .map_err(|e| CompositionVerificationRefusal::artifact(&e))?;
         Ok(Self { artifact })
+    }
+
+    /// As [`Self::verify`], with every held or inherited calibration resolved
+    /// against the shipped coverage records first: a record that does not name a
+    /// currently attesting registry record ([`registry_record_identity`]) is
+    /// treated as a requirement without a record, so the claim reports that a
+    /// calibration is required instead of carrying a producer's declaration. The
+    /// verification itself measures nothing and produces no interval.
+    ///
+    /// # Errors
+    /// As [`Self::verify`].
+    pub fn verify_against_registry(
+        previous: Option<&CompositionGraph>,
+        current: &CompositionGraph,
+        effects: &BTreeMap<String, ObservedEffect>,
+        ledger: Option<(&EvidenceLedger, &CancellationToken)>,
+    ) -> Result<Self, CompositionVerificationRefusal> {
+        let previous = previous.map(registry_resolved_graph).transpose()?;
+        let current = registry_resolved_graph(current)?;
+        Self::verify(previous.as_ref(), &current, effects, ledger)
     }
 
     fn view_refusal(error: ViewError) -> CompositionVerificationRefusal {

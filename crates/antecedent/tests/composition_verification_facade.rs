@@ -203,6 +203,43 @@ fn a_target_change_recomputes_the_law_and_never_inherits_its_calibration() {
 }
 
 #[test]
+fn a_declared_record_that_names_no_attesting_registry_record_reads_as_required() {
+    use antecedent::analysis::composition_verification::{
+        registry_record_attests, registry_record_identity, registry_resolved_calibration,
+        unresolved_registry_calibrations,
+    };
+    let base = BTreeMap::new();
+    let ids = identities(&base);
+    let current = plan(&ids, &ids);
+    let target =
+        stage_node("target", NodeKind::TargetPopulation, &current, Stage::TargetPopulation)
+            .expect("target")
+            .identity;
+    // A producer's invented digest names no shipped record.
+    let invented = CalibrationDeclaration::Held { record: d(90), coordinate: target };
+    assert!(!registry_record_attests(&d(90)));
+    assert!(!registry_record_attests(&registry_record_identity("cov.no_such_record")));
+    assert_eq!(registry_resolved_calibration(&invented), CalibrationDeclaration::Required);
+    assert_eq!(
+        registry_resolved_calibration(&CalibrationDeclaration::PointOnly),
+        CalibrationDeclaration::PointOnly
+    );
+
+    let graph = composition(&current, invented);
+    assert_eq!(unresolved_registry_calibrations(&graph), vec!["law".to_owned()]);
+    let plain =
+        CompositionVerification::verify(None, &graph, &BTreeMap::new(), None).expect("declared");
+    assert_eq!(plain.classify("law").expect("claim").calibration.state, CalibrationState::Held);
+    let resolved =
+        CompositionVerification::verify_against_registry(None, &graph, &BTreeMap::new(), None)
+            .expect("resolved");
+    assert_eq!(
+        resolved.classify("law").expect("claim").calibration.state,
+        CalibrationState::Required
+    );
+}
+
+#[test]
 fn a_fresh_consumer_replays_the_export_and_refuses_tampering() {
     let base = BTreeMap::new();
     let mut changed = BTreeMap::new();

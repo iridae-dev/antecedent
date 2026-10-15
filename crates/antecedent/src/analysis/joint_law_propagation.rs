@@ -467,10 +467,42 @@ impl PropagationClaim {
         Ok(ComposedCoordinate::of(&request, &plan).id())
     }
 
+    /// The calibration key of this claim's composed interval: the composed
+    /// coordinate, the route, the dependence declaration, the construction and
+    /// the declared sample size of the least-supported input's evidence.
+    ///
+    /// # Errors
+    /// A declaration whose dependence route licenses no spread, or a sample
+    /// size of zero.
+    pub fn composed_interval_basis(
+        &self,
+        construction: &str,
+        evidence_rows: u64,
+    ) -> Result<antecedent_core::CalibrationBasis, Refusal> {
+        if evidence_rows == 0 {
+            return Err(Refusal::invalid(
+                "evidence_rows",
+                "declare the number of observations behind the least-supported input",
+            ));
+        }
+        let request =
+            PropagationRequest { reading: RequestedReading::Spread, ..self.declared.clone() };
+        let plan = check_propagation(&request).map_err(Refusal::one)?;
+        let coordinate = ComposedCoordinate::of(&request, &plan);
+        Ok(super::joint_law_composed_basis::composed_basis(
+            &coordinate.id(),
+            plan.route.as_str(),
+            &self.declared.dependence,
+            construction,
+            evidence_rows,
+        ))
+    }
+
     /// The interval reading of the composed quantity, licensed only by a
-    /// measured coverage record for exactly this composed coordinate and
-    /// construction. Without a record it is closed with the typed refusal; a
-    /// component interval does not cover the composition.
+    /// currently attesting coverage record the registry holds for exactly this
+    /// composed coordinate, construction, nominal level and evidence size.
+    /// The caller supplies no record. Without one it is closed with the typed
+    /// refusal; a component interval does not cover the composition.
     ///
     /// A licensed `normal_approximation` interval is built from this claim's
     /// mean and variance at the record's nominal level. For another
@@ -478,19 +510,46 @@ impl PropagationClaim {
     /// the interval from the aligned draws with the construction the record
     /// was measured for.
     ///
+    /// `evidence_rows` is declared, not authenticated: the number of
+    /// observations behind the least-supported input.
+    ///
     /// # Errors
     /// The refusals of `antecedent_contract::check_composed_interval`: an
-    /// unlicensed dependence route, a missing, unmeasured or mismatched record,
-    /// or a nominal level outside `(0, 1)`.
+    /// unlicensed dependence route, a missing or non-attesting record, or a
+    /// nominal level outside `(0, 1)`.
     pub fn check_composed_interval(
         &self,
-        record: Option<&CoverageRecord>,
         construction: &str,
+        evidence_rows: u64,
     ) -> Result<ComposedInterval, Refusal> {
         let request =
             PropagationRequest { reading: RequestedReading::Interval, ..self.declared.clone() };
-        let plan = antecedent_contract::check_composed_interval(&request, record, construction)
-            .map_err(Refusal::one)?;
+        let basis = self.composed_interval_basis(construction, evidence_rows)?;
+        let coordinate_id = basis.functional.to_string();
+        let record = match super::joint_law_composed_basis::resolve(&basis) {
+            super::joint_law_composed_basis::Resolution::NoRecord => None,
+            super::joint_law_composed_basis::Resolution::NotAttesting { record_id, .. } => {
+                Some(CoverageRecord {
+                    record_id,
+                    coordinate_id,
+                    construction: construction.to_owned(),
+                    nominal_level: super::joint_law_composed_basis::COMPOSED_LEVEL,
+                    measured: false,
+                })
+            }
+            super::joint_law_composed_basis::Resolution::Calibrated { record_id } => {
+                Some(CoverageRecord {
+                    record_id,
+                    coordinate_id,
+                    construction: construction.to_owned(),
+                    nominal_level: super::joint_law_composed_basis::COMPOSED_LEVEL,
+                    measured: true,
+                })
+            }
+        };
+        let plan =
+            antecedent_contract::check_composed_interval(&request, record.as_ref(), construction)
+                .map_err(Refusal::one)?;
         let bounds = if construction == NORMAL_APPROXIMATION_CONSTRUCTION {
             let (Some(mean), Some(variance)) = (self.value("mean"), self.value("variance")) else {
                 return Err(Refusal::invalid(

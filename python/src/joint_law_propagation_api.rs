@@ -17,8 +17,8 @@ use antecedent::analysis::joint_law_propagation::{
     propagate_spread, propagate_transported_spread_aligned,
 };
 use antecedent_contract::{
-    CoverageRecord, InputAlignment, InputRole, PropagationDependence, PropagationInput,
-    PropagationOperation, PropagationRequest, RequestedReading,
+    InputAlignment, InputRole, PropagationDependence, PropagationInput, PropagationOperation,
+    PropagationRequest, RequestedReading,
 };
 use antecedent_io::joint_law_propagation_artifact::{PropagationRequestWire, float_bits};
 use pyo3::prelude::*;
@@ -733,41 +733,24 @@ fn joint_law_transported_spread_aligned(
     finish(py, propagate_transported_spread_aligned(&ds, &dt, &df, coefficients, &ctx))
 }
 
-/// The interval reading of a sealed claim: the artifact is verified and replayed, then matched
-/// against `record_json` (`{record_id, coordinate_id, construction, nominal_level, measured}`,
-/// or `null` for no record). Returns the licence JSON or the typed refusal.
+/// The interval reading of a sealed claim: the artifact is verified and replayed, then resolved
+/// against the shipped coverage records for its composed coordinate, construction and the
+/// declared evidence size. The caller supplies no record. Returns the licence JSON or the typed
+/// refusal.
 #[pyfunction]
-#[pyo3(signature = (artifact, record_json, construction, cancel=None))]
+#[pyo3(signature = (artifact, construction, evidence_rows, cancel=None))]
 fn joint_law_check_composed_interval(
     artifact: &[u8],
-    record_json: Option<&str>,
     construction: &str,
+    evidence_rows: u64,
     cancel: Option<PyCancellationToken>,
 ) -> Refused<String> {
-    let record = match record_json {
-        None => None,
-        Some(text) => {
-            let value: Json =
-                tri!(serde_json::from_str(text).map_err(|e| invalid_json(format!("record: {e}"))));
-            let string = |key: &str| value.get(key).and_then(Json::as_str).unwrap_or("").to_owned();
-            Some(CoverageRecord {
-                record_id: string("record_id"),
-                coordinate_id: string("coordinate_id"),
-                construction: string("construction"),
-                nominal_level: value
-                    .get("nominal_level")
-                    .and_then(Json::as_f64)
-                    .unwrap_or(f64::NAN),
-                measured: value.get("measured").and_then(Json::as_bool).unwrap_or(false),
-            })
-        }
-    };
     let ctx = execution_context(0, None, cancel);
     let claim = match claim_from_artifact(artifact, None, &ctx) {
         Ok(claim) => claim,
         Err(refusal) => return (None, Some(refusal_json(&refusal))),
     };
-    match claim.check_composed_interval(record.as_ref(), construction) {
+    match claim.check_composed_interval(construction, evidence_rows) {
         Ok(licence) => (
             Some(
                 json!({

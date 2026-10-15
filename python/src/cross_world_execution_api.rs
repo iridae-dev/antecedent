@@ -592,6 +592,59 @@ fn cross_world_whole_path_verify(
     }
 }
 
+/// The interval of a sealed execution under a declared unit sampling, licensed only by a
+/// currently attesting whole-path coverage record. The artifact is consumed (replayed) first.
+#[pyfunction]
+#[pyo3(signature = (data, unit_sampling, expected_identity_json=None, cancel=None))]
+fn cross_world_measured_interval(
+    data: &[u8],
+    unit_sampling: &str,
+    expected_identity_json: Option<&str>,
+    cancel: Option<PyCancellationToken>,
+) -> Refused<String> {
+    let sampling = match parse_unit_sampling(unit_sampling) {
+        Ok(s) => s,
+        Err(e) => return (None, Some(e)),
+    };
+    let (execution, ctx) = match consume_for_account(data, expected_identity_json, cancel) {
+        Ok(pair) => pair,
+        Err(e) => return (None, Some(e)),
+    };
+    match execution.measured_interval(sampling, &ctx) {
+        Ok(interval) => (
+            Some(
+                json!({
+                    "scalar": interval.scalar,
+                    "point": interval.point,
+                    "lower": interval.lower,
+                    "upper": interval.upper,
+                    "level": interval.level,
+                    "unit_sampling": interval.unit_sampling,
+                    "record_id": interval.record_id,
+                    "label": interval.label,
+                })
+                .to_string(),
+            ),
+            None,
+        ),
+        Err(wire) => (
+            None,
+            Some(
+                json!({
+                    "code": wire.code,
+                    "stage": wire.stage,
+                    "detail": wire.detail,
+                    "message": format!("cross-world interval refused: {}", wire.detail),
+                    "offending": wire.offending,
+                    "remedy": wire.remedy,
+                    "missing": wire.missing,
+                })
+                .to_string(),
+            ),
+        ),
+    }
+}
+
 /// The refusal of an interval or posterior reading (always `cell_not_licensed`).
 #[pyfunction]
 fn cross_world_closed_reading(reading: &str) -> String {
@@ -626,6 +679,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(cross_world_consume, module)?)?;
     module.add_function(wrap_pyfunction!(cross_world_whole_path, module)?)?;
     module.add_function(wrap_pyfunction!(cross_world_whole_path_verify, module)?)?;
+    module.add_function(wrap_pyfunction!(cross_world_measured_interval, module)?)?;
     module.add_function(wrap_pyfunction!(cross_world_closed_reading, module)?)?;
     Ok(())
 }
