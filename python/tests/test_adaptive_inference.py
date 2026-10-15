@@ -415,6 +415,15 @@ def test_no_interval_is_licensed_for_any_route():
     assert error.detail == "adaptive_inference.interval_closed"
 
 
+def test_a_measured_interval_refuses_a_procedure_outside_the_measured_cells():
+    # The fixture's look schedule, prior and stopping threshold are not a measured cell.
+    session = prepare(thompson_design())
+    request = ai.BayesianPosterior(look=1, prior_alpha=2.0, prior_beta=3.0)
+    error = refused(lambda: session.measured_interval(request))
+    assert error.reason_code == "cell_not_licensed"
+    assert error.detail == "measured_interval.protocol_not_measured"
+
+
 def test_a_paradigm_the_cell_is_not_licensed_for_is_refused():
     session = prepare(thompson_design())
     error = refused(lambda: session.analyse(ai.AdaptiveWeighting(look=1, plus_arm=1, minus_arm=0)))

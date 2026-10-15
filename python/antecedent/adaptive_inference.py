@@ -32,8 +32,10 @@ What it decides, and what it does not:
   and group-sequential boundaries (:class:`GroupSequential`). The procedure matrix
   (:func:`procedure_matrix`) says which paradigms each assignment x outcome x monitoring x
   stopping cell is licensed for; a guarantee for two components never licenses their pairing.
-* **Point-only.** No interval, credible interval or coverage statement:
-  :meth:`AdaptiveInferenceSession.interval` raises ``cell_not_licensed``.
+* **Intervals only where measured.** :meth:`AdaptiveInferenceSession.interval` (an unqualified
+  request) raises ``cell_not_licensed``. :meth:`AdaptiveInferenceSession.measured_interval`
+  returns the interval of one result for the procedure cells whose whole-procedure coverage was
+  measured, bound to its coverage record, and refuses every other procedure.
 * **Artifacts.** :meth:`AdaptiveInferenceSession.export_contract` writes
   ``adaptive_monitoring_contract_v1``; :meth:`AdaptiveInferenceSession.export_result` writes
   ``adaptive_inference_result_v1``. The consumers replay the contract and recompute the values, and
@@ -865,6 +867,31 @@ class AdaptiveInferenceSession:
             AdaptiveInferenceRefusal: always ``cell_not_licensed``.
         """
         _raise_if(self._handle.interval())
+
+    def measured_interval(self, request: Request, *, cancel: Any = None) -> Any:
+        """The interval of one result of a measured procedure cell.
+
+        The result is sealed and replayed, its interval is built from the retained history with
+        the construction whose whole-procedure coverage was measured, and it is bound to the
+        currently attesting coverage record. Measured cells: Thompson sampling with a uniform prior
+        and a posterior-probability stopping rule (credible interval of the second arm),
+        epsilon-greedy repeated measures with a final analysis (weighted contrast), epsilon-greedy
+        confidence sequences (arm mean or contrast, valid at every look) and fixed randomization
+        with group-sequential monitoring (repeated confidence interval).
+
+        Returns:
+            A :class:`antecedent.MeasuredInference` carrying the scalar, its interval and the
+            governing record.
+
+        Raises:
+            AdaptiveInferenceRefusal: ``cell_not_licensed`` for any other procedure, prior,
+                threshold, exploration mass or look schedule, or for evidence that is absent or no
+                longer attesting.
+        """
+        from ._measured_inference import MeasuredInference
+
+        native = _unwrap(self._handle.measured_interval(_request_json(request), cancel=cancel))
+        return MeasuredInference._from_native(native)
 
     def interim_evidence(self) -> InterimEvidence:
         """The observations behind each look, counted once."""

@@ -605,13 +605,11 @@ pub fn standardized_difference(
 #[doc(hidden)]
 #[must_use]
 pub fn weighted_wald_interval_internal(result: &WeightedResult, level: f64) -> Option<(f64, f64)> {
-    let level_in_range = level > 0.0 && level < 1.0;
-    if !level_in_range || !result.uncalibrated_variance.is_finite() {
-        return None;
-    }
-    let z = antecedent_stats::special::normal_ppf(0.5 + level / 2.0);
-    let half = z * result.uncalibrated_standard_error;
-    Some((result.estimate - half, result.estimate + half))
+    crate::adaptive_measured_interval::weighted_wald_interval(
+        result.estimate,
+        result.uncalibrated_variance,
+        level,
+    )
 }
 
 /// Equal-tailed Beta credible interval of one posterior arm by bisection on
@@ -621,23 +619,7 @@ pub fn weighted_wald_interval_internal(result: &WeightedResult, level: f64) -> O
 #[doc(hidden)]
 #[must_use]
 pub fn beta_credible_interval_internal(arm: &PosteriorArm, level: f64) -> Option<(f64, f64)> {
-    if !(level > 0.0 && level < 1.0) {
-        return None;
-    }
-    let quantile = |p: f64| -> Option<f64> {
-        let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
-        for _ in 0..200 {
-            let mid = 0.5 * (lo + hi);
-            let cdf = numerics::regularized_incomplete_beta(mid, arm.alpha, arm.beta).ok()?;
-            if cdf < p {
-                lo = mid;
-            } else {
-                hi = mid;
-            }
-        }
-        Some(0.5 * (lo + hi))
-    };
-    Some((quantile((1.0 - level) / 2.0)?, quantile((1.0 + level) / 2.0)?))
+    crate::adaptive_measured_interval::beta_credible_interval(arm.alpha, arm.beta, level)
 }
 
 #[cfg(test)]

@@ -293,6 +293,37 @@ fn fixed_sample_inference_of_adaptive_data_is_refused_while_the_posterior_runs()
 }
 
 #[test]
+fn a_measured_interval_names_the_measured_cell_and_refuses_every_other_procedure() {
+    let session = session(thompson_trial([0.3, 0.6], 80, &[40, 80], 1));
+    // Another prior is not the measured procedure, so no record is borrowed for it.
+    let other_prior =
+        AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 2.0, prior_beta: 3.0 };
+    let refusal = session.measured_interval(&other_prior, "other-prior", &ctx()).unwrap_err();
+    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.detail, "measured_interval.protocol_not_measured");
+    // A weighting request is not licensed for this cell at all.
+    let weighting = AdaptiveRequest::AdaptiveWeighting {
+        look: 1,
+        plus_arm: 1,
+        minus_arm: Some(0),
+        scheme: "variance_stabilizing".to_owned(),
+        prior_mean: 0.5,
+        prior_strength: 1.0,
+        size_weighted: false,
+    };
+    assert!(session.measured_interval(&weighting, "weighting", &ctx()).is_err());
+    // The measured construction is recognized: it is never refused as an unmeasured protocol.
+    let measured =
+        AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
+    match session.measured_interval(&measured, "measured", &ctx()) {
+        Ok(interval) => assert_eq!(interval.report().calibration, "calibrated"),
+        Err(refusal) => {
+            assert_ne!(refusal.detail, "measured_interval.protocol_not_measured");
+        }
+    }
+}
+
+#[test]
 fn each_missing_element_is_refused_at_prepare_with_its_own_detail() {
     let mut declaration = thompson_trial([0.3, 0.6], 40, &[20, 40], 2);
     declaration.policy_history = None;

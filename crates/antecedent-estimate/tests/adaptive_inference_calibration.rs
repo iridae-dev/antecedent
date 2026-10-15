@@ -66,6 +66,7 @@ use antecedent_estimate::adaptive_inference::{
     anytime_valid_arm_sequences, bayesian_posterior, beta_credible_interval_internal,
     group_sequential_boundaries, standardized_difference, weighted_wald_interval_internal,
 };
+use antecedent_estimate::adaptive_measured_interval;
 use antecedent_stats::adaptive_inference::crossing_probabilities;
 use calibration::{CoverageTally, RecordKey, gaussian, grid_n, map_replicates, n_sim, uniform};
 
@@ -171,8 +172,11 @@ fn thompson_design(
                 "adaptive.thompson_beta_bernoulli.posterior",
                 "posterior_quantile",
                 "Bayesian",
-                "arm_success_probability:treatment",
-                "adaptive_assignment_stopped_by_posterior_rule",
+                // A fixed-truth design is not the public interval's key: the
+                // credible interval is licensed by its prior-predictive records,
+                // and the equal-arms boundary stays off that key.
+                adaptive_measured_interval::THOMPSON_FIXED_TRUTH_FUNCTIONAL,
+                adaptive_measured_interval::STOPPED_DEPENDENCE,
                 n,
             ),
         );
@@ -294,6 +298,10 @@ fn epsilon_greedy_to_stopping(
     Trial { assigned, probabilities, outcomes }
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one weighted design per call: truth, exploration, lag, measurements, size and measured levels"
+)]
 fn weighted_design(
     test: &'static str,
     dgp: &'static str,
@@ -346,8 +354,14 @@ fn weighted_design(
                         "adaptive.epsilon_greedy.weighted_aipw",
                         "analytic_se",
                         "Frequentist",
-                        "arm_contrast:treatment_minus_control",
-                        "adaptive_assignment_stopped_by_posterior_rule",
+                        adaptive_measured_interval::CONTRAST_FUNCTIONAL,
+                        // Repeated measures with a final analysis never stops, so
+                        // it must not share a key with the stopped designs.
+                        if measurements > 1 {
+                            adaptive_measured_interval::FINAL_DEPENDENCE
+                        } else {
+                            adaptive_measured_interval::STOPPED_DEPENDENCE
+                        },
                         n,
                     ),
                 );
@@ -550,5 +564,196 @@ fn anytime_valid_sequence_covers_the_arm_mean_at_every_look_l95() {
         calibration::passes_one_sided(tally.attempts(), 0.95, tally.rate()),
         "the anytime-valid sequence under-covers: {}",
         tally.rate()
+    );
+}
+
+/// The time-uniform interval of an arm mean or of the contrast, scored at ten
+/// looks and at the end: a replicate that misses at any look reports an
+/// interval that excludes the truth, otherwise the interval read at the last
+/// look. The claim is a floor: the sequence is conservative by construction.
+fn sequence_design(test: &'static str, dgp: &'static str, contrast: bool) {
+    let n = grid_n(400);
+    let truth = [0.4, 0.6];
+    let mut tally =
+        CoverageTally::for_record(RecordKey { test, dgp, interval: "confidence_sequence" }, 0.95);
+    let target = if contrast { truth[1] - truth[0] } else { truth[1] };
+    let results = map_replicates(n_sim(), |replicate| {
+        let seed = calibration::grid_seed(0x7e_0000 + replicate);
+        let trial = epsilon_greedy_to_stopping(truth, 0.3, n, 0, 1, seed);
+        let total = trial.assigned.len();
+        let mut by_arm: [Vec<f64>; 2] = [Vec::new(), Vec::new()];
+        let mut missed = false;
+        let mut last: Option<(f64, f64)> = None;
+        let step = (total / 10).max(1);
+        for (index, (arm, y)) in trial.assigned.iter().zip(&trial.outcomes).enumerate() {
+            by_arm[*arm].push(*y);
+            let at = index + 1;
+            if at % step != 0 && at != total {
+                continue;
+            }
+            // An empty intersection refutes the bounded premise: it is a miss.
+            let pair = contrast.then_some((1, 0));
+            let Ok(sequences) = anytime_valid_arm_sequences(&by_arm, pair, 0.05, 100.0, &ctx(seed))
+            else {
+                missed = true;
+                continue;
+            };
+            let bounds = if contrast {
+                sequences.contrast
+            } else {
+                let arm = &sequences.arms[1];
+                (arm.count > 0).then_some((arm.lower, arm.upper))
+            };
+            match bounds {
+                Some((lo, hi)) => {
+                    if !(lo <= target && target <= hi) {
+                        missed = true;
+                    }
+                    last = Some((lo, hi));
+                }
+                None => missed = true,
+            }
+        }
+        if missed { Some((target + 1.0, target + 2.0)) } else { last }
+    });
+    for interval in results {
+        candidate::bind(
+            &mut tally,
+            &adaptive_measured_interval::calibration_basis(
+                adaptive_measured_interval::SEQUENCE_ESTIMATOR,
+                "confidence_sequence",
+                "Frequentist",
+                if contrast {
+                    adaptive_measured_interval::CONTRAST_FUNCTIONAL
+                } else {
+                    adaptive_measured_interval::ARM_MEAN_FUNCTIONAL
+                },
+                adaptive_measured_interval::TIME_UNIFORM_DEPENDENCE,
+                n as u64,
+            ),
+        );
+        tally.record(interval, target);
+    }
+    tally.assert_one_sided(
+        calibration::CoverageSide::Upper,
+        "the true value covered by the time-uniform interval at every one of ten looks and at the end",
+    );
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn anytime_valid_sequence_arm_mean_record_l95() {
+    sequence_design(
+        "anytime_valid_sequence_arm_mean_record_l95",
+        "two_bernoulli_arms_0.4_0.6_epsilon_greedy_0.3_confidence_sequence_every_look",
+        false,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn anytime_valid_sequence_contrast_record_l95() {
+    sequence_design(
+        "anytime_valid_sequence_contrast_record_l95",
+        "two_bernoulli_arms_0.4_0.6_epsilon_greedy_0.3_confidence_sequence_contrast_every_look",
+        true,
+    );
+}
+
+// -- group-sequential repeated confidence intervals -------------------------------------------
+
+/// The repeated interval of the effect read at the look the rule stopped at (the
+/// last look when no boundary was crossed), under fixed 1:1 randomization.
+fn group_sequential_repeated_interval(effect: f64, n: usize, seed: u64) -> Option<(f64, f64)> {
+    let mut normal = gaussian(seed);
+    let sizes = [n / 3, 2 * n / 3, n];
+    let (mut control, mut treated): (Vec<f64>, Vec<f64>) = (Vec::new(), Vec::new());
+    let plan = GroupSequentialPlan {
+        fractions: vec![1.0 / 3.0, 2.0 / 3.0, 1.0],
+        alpha: 0.05,
+        spending: SpendingFunction::OBrienFlemingType,
+        sidedness: Sidedness::TwoSidedSymmetric,
+    };
+    let boundaries = group_sequential_boundaries(&plan, &ctx(seed)).expect("boundaries");
+    let mut unit = 0;
+    let mut read = None;
+    for (look, &size) in sizes.iter().enumerate() {
+        while unit < size {
+            if unit % 2 == 0 {
+                control.push(normal());
+            } else {
+                treated.push(effect + normal());
+            }
+            unit += 1;
+        }
+        let (estimate, se) = adaptive_measured_interval::welch_difference(&control, &treated)?;
+        read = adaptive_measured_interval::repeated_confidence_interval(
+            estimate,
+            se,
+            boundaries.critical[look],
+        );
+        if (estimate / se).abs() >= boundaries.critical[look] {
+            break;
+        }
+    }
+    read
+}
+
+fn repeated_interval_design(test: &'static str, dgp: &'static str, effect: f64) {
+    let n = grid_n(240);
+    let mut tally = CoverageTally::for_record(
+        RecordKey { test, dgp, interval: "repeated_confidence_interval" },
+        0.95,
+    );
+    let results = map_replicates(n_sim(), |replicate| {
+        group_sequential_repeated_interval(effect, n, calibration::grid_seed(0x7f_0000 + replicate))
+    });
+    for interval in results {
+        candidate::bind(
+            &mut tally,
+            &adaptive_measured_interval::calibration_basis(
+                adaptive_measured_interval::REPEATED_INTERVAL_ESTIMATOR,
+                "repeated_confidence_interval",
+                "Frequentist",
+                adaptive_measured_interval::CONTRAST_FUNCTIONAL,
+                adaptive_measured_interval::GROUP_SEQUENTIAL_DEPENDENCE,
+                n as u64,
+            ),
+        );
+        tally.record(interval, effect);
+    }
+    tally.assert_one_sided(
+        calibration::CoverageSide::Upper,
+        "the true effect covered by the repeated confidence interval read at the stopping look",
+    );
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn group_sequential_repeated_interval_null_effect_l95() {
+    repeated_interval_design(
+        "group_sequential_repeated_interval_null_effect_l95",
+        "fixed_randomization_three_looks_obrien_fleming_two_sided_effect_0.0",
+        0.0,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn group_sequential_repeated_interval_moderate_effect_l95() {
+    repeated_interval_design(
+        "group_sequential_repeated_interval_moderate_effect_l95",
+        "fixed_randomization_three_looks_obrien_fleming_two_sided_effect_0.3",
+        0.3,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn group_sequential_repeated_interval_large_effect_l95() {
+    repeated_interval_design(
+        "group_sequential_repeated_interval_large_effect_l95",
+        "fixed_randomization_three_looks_obrien_fleming_two_sided_effect_0.8",
+        0.8,
     );
 }

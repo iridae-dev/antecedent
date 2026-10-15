@@ -4,9 +4,12 @@ Data from an experiment whose assignment adapts to outcomes, that is looked at
 before it ends, or that stops on a rule, are not a fixed sample. The final
 sample is never analysed as if the design had been fixed: an analysis that
 presumes a fixed design is refused for such data (`adaptive_design_ignored`).
-Every route below is point-only; interval and guarantee routes stay closed
-(`cell_not_licensed`) until whole-procedure coverage of the exact procedure is
-measured and the route is promoted at its own coordinate.
+Every route below is point-only; the unqualified interval and guarantee request
+stays closed (`cell_not_licensed`). An interval of one named result is offered
+only by `measured_interval`, for the procedure cells listed under Calibration
+whose whole-procedure coverage is measured; it is bound to the coverage record
+and every other procedure, prior, threshold, exploration mass or look schedule
+is refused.
 
 ## The retained analysis contract
 
@@ -88,6 +91,23 @@ three-point sample-size grid at 400 replicates with a 2,000-replicate recheck.
 Coverage of a fixed-sample interval at the final sample size, or of a component
 estimator, does not substitute.
 
+### Measured interval cells
+
+`AdaptiveInferenceSession.measured_interval(request)` seals and replays the
+result, builds the interval from the retained history and resolves it against the
+current coverage record. The cells and what each interval says:
+
+| Cell | Interval | Licensed range | Does not say |
+| --- | --- | --- | --- |
+| Thompson, uniform Beta prior, two arms, posterior-probability stopping at 0.90, 0.95 or 0.99, two looks | equal-tailed credible interval of the second arm's success probability, read at its last look | planned horizon 100 to 400; prior-predictive calibration | pointwise coverage at fixed truths near equal arms; the contrast; another prior; outcome delay |
+| Epsilon-greedy (exploration 0.3), repeated measures, final analysis only | Wald interval of the weighted contrast (subject means, variance-stabilizing weights, floor 0.01) | 300 to 1,200 subjects | a stopping look; delay; exploration below 0.3 |
+| Epsilon-greedy, bounded outcomes | time-uniform confidence sequence of the second arm's mean or of the contrast at any look | planned horizon 200 to 800; one-sided floor | tightness |
+| Fixed 1:1 randomization, group sequential (three looks, O'Brien-Fleming-type, two-sided, alpha 0.05) | repeated confidence interval of the effect at the last performed look | 120 to 480 units; one-sided floor | stagewise-adjusted estimates and p-values (closed); adaptive assignment |
+
+A fixed-level Wald interval read at a data-dependent stopping look is a named
+boundary and is not offered; the confidence sequence is the interval for a
+stopping look.
+
 | Design | Planned units | Coverage at the 95% level | Standing |
 | --- | --- | --- | --- |
 | Thompson posterior, arms 0.3 and 0.5, posterior-probability stopping | 100 to 400 | 0.941 to 0.950 | measured |
@@ -104,9 +124,11 @@ coverage: a posterior-probability stopping rule selects on the data, so a
 fixed-level interval read at that look has no pointwise guarantee, and an
 exploration mass of a few units leaves the weighted scores too heavy-tailed for a
 normal interval. The Thompson posterior is exact under its prior; the
-prior-predictive rows measure that. These records measure the calibration-internal
-candidate intervals; the public routes above stay point-only until a route is
-promoted at its own coordinate.
+prior-predictive rows measure that and are the rows that license the credible
+interval. The fixed-truth rows are keyed apart from them so that the equal-arms
+boundary never governs the licensed interval. The measured cells above use the same
+constructions the records measured; a cell is offered only while its record is
+currently attesting.
 
 ## Python
 

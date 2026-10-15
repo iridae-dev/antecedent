@@ -241,6 +241,26 @@ impl AdaptiveInferenceHandle {
         self.inner.interval().err().map(|r| refusal_value(&r).to_string())
     }
 
+    /// The interval of one result of a measured procedure cell, bound to
+    /// currently attesting whole-procedure coverage.
+    #[pyo3(signature = (request_json, cancel=None))]
+    fn measured_interval(
+        &self,
+        request_json: &str,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<(Option<crate::measured_inference_api::NativeMeasuredInference>, Option<String>)>
+    {
+        let request = parse_request(&parse(request_json, "adaptive inference request")?)?;
+        let ctx = execution_context(0, None, cancel);
+        Ok(match self.inner.measured_interval(&request, "measured-adaptive-interval", &ctx) {
+            Ok(measured) => (
+                Some(crate::measured_inference_api::NativeMeasuredInference::from_io(measured)?),
+                None,
+            ),
+            Err(refusal) => (None, Some(refusal_value(&refusal).to_string())),
+        })
+    }
+
     /// The observations behind each look, counted once, as JSON.
     fn interim_evidence(&self) -> Refused<String> {
         match self.inner.interim_evidence() {

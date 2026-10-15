@@ -21,8 +21,13 @@ transported response. The typed constructors in the facade
 `surrogate_bridge_response`, in `analysis::transported_constructors`) re-run the
 route and copy the populations, identities, assumptions and support label from
 the producing result; none is typed by the caller. In Python the response is
-read as `antecedent.transported_response.TransportedResponse`; the policy,
-adaptive-trial and period routes themselves have no Python entry.
+read as `antecedent.transported_response.TransportedResponse`. The policy,
+adaptive-trial and period routes are run through
+`antecedent.transported_constructors.{from_policy, from_adaptive_trial, from_period_shift}`,
+whose `evaluation` mapping carries the route's values, identity and premises, and each has a
+re-deriving verifier, `verify_policy`, `verify_adaptive_trial` and `verify_period_shift`
+(`python/tests/test_transported_constructors.py`,
+`python/tests/test_transported_route_verification.py`).
 
 ## Transported policy
 

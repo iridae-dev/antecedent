@@ -19,7 +19,9 @@ stated model but no coverage of any method has been measured.
 Rust surface: `antecedent_stats::adaptive_inference::{procedure_contract,
 procedure_law, procedure_simulation, procedure_uncertainty}`; every premise
 failure of `admit` carries the one registered code `cell_not_licensed` with its
-own detail. There is no Python entry for this route yet. Provenance
+own detail. Python: `AdaptiveInferenceSession.derive_procedure(elements)` returns the
+`AdaptiveProcedure` whose `report` derives the uncertainty
+(`antecedent.adaptive_inference`, `python/tests/test_adaptive_procedure.py`). Provenance
 records: `adaptive_inference.procedure_law`,
 `adaptive_inference.procedure_bayesian_martingale_gap`,
 `adaptive_inference.procedure_anytime_exclusion`,

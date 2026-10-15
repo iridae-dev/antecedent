@@ -206,21 +206,70 @@ impl AdaptiveInferenceSession {
     }
 
     /// Request an interval, credible interval or coverage statement for the
-    /// whole procedure.
+    /// whole procedure without naming a result.
     ///
     /// # Errors
-    /// Always `cell_not_licensed`: no coverage record measures the whole
-    /// procedure (assignment, outcome structure, monitoring and stopping
-    /// together), and a guarantee for components does not license the pairing.
+    /// Always `cell_not_licensed`: a coverage statement belongs to one
+    /// measured procedure cell and one named result, so the unqualified request
+    /// is refused. Ask for a result's interval with
+    /// [`Self::measured_interval`]; a guarantee for components never licenses
+    /// their pairing.
     pub fn interval(&self) -> Result<(), AdaptiveInferenceRefusal> {
         Err(AdaptiveInferenceRefusal {
             code: antecedent_core::reason_code!("cell_not_licensed"),
             detail: "adaptive_inference.interval_closed".to_owned(),
             message: format!(
-                "no interval, credible interval or coverage statement is licensed for the procedure {}: whole-procedure coverage under its assignment, outcome structure, monitoring strategy and stopping rule has not been measured; the point values and uncalibrated diagnostics are the result",
+                "no interval, credible interval or coverage statement is licensed for the procedure {} as an unqualified request: a coverage statement belongs to one measured procedure cell and one named result; request the interval of a result with measured_interval, which is licensed only for the measured cells and refuses every other procedure; the point values and uncalibrated diagnostics are the result",
                 self.contract.cell().identifier()
             ),
         })
+    }
+
+    /// The interval of one result of a measured procedure cell, bound to
+    /// currently attesting whole-procedure coverage.
+    ///
+    /// The result is sealed and replayed first, so the interval is built from
+    /// the retained history exactly as a fresh consumer would. Cells: Thompson
+    /// sampling with a posterior-probability stopping rule and a uniform
+    /// prior (credible interval of the second arm), epsilon-greedy repeated
+    /// measures with a final analysis (weighted contrast), epsilon-greedy
+    /// confidence sequences (arm mean or contrast, valid at every look) and
+    /// fixed randomization with group-sequential monitoring (repeated
+    /// confidence interval).
+    ///
+    /// # Errors
+    /// A result the contract cannot produce, a procedure, prior, threshold,
+    /// exploration mass, outcome structure or look schedule outside the
+    /// measured cells (`cell_not_licensed`), or coverage evidence that is
+    /// absent or no longer attesting.
+    pub fn measured_interval(
+        &self,
+        request: &AdaptiveResultSpec,
+        artifact_id: &str,
+        ctx: &ExecutionContext,
+    ) -> Result<antecedent_io::measured_inference::MeasuredInference, AdaptiveInferenceRefusal>
+    {
+        let bytes = self.export_result(request, artifact_id, ctx)?;
+        AdaptiveInferenceResultArtifact::measure_interval(&bytes, ctx).map_err(
+            |error| match error {
+                antecedent_io::IoError::Refused { code, message } => {
+                    let (detail, text) = message.split_once(": ").map_or(
+                        ("adaptive_inference.interval_closed", message.as_str()),
+                        |(d, t)| (d, t),
+                    );
+                    AdaptiveInferenceRefusal {
+                        code,
+                        detail: detail.to_owned(),
+                        message: text.to_owned(),
+                    }
+                }
+                other => AdaptiveInferenceRefusal {
+                    code: antecedent_core::reason_code!("invalid_argument"),
+                    detail: "adaptive_inference.input_invalid".to_owned(),
+                    message: other.to_string(),
+                },
+            },
+        )
     }
 
     /// Export the monitoring contract for a paradigm.
