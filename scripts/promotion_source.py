@@ -856,7 +856,57 @@ def ignored_test_literals(path: Path) -> dict[str, list[str]]:
         out.setdefault(it.name, []).extend(
             value for _, value in _scan_literals(masked.code, lo, hi)
         )
+    for name, values in _macro_generated_ignored_tests(masked, items).items():
+        out.setdefault(name, []).extend(values)
     return out
+
+
+def _macro_generated_ignored_tests(masked, items) -> dict[str, list[str]]:
+    """Ignored tests a test-generating `macro_rules!` of the file defines at its invocations.
+
+    A macro whose body carries `#[ignore` and declares `fn $name` expands, at each
+    invocation `m!(name, ...)`, to an `#[ignore]`d test called `name`. The generated test's
+    emitted literals are its own name (the first identifier argument), every string literal
+    among the arguments and the string literals of every file-level `const`/`static` the
+    arguments name (a harness passes its label table that way). Nothing outside the
+    invocation counts, so a macro that is defined and never invoked emits nothing.
+    """
+    skel, code = masked.skeleton, masked.code
+    constants = {it.name: it for it in items if it.kind == "const"}
+    out: dict[str, list[str]] = {}
+    for macro in (it for it in items if it.kind == "macro"):
+        body = code[macro.body[0] : macro.body[1]]
+        if "#[ignore" not in re.sub(r"\s+", "", body) or not re.search(r"\bfn\s+\$\w+", body):
+            continue
+        call = re.compile(r"(?<![\w$])" + re.escape(macro.name) + r"\s*!\s*[(\[{]")
+        for m in call.finditer(skel):
+            if macro.body[0] <= m.start() < macro.body[1]:
+                continue
+            end = _match_bracket(skel, m.end() - 1)
+            args = code[m.end() : end]
+            first = re.match(r"\s*([A-Za-z_]\w*)", args)
+            if not first:
+                continue
+            values = [first.group(1)]
+            values += [v for _, v in _scan_literals(code, m.end(), end)]
+            for ident in set(re.findall(r"[A-Za-z_]\w*", skel[m.end() : end])):
+                const = constants.get(ident)
+                if const is not None:
+                    values += [v for _, v in _scan_literals(code, const.body[0], const.body[1])]
+            out.setdefault(first.group(1), []).extend(values)
+    return out
+
+
+def ignored_test_emits_record(path: Path, name: str) -> bool:
+    """Whether the ignored test `name` can emit a coverage record: a test that scores only
+    through `CoverageTally::new` (a pass/fail gate, no `for_record` key) emits none."""
+    masked, items = rust_items(path.resolve())
+    for it in items:
+        if it.kind == "fn" and it.name == name:
+            body = masked.code[it.body[0] : it.body[1]]
+            if "CoverageTally::new(" in body and "for_record" not in body and "RecordKey" not in body:
+                return False
+    return True
 
 
 def python_fn_literals(path: Path) -> dict[str, list[str]]:

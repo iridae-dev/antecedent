@@ -67,6 +67,7 @@ ensure_scripts_on_path()
 import check_interval_surfaces as cai  # noqa: E402  (read-only reuse)
 from promotion_source import (  # noqa: E402
     assertion_texts,
+    ignored_test_emits_record,
     ignored_test_literals,
     nontest_pair,
     python_fn_literals,
@@ -143,6 +144,55 @@ def surfaces_of(record: dict) -> list[str]:
 COV_ID = re.compile(r"cov\.[a-z_.0-9]+")
 
 
+def label_component(text: str) -> str:
+    """The id component CoverageTally::labelled makes of a label: lowercase, every
+    non-alphanumeric character one `_` (`sanitize_label` of the shared harness, without
+    the edge trim so a whole file can be searched for a component)."""
+    return re.sub(r"[^A-Za-z0-9]", "_", text).lower()
+
+
+def expand_shell_loops(gate_text: str) -> str:
+    """`gate_text` with each `for v in a b c; do ... done` body repeated once per word, `$v`
+    and `${v}` replaced, so a `run_*` call inside a loop names the groups it really runs.
+    Only literal word lists expand; a loop over a command substitution or a glob is left
+    as written, and a substituted `run_*` line drops its quotes."""
+    lines = gate_text.splitlines()
+
+    def expand(block: list[str]) -> list[str]:
+        out: list[str] = []
+        i = 0
+        while i < len(block):
+            m = re.match(r"\s*for\s+(\w+)\s+in\s+([^;$`(]+);\s*do\s*$", block[i])
+            if not m:
+                out.append(block[i])
+                i += 1
+                continue
+            depth, j = 1, i + 1
+            while j < len(block) and depth:
+                if re.match(r"\s*for\s+\w+\s+in\b.*;\s*do\s*$", block[j]):
+                    depth += 1
+                elif re.match(r"\s*done\b", block[j]):
+                    depth -= 1
+                j += 1
+            body = block[i + 1 : j - 1]
+            for word in m.group(2).split():
+                sub = [
+                    re.sub(r"\$\{%s\}|\$%s\b" % (m.group(1), m.group(1)), word, line)
+                    for line in body
+                ]
+                for line in expand(sub):
+                    out.append(
+                        line.replace('"', "").strip() if line.lstrip().startswith("run_") else line
+                    )
+            i = j
+        return out
+
+    return "\n".join(expand(lines))
+
+
+_RUST_LITERAL_CACHE: dict = {}
+
+
 def emitted_by_a_test(coverage_id: str) -> bool:
     """The id, its last component (the claim/test name) or a `...<component>` composed form is a
     string literal in an `#[ignore]` test body (Rust) or a function body (Python); a comment or a
@@ -150,14 +200,31 @@ def emitted_by_a_test(coverage_id: str) -> bool:
     comp = coverage_id.rsplit(".", 1)[-1]
 
     def hit(lit: str) -> bool:
-        return lit in (comp, coverage_id) or lit.endswith("." + comp)
+        # A record label is the harness's label with every non-alphanumeric character
+        # replaced by `_` and lowercased (CoverageTally::labelled), so the literal
+        # `"shared_rho_0.0"` emits the id component `shared_rho_0_0`.
+        return (
+            lit in (comp, coverage_id)
+            or lit.endswith("." + comp)
+            or label_component(lit) == comp
+        )
 
     # Some crates keep their ignored calibration tests in a #[cfg(test)]
     # module under src (antecedent-estimate does); both layouts emit records.
     for p in [*ROOT.glob("crates/*/tests/**/*.rs"), *ROOT.glob("crates/*/src/**/*.rs")]:
-        if comp not in p.read_text(encoding="utf-8"):
+        stat = p.stat()
+        cache_key = (p, stat.st_mtime_ns, stat.st_size)
+        cached = _RUST_LITERAL_CACHE.get(cache_key)
+        if cached is None:
+            text = p.read_text(encoding="utf-8")
+            cached = (text + "\n" + label_component(text), None)
+            _RUST_LITERAL_CACHE[cache_key] = cached
+        if comp not in cached[0]:
             continue
-        if any(hit(lit) for lits in ignored_test_literals(p).values() for lit in lits):
+        if cached[1] is None:
+            cached = (cached[0], ignored_test_literals(p))
+            _RUST_LITERAL_CACHE[cache_key] = cached
+        if any(hit(lit) for lits in cached[1].values() for lit in lits):
             return True
     for p in ROOT.glob("python/tests/**/*.py"):
         if comp not in p.read_text(encoding="utf-8"):
@@ -170,7 +237,7 @@ def emitted_by_a_test(coverage_id: str) -> bool:
 def registered_groups(gate_text: str) -> set[str]:
     """Names on `run_*` call lines of gate_calibration.sh (comments and echoes excluded)."""
     names: set[str] = set()
-    for line in gate_text.splitlines():
+    for line in expand_shell_loops(gate_text).splitlines():
         code = line.split("#", 1)[0].strip()
         if re.match(r"run_\w+\b", code):
             names.update(re.findall(r"[A-Za-z_][\w]*", code)[1:])
@@ -190,7 +257,7 @@ def registrations(gate_text: str) -> list[dict]:
         elif line.startswith("}"):
             current_fn = None
     out, header = [], ""
-    for line in gate_text.splitlines():
+    for line in expand_shell_loops(gate_text).splitlines():
         h = re.match(r'echo "== (.*?) ==', line)
         if h:
             header = h.group(1)
@@ -850,7 +917,12 @@ def check() -> dict:
             continue
         for p in ROOT.glob(f"crates/*/tests/**/{reg['target']}.rs"):
             literals = ignored_test_literals(p).get(reg["name"], [])
-            if reg["name"] in literals or any(COV_ID.fullmatch(literal) for literal in literals):
+            names_itself = reg["name"] in literals or any(
+                COV_ID.fullmatch(literal) for literal in literals
+            )
+            # A pass/fail gate scores through `CoverageTally::new` (no `for_record` key), so
+            # it names itself without emitting a coverage record.
+            if names_itself and ignored_test_emits_record(p, reg["name"]):
                 errors.append(
                     f"scripts/gate_calibration.sh registers {reg['name']} (under '== {reg['header']}') "
                     f"and its test emits that coverage record, but no record lists it in "
@@ -1099,6 +1171,84 @@ inherited_interval_fields = ["interval"]
             "coverage id as a substring of another identifier is not emitted",
             run(edit(SYNTH_TEST, 'record("synth_alpha")', "let synth_alpha_v2 = 1")),
             "emitted by no `#[ignore]` test body",
+        )
+        generated = (
+            "macro_rules! gen {\n    ($name:ident) => {\n        #[test]\n"
+            '        #[ignore = "coverage"]\n        fn $name() {\n'
+            "            record(stringify!($name));\n        }\n    };\n}\n"
+        )
+        alpha_fn = '#[test]\n#[ignore = "coverage"]\nfn synth_alpha() {\n    record("synth_alpha");\n}\n'
+        expect(
+            "an invocation of a test-generating macro emits its first identifier",
+            run(edit(SYNTH_TEST, alpha_fn, generated + "gen!(synth_alpha);\n")),
+            None,
+        )
+        labelled = (
+            'const LABELS: &[(&str, u8)] = &[("rho_0.5", 1)];\n'
+            + generated
+            + "gen!(synth_alpha, LABELS);\n"
+        )
+        expect(
+            "a dotted label is matched against the label table a generated test is passed",
+            run(
+                edit(SYNTH_TEST, alpha_fn, labelled),
+                edit_extra=edit(
+                    "parity/promotion.toml",
+                    '"cov.synth.b.l95.synth_alpha"',
+                    '"cov.synth.b.l95.synth_alpha.rho_0_5"',
+                ),
+            ),
+            None,
+        )
+        expect(
+            "a dotted label absent from the passed label table is not emitted",
+            run(
+                edit(SYNTH_TEST, alpha_fn, labelled.replace("rho_0.5", "rho_0.9")),
+                edit_extra=edit(
+                    "parity/promotion.toml",
+                    '"cov.synth.b.l95.synth_alpha"',
+                    '"cov.synth.b.l95.synth_alpha.rho_0_5"',
+                ),
+            ),
+            "emitted by no `#[ignore]` test body",
+        )
+        expect(
+            "a test-generating macro that is never invoked emits nothing",
+            run(edit(SYNTH_TEST, alpha_fn, generated + "gen!(synth_other);\n")),
+            "emitted by no `#[ignore]` test body",
+        )
+        expect(
+            "a macro that does not generate an ignored test emits nothing",
+            run(
+                edit(
+                    SYNTH_TEST,
+                    alpha_fn,
+                    generated.replace('#[ignore = "coverage"]\n', "") + "gen!(synth_alpha);\n",
+                )
+            ),
+            "emitted by no `#[ignore]` test body",
+        )
+        expect(
+            "a run_* call inside a literal shell loop registers each looped group",
+            run(
+                edit(
+                    "scripts/gate_calibration.sh",
+                    "run_synth synth_alpha\n",
+                    'for n in synth_alpha synth_x; do\n  run_synth "${n}"\ndone\n',
+                )
+            ),
+            None,
+        )
+        expect(
+            "a shell loop over other names does not register the allocated group",
+            run(
+                edit(
+                    "scripts/gate_calibration.sh",
+                    "run_synth synth_alpha\n",
+                    'for n in other; do\n  run_synth "${n}"\ndone\n',
+                )
+            ),
+            "not a registered group name",
         )
         expect(
             "coverage id not registered in gate_calibration.sh",
