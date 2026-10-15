@@ -10,10 +10,17 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "case counts and simulated count outcomes are small and non-negative"
+)]
+
 use antecedent::analysis::predictive_assessment::{
     DependenceDeclaration, FitDeclaration, ForecastLaw, Horizon, LawSource, ObservationKey,
-    Outcome, PredictiveAssessmentSpec, PredictiveTarget, PredictorLaws, PreparedPredictiveAssessment,
-    RealizedObservations, ScoreIntervalQuery, ScoreKind, ValidationDesign,
+    Outcome, PredictiveAssessmentSpec, PredictiveTarget, PredictorLaws,
+    PreparedPredictiveAssessment, RealizedObservations, ScoreIntervalQuery, ScoreKind,
+    ValidationDesign,
 };
 use antecedent_core::ExecutionContext;
 
@@ -125,12 +132,7 @@ fn assess(spec: &PredictiveAssessmentSpec) -> PreparedPredictiveAssessment {
 }
 
 fn mean_query(score: ScoreKind) -> ScoreIntervalQuery {
-    ScoreIntervalQuery {
-        predictor: "forecast_a".to_owned(),
-        reference: None,
-        score,
-        level: 0.95,
-    }
+    ScoreIntervalQuery { predictor: "forecast_a".to_owned(), reference: None, score, level: 0.95 }
 }
 
 #[test]
@@ -148,7 +150,7 @@ fn an_expected_score_interval_inside_a_measured_design_is_bound_to_its_record() 
             assert_eq!(interval.dependence, dependence);
             assert_eq!(interval.construction, construction);
             assert!(interval.coverage_record.starts_with("cov.predictive_score_interval."));
-            assert!(interval.coverage_record.contains(&format!(".{}.", construction)));
+            assert!(interval.coverage_record.contains(&format!(".{construction}.")));
             assert!(!interval.calibration_sha.is_empty());
             assert!(interval.assumptions.contains("finite variance"));
         }
