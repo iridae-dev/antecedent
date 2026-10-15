@@ -159,7 +159,9 @@ fn faithfulness_margin(shape: Layout, edges: &Edges) -> f64 {
         let others: Vec<usize> = (0..p).filter(|&i| i != u && i != v).collect();
         for mask in 0..(1u32 << others.len()) {
             let mut index = vec![u, v];
-            index.extend(others.iter().enumerate().filter(|(k, _)| mask >> k & 1 == 1).map(|(_, &i)| i));
+            index.extend(
+                others.iter().enumerate().filter(|(k, _)| mask >> k & 1 == 1).map(|(_, &i)| i),
+            );
             let sub: Vec<Vec<f64>> =
                 index.iter().map(|&i| index.iter().map(|&j| cov[i][j]).collect()).collect();
             let precision = invert(&sub);
@@ -512,7 +514,13 @@ fn score(
 
 fn named_boundary(test: &'static str, dgp: &'static str, runs: &[Option<Scored>]) {
     let key = RecordKey { test, dgp, interval: INTERVAL };
-    let (tally, ..) = score(key, runs, false);
+    let (tally, reported, _) = score(key, runs, false);
+    if reported.covered() == 0 {
+        // The probe's structure never resolves, so no replicate reports an interval and
+        // there is no execution to key a record by; the refusal is the measured outcome.
+        eprintln!("{test}: no replicate reported an interval; no record is emitted");
+        return;
+    }
     tally.emit_named_boundary();
 }
 

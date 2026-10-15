@@ -10,7 +10,7 @@
 //! * CRPS: `tau (2 phi(z) + z (2 Phi(z) - 1)) - s / sqrt(pi)` with
 //!   `tau = sqrt(s^2 + sigma^2)` and `z = (m - mu) / tau`.
 //!
-//! Designs (each at nominal 0.95; sample sizes `grid_n(200)` = 100, 200 and 400 cases):
+//! Designs (each at nominal 0.95; sample sizes `grid_n(800)` = 400, 800 and 1,600 cases):
 //!
 //! * `iid`: held-out split, independent outcomes `N(0, 1)`; Student-t, `n - 1` df.
 //! * `serial`: held-out split with a stationary Gaussian AR(1) outcome series
@@ -60,7 +60,9 @@ use common::calibration::{
 };
 
 const LEVEL: f64 = 0.95;
-const BASE_CASES: usize = 200;
+// Serial intervals need the long-run variance estimated from enough cases, and cluster
+// intervals enough clusters: the measured range starts at 400 cases (80 clusters).
+const BASE_CASES: usize = 800;
 const CLUSTER_SIZE: usize = 5;
 const FORECAST_A: (f64, f64) = (0.3, 1.2);
 const FORECAST_B: (f64, f64) = (0.0, 1.5);
