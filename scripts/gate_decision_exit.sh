@@ -65,7 +65,9 @@ if [[ -n "$tests" ]]; then
     rc=0
     if [[ "$kind" == "rust" ]]; then
       echo "== decision exit: $pkg rust story $a/$b =="
-      cargo test -p "$a" --test "$b" >"$log" 2>&1 || rc=$?
+      # A story file folded into a suite_NN binary runs there, filtered to its module.
+      read -r suite prefix < <(python3 -c 'import sys; sys.path.insert(0, "scripts"); from _repo import test_target; print(*test_target(sys.argv[1], sys.argv[2]))' "$a" "$b")
+      cargo test -p "$a" --test "$suite" -- ${prefix:+"$prefix"} >"$log" 2>&1 || rc=$?
       target="$a/$b"
     else
       echo "== decision exit: $pkg python story $a =="
