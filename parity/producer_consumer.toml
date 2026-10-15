@@ -254,6 +254,11 @@ where = "`CohortDecisionSource.interval` (an interval, band or posterior for the
 
 [[refusal]]
 code = "`cell_not_licensed`"
+detail = "`cohort_decision.interval_requires_native_fit`"
+where = "`CohortDecisionSource.interval` (an interval for a declared compact export)"
+
+[[refusal]]
+code = "`cell_not_licensed`"
 detail = "`cohort_decision.support_contract_absent`"
 where = "`FittedEffectModel.decision_source` for a model that retains no fitted-row support contract"
 
@@ -960,7 +965,7 @@ detail = "`stage_identity(Stage.SCORE_ARTIFACT, plan identity)` declared by the 
 producer = "evidence_ledger"
 consumer = "decision"
 status = "ADAPTER"
-detail = "the caller declares the pooled quantity (the ledger carries no estimand, units or population) as one `MeanSource` coordinate carrying a `point_only` pooled estimate (7/5 of two disjoint studies), with the result identity as provider and the ledger head as snapshot; an affine utility only (act 4.6, hold 2.8), mean-only with no variance and no export; an `assumption_range` envelope has no point and raises `CausalTypeError`; a pooled interval REFUSED `evidence_ledger.interval_not_licensed`"
+detail = "the caller declares the pooled quantity (the ledger carries no estimand, units or population) as one `MeanSource` coordinate carrying a `point_only` pooled estimate (7/5 of two disjoint studies), with the result identity as provider and the ledger head as snapshot; an affine utility only (act 4.6, hold 2.8), mean-only with no variance and no export; an `assumption_range` envelope has no point and raises `CausalTypeError`; a pooled interval REFUSED `evidence_ledger.interval_not_measured`"
 
 [[cell]]
 producer = "evidence_ledger"
@@ -1273,7 +1278,7 @@ where = "`PreparedMechanismComposition.interval`"
 
 [[refusal]]
 code = "`cell_not_licensed`"
-detail = "`evidence_ledger.interval_not_licensed`"
+detail = "`evidence_ledger.interval_not_measured`"
 where = "`EvidenceLedger.pooled_interval`"
 
 [[refusal]]
