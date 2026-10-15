@@ -190,7 +190,7 @@ fn score(
 /// Two estimates from shared rows, the covariance of the estimates estimated
 /// from the same rows.
 fn shared_rows_design(test: &'static str, dgp: &'static str, law: Law) {
-    let n = grid_n(200);
+    let n = grid_n(400);
     let results = map_replicates(n_sim(), |replicate| {
         let seed = grid_seed(0x91_0000 + replicate);
         let (x, y) = rows(law, n, seed, 1);
@@ -211,7 +211,7 @@ fn shared_rows_design(test: &'static str, dgp: &'static str, law: Law) {
 
 /// Two independent samples with distinct evidence and a diagonal covariance.
 fn independent_samples_design(test: &'static str, dgp: &'static str, law: Law) {
-    let n = grid_n(200);
+    let n = grid_n(400);
     let results = map_replicates(n_sim(), |replicate| {
         let seed = grid_seed(0x92_0000 + replicate);
         let (x, _) = rows(law, n, seed, 1);
@@ -233,7 +233,7 @@ fn independent_samples_design(test: &'static str, dgp: &'static str, law: Law) {
 
 /// Aligned bootstrap draws of the two estimates.
 fn aligned_bootstrap_design(test: &'static str, dgp: &'static str, law: Law) {
-    let n = grid_n(200);
+    let n = grid_n(400);
     let results = map_replicates(n_sim(), |replicate| {
         let seed = grid_seed(0x93_0000 + replicate);
         let (x, y) = rows(law, n, seed, 1);
@@ -332,7 +332,7 @@ fn composed_contrast_aligned_bootstrap_skewed_pair_l95() {
 #[test]
 #[ignore = "calibration: run only at the final measurement step"]
 fn a_violated_declared_independence_under_covers_and_emits_no_record() {
-    let n = grid_n(200);
+    let n = grid_n(400);
     let law = Law::Gaussian { rho: 0.9 };
     let mut tally = CoverageTally::new("a_violated_declared_independence_under_covers", LEVEL);
     let results = map_replicates(n_sim(), |replicate| {
