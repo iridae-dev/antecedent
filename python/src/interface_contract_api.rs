@@ -168,9 +168,7 @@ fn connections_of(connections_json: &str) -> PyResult<Vec<ComponentConnection>> 
     Ok(connections)
 }
 
-fn composed_checked(
-    decided: Result<ComposedInterfaces, Vec<InterfaceContractRefusal>>,
-) -> Checked {
+fn composed_checked(decided: Result<ComposedInterfaces, Vec<InterfaceContractRefusal>>) -> Checked {
     match decided {
         Ok(composed) => (
             Some(

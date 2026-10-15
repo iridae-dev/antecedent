@@ -1185,10 +1185,9 @@ fn callback_check_claim_connection(
     let declaration = declaration_of(callback_json)?;
     Ok(match check_claim_to_callback(&producer, produced_port, &declaration, input) {
         Ok(connection) => (Some(connection_json(&connection)), None),
-        Err(refusals) => (
-            None,
-            Some(Json::Array(refusals.iter().map(refusal_json).collect()).to_string()),
-        ),
+        Err(refusals) => {
+            (None, Some(Json::Array(refusals.iter().map(refusal_json).collect()).to_string()))
+        }
     })
 }
 

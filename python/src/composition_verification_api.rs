@@ -202,7 +202,10 @@ fn parse_node(value: &Json) -> PyResult<CompositionNode> {
 }
 
 /// A graph, or the graph error the declaration produced.
-pub(crate) fn parse_graph(value: &Json, what: &str) -> PyResult<Result<CompositionGraph, GraphError>> {
+pub(crate) fn parse_graph(
+    value: &Json,
+    what: &str,
+) -> PyResult<Result<CompositionGraph, GraphError>> {
     let map = object(value, what)?;
     let mut graph = CompositionGraph::new();
     for node in list(map, "nodes")? {

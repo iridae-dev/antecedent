@@ -22,8 +22,6 @@ use antecedent::analysis::decision_claims::{
     envelope_identified_utilities, interval_identified_utilities, report_identified_utilities,
     scenario_claims, weighted_identified_utilities,
 };
-use antecedent_design::decision_adapters::IdentifiedUtility;
-use antecedent_estimate::transport_scenarios::ScenarioSetReport;
 use antecedent_contract::{
     DistributionMeaning, ExternalCapability, ExternalRefusal, ExternalScientificObject,
     ExternalTrustState, LawProviderContract, ProviderObjectIdentity, ProviderTrust,
@@ -43,6 +41,7 @@ use antecedent_design::composition_boundary::{
     check_atom_combination, check_composition, check_paired_draws, evaluate_functional_on_input,
     evaluate_with_support,
 };
+use antecedent_design::decision_adapters::IdentifiedUtility;
 use antecedent_design::decision_adapters::evaluate_adapted;
 use antecedent_design::decision_artifact::{
     MAX_DECISION_ARTIFACT_BYTES, contract_from_json_refusal,
@@ -61,6 +60,7 @@ use antecedent_design::proposal_receipt::{
     ProposalReceipt, ProposalReceiptError, ValuationBinding, on_arrival, verify as verify_bundle,
 };
 use antecedent_design::repair_artifact::RepairReportArtifact;
+use antecedent_estimate::transport_scenarios::ScenarioSetReport;
 use antecedent_io::distribution_artifact::{DistributionCalibration, DistributionTrust};
 use antecedent_io::external_claim_artifact::ExternalClaimTrust;
 use antecedent_io::quantity_wire::DistributionMeaningWire;

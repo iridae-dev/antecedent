@@ -825,7 +825,8 @@ fn every_published_route_is_licensed_inside_a_measured_coverage_record() {
     .unwrap_err();
     assert_eq!(at_ninety.reason_code(), "cell_not_licensed");
     let mut dependent = report.coordinate.clone();
-    dependent.within_stream = antecedent_design::decision_reliability::WithinStreamDependence::Autocorrelated;
+    dependent.within_stream =
+        antecedent_design::decision_reliability::WithinStreamDependence::Autocorrelated;
     assert_eq!(
         license_route(PublishedRoute::UtilityInterval, &dependent).unwrap_err().reason_code(),
         "cell_not_licensed"

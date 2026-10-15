@@ -251,8 +251,7 @@ fn joint_cell_cost_json(
     let grid = penalties.unwrap_or_else(|| DEFAULT_RIDGE_GRID.to_vec());
     let tuning = RidgeTuning::new(&grid, inner_folds).map_err(estimation_err)?;
     let declared = ordering.unwrap_or_else(|| (0..components).collect());
-    let orderings =
-        orderings_for(components, &declared, all_orderings).map_err(estimation_err)?;
+    let orderings = orderings_for(components, &declared, all_orderings).map_err(estimation_err)?;
     let mut config = FactorizedJointConfig::new(tuning);
     config.learner = learner;
     config.folds = folds;

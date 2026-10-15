@@ -329,7 +329,9 @@ fn a_thompson_credible_interval_inside_the_measured_range_is_bound_to_its_record
     let scalar = &report.scalars[0];
     assert_eq!(scalar.name, "treatment_success_probability");
     assert!(scalar.lower < scalar.point && scalar.point < scalar.upper);
-    assert!(scalar.calibration.record_id.as_deref().is_some_and(|id| id.contains("prior_predictive")));
+    assert!(
+        scalar.calibration.record_id.as_deref().is_some_and(|id| id.contains("prior_predictive"))
+    );
 }
 
 #[test]

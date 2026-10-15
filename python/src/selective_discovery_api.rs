@@ -16,16 +16,15 @@ use antecedent::analysis::sample_split_analysis::{
     AnalysisBinding, SplitDiscovery, SplitRule, WHOLE_METHOD_CALIBRATION, discover_on_split,
     split_evidence_sources,
 };
+use antecedent::analysis::sample_split_effect::{
+    SplitEffect, estimate_effect_on_split, measure_source,
+};
 use antecedent::analysis::selective_discovery::{
     DeclaredCompletion, DiscoveryClaimKeys, DiscoverySnapshot, add_discovery_claims,
     discovered_graph_source, discovery_data_source, discovery_rows_source,
 };
 use antecedent_contract::composition_verification::{CompositionGraph, GraphError};
 use antecedent_contract::evidence_ledger::{SourceDeclaration, SourceId, parse_digest_hex};
-use antecedent_discovery::selective::{DataIdentity, StageInputs};
-use antecedent::analysis::sample_split_effect::{
-    SplitEffect, estimate_effect_on_split, measure_source,
-};
 use antecedent_core::{Lag, VariableId};
 use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use antecedent_discovery::constraints::{CiMaskType, DiscoveryConstraints};
@@ -38,6 +37,7 @@ use antecedent_discovery::selective::{
     request_downstream_interval, request_recovery_claim, request_score_search_reuse,
     request_selection_diagram,
 };
+use antecedent_discovery::selective::{DataIdentity, StageInputs};
 use antecedent_io::selective_discovery_artifact::{
     SelectiveDiscoveryArtifact, SelectiveDiscoveryArtifactError,
 };
@@ -684,7 +684,9 @@ impl SelectiveDiscoveryHandle {
         let snapshot = DiscoverySnapshot { inputs, data, outcome, completion: completion.as_ref() };
         match add_discovery_claims(&mut graph, prefix, &snapshot) {
             Ok(keys) => Ok((Some(claims_json(&graph, &[(None, keys)])), None)),
-            Err(error) => Ok((None, Some(crate::composition_verification_api::graph_refusal(&error)))),
+            Err(error) => {
+                Ok((None, Some(crate::composition_verification_api::graph_refusal(&error))))
+            }
         }
     }
 
@@ -1143,10 +1145,7 @@ impl PerPopulationDiscoveryHandle {
     /// graph under `{prefix}.{population}`. Returns `{"graph", "keys"}` JSON, or a refusal of
     /// the graph.
     fn add_claims(&self, graph_json: Option<&str>, prefix: &str) -> Reply {
-        let driver = self
-            .inner
-            .as_ref()
-            .ok_or_else(|| input_err("handle is unavailable"))?;
+        let driver = self.inner.as_ref().ok_or_else(|| input_err("handle is unavailable"))?;
         let Some(mut graph) = claim_graph(graph_json)? else {
             return Ok((None, Some(claim_graph_refusal(graph_json)?)));
         };
@@ -1156,7 +1155,9 @@ impl PerPopulationDiscoveryHandle {
                     keys.into_iter().map(|(label, k)| (Some(label), k)).collect();
                 Ok((Some(claims_json(&graph, &keyed)), None))
             }
-            Err(error) => Ok((None, Some(crate::composition_verification_api::graph_refusal(&error)))),
+            Err(error) => {
+                Ok((None, Some(crate::composition_verification_api::graph_refusal(&error))))
+            }
         }
     }
 
@@ -1573,9 +1574,7 @@ fn claims_json(graph: &CompositionGraph, keys: &[(Option<String>, DiscoveryClaim
     let keys = match keys {
         [(None, only)] => wire(only),
         many => Json::Object(
-            many.iter()
-                .map(|(label, k)| (label.clone().unwrap_or_default(), wire(k)))
-                .collect(),
+            many.iter().map(|(label, k)| (label.clone().unwrap_or_default(), wire(k))).collect(),
         ),
     };
     json!({
