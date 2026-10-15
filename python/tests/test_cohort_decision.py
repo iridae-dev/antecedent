@@ -488,7 +488,7 @@ def test_a_native_fit_issues_a_measured_interval_or_a_typed_refusal() -> None:
     else:
         scalar = measured.scalars[0]
         assert measured.route == "cohort_interval"
-        assert scalar.lower <= scalar.point <= scalar.upper
+        assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
     # The point route is unchanged and never carries an interval by itself.
     assert abs(source.mean_contrast - (1.0 + 0.5 * float(np.mean(x[:80])))) < 0.2
     with pytest.raises(CausalValueError):

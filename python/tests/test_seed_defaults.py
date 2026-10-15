@@ -8,7 +8,8 @@ Changing either one changes published numerical results, so a new numeric
 default or a silent flip between 0 and 1 fails this test.
 
 ``seed=None`` is not a numeric default. Four prepare-then-evaluate stages use
-it as an optional override of the seed frozen at prepare. Those names are
+it as an optional override of the seed frozen at prepare, and the count-fitted
+observation build uses it as an optional seed that defaults inside the engine. Those names are
 pinned in ``SEED_OPTIONAL`` so that optional form cannot grow, shrink, or
 turn into a third integer unnoticed.
 
@@ -79,6 +80,7 @@ SEED_ZERO = (
 )
 
 SEED_OPTIONAL = (
+    "observation_query_api.rs::count_fitted_observation_build",
     "transport_admg_conditional_api.rs::estimate",
     "transport_mixed_api.rs::estimate",
     "transport_mz_api.rs::estimate",

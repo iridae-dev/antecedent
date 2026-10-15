@@ -733,6 +733,7 @@ def test_a_producer_claim_connects_to_a_callback_input_or_is_refused_with_every_
             "estimand:outcome_law",
             ic.SupportDomain.real(),
             operations=("mean",),
+            evidence=("a" * 64,),
         )
         return ic.InterfaceContract("producer", produces=[port])
 

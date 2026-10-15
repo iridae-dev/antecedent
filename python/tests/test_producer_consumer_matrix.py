@@ -2060,7 +2060,7 @@ def _declared_ledger(o: Objs) -> Declared:
     with pytest.raises(EvidenceLedgerRefusal) as closed:
         ledgered.ledger.pooled_interval(pooled.result)
     assert closed.value.reason_code == "cell_not_licensed"
-    assert closed.value.detail == "evidence_ledger.interval_not_licensed"
+    assert closed.value.detail == "evidence_ledger.interval_not_measured"
     # The ledger carries no estimand: the caller declares the pooled quantity.
     quantity = _declared_quantity(
         "pooled_effect",
@@ -2243,7 +2243,7 @@ def _check_cohort_decision(o: Objs) -> None:
     with pytest.raises(cd.CohortDecisionRefusal) as closed:
         source.interval()
     assert closed.value.reason_code == "cell_not_licensed"
-    assert closed.value.detail == "cohort_decision.interval_not_licensed"
+    assert closed.value.detail == "cohort_decision.interval_requires_native_fit"
     # The support-aware evaluator does not take the raw source.
     with pytest.raises(CausalTypeError):
         _feed_support(source)

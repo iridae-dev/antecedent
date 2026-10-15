@@ -120,7 +120,7 @@ def test_source_report_unreachable_route_guard_is_class_only():
     import re
 
     source = (REPO_ROOT / "python/src/measured_inference_api.rs").read_text(encoding="utf-8")
-    # No public constructor can manufacture a seventh route. This exact fallback
+    # No public constructor can manufacture a route beyond these. This exact fallback
     # remains a defensive class-only input error, never a scientific refusal.
     assert '_ => Err(crate::value_err("measured_inference.source_report_not_supported"))' in source
     routes = {
@@ -130,6 +130,11 @@ def test_source_report_unreachable_route_guard_is_class_only():
         "nested_bayesian",
         "sampled_recovery",
         "temporal_interval",
+        "sampled_counterfactual_transport",
+        "cohort_interval",
+        "count_fitted_interval",
+        "adaptive_interval",
+        "split_effect",
     }
     assert set(re.findall(r'"([a-z_]+)"\s*=>', source)) == routes
     assert "#[new]" not in source

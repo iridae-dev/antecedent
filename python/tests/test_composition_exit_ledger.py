@@ -163,6 +163,11 @@ def test_ledger_inferential_claim_is_calibrated_or_not_promoted(record: Record) 
         return
     assert record["status"] in {"carried_forward", "frozen", "in_progress"}, record["id"]
     for route in record["routes"]:
+        if route["status"] == "licensed":
+            # A point-only route carries no interval claim, so it may be licensed while the
+            # record's interval routes stay closed; an inferential route never is.
+            assert route["claim"] in NOT_INFERENTIAL, (record["id"], route["name"])
+            continue
         assert route["status"] == "closed", (record["id"], route["name"])
         assert route["reason_code"] == "cell_not_licensed", route
         assert route["reason_code"] in RUNTIME_CODES

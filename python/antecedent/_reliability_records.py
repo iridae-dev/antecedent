@@ -183,6 +183,9 @@ class CalibrationCoordinate(ReportRecord):
     functional: str
     coupling: str | Mapping[str, Any]
     paradigm: str | Mapping[str, Any]
+    within_stream: str | Mapping[str, Any]
+    importance_weighted: bool
+    adaptively_generated: bool
 
 
 @dataclass(frozen=True, slots=True)
