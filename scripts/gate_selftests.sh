@@ -42,6 +42,7 @@ bash scripts/gate_composition_exit.sh --self-test
 bash scripts/gate_decision_exit.sh --self-test
 python3 scripts/check_limits_agreement.py --self-test
 python3 scripts/check_release_claims.py --self-test
+python3 scripts/check_python_surface.py --self-test
 bash scripts/gate_graphless_support.sh --self-test
 bash scripts/gate_named_tests.sh --self-test
 echo "gate self-tests: ok"

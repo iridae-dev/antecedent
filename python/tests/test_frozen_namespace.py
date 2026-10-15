@@ -642,6 +642,8 @@ _EXPECTED_STAGE_ALL = {
         "TemporalPremises",
         "TemporalRefreshResult",
         "TemporalSequenceSpec",
+        "UnrolledSequence",
+        "unroll_two_slice",
         "TemporalUnitPanel",
         "TemporalWindow",
         "TransportCertificate",

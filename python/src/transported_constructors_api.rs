@@ -21,8 +21,10 @@ use antecedent::analysis::transported_constructors::{
     HistoryAlphabet, MechanismStatus, ModelMechanism, SelectionDiagram, TemporalPolicyRequest,
     TemporalTarget, TimeInvariance, TransportedContribution, TransportedPolicyRequest,
     TransportedSurrogateBridge, TransportedSynthesisMethod, TrialMechanism, TrialSelectionDiagram,
-    adaptive_trial_response, surrogate_bridge_response, temporal_policy_response,
-    transported_policy_response, transported_synthesis_response,
+    adaptive_trial_response, evaluate_temporal_policy, evaluate_transported_policy,
+    surrogate_bridge_response, temporal_policy_response, transport_adaptive_trial,
+    transported_policy_response, transported_synthesis_response, verify_adaptive_transport,
+    verify_temporal_policy, verify_transported_policy,
 };
 use antecedent_contract::bridge::{BridgeScope, TrialEffectPair, TrialLevelValidation};
 use antecedent_contract::evidence_ledger::SourceId;
@@ -779,7 +781,237 @@ fn surrogate_bridge_construct(
     })
 }
 
+// ---------------------------------------------------------------------------
+// Verification: re-derive a stored evaluation from its request and compare
+// ---------------------------------------------------------------------------
+
+/// A stored number of an evaluation, refused by name when it is absent.
+fn stored_f64(stored: &Json, key: &str) -> PyResult<f64> {
+    stored.get(key).and_then(Json::as_f64).ok_or_else(|| {
+        crate::value_err(format!("the stored evaluation has no numeric `{key}` to verify"))
+    })
+}
+
+fn stored_text(stored: &Json, key: &str) -> PyResult<String> {
+    stored.get(key).and_then(Json::as_str).map(str::to_owned).ok_or_else(|| {
+        crate::value_err(format!("the stored evaluation has no `{key}` identity to verify"))
+    })
+}
+
+fn stored_of(text: &str) -> PyResult<Json> {
+    declaration(text, "stored evaluation")
+}
+
+/// Re-derive a transported policy evaluation from its model, policy, diagram and target law and
+/// compare the stored identity and values bit for bit. Returns the refusal, or `None` when the
+/// stored evaluation replays.
+#[pyfunction]
+#[pyo3(signature = (model_json, policy_json, target_population, target_initial, diagram_json, stored_json, max_nodes=None, *, cancel=None))]
+#[allow(clippy::too_many_arguments)] // Mirrors the Python signature.
+fn transported_policy_verify(
+    py: Python<'_>,
+    model_json: &str,
+    policy_json: &str,
+    target_population: &str,
+    target_initial: Option<Vec<f64>>,
+    diagram_json: Option<&str>,
+    stored_json: &str,
+    max_nodes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<Option<String>> {
+    let model = crate::sequential_evaluation_api::model_of(model_json)?;
+    let policy = match policy_of(policy_json)? {
+        Ok(policy) => policy,
+        Err(error) => return Ok(Some(external_refusal_json(&error.to_refusal()))),
+    };
+    let diagram = match diagram_json {
+        None => None,
+        Some(text) => {
+            let wire: PopulationDiagramIn = declaration(text, "selection diagram")?;
+            Some(SelectionDiagram {
+                source_population: wire.source_population,
+                target_population: wire.target_population,
+                mechanisms: mechanisms_of(wire.mechanisms)?,
+            })
+        }
+    };
+    let stored = stored_of(stored_json)?;
+    let (identity, target_value, source_value) = (
+        stored_text(&stored, "identity")?,
+        stored_f64(&stored, "target_value")?,
+        stored_f64(&stored, "source_value")?,
+    );
+    let target_population = target_population.to_owned();
+    let outcome = crate::detach_catch(py, move || {
+        let ctx = execution_context(0, None, cancel);
+        let request = TransportedPolicyRequest {
+            source: &model,
+            policy: &policy,
+            target_population: &target_population,
+            target_initial: target_initial.as_deref(),
+            diagram: diagram.as_ref(),
+            limits: limits_of(max_nodes),
+        };
+        // The stored claim is the re-derived evaluation with the stored identity and values
+        // put in place, so the facade's own verifier decides.
+        let mut claimed = match evaluate_transported_policy(&request, &ctx) {
+            Ok(fresh) => fresh,
+            Err(error) => return Ok(Err(error)),
+        };
+        claimed.identity = identity;
+        claimed.target_value = target_value;
+        claimed.source_value = source_value;
+        Ok(verify_transported_policy(&claimed, &request, &ctx))
+    })?;
+    Ok(outcome.err().map(|error| external_refusal_json(&error.to_refusal())))
+}
+
+/// Re-derive a temporal policy evaluation from its request and compare the stored identity and
+/// values bit for bit.
+#[pyfunction]
+#[pyo3(signature = (model_json, policy_json, target_json, target_initial, invariance_json, stored_json, max_nodes=None, *, cancel=None))]
+#[allow(clippy::too_many_arguments)] // Mirrors the Python signature.
+fn temporal_policy_verify(
+    py: Python<'_>,
+    model_json: &str,
+    policy_json: &str,
+    target_json: &str,
+    target_initial: Option<Vec<f64>>,
+    invariance_json: Option<&str>,
+    stored_json: &str,
+    max_nodes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<Option<String>> {
+    let model = crate::sequential_evaluation_api::model_of(model_json)?;
+    let policy = match policy_of(policy_json)? {
+        Ok(policy) => policy,
+        Err(error) => return Ok(Some(external_refusal_json(&error.to_refusal()))),
+    };
+    let wire: TargetIn = declaration(target_json, "target period")?;
+    let target = TemporalTarget {
+        period: wire.period,
+        horizon: wire.horizon,
+        alphabet: HistoryAlphabet {
+            actions: wire
+                .alphabet
+                .into_iter()
+                .map(|a| ActionAlphabet { label: a.label, symbols: a.symbols })
+                .collect(),
+        },
+    };
+    let invariance = match invariance_json {
+        None => None,
+        Some(text) => {
+            let wire: InvarianceIn = declaration(text, "time invariance")?;
+            Some(TimeInvariance {
+                source_period: wire.source_period,
+                target_period: wire.target_period,
+                horizon: wire.horizon,
+                mechanisms: mechanisms_of(wire.mechanisms)?,
+            })
+        }
+    };
+    let stored = stored_of(stored_json)?;
+    let (identity, target_value, source_value) = (
+        stored_text(&stored, "identity")?,
+        stored_f64(&stored, "target_value")?,
+        stored_f64(&stored, "source_value")?,
+    );
+    let outcome = crate::detach_catch(py, move || {
+        let ctx = execution_context(0, None, cancel);
+        let request = TemporalPolicyRequest {
+            source: &model,
+            policy: &policy,
+            target: &target,
+            target_initial: target_initial.as_deref(),
+            invariance: invariance.as_ref(),
+            limits: limits_of(max_nodes),
+        };
+        let mut claimed = match evaluate_temporal_policy(&request, &ctx) {
+            Ok(fresh) => fresh,
+            Err(error) => return Ok(Err(error)),
+        };
+        claimed.identity = identity;
+        claimed.target_value = target_value;
+        claimed.source_value = source_value;
+        Ok(verify_temporal_policy(&claimed, &request, &ctx))
+    })?;
+    Ok(outcome.err().map(|error| external_refusal_json(&error.to_refusal())))
+}
+
+/// Re-derive an adaptive-trial transported estimate from its contract, strata, diagram and target
+/// law and compare the stored identity and the three values bit for bit.
+#[pyfunction]
+#[pyo3(signature = (design_json, trial_population, unit_strata, stratum_labels, target_stratum_law, diagram_json, treatment_arm, control_arm, stored_json))]
+#[allow(clippy::too_many_arguments)] // Mirrors the Python signature.
+fn adaptive_trial_verify(
+    design_json: Option<&str>,
+    trial_population: &str,
+    unit_strata: Vec<usize>,
+    stratum_labels: Vec<String>,
+    target_stratum_law: Option<Vec<f64>>,
+    diagram_json: Option<&str>,
+    treatment_arm: usize,
+    control_arm: usize,
+    stored_json: &str,
+) -> PyResult<Option<String>> {
+    let session = match design_json {
+        None => None,
+        Some(text) => {
+            check_declared_size(text, MAX_JSON_BYTES, "adaptive design")?;
+            let json: Json = serde_json::from_str(text).map_err(|error| {
+                crate::value_err(format!("invalid adaptive design declaration: {error}"))
+            })?;
+            let wire: DeclarationWire = serde_json::from_value(json).map_err(|error| {
+                crate::value_err(format!("invalid adaptive design declaration: {error}"))
+            })?;
+            let declared = declaration_from_wire(&wire)
+                .map_err(|error| crate::value_err(error.to_string()))?;
+            match AdaptiveInferenceSession::prepare(declared) {
+                Ok(session) => Some(session),
+                Err(refusals) => return Ok(adaptive_refusal(&refusals).2),
+            }
+        }
+    };
+    let diagram = match diagram_json {
+        None => None,
+        Some(text) => {
+            let wire: TrialDiagramIn = declaration(text, "trial selection diagram")?;
+            Some(TrialSelectionDiagram {
+                source_population: wire.source_population,
+                target_population: wire.target_population,
+                mechanisms: trial_mechanisms_of(wire.mechanisms)?,
+            })
+        }
+    };
+    let stored = stored_of(stored_json)?;
+    let request = AdaptiveTransportRequest {
+        contract: session.as_ref().map(AdaptiveInferenceSession::contract),
+        trial_population,
+        unit_strata: &unit_strata,
+        stratum_labels: &stratum_labels,
+        target_stratum_law: target_stratum_law.as_deref(),
+        diagram: diagram.as_ref(),
+        treatment_arm,
+        control_arm,
+    };
+    let mut claimed = match transport_adaptive_trial(&request) {
+        Ok(fresh) => fresh,
+        Err(error) => return Ok(Some(external_refusal_json(&error.to_refusal()))),
+    };
+    claimed.identity = stored_text(&stored, "identity")?;
+    claimed.treatment_mean = stored_f64(&stored, "treatment_mean")?;
+    claimed.control_mean = stored_f64(&stored, "control_mean")?;
+    claimed.contrast = stored_f64(&stored, "contrast")?;
+    Ok(verify_adaptive_transport(&claimed, &request)
+        .err()
+        .map(|error| external_refusal_json(&error.to_refusal())))
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(transported_policy_verify, module)?)?;
+    module.add_function(wrap_pyfunction!(temporal_policy_verify, module)?)?;
+    module.add_function(wrap_pyfunction!(adaptive_trial_verify, module)?)?;
     module.add_function(wrap_pyfunction!(transported_history_alphabet, module)?)?;
     module.add_function(wrap_pyfunction!(transported_policy_construct, module)?)?;
     module.add_function(wrap_pyfunction!(temporal_policy_construct, module)?)?;

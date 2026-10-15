@@ -368,7 +368,121 @@ fn consume_temporal_transport_artifact(
     })
 }
 
+/// Unroll a lagged `TemporalDag` template over the horizon of two (the finite unfolding of the
+/// temporal DAG; parents before the first slice are dropped, so the initial state is fixed).
+///
+/// Template variables are the template's names, numbered by position; they must be exactly the
+/// covariates, the action and the outcome. Returns the unrolled named graph and the places of
+/// its coordinates in time as JSON; latent confounding is added by naming pairs of unrolled
+/// coordinates in `latent_pairs` (a bidirected edge each).
+#[pyfunction]
+#[pyo3(signature = (template, covariates, action, outcome, baseline, baseline_effects, latent_pairs))]
+fn unroll_two_slice_template(
+    template: PyRef<'_, crate::graphs::TemporalDag>,
+    covariates: Vec<String>,
+    action: String,
+    outcome: String,
+    baseline: Vec<String>,
+    baseline_effects: Vec<(String, String)>,
+    latent_pairs: Vec<(String, String)>,
+) -> PyResult<String> {
+    use antecedent_identify::sid::temporal_sequence::{TemplateRoles, unroll_two_slice};
+
+    let invalid = |message: String| {
+        crate::value_err_code(
+            reason_code!("invalid_argument"),
+            format!("temporal_transport.invalid_spec: {message}"),
+        )
+    };
+    let names = &template.names;
+    let index_of = |name: &str| -> PyResult<VariableId> {
+        names
+            .iter()
+            .position(|n| n == name)
+            .and_then(|i| u32::try_from(i).ok())
+            .map(VariableId::from_raw)
+            .ok_or_else(|| invalid(format!("`{name}` is not a variable of the template")))
+    };
+    if names.len() != covariates.len() + 2 {
+        return Err(invalid(
+            "the template's variables must be exactly the covariates, the action and the outcome"
+                .to_owned(),
+        ));
+    }
+    let roles = TemplateRoles {
+        covariates: covariates.iter().map(|c| index_of(c)).collect::<PyResult<_>>()?,
+        action: index_of(&action)?,
+        outcome: index_of(&outcome)?,
+    };
+    let baseline_index = |name: &str| -> PyResult<usize> {
+        baseline
+            .iter()
+            .position(|b| b == name)
+            .ok_or_else(|| invalid(format!("`{name}` is not a declared baseline covariate")))
+    };
+    let effects = baseline_effects
+        .iter()
+        .map(|(b, v)| Ok((baseline_index(b)?, index_of(v)?)))
+        .collect::<PyResult<Vec<_>>>()?;
+    let mut unrolled = unroll_two_slice(&template.dag, &roles, baseline.len(), &effects)
+        .map_err(|e| crate::value_err_code(e.code, format!("{}: {}", e.detail, e.message)))?;
+    // The name of every unrolled coordinate, by its id: `(period - 1) * n + variable`, then the
+    // baseline covariates.
+    let n = names.len();
+    let mut coordinate_names: Vec<String> = Vec::with_capacity(2 * n + baseline.len());
+    for period in 1..=2 {
+        coordinate_names.extend(names.iter().map(|name| format!("{name}_{period}")));
+    }
+    coordinate_names.extend(baseline.iter().cloned());
+    let named = |id: antecedent_core::VariableId| coordinate_names[id.as_usize()].clone();
+    for (a, b) in &latent_pairs {
+        let find = |name: &String| {
+            coordinate_names
+                .iter()
+                .position(|n| n == name)
+                .and_then(|i| u32::try_from(i).ok())
+                .map(antecedent_graph::DenseNodeId::from_raw)
+                .ok_or_else(|| invalid(format!("`{name}` is not an unrolled coordinate")))
+        };
+        let (a, b) = (find(a)?, find(b)?);
+        unrolled.admg.insert_bidirected(a, b).map_err(|e| invalid(e.to_string()))?;
+    }
+    let mut directed = Vec::new();
+    let mut bidirected = Vec::new();
+    for node in 0..unrolled.admg.node_count() {
+        let from = antecedent_graph::DenseNodeId::try_from_usize(node).map_err(crate::py_err)?;
+        for &to in unrolled.admg.children(from) {
+            directed.push([
+                coordinate_names[from.as_usize()].clone(),
+                coordinate_names[to.as_usize()].clone(),
+            ]);
+        }
+        for &to in unrolled.admg.bidirected_neighbors(from) {
+            if from < to {
+                bidirected.push([
+                    coordinate_names[from.as_usize()].clone(),
+                    coordinate_names[to.as_usize()].clone(),
+                ]);
+            }
+        }
+    }
+    let slots = &unrolled.slots;
+    Ok(serde_json::json!({
+        "names": coordinate_names,
+        "directed": directed,
+        "bidirected": bidirected,
+        "baseline": slots.baseline.iter().copied().map(&named).collect::<Vec<_>>(),
+        "covariates": slots.covariates.iter()
+            .map(|step| step.iter().copied().map(&named).collect::<Vec<_>>())
+            .collect::<Vec<_>>(),
+        "actions": slots.actions.iter().copied().map(&named).collect::<Vec<_>>(),
+        "outcome": named(slots.outcome),
+    })
+    .to_string())
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(unroll_two_slice_template, module)?)?;
     module.add_class::<PreparedTemporalTransportStage>()?;
     module.add_function(wrap_pyfunction!(prepare_temporal_transport_stage, module)?)?;
     module.add_function(wrap_pyfunction!(consume_temporal_transport_artifact, module)?)?;

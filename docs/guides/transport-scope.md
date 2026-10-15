@@ -333,7 +333,9 @@ interval request (`temporal_transport.interval_requested`,
   bidirected edge. The Rust `unroll_two_slice` builds the diagram from a lagged
   `TemporalDag` template through the ADR 0021 unfolding (parents before the first
   slice are dropped, so the initial state is fixed, not modelled). This template
-  route is Rust-only (Python supplies the unrolled diagram directly); it is
+  route is also in Python as `antecedent.transport.advanced.unroll_two_slice`
+  (`python/tests/test_unroll_two_slice.py`), which returns the unrolled diagram and its
+  places in time for `TemporalSequenceSpec`; the Rust route is
   exercised end to end (identify, prepare, evaluate, export, consume) against the
   enumerated truth of a known model whose period-1 outcome is a step-2 covariate.
 - **One longitudinal intervention.** Both actions are the treatment set of one

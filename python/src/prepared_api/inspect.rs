@@ -255,6 +255,96 @@ impl PyPreparedAnalysis {
         Ok(report)
     }
 
+    /// Tier overlap and E-value diagnostics read off the last executed tiered result.
+    ///
+    /// Reads only what the executed result carries; nothing is refit. A refusal is the facade's
+    /// own registered code and `tier_diagnostics.*` detail.
+    #[pyo3(signature = (*, cancel=None))]
+    fn tier_diagnostics_json(
+        &self,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
+        use antecedent::analysis::{TierDesign, tier_diagnostics};
+        use antecedent_estimate::Availability;
+
+        let result = self
+            .last
+            .as_ref()
+            .ok_or_else(|| crate::value_err("estimate before reading tier diagnostics"))?;
+        let ctx = py_execution_context_ext(
+            self.last_seed,
+            self.last_threads,
+            cancel.map(|c| c.inner),
+            None,
+            Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+        );
+        let name_of = |id: antecedent_core::VariableId| {
+            self.names.get(id.as_usize()).cloned().unwrap_or_else(|| id.to_string())
+        };
+        let unavailable = |u: &antecedent_estimate::Unavailable| {
+            serde_json::json!({
+                "available": false, "code": u.code, "detail": u.detail, "reason": u.reason,
+            })
+        };
+        let report = tier_diagnostics(result, &ctx).map_err(|error| {
+            crate::refusal(error.code, format!("{}: {}", error.detail, error.message))
+        })?;
+        let design = match &report.design {
+            TierDesign::CoDeterminedClosure { adjustment, rows, propensity_scored } => {
+                serde_json::json!({
+                    "kind": "co_determined_closure",
+                    "adjustment": adjustment.iter().copied().map(&name_of).collect::<Vec<_>>(),
+                    "rows": rows,
+                    "propensity_scored": propensity_scored,
+                })
+            }
+            TierDesign::UnknownScenarios { scenarios } => serde_json::json!({
+                "kind": "unknown_scenarios",
+                "scenarios": scenarios.iter().map(|s| serde_json::json!({
+                    "method": s.method.as_ref(),
+                    "adjustment": s.adjustment.iter().copied().map(&name_of).collect::<Vec<_>>(),
+                    "effect": s.effect,
+                })).collect::<Vec<_>>(),
+            }),
+        };
+        let overlap = match &report.overlap {
+            Availability::Available(o) => serde_json::json!({
+                "available": true,
+                "propensity_min": o.propensity_min,
+                "propensity_max": o.propensity_max,
+                "ess": o.ess,
+                "extreme_weight_count": o.extreme_weight_count,
+                "excluded_fraction": o.excluded_fraction,
+                "target_population_support": o.target_population_support,
+                "excluded_regions": o.excluded_regions.iter()
+                    .map(|r| [r.low, r.high]).collect::<Vec<_>>(),
+                "clip": o.clip,
+                "trim": o.trim,
+                "retained_fraction": o.retained_fraction,
+                "clip_sensitivity": o.clip_sensitivity.as_ref().map(|c| serde_json::json!({
+                    "thresholds": c.thresholds.as_ref(),
+                    "ess": c.ess.as_ref(),
+                    "treated_ess": c.treated_ess.as_ref(),
+                    "control_ess": c.control_ess.as_ref(),
+                    "extreme_weight_counts": c.extreme_weight_counts.as_ref(),
+                })),
+            }),
+            Availability::Unavailable(u) => unavailable(u),
+        };
+        let point = match &report.evalue.point {
+            Availability::Available(p) => serde_json::json!({
+                "available": true, "value": p.value, "method": p.method.as_ref(),
+            }),
+            Availability::Unavailable(u) => unavailable(u),
+        };
+        let payload = serde_json::json!({
+            "design": design,
+            "overlap": overlap,
+            "evalue": { "point": point, "interval": unavailable(&report.evalue.interval) },
+        });
+        serde_json::to_string(&payload).map_err(|error| crate::value_err(error.to_string()))
+    }
+
     /// Frozen reference to the last execution, sharing immutable Rust resources.
     fn snapshot(&self) -> PyResult<Self> {
         let last = self

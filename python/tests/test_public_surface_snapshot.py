@@ -421,6 +421,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "sequential_evaluation",
         "temporal",
         "temporal_counterfactual",
+        "tier_diagnostics",
         "transported_counterfactual",
         "transported_constructors",
         "transported_response",

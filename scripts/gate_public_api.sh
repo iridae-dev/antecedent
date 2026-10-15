@@ -11,3 +11,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 python3 "$ROOT/scripts/gate_public_api.py" "$@"
+
+# Every public facade entry names its Python entry or its reason; a documentation sentence that
+# says an entry has no Python entry is refused while the registry binds one.
+python3 "$ROOT/scripts/check_python_surface.py"

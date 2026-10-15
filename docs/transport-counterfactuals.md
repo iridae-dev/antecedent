@@ -8,7 +8,7 @@ honest about where they stop:
 | Transported path-specific effect, affine-additive class | `antecedent.transported_counterfactual` | point-only under a fully specified structural fit; calibration unmeasured |
 | Selection differences and invariances behind each scenario answer | `antecedent.scenario_invariance` | derived report, nothing sealed |
 | Learned joint source-target transport | `antecedent.transport.advanced.learned_joint_transport` | measured scalar carrier only at a current, matching record; underlying posterior remains model-conditional |
-| General finite counterfactual transport (Rust: `antecedent::prepare_counterfactual_transport`; no Python entry yet) | not available from Python | exact point of a nested or conditional counterfactual probability from exact finite laws; no interval, posterior or calibration |
+| General finite counterfactual transport (Rust: `antecedent::prepare_counterfactual_transport`) | `antecedent.transport.advanced.identify_counterfactual` (`python/tests/test_transport_counterfactual.py`) | exact point of a nested or conditional counterfactual probability from exact finite laws; no interval, posterior or calibration |
 
 For the ordinary transport compiler (`transport.Transport(...)`) see
 [transport and interference](transport-interference.md) and

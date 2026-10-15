@@ -89,6 +89,9 @@ __all__ = [
     "from_surrogate_bridge",
     "from_synthesis",
     "period_population_label",
+    "verify_adaptive_trial",
+    "verify_period_shift",
+    "verify_policy",
 ]
 
 _MECHANISM = re.compile(r"^(initial_state|utility|(transition|observation)\[(\d+)\])$")
@@ -447,6 +450,134 @@ def from_adaptive_trial(
             _provider(provider_id),
         )
     )
+
+
+# --------------------------------------------------------------------------- verification
+
+
+def _stored(evaluation: TransportedConstruction | Mapping[str, Any], route: str) -> str:
+    """The stored evaluation of ``route`` as JSON, refusing one of another route."""
+    stored = evaluation.evaluation if isinstance(evaluation, TransportedConstruction) else evaluation
+    if not isinstance(stored, Mapping):
+        raise CausalTypeError("evaluation must be a TransportedConstruction or its mapping")
+    if stored.get("route") != route:
+        raise CausalValueError(
+            f"the stored evaluation is of route {stored.get('route')!r}, not {route!r}"
+        )
+    return json.dumps(dict(stored), allow_nan=False)
+
+
+def verify_policy(
+    model: Any,
+    policy: Any,
+    evaluation: TransportedConstruction | Mapping[str, Any],
+    *,
+    target_population: str,
+    target_initial: Sequence[float] | None,
+    diagram: SelectionDiagram | None,
+    max_nodes: int | None = None,
+    cancel: Any = None,
+) -> None:
+    """Re-derive a transported policy evaluation and compare it bit for bit.
+
+    The model, policy, diagram and target law are evaluated again; the stored identity and both
+    values must equal the re-derived ones. Returns ``None`` when they replay.
+
+    Raises:
+        TransportedResponseRefusal: every refusal of :func:`from_policy`, and
+            ``transported_policy.value_mismatch`` when a stored value or identity does not replay.
+    """
+    model_json, policy_json = _model_and_policy(model, policy)
+    if diagram is not None and not isinstance(diagram, SelectionDiagram):
+        raise CausalTypeError("diagram must be a SelectionDiagram")
+    refusal = _native.transported_policy_verify(
+        model_json,
+        policy_json,
+        text(target_population, "target_population"),
+        _initial(target_initial, "target_initial"),
+        None if diagram is None else _dumps(diagram._wire()),
+        _stored(evaluation, "policy"),
+        max_nodes,
+        cancel=cancel,
+    )
+    raise_refusal(refusal, TransportedResponseRefusal)
+
+
+def verify_period_shift(
+    model: Any,
+    policy: Any,
+    evaluation: TransportedConstruction | Mapping[str, Any],
+    *,
+    target: TargetPeriod,
+    target_initial: Sequence[float] | None,
+    invariance: InvarianceDeclaration | None,
+    max_nodes: int | None = None,
+    cancel: Any = None,
+) -> None:
+    """Re-derive a period-shift evaluation and compare it bit for bit.
+
+    Raises:
+        TransportedResponseRefusal: every refusal of :func:`from_period_shift`, and
+            ``temporal_policy_transport.value_mismatch`` when a stored value or identity does
+            not replay.
+    """
+    model_json, policy_json = _model_and_policy(model, policy)
+    if not isinstance(target, TargetPeriod):
+        raise CausalTypeError("target must be a TargetPeriod")
+    if invariance is not None and not isinstance(invariance, InvarianceDeclaration):
+        raise CausalTypeError("invariance must be an InvarianceDeclaration")
+    refusal = _native.temporal_policy_verify(
+        model_json,
+        policy_json,
+        _dumps(target._wire()),
+        _initial(target_initial, "target_initial"),
+        None if invariance is None else _dumps(invariance._wire()),
+        _stored(evaluation, "temporal_policy"),
+        max_nodes,
+        cancel=cancel,
+    )
+    raise_refusal(refusal, TransportedResponseRefusal)
+
+
+def verify_adaptive_trial(
+    design: Any,
+    evaluation: TransportedConstruction | Mapping[str, Any],
+    *,
+    trial_population: str,
+    unit_strata: Sequence[int],
+    stratum_labels: Sequence[str],
+    target_stratum_law: Sequence[float] | None,
+    diagram: AdaptiveTrialDiagram | None,
+    treatment_arm: int = 1,
+    control_arm: int = 0,
+) -> None:
+    """Re-derive an adaptive-trial transported estimate and compare it bit for bit.
+
+    The stored identity and the treatment mean, control mean and contrast must equal the
+    re-derived ones.
+
+    Raises:
+        TransportedResponseRefusal: every refusal of :func:`from_adaptive_trial`, and
+            ``adaptive_transport.value_mismatch`` when a stored value or identity does not replay.
+    """
+    from .adaptive_inference import AdaptiveDesign
+
+    if design is not None and not isinstance(design, AdaptiveDesign):
+        raise CausalTypeError("design must be an AdaptiveDesign or None")
+    if diagram is not None and not isinstance(diagram, AdaptiveTrialDiagram):
+        raise CausalTypeError("diagram must be an AdaptiveTrialDiagram")
+    refusal = _native.adaptive_trial_verify(
+        None if design is None else _dumps(design.to_wire()),
+        text(trial_population, "trial_population"),
+        [int(s) for s in unit_strata],
+        [text(label, "stratum label") for label in stratum_labels],
+        _initial(target_stratum_law, "target_stratum_law"),
+        None if diagram is None else _dumps(diagram._wire()),
+        int(treatment_arm),
+        int(control_arm),
+        _stored(evaluation, "adaptive_trial"),
+    )
+    raise_refusal(refusal, TransportedResponseRefusal)
 
 
 # --------------------------------------------------------------------------- synthesis
