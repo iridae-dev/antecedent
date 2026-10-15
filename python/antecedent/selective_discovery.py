@@ -21,9 +21,16 @@ What is claimed, and what is not:
   bit for bit: a statistic is retained only at an identical input coordinate (test, settings,
   seed, kernel policy, columns and their content).
 * **New data invalidates the statistics.** A previous graph is never the start of a search.
-* **No recovery guarantee.** The discovered structure is an estimate. No recovery, false-discovery
-  or error-control statement is made, and none is licensed: :meth:`SelectiveDiscovery.request_recovery_claim`
-  and :meth:`SelectiveDiscovery.request_downstream_interval` refuse with ``cell_not_licensed``.
+* **No per-dataset recovery guarantee.** The discovered structure is an estimate. Whether it is
+  the true graph rests on faithfulness and causal sufficiency, which cannot be tested from the
+  table discovery ran on, so no recovery, false-discovery or error-control statement is made
+  about one dataset, and none can be licensed: :meth:`SelectiveDiscovery.request_recovery_claim`
+  refuses with ``cell_not_licensed``. How often the method recovers the graph over a family of
+  generating processes is a measured table in the documentation, not a license.
+* **A reused row cannot carry an interval.**
+  :meth:`SelectiveDiscovery.request_downstream_interval` refuses with ``cell_not_licensed``;
+  the interval that can be licensed is the one :func:`sample_split_effect` computes on rows
+  discovery never saw.
 * **A discovered structure is not a selection diagram.**
   :meth:`SelectiveDiscovery.request_selection_diagram` refuses and names every unresolved edge
   and exhausted search bound.
@@ -32,8 +39,11 @@ What is claimed, and what is not:
   :class:`PerPopulationDiscovery`, nothing pooled and no invariance claimed.
 * **Discovery then analysis.** :func:`discover_on_split` partitions exchangeable rows into a
   discovery part and an analysis part by a declared rule, discovers on the first only and binds
-  the second to the discovery through a receipt. The route licenses a statement conditional on
-  the selected graph; the whole-method calibration is recorded and unmeasured.
+  the second to the discovery through a receipt. The binding licenses a statement conditional on
+  the selected graph. :func:`sample_split_effect` runs the one construction whose whole-method
+  coverage of the true effect is measured (a seeded half split, PC with the partial-correlation
+  test, a resolved structure, parent adjustment on the analysis half) and its
+  :meth:`SplitEffect.measure` attests the interval from the coverage records.
 
 Work is observed at the algorithm boundaries: CI tests handed to the test (attempted and
 completed), requests answered from a retained statistic (reused), orientation rounds and applied
@@ -76,8 +86,10 @@ __all__ = [
     "PopulationEdge",
     "PopulationResult",
     "SampleSplit",
+    "SplitEffect",
     "SplitReceipt",
     "discover_on_split",
+    "sample_split_effect",
     "Edge",
     "ExportedState",
     "ConsumedSelectiveDiscovery",
@@ -991,7 +1003,9 @@ class PerPopulationDiscovery(ScientificResult):
 class SplitReceipt:
     """The record of one row split: enough to re-derive the partition and check a table.
 
-    ``whole_method_calibration`` is always ``unmeasured``: the design is recorded, not measured.
+    ``whole_method_calibration`` is always ``unmeasured`` for an analysis you run yourself on the
+    analysis part. The one whole-method construction with a measured coverage record is
+    :func:`sample_split_effect`, which attests its own interval.
     """
 
     rule: Mapping[str, Any]
@@ -1176,3 +1190,118 @@ def discover_on_split(
     discovery = dict(zip(names, handle.discovery_columns(), strict=True))
     analysis = dict(zip(names, handle.analysis_columns(), strict=True))
     return SampleSplit(handle, names, _report(report), discovery, analysis)
+
+
+@dataclass(frozen=True, slots=True)
+class SplitEffect:
+    """The linear effect of a treatment on an outcome estimated after discovery on a row split.
+
+    ``effect`` is the treatment's least-squares coefficient on the analysis rows given its
+    parents in the accepted graph, and ``lower``/``upper`` its ``level`` interval. ``basis`` is
+    the calibration key the interval is looked up under: ``structure`` is always
+    ``discovered_sample_split``, never the key of a declared graph. The interval is a computed
+    value until :meth:`measure` attests it; the attestation is a statement about the whole
+    method over the measured family of generating processes, never about this dataset's graph.
+    """
+
+    effect: float
+    lower: float
+    upper: float
+    level: float
+    standard_error: float
+    analysis_rows: int
+    discovery_rows: int
+    adjustment_set: tuple[str, ...]
+    receipt_identity: str
+    structure_identity: str
+    basis: Mapping[str, Any]
+    _source: bytes = field(repr=False)
+    _seed: int = field(repr=False)
+
+    def measure(self, *, threads: int | None = None, cancel: Any = None) -> Any:
+        """Replay the source and attest the interval from the current coverage records.
+
+        Returns:
+            A :class:`antecedent.MeasuredInference` carrying the effect, its interval and the
+            governing record.
+
+        Raises:
+            SelectiveDiscoveryRefusal: ``cell_not_licensed`` when no current attesting,
+                non-boundary record measured this construction at this analysis row count.
+        """
+        from ._measured_inference import MeasuredInference
+
+        native, refusal = _native.sample_split_effect_measure(
+            self._source, self._seed, threads=threads, cancel=cancel
+        )
+        _raise(refusal)
+        assert native is not None
+        return MeasuredInference._from_native(native)
+
+
+def sample_split_effect(
+    data: Mapping[str, Any],
+    *,
+    treatment: str,
+    outcome: str,
+    split_seed: int,
+    seed: int = 0,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> SplitEffect:
+    """Discover on half of the rows and estimate the treatment's effect on the other half.
+
+    ``data`` maps five to seven searched variables to finite 1-D float arrays of exchangeable
+    rows. The rows are split by a seeded permutation (half to discovery), PC with the
+    partial-correlation test (``alpha = 0.01``) runs on the discovery half, the structure is
+    accepted only when the search finished and it is one fully directed graph, and the effect is
+    estimated on the analysis half adjusting for the treatment's parents, with a 0.95
+    least-squares interval.
+
+    Raises:
+        SelectiveDiscoveryRefusal: a table outside five to seven variables
+            (``split_effect.variable_count_not_measured``), an unresolved structure
+            (``split_effect.structure_unresolved``), an unfinished search, or an outcome oriented
+            into the treatment.
+        CausalDiscoveryError: the discovery algorithm failed or was cancelled.
+    """
+    if not isinstance(data, Mapping):
+        raise CausalTypeError("data must map variable names to 1-D arrays")
+    names = [_name(name, "variable") for name in data]
+    for role, label in ((treatment, "treatment"), (outcome, "outcome")):
+        if role not in data:
+            raise CausalValueError(f"{label} {role!r} is not a column of data")
+    columns = []
+    for name in names:
+        column = np.ascontiguousarray(np.asarray(data[name], dtype=np.float64))
+        if column.ndim != 1:
+            raise CausalValueError(f"column {name!r} must be 1-D")
+        columns.append(column)
+    text, source, refusal = _native.sample_split_effect(
+        names,
+        columns,
+        names.index(treatment),
+        names.index(outcome),
+        _count(split_seed, "split_seed"),
+        _count(seed, "seed"),
+        threads=threads,
+        cancel=cancel,
+    )
+    _raise(refusal)
+    assert text is not None and source is not None
+    wire = json.loads(text)
+    return SplitEffect(
+        effect=float(wire["effect"]),
+        lower=float(wire["lower"]),
+        upper=float(wire["upper"]),
+        level=float(wire["level"]),
+        standard_error=float(wire["standard_error"]),
+        analysis_rows=int(wire["analysis_rows"]),
+        discovery_rows=int(wire["discovery_rows"]),
+        adjustment_set=tuple(names[int(i)] for i in wire["adjustment_set"]),
+        receipt_identity=str(wire["receipt_identity"]),
+        structure_identity=str(wire["structure_identity"]),
+        basis=freeze(wire["basis"]),
+        _source=bytes(source),
+        _seed=_count(seed, "seed"),
+    )

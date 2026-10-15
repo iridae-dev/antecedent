@@ -12,10 +12,17 @@
 //! Because discovery saw none of the analysis rows, an analysis of those rows that treats the
 //! discovered (or declared) graph as given is calibrated for the analysis procedure's own
 //! sampling error *given that graph*. The binding says exactly that and no more
-//! ([`AnalysisBinding::conditional_on_selected_graph`]). It does not license "the interval
-//! covers the true effect": that needs a measured bound on the probability that discovery
-//! returned a graph that does not license the question, and the whole-method calibration is
-//! recorded, not measured ([`AnalysisBinding::whole_method_calibration`] is `unmeasured`).
+//! ([`AnalysisBinding::conditional_on_selected_graph`]). It does not by itself license "the
+//! interval covers the true effect": that is a property of the whole method (split,
+//! discovery, graph acceptance, estimation), and it is licensed only for the one construction
+//! that was measured, through [`super::sample_split_effect`], whose interval is attested from
+//! a coverage record keyed `discovered_sample_split`. For any other analysis of the analysis
+//! rows the whole-method calibration stays `unmeasured`
+//! ([`AnalysisBinding::whole_method_calibration`]).
+//!
+//! No per-dataset statement is made either way: whether a discovered graph recovers the true
+//! one rests on faithfulness and causal sufficiency, which cannot be tested from the table
+//! that is being discovered on.
 //!
 //! The same rows used to select and to analyse are the reuse case:
 //! [`SplitDiscovery::request_unsplit_interval`] returns the refusal, and the evidence ledger

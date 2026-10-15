@@ -152,21 +152,51 @@ Limits: Portable receipts: 250000. Structure items: 65536.
   lag changes, thresholds, background knowledge and exhausted budgets, through the
   result identity and the per-edge evidence bits, against independent known-graph
   oracles (a d-separation oracle over hand-written DAGs).
-* **Not published:** recovery of the true graph, a false-discovery or type-I error rate
-  for the output, or an interval for a downstream estimate. `request_recovery_claim` and
-  `request_downstream_interval` refuse with `cell_not_licensed`.
+* **Not published, and not licensable per dataset:** recovery of the true graph, a
+  false-discovery or type-I error rate for the output. Whether a discovered graph is the
+  true graph rests on faithfulness and causal sufficiency, and neither can be tested from
+  the data discovery ran on, so no calibration of the procedure turns the statement into
+  one about a given dataset. `request_recovery_claim` refuses with `cell_not_licensed`.
+* **Not published:** an interval for an estimate computed on the rows discovery used.
+  `request_downstream_interval` refuses with `cell_not_licensed`; selecting the graph and
+  estimating on the same rows is not a construction with a measured coverage.
 
-### Recorded calibration design (not measured)
+### The interval that is licensed: the whole method on a row split
 
-The licensable claim is a statement about the whole method: discovery, graph acceptance,
-and the downstream analysis, with the reuse of the discovery rows (or a sample split)
-inside the procedure. The first calibration targets the sample-split design, because it
-needs no post-selection adjustment. DGPs: linear-Gaussian SCMs with known graphs over the
-declared variable count and density, including near-cancelling (weakly faithful)
-parameters and a misspecified test. Probes: nominal downstream interval level, the
-probability the discovered class contains the true graph, and the probability a declared
-completion is a member of the true class, each with Monte Carlo error. Support range:
-the measured sample-size and variable-count grid only.
+`antecedent::analysis::sample_split_effect::estimate_effect_on_split` (Python:
+`selective_discovery.sample_split_effect`) runs one fixed construction: a seeded half
+split, PC with the partial-correlation test (alpha 0.01) on the discovery half, acceptance
+of the structure only when the search finished and it is one fully directed graph, and the
+linear effect of a treatment on an outcome estimated on the analysis half by adjusting for
+the treatment's parents, with a 0.95 least-squares interval. A structure with any
+unresolved edge reports no interval (`split_effect.structure_unresolved`); no completion
+is part of the construction.
+
+The coverage statement is about the *method*: over linear-Gaussian, causally sufficient,
+faithful generating processes of five to seven variables whose equivalence class is fully
+orientable, at the measured analysis row counts, how often the interval contains the true
+structural coefficient. It is keyed `structure = discovered_sample_split` and never
+inherits a known-graph record. `SplitEffect.measure` replays the source and attests the
+interval from the current coverage record; without one the interval is a computed value,
+and `measure` refuses with `cell_not_licensed`.
+
+The measured family, the gated test and the named boundaries (weak edges, a cancelling
+edge, a test that cannot see the confounder, and the reuse of the discovery rows) are in
+`crates/antecedent/tests/sample_split_effect_calibration.rs`. Each boundary is recorded
+under its own key and licenses nothing.
+
+### Recovery as a measured table
+
+How often PC returns exactly the true graph over that family is printed by the same
+harness (`info recovery` lines) and published here as a table, not as a license. A row
+states the variable count, the rows given to discovery and the share of replicates whose
+discovered graph equals the true one. The table is filled from the measurement at the
+release cut and carries the commit it was measured at; until then it is empty and no
+number is claimed.
+
+| Variables | Discovery rows | Replicates | Graph recovered | Interval reported |
+| --- | --- | --- | --- | --- |
+| 5 to 7 | not yet measured | not yet measured | not yet measured | not yet measured |
 
 ## Lifecycle
 
@@ -181,8 +211,8 @@ the measured sample-size and variable-count grid only.
 
 | Row | Reason | Refusal |
 |---|---|---|
-| recovery or error-control claim for the output graph | no whole-method calibration | `cell_not_licensed` |
-| interval for a downstream estimate on account of discovery | as above | `cell_not_licensed` |
+| recovery or error-control claim for the output graph of one dataset | faithfulness and causal sufficiency are untestable | `cell_not_licensed` |
+| interval for an estimate computed on the rows discovery used | no construction with a measured coverage | `cell_not_licensed` |
 | score-based search reuse | no score-cache injection seam | `route_not_supported` |
 | skeleton-state resume between runs | algorithms expose no resumable state | not offered |
 | multi-population discovery | assumptions belong to the transport contract | `route_not_supported` |
@@ -209,7 +239,7 @@ interval, no posterior). Paradigm: neither Frequentist nor Bayesian output is pr
 
 `antecedent.selective_discovery`: `StaticContract`, `TemporalContract`, `SelectiveDiscovery`
 (`run`, `plan`, `outcome`, `export_state`, `resume`, `request_recovery_claim`,
-`request_downstream_interval`, `request_selection_diagram`), `Outcome` (structure with
+`request_downstream_interval`, `request_selection_diagram`), `sample_split_effect` and `SplitEffect` (with `measure`), `Outcome` (structure with
 `unresolved_edges`, `directed_edges`, evidence, bounded-search receipts), `RunReport` and
 `WorkUnits`, `inspect_selective_discovery_artifact`, `consume_selective_discovery_artifact`,
 `request_score_search_reuse` and `SelectiveDiscoveryRefusal`. Contract seeds default to 0.

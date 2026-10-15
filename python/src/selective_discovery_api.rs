@@ -15,6 +15,9 @@ use antecedent::analysis::per_population_discovery::{
 use antecedent::analysis::sample_split_analysis::{
     AnalysisBinding, SplitDiscovery, SplitRule, WHOLE_METHOD_CALIBRATION, discover_on_split,
 };
+use antecedent::analysis::sample_split_effect::{
+    SplitEffect, estimate_effect_on_split, measure_source,
+};
 use antecedent_core::{Lag, VariableId};
 use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use antecedent_discovery::constraints::{CiMaskType, DiscoveryConstraints};
@@ -1311,6 +1314,118 @@ fn sample_split_discover(
     }
 }
 
+/// The refusal an io-level split-effect failure carries, as the structured JSON the Python
+/// layer raises; any other io failure is an error, not a refusal.
+fn effect_refusal(error: antecedent_io::IoError) -> PyResult<String> {
+    match error {
+        antecedent_io::IoError::Refused { code, message } => {
+            let detail = message.split_once(": ").map_or("refused", |(d, _)| d);
+            Ok(refusal_json(code, STAGE, detail, &message, &message))
+        }
+        other => Err(crate::transport_common::error(other)),
+    }
+}
+
+fn effect_json(estimate: &SplitEffect) -> String {
+    let basis = estimate.keyed_basis();
+    let (lower, upper) = estimate.interval();
+    json!({
+        "effect": estimate.effect(),
+        "lower": lower,
+        "upper": upper,
+        "level": estimate.level(),
+        "standard_error": estimate.standard_error(),
+        "analysis_rows": estimate.analysis_rows(),
+        "discovery_rows": estimate.discovery_rows(),
+        "adjustment_set": estimate.adjustment_set(),
+        "receipt_identity": hex(estimate.receipt_identity()),
+        "structure_identity": hex(estimate.structure_identity()),
+        "basis": {
+            "query": &*basis.query,
+            "graph_class": &*basis.graph_class,
+            "structure": &*basis.structure,
+            "modality": &*basis.modality,
+            "inference": &*basis.inference,
+            "estimator": &*basis.estimator,
+            "interval_method": &*basis.interval_method,
+            "se_kind": &*basis.se_kind,
+            "dependence": &*basis.dependence,
+            "functional": &*basis.functional,
+            "identification": &*basis.identification,
+            "row_count": basis.row_count,
+        },
+    })
+    .to_string()
+}
+
+type Effect = (Option<String>, Option<Vec<u8>>, Option<String>);
+
+/// The linear effect of a treatment on an outcome after PC discovery on one half of a seeded
+/// row split and parent adjustment on the other half.
+///
+/// Returns `(estimate_json, source_bytes, refusal)`.
+#[pyfunction]
+#[pyo3(signature = (names, columns, treatment, outcome, split_seed, seed, *, threads=None, cancel=None))]
+#[allow(clippy::too_many_arguments, reason = "one request: data, roles and seeds")]
+fn sample_split_effect(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    treatment: u32,
+    outcome: u32,
+    split_seed: u64,
+    seed: u64,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<Effect> {
+    let batch = crate::columns_to_batch(&names, &columns)?;
+    let ctx =
+        crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
+    let result = crate::detach_catch(py, move || {
+        let (data, _): (TabularData, _) = crate::discovery_api::tabular_from_batch(&batch)?;
+        Ok(estimate_effect_on_split(
+            &data,
+            VariableId::from_raw(treatment),
+            VariableId::from_raw(outcome),
+            split_seed,
+            &ctx,
+        ))
+    })?;
+    match result {
+        Ok(estimate) => {
+            Ok((Some(effect_json(&estimate)), Some(estimate.source_artifact().to_vec()), None))
+        }
+        Err(error) => Ok((None, None, Some(effect_refusal(error)?))),
+    }
+}
+
+type Measured = (Option<crate::measured_inference_api::NativeMeasuredInference>, Option<String>);
+
+/// Replay a split-effect source and attest its interval from the coverage records.
+///
+/// Returns `(measured, refusal)`; a refusal is `cell_not_licensed` when no current attesting
+/// record covers the construction at this analysis row count.
+#[pyfunction]
+#[pyo3(signature = (source, seed, *, threads=None, cancel=None))]
+fn sample_split_effect_measure(
+    py: Python<'_>,
+    source: Vec<u8>,
+    seed: u64,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<Measured> {
+    let ctx =
+        crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
+    let result = crate::detach_catch(py, move || Ok(measure_source(&source, &ctx)))?;
+    match result {
+        Ok(measured) => Ok((
+            Some(crate::measured_inference_api::NativeMeasuredInference::from_io(measured)?),
+            None,
+        )),
+        Err(error) => Ok((None, Some(effect_refusal(error)?))),
+    }
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<SelectiveDiscoveryHandle>()?;
     module.add_function(wrap_pyfunction!(selective_discovery_resume, module)?)?;
@@ -1320,5 +1435,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PerPopulationDiscoveryHandle>()?;
     module.add_class::<SampleSplitDiscoveryHandle>()?;
     module.add_function(wrap_pyfunction!(sample_split_discover, module)?)?;
+    module.add_function(wrap_pyfunction!(sample_split_effect, module)?)?;
+    module.add_function(wrap_pyfunction!(sample_split_effect_measure, module)?)?;
     Ok(())
 }

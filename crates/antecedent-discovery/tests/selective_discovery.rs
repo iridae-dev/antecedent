@@ -502,7 +502,7 @@ fn closed_claims_are_refused_with_cell_not_licensed_and_a_remedy() {
     let recovery = request_recovery_claim(&outcome).unwrap_err();
     assert_eq!(recovery.code(), Some("cell_not_licensed"));
     assert_eq!(recovery.detail(), Some("selective_discovery.recovery_claim_not_licensed"));
-    assert!(recovery.to_string().contains("whole-method calibration"));
+    assert!(recovery.to_string().contains("not testable"));
     let interval = request_downstream_interval(&outcome).unwrap_err();
     assert_eq!(interval.code(), Some("cell_not_licensed"));
     assert_eq!(interval.detail(), Some("selective_discovery.downstream_interval_not_licensed"));
