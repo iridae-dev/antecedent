@@ -1544,6 +1544,7 @@ def transport_measurement_model(
         cancel=cancel,
     )
     raise_refusal(refusal, MeasurementModelRefusal)
+    assert receipt_json is not None
     wire = json.loads(receipt_json)
     return TransportedMeasurementEstimate(
         identity=str(wire["identity"]),
@@ -1575,4 +1576,5 @@ def verify_measurement_transport(
         _name(expected_identity, "expected_identity"),
     )
     raise_refusal(refusal, MeasurementModelRefusal)
+    assert text is not None
     return MeasurementTransportReceipt._from_wire(json.loads(text))

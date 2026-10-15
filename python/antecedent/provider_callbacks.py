@@ -166,6 +166,8 @@ class CallbackRefusal(StructuredRefusal):
         self.expected: str | None = refusal.get("expected")
         #: What was supplied, when a comparison failed.
         self.supplied: str | None = refusal.get("supplied")
+        #: Every refusal found, the first included.
+        self.refusals: tuple[CallbackRefusal, ...] = (self,)
 
 
 class CallbackExecutionRefusal(CallbackRefusal):
@@ -1195,7 +1197,6 @@ def check_claim_to_callback(
     if refusal is not None:
         found = json.loads(refusal)
         error = CallbackRefusal(found[0])
-        #: Every refusal found, the first included.
         error.refusals = tuple(CallbackRefusal(item) for item in found)
         raise error
     assert wire is not None

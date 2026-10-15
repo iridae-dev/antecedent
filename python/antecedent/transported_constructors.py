@@ -129,6 +129,7 @@ class TransportedConstruction:
 def _unwrap(triple: tuple[Any, str | None, str | None]) -> TransportedConstruction:
     handle, evaluation, refusal = triple
     raise_refusal(refusal, TransportedResponseRefusal)
+    assert evaluation is not None
     return TransportedConstruction(
         response=TransportedResponse._of(handle),
         evaluation=MappingProxyType(json.loads(evaluation)),
@@ -279,6 +280,7 @@ class TargetPeriod:
             raise CausalTypeError("model must be a sequential_evaluation.FiniteModel")
         alphabet, refusal = _native.transported_history_alphabet(_dumps(model.to_wire()))
         raise_refusal(refusal, TransportedResponseRefusal)
+        assert alphabet is not None
         rows = json.loads(alphabet)
         return cls(
             period=period,

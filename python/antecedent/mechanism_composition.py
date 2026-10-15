@@ -1511,7 +1511,7 @@ class TransportedMechanismComposition(ScientificResult):
         *,
         outcome: str | None = None,
         cancel: Any = None,
-    ) -> CompositionExport:
+    ) -> CompositionExport:  # type: ignore[override]  # a sealed export carries its query and receipt, not bare bytes
         """Seal the transported premises (with the diagram and invariances) and one query.
 
         The artifact is the existing ``mechanism_composition_v1`` one;
