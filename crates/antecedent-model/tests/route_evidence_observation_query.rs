@@ -158,14 +158,19 @@ fn intervention_reads_the_truncated_factorization_not_the_conditional() {
     assert!(
         (level(&condition(&law, "Y", &[("S", "1")], &ctx).unwrap().levels, "1") - 0.6).abs() > 0.2
     );
-    assert!(matches!(
+    // Names outside the model, and a variable set twice, are typed refusals.
+    assert_eq!(
         intervene(&model, "Y", &[("Q", "1")], &ctx).unwrap_err(),
-        ObservationQueryError::UnknownVariable(_)
-    ));
-    assert!(matches!(
+        ObservationQueryError::UnknownVariable("Q".into())
+    );
+    assert_eq!(
         intervene(&model, "Y", &[("S", "7")], &ctx).unwrap_err(),
-        ObservationQueryError::UnknownLevel { .. }
-    ));
+        ObservationQueryError::UnknownLevel { variable: "S".into(), level: "7".into() }
+    );
+    assert_eq!(
+        intervene(&model, "Y", &[("S", "1"), ("S", "0")], &ctx).unwrap_err(),
+        ObservationQueryError::RepeatedVariable("S".into())
+    );
 }
 
 #[test]

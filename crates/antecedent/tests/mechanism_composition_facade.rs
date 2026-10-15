@@ -516,23 +516,11 @@ fn independent_assumption_and_declared_covariance_give_different_checked_varianc
         justification: "disjoint trials, independently generated".into(),
     };
     let independent = StudyBuilder::mechanism_composition(request, &ctx()).unwrap();
-    let u = independent.mean_contrast_uncertainty(&ate_at(2.0)).unwrap();
-    near(u.point, 13.5);
-    assert!((u.variance - 0.540_625).abs() < 1e-12, "{}", u.variance);
-    assert_eq!(u.method, "first_order_delta_method");
-    assert_eq!(u.dependence, "declared_independent_by_design");
-    let grad = |mechanism: &str, term: ParameterTerm| {
-        u.gradient
-            .iter()
-            .find(|(p, _)| p.mechanism == mechanism && p.term == term)
-            .map(|(_, g)| *g)
-            .unwrap()
-    };
-    near(grad("M", ParameterTerm::Intercept), 3.0);
-    near(grad("M", ParameterTerm::Coefficient("X".into())), 6.0);
-    near(grad("Y", ParameterTerm::Intercept), 1.0);
-    near(grad("Y", ParameterTerm::Coefficient("X".into())), 2.0);
-    near(grad("Y", ParameterTerm::Coefficient("M".into())), 4.5);
+    // A product of path coefficients is nonlinear in the parameters: a declared
+    // independence is not a joint law for it, whatever its justification.
+    let refusal = independent.mean_contrast_uncertainty(&ate_at(2.0)).unwrap_err();
+    assert_eq!(refusal.code(), "joint_law_required");
+    assert_eq!(details(&refusal), vec!["joint_law_propagation.nonlinear_needs_aligned_joint_law"]);
 
     // cov(b_MX, b_YM) = 0.002 adds 2 * 6 * 4.5 * 0.002 = 0.108.
     let mut request = request_of(uncertain_chain());
@@ -541,7 +529,20 @@ fn independent_assumption_and_declared_covariance_give_different_checked_varianc
     let v = declared.mean_contrast_uncertainty(&ate_at(2.0)).unwrap();
     assert!((v.variance - 0.648_625).abs() < 1e-12, "{}", v.variance);
     assert_eq!(v.dependence, "declared_cross_covariance");
-    assert!((v.variance - u.variance - 0.108).abs() < 1e-12);
+    assert!((v.variance - 0.540_625 - 0.108).abs() < 1e-12);
+    let grad = |mechanism: &str, term: ParameterTerm| {
+        v.gradient
+            .iter()
+            .find(|(p, _)| p.mechanism == mechanism && p.term == term)
+            .map(|(_, g)| *g)
+            .unwrap()
+    };
+    near(v.point, 13.5);
+    near(grad("M", ParameterTerm::Intercept), 3.0);
+    near(grad("M", ParameterTerm::Coefficient("X".into())), 6.0);
+    near(grad("Y", ParameterTerm::Intercept), 1.0);
+    near(grad("Y", ParameterTerm::Coefficient("X".into())), 2.0);
+    near(grad("Y", ParameterTerm::Coefficient("M".into())), 4.5);
     assert!((v.standard_error - 0.648_625_f64.sqrt()).abs() < 1e-12);
 
     // The same dependence as one aligned joint law, in an arbitrary order.
@@ -903,9 +904,9 @@ fn a_dependence_declared_for_the_earlier_fit_is_unknown_again_after_a_refit() {
             &ctx(),
         )
         .unwrap();
-    let v = refreshed.mean_contrast_uncertainty(&ate_at(2.0)).unwrap();
-    assert!((v.variance - 0.540_625).abs() < 1e-12, "{}", v.variance);
-    assert_eq!(v.dependence, "declared_independent_by_design");
+    let refusal = refreshed.mean_contrast_uncertainty(&ate_at(2.0)).unwrap_err();
+    assert_eq!(refusal.code(), "joint_law_required");
+    assert_eq!(details(&refusal), vec!["joint_law_propagation.nonlinear_needs_aligned_joint_law"]);
 }
 
 #[test]

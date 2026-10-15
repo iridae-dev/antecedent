@@ -326,6 +326,10 @@ pub fn intervene(
     interventions: &[(&str, &str)],
     ctx: &ExecutionContext,
 ) -> Result<Vec<(String, f64)>, ObservationQueryError> {
+    // Resolve every named variable and level against the model's own law first, so an
+    // unknown name is a typed refusal and not a generic composition message.
+    let observational = model.law(&[], ctx).map_err(composition)?;
+    resolve_assignments(&observational, interventions)?;
     let law = model.law(interventions, ctx).map_err(composition)?;
     let y = variable_index(&law, outcome)?;
     let probabilities = bucketed(&law, &[y], &[], ctx)?;

@@ -230,8 +230,19 @@ fn intervene_on_answers_the_truncated_factorization() {
     let root = prepared.intervene_on("Y", &[pair("Z", "1")], &ctx()).unwrap();
     near(level(&root.interventional_levels().unwrap(), "1"), 0.54);
     assert_ne!(one.identity(), zero.identity());
-    let refusal = prepared.intervene_on("Y", &[pair("S", "7")], &ctx()).unwrap_err();
-    assert_eq!(refusal.details(), ["observation_query.unknown_level"]);
+    let level = prepared.intervene_on("Y", &[pair("S", "7")], &ctx()).unwrap_err();
+    assert_eq!(level.code(), "invalid_argument");
+    assert_eq!(level.details(), ["observation_query.unknown_level"]);
+    assert_eq!(level.refusals[0].offending.as_deref(), Some("S=7"));
+    assert!(level.refusals[0].remedy.is_some());
+    let unknown = prepared.intervene_on("Y", &[pair("Q", "1")], &ctx()).unwrap_err();
+    assert_eq!(unknown.code(), "unknown_variable");
+    assert_eq!(unknown.details(), ["observation_query.unknown_variable"]);
+    assert!(unknown.refusals[0].remedy.is_some());
+    let twice = prepared.intervene_on("Y", &[pair("S", "1"), pair("S", "0")], &ctx()).unwrap_err();
+    assert_eq!(twice.code(), "invalid_argument");
+    assert_eq!(twice.details(), ["observation_query.repeated_slot"]);
+    assert!(twice.refusals[0].remedy.is_some());
 }
 
 #[test]
