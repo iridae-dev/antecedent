@@ -360,7 +360,7 @@ fn a_composed_exceedance_reports_the_probability_band_and_verdict() {
     };
     let claim = decide(0.15);
     assert_eq!(claim.label(), "uncalibrated_spread");
-    assert_eq!(claim.value("probability"), Some(0.2));
+    assert!((claim.value("probability").expect("probability") - 0.2).abs() < 1e-12);
     assert_eq!(claim.n_rows(), Some(1000));
     // Agresti-Coull standard error at n = 1000, 200 hits.
     let adjusted = (200.0 + Z_95 * Z_95 / 2.0) / (1000.0 + Z_95 * Z_95);
@@ -393,7 +393,7 @@ fn a_composed_exceedance_reports_the_probability_band_and_verdict() {
     let consumed = consume_joint_law_propagation_artifact(&bytes, Some(claim.identity()), &ctx())
         .expect("consume");
     assert_eq!(consumed.label, "uncalibrated_spread");
-    assert_eq!(consumed.value("probability"), Some(0.2));
+    assert_eq!(consumed.value("probability"), claim.value("probability"));
     assert!(consumed.result.iter().any(|(name, code)| name == "verdict_code" && *code == 0));
 }
 

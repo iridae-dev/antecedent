@@ -217,7 +217,7 @@ def test_composed_exceedance_reports_probability_band_and_verdict() -> None:
 
     claim = decide(0.15)
     assert claim.label == "uncalibrated_spread"
-    assert claim.value("probability") == 0.2
+    assert claim.value("probability") == pytest.approx(0.2, rel=1e-9, abs=1e-12)
     assert claim.n_rows == 1000
     adjusted = (200.0 + Z_95**2 / 2.0) / (1000.0 + Z_95**2)
     standard_error = math.sqrt(adjusted * (1.0 - adjusted) / (1000.0 + Z_95**2))
@@ -239,7 +239,7 @@ def test_composed_exceedance_reports_probability_band_and_verdict() -> None:
     )
     assert consumed.label == "uncalibrated_spread"
     assert consumed.verdict == "act"
-    assert consumed.values["probability"] == 0.2
+    assert consumed.values["probability"] == pytest.approx(0.2, rel=1e-9, abs=1e-12)
     assert "verdict_code" not in consumed.values
 
 

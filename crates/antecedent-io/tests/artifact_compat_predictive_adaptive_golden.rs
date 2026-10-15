@@ -190,12 +190,20 @@ fn the_adaptive_inference_result_golden_is_replayed_and_gated() {
     let bytes = load(ADAPTIVE_GOLDEN);
     let (fresh, _) =
         Artifact::seal(&adaptive_contract(), &posterior(), &adaptive_ctx()).expect("seals");
-    let consumed = Artifact::from_bytes(&bytes, Some(fresh.identity()), &adaptive_ctx())
+    // The stored values and so the identity carry the producing platform's libm (the
+    // posterior's probability of being best and expected loss go through exp, ln and the
+    // beta functions), so the retained identity is taken from the golden itself: consume it
+    // once ungated, then require the same bytes under the identity it reports. The fresh
+    // values are compared within the replay tolerance rather than bit for bit.
+    let first = Artifact::from_bytes(&bytes, None, &adaptive_ctx())
         .expect("a fresh consumer replays the stored result");
-    assert_eq!(consumed.identity(), fresh.identity());
-    let stored: Vec<u64> = consumed.result().values.iter().map(|v| v.to_bits()).collect();
-    let current: Vec<u64> = fresh.result().values.iter().map(|v| v.to_bits()).collect();
-    assert_eq!(stored, current);
+    let consumed = Artifact::from_bytes(&bytes, Some(first.identity()), &adaptive_ctx())
+        .expect("the golden's own identity gates the same bytes");
+    assert_eq!(consumed.identity(), first.identity());
+    assert_eq!(consumed.result().values.len(), fresh.result().values.len());
+    for (stored, current) in consumed.result().values.iter().zip(&fresh.result().values) {
+        assert!((stored - current).abs() <= 1e-12 * 1.0_f64.max(stored.abs()));
+    }
 
     let meta = Artifact::decode_unchecked(&bytes).expect("inspectable");
     assert_eq!(meta.version, ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION);

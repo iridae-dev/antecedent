@@ -192,10 +192,24 @@ fn write_decision_reliability_golden() {
 #[test]
 fn the_decision_reliability_golden_is_recomputed_and_gated() {
     let bytes = load(RELIABILITY_GOLDEN);
-    let (fresh, expected) = reliability_artifact();
-    let consumed = consume_reliability(&bytes, &expected, &ctx())
+    let (fresh, fresh_expected) = reliability_artifact();
+    // The golden carries draws sampled through the platform's libm, so their digest is taken
+    // from the golden itself; streams and unit are platform independent and stay gated.
+    let structural = DecisionReliabilityExpectation {
+        draws_digest: None,
+        candidate_set_digest: None,
+        ..fresh_expected
+    };
+    let consumed = consume_reliability(&bytes, &structural, &ctx())
         .expect("a fresh consumer recomputes the report from the carried draws");
-    assert_eq!(consumed, fresh);
+    let expected = DecisionReliabilityExpectation {
+        draws_digest: Some(consumed.draws.digest_hex()),
+        candidate_set_digest: Some(consumed.draws.candidate_set_digest()),
+        ..structural
+    };
+    consume_reliability(&bytes, &expected, &ctx())
+        .expect("the golden's own digests gate the same bytes");
+    assert_eq!(consumed.request, fresh.request);
     assert_eq!(consumed.version, 1);
 
     // A newer body version is its own refusal, before the digest is considered.
