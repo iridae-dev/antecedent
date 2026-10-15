@@ -279,3 +279,48 @@ differences = [
 "cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95" = "87d399ebc4e968e8710df72d579663dced882c2a33cd8ba4d1794765816e57c6"
 "cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_checked_effect_basic_l95" = "0f779cd7099bb39357a14fcf0d2f171d98acfadf71cd4168774b5cd9ce4b2da0"
 "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_two_step_units_studentized_l95" = "c1e5dfb6eb336e7d16849764c75f9f35bcffa9d95f804f8b7aaf786703fa7560"
+
+[[waiver]]
+id = "gate-grid-labels-and-boundary-assertions"
+from = "f11161bcd91ca228e53b9b2c60164eb87c599f8d"
+to = "bcecb0b2bd1a3072292dc05f7fabf0e82d06d737"
+reviewed_by = "authorized release engineering review"
+justification = """
+The gate script gained a case label so two whole-file groups run once per grid point; no group that already ran per grid point is relabelled, and the script changes neither the cargo invocations nor the environment of any measured group. The bayesian_temporal and temporal_frequentist edits add named-boundary values to assertion arrays and persist an info-only tally's raw state; they neither draw replicates nor change a tally. The temporal_recalc_calibration edit parameterizes the base sample size per test: the basic and studentized tests keep 128, so their grid, seeds and truths are unchanged, and the percentile test claims a different range and is re-measured, not waived. Each replay below re-runs a measured record through the changed script or file and compares every emitted field bit for bit.
+"""
+paths = [
+  "scripts/gate_calibration.sh",
+  "crates/antecedent/tests/bayesian_temporal.rs",
+  "crates/antecedent/tests/temporal_frequentist.rs",
+  "crates/antecedent/tests/temporal_recalc_calibration.rs",
+]
+
+[[waiver.replay]]
+record = "cov.anomaly_attribution.dag.bayesian.posterior_quantile.l90.anomaly_attribution_dag_bayesian_nominal_coverage"
+exercises = [
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage"
+exercises = [
+  "crates/antecedent/tests/bayesian_temporal.rs",
+]
+
+[[waiver.replay]]
+record = "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_iid_n160_nominal_90_coverage"
+exercises = [
+  "crates/antecedent/tests/temporal_frequentist.rs",
+]
+
+[[waiver.replay]]
+record = "cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_checked_effect_basic_l95"
+exercises = [
+  "crates/antecedent/tests/temporal_recalc_calibration.rs",
+]
+
+[[waiver.replay]]
+record = "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_checked_effect_studentized_l95"
+exercises = [
+  "crates/antecedent/tests/temporal_recalc_calibration.rs",
+]

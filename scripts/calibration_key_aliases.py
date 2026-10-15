@@ -49,6 +49,10 @@ def validated_aliases(root: Path) -> list[dict[str, str]]:
     if set(data) != {"version", "alias"} or data["version"] != 1:
         raise ValueError("unsupported calibration identity mapping schema")
     aliases = data["alias"]
+    if aliases == []:
+        # The original recovery record was re-measured under its current identity,
+        # so no mapping from the original spelling is needed.
+        return []
     if not isinstance(aliases, list) or len(aliases) != 1:
         raise ValueError("only the original BCa recovery identity mapping is permitted")
     row = aliases[0]
