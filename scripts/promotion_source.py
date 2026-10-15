@@ -505,7 +505,7 @@ def shared_namespace_problems(
 
 
 def defensive_carrier_route_problems(root: Path) -> list[str]:
-    """Factory and fresh consumer permit exactly the six source-report routes."""
+    """Factory and fresh consumer permit exactly the declared source-report routes."""
     native, native_skel = nontest_pair(root / "python/src/measured_inference_api.rs")
     io, _ = nontest_pair(root / "crates/antecedent-io/src/measured_inference.rs")
     expected = {
@@ -515,6 +515,11 @@ def defensive_carrier_route_problems(root: Path) -> list[str]:
         "nested_bayesian",
         "sampled_recovery",
         "temporal_interval",
+        "adaptive_interval",
+        "cohort_interval",
+        "count_fitted_interval",
+        "sampled_counterfactual_transport",
+        "split_effect",
     }
     _, native_items = rust_items(root / "python/src/measured_inference_api.rs")
     _, io_items = rust_items(root / "crates/antecedent-io/src/measured_inference.rs")
@@ -542,7 +547,7 @@ def defensive_carrier_route_problems(root: Path) -> list[str]:
         not in source[0]
     ):
         return [
-            "defensive source-only claim requires the exact six factory/fresh-consumer route match and no public constructor/setter"
+            "defensive source-only claim requires the exact declared factory/fresh-consumer route match and no public constructor/setter"
         ]
     # Every native IO factory call uses a literal member of the same finite
     # route set. Unknown/dynamic factory arguments and escaped aliases reject
@@ -568,7 +573,7 @@ def defensive_carrier_route_problems(root: Path) -> list[str]:
             factory_routes.add(argument[1])
     if factory_routes != expected or constructor_count != 1:
         return [
-            "defensive factory proof requires exactly the original six routes and one private authority constructor"
+            "defensive factory proof requires exactly the declared routes and one private authority constructor"
         ]
     # Native carrier and IO authority cannot deserialize or expose mutable
     # report/source fields. The checked authority bypasses this route match.

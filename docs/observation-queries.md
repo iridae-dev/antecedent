@@ -134,11 +134,11 @@ reach it.
 The reading is derived from the mechanisms' origin and bound into the identity;
 a resealed upgrade to the exact reading is refused by the consumer.
 
-### Calibration decision (recorded, not measured)
+### Calibration decision
 
-No interval or calibration is licensed for a posterior or decision probability
-read from a model fitted to a sample. A later measurement would be a
-whole-method design with:
+A sample-fitted probability whose mechanisms are not the count-fitted tables of
+the route below, and every provider-supplied model, stays a labelled point
+value. The count-fitted interval is measured as a whole-method design:
 
 - *Method*: fit conditional tables from a sample, compose, condition (or update),
   report `P(Y | S = s)` or a posterior probability.
@@ -152,9 +152,23 @@ whole-method design with:
 - *Probes*: conditioning events of probability near zero; a measured signal near
   uninformative (Youden index near zero); a small observation bound.
 
-Until that record exists both routes are closed with `cell_not_licensed`
-(`observation_query.interval_route_closed`,
-`observation_query.calibrated_probability_closed`).
+A declared model's posterior probability is an exact number with no sampling
+distribution, so a sampling interval for it is logically closed with
+`cell_not_licensed` (`observation_query.declared_model_has_no_sampling_interval`,
+`observation_query.calibrated_probability_closed`). The interval is earned only
+where the number does have a sampling distribution: tables fitted to counts. The
+count-fitted route (`antecedent.analysis.count_fitted_observation`) retains
+per-parent-configuration counts and the row count `n`, places an independent
+Dirichlet posterior over every conditional, and reports the equal-tailed
+posterior quantiles of `P(Y | evidence)` computed by Monte Carlo over joint
+table draws and exact enumeration. The interval is a measured scalar bound to a
+currently attesting coverage record; a consumer replays the draws from the
+retained counts, prior, seed and level. Measured: a confounded `Z -> S`,
+`Z -> Y`, `S -> Y` model and the same model with a measured signal of known
+sensitivity and specificity, levels 0.90 and 0.95, around 300 rows; sparse
+parent configurations and rare conditioning events are named boundaries. A
+declared node (a measured signal with known error rates) carries no sampling
+uncertainty and is not redrawn.
 
 ## Layers
 

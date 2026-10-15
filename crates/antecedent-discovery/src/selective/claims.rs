@@ -5,26 +5,21 @@
 //! exist), and the refusal states the declaration or evidence that would license it and the
 //! calibration design that would have to be measured first. None is measured here.
 //!
-//! # Calibration design (recorded, not measured)
+//! # What can and cannot be licensed
 //!
-//! The only licensable error-control or interval claim downstream of discovery is a
-//! statement about the *whole method*: discovery on the discovery rows, then the analysis on
-//! its rows, with the reuse of the discovery rows (or a sample split) inside the procedure.
-//!
-//! * **Method.** Discovery with the declared contract, graph acceptance rule (resolved
-//!   structure or declared completion), then the declared estimator and interval procedure
-//!   on the declared analysis rows. For reuse of the discovery rows, the interval procedure
-//!   must account for the selection of the graph (post-selection). A sample split (discovery
-//!   rows disjoint from analysis rows, as the evidence ledger records) is the design the
-//!   first calibration would target, because it needs no post-selection adjustment.
-//! * **Data-generating processes.** Linear-Gaussian SCMs with known graphs spanning the
-//!   declared variable count, edge density and effect sizes, including weakly faithful
-//!   (near-cancelling) parameters, plus the misspecified-test case.
-//! * **Nominal level and probes.** The nominal level of the downstream interval, the
-//!   probability that the discovered class contains the true graph, and the probability that
-//!   a declared completion is a member of the true class, each over the sample-size range
-//!   and with their Monte Carlo error bounds.
-//! * **Support range.** Sample sizes and variable counts inside the measured grid only; a
+//! * **Per-dataset recovery and error control are closed as claims.** Whether a discovered
+//!   graph is the true graph rests on faithfulness and causal sufficiency, and neither can be
+//!   tested from the data the discovery ran on. No statement about one dataset's graph can be
+//!   licensed, however the procedure is calibrated. How often the method recovers the graph
+//!   over a declared family of generating processes is a measured property of the method,
+//!   published as a table in the documentation and never as a license.
+//! * **A downstream interval is licensed only for rows discovery never saw.** The interval
+//!   that can carry a coverage statement is the whole method's: a seeded split, discovery on
+//!   one part, a resolved structure accepted, and the effect estimated on the other part,
+//!   scored against the true effect over a declared family (see
+//!   `antecedent::analysis::sample_split_effect`). The same rows used to discover and to
+//!   estimate are a different construction with no licence.
+//! * **Support range.** Variable counts and sample sizes inside the measured grid only; a
 //!   request outside it is refused as outside the measured range.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -47,11 +42,11 @@ pub fn request_recovery_claim(
     Err(SelectiveDiscoveryError::refused(
         antecedent_core::reason_code!("cell_not_licensed"),
         "selective_discovery.recovery_claim_not_licensed",
-        "no recovery, false-discovery or error-control statement is licensed for a discovered \
-         graph: no whole-method calibration has been measured at this coordinate. Report the \
-         structure as an estimate with its unresolved edges and bounded-search receipts, or \
-         run the whole-method calibration (discovery, graph acceptance, estimation, on a \
-         declared sample split) for this contract's variable count and sample size",
+        "no recovery, false-discovery or error-control statement can be licensed for the graph \
+         discovered on one dataset: faithfulness and causal sufficiency are not testable from \
+         the data discovery ran on. Report the structure as an estimate with its unresolved \
+         edges and bounded-search receipts. How often the method recovers the graph over a \
+         declared family of processes is a measured table in the documentation, not a license",
     ))
 }
 
@@ -67,11 +62,11 @@ pub fn request_downstream_interval(
     Err(SelectiveDiscoveryError::refused(
         antecedent_core::reason_code!("cell_not_licensed"),
         "selective_discovery.downstream_interval_not_licensed",
-        "an interval for an estimate that rests on a discovered graph needs a calibration of \
-         the complete method, including the reuse of the discovery rows in the analysis. \
-         Use disjoint discovery and analysis rows (the evidence ledger records the split) \
-         and condition on a declared graph; the point estimate is available without an \
-         interval",
+        "an interval for an estimate that rests on a discovered graph cannot be licensed on \
+         the rows discovery used: selecting the graph and estimating on the same rows is not \
+         a construction with a measured coverage. Use disjoint discovery and analysis rows \
+         (the evidence ledger records the split); the whole-method interval of the effect on \
+         the analysis rows is attested from a coverage record by the sample-split effect route",
     ))
 }
 

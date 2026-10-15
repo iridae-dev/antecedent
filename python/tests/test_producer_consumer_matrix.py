@@ -2461,7 +2461,7 @@ def _declared_observation(o: Objs) -> Declared:
     with pytest.raises(oq.ObservationQueryRefusal) as closed:
         claim.interval()
     assert closed.value.reason_code == "cell_not_licensed"
-    assert closed.value.detail == "observation_query.interval_route_closed"
+    assert closed.value.detail == "observation_query.declared_model_has_no_sampling_interval"
     with pytest.raises(oq.ObservationQueryRefusal) as calibrated:
         claim.calibrated_probability()
     assert calibrated.value.detail == "observation_query.calibrated_probability_closed"

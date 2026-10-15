@@ -234,8 +234,12 @@ expectation of an affine utility of the cohort's weighted mean contrast `sum_i w
 The value is point-only. No utility standard error, regret, value of perfect information or
 interval is inherited. A probability, quantile, tail expectation, nonlinear utility, hard
 constraint or joint law is refused (`decision_contract_unsatisfied` /
-`joint_law_required`, `cohort_decision.law_not_supplied` / `cohort_decision.joint_law_required`)
-and names the producer of aligned outcome draws that would license it.
+`joint_law_required`, `cohort_decision.law_not_supplied` / `cohort_decision.joint_law_required`).
+This is closed by logic, not pending a measurement: one expectation determines no law (Jensen's
+inequality separates `E[g(tau)]` from `g(E[tau])`), and the individual-level law of
+`Y(1) - Y(0)` is not identified from marginals. The refusal names the carrier that does hold a
+law: per-draw cohort utilities under a declared shared law (`DecisionDraws`, producer
+`cohort_decision`), with the decision reliability routes.
 
 Export and load. `CohortDecisionSource::to_bytes` writes `cohort_decision_source_v1`, embedding
 the model payload, the cohort rows and the result. `consume_cohort_decision_source` recomputes
@@ -258,9 +262,23 @@ Adjacent uncertainty route. For a linear compact model with a retained coefficie
 (`model_based_sqrt_phibar_v_phibar`, calibration unmeasured) on the source only. It conditions
 on the declared cohort rows and weights and on the fitted structure and excludes cohort
 sampling variation, the support-selection step, misspecification and extrapolation. It is
-never an interval and is not passed to a decision input; every interval request is refused
-`cell_not_licensed` (`cohort_decision.interval_not_licensed`). The whole-method design that
-would open the route (a linear-CATE DGP with a declared cohort sampling plan, the whole method
-including cohort weighting and support-row selection, nominal level 0.95, cohort sizes 50 to
-5000 and fitted-box coverage fractions 0.5 to 1.0, boundary and misspecified-truth probes) is
-recorded in the `cohort_decision.interval` promotion record and is not measured.
+never an interval by itself and is not passed to a decision input.
+
+The interval is a separate, measured output of a natively fitted linear effect. Fitting the
+conditional effect by ordinary least squares of the outcome on the declared basis and its
+treatment interaction, with an HC3 sandwich covariance and the retained row count `n` and
+design width `p`, gives `phibar' b_hat +/- t_(n-p) sqrt(phibar' V phibar)` for the declared
+cohort's mean of the true conditional effect
+(`antecedent_estimate::cohort_linear_effect`). It is reported only as a measured scalar bound
+to a currently attesting coverage record: randomized or observed-confounded binary treatment,
+two to four modifiers, heteroskedastic noise, cohorts of 50 to 200 rows of the fitted
+population, levels 0.90 and 0.95. A caller-built compact export is point-only and refuses
+`cell_not_licensed` (`cohort_decision.interval_requires_native_fit`); a shifted cohort and a
+portable model refuse `cohort_decision.interval_not_licensed`. The native-fit marker is never
+trusted: the measured envelope retains the fit rows (`n`, `p`, and a producer digest binding the
+coefficient vector and covariance) and the consumer refits and requires the export to reproduce
+exactly, so a hand-built export cannot claim a native fit. In Python,
+`fit_native_cohort_effect(...)` retains the rows,
+`decision_source_from_native_fit(...)` binds a cohort, and `source.interval(level=...)` returns
+the measured result or a typed refusal. A misspecified effect basis and
+a cohort of high-leverage rows are recorded boundaries, not claims.

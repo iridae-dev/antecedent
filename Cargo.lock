@@ -252,6 +252,8 @@ version = "2.4.0"
 dependencies = [
  "antecedent-contract",
  "antecedent-core",
+ "antecedent-data",
+ "antecedent-discovery",
  "antecedent-estimate",
  "antecedent-expr",
  "antecedent-graph",

@@ -1336,7 +1336,7 @@ detail = "`stage_identity(Stage.EVIDENCE, claim identity)` declared by the calle
 
 [[refusal]]
 code = "`cell_not_licensed`"
-detail = "`observation_query.interval_route_closed`"
+detail = "`observation_query.declared_model_has_no_sampling_interval`"
 where = "`ObservationClaim.interval` (an interval for an observation-conditioned value)"
 
 [[refusal]]
@@ -2123,7 +2123,7 @@ evidence_assertion = "a_changed_source_recomputes_only_the_claims_that_count_it"
 producer = "composed_model"
 consumer = "inverse_query"
 status = "DIRECT"
-detail = "Rust only: a linear-Gaussian composition supplies a replayed mean per action (0.5, 7.0, 13.5; target 5 keeps `x1` and `x2`); the Python row stays ADAPTER"
+detail = "a linear-Gaussian composition supplies a replayed mean per action (0.5, 7.0, 13.5; target 5 keeps `x1` and `x2`); Python: `inverse_sources.composed_forward_source` (`python/tests/test_inverse_sources.py::test_a_linear_gaussian_composition_supplies_a_replayed_point_per_action`); the Python matrix row above stays ADAPTER because it reads declared means"
 evidence_test = "crates/antecedent/tests/inverse_forward_sources_facade.rs"
 evidence_assertion = "a_linear_gaussian_composition_supplies_a_replayed_point_per_action"
 
@@ -2139,7 +2139,7 @@ evidence_assertion = "a_point_composition_refuses_laws_intervals_and_the_wrong_f
 producer = "composed_model"
 consumer = "inverse_query"
 status = "DIRECT"
-detail = "Rust only: a finite-table composition supplies the exact law of each action under the caller's coding of outcome levels (P(Y = 1 given do) = 0.18 and 0.72)"
+detail = "a finite-table composition supplies the exact law of each action under the caller's coding of outcome levels (P(Y = 1 given do) = 0.18 and 0.72); Python: `inverse_sources.composed_forward_source` (`python/tests/test_inverse_sources.py::test_a_finite_composition_supplies_the_exact_law_of_each_action`)"
 evidence_test = "crates/antecedent/tests/inverse_forward_sources_facade.rs"
 evidence_assertion = "a_finite_composition_supplies_the_exact_law_of_each_action"
 

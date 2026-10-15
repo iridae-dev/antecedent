@@ -106,17 +106,23 @@ bias. An envelope request has none.
 
 ## Interval route
 
-No interval is published. The coordinate that would license one is the whole
-method across the sample-size grid, including estimated-table zero and sparse
-cells (`parity/promotion.toml`, records `counterfactual.transport_sampled` and
-`counterfactual.transport_sampled_interval`). A nominal normal interval exists
-only behind the `calibration-internal` feature of `antecedent-estimate` for the
-calibration harness, and it is measured there at 250 to 4,000 units on three
-designs: a latent district (0.955, 0.945, 0.940), a mediation covariate shift
-(0.940, 0.948, 0.948) and a two-source joint (0.958, 0.943, 0.950), each at the
-95% level. The route stays closed until it is promoted at its own coordinate;
-where a coordinate is not measured, the point estimate ships labelled and the
-interval stays closed.
+The estimate and its artifact never carry an interval. A 95% delta-method Wald
+interval is available as a separate measured scalar:
+`SampledCounterfactualTransportEstimate.measure_interval()` in Python and
+`SampledCounterfactualTransportArtifactWire::measure` in Rust replay the
+artifact, build the interval and bind it to the currently attesting coverage
+record of exactly that construction (`parity/promotion.toml`, record
+`counterfactual.transport_sampled_interval`). It is measured at 250 to 4,000
+units per table on three designs: a latent district (0.955, 0.945, 0.940), a
+mediation covariate shift (0.940, 0.948, 0.948) and a two-source joint (0.958,
+0.943, 0.950), each at the 95% level.
+
+The measured construction is the named queries of those designs with
+independently drawn units, refused unseen cells, unsmoothed tables of equal
+totals inside the measured range, and conditioning mass of at least 0.02.
+Anything else, including smoothed tables, envelopes, stratified designs, shared
+datasets, another level, another query or a record that no longer attests,
+refuses `cell_not_licensed`, and the point estimate ships labelled.
 
 ## Artifact
 

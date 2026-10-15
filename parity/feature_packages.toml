@@ -312,10 +312,10 @@ record_state = "frozen"
 
 [[feature]]
 id = "counterfactual.transport_sampled_interval"
-purpose = "closed interval route of sampled counterfactual transport pending measured whole-method coverage"
+purpose = "measured delta-method interval of sampled counterfactual transport, attested from whole-method coverage records"
 depends_on = ["counterfactual.transport_sampled"]
 record = "counterfactual.transport_sampled_interval"
-record_state = "frozen"
+record_state = "promoted"
 
 [[feature]]
 id = "cohort_decision.mean_contrast"
@@ -333,10 +333,10 @@ record_state = "frozen"
 
 [[feature]]
 id = "cohort_decision.interval"
-purpose = "closed interval route of the cohort-mean contrast pending measured whole-method coverage"
+purpose = "measured Student-t interval of the declared-cohort mean of a natively fitted linear effect, attested from whole-method coverage records"
 depends_on = ["cohort_decision.mean_contrast"]
 record = "cohort_decision.interval"
-record_state = "frozen"
+record_state = "promoted"
 
 [[feature]]
 id = "cohort_decision.law_valued_request"
@@ -459,10 +459,10 @@ record_state = "frozen"
 
 [[feature]]
 id = "observation_query.calibrated_probability"
-purpose = "closed interval and calibration routes for observation-conditioned probabilities"
+purpose = "declared-model sampling interval closed; measured posterior interval of count-fitted observation probabilities, attested from whole-method coverage records"
 depends_on = ["observation_query.finite_law_conditioning", "observation_query.posterior_update", "observation_query.evidence_requirement"]
 record = "observation_query.calibrated_probability"
-record_state = "frozen"
+record_state = "promoted"
 
 [[feature]]
 id = "scientific_bridge.typed_bridges"

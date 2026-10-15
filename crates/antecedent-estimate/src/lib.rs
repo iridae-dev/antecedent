@@ -16,6 +16,7 @@
 #![deny(missing_docs)]
 
 pub mod adaptive_inference;
+pub mod adaptive_measured_interval;
 pub mod adjustment;
 pub mod admg_conditional_transport;
 pub mod aipw;
@@ -29,8 +30,10 @@ pub mod bayesian_robust_ate;
 pub mod categorical_treatment;
 pub mod causal_forest;
 pub mod cell_aipw;
+pub mod cohort_linear_effect;
 pub mod conditional;
 pub mod continuous_dose;
+pub mod count_fitted_posterior;
 pub mod counterfactual_transport;
 pub mod counterfactual_transport_sampled;
 pub mod cpdag_scenarios;

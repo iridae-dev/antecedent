@@ -10,7 +10,7 @@ copied_tests = false
 papers = [
 ]
 implementation_deviations = [
-  "Intentionally publishes nothing: the interval route stays closed with cell_not_licensed until whole-method coverage of the sampled counterfactual transport estimator (identification, table estimation including unseen and sparse cells, and the delta standard error) is measured. A nominal normal interval exists only under the calibration-internal feature for the calibration harness.",
+  "The interval is the delta-method Wald interval of the open record, clamped to [0, 1]. It is reported only as a measured scalar bound to a currently attesting coverage record of the whole method (identification replay, table estimation, delta standard error); outside the measured construction it refuses cell_not_licensed.",
 ]
 upstream_implementations_observed = []
 test_sources = [

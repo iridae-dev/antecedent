@@ -32,6 +32,8 @@ test-util = ["antecedent-io-core/test-util"]
 [dependencies]
 antecedent-core = { workspace = true }
 antecedent-contract = { workspace = true }
+antecedent-data = { workspace = true }
+antecedent-discovery = { workspace = true }
 antecedent-io-core = { workspace = true }
 antecedent-estimate = { workspace = true }
 antecedent-expr = { workspace = true }

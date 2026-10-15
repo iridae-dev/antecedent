@@ -53,14 +53,16 @@ pub mod conditional_study_ranking;
 mod contract;
 mod contract_identity;
 mod cost;
+pub mod count_fitted_observation;
 mod counterfactual_transport;
 mod cpdag_scenarios;
 pub mod cross_world_execution;
+pub mod cross_world_interval;
 pub mod decision_claims;
 mod decision_contract_facade;
 pub mod decision_reliability;
-mod design_exports;
 mod derived_treatment;
+mod design_exports;
 pub mod design_ranking;
 pub mod discovered_transport;
 pub mod discretized_composition;
@@ -74,6 +76,7 @@ pub mod interface_contract;
 mod inverse_outcome;
 pub mod inverse_query;
 pub mod inverse_sources;
+pub mod joint_law_composed_basis;
 pub mod joint_law_propagation;
 mod joint_sensitivity;
 mod joint_sensitivity_uncertainty;
@@ -83,8 +86,8 @@ pub mod learned_joint_closed;
 mod learned_trial;
 pub mod measurement_model;
 pub mod mechanism_composition;
-pub(crate) mod mechanism_exports;
 pub mod mechanism_discrepancy;
+pub(crate) mod mechanism_exports;
 mod mixed_source;
 pub mod msm_sensitivity;
 mod mz_transport;
@@ -111,6 +114,7 @@ mod recovery;
 pub mod recovery_chain;
 pub mod repair;
 pub mod sample_split_analysis;
+pub mod sample_split_effect;
 pub mod scientific_bridge;
 pub mod selective_discovery;
 pub mod sensitivity_decision;
@@ -213,9 +217,9 @@ pub use derived_treatment::{
 pub use evidence_ledger::{
     BetweenStudy, BorrowingRequest, ConsumedEvidenceLedger, DependenceRangeRequest,
     EvidenceLedgerRefusal, EvidenceLedgerSession, LedgerExport, LedgerRefresh, ObservationAccount,
-    PoolingDeclaration, PoolingRequest, RevisionReport, SourceChange, SourcePairRelation,
-    SourceRevision, StudyEstimate, StudySummary, SynthesisOutcome, SynthesisValue,
-    consume_evidence_ledger_artifact,
+    PooledInterval, PoolingDeclaration, PoolingRequest, RevisionReport, SourceChange,
+    SourcePairRelation, SourceRevision, StudyEstimate, StudySummary, SynthesisOutcome,
+    SynthesisValue, consume_evidence_ledger_artifact,
 };
 pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,

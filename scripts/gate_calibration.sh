@@ -64,6 +64,12 @@ grid_group() {
     # transport coverage records. The learned-transport weak-overlap and misspecified-nuisance tests print measurements, emit no record,
     # and run once at the base point.
     mz_transport_calibration:*) return 0 ;;
+    # Whole-method coverage of the effect estimated after discovery on a row split, and its named boundaries.
+    sample_split_effect_calibration:*) return 0 ;;
+    # Interval of an expected predictive score or score difference under a declared dependence.
+    predictive_score_interval_calibration:*) return 0 ;;
+    # Interval of a bridged value: trial-level prediction interval and the delta-method correction.
+    scientific_bridge_interval_calibration:*) return 0 ;;
     # Whole-file groups: one invocation runs every ignored test in the file, once per grid point.
     panel_calibration|temporal_response_calibration) return 0 ;;
     bayesian_basis_prior_precision:*|adjusted_recalc_precision:*|temporal_recalc_calibration:*|bayesian_recalc_calibration:*|posterior_summary_calibration:*|scenario_covariance_calibration:*|evsi_precision_calibration:*|design_ar_precision_calibration:*|generic_aipw_precision:*|nested_markov_fisher_calibration:*|nested_markov_bayesian_calibration:*|joint_bayesian_transport_calibration:*|learned_joint_calibration:*|quadratic_dose_calibration:*|treatment_inference_calibration:*|bootstrap_effect_precision:*|mechanism_discrepancy_calibration:*|retained_score_precision:*|temporal_unit_calibration:*|recovery_whole_method_calibration:*) return 0 ;;
@@ -73,7 +79,12 @@ grid_group() {
     # decision-reliability expectation prints diagnostics, emits no record and runs once.
     adaptive_inference_calibration:group_sequential_power_matches_the_numerical_integration) return 1 ;;
     adaptive_inference_calibration:*|adaptive_procedure_prior_predictive_calibration:*) return 0 ;;
+    # Native linear cohort effect: the gated randomized/confounded designs and the named boundaries.
+    cohort_linear_effect_calibration:*) return 0 ;;
+    count_fitted_posterior_calibration:*) return 0 ;;
     decision_reliability_calibration:*) return 1 ;;
+    # Decision-reliability published routes: coverage records over the Monte Carlo budget grid.
+    decision_reliability_interval_calibration:*) return 0 ;;
     # Smoothed dose-response transport: the two *_psi_h coverage records only.
     smoothed_dose_calibration:*_psi_h) return 0 ;;
     # Joint sensitivity: the zero-box (gated) and positive-box (one_sided) records.
@@ -409,6 +420,27 @@ run_decision_reliability_expectation() {
 echo "== decision reliability winner's curse expectation =="
 run_decision_reliability_expectation winners_curse_bound_holds_on_average_and_held_out_value_is_unbiased
 
+run_decision_reliability_interval() {
+  local name="$1"
+  check "decision_reliability_interval_calibration: ${name}" cargo test --release -p antecedent-design --test decision_reliability_interval_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== decision reliability published routes: ranking probability, utility, confidence set, selection-corrected =="
+run_decision_reliability_interval ranking_probability_two_candidates_l95
+run_decision_reliability_interval ranking_probability_eight_candidates_l95
+run_decision_reliability_interval ranking_probability_sixty_four_candidates_l95
+run_decision_reliability_interval ranking_probability_dominant_leader_boundary_l95
+run_decision_reliability_interval ranking_probability_all_equal_boundary_l95
+run_decision_reliability_interval utility_interval_two_candidates_l95
+run_decision_reliability_interval utility_interval_eight_candidates_l95
+run_decision_reliability_interval utility_interval_sixty_four_candidates_l95
+run_decision_reliability_interval confidence_set_two_candidates_l95
+run_decision_reliability_interval confidence_set_eight_candidates_l95
+run_decision_reliability_interval confidence_set_sixty_four_candidates_l95
+run_decision_reliability_interval selection_corrected_two_candidates_l95
+run_decision_reliability_interval selection_corrected_eight_candidates_l95
+run_decision_reliability_interval selection_corrected_sixty_four_candidates_l95
+run_decision_reliability_interval selection_corrected_all_equal_sixty_four_candidates_boundary_l95
+
 run_quadratic_dose() {
   local name="$1"
   check "quadratic_dose_calibration: ${name}" cargo test --release -p antecedent-estimate --features calibration-internal --test quadratic_dose_calibration "$name" -- --ignored --exact --nocapture
@@ -417,6 +449,27 @@ echo "== closed exact-quadratic dose pointwise candidates =="
 run_quadratic_dose randomized_exact_quadratic_level_l95
 run_quadratic_dose randomized_exact_quadratic_derivative_l95
 run_quadratic_dose randomized_exact_quadratic_contrast_l95
+
+run_cohort_linear_effect() {
+  local name="$1"
+  check "cohort_linear_effect_calibration: ${name}" cargo test --release -p antecedent-estimate --features calibration-internal --test cohort_linear_effect_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== native linear cohort-mean effect interval =="
+for design in randomized_p3 confounded_p4 confounded_p5; do
+  run_cohort_linear_effect "cohort_linear_effect_${design}_l90"
+  run_cohort_linear_effect "cohort_linear_effect_${design}_l95"
+done
+run_cohort_linear_effect cohort_linear_effect_misspecified_effect_boundary_l95
+run_cohort_linear_effect cohort_linear_effect_high_leverage_cohort_boundary_l95
+
+run_count_fitted_posterior() {
+  local name="$1"
+  check "count_fitted_posterior_calibration: ${name}" cargo test --release -p antecedent-estimate --features calibration-internal --test count_fitted_posterior_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== count-fitted finite table posterior interval =="
+for name in count_fitted_confounded_signal_l90 count_fitted_confounded_signal_l95 count_fitted_measured_signal_l90 count_fitted_measured_signal_l95 count_fitted_sparse_parent_configuration_boundary_l95 count_fitted_rare_evidence_boundary_l95; do
+  run_count_fitted_posterior "${name}"
+done
 
 run_treatment_inference() {
   local name="$1"
@@ -970,6 +1023,26 @@ run_suite calibration_bayesian_static response_jacobian_bayesian_default_coverag
 run_suite calibration_counterfactual counterfactual_interaction_bayesian_unit_and_mean_ite_coverage
 run_suite calibration_counterfactual counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage
 run_suite class_posterior_calibration class_posterior_frequentist_ate_joint_if_nominal_90_coverage
+# Sample-split discovery then effect: the gated construction and its named boundaries.
+run_suite sample_split_effect_calibration sample_split_discovered_effect_nominal_95_coverage
+run_suite sample_split_effect_calibration sample_split_weak_edges_boundary_95
+run_suite sample_split_effect_calibration sample_split_cancelling_edge_boundary_95
+run_suite sample_split_effect_calibration sample_split_misspecified_test_boundary_95
+run_suite sample_split_effect_calibration sample_split_full_row_reuse_boundary_95
+run_suite predictive_score_interval_calibration iid_crps_mean_l95
+run_suite predictive_score_interval_calibration iid_log_score_mean_l95
+run_suite predictive_score_interval_calibration iid_crps_difference_l95
+run_suite predictive_score_interval_calibration serial_crps_mean_l95
+run_suite predictive_score_interval_calibration serial_log_score_mean_l95
+run_suite predictive_score_interval_calibration serial_crps_difference_l95
+run_suite predictive_score_interval_calibration cluster_crps_mean_l95
+run_suite predictive_score_interval_calibration cluster_log_score_mean_l95
+run_suite predictive_score_interval_calibration cluster_crps_difference_l95
+run_suite predictive_score_interval_calibration iid_log_score_heavy_tailed_truth_boundary_l95
+run_suite scientific_bridge_interval_calibration surrogate_trial_level_prediction_interval_l95
+run_suite scientific_bridge_interval_calibration latent_measured_correction_prevalence_0_2_l95
+run_suite scientific_bridge_interval_calibration latent_measured_correction_prevalence_0_5_l95
+run_suite scientific_bridge_interval_calibration latent_measured_correction_low_prevalence_boundary_l95
 
 echo "== statistical transport: empirical-table IID bootstrap (antecedent) =="
 run_transport_statistical() {

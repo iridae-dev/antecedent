@@ -142,7 +142,7 @@ executed by `test_producer_consumer_matrix_<row>_row[<consumer>]`.
 | `cell_not_licensed` | `decision_reliability.cell_not_licensed` | `DecisionReliability.publish` and `decision_reliability.publish` for a ranking probability, confidence set or interval |
 | `uncertainty_components_not_combined` | `decision_reliability.combined_uncertainty` | `DecisionReliability.combined_uncertainty` and a `reporting="combined"` request |
 | `candidate_search_record_required` | `decision_reliability.search_record_required` | `decision_reliability.assess` and `decision_reliability.rank` over adaptively generated candidates without a `CandidateSearchRecord` |
-| `cell_not_licensed` | `cohort_decision.interval_not_licensed` | `CohortDecisionSource.interval` (an interval, band or posterior for the cohort mean) |
+| `cell_not_licensed` | `cohort_decision.interval_not_licensed`, `cohort_decision.interval_requires_native_fit` | `CohortDecisionSource.interval` (an interval for a shifted cohort, a portable model or a declared export) |
 | `cell_not_licensed` | `cohort_decision.support_contract_absent` | `FittedEffectModel.decision_source` for a model that retains no fitted-row support contract |
 | `cell_not_licensed` | `cohort_decision.outside_support` | `FittedEffectModel.decision_source` for a cohort row outside the retained support contract |
 | `transport_missing_evidence` | `cohort_decision.shift_declaration_required` | `FittedEffectModel.decision_source` for a cohort of another population without a `CovariateShift` |
@@ -164,7 +164,7 @@ executed by `test_producer_consumer_matrix_<row>_row[<consumer>]`.
 | `cell_not_licensed` | `mechanism_composition.interval_route_closed` | `PreparedMechanismComposition.interval` |
 | `cell_not_licensed` | `evidence_ledger.interval_not_licensed` | `EvidenceLedger.pooled_interval` |
 | `cell_not_licensed` | `counterfactual_transport_sampled.interval_not_licensed` | the interval of a sampled counterfactual transport estimate |
-| `cell_not_licensed` | `observation_query.interval_route_closed` | `ObservationClaim.interval` (an interval for an observation-conditioned value) |
+| `cell_not_licensed` | `observation_query.declared_model_has_no_sampling_interval` | `ObservationClaim.interval` (an interval for an observation-conditioned value) |
 | `cell_not_licensed` | `observation_query.calibrated_probability_closed` | `ObservationClaim.calibrated_probability` (a calibration claim for a posterior or decision probability) |
 | `quantity_semantics_mismatch` | `observation_query.intervention_in_conditioning_slot` | `observation_query.condition_on` with an assigned or hypothetical value in a conditioning slot |
 | `proxy_offered_as_construct` | `observation_query.measured_as_construct` | `observation_query.condition_on` with a recorded indicator value and no measurement model |
@@ -245,7 +245,7 @@ of the same event, with the claim identity as provider), which answers an affine
 quantile or probability contract is refused `decision_evaluation.mean_source_insufficient`.
 Conditioning and intervention are separate claims with separate identities and the matrix never
 substitutes one for the other. The interval and calibration routes are closed
-(`observation_query.interval_route_closed`,
+(`observation_query.declared_model_has_no_sampling_interval`,
 `observation_query.calibrated_probability_closed`); see [observation-queries.md](observation-queries.md).
 
 ## Scientific bridge claims
@@ -281,9 +281,9 @@ extrapolative, and a law is never inferred from a mean.
 | `transported_response` | `sensitivity_decision` | DIRECT: a point gives an assumption range at declared grid points through the sensitivity artifact (additive range [2,2], [1.75,2.25], [1.5,2.5]); sampling is withheld `transport_sensitivity.interval_not_composed` | `crates/antecedent/tests/transport_sensitivity_facade.rs` (`the_sealed_artifact_exports_and_a_consumer_recomputes_it`) |
 | `transported_response` | `sensitivity_decision` | REFUSED: a transported law has no single point to shift: `route_not_supported` `transport_sensitivity.law_response_not_scalar` | `crates/antecedent/tests/transport_sensitivity_facade.rs` (`a_transported_law_has_no_single_point_to_shift`) |
 | `transported_response` | `transport_revalidation` | DIRECT: a changed source recomputes only the claims counting it; a calibration record from another target is withdrawn | `crates/antecedent/tests/transport_revalidation_facade.rs` (`a_changed_source_recomputes_only_the_claims_that_count_it`) |
-| `composed_model` | `inverse_query` | DIRECT: Rust only: a linear-Gaussian composition supplies a replayed mean per action (0.5, 7.0, 13.5; target 5 keeps `x1` and `x2`); the Python row stays ADAPTER | `crates/antecedent/tests/inverse_forward_sources_facade.rs` (`a_linear_gaussian_composition_supplies_a_replayed_point_per_action`) |
+| `composed_model` | `inverse_query` | DIRECT: a linear-Gaussian composition supplies a replayed mean per action (0.5, 7.0, 13.5; target 5 keeps `x1` and `x2`); Python: `inverse_sources.composed_forward_source` (`python/tests/test_inverse_sources.py::test_a_linear_gaussian_composition_supplies_a_replayed_point_per_action`); the Python matrix row above stays ADAPTER because it reads declared means | `crates/antecedent/tests/inverse_forward_sources_facade.rs` (`a_linear_gaussian_composition_supplies_a_replayed_point_per_action`) |
 | `composed_model` | `inverse_query` | REFUSED: a quantile or probability of a Gaussian composition is `decision_contract_unsatisfied` `inverse_forward_source.composed_law_not_materialized`; an interval is `cell_not_licensed` `inverse_forward_source.interval_not_licensed` | `crates/antecedent/tests/inverse_forward_sources_facade.rs` (`a_point_composition_refuses_laws_intervals_and_the_wrong_family`) |
-| `composed_model` | `inverse_query` | DIRECT: Rust only: a finite-table composition supplies the exact law of each action under the caller's coding of outcome levels (P(Y = 1 given do) = 0.18 and 0.72) | `crates/antecedent/tests/inverse_forward_sources_facade.rs` (`a_finite_composition_supplies_the_exact_law_of_each_action`) |
+| `composed_model` | `inverse_query` | DIRECT: a finite-table composition supplies the exact law of each action under the caller's coding of outcome levels (P(Y = 1 given do) = 0.18 and 0.72); Python: `inverse_sources.composed_forward_source` (`python/tests/test_inverse_sources.py::test_a_finite_composition_supplies_the_exact_law_of_each_action`) | `crates/antecedent/tests/inverse_forward_sources_facade.rs` (`a_finite_composition_supplies_the_exact_law_of_each_action`) |
 | `composed_model` | `inverse_query` | ADAPTER: a composition with admitted mechanisms is a transported claim: it needs the carrying receipt and an accepting input policy and is labelled extrapolative; without a receipt `inverse_forward_source.composed_response_invalid`, under a native-only policy `inverse_forward_source.transported_not_accepted` | `crates/antecedent/tests/inverse_forward_sources_facade.rs` (`a_composition_with_admitted_mechanisms_is_a_transported_claim`) |
 | `cohort_decision_source` | `inverse_query` | ADAPTER: Rust: `cohort_forward_source` (the cohort mean as a point forward source, 3.45 and 7.4 against a target of 5; a quantile is `inverse_forward_source.point_only_law_requested`); the facade wrapper has no executing test yet, so the cell stays ADAPTER | `crates/antecedent-design/tests/inverse_forward_source.rs` (`a_cohort_contrast_is_a_point_source_with_its_own_law_refusal`) |
 | `cohort_decision_source` | `inverse_query` | ADAPTER: a cohort from another population under a declared shift is a transported source only when accepted; a native-only policy refuses `inverse_forward_source.transported_not_accepted` | `crates/antecedent-design/tests/inverse_forward_source.rs` (`a_shifted_cohort_is_a_transported_source_only_when_accepted`) |
@@ -361,8 +361,8 @@ preserved. The coordinate answers the expectation of an affine utility and nothi
 | Request | Cohort-mean source |
 | --- | --- |
 | Expectation of an affine utility of the cohort-mean contrast | DIRECT: the one mean, point-only, no utility standard error or interval |
-| Interval, band or posterior for the cohort mean | REFUSED: `cell_not_licensed`, `cohort_decision.interval_not_licensed` (route closed: no whole-method coverage record is measured) |
-| Probability, quantile, tail expectation, nonlinear utility | REFUSED: `decision_contract_unsatisfied`, `cohort_decision.law_not_supplied` (needs aligned outcome draws from a producer of an interventional law) |
+| Interval for the cohort mean | MEASURED for a natively fitted linear effect (Student-t, HC3, retained fit rows replayed by the consumer); REFUSED `cell_not_licensed` `cohort_decision.interval_requires_native_fit` for a declared export, `cohort_decision.interval_not_licensed` for a shifted cohort or portable model |
+| Probability, quantile, tail expectation, nonlinear utility | REFUSED: `decision_contract_unsatisfied`, `cohort_decision.law_not_supplied` (closed by logic: one expectation determines no law; per-draw cohort utilities under a declared shared law are the `DecisionDraws` carrier of the decision reliability routes) |
 | Joint law with another quantity, or draws of the contrast | REFUSED: `joint_law_required`, `cohort_decision.joint_law_required` |
 | Inverse query on the cohort-mean contrast | ADAPTER: the same mean as a finite-action forward source, point-only |
 | Cohort from another population | ADAPTER under a declared covariate shift with every row inside the support contract; labelled `Extrapolative`; otherwise REFUSED `transport_missing_evidence`, `cohort_decision.shift_declaration_required` |

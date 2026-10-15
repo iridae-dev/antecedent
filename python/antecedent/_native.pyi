@@ -1064,6 +1064,7 @@ class PreparedAnalysis:
     def execution_contract(
         self,
     ) -> dict[str, str]: ...
+    def tier_diagnostics_json(self, *, cancel: CancellationToken | None = None) -> str: ...
     def export_artifact(
         self,
         *,
@@ -3920,6 +3921,15 @@ class PreparedTemporalTransportStage:
     def interval(self) -> None: ...
     def export(self) -> bytes: ...
 
+def unroll_two_slice_template(
+    template: TemporalDag,
+    covariates: list[str],
+    action: str,
+    outcome: str,
+    baseline: list[str],
+    baseline_effects: list[tuple[str, str]],
+    latent_pairs: list[tuple[str, str]],
+) -> str: ...
 def prepare_temporal_transport_stage(
     graph: Admg,
     selections: list[str],
@@ -4766,6 +4776,9 @@ class SampledCounterfactualTransportResultNative:
     def summary(self) -> dict[str, Any]: ...
     def export(self) -> bytes: ...
     def identity(self) -> tuple[str | None, str | None]: ...
+    def measure_interval(
+        self, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> NativeMeasuredInference: ...
 
 def identify_counterfactual_transport_native(
     graph: Admg,
@@ -5650,6 +5663,27 @@ def consume_cohort_decision_source(
 def validate_cohort_binding(cohort_json: str) -> tuple[str | None, str | None]: ...
 def normalize_cohort_weights(weights: list[float]) -> tuple[str | None, str | None]: ...
 def cohort_decision_law_refusal(kind: str) -> str: ...
+def count_fitted_observation_build(
+    nodes_json: str,
+    rows: int,
+    target: str,
+    target_level: str,
+    evidence_json: str,
+    seed: int | None = None,
+) -> tuple[bytes | None, str | None]: ...
+def count_fitted_observation_point(bytes: bytes) -> tuple[float | None, str | None]: ...
+def count_fitted_observation_interval(
+    bytes: bytes, level: float, *, cancel: Any = None
+) -> tuple[NativeMeasuredInference | None, str | None]: ...
+def fit_native_cohort_effect(
+    fit_json: str,
+) -> tuple[str | None, bytes | None, str | None]: ...
+def cohort_decision_interval(
+    artifact: bytes,
+    expectation_json: str,
+    fit_json: str | None,
+    level: float,
+) -> tuple[NativeMeasuredInference | None, str | None]: ...
 def cohort_decision_forward_claim(
     artifact: bytes, expectation_json: str
 ) -> tuple[str | None, str | None]: ...
@@ -6401,6 +6435,7 @@ class BridgedClaimHandle:
     def source_json(self) -> str: ...
     def require_value_kind(self, kind: str) -> str | None: ...
     def interval(self) -> str: ...
+    def bridged_interval(self, level: float) -> tuple[str | None, str | None]: ...
     def freshness_json(self, source_withdrawn: bool, source_superseded: bool) -> str: ...
     def export(self, artifact_id: str) -> tuple[tuple[bytes, str] | None, str | None]: ...
 
@@ -6672,7 +6707,7 @@ class EvidenceLedgerHandle:
     ) -> tuple[str | None, str | None]: ...
     def revise_source(self, revision_json: str) -> tuple[str | None, str | None]: ...
     def revalidate_downstream(self) -> tuple[str | None, str | None]: ...
-    def pooled_interval(self, result: str) -> str: ...
+    def pooled_interval(self, result: str) -> tuple[str | None, str | None]: ...
     def synthesis(self, result: str) -> tuple[str | None, str | None]: ...
     def refresh(
         self, changes_json: str
@@ -6693,6 +6728,9 @@ class PredictiveAssessmentHandle:
     def report_json(self) -> str: ...
     def identity_json(self) -> str: ...
     def export(self, artifact_id: str) -> tuple[bytes | None, str | None]: ...
+    def score_interval(
+        self, predictor: str, reference: str | None, score: str, level: float
+    ) -> tuple[str | None, str | None]: ...
     def request_score_interval(self) -> str: ...
     def request_causal_validity(self) -> str: ...
     def request_score_as_probability(self) -> str: ...
@@ -6732,6 +6770,9 @@ class AdaptiveInferenceHandle:
     ) -> tuple[str | None, str | None]: ...
     def fixed_sample(self) -> str | None: ...
     def interval(self) -> str | None: ...
+    def measured_interval(
+        self, request_json: str, cancel: CancellationToken | None = None
+    ) -> tuple[NativeMeasuredInference | None, str | None]: ...
     def interim_evidence(self) -> tuple[str | None, str | None]: ...
     def export_contract(
         self, paradigm: str, artifact_id: str
@@ -6993,8 +7034,8 @@ def joint_law_transported_spread_aligned(
 ) -> tuple[tuple[bytes, str] | None, str | None]: ...
 def joint_law_check_composed_interval(
     artifact: bytes,
-    record_json: str | None,
     construction: str,
+    evidence_rows: int,
     cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
 def joint_law_coordinate_id(artifact: bytes) -> tuple[str | None, str | None]: ...
@@ -7181,6 +7222,24 @@ def sample_split_discover(
     threads: int | None = None,
     cancel: Any = None,
 ) -> tuple[SampleSplitDiscoveryHandle | None, str | None, str | None]: ...
+def sample_split_effect(
+    names: list[str],
+    columns: list[Any],
+    treatment: int,
+    outcome: int,
+    split_seed: int,
+    seed: int,
+    *,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> tuple[str | None, bytes | None, str | None]: ...
+def sample_split_effect_measure(
+    source: bytes,
+    seed: int,
+    *,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> tuple[NativeMeasuredInference | None, str | None]: ...
 def discovered_transport_run(
     contract_json: str,
     names: list[str],
@@ -7290,6 +7349,39 @@ def adaptive_trial_construct(
     coordinate_json: str,
     provider_id: str,
 ) -> tuple[TransportedResponseHandle | None, str | None, str | None]: ...
+def transported_policy_verify(
+    model_json: str,
+    policy_json: str,
+    target_population: str,
+    target_initial: list[float] | None,
+    diagram_json: str | None,
+    stored_json: str,
+    max_nodes: int | None = None,
+    *,
+    cancel: CancellationToken | None = None,
+) -> str | None: ...
+def temporal_policy_verify(
+    model_json: str,
+    policy_json: str,
+    target_json: str,
+    target_initial: list[float] | None,
+    invariance_json: str | None,
+    stored_json: str,
+    max_nodes: int | None = None,
+    *,
+    cancel: CancellationToken | None = None,
+) -> str | None: ...
+def adaptive_trial_verify(
+    design_json: str | None,
+    trial_population: str,
+    unit_strata: list[int],
+    stratum_labels: list[str],
+    target_stratum_law: list[float] | None,
+    diagram_json: str | None,
+    treatment_arm: int,
+    control_arm: int,
+    stored_json: str,
+) -> str | None: ...
 def transported_synthesis_construct(
     ledger: EvidenceLedgerHandle,
     label: str,
@@ -7400,6 +7492,12 @@ def discretized_composition_consume(
 ) -> tuple[DiscretizedCompositionHandle | None, str | None]: ...
 
 def cross_world_whole_path(
+    data: bytes,
+    unit_sampling: str,
+    expected_identity_json: str | None = None,
+    cancel: Any = None,
+) -> tuple[str | None, str | None]: ...
+def cross_world_measured_interval(
     data: bytes,
     unit_sampling: str,
     expected_identity_json: str | None = None,

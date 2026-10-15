@@ -193,8 +193,10 @@ from ._status import (
 from ._study_planning import StudyCandidate, plan_studies, replay_study_plan
 from ._temporal import (
     TemporalSequenceSpec,
+    UnrolledSequence,
     consume_temporal_transport_artifact,
     prepare_temporal_transport_sequence,
+    unroll_two_slice,
 )
 from ._temporal_extensions import (
     InitialStateLaw,
@@ -362,6 +364,8 @@ __all__ = [
     "prepare_statistical",
     "prepare_trial",
     "prepare_temporal_transport_sequence",
+    "UnrolledSequence",
+    "unroll_two_slice",
     "InitialStateLaw",
     "TemporalExtensionRefusal",
     "TemporalInitialStateResult",

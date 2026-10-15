@@ -431,6 +431,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "source_projection",
     "temporal",
     "temporal_counterfactual",
+    "tier_diagnostics",
     "transport_handoff",
     "transported_constructors",
     "transported_counterfactual",
@@ -500,6 +501,7 @@ if _TYPE_CHECKING:
     from . import source_projection as source_projection
     from . import temporal as temporal
     from . import temporal_counterfactual as temporal_counterfactual
+    from . import tier_diagnostics as tier_diagnostics
     from . import transport_handoff as transport_handoff
     from . import transported_constructors as transported_constructors
     from . import transported_counterfactual as transported_counterfactual

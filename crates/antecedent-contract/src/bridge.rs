@@ -34,9 +34,11 @@
 //!   substitution between a mean, a predictive law, a posterior, an
 //!   identified set and a joint outcome law.
 //!
-//! Everything is point-only: the bridges carry one mean value. No interval,
-//! posterior or joint law is produced or inferred; the mapping's own sampling
-//! uncertainty is not propagated, and a request for any of them refuses.
+//! The bridges carry one mean value. This layer produces no interval,
+//! posterior or joint law and a request for any of them refuses; the interval
+//! of the bridged value, from the source claim's declared standard error and the
+//! mapping's own estimation uncertainty, is built where the coverage records
+//! are held (`antecedent_io::bridge_interval`).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

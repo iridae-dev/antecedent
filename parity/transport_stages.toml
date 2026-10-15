@@ -6704,9 +6704,8 @@ evidence_assertion = "the_ledger_declares_overlap_and_unknown_stays_unknown"
 [[routes]]
 route = "antecedent_estimate.counterfactual_transport_sampled.interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "No interval, posterior or coverage statement: whole-method coverage across the sample-size grid, including estimated-table zero and sparse cells, is allocated and not measured (detail counterfactual_transport_sampled.interval_not_licensed). A nominal Wald candidate exists only behind the calibration-internal feature."
+status = "licensed"
+notes = "Delta-method Wald interval reported only as a measured scalar bound to a currently attesting coverage record (independent units, refused unseen cells, 250 to 4000 units per table, level 0.95); every other request refuses cell_not_licensed (detail counterfactual_transport_sampled.interval_not_licensed or measured_interval.protocol_not_measured)."
 
 # Python surface of general and sampled counterfactual transport (records
 # counterfactual.transport_general and counterfactual.transport_sampled).
@@ -7116,9 +7115,8 @@ notes = "Accepted only under an explicit declaration naming the invariant modifi
 [[routes]]
 route = "antecedent.cohort_decision.interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "Closed until whole-method coverage of the cohort-weight and support-selection step is measured; the model-based standard error is a labelled diagnostic only."
+status = "licensed"
+notes = "Student-t interval of the declared-cohort mean of a natively fitted linear effect (OLS with an HC3 covariance), reported only as a measured scalar bound to a currently attesting coverage record; a caller-built export refuses cohort_decision.interval_requires_native_fit, a shifted cohort or portable model refuses cohort_decision.interval_not_licensed, and the model-based standard error alone stays a labelled diagnostic."
 
 [[routes]]
 route = "antecedent.cohort_decision.law_valued_request"
@@ -7636,14 +7634,20 @@ route = "antecedent.observation_query.ObservationClaim.interval"
 stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
-notes = "The route licenses no interval or calibration statement; the facade refuses with cell_not_licensed."
+notes = "A declared model's posterior probability is exact and has no sampling interval; the facade refuses with cell_not_licensed (observation_query.declared_model_has_no_sampling_interval, observation_query.calibrated_probability_closed). The count-fitted route owns the measured interval."
 
 [[routes]]
 route = "antecedent.observation_query.ObservationClaim.calibrated_probability"
 stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
-notes = "The route licenses no interval or calibration statement; the facade refuses with cell_not_licensed."
+notes = "A declared model's posterior probability is exact and has no sampling interval; the facade refuses with cell_not_licensed (observation_query.declared_model_has_no_sampling_interval, observation_query.calibrated_probability_closed). The count-fitted route owns the measured interval."
+
+[[routes]]
+route = "antecedent.analysis.count_fitted_observation.interval"
+stage = "uncertainty"
+status = "licensed"
+notes = "Equal-tailed posterior interval of a conditional probability of count-fitted tables (independent Dirichlet posteriors, Monte Carlo with exact enumeration), reported only as a measured scalar bound to a currently attesting coverage record; every other request refuses cell_not_licensed."
 
 [[routes]]
 route = "antecedent.scientific_bridge.prepare"
@@ -8184,6 +8188,20 @@ reason_code = "adaptive_design_ignored"
 notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
 
 [[routes]]
+route = "antecedent.adaptive_inference.measured_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
+route = "antecedent.cross_world_execution.measured_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed adjacent route: the request is refused with a typed reason that names the declaration, evidence or measurement that would license it."
+
+[[routes]]
 route = "antecedent.decision_reliability.rank"
 stage = "evaluate"
 status = "licensed"
@@ -8452,21 +8470,27 @@ route = "antecedent._native.observation_query_closed"
 stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
-notes = "No interval or calibration statement is licensed for an observation-conditioned probability; the Python surface raises cell_not_licensed."
+notes = "A declared model's posterior probability has no sampling interval; the Python surface raises cell_not_licensed. The count-fitted route owns the measured interval."
 
 [[routes]]
 route = "antecedent.python.observation_query.ObservationClaim.interval"
 stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
-notes = "No interval or calibration statement is licensed for an observation-conditioned probability; the Python surface raises cell_not_licensed."
+notes = "A declared model's posterior probability has no sampling interval; the Python surface raises cell_not_licensed. The count-fitted route owns the measured interval."
 
 [[routes]]
 route = "antecedent.python.observation_query.ObservationClaim.calibrated_probability"
 stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
-notes = "No interval or calibration statement is licensed for an observation-conditioned probability; the Python surface raises cell_not_licensed."
+notes = "A declared model's posterior probability has no sampling interval; the Python surface raises cell_not_licensed. The count-fitted route owns the measured interval."
+
+[[routes]]
+route = "antecedent.python.observation_query.CountFittedObservation.interval"
+stage = "uncertainty"
+status = "licensed"
+notes = "Python surface of the count-fitted measured posterior interval; refuses cell_not_licensed without a currently attesting record."
 
 [[routes]]
 route = "antecedent.sequential_evaluation.evaluate"
@@ -10345,6 +10369,43 @@ stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
 notes = "An interval on the rows that selected the graph stays refused."
+
+[[routes]]
+route = "antecedent.sample_split_effect.estimate_effect_on_split"
+stage = "evaluate"
+status = "licensed"
+graph = "static_float64_table_of_five_to_seven_variables_linear_gaussian_fully_orientable_class"
+evidence = "float64_table_with_treatment_and_outcome_columns_and_two_seeds"
+functional = "linear_effect_of_the_treatment_adjusted_for_its_parents_in_the_accepted_graph"
+guarantee = "whole_method_coverage_of_the_true_effect_measured_over_a_declared_family_never_a_per_dataset_recovery_statement"
+evidence_test = "crates/antecedent/tests/sample_split_effect_facade.rs"
+evidence_assertion = "the_effect_is_the_adjusted_least_squares_coefficient_on_the_analysis_rows"
+notes = "The interval is a model-conditional computation until measure attests it from a current coverage record."
+
+[[routes]]
+route = "antecedent.python.selective_discovery.sample_split_effect"
+stage = "evaluate"
+status = "licensed"
+graph = "static_float64_table_of_five_to_seven_variables_linear_gaussian_fully_orientable_class"
+evidence = "float64_table_with_treatment_and_outcome_columns_and_two_seeds"
+functional = "linear_effect_of_the_treatment_adjusted_for_its_parents_in_the_accepted_graph"
+guarantee = "whole_method_coverage_of_the_true_effect_measured_over_a_declared_family_never_a_per_dataset_recovery_statement"
+evidence_test = "python/tests/test_sample_split_effect.py"
+evidence_assertion = "test_the_effect_adjusts_for_the_treatments_parents_and_covers_the_truth"
+
+[[routes]]
+route = "antecedent.sample_split_effect.SplitEffect.measure"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Attested only from a current attesting coverage record of structure discovered_sample_split."
+
+[[routes]]
+route = "antecedent.python.selective_discovery.SplitEffect.measure"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Attested only from a current attesting coverage record of structure discovered_sample_split."
 [[routes]]
 route = "antecedent_contract.provider_transport.ProviderTransportSource.admit"
 stage = "prepare"
@@ -11725,3 +11786,81 @@ stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
 notes = "Closed Python interval route of an in_progress record: the interval stays refused until whole-method coverage is measured; its executing refusal test is cited by the record."
+
+# Python surface of routes that were library-level: discovered-structure transport, tier
+# diagnostics, the template unrolling and the transported-value verifiers.
+
+[[routes]]
+route = "antecedent.python.transport.discovered.transport_across_class"
+stage = "identify"
+status = "licensed"
+graph = "cpdag_equivalence_class_members_enumerated_causal_sufficiency"
+evidence = "discovered_cpdag_declared_selection_targets_and_transport_query"
+functional = "structural_transport_verdict_and_expression_per_class_member"
+guarantee = "sound_incomplete"
+reference = "provenance/transport.cpdag_class_envelope.toml"
+limits = "Python surface of antecedent_identify.discovered_transport.transport_across_class and discover_and_transport: a structural envelope, never a point or interval; a PAG, a temporal structure, a class beyond the member bound or an unknown selection target refuse with discovered_structure_unresolved."
+evidence_test = "python/tests/test_discovered_transport.py"
+evidence_assertion = "test_a_chain_is_a_class_and_each_member_carries_its_structural_verdict"
+
+[[routes]]
+route = "antecedent.python.tier_diagnostics.tier_diagnostics"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_tier_background_codetermined_or_unknown_scenarios"
+evidence = "executed_tiered_average_effect_result"
+functional = "tier_overlap_and_point_evalue"
+guarantee = "read_off_executed_result_point_only"
+reference = "docs/guides/tier-diagnostics.md"
+limits = "Python surface of antecedent.tier_diagnostics: the same point-only read of an executed licensed single-treatment tiered average-effect result; nothing is refit and the interval E-value is always typed unavailable."
+evidence_test = "python/tests/test_tier_diagnostics.py"
+evidence_assertion = "test_a_codetermined_result_reports_its_closure_overlap_and_point_evalue"
+
+[[routes]]
+route = "antecedent.python.transport.advanced.unroll_two_slice"
+stage = "identify"
+status = "licensed"
+graph = "explicit_two_slice_unrolled_selection_admg_horizon_2"
+evidence = "lagged_temporal_dag_template_and_role_assignment"
+functional = "the_explicit_two_slice_unrolled_selection_diagram_of_a_lagged_template"
+guarantee = "sound_incomplete"
+reference = "https://arxiv.org/abs/1312.7485v1"
+limits = "Python surface of antecedent_identify.unroll_two_slice: unfolds a lagged TemporalDag template into the explicit two-slice diagram and identifies nothing itself; invalid roles, indices or baseline effects refuse with temporal_transport.invalid_spec."
+evidence_test = "python/tests/test_unroll_two_slice.py"
+evidence_assertion = "test_a_lagged_template_unrolls_into_two_steps_with_places_in_time"
+
+[[routes]]
+route = "antecedent.python.transported_constructors.verify_policy"
+stage = "consume"
+status = "licensed"
+graph = "declared_selection_diagram_initial_state_law_only_may_shift"
+evidence = "finite_sequential_model_policy_selection_diagram_and_target_initial_law"
+functional = "expected_utility_of_the_policy_in_the_target_population"
+guarantee = "exact_finite_enumeration_point_only"
+limits = "Python surface of antecedent_design.transported_policy.verify_transported_policy: re-derives the evaluation and refuses a stored identity or value that differs bit for bit with transported_policy.value_mismatch."
+evidence_test = "python/tests/test_transported_route_verification.py"
+evidence_assertion = "test_a_policy_evaluation_replays_and_an_edited_value_does_not"
+
+[[routes]]
+route = "antecedent.python.transported_constructors.verify_period_shift"
+stage = "consume"
+status = "licensed"
+graph = "declared_time_invariance_fixed_horizon_only_initial_state_law_changes"
+evidence = "finite_sequential_model_policy_time_invariance_declaration_and_target_period_initial_law"
+functional = "expected_utility_of_the_policy_in_the_target_period"
+guarantee = "exact_finite_enumeration_point_only"
+limits = "Python surface of antecedent_design.temporal_policy_transport.verify_temporal_policy: re-derives the evaluation and refuses a stored identity or value that differs bit for bit with temporal_policy_transport.value_mismatch."
+evidence_test = "python/tests/test_transported_route_verification.py"
+evidence_assertion = "test_a_period_shift_replays_and_an_edited_identity_does_not"
+
+[[routes]]
+route = "antecedent.python.transported_constructors.verify_adaptive_trial"
+stage = "consume"
+status = "licensed"
+graph = "finite_strata_declared_selection_diagram_stratum_law_shifted_outcome_mechanism_invariant"
+evidence = "retained_adaptive_design_contract_unit_strata_outcomes_and_target_stratum_law"
+functional = "target_population_arm_means_and_contrast_standardized_over_the_target_stratum_law"
+guarantee = "recorded_probability_hajek_standardization_to_target_stratum_law_point_only_uncalibrated_no_variance"
+limits = "Python surface of antecedent_design.adaptive_trial_transport.verify_adaptive_transport: re-derives the estimate and refuses a stored identity or mean that differs bit for bit with adaptive_transport.value_mismatch."
+evidence_test = "python/tests/test_transported_route_verification.py"
+evidence_assertion = "test_an_adaptive_trial_estimate_replays_and_an_edited_mean_does_not"

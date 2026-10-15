@@ -51,6 +51,7 @@ from .._native import (
 from .._native import (
     identify_counterfactual_transport_native as _identify,
 )
+from .._measured_inference import MeasuredInference
 from ..errors import CausalTypeError, CausalValueError
 from ..graph import Admg
 from ._impl import (
@@ -920,6 +921,22 @@ class SampledCounterfactualTransportEstimate:
     def export(self) -> bytes:
         """The estimate as a ``sampled_counterfactual_transport_v1`` artifact."""
         return bytes(self._native.export())
+
+    def measure_interval(
+        self, *, memory_bytes: int | None = None, cancel: Any = None
+    ) -> MeasuredInference:
+        """The 95% delta-method Wald interval, bound to its measured coverage record.
+
+        The artifact is replayed from its counts. The interval is reported only
+        for the measured construction (independent units, refused unseen cells,
+        equal table totals inside the measured sample-size range, a query with a
+        currently attesting coverage record); anything else raises
+        ``cell_not_licensed``. The estimate itself still carries no interval.
+        """
+        native = self._native.measure_interval(
+            memory_bytes=_optional_non_negative("memory_bytes", memory_bytes), cancel=cancel
+        )
+        return MeasuredInference._from_native(native)
 
 
 def _sampled(native: Any, *, verified: bool = False) -> SampledCounterfactualTransportEstimate:

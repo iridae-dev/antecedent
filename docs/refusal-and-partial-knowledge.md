@@ -340,7 +340,7 @@ ok
 | `observation_query.differential_error_unsupported` | `differential_error_not_pooled` | Use a non-differential model; error that differs has no bounded conditioning route and is never pooled. |
 | `observation_query.indicator_kind` | `invalid_argument` | Use a direct slot for an error-free recorded value, or declare the indicator's measurement kind. |
 | `observation_query.indicator_mismatch` | `measurement_binding_mismatch` | Declare a model for this indicator. |
-| `observation_query.interval_route_closed` | `cell_not_licensed` | None available yet: the exact value under the declared model, or the labelled point value of a fitted model, is the result; an interval needs a measured whole-method coverage record. |
+| `observation_query.declared_model_has_no_sampling_interval` | `cell_not_licensed` | A declared model's posterior probability is an exact number with no sampling distribution, so it has no sampling interval; for a probability computed from tables fitted to counts, request the count-fitted interval, which reports posterior quantiles bound to a currently attesting coverage record. |
 | `observation_query.intervention_in_conditioning_slot` | `quantity_semantics_mismatch` | State an assigned value as an intervention query; a conditioning slot holds only recorded values, and the observed and interventional laws are separate claims. |
 | `observation_query.invalid_declaration` | `invalid_argument` | Supply named levels and distributions that sum to one, with probabilities in range. |
 | `observation_query.level_unreachable` | `evidence_cannot_reach_level` | State a level inside the reachable range, supply a signal with a larger likelihood ratio, or allow more observations; the refusal states the most extreme reachable value. |
