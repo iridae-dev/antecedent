@@ -12,6 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 description = "Estimator-free artifact container, wire types, digests and codecs for the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
+autotests = false
 
 [lints]
 workspace = true
@@ -44,3 +45,7 @@ zstd = { workspace = true }
 
 [dev-dependencies]
 antecedent-test-support = { workspace = true }
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"

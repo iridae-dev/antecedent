@@ -1,0 +1,1 @@
+suite_01: discretized_scm, discretized_scm_artifact, mechanism_composition, mechanism_transport, mechanism_transport_identity_fields, observation_query, route_evidence_observation_query, scm_oracle, transport_obstruction_agreement

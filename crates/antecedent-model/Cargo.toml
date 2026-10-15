@@ -12,6 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 description = "Structural causal models, mechanisms, and interventional sampling for the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
+autotests = false
 
 [lints]
 workspace = true
@@ -46,3 +47,7 @@ serde_json = { workspace = true }
 [[bench]]
 name = "sample_overlay"
 harness = false
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"

@@ -1,0 +1,1 @@
+suite_01: capability_matrix_registry, cross_world_execution, cross_world_execution_temporal, temporal_cross_world, transported_path_specific, whole_path_uncertainty

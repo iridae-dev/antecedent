@@ -12,6 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 description = "Abduction-action-prediction counterfactual evaluation for the Antecedent causal inference engine; start with the `antecedent` crate"
 readme = "README.md"
+autotests = false
 
 [lints]
 workspace = true
@@ -31,3 +32,7 @@ serde_json = { workspace = true }
 [[bench]]
 name = "counterfactual_batch"
 harness = false
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"

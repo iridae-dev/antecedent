@@ -236,7 +236,7 @@ fn two_models_match_target_observations_and_complete_zw_experiments_but_disagree
     };
     let record = obstruction.to_record();
     assert_eq!(record.terminal.c0, [1]);
-    assert_eq!(record.terminal.candidate_active, []);
+    assert!(record.terminal.candidate_active.is_empty());
     assert_eq!(record.terminal.rules.last().map(String::as_str), Some("ztr.line11.fail"));
     let replayed = antecedent_identify::ZTransportObstruction::from_record_checked(
         record.clone(),
@@ -365,7 +365,7 @@ fn parent_control_removed_by_do_treatment_still_reaches_checked_line11() {
         panic!("the parent control is removed from the reduced graph after do(X)")
     };
     assert_eq!(obstruction.to_record().terminal.vertices, [0, 1]);
-    assert_eq!(obstruction.to_record().terminal.candidate_active, []);
+    assert!(obstruction.to_record().terminal.candidate_active.is_empty());
 }
 
 #[test]

@@ -12,6 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 description = "Versioned artifact containers and wire types (graphs, posteriors, model bundles) for the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
+autotests = false
 
 [lints]
 workspace = true
@@ -56,3 +57,23 @@ antecedent-test-support = { workspace = true }
 blake3 = { workspace = true }
 # The io interval tests recompute the closed mz bootstrap, compiled only under this feature.
 antecedent-estimate = { workspace = true, features = ["calibration-internal"] }
+
+[[test]]
+name = "nested_markov_bayesian_calibration"
+path = "tests/nested_markov_bayesian_calibration.rs"
+
+[[test]]
+name = "posterior_summary_calibration"
+path = "tests/posterior_summary_calibration.rs"
+
+[[test]]
+name = "sampled_counterfactual_transport_artifact"
+path = "tests/sampled_counterfactual_transport_artifact.rs"
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"
+
+[[test]]
+name = "suite_02"
+path = "tests/suite_02.rs"

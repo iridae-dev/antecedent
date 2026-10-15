@@ -12,6 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 description = "Probability distributions, columnar posteriors, priors, and inference backends for the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
+autotests = false
 
 [lints]
 workspace = true
@@ -36,3 +37,7 @@ harness = false
 [[bench]]
 name = "mcmc_stats"
 harness = false
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"

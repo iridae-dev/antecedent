@@ -12,6 +12,7 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
+autotests = false
 
 [lints]
 workspace = true
@@ -165,3 +166,291 @@ harness = false
 [[bench]]
 name = "transport"
 harness = false
+
+[[test]]
+name = "adjusted_recalc_precision"
+path = "tests/adjusted_recalc_precision.rs"
+
+[[test]]
+name = "aipw_ate_route_evidence"
+path = "tests/aipw_ate_route_evidence.rs"
+
+[[test]]
+name = "artifact_compat_counterfactual_transport_golden"
+path = "tests/artifact_compat_counterfactual_transport_golden.rs"
+
+[[test]]
+name = "bayesian_basis_prior_precision"
+path = "tests/bayesian_basis_prior_precision.rs"
+
+[[test]]
+name = "bayesian_recalc_calibration"
+path = "tests/bayesian_recalc_calibration.rs"
+
+[[test]]
+name = "bayesian_temporal"
+path = "tests/bayesian_temporal.rs"
+
+[[test]]
+name = "calibration_admg"
+path = "tests/calibration_admg.rs"
+
+[[test]]
+name = "calibration_anomaly_bayesian"
+path = "tests/calibration_anomaly_bayesian.rs"
+
+[[test]]
+name = "calibration_attribution_bayesian"
+path = "tests/calibration_attribution_bayesian.rs"
+
+[[test]]
+name = "calibration_backlog"
+path = "tests/calibration_backlog.rs"
+
+[[test]]
+name = "calibration_bayesian_static"
+path = "tests/calibration_bayesian_static.rs"
+
+[[test]]
+name = "calibration_counterfactual"
+path = "tests/calibration_counterfactual.rs"
+
+[[test]]
+name = "calibration_design"
+path = "tests/calibration_design.rs"
+
+[[test]]
+name = "calibration_design_bayesian"
+path = "tests/calibration_design_bayesian.rs"
+
+[[test]]
+name = "calibration_distribution_admg"
+path = "tests/calibration_distribution_admg.rs"
+
+[[test]]
+name = "calibration_estimate"
+path = "tests/calibration_estimate.rs"
+
+[[test]]
+name = "calibration_response"
+path = "tests/calibration_response.rs"
+
+[[test]]
+name = "calibration_temporal"
+path = "tests/calibration_temporal.rs"
+
+[[test]]
+name = "calibration_temporal_class"
+path = "tests/calibration_temporal_class.rs"
+
+[[test]]
+name = "checked_bayesian_dag_ate_route_evidence"
+path = "tests/checked_bayesian_dag_ate_route_evidence.rs"
+
+[[test]]
+name = "checked_bayesian_temporal_class_effect_route_evidence"
+path = "tests/checked_bayesian_temporal_class_effect_route_evidence.rs"
+
+[[test]]
+name = "checked_temporal_class_effect_route_evidence"
+path = "tests/checked_temporal_class_effect_route_evidence.rs"
+
+[[test]]
+name = "checked_temporal_graph_posterior_effect_route_evidence"
+path = "tests/checked_temporal_graph_posterior_effect_route_evidence.rs"
+
+[[test]]
+name = "class_posterior_calibration"
+path = "tests/class_posterior_calibration.rs"
+
+[[test]]
+name = "compiler_consistency"
+path = "tests/compiler_consistency.rs"
+
+[[test]]
+name = "counterfactual_transport_lifecycle"
+path = "tests/counterfactual_transport_lifecycle.rs"
+
+[[test]]
+name = "cross_world_interval_calibration"
+path = "tests/cross_world_interval_calibration.rs"
+
+[[test]]
+name = "decision_claims"
+path = "tests/decision_claims.rs"
+
+[[test]]
+name = "derivative_calibration"
+path = "tests/derivative_calibration.rs"
+
+[[test]]
+name = "design_ar_precision_calibration"
+path = "tests/design_ar_precision_calibration.rs"
+
+[[test]]
+name = "evidence_synthesis_calibration"
+path = "tests/evidence_synthesis_calibration.rs"
+
+[[test]]
+name = "generic_aipw_precision"
+path = "tests/generic_aipw_precision.rs"
+
+[[test]]
+name = "identity_contract"
+path = "tests/identity_contract.rs"
+
+[[test]]
+name = "joint_law_composed_interval_calibration"
+path = "tests/joint_law_composed_interval_calibration.rs"
+
+[[test]]
+name = "latency_tiers"
+path = "tests/latency_tiers.rs"
+
+[[test]]
+name = "licensed_compiler"
+path = "tests/licensed_compiler.rs"
+
+[[test]]
+name = "licensed_static_cells"
+path = "tests/licensed_static_cells.rs"
+
+[[test]]
+name = "linear_adjustment_route_evidence"
+path = "tests/linear_adjustment_route_evidence.rs"
+
+[[test]]
+name = "mixed_source_lifecycle"
+path = "tests/mixed_source_lifecycle.rs"
+
+[[test]]
+name = "mixture_interval_calibration"
+path = "tests/mixture_interval_calibration.rs"
+
+[[test]]
+name = "one_shot_checked_aipw"
+path = "tests/one_shot_checked_aipw.rs"
+
+[[test]]
+name = "panel_calibration"
+path = "tests/panel_calibration.rs"
+
+[[test]]
+name = "predictive_score_interval_calibration"
+path = "tests/predictive_score_interval_calibration.rs"
+
+[[test]]
+name = "prepared_analysis"
+path = "tests/prepared_analysis.rs"
+
+[[test]]
+name = "prepared_rebind_custom_validators"
+path = "tests/prepared_rebind_custom_validators.rs"
+
+[[test]]
+name = "prepared_refresh_fits"
+path = "tests/prepared_refresh_fits.rs"
+
+[[test]]
+name = "prepared_refresh_row_rebind"
+path = "tests/prepared_refresh_row_rebind.rs"
+
+[[test]]
+name = "refute_second_click"
+path = "tests/refute_second_click.rs"
+
+[[test]]
+name = "retained_score_precision"
+path = "tests/retained_score_precision.rs"
+
+[[test]]
+name = "retarget_alloc_count"
+path = "tests/retarget_alloc_count.rs"
+
+[[test]]
+name = "sample_split_effect_calibration"
+path = "tests/sample_split_effect_calibration.rs"
+
+[[test]]
+name = "scientific_bridge_interval_calibration"
+path = "tests/scientific_bridge_interval_calibration.rs"
+
+[[test]]
+name = "shared_workspace"
+path = "tests/shared_workspace.rs"
+
+[[test]]
+name = "static_calibration"
+path = "tests/static_calibration.rs"
+
+[[test]]
+name = "static_envelope_calibration"
+path = "tests/static_envelope_calibration.rs"
+
+[[test]]
+name = "static_mixture_calibration"
+path = "tests/static_mixture_calibration.rs"
+
+[[test]]
+name = "study_planning_lifecycle"
+path = "tests/study_planning_lifecycle.rs"
+
+[[test]]
+name = "temporal_class_calibration"
+path = "tests/temporal_class_calibration.rs"
+
+[[test]]
+name = "temporal_frequentist"
+path = "tests/temporal_frequentist.rs"
+
+[[test]]
+name = "temporal_response_calibration"
+path = "tests/temporal_response_calibration.rs"
+
+[[test]]
+name = "temporal_transport"
+path = "tests/temporal_transport.rs"
+
+[[test]]
+name = "transported_constructors_facade"
+path = "tests/transported_constructors_facade.rs"
+
+[[test]]
+name = "transported_decision_facade"
+path = "tests/transported_decision_facade.rs"
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"
+
+[[test]]
+name = "suite_02"
+path = "tests/suite_02.rs"
+
+[[test]]
+name = "suite_03"
+path = "tests/suite_03.rs"
+
+[[test]]
+name = "suite_04"
+path = "tests/suite_04.rs"
+
+[[test]]
+name = "suite_05"
+path = "tests/suite_05.rs"
+
+[[test]]
+name = "suite_06"
+path = "tests/suite_06.rs"
+
+[[test]]
+name = "suite_07"
+path = "tests/suite_07.rs"
+
+[[test]]
+name = "suite_08"
+path = "tests/suite_08.rs"
+
+[[test]]
+name = "suite_09"
+path = "tests/suite_09.rs"

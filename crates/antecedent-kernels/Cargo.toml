@@ -12,6 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 description = "Low-level borrowed views and scalar/optimized numerical kernels for the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
+autotests = false
 
 [lints]
 workspace = true
@@ -33,3 +34,7 @@ harness = false
 [[bench]]
 name = "reductions"
 harness = false
+
+[[test]]
+name = "alloc_count"
+path = "tests/alloc_count.rs"

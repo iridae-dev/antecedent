@@ -12,6 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 description = "Causal identification for the Antecedent engine: backdoor, front-door, IV, ID/IDC, and temporal strategies; start with the `antecedent` crate"
 readme = "README.md"
+autotests = false
 
 [lints]
 workspace = true
@@ -36,3 +37,19 @@ serde_json = { workspace = true }
 [[bench]]
 name = "adjustment"
 harness = false
+
+[[test]]
+name = "counterfactual_transport_decisions"
+path = "tests/counterfactual_transport_decisions.rs"
+
+[[test]]
+name = "finite_scm_oracle_selftest"
+path = "tests/finite_scm_oracle_selftest.rs"
+
+[[test]]
+name = "study_planning_search"
+path = "tests/study_planning_search.rs"
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"

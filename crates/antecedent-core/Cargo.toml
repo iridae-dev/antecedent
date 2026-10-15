@@ -12,6 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 description = "Identifiers, schemas, assumptions, provenance, and execution policy shared across the Antecedent causal inference engine; start with the `antecedent` crate"
 readme = "README.md"
+autotests = false
 
 [lints]
 workspace = true
@@ -19,3 +20,7 @@ workspace = true
 [dependencies]
 blake3 = { workspace = true }
 thiserror = { workspace = true }
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"

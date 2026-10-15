@@ -12,6 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 description = "Causal discovery for the Antecedent engine: PC, GES, LiNGAM, NOTEARS, FCI, the PCMCI family, and Bayesian graph posteriors; start with the `antecedent` crate"
 readme = "README.md"
+autotests = false
 
 [lints]
 workspace = true
@@ -50,3 +51,7 @@ harness = false
 [[bench]]
 name = "ci_search"
 harness = false
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"

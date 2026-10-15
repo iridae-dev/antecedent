@@ -12,6 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 description = "Prediction contract and nuisance learners for the Antecedent causal inference engine; start with the `antecedent` crate"
 readme = "README.md"
+autotests = false
 
 [lints]
 workspace = true
@@ -39,3 +40,7 @@ antecedent-learn-burn = { workspace = true, optional = true }
 [[example]]
 name = "neural_crossfit_benchmark"
 required-features = ["ml-neural"]
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"
