@@ -410,9 +410,12 @@ fn temporal_history_closed_candidate_replays_whole_unit_identities_without_cover
     assert_eq!(result.units, 640);
     assert_eq!(result.calibration, "unmeasured");
     assert_eq!(result.replicates.len(), 20);
+    // The point, each bootstrap draw and each delete-one jackknife unit (the acceleration of
+    // the percentile endpoints) rebuild one source joint and two sequence mechanisms.
     assert_eq!(
-        work.factor_builds, 63,
-        "one actual source joint and two sequence mechanisms for the point and each paired unit draw"
+        work.factor_builds,
+        3 * (1 + 20 + 640),
+        "one actual source joint and two sequence mechanisms for the point, each paired unit draw and each jackknife unit"
     );
     let replay = session.candidate_interval_internal(&config, &ctx()).unwrap();
     assert_eq!(result, replay);

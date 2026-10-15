@@ -447,10 +447,19 @@ pub fn effect_on_structure(
     level: f64,
 ) -> Result<AdjustedEffect, IoError> {
     if !structure.is_fully_directed() {
+        let unresolved = structure
+            .edges()
+            .iter()
+            .filter(|edge| !edge.is_directed())
+            .map(|edge| format!("{:?}-{:?} [{:?},{:?}]", edge.a, edge.b, edge.at_a, edge.at_b))
+            .collect::<Vec<_>>()
+            .join("; ");
         return Err(refused(
             "split_effect.structure_unresolved",
-            "the discovered structure has unresolved edges; no completion is part of the \
-             measured construction",
+            &format!(
+                "the discovered structure has unresolved edges ({unresolved}); no completion is \
+                 part of the measured construction"
+            ),
         ));
     }
     let parents = directed_parents(structure, treatment, variables)?;

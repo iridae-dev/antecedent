@@ -383,7 +383,7 @@ mod tests {
         let loaded = record_for(id).expect("id round-trip");
         assert_eq!(loaded.id, id);
         assert_eq!(loaded.query, rows[0]["query"].as_str().expect("query"));
-        assert_eq!(loaded.mcse.to_bits(), 0.015_951_097_140_949_27_f64.to_bits());
+        assert_eq!(loaded.mcse.to_bits(), rows[0]["mcse"].as_f64().expect("mcse").to_bits());
         assert_eq!(loaded.grid.len(), rows[0]["grid"].as_array().expect("grid").len());
         let expected_attesting: Vec<&str> = raw["attesting_record_ids"]
             .as_array()

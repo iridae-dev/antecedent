@@ -127,7 +127,8 @@ impl NativeMeasuredInference {
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
                 "split_effect" => {
-                    let wire: antecedent_io::measured_inference::split_effect::SplitEffectSource = antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;
+                    let wire: antecedent_io::measured_inference::split_effect::SplitEffectSource =
+                        antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
                 _ => Err(crate::value_err("measured_inference.source_report_not_supported")),

@@ -15940,7 +15940,7 @@ boundary = "A statement about the method over the measured family only: not abou
 activation_disposition = "retain_closed_cell_not_licensed_until_measured"
 allocation_status = "frozen_harness_compiled_measurement_pending"
 measurement_design_status = "implemented_whole_method_harness_not_run"
-truth_grid_allocation = "Total rows grid_n(400): 200, 400, 800 (half to each part); replicate k uses 5 + k mod 3 variables; 400 replicates per grid point."
+truth_grid_allocation = "Total rows grid_n(600): 300, 600, 1200 (half to each part); replicate k uses 5 + k mod 3 variables; 400 replicates per grid point."
 
 [[record.inference_outputs]]
 id = "sample_split_effect.2"

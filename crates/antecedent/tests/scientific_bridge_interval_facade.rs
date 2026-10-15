@@ -288,7 +288,7 @@ fn a_trial_level_prediction_interval_matches_the_hand_computed_variance_and_t_qu
     assert!(built.interval.coverage_record.is_empty(), "construction is not a licence");
     // The record's scope is the number of validation trials.
     assert_eq!(built.basis.scope.row_count, 4);
-    assert_eq!(built.basis.key.estimator, "scientific_bridge.trial_level_linear");
+    assert_eq!(built.basis.key.estimator, "scientific_bridge_trial_level_linear");
 }
 
 #[test]

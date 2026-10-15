@@ -551,20 +551,18 @@ fn count_fitted_observation_build(
             "observation_query.count_fitted_bounds_exceeded",
         ));
     }
-    let nodes: Vec<CountFittedNodeWire> = serde_json::from_str(nodes_json)
-        .map_err(|e| {
-            crate::value_err_code(
-                antecedent_core::reason_code!("invalid_argument"),
-                format!("observation_query.invalid_request: {e}"),
-            )
-        })?;
-    let evidence: Vec<(String, String)> = serde_json::from_str(evidence_json)
-        .map_err(|e| {
-            crate::value_err_code(
-                antecedent_core::reason_code!("invalid_argument"),
-                format!("observation_query.invalid_request: {e}"),
-            )
-        })?;
+    let nodes: Vec<CountFittedNodeWire> = serde_json::from_str(nodes_json).map_err(|e| {
+        crate::value_err_code(
+            antecedent_core::reason_code!("invalid_argument"),
+            format!("observation_query.invalid_request: {e}"),
+        )
+    })?;
+    let evidence: Vec<(String, String)> = serde_json::from_str(evidence_json).map_err(|e| {
+        crate::value_err_code(
+            antecedent_core::reason_code!("invalid_argument"),
+            format!("observation_query.invalid_request: {e}"),
+        )
+    })?;
     match CountFittedObservation::new(nodes, rows, target, target_level, &evidence, seed) {
         Ok(claim) => match claim.source().encode() {
             Ok(bytes) => Ok((Some(bytes), None)),

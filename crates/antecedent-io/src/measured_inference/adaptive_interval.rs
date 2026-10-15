@@ -35,7 +35,6 @@ use antecedent_contract::adaptive_design::{
 use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_estimate::adaptive_measured_interval as built;
 
-
 fn refusal(message: &str) -> IoError {
     IoError::Refused {
         code: antecedent_core::reason_code!("cell_not_licensed"),
