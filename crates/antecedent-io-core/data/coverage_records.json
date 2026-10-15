@@ -11116,6 +11116,177 @@
       "calibration_sha": "c0a6de5e84130be27360d73fdf6188b826de6f7f"
     },
     {
+      "id": "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.separate_streams",
+      "query": "DecisionReliability",
+      "graph_class": "NotApplicable",
+      "structure": "fixed",
+      "modality": "decision_draws",
+      "inference": "Frequentist",
+      "estimator": "decision_reliability_utility_interval",
+      "interval_method": "wald_normal",
+      "se_kind": "monte_carlo",
+      "dependence": "declared_independent.independent",
+      "posterior": "",
+      "functional": "candidates=8;rule=maximize_expected_utility;functional=expected_utility",
+      "identification": "point",
+      "nominal": "0.95",
+      "n_min": 500,
+      "n_max": 2000,
+      "replicates_min": 0,
+      "posterior_draws_min": 0,
+      "unidentified_mass_max": "0.0",
+      "observed": "0.947375",
+      "mcse": "0.002496387624523684",
+      "replicates": 8000,
+      "boundary": false,
+      "grid": [
+        {
+          "point": 0,
+          "n_min": 500,
+          "n_max": 500,
+          "observed": "0.95",
+          "mcse": "0.010897247358851688",
+          "replicates": 400,
+          "boundary": false
+        },
+        {
+          "point": 1,
+          "n_min": 1000,
+          "n_max": 1000,
+          "observed": "0.950125",
+          "mcse": "0.002433810910254739",
+          "replicates": 8000,
+          "boundary": false
+        },
+        {
+          "point": 2,
+          "n_min": 2000,
+          "n_max": 2000,
+          "observed": "0.947375",
+          "mcse": "0.002496387624523684",
+          "replicates": 8000,
+          "boundary": false
+        }
+      ],
+      "dgp": "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_seven_equal_candidates_gaussian_utilities",
+      "test": "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::utility_interval_eight_candidates_l95",
+      "calibration_sha": "dd3cb96e0f9cfe43b43678d7e69ab20d688729d1"
+    },
+    {
+      "id": "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.shared_rho_0_0",
+      "query": "DecisionReliability",
+      "graph_class": "NotApplicable",
+      "structure": "fixed",
+      "modality": "decision_draws",
+      "inference": "Frequentist",
+      "estimator": "decision_reliability_utility_interval",
+      "interval_method": "wald_normal",
+      "se_kind": "monte_carlo",
+      "dependence": "shared_simulation.independent",
+      "posterior": "",
+      "functional": "candidates=8;rule=maximize_expected_utility;functional=expected_utility",
+      "identification": "point",
+      "nominal": "0.95",
+      "n_min": 500,
+      "n_max": 2000,
+      "replicates_min": 0,
+      "posterior_draws_min": 0,
+      "unidentified_mass_max": "0.0",
+      "observed": "0.9465",
+      "mcse": "0.0025158932310414125",
+      "replicates": 8000,
+      "boundary": false,
+      "grid": [
+        {
+          "point": 0,
+          "n_min": 500,
+          "n_max": 500,
+          "observed": "0.9575",
+          "mcse": "0.010086345968684594",
+          "replicates": 400,
+          "boundary": false
+        },
+        {
+          "point": 1,
+          "n_min": 1000,
+          "n_max": 1000,
+          "observed": "0.947625",
+          "mcse": "0.002490779480780062",
+          "replicates": 8000,
+          "boundary": false
+        },
+        {
+          "point": 2,
+          "n_min": 2000,
+          "n_max": 2000,
+          "observed": "0.9465",
+          "mcse": "0.0025158932310414125",
+          "replicates": 8000,
+          "boundary": false
+        }
+      ],
+      "dgp": "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_seven_equal_candidates_gaussian_utilities",
+      "test": "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::utility_interval_eight_candidates_l95",
+      "calibration_sha": "dd3cb96e0f9cfe43b43678d7e69ab20d688729d1"
+    },
+    {
+      "id": "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.shared_rho_0_5",
+      "query": "DecisionReliability",
+      "graph_class": "NotApplicable",
+      "structure": "fixed",
+      "modality": "decision_draws",
+      "inference": "Frequentist",
+      "estimator": "decision_reliability_utility_interval",
+      "interval_method": "wald_normal",
+      "se_kind": "monte_carlo",
+      "dependence": "shared_simulation.independent",
+      "posterior": "",
+      "functional": "candidates=8;rule=maximize_expected_utility;functional=expected_utility",
+      "identification": "point",
+      "nominal": "0.95",
+      "n_min": 500,
+      "n_max": 2000,
+      "replicates_min": 0,
+      "posterior_draws_min": 0,
+      "unidentified_mass_max": "0.0",
+      "observed": "0.9475",
+      "mcse": "0.01115165346484547",
+      "replicates": 400,
+      "boundary": false,
+      "grid": [
+        {
+          "point": 0,
+          "n_min": 500,
+          "n_max": 500,
+          "observed": "0.9475",
+          "mcse": "0.01115165346484547",
+          "replicates": 400,
+          "boundary": false
+        },
+        {
+          "point": 1,
+          "n_min": 1000,
+          "n_max": 1000,
+          "observed": "0.953125",
+          "mcse": "0.0023632005409772146",
+          "replicates": 8000,
+          "boundary": false
+        },
+        {
+          "point": 2,
+          "n_min": 2000,
+          "n_max": 2000,
+          "observed": "0.950375",
+          "mcse": "0.002428022842123814",
+          "replicates": 8000,
+          "boundary": false
+        }
+      ],
+      "dgp": "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_seven_equal_candidates_gaussian_utilities",
+      "test": "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::utility_interval_eight_candidates_l95",
+      "calibration_sha": "dd3cb96e0f9cfe43b43678d7e69ab20d688729d1"
+    },
+    {
       "id": "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_sixty_four_candidates_l95.separate_streams",
       "query": "DecisionReliability",
       "graph_class": "NotApplicable",
@@ -21145,7 +21316,64 @@
       ],
       "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::two_fixed_gaussian_forecasts_against_stationary_ar1_phi_0_5_outcomes",
       "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::serial_crps_difference_l95",
-      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
+      "calibration_sha": "dd3cb96e0f9cfe43b43678d7e69ab20d688729d1"
+    },
+    {
+      "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_crps_mean_l95",
+      "query": "PredictiveScoreInterval",
+      "graph_class": "NotApplicable",
+      "structure": "fixed",
+      "modality": "case_scores",
+      "inference": "Frequentist",
+      "estimator": "predictive_assessment_score_mean",
+      "interval_method": "student_t_bartlett_hac",
+      "se_kind": "analytic_mean_variance",
+      "dependence": "serial",
+      "posterior": "",
+      "functional": "score=crps;law=gaussian;design=held_out_split;overlap=not_fitted",
+      "identification": "point",
+      "nominal": "0.95",
+      "n_min": 1600,
+      "n_max": 6400,
+      "replicates_min": 0,
+      "posterior_draws_min": 0,
+      "unidentified_mass_max": "0.0",
+      "observed": "0.925",
+      "mcse": "0.01316956719106592",
+      "replicates": 400,
+      "boundary": true,
+      "grid": [
+        {
+          "point": 0,
+          "n_min": 1600,
+          "n_max": 1600,
+          "observed": "0.95",
+          "mcse": "0.010897247358851688",
+          "replicates": 400,
+          "boundary": true
+        },
+        {
+          "point": 1,
+          "n_min": 3200,
+          "n_max": 3200,
+          "observed": "0.9525",
+          "mcse": "0.010635289135702893",
+          "replicates": 400,
+          "boundary": true
+        },
+        {
+          "point": 2,
+          "n_min": 6400,
+          "n_max": 6400,
+          "observed": "0.925",
+          "mcse": "0.01316956719106592",
+          "replicates": 400,
+          "boundary": true
+        }
+      ],
+      "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_stationary_ar1_phi_0_5_outcomes",
+      "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::serial_crps_mean_l95",
+      "calibration_sha": "dd3cb96e0f9cfe43b43678d7e69ab20d688729d1"
     },
     {
       "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_log_score_mean_l95",
@@ -21202,7 +21430,7 @@
       ],
       "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_stationary_ar1_phi_0_5_outcomes",
       "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::serial_log_score_mean_l95",
-      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
+      "calibration_sha": "dd3cb96e0f9cfe43b43678d7e69ab20d688729d1"
     },
     {
       "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_crps_difference_l95",
@@ -21259,7 +21487,7 @@
       ],
       "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::two_fixed_gaussian_forecasts_against_clustered_standard_normal_outcomes_size_5",
       "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::cluster_crps_difference_l95",
-      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
+      "calibration_sha": "dd3cb96e0f9cfe43b43678d7e69ab20d688729d1"
     },
     {
       "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_crps_mean_l95",
@@ -21316,7 +21544,7 @@
       ],
       "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_clustered_standard_normal_outcomes_size_5",
       "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::cluster_crps_mean_l95",
-      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
+      "calibration_sha": "dd3cb96e0f9cfe43b43678d7e69ab20d688729d1"
     },
     {
       "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_log_score_mean_l95",
@@ -21373,7 +21601,7 @@
       ],
       "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_clustered_standard_normal_outcomes_size_5",
       "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::cluster_log_score_mean_l95",
-      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
+      "calibration_sha": "dd3cb96e0f9cfe43b43678d7e69ab20d688729d1"
     },
     {
       "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_crps_difference_l95",
@@ -21430,7 +21658,7 @@
       ],
       "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::two_fixed_gaussian_forecasts_against_iid_standard_normal_outcomes",
       "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_crps_difference_l95",
-      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
+      "calibration_sha": "dd3cb96e0f9cfe43b43678d7e69ab20d688729d1"
     },
     {
       "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_crps_mean_l95",
@@ -21487,7 +21715,7 @@
       ],
       "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_iid_standard_normal_outcomes",
       "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_crps_mean_l95",
-      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
+      "calibration_sha": "dd3cb96e0f9cfe43b43678d7e69ab20d688729d1"
     },
     {
       "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_log_score_heavy_tailed_truth_boundary_l95",
@@ -21544,7 +21772,7 @@
       ],
       "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_iid_student_t3_unit_variance_outcomes",
       "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_log_score_heavy_tailed_truth_boundary_l95",
-      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
+      "calibration_sha": "dd3cb96e0f9cfe43b43678d7e69ab20d688729d1"
     },
     {
       "id": "cov.predictive_score_interval.not_applicable.frequentist.student_t_iid.l95.iid_log_score_mean_l95",
@@ -21601,7 +21829,7 @@
       ],
       "dgp": "crates/antecedent/tests/predictive_score_interval_calibration.rs::fixed_gaussian_forecast_against_iid_standard_normal_outcomes",
       "test": "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_log_score_mean_l95",
-      "calibration_sha": "4fe0e26833bdb8120020d07685c2575f2cd6b3eb"
+      "calibration_sha": "dd3cb96e0f9cfe43b43678d7e69ab20d688729d1"
     },
     {
       "id": "cov.pulse_effect.temporal_cpdag.bayesian.posterior_quantile.l90.bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage",
@@ -49731,6 +49959,9 @@
     "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.separate_streams",
     "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_0",
     "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_5",
+    "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.separate_streams",
+    "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.shared_rho_0_0",
+    "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.shared_rho_0_5",
     "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_sixty_four_candidates_l95.separate_streams",
     "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_sixty_four_candidates_l95.shared_rho_0_0",
     "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_sixty_four_candidates_l95.shared_rho_0_5",
@@ -49907,6 +50138,7 @@
     "cov.point_derivative.dag.frequentist.analytic_se.l90.point_derivative_frequentist_curvature_nominal_90_coverage",
     "cov.point_derivative.dag.frequentist.analytic_se.l90.point_derivative_order_2_frequentist_curvature_nominal_90_coverage",
     "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_crps_difference_l95",
+    "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_crps_mean_l95",
     "cov.predictive_score_interval.not_applicable.frequentist.student_t_bartlett_hac.l95.serial_log_score_mean_l95",
     "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_crps_difference_l95",
     "cov.predictive_score_interval.not_applicable.frequentist.student_t_cluster_robust.l95.cluster_crps_mean_l95",
