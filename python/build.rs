@@ -47,8 +47,10 @@ fn main() {
     }
     if let Some(dir) = config.lib_dir() {
         println!("cargo:rustc-link-search=native={dir}");
+        // Only macOS installs libpython as `@rpath/...`; GNU toolchains also reject a
+        // path in `-fuse-ld`, and the Linux harness finds libpython by its soname.
         #[cfg(unix)]
-        if env::var("CARGO_CFG_TARGET_FAMILY").as_deref() == Ok("unix") {
+        if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
             emit_test_only_rpath(dir);
         }
     }
