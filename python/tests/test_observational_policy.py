@@ -92,7 +92,9 @@ def test_held_out_and_cross_fitted_learning_beat_never_treating() -> None:
     )
     for result in (held_out, honest):
         assert result.value > 1.2
-        assert abs(result.value - TRUTH) < 0.05
+        # The optimum's value is 1 + 1.5 phi(0); the learned rule's regret is second order, so the
+        # gap is sampling error: within 4 reported standard errors (plus 0.01 for the regret).
+        assert abs(result.value - TRUTH) < 4 * result.se + 0.01
     assert held_out.evaluation_rows + held_out.learning_rows == 8000
     assert honest.evaluation_rows == 8000
 
