@@ -81,7 +81,9 @@ pub use panel_slice::PanelSliceTemplate;
 pub use placebo::{PlaceboMode, PlaceboTreatment};
 pub use rcc::RandomCommonCause;
 pub use riesz::RieszSensitivity;
-pub use sensitivity::{LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity};
+pub use sensitivity::{
+    LinearSensitivity, NeighborhoodSensitivity, NonparametricSensitivity, PartialLinearSensitivity,
+};
 pub use stability::{
     AlphaThresholdSensitivity, BlockBootstrapStability, CiTestSensitivity,
     DiscoveryStabilityReport, EnvironmentHoldout, EnvironmentHoldoutReport, FalsePositiveCheck,

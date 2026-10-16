@@ -519,9 +519,9 @@ pub(crate) fn collect_null_pvalues_parcorr_like(
 mod tests {
     use super::*;
     use crate::ci::{
-        GSquared, Gpdc, KnnDependence, MixedKnnDependence, MultivariatePartialCorrelation,
-        PartialCorrelation, RegressionCi, RobustPartialCorrelation, SymbolicCmi,
-        WeightedPartialCorrelation,
+        GSquared, Gpdc, GpdcNystrom, KnnDependence, MixedKnnDependence,
+        MultivariatePartialCorrelation, PartialCorrelation, RegressionCi, RobustPartialCorrelation,
+        SymbolicCmi, WeightedPartialCorrelation,
     };
 
     #[test]
@@ -1343,6 +1343,76 @@ mod tests {
             |rng| confounded_gaussian(100, 100.0, rng),
         );
         assert_conditional_null_calibrated("GPDC", rej, trials, alpha);
+    }
+
+    /// `[x, y, z]` with a smooth nonlinear confounder: `z ~ N(0, 1)`,
+    /// `x = 1.5 sin(1.5 z) + e₁`, `y = 1.5 tanh(1.5 z) + e₂ + effect · x`. At `effect = 0`,
+    /// `X ⊥ Y | Z`.
+    fn nonlinear_confounded(n: usize, effect: f64, rng: &mut CausalRng) -> Vec<Vec<f64>> {
+        let z: Vec<f64> = (0..n).map(|_| standard_normal(rng)).collect();
+        let x: Vec<f64> = z.iter().map(|&z| 1.5 * (1.5 * z).sin() + standard_normal(rng)).collect();
+        let y: Vec<f64> = z
+            .iter()
+            .zip(&x)
+            .map(|(&z, &x)| 1.5 * (1.5 * z).tanh() + standard_normal(rng) + effect * x)
+            .collect();
+        vec![x, y, z]
+    }
+
+    /// The Nyström-residualized GPDC (declared rank 256), which is the only GPDC route above
+    /// 4000 rows, must hold its Type I rate where the exact test cannot run: a nonlinear
+    /// confounder that the 256-point kernel has to represent, at n = 6000.
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn gpdc_nystrom_conditional_null_gate() {
+        let (trials, alpha) = (200u32, 0.05);
+        let (rej, trials) = conditional_null_rejections(
+            &GpdcNystrom::new(),
+            trials,
+            alpha,
+            137,
+            0xC0_0A,
+            SignificanceMethod::BlockShuffle { replicates: 99, block_size: 1 },
+            |rng| nonlinear_confounded(6000, 0.0, rng),
+        );
+        assert_conditional_null_calibrated("GPDC Nystrom (n=6000)", rej, trials, alpha);
+    }
+
+    /// As [`gpdc_nystrom_conditional_null_gate`] at n = 20000, where a fixed rank covers a
+    /// smaller share of the sample.
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn gpdc_nystrom_conditional_null_large_n_gate() {
+        let (trials, alpha) = (100u32, 0.05);
+        let (rej, trials) = conditional_null_rejections(
+            &GpdcNystrom::new(),
+            trials,
+            alpha,
+            139,
+            0xC0_0B,
+            SignificanceMethod::BlockShuffle { replicates: 99, block_size: 1 },
+            |rng| nonlinear_confounded(20_000, 0.0, rng),
+        );
+        assert_conditional_null_calibrated("GPDC Nystrom (n=20000)", rej, trials, alpha);
+    }
+
+    /// Power of the Nyström-residualized GPDC against a conditional dependence of
+    /// `Y` on `X` of 0.1 per unit (partial correlation about 0.1) at n = 6000.
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn gpdc_nystrom_conditional_power_gate() {
+        let (trials, alpha) = (100u32, 0.05);
+        let (rej, trials) = conditional_null_rejections(
+            &GpdcNystrom::new(),
+            trials,
+            alpha,
+            149,
+            0xC0_0C,
+            SignificanceMethod::BlockShuffle { replicates: 99, block_size: 1 },
+            |rng| nonlinear_confounded(6000, 0.1, rng),
+        );
+        let power = f64::from(rej) / f64::from(trials);
+        assert!(power >= 0.9, "GPDC Nystrom power {power} ({rej}/{trials}) below 0.9");
     }
 
     /// AR(1) Z and independent AR(1) arm noise: `X ⊥ Y | Z` with serial dependence, block 20.

@@ -187,7 +187,7 @@ impl DistanceMatching {
         &self,
         problem: &PreparedPropensityProblem,
         workspace: &mut PropensityEstimationWorkspace,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         // `bootstrap_replicates` is intentionally unread: the nonparametric bootstrap is
@@ -249,6 +249,7 @@ impl DistanceMatching {
                 features: &f_used,
                 dim,
                 distance: MatchingDistance::Euclidean,
+                ctx,
             },
             &problem.target_population,
             self.caliper,

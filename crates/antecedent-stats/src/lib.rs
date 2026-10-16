@@ -46,11 +46,11 @@ mod welford;
 pub use ci::{
     BayesFactorCi, BlockTest, CalibrationReport, CiBatchRequest, CiBatchResult, CiPreparationPlan,
     CiQuery, CiResult, CiWorkspace, ConditionalIndependence, ConditionalIndependenceTest,
-    ConfidenceMethod, GSquared, Gpdc, KnnDependence, KnnDependenceWorkspace, MixedKnnDependence,
-    MultivariatePartialCorrelation, OracleCi, PairwiseMultivariateCi, PartialCorrelation,
-    PosteriorDependenceCi, PosteriorPredictiveCi, PreparedCiTest, RegressionCi,
-    RobustPartialCorrelation, SignificanceMethod, SymbolicCmi, WeightedPartialCorrelation,
-    calibrate_parcorr_like, ci_from_name, ensure_alpha_resolvable,
+    ConfidenceMethod, GPDC_NYSTROM_MAX_INDUCING_POINTS, GSquared, Gpdc, GpdcNystrom, KnnDependence,
+    KnnDependenceWorkspace, MixedKnnDependence, MultivariatePartialCorrelation, OracleCi,
+    PairwiseMultivariateCi, PartialCorrelation, PosteriorDependenceCi, PosteriorPredictiveCi,
+    PreparedCiTest, RegressionCi, RobustPartialCorrelation, SignificanceMethod, SymbolicCmi,
+    WeightedPartialCorrelation, calibrate_parcorr_like, ci_from_name, ensure_alpha_resolvable,
 };
 #[cfg(test)]
 pub(crate) use cluster::panel_effective_lag;
@@ -116,9 +116,7 @@ pub use joint_law::{
 };
 pub use linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
 pub use m_estimate::{MEstimateFit, MEstimateOptions, fit_huber_m};
-pub use matching::{
-    EXACT_MATCHING_ROW_LIMIT, MatchingDistance, MatchingIndex, nearest_euclidean_scalar,
-};
+pub use matching::{MatchingDistance, MatchingIndex, nearest_euclidean_scalar};
 pub use observation::{
     GaussianObservation, KaplanMeierIpcw, ObservationProbabilityFit, censoring_tail_restriction,
     fit_observation_logistic, gaussian_observation_log_likelihood, kaplan_meier_ipcw,

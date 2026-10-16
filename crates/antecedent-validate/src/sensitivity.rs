@@ -6,7 +6,10 @@
 //! and outcome on adjustment covariates with Nadaraya–Watson (Nadaraya 1964; Watson 1964) kernel
 //! regression, then runs the
 //! same partial-R² grid on the residualized series — a production nonparametric path distinct
-//! from the partial-linear shape stand-in.
+//! from the partial-linear shape stand-in. That smoother is quadratic in the sample size, so it
+//! is limited to [`MAX_NONPARAMETRIC_ROWS`] complete cases; [`NeighborhoodSensitivity`] is the
+//! separate construction for larger samples, with the Gaussian kernel truncated to a declared
+//! number of nearest neighbours.
 //!
 //! The reported `robustness_value` is the *simulated tipping partial R²*: the smallest grid
 //! value at which adding `U` (added to the observed treatment and outcome, then refitting)
@@ -826,6 +829,169 @@ fn nw_loo_predict_pair(
     Ok(rows.into_iter().unzip())
 }
 
+/// Cells of identical covariate rows: row indices grouped by cell (`rows`), with
+/// `start[c]..start[c + 1]` the slice of cell `c`.
+struct CovariateCells {
+    rows: Vec<usize>,
+    start: Vec<usize>,
+}
+
+impl CovariateCells {
+    /// Group the rows of row-major `cov` by exact (total-order) equality, rows ascending
+    /// within a cell and cells in lexicographic order of their covariates.
+    fn new(cov: &[f64], n: usize, dim: usize) -> Self {
+        let row = |i: usize| &cov[i * dim..(i + 1) * dim];
+        let compare = |a: usize, b: usize| {
+            row(a)
+                .iter()
+                .zip(row(b))
+                .map(|(x, y)| x.total_cmp(y))
+                .find(|order| order.is_ne())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        };
+        let mut rows: Vec<usize> = (0..n).collect();
+        rows.sort_by(|&a, &b| compare(a, b).then(a.cmp(&b)));
+        let mut start: Vec<usize> = Vec::new();
+        for pos in 0..n {
+            if pos == 0 || compare(rows[pos - 1], rows[pos]).is_ne() {
+                start.push(pos);
+            }
+        }
+        start.push(n);
+        Self { rows, start }
+    }
+
+    fn len(&self) -> usize {
+        self.start.len() - 1
+    }
+
+    fn rows_of(&self, cell: usize) -> &[usize] {
+        &self.rows[self.start[cell]..self.start[cell + 1]]
+    }
+}
+
+/// Cells whose neighbour lists one worker handles per task.
+const NEIGHBORHOOD_CELL_CHUNK: usize = 256;
+
+/// Neighbourhood-truncated leave-one-out Nadaraya–Watson prediction of two targets sharing one
+/// covariate matrix (`n × dim`, row-major), the scalable counterpart of [`nw_loo_predict_pair`].
+///
+/// The weight of a neighbour is `exp(−½ (d² − d₀²) / h²)` with `d₀` the distance to the nearest
+/// contributing point, as in the exact smoother; only the `neighbors` nearest other covariate
+/// points enter the sums (rows with identical covariates are one point carrying their count and
+/// sums, and a row's own point contributes its other rows). Every row is independent given the
+/// shared neighbour search, so the output does not depend on the thread count.
+fn neighborhood_loo_predict_pair(
+    y1: &[f64],
+    y2: &[f64],
+    cov_rowmajor: &[f64],
+    dim: usize,
+    bandwidth: f64,
+    neighbors: usize,
+    ctx: &ExecutionContext,
+) -> Result<(Vec<f64>, Vec<f64>), ValidationError> {
+    let n = y1.len();
+    let word = core::mem::size_of::<f64>();
+    let required = n
+        .checked_mul(dim.saturating_add(14))
+        .and_then(|words| words.checked_mul(word))
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .unwrap_or(u64::MAX);
+    if let Some(limit_bytes) = ctx.memory.hard_limit_bytes {
+        if required > limit_bytes {
+            return Err(ValidationError::Stats(antecedent_stats::StatsError::ResourceLimit {
+                message: "neighborhood sensitivity smoother",
+                required_bytes: required,
+                limit_bytes,
+            }));
+        }
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(ValidationError::Cancelled);
+    }
+    let cells = CovariateCells::new(cov_rowmajor, n, dim);
+    let n_cells = cells.len();
+    let mut cell_features = Vec::with_capacity(n_cells * dim);
+    let mut count = Vec::with_capacity(n_cells);
+    let mut sum1 = Vec::with_capacity(n_cells);
+    let mut sum2 = Vec::with_capacity(n_cells);
+    for c in 0..n_cells {
+        let rows = cells.rows_of(c);
+        cell_features.extend_from_slice(&cov_rowmajor[rows[0] * dim..(rows[0] + 1) * dim]);
+        count.push(rows.len() as f64);
+        sum1.push(rows.iter().map(|&i| y1[i]).sum::<f64>());
+        sum2.push(rows.iter().map(|&i| y2[i]).sum::<f64>());
+    }
+    let cell_ids: Vec<usize> = (0..n_cells).collect();
+    let index = antecedent_stats::MatchingIndex::exact(
+        &cell_features,
+        dim,
+        &cell_ids,
+        antecedent_stats::MatchingDistance::Euclidean,
+        ctx,
+    )?;
+    // One more than `neighbors`: a cell's own point is among its nearest and may contribute
+    // nothing (a single row), which must not cost a neighbour slot.
+    let k = neighbors.saturating_add(1);
+    let h2 = bandwidth * bandwidth;
+    let chunks = n_cells.div_ceil(NEIGHBORHOOD_CELL_CHUNK);
+    let parts = ctx.map_indexed(chunks, |chunk, inner| {
+        if inner.cancellation.is_cancelled() {
+            return Err(ValidationError::Cancelled);
+        }
+        let first = chunk * NEIGHBORHOOD_CELL_CHUNK;
+        let last = (first + NEIGHBORHOOD_CELL_CHUNK).min(n_cells);
+        let mut out: Vec<(usize, f64, f64)> = Vec::new();
+        let mut found: Vec<(usize, f64)> = Vec::new();
+        for c in first..last {
+            index.nearest_k(&cell_features[c * dim..(c + 1) * dim], k, &mut found)?;
+            if !found.iter().any(|&(u, _)| u == c) {
+                found.push((c, 0.0));
+            }
+            for &i in cells.rows_of(c) {
+                // This row leaves its own cell's sums.
+                let others = |u: usize| count[u] - f64::from(u8::from(u == c));
+                let nearest = found
+                    .iter()
+                    .filter(|&&(u, _)| others(u) > 0.0)
+                    .map(|&(_, d)| d * d)
+                    .fold(f64::INFINITY, f64::min);
+                let (mut num1, mut num2, mut den) = (0.0, 0.0, 0.0);
+                for &(u, d) in &found {
+                    let m = others(u);
+                    if m <= 0.0 {
+                        continue;
+                    }
+                    let d2 = d * d;
+                    let w = if d2.total_cmp(&nearest).is_eq() {
+                        1.0
+                    } else {
+                        (-0.5 * (d2 - nearest) / h2).exp()
+                    };
+                    let own = u == c;
+                    num1 += w * (sum1[u] - if own { y1[i] } else { 0.0 });
+                    num2 += w * (sum2[u] - if own { y2[i] } else { 0.0 });
+                    den += w * m;
+                }
+                if den.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
+                    return Err(ValidationError::NotApplicable {
+                        message: "neighborhood sensitivity found no other row to smooth over",
+                    });
+                }
+                out.push((i, num1 / den, num2 / den));
+            }
+        }
+        Ok(out)
+    })?;
+    let mut hat1 = vec![0.0; n];
+    let mut hat2 = vec![0.0; n];
+    for (i, a, b) in parts.into_iter().flatten() {
+        hat1[i] = a;
+        hat2[i] = b;
+    }
+    Ok((hat1, hat2))
+}
+
 /// SD of each target after linearly regressing it on the adjustment set, i.e.
 /// `(SD(first | Z), SD(second | Z))`.
 ///
@@ -1006,10 +1172,6 @@ impl NonparametricSensitivity {
     ///
     /// Data failures or empty `partial_r2_grid`.
     #[allow(
-        clippy::cast_possible_truncation,
-        reason = "the refutation reports its grid size as u32, and a partial-R-squared grid is far below 2^32 points"
-    )]
-    #[allow(
         clippy::only_used_in_recursion,
         reason = "part of the shared refuter signature; the temporal branch re-enters with the aligned problem"
     )]
@@ -1029,85 +1191,238 @@ impl NonparametricSensitivity {
                 message: "nonparametric sensitivity requires a non-empty partial_r2_grid",
             });
         }
-        let (t_res, y_res, n) = kernel_residuals(problem, self.bandwidth, ctx)?;
-        let (_, _, treatment_delta) = antecedent_estimate::prepare::treatment_contrast(
-            &problem.query.active,
-            &problem.query.control,
-        )?;
-        let residual_ate = residual_ols_ate(&t_res, &y_res);
-        // The check perturbs the *residual* slope, which need not share the published
-        // estimate's sign; a tipping value for a different effect says nothing about it.
-        // (`residual_ate` is per unit of treatment; the published estimate is per contrast.)
-        let residual_effect = residual_ate * treatment_delta;
-        if !residual_effect.is_finite()
-            || (residual_effect != 0.0
-                && problem.original.ate != 0.0
-                && residual_effect.signum() != problem.original.ate.signum())
-        {
-            return Err(ValidationError::NotApplicable {
-                message: "the kernel-residualized effect is undefined or has the opposite sign \
-                          of the published estimate, so its tipping value does not describe it",
-            });
-        }
-        let sd_t = sample_sd(&t_res);
-        let sd_y = sample_sd(&y_res);
-        if !(sd_t.is_finite() && sd_t > 0.0 && sd_y.is_finite() && sd_y > 0.0) {
-            return Err(ValidationError::NotApplicable {
-                message: "nonparametric sensitivity requires positive residual variation in \
-                          treatment and outcome after kernel residualization",
-            });
-        }
-        let mut u = vec![0.0; n];
-        fill_gaussian(&mut u, ctx, crate::streams::NONPARAMETRIC_SENSITIVITY);
-        orthogonalize_confounder(&mut u, &vec![true; n], &[t_res.clone(), y_res.clone()]);
-
-        let mut sorted_grid = self.partial_r2_grid.clone();
-        sorted_grid.sort_by(f64::total_cmp);
-        let original_sign = residual_ate.signum();
-        // Worst-case orientation, as in `run_grid`: load U on Y against the observed sign.
-        let dir = if residual_ate >= 0.0 { -1.0 } else { 1.0 };
-        let moments = PerturbMoments::new(&t_res, &y_res, &u);
-        let mut last_ate = residual_ate;
-        let mut explained_away_at = None;
-        for &r in &sorted_grid {
-            let r = r.clamp(0.0, 0.999);
-            let scale = (r / (1.0 - r)).sqrt();
-            // `t' = t + a u`, `y' = y + b u`. The OLS slope is a function of the
-            // five raw second moments, so the grid does not rebuild the series.
-            last_ate = moments.slope(scale * sd_t, dir * scale * sd_y);
-            #[allow(
-                clippy::float_cmp,
-                reason = "signum returns exactly +/-1 (or NaN), so comparing two signs for equality is exact"
-            )]
-            let sign_flipped = last_ate.signum() != original_sign;
-            if last_ate.abs() < 1e-9 || sign_flipped {
-                explained_away_at = Some(r);
-                break;
-            }
-        }
-        let robustness_value = grid_robustness_value(explained_away_at);
-        let passed = robustness_passes(
-            probed_partial_r2(&self.partial_r2_grid),
-            robustness_value,
-            self.pass_threshold,
-        );
-        Ok(grid_report(
-            "sensitivity.nonparametric",
-            problem.original.ate,
-            last_ate * treatment_delta,
-            robustness_value,
-            passed,
-            || {
-                grid_failure_text(
-                    "nonparametric residual effect",
-                    "partial R²",
-                    robustness_value,
-                    self.pass_threshold,
-                )
+        let residuals = kernel_residuals(problem, self.bandwidth, ctx, ResidualSmoother::Exact)?;
+        residual_grid_report(
+            problem,
+            ctx,
+            residuals,
+            &ResidualGrid {
+                partial_r2_grid: &self.partial_r2_grid,
+                pass_threshold: self.pass_threshold,
+                refuter: "sensitivity.nonparametric",
+                stream: crate::streams::NONPARAMETRIC_SENSITIVITY,
             },
-            self.partial_r2_grid.len() as u32,
-        ))
+        )
     }
+}
+
+/// Grid, threshold, report id and confounder stream of one residual-grid sensitivity run.
+struct ResidualGrid<'a> {
+    partial_r2_grid: &'a [f64],
+    pass_threshold: f64,
+    refuter: &'static str,
+    stream: u64,
+}
+
+/// The partial-R² grid on the residualized treatment and outcome (`n` complete cases): the
+/// part of the nonparametric refuters that does not depend on the smoother.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the refutation reports its grid size as u32, and a partial-R-squared grid is far below 2^32 points"
+)]
+fn residual_grid_report(
+    problem: &RefutationProblem<'_>,
+    ctx: &ExecutionContext,
+    residuals: (Vec<f64>, Vec<f64>, usize),
+    spec: &ResidualGrid<'_>,
+) -> Result<RefutationReport, ValidationError> {
+    let (t_res, y_res, n) = residuals;
+    let (_, _, treatment_delta) = antecedent_estimate::prepare::treatment_contrast(
+        &problem.query.active,
+        &problem.query.control,
+    )?;
+    let residual_ate = residual_ols_ate(&t_res, &y_res);
+    // The check perturbs the *residual* slope, which need not share the published
+    // estimate's sign; a tipping value for a different effect says nothing about it.
+    // (`residual_ate` is per unit of treatment; the published estimate is per contrast.)
+    let residual_effect = residual_ate * treatment_delta;
+    if !residual_effect.is_finite()
+        || (residual_effect != 0.0
+            && problem.original.ate != 0.0
+            && residual_effect.signum() != problem.original.ate.signum())
+    {
+        return Err(ValidationError::NotApplicable {
+            message: "the kernel-residualized effect is undefined or has the opposite sign \
+                          of the published estimate, so its tipping value does not describe it",
+        });
+    }
+    let sd_t = sample_sd(&t_res);
+    let sd_y = sample_sd(&y_res);
+    if !(sd_t.is_finite() && sd_t > 0.0 && sd_y.is_finite() && sd_y > 0.0) {
+        return Err(ValidationError::NotApplicable {
+            message: "nonparametric sensitivity requires positive residual variation in \
+                          treatment and outcome after kernel residualization",
+        });
+    }
+    let mut u = vec![0.0; n];
+    fill_gaussian(&mut u, ctx, spec.stream);
+    orthogonalize_confounder(&mut u, &vec![true; n], &[t_res.clone(), y_res.clone()]);
+
+    let mut sorted_grid = spec.partial_r2_grid.to_vec();
+    sorted_grid.sort_by(f64::total_cmp);
+    let original_sign = residual_ate.signum();
+    // Worst-case orientation, as in `run_grid`: load U on Y against the observed sign.
+    let dir = if residual_ate >= 0.0 { -1.0 } else { 1.0 };
+    let moments = PerturbMoments::new(&t_res, &y_res, &u);
+    let mut last_ate = residual_ate;
+    let mut explained_away_at = None;
+    for &r in &sorted_grid {
+        let r = r.clamp(0.0, 0.999);
+        let scale = (r / (1.0 - r)).sqrt();
+        // `t' = t + a u`, `y' = y + b u`. The OLS slope is a function of the
+        // five raw second moments, so the grid does not rebuild the series.
+        last_ate = moments.slope(scale * sd_t, dir * scale * sd_y);
+        #[allow(
+            clippy::float_cmp,
+            reason = "signum returns exactly +/-1 (or NaN), so comparing two signs for equality is exact"
+        )]
+        let sign_flipped = last_ate.signum() != original_sign;
+        if last_ate.abs() < 1e-9 || sign_flipped {
+            explained_away_at = Some(r);
+            break;
+        }
+    }
+    let robustness_value = grid_robustness_value(explained_away_at);
+    let passed = robustness_passes(
+        probed_partial_r2(spec.partial_r2_grid),
+        robustness_value,
+        spec.pass_threshold,
+    );
+    Ok(grid_report(
+        spec.refuter,
+        problem.original.ate,
+        last_ate * treatment_delta,
+        robustness_value,
+        passed,
+        || {
+            grid_failure_text(
+                "nonparametric residual effect",
+                "partial R²",
+                robustness_value,
+                spec.pass_threshold,
+            )
+        },
+        spec.partial_r2_grid.len() as u32,
+    ))
+}
+
+/// Nearest neighbours the [`NeighborhoodSensitivity`] kernel sums run over by default.
+const DEFAULT_NEIGHBORHOOD: usize = 256;
+
+/// Largest neighbour count [`NeighborhoodSensitivity`] accepts.
+const MAX_NEIGHBORHOOD: usize = 4_096;
+
+/// Nonparametric sensitivity for samples beyond [`MAX_NONPARAMETRIC_ROWS`]: kernel-residualize
+/// T and Y on Z with a nearest-neighbour-truncated Gaussian kernel, then the same partial-R²
+/// grid on the residuals as [`NonparametricSensitivity`].
+///
+/// [`NonparametricSensitivity`] sums the Gaussian kernel over every other row, which is
+/// `O(n² · d)`. This is a separate construction with its own identity
+/// (`sensitivity.nonparametric_neighborhood`, its own confounder stream): the leave-one-out
+/// Nadaraya–Watson prediction of row `i` sums the same product-Gaussian weights
+/// `exp(-‖z_i − z_j‖² / 2h²)` (covariates standardized to unit SD, Silverman's bandwidth or the
+/// caller's) over only the [`Self::neighbors`] nearest *other* covariate points, found with an
+/// exact k-d tree search. Rows with identical covariates form one point carrying their count and
+/// sums, so discrete adjustment sets stay exact and a tie group never competes for neighbour
+/// slots by row order; the row's own point contributes its other rows. Time is
+/// `O(n · (log n + neighbors))` for low-dimensional covariates and memory `O(n · d)`.
+///
+/// It equals the exact smoother whenever the neighbours cover every row (`neighbors >= n - 1`),
+/// and approximates it when the kernel's mass lies within the neighbours. When `h` is wide
+/// enough that distant rows still carry weight, the truncation is a bias the exact smoother does
+/// not have, in the direction of a locally weighted neighbour average; a larger `neighbors`
+/// shrinks it.
+#[derive(Clone, Debug)]
+pub struct NeighborhoodSensitivity {
+    /// Ascending grid of partial-R² values to test on residualized series.
+    pub partial_r2_grid: Vec<f64>,
+    /// Pass only if a probed partial R² at or above this threshold left the effect standing
+    /// (for a threshold on the grid: the robustness value *strictly exceeds* it). Equality
+    /// fails: a confounder at the bar already kills the effect.
+    pub pass_threshold: f64,
+    /// Optional bandwidth override, in standard deviations of each (standardized) covariate;
+    /// `None` uses Silverman's (1986) multivariate normal-reference rule.
+    pub bandwidth: Option<f64>,
+    /// Nearest other covariate points each kernel sum runs over (1 to 4096).
+    pub neighbors: usize,
+}
+
+impl Default for NeighborhoodSensitivity {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl NeighborhoodSensitivity {
+    /// Defaults: same partial-R² grid as linear sensitivity, pass threshold 0.1, 256 neighbours.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            partial_r2_grid: default_grid(),
+            pass_threshold: 0.1,
+            bandwidth: None,
+            neighbors: DEFAULT_NEIGHBORHOOD,
+        }
+    }
+
+    /// Run neighbourhood nonparametric sensitivity.
+    ///
+    /// # Errors
+    ///
+    /// Data failures, an empty `partial_r2_grid`, `neighbors` outside `1..=4096`, cancellation,
+    /// or a footprint above the context's hard memory limit.
+    #[allow(
+        clippy::only_used_in_recursion,
+        reason = "part of the shared refuter signature; the temporal branch re-enters with the aligned problem"
+    )]
+    pub fn refute(
+        &self,
+        problem: &RefutationProblem<'_>,
+        workspace: &mut EstimationWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<RefutationReport, ValidationError> {
+        if problem.temporal.is_some() {
+            return with_temporal_diagnostic_rows(problem, |aligned| {
+                self.refute(aligned, workspace, ctx)
+            });
+        }
+        if self.partial_r2_grid.is_empty() {
+            return Err(ValidationError::NotApplicable {
+                message: "neighborhood sensitivity requires a non-empty partial_r2_grid",
+            });
+        }
+        if self.neighbors == 0 || self.neighbors > MAX_NEIGHBORHOOD {
+            return Err(ValidationError::NotApplicable {
+                message: "neighborhood sensitivity requires 1 to 4096 neighbors",
+            });
+        }
+        let residuals = kernel_residuals(
+            problem,
+            self.bandwidth,
+            ctx,
+            ResidualSmoother::Neighborhood { neighbors: self.neighbors },
+        )?;
+        residual_grid_report(
+            problem,
+            ctx,
+            residuals,
+            &ResidualGrid {
+                partial_r2_grid: &self.partial_r2_grid,
+                pass_threshold: self.pass_threshold,
+                refuter: "sensitivity.nonparametric_neighborhood",
+                stream: crate::streams::NEIGHBORHOOD_SENSITIVITY,
+            },
+        )
+    }
+}
+
+/// Which leave-one-out smoother residualizes treatment and outcome.
+#[derive(Clone, Copy)]
+enum ResidualSmoother {
+    /// Every other row enters the kernel sums (quadratic in the sample size).
+    Exact,
+    /// Only the `neighbors` nearest other covariate rows enter them.
+    Neighborhood { neighbors: usize },
 }
 
 /// Leave-one-out Nadaraya–Watson residuals of treatment and outcome on the adjustment
@@ -1116,6 +1431,7 @@ fn kernel_residuals(
     problem: &RefutationProblem<'_>,
     bandwidth: Option<f64>,
     ctx: &ExecutionContext,
+    smoother: ResidualSmoother,
 ) -> Result<(Vec<f64>, Vec<f64>, usize), ValidationError> {
     // Estimation complete cases (adjustment ∪ {T, Y} ∪ modifiers), shared by the
     // covariate matrix and the residualization pulls.
@@ -1133,10 +1449,11 @@ fn kernel_residuals(
             "nonparametric sensitivity requires at least 2 complete cases",
         ));
     }
-    if n > MAX_NONPARAMETRIC_ROWS {
+    if matches!(smoother, ResidualSmoother::Exact) && n > MAX_NONPARAMETRIC_ROWS {
         return Err(ValidationError::NotApplicable {
             message: "nonparametric sensitivity is quadratic in the sample size and is \
-                      limited to 20000 complete-case rows",
+                      limited to 20000 complete-case rows; NeighborhoodSensitivity runs \
+                      larger samples",
         });
     }
     // Covariates are standardized to unit SD, so Silverman's (1986) multivariate
@@ -1150,7 +1467,12 @@ fn kernel_residuals(
             "nonparametric sensitivity bandwidth must be finite and positive",
         ));
     }
-    let (t_hat, y_hat) = nw_loo_predict_pair(&t, &y, &cov, dim, h, ctx)?;
+    let (t_hat, y_hat) = match smoother {
+        ResidualSmoother::Exact => nw_loo_predict_pair(&t, &y, &cov, dim, h, ctx)?,
+        ResidualSmoother::Neighborhood { neighbors } => {
+            neighborhood_loo_predict_pair(&t, &y, &cov, dim, h, neighbors, ctx)?
+        }
+    };
     let t_res: Vec<f64> = t.iter().zip(&t_hat).map(|(&a, &b)| a - b).collect();
     let y_res: Vec<f64> = y.iter().zip(&y_hat).map(|(&a, &b)| a - b).collect();
     Ok((t_res, y_res, n))
@@ -1306,7 +1628,8 @@ mod kernel_regressions {
     use antecedent_core::ExecutionContext;
 
     use super::{
-        MAX_NONPARAMETRIC_ROWS, nw_loo_predict_pair, orthogonalize_confounder, standardize_columns,
+        MAX_NONPARAMETRIC_ROWS, neighborhood_loo_predict_pair, nw_loo_predict_pair,
+        orthogonalize_confounder, standardize_columns,
     };
     use crate::common::sample_sd;
 
@@ -1397,6 +1720,122 @@ mod kernel_regressions {
     #[test]
     fn the_row_cap_bounds_the_quadratic_kernel() {
         assert_eq!(MAX_NONPARAMETRIC_ROWS, 20_000);
+    }
+
+    /// Covariates on a coarse lattice (many exact duplicates and a discrete column) with two
+    /// targets, from a seeded stream.
+    fn lattice_problem(n: usize, dim: usize, seed: u64) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x5E75);
+        let mut x = Vec::with_capacity(n * dim);
+        for _ in 0..n {
+            for d in 0..dim {
+                x.push(if d == 0 {
+                    (rng.next_u64() % 4) as f64
+                } else {
+                    (rng.next_u64() % 7) as f64 * 0.5 + rng.next_f64() * 0.01
+                });
+            }
+        }
+        let y1: Vec<f64> = (0..n).map(|_| rng.next_f64() * 10.0 - 5.0).collect();
+        let y2: Vec<f64> = (0..n).map(|_| rng.next_f64() * 4.0).collect();
+        (x, y1, y2)
+    }
+
+    #[test]
+    fn neighborhood_smoother_equals_the_exact_smoother_when_neighbors_cover_every_row() {
+        // Duplicated covariate rows (cells of several rows), a single-row cell, two
+        // dimensions, and a bandwidth narrow enough that distant rows underflow.
+        let ctx = ExecutionContext::for_tests(3);
+        for (dim, h) in [(1usize, 0.4), (2, 0.9), (2, 0.05)] {
+            let n = 240;
+            let (mut x, y1, y2) = lattice_problem(n, dim, 11 + dim as u64);
+            x[0..dim].fill(1000.0);
+            let exact = nw_loo_predict_pair(&y1, &y2, &x, dim, h, &ctx).unwrap();
+            let truncated = neighborhood_loo_predict_pair(&y1, &y2, &x, dim, h, n, &ctx).unwrap();
+            for (a, b) in exact.0.iter().zip(&truncated.0).chain(exact.1.iter().zip(&truncated.1)) {
+                assert!((a - b).abs() < 1e-9 * (1.0 + a.abs()), "dim {dim} h {h}: {a} vs {b}");
+            }
+        }
+    }
+
+    #[test]
+    fn neighborhood_smoother_is_identical_at_any_thread_count() {
+        let (x, y1, y2) = lattice_problem(900, 2, 5);
+        let serial = neighborhood_loo_predict_pair(
+            &y1,
+            &y2,
+            &x,
+            2,
+            0.7,
+            20,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        let pooled = neighborhood_loo_predict_pair(
+            &y1,
+            &y2,
+            &x,
+            2,
+            0.7,
+            20,
+            &ExecutionContext::production(1, 4),
+        )
+        .unwrap();
+        assert_eq!(serial, pooled);
+    }
+
+    #[test]
+    fn neighborhood_smoother_leaves_the_target_out_and_keeps_ties() {
+        let ctx = ExecutionContext::for_tests(1);
+        // The same fixtures the exact smoother pins: an underflowing bandwidth must neither
+        // leak the target nor lose nearest-neighbour ties.
+        let (first, second) = neighborhood_loo_predict_pair(
+            &[100.0, 2.0, 4.0],
+            &[50.0, 10.0, 20.0],
+            &[0.0, 1.0, 3.0],
+            1,
+            1e-6,
+            2,
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(first, vec![2.0, 100.0, 2.0]);
+        assert_eq!(second, vec![10.0, 50.0, 10.0]);
+        let (tied, _) = neighborhood_loo_predict_pair(
+            &[2.0, 100.0, 4.0],
+            &[0.0; 3],
+            &[-1.0, 0.0, 1.0],
+            1,
+            1e-6,
+            2,
+            &ctx,
+        )
+        .unwrap();
+        assert!((tied[1] - 3.0).abs() < 1e-12);
+        // Two rows sharing one covariate value: each is predicted by the other.
+        let (pair, _) =
+            neighborhood_loo_predict_pair(&[1.0, 5.0], &[0.0; 2], &[0.3, 0.3], 1, 1.0, 1, &ctx)
+                .unwrap();
+        assert_eq!(pair, vec![5.0, 1.0]);
+    }
+
+    #[test]
+    fn neighborhood_smoother_tracks_the_regression_function_beyond_the_exact_cap() {
+        // y = sin(2x) + noise on 30000 rows: more than the exact smoother accepts.
+        let n = 30_000usize;
+        assert!(n > MAX_NONPARAMETRIC_ROWS);
+        let ctx = ExecutionContext::production(2, 4);
+        let mut rng = ctx.rng.stream(0x7FA1);
+        let mut gaussian = || antecedent_kernels::standard_normal(&mut rng);
+        let x: Vec<f64> = (0..n).map(|_| gaussian()).collect();
+        let truth: Vec<f64> = x.iter().map(|v| (2.0 * v).sin()).collect();
+        let y: Vec<f64> = truth.iter().map(|m| m + 0.5 * gaussian()).collect();
+        let h = antecedent_stats::silverman_normal_reference_factor(n, 1).unwrap();
+        let (fit, _) = neighborhood_loo_predict_pair(&y, &y, &x, 1, h, 64, &ctx).unwrap();
+        let rmse =
+            (fit.iter().zip(&truth).map(|(f, t)| (f - t).powi(2)).sum::<f64>() / n as f64).sqrt();
+        // Noise 0.5 averaged over ~64 neighbours leaves about 0.06; the bias is smaller.
+        assert!(rmse < 0.12, "rmse against the true regression function: {rmse}");
     }
 
     #[test]

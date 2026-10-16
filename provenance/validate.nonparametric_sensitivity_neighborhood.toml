@@ -1,0 +1,28 @@
+feature_id = "validate.nonparametric_sensitivity_neighborhood"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Making Sense of Sensitivity: Extending Omitted Variable Bias", doi = "10.1111/rssb.12348", sections = ["Partial R^2 parameterization of confounding strength", "robustness value"] },
+ { title = "On Estimating Regression", doi = "10.1137/1109020", sections = ["Kernel regression estimator (nonparametric residualization)"] },
+ { title = "Smooth Regression Analysis", sections = ["Kernel regression estimator (nonparametric residualization)"] },
+ { title = "Density Estimation for Statistics and Data Analysis", doi = "10.1201/9781315140919", sections = ["Ch. 3.4: rule-of-thumb bandwidth selection"] },
+]
+
+implementation_deviations = [
+ "Truncates the leave-one-out product-Gaussian Nadaraya-Watson sums of validate.confounding_sensitivity to the declared number of nearest other covariate points (default 256, at most 4096), found by exact k-d tree search, so the smoother is no longer the kernel regression estimator of the cited papers: it equals it only when the neighbours cover every row, and otherwise carries a bias toward a local neighbour average that the exact smoother does not have.",
+ "Rows with identical covariates form one point carrying their count and sums, so discrete adjustment sets stay exact and ties never compete for neighbour slots by row order.",
+ "The row cap of the exact path does not apply; the partial-R2 grid, orthogonalized simulated confounder (its own seeded stream), sign refusal and robustness value are those of validate.confounding_sensitivity, with the same repository-defined grid and pass threshold 0.1.",
+]
+
+upstream_implementations_observed = [
+ { project = "dowhy", exposure = "none" },
+]
+
+test_sources = [
+ "crates/antecedent-validate/src/sensitivity.rs unit tests (equality with the exact smoother when neighbours cover all rows, thread invariance, leave-one-out fixtures, 30000-row regression recovery)",
+ "crates/antecedent-validate/src/tests.rs (neighborhood_sensitivity_reproduces_the_tipping_value_of_the_true_residuals)",
+]

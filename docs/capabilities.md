@@ -482,7 +482,8 @@ IDC conditionals remain refused.
 * k-nearest-neighbour CI;
 * mixed k-nearest-neighbour CI;
 * symbolic conditional mutual information;
-* GPDC;
+* GPDC (conditioning sets need at most 4000 rows);
+* GPDC through a declared-rank Nyström kernel (`gpdc_nystrom`; any row count, a separate construction whose Type I error and power are measured by their own calibration gates);
 * G²;
 * oracle tests;
 * Bayesian CI tests.
@@ -1753,7 +1754,8 @@ Sensitivity methods:
 
 * linear sensitivity;
 * partial-linear sensitivity;
-* nonparametric sensitivity;
+* nonparametric sensitivity (at most 20000 complete cases);
+* nonparametric sensitivity with a nearest-neighbour-truncated kernel (`NeighborhoodSensitivity`, validator `neighborhood_sensitivity`; any sample size, a separate construction that equals the exact smoother only when its neighbours cover every row);
 * Riesz sensitivity.
 
 Bayesian validation:

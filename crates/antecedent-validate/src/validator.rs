@@ -21,7 +21,9 @@ use crate::panel_slice::PanelSliceTemplate;
 use crate::placebo::PlaceboTreatment;
 use crate::rcc::RandomCommonCause;
 use crate::riesz::RieszSensitivity;
-use crate::sensitivity::{LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity};
+use crate::sensitivity::{
+    LinearSensitivity, NeighborhoodSensitivity, NonparametricSensitivity, PartialLinearSensitivity,
+};
 use crate::unobserved_common_cause::UnobservedCommonCause;
 
 mod sealed {
@@ -164,6 +166,9 @@ impl_effect_validator!(PartialLinearSensitivity, |this: &PartialLinearSensitivit
     this.refute(p, ws, ctx)
 });
 impl_effect_validator!(NonparametricSensitivity, |this: &NonparametricSensitivity, p, ws, ctx| {
+    this.refute(p, ws, ctx)
+});
+impl_effect_validator!(NeighborhoodSensitivity, |this: &NeighborhoodSensitivity, p, ws, ctx| {
     this.refute(p, ws, ctx)
 });
 impl_effect_validator!(RieszSensitivity, |this: &RieszSensitivity, p, ws, ctx| {

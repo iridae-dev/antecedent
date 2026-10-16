@@ -26,7 +26,9 @@ use crate::overlap_rule::OverlapRuleRefuter;
 use crate::placebo::PlaceboTreatment;
 use crate::rcc::RandomCommonCause;
 use crate::riesz::RieszSensitivity;
-use crate::sensitivity::{LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity};
+use crate::sensitivity::{
+    LinearSensitivity, NeighborhoodSensitivity, NonparametricSensitivity, PartialLinearSensitivity,
+};
 use crate::unobserved_common_cause::UnobservedCommonCause;
 use crate::validator::{PreparedRefutation, Validator, run_validator};
 
@@ -105,6 +107,9 @@ pub enum ValidatorId {
     PartialLinearSensitivity,
     /// Nonparametric sensitivity.
     NonparametricSensitivity,
+    /// Nonparametric sensitivity with a nearest-neighbour-truncated kernel, for samples above
+    /// the exact smoother's row cap. Opt-in: no preset suite includes it.
+    NeighborhoodSensitivity,
     /// Riesz-representer sensitivity.
     Riesz,
     /// Prior predictive check (Bayesian).
@@ -138,6 +143,7 @@ impl ValidatorId {
             Self::LinearSensitivity => "linear_sensitivity",
             Self::PartialLinearSensitivity => "partial_linear_sensitivity",
             Self::NonparametricSensitivity => "nonparametric_sensitivity",
+            Self::NeighborhoodSensitivity => "neighborhood_sensitivity",
             Self::Riesz => "riesz",
             Self::PriorPredictive => "prior_predictive",
             Self::PosteriorPredictive => "posterior_predictive",
@@ -215,6 +221,8 @@ pub enum ConfiguredValidator {
     PartialLinearSensitivity(PartialLinearSensitivity),
     /// Nonparametric sensitivity.
     NonparametricSensitivity(NonparametricSensitivity),
+    /// Neighborhood-truncated nonparametric sensitivity.
+    NeighborhoodSensitivity(NeighborhoodSensitivity),
     /// Riesz-representer sensitivity.
     Riesz(RieszSensitivity),
     /// Prior predictive check. Replaces `for_estimator`, including family and seed.
@@ -241,6 +249,7 @@ impl ConfiguredValidator {
             Self::LinearSensitivity(_) => ValidatorId::LinearSensitivity,
             Self::PartialLinearSensitivity(_) => ValidatorId::PartialLinearSensitivity,
             Self::NonparametricSensitivity(_) => ValidatorId::NonparametricSensitivity,
+            Self::NeighborhoodSensitivity(_) => ValidatorId::NeighborhoodSensitivity,
             Self::Riesz(_) => ValidatorId::Riesz,
             Self::PriorPredictive(_) => ValidatorId::PriorPredictive,
             Self::PosteriorPredictive(_) => ValidatorId::PosteriorPredictive,
@@ -263,6 +272,7 @@ impl ConfiguredValidator {
             Self::LinearSensitivity(v) => arms.linear = Some(v),
             Self::PartialLinearSensitivity(v) => arms.partial = Some(v),
             Self::NonparametricSensitivity(v) => arms.nonparametric = Some(v),
+            Self::NeighborhoodSensitivity(v) => arms.neighborhood = Some(v),
             Self::Riesz(v) => arms.riesz = Some(v),
             Self::PriorPredictive(v) => arms.prior_predictive = Some(v),
             Self::PosteriorPredictive(v) => arms.posterior_predictive = Some(v),
@@ -289,6 +299,7 @@ struct SuiteArms {
     linear: Option<LinearSensitivity>,
     partial: Option<PartialLinearSensitivity>,
     nonparametric: Option<NonparametricSensitivity>,
+    neighborhood: Option<NeighborhoodSensitivity>,
     riesz: Option<RieszSensitivity>,
     prior_predictive: Option<PriorPredictiveCheck>,
     posterior_predictive: Option<PosteriorPredictiveCheck>,
@@ -411,6 +422,9 @@ impl ValidationSuite {
             }),
             ValidatorId::NonparametricSensitivity => self.arms.nonparametric.is_none().then(|| {
                 ConfiguredValidator::NonparametricSensitivity(NonparametricSensitivity::new())
+            }),
+            ValidatorId::NeighborhoodSensitivity => self.arms.neighborhood.is_none().then(|| {
+                ConfiguredValidator::NeighborhoodSensitivity(NeighborhoodSensitivity::new())
             }),
             ValidatorId::Riesz => self
                 .arms
@@ -665,6 +679,7 @@ impl ValidationSuite {
                 ValidatorId::LinearSensitivity
                     | ValidatorId::PartialLinearSensitivity
                     | ValidatorId::NonparametricSensitivity
+                    | ValidatorId::NeighborhoodSensitivity
                     | ValidatorId::Riesz
             )
         {
@@ -841,6 +856,13 @@ impl ValidationSuite {
             ValidatorId::NonparametricSensitivity => run_stored(
                 self.arms.nonparametric.as_ref(),
                 NonparametricSensitivity::new,
+                problem,
+                workspace,
+                ctx,
+            ),
+            ValidatorId::NeighborhoodSensitivity => run_stored(
+                self.arms.neighborhood.as_ref(),
+                NeighborhoodSensitivity::new,
                 problem,
                 workspace,
                 ctx,
@@ -1086,6 +1108,11 @@ const ENTRIES: &[SuiteEntry] = &[
     },
     SuiteEntry {
         id: ValidatorId::NonparametricSensitivity,
+        gate: allow,
+        overlap_failures_are_outcomes: false,
+    },
+    SuiteEntry {
+        id: ValidatorId::NeighborhoodSensitivity,
         gate: allow,
         overlap_failures_are_outcomes: false,
     },
@@ -1372,6 +1399,20 @@ mod tests {
             ValidationOutcome::CustomNotApplicable { name, .. } if name.as_ref() == "skip"
         ));
         assert!(matches!(&outcomes[1], ValidationOutcome::Report(_)));
+    }
+
+    #[test]
+    fn neighborhood_sensitivity_is_opt_in_and_configurable() {
+        for preset in [
+            ValidationSuite::full_effect(),
+            ValidationSuite::falsification_effect(),
+            ValidationSuite::stability_effect(),
+        ] {
+            assert!(!preset.validators.contains(&ValidatorId::NeighborhoodSensitivity));
+        }
+        let suite = ValidationSuite::new().with(ValidatorId::NeighborhoodSensitivity);
+        assert_eq!(suite.validators, vec![ValidatorId::NeighborhoodSensitivity]);
+        assert_eq!(ValidatorId::NeighborhoodSensitivity.as_str(), "neighborhood_sensitivity");
     }
 
     #[test]

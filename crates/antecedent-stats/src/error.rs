@@ -56,6 +56,19 @@ pub enum StatsError {
     /// Backend failure.
     #[error("backend error: {0}")]
     Backend(String),
+    /// The execution context's cancellation token fired before the computation finished.
+    #[error("cancelled")]
+    Cancelled,
+    /// A planned allocation exceeds the execution context's hard memory limit.
+    #[error("resource limit: {message} needs {required_bytes} bytes, limit {limit_bytes}")]
+    ResourceLimit {
+        /// What was being planned.
+        message: &'static str,
+        /// Bytes the plan needs.
+        required_bytes: u64,
+        /// The hard limit in force.
+        limit_bytes: u64,
+    },
     /// A GLM fit an estimation path refuses. Renders exactly as the [`Self::Backend`] it
     /// replaces (same text), and also carries what the fit measured, so a caller reads the
     /// kind and the numbers instead of parsing the message. The margin is the float's bit

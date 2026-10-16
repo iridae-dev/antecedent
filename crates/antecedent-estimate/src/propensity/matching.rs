@@ -225,7 +225,7 @@ impl PropensityMatching {
         &self,
         problem: &PreparedPropensityProblem,
         workspace: &mut PropensityEstimationWorkspace,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         // `bootstrap_replicates` is intentionally unread: the nonparametric bootstrap is
@@ -281,6 +281,7 @@ impl PropensityMatching {
                 features: &s_used,
                 dim: 1,
                 distance: MatchingDistance::Absolute,
+                ctx,
             },
             &problem.target_population,
             self.caliper,
@@ -328,6 +329,8 @@ pub(crate) struct MatchingSample<'a> {
     pub(crate) features: &'a [f64],
     pub(crate) dim: usize,
     pub(crate) distance: MatchingDistance,
+    /// Memory limit and cancellation for the index build and the match passes.
+    pub(crate) ctx: &'a ExecutionContext,
 }
 
 /// The differences and the donor and query rows of one matching pass.
@@ -352,6 +355,7 @@ pub(crate) fn match_diffs(
     distance: MatchingDistance,
     caliper: Option<f64>,
     workspace: &mut PropensityEstimationWorkspace,
+    ctx: &ExecutionContext,
 ) -> Result<MatchedDiffs, EstimationError> {
     let MatchSide { features: donor_features, outcome: donor_outcome } = donors;
     let MatchSide { features: query_features, outcome: query_outcome } = queries;
@@ -359,7 +363,7 @@ pub(crate) fn match_diffs(
     if n_donors == 0 {
         return Err(EstimationError::data_msg("matching requires at least one donor row"));
     }
-    workspace.ensure_matching_index(donor_features, dim, distance)?;
+    workspace.ensure_matching_index(donor_features, dim, distance, ctx)?;
     let n_queries = query_outcome.len();
     let mut donor_rows = std::mem::take(&mut workspace.matching_donor_rows);
     let mut distances = std::mem::take(&mut workspace.matching_distances);
@@ -370,7 +374,7 @@ pub(crate) fn match_diffs(
     {
         let index = workspace.matching_index.as_ref().expect("ensured");
         index
-            .match_all(query_features, n_queries, caliper, &mut donor_rows, &mut distances)
+            .match_all(query_features, n_queries, caliper, &mut donor_rows, &mut distances, ctx)
             .map_err(stats_err)?;
     }
     let mut diffs = Vec::with_capacity(n_queries);
@@ -423,7 +427,7 @@ pub(crate) fn matching_contrast(
     se: SeSpec<'_>,
     target_weights: Option<&[f64]>,
 ) -> Result<MatchedEstimate, EstimationError> {
-    let MatchingSample { treatment, outcome, features, dim, distance } = sample;
+    let MatchingSample { treatment, outcome, features, dim, distance, ctx } = sample;
     let SeSpec { kind: se_kind, cluster_ids, multiway_ids, panel_times } = se;
     if let Some(ids) = cluster_ids {
         if ids.len() != treatment.len() {
@@ -468,6 +472,7 @@ pub(crate) fn matching_contrast(
                 distance,
                 caliper,
                 workspace,
+                ctx,
             )?;
             let rows: Vec<usize> = q_local.iter().map(|&q| treated_idx[q]).collect();
             (diffs, donors, control_y.len(), rows)
@@ -480,6 +485,7 @@ pub(crate) fn matching_contrast(
                 distance,
                 caliper,
                 workspace,
+                ctx,
             )?;
             let flipped: Vec<f64> = diffs.into_iter().map(|d| -d).collect();
             let rows: Vec<usize> = q_local.iter().map(|&q| control_idx[q]).collect();
@@ -496,6 +502,7 @@ pub(crate) fn matching_contrast(
                     distance,
                     caliper,
                     workspace,
+                    ctx,
                 )?;
             let MatchedDiffs { diffs: atc_raw, donors: atc_donors, queries: atc_q } = match_diffs(
                 MatchSide { features: &treated_feat, outcome: &treated_y },
@@ -504,6 +511,7 @@ pub(crate) fn matching_contrast(
                 distance,
                 caliper,
                 workspace,
+                ctx,
             )?;
             let atc_diffs: Vec<f64> = atc_raw.into_iter().map(|d| -d).collect();
             let n_control = control_y.len();
@@ -951,6 +959,7 @@ mod tests {
                     features: &x,
                     dim: 1,
                     distance: MatchingDistance::Absolute,
+                    ctx: &ExecutionContext::for_tests(1),
                 },
                 &TargetPopulation::AllObserved,
                 None,
@@ -998,6 +1007,7 @@ mod tests {
                     features: &x,
                     dim: 1,
                     distance: MatchingDistance::Absolute,
+                    ctx: &ExecutionContext::for_tests(1),
                 },
                 &TargetPopulation::AllObserved,
                 None,
@@ -1067,6 +1077,7 @@ mod tests {
             MatchingDistance::Absolute,
             caliper,
             &mut ws_raw,
+            &ExecutionContext::for_tests(1),
         )
         .unwrap();
 
@@ -1080,6 +1091,7 @@ mod tests {
             MatchingDistance::Absolute,
             caliper,
             &mut ws_logit,
+            &ExecutionContext::for_tests(1),
         )
         .unwrap();
 
@@ -1141,6 +1153,7 @@ mod tests {
                 features: &features,
                 dim: 1,
                 distance: MatchingDistance::Absolute,
+                ctx: &ExecutionContext::for_tests(1),
             },
             &TargetPopulation::CustomDistribution(antecedent_core::DistributionRef::from_raw(1)),
             None,
