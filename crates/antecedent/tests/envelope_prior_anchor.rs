@@ -88,18 +88,18 @@ fn toy_table(n: usize) -> TabularData {
 fn z_confounder_mask() -> u64 {
     // T=0, Y=1, Z=2: Z→T, Z→Y, T→Y
     let mut m = 0u64;
-    m = set_edge(m, 4, 2, 0, true);
-    m = set_edge(m, 4, 2, 1, true);
-    m = set_edge(m, 4, 0, 1, true);
+    m = set_edge(m, 4, 2, 0, true).to_word().expect("a four-variable graph fits one word");
+    m = set_edge(m, 4, 2, 1, true).to_word().expect("a four-variable graph fits one word");
+    m = set_edge(m, 4, 0, 1, true).to_word().expect("a four-variable graph fits one word");
     m
 }
 
 fn w_confounder_mask() -> u64 {
     // T=0, Y=1, W=3: W→T, W→Y, T→Y
     let mut m = 0u64;
-    m = set_edge(m, 4, 3, 0, true);
-    m = set_edge(m, 4, 3, 1, true);
-    m = set_edge(m, 4, 0, 1, true);
+    m = set_edge(m, 4, 3, 0, true).to_word().expect("a four-variable graph fits one word");
+    m = set_edge(m, 4, 3, 1, true).to_word().expect("a four-variable graph fits one word");
+    m = set_edge(m, 4, 0, 1, true).to_word().expect("a four-variable graph fits one word");
     m
 }
 

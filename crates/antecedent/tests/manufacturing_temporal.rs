@@ -21,7 +21,7 @@ use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
-use antecedent_discovery::{mask_is_dag, set_edge, temporal_dag_from_dbn_masks};
+use antecedent_discovery::{AdjacencyMask, mask_is_dag, set_edge, temporal_dag_from_dbn_masks};
 use antecedent_graph::{TemporalDag, ensure_lagged};
 use antecedent_identify::{
     IdentificationError, TemporalBackdoorIdentifier, TemporalMediationIdentifier,
@@ -1553,7 +1553,7 @@ fn dbn_posterior_response_agrees_with_independent_atom_mix() {
         .map(|(left, right)| (w_a * left + w_b * right) / (w_a + w_b))
         .collect();
 
-    let contemporaneous_a = 0u64;
+    let contemporaneous_a = AdjacencyMask::EMPTY;
     let contemporaneous_b = set_edge(0, 2, 0, 1, true);
     let lag = 2u64;
     let gp = GraphPosterior::new(

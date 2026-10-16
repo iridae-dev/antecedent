@@ -126,7 +126,7 @@ fn outcome_parent_cpdag() -> Cpdag {
 
 fn cpdag_posterior(weights: &[f64], graphs: &[Cpdag]) -> GraphPosterior {
     let n = graphs[0].node_count();
-    let masks: Vec<u64> =
+    let masks: Vec<antecedent_discovery::AdjacencyMask> =
         graphs.iter().map(|graph| adjacency_mask_from_cpdag(graph).unwrap()).collect();
     GraphPosterior::new(
         n,

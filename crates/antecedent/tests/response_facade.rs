@@ -1282,7 +1282,7 @@ fn interactive_budget_fixture() -> (TabularData, antecedent_discovery::GraphPost
     // outcome-only parents: 32 distinct backdoor-identified atoms (no
     // instrument or front-door candidates), twice the interactive cap.
     let n_vars = 7;
-    let mut masks: Vec<u64> = (0u32..32)
+    let mut masks: Vec<antecedent_discovery::AdjacencyMask> = (0u32..32)
         .map(|subset| {
             let mut mask = set_edge(0, n_vars, 0, 1, true);
             if subset & 1 != 0 {

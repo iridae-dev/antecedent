@@ -31,7 +31,9 @@ use antecedent_core::{
 use antecedent_data::{
     NetworkData, NetworkEdge, SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData,
 };
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
+use antecedent_discovery::{
+    AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge,
+};
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{
     Admg, Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalAdmg,
@@ -507,7 +509,7 @@ fn temporal_gp(n_vars: usize) -> GraphPosterior {
 fn point_family_gp(n_vars: usize, pag: bool) -> GraphPosterior {
     let cell = n_vars * n_vars;
     let mut lag_mask = 0u64;
-    let mut adjacency = 0u64;
+    let mut adjacency = AdjacencyMask::EMPTY;
     if n_vars >= 2 {
         lag_mask |= 1u64 << 1;
     }
@@ -540,7 +542,7 @@ fn point_family_gp(n_vars: usize, pag: bool) -> GraphPosterior {
 fn temporal_class_gp(n_vars: usize) -> GraphPosterior {
     let cell = n_vars * n_vars;
     let mut lagged = vec![0.0; cell];
-    let mut adjacency = 0u64;
+    let mut adjacency = AdjacencyMask::EMPTY;
     let mut lag_mask = 0u64;
     if n_vars >= 2 {
         lagged[1] = 1.0;
