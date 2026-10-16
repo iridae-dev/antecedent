@@ -80,6 +80,13 @@ mod rank_designs;
     dead_code,
     reason = "the example keeps its own `main`, which this test never calls; only `run` is used"
 )]
+#[path = "../../../examples/rust/shared_exogenous_counterfactual.rs"]
+mod shared_exogenous_counterfactual;
+
+#[allow(
+    dead_code,
+    reason = "the example keeps its own `main`, which this test never calls; only `run` is used"
+)]
 #[path = "../../../examples/rust/sales_spreadsheet_e2e.rs"]
 mod sales_spreadsheet_e2e;
 
@@ -216,4 +223,9 @@ fn example_transport_meta_grid_runs() {
 #[test]
 fn example_transport_statistical_runs() {
     transport_statistical::run().unwrap();
+}
+
+#[test]
+fn example_shared_exogenous_counterfactual_runs() {
+    shared_exogenous_counterfactual::run().unwrap();
 }

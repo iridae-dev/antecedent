@@ -1,5 +1,5 @@
-//! A static Markovian SCM over finite variables with finite exogenous terms:
-//! declaration, validation, exact abduction and world evaluation.
+//! A fully declared static SCM over finite variables with finite exogenous
+//! terms: declaration, validation, exact abduction and world evaluation.
 //!
 //! # Model
 //!
@@ -8,8 +8,12 @@
 //! term `U_{e(i)}` with a finite pmf. The mechanism is the table
 //! `V_i = f_i(pa_i, U_{e(i)})`, indexed `[u * n_cfg + cfg]` where `cfg` is the
 //! mixed-radix index of the parent values (first parent most significant).
-//! Markovian means every exogenous term feeds exactly one variable; a term
-//! shared by two variables is latent confounding and is refused.
+//! An exogenous term may feed one variable (a Markovian model) or several
+//! (a shared term, the structural form of latent confounding). Either way the
+//! model is fully declared, every mechanism and every exogenous law is given,
+//! so a counterfactual is a computation over the joint exogenous states and
+//! carries no identification question: the shared term takes one value that
+//! every mechanism reading it, in every world, sees.
 //!
 //! # Abduction, action, prediction (exact)
 //!
@@ -155,6 +159,8 @@ pub struct CompiledScm<'a> {
     pmfs: Vec<Vec<f64>>,
     /// Joint exogenous states.
     pub joint_states: usize,
+    /// Whether an exogenous term feeds more than one variable.
+    pub shared_exogenous: bool,
 }
 
 fn bounds(what: &str) -> CrossWorldExecutionError {
@@ -163,6 +169,19 @@ fn bounds(what: &str) -> CrossWorldExecutionError {
         "cross_world_execution.bounds_exceeded",
         Some(what.to_owned()),
         "reduce the declaration below the documented bound",
+    )
+}
+
+/// The joint exogenous enumeration is too large to run exactly: the model is
+/// declared, but this route does not execute it.
+fn joint_state_bound() -> CrossWorldExecutionError {
+    refuse(
+        antecedent_core::reason_code!("route_not_supported"),
+        "cross_world_execution.bounds_exceeded",
+        Some("joint_exogenous_states".to_owned()),
+        "reduce the number of exogenous states or terms so their product is within the \
+         documented bound; the model is declared, so the counterfactual is computable but not \
+         by this bounded enumeration",
     )
 }
 
@@ -191,9 +210,9 @@ impl FiniteScm {
     /// Validate the declaration and fix its enumeration layout.
     ///
     /// # Errors
-    /// `invalid_argument` for a malformed declaration or a bound;
-    /// `cross_world_not_identified` (`cross_world_execution.non_markovian`)
-    /// when an exogenous term feeds several variables.
+    /// `invalid_argument` for a malformed declaration or a declaration bound;
+    /// `route_not_supported` (`cross_world_execution.bounds_exceeded`) when the
+    /// joint exogenous enumeration exceeds [`MAX_JOINT_STATES`].
     pub fn compile(&self) -> Result<CompiledScm<'_>, CrossWorldExecutionError> {
         let n = self.variables.len();
         if n > MAX_VARIABLES || self.exogenous.len() > MAX_VARIABLES {
@@ -242,16 +261,6 @@ impl FiniteScm {
             users[var.exogenous] += 1;
             n_cfg.push(cfg);
         }
-        if let Some(shared) = users.iter().position(|u| *u > 1) {
-            return Err(refuse(
-                antecedent_core::reason_code!("cross_world_not_identified"),
-                "cross_world_execution.non_markovian",
-                Some(self.exogenous[shared].name.clone()),
-                "declare one independent exogenous term per mechanism (a Markovian model); a \
-                 term shared by two variables is latent confounding, which this row does not \
-                 execute",
-            ));
-        }
         if let Some(unused) = users.iter().position(|u| *u == 0) {
             return Err(invalid(
                 "cross_world_execution.invalid_scm",
@@ -263,13 +272,14 @@ impl FiniteScm {
             joint = joint
                 .checked_mul(exo.pmf.len())
                 .filter(|j| *j <= MAX_JOINT_STATES)
-                .ok_or_else(|| bounds("joint_exogenous_states"))?;
+                .ok_or_else(joint_state_bound)?;
         }
         let mut radix = vec![1usize; self.exogenous.len()];
         for k in (0..self.exogenous.len().saturating_sub(1)).rev() {
             radix[k] = radix[k + 1] * self.exogenous[k + 1].pmf.len();
         }
-        Ok(CompiledScm { scm: self, n_cfg, radix, pmfs, joint_states: joint })
+        let shared_exogenous = users.iter().any(|u| *u > 1);
+        Ok(CompiledScm { scm: self, n_cfg, radix, pmfs, joint_states: joint, shared_exogenous })
     }
 
     /// Canonical digest of the mechanisms: population, history, structure,

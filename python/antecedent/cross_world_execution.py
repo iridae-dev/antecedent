@@ -1,4 +1,4 @@
-"""General cross-world selective execution over a declared finite Markovian SCM.
+"""General cross-world selective execution over a fully declared finite SCM.
 
 Counterfactual and natural / path-specific quantities are computed from **coupled worlds**:
 each unit's exogenous posterior given its factual evidence is enumerated exactly once, and every
@@ -11,8 +11,13 @@ named world is evaluated under that same posterior state. The pipeline keeps its
   it;
 * independently drawn world noise is never paired as a counterfactual joint law: a cross-world
   event with ``coupling="independent_world_noise"`` or an undeclared coupling raises
-  ``joint_law_required``; latent confounding, another population or an incompatible history are
-  scientific refusals naming what would license them (:func:`capability_matrix`, :func:`decide`).
+  ``joint_law_required``; another population or an incompatible history are scientific refusals
+  naming what would license them (:func:`capability_matrix`, :func:`decide`);
+* an exogenous term may feed several mechanisms (latent confounding in a model whose every
+  mechanism and exogenous law is declared): it takes one value that every mechanism reading it
+  sees in every world, so the counterfactual is enumerated with no identification question.
+  Confounding whose mechanisms are not declared is ``cross_world_not_identified``; a declared
+  model whose joint exogenous enumeration exceeds the bound is ``route_not_supported``.
 
 Every value is a ``point_only`` result of exact enumeration under the declared model (mechanism
 adequacy is a premise, not a check). Intervals, posteriors and a sampled abduction are closed:
@@ -130,7 +135,12 @@ class FiniteVariable:
 
 @dataclass(frozen=True)
 class FiniteSCM:
-    """A static Markovian SCM over finite variables, declared for one population and history."""
+    """A fully declared static SCM over finite variables, for one population and history.
+
+    Every mechanism and every exogenous law is given. An exogenous term may be named by several
+    variables; it then takes one value that all of them read, in the factual and every
+    counterfactual world.
+    """
 
     population: str
     history: str
@@ -191,7 +201,7 @@ def joint_probability(atoms: Sequence[tuple[str | int, str | int, int]]) -> _Qua
 
 @dataclass(frozen=True)
 class CrossWorldRequest:
-    """A cross-world request over a finite Markovian SCM.
+    """A cross-world request over a fully declared finite SCM.
 
     ``coupling`` is ``shared_abduced_exogenous`` (every world reads the unit's one exogenous
     posterior state), ``independent_world_noise`` or ``undeclared``. ``reading`` is ``point``;

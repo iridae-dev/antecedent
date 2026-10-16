@@ -291,24 +291,6 @@ def test_unsupported_requests_are_scientific_refusals() -> None:
     executor = cw.CrossWorldExecutor()
     base = _joint_request()
 
-    confounded = cw.FiniteSCM(
-        population="pop-a",
-        history="regime-1",
-        exogenous=(cw.ExogenousTerm("u", (0.5, 0.5)),),
-        variables=(
-            cw.FiniteVariable("x", 2, (), "u", (0, 1)),
-            cw.FiniteVariable("y", 2, ("x",), "u", (0, 1, 1, 0)),
-        ),
-    )
-    with pytest.raises(R) as error:
-        executor.execute(
-            cw.CrossWorldRequest(
-                scm=confounded, units=base.units, worlds=base.worlds, quantity=base.quantity
-            )
-        )
-    assert error.value.reason_code == "cross_world_not_identified"
-    assert error.value.detail == "cross_world_execution.non_markovian"
-
     with pytest.raises(R) as error:
         executor.execute(
             cw.CrossWorldRequest(
@@ -370,9 +352,12 @@ def test_capability_matrix_and_decide() -> None:
             assert row.refusal_code and row.remedy
     licensed = cw.decide(quantity="natural_path_specific")
     assert licensed["id"] == "natural_path_specific.finite_markovian_scm"
+    shared = cw.decide(quantity="counterfactual_joint", model="finite_shared_exogenous_scm")
+    assert shared["id"] == "counterfactual.finite_shared_exogenous_scm.joint"
     with pytest.raises(R) as error:
         cw.decide(quantity="counterfactual_joint", model="semi_markovian")
-    assert error.value.detail == "cross_world_execution.non_markovian"
+    assert error.value.reason_code == "cross_world_not_identified"
+    assert error.value.detail == "cross_world_execution.latent_confounding_not_identified"
     with pytest.raises(R) as error:
         cw.decide(quantity="transported_cross_world", population="transported")
     assert error.value.missing
@@ -475,3 +460,112 @@ def test_inputs_are_typed() -> None:
         executor.execute(bad)
     with pytest.raises(CausalTypeError):
         cw.consume_cross_world_execution_artifact("text")  # type: ignore[arg-type]
+
+
+def _shared_noise_scm(*, shared: bool = True) -> cw.FiniteSCM:
+    """X = U and Y = X xor U, with U feeding both (or a separate U_y with the same law)."""
+    u_y = "u" if shared else "u_y"
+    terms = (cw.ExogenousTerm("u", (0.7, 0.3)),) + (
+        () if shared else (cw.ExogenousTerm("u_y", (0.7, 0.3)),)
+    )
+    return cw.FiniteSCM(
+        population="pop-a",
+        history="regime-1",
+        exogenous=terms,
+        variables=(
+            cw.FiniteVariable("x", 2, (), "u", (0, 1)),
+            cw.FiniteVariable("y", 2, ("x",), u_y, (0, 1, 1, 0)),
+        ),
+    )
+
+
+def test_a_shared_exogenous_term_is_executed_and_equals_independent_enumeration() -> None:
+    executor = cw.CrossWorldExecutor()
+    worlds = (_do("x0", 0), _do("x1", 1))
+    # Factual X = 1 forces U = 1, and U is the same draw in the counterfactual world, so
+    # Y under do(x0) is 0 xor 1 = 1 with certainty. The independent-noise model gives 0.3.
+    evidence = (cw.FactualUnit("case", {"x": 1}),)
+    shared = executor.execute(
+        cw.CrossWorldRequest(
+            scm=_shared_noise_scm(),
+            units=evidence,
+            worlds=worlds,
+            quantity=cw.probability("x0", "y", 1),
+        )
+    )
+    brute = _brute_force(
+        _shared_noise_scm(),
+        {"x": 1},
+        [("x0", {"x": 0}, []), ("x1", {"x": 1}, [])],
+        lambda w: float(w["x0"]["y"] == 1),
+    )
+    assert shared.value == pytest.approx(1.0, abs=1e-12)
+    assert shared.value == pytest.approx(brute, abs=1e-12)
+    assert shared.units[0].evidence_probability == pytest.approx(0.3, abs=1e-12)
+
+    independent = executor.execute(
+        cw.CrossWorldRequest(
+            scm=_shared_noise_scm(shared=False),
+            units=evidence,
+            worlds=worlds,
+            quantity=cw.probability("x0", "y", 1),
+        )
+    )
+    assert independent.value == pytest.approx(0.3, abs=1e-12)
+    assert independent.value == pytest.approx(
+        _brute_force(
+            _shared_noise_scm(shared=False),
+            {"x": 1},
+            [("x0", {"x": 0}, []), ("x1", {"x": 1}, [])],
+            lambda w: float(w["x0"]["y"] == 1),
+        ),
+        abs=1e-12,
+    )
+
+    # One realization of U in both worlds: Y_x1 = 1 iff U = 0 and Y_x0 = 1 iff U = 1.
+    joint = executor.execute(
+        cw.CrossWorldRequest(
+            scm=_shared_noise_scm(),
+            units=(cw.FactualUnit("prior"),),
+            worlds=worlds,
+            quantity=cw.joint_probability([("x1", "y", 1), ("x0", "y", 1)]),
+        )
+    )
+    assert joint.value == pytest.approx(0.0, abs=1e-12)
+
+
+def test_shared_exogenous_execution_replays_and_the_bound_is_not_unidentification() -> None:
+    request = cw.CrossWorldRequest(
+        scm=_shared_noise_scm(),
+        units=(cw.FactualUnit("case", {"x": 1}),),
+        worlds=(_do("x0", 0), _do("x1", 1)),
+        quantity=cw.probability("x0", "y", 1),
+    )
+    sealed = cw.seal(request)
+    consumed = cw.consume_cross_world_execution_artifact(
+        sealed.to_bytes(), expected_identity=sealed.identity
+    )
+    assert consumed.result.value == sealed.value == pytest.approx(1.0, abs=1e-12)
+    assert sealed.result.matrix_row == "counterfactual.finite_shared_exogenous_scm.marginal"
+
+    # A declared model whose joint exogenous enumeration is too large is unsupported here.
+    terms = tuple(cw.ExogenousTerm(f"u{k}", (0.125,) * 8) for k in range(6))
+    oversized = cw.FiniteSCM(
+        population="pop-a",
+        history="regime-1",
+        exogenous=terms,
+        variables=tuple(
+            cw.FiniteVariable(f"v{k}", 2, (), f"u{k}", (0, 1, 0, 1, 0, 1, 0, 1)) for k in range(6)
+        ),
+    )
+    with pytest.raises(R) as error:
+        cw.CrossWorldExecutor().execute(
+            cw.CrossWorldRequest(
+                scm=oversized,
+                units=(cw.FactualUnit("u"),),
+                worlds=(cw.World("w", {"v0": 0}),),
+                quantity=cw.probability("w", "v1", 1),
+            )
+        )
+    assert error.value.reason_code == "route_not_supported"
+    assert error.value.detail == "cross_world_execution.bounds_exceeded"

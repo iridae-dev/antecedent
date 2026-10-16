@@ -143,6 +143,10 @@ path = "../../examples/rust/transport_exact.rs"
 name = "transport_meta_grid"
 path = "../../examples/rust/transport_meta_grid.rs"
 
+[[example]]
+name = "shared_exogenous_counterfactual"
+path = "../../examples/rust/shared_exogenous_counterfactual.rs"
+
 [[bench]]
 name = "staged_handle"
 harness = false

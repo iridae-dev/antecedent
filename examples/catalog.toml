@@ -609,3 +609,15 @@ level = "intermediate"
 dependencies = ["pandas", "matplotlib", "ipykernel"]
 runtime = "up to 5 min"
 claim = "Historical treatment-effect posterior transfer with target compatibility and new-data updating."
+
+[[example]]
+id = "shared_exogenous_counterfactual"
+title = "Shared hidden cause counterfactual"
+summary = "Compute a counterfactual through an exogenous term shared by two mechanisms"
+python = "examples/python/shared_exogenous_counterfactual.py"
+rust = "examples/rust/shared_exogenous_counterfactual.rs"
+topic = "Estimation and designs"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Exact enumeration of a fully declared finite SCM whose mechanisms share an exogenous term; undeclared latent confounding is refused as not identified."
