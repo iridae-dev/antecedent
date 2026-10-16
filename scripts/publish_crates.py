@@ -2,10 +2,9 @@
 import json
 import subprocess
 import sys
+import tomllib
 from collections import defaultdict
 from pathlib import Path
-
-import tomllib
 
 meta = json.loads(
     subprocess.check_output(

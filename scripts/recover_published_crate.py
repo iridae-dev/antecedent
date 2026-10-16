@@ -6,10 +6,9 @@ import argparse
 import json
 import os
 import subprocess
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-
-import tomllib
 
 REPOSITORY = "iridae-dev/antecedent"
 NEW_DEPENDENCY = 'antecedent = { path = ".", features = ["calibration-internal"] }'
