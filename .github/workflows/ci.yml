@@ -447,7 +447,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin "$BASE_REF"
-          if git diff --name-only "origin/${BASE_REF}...HEAD" | grep -qE '^crates/.+/Cargo\.toml$|^Cargo\.toml$|^scripts/publish_crates\.sh$'; then
+          if git diff --name-only "origin/${BASE_REF}...HEAD" | grep -qE '^crates/.+/Cargo\.toml$|^Cargo\.toml$|^scripts/publish_crates\.(sh|py)$'; then
             bash scripts/publish_crates.sh --dry-run
           else
             echo "No crate manifest changes; skipping publish dry-run"
@@ -698,6 +698,7 @@ jobs:
           python3 scripts/test_collect_coverage_records.py
           python3 scripts/test_promotion_refusal_helpers.py
           python3 scripts/test_publish_crates.py
+          python3 scripts/test_recover_published_crate.py
           python3 scripts/test_release_support_delta.py
           python3 scripts/test_transport_replay_contract.py
           python3 scripts/verify_release_selftest.py

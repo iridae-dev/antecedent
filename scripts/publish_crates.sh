@@ -5,6 +5,8 @@
 #   bash scripts/publish_crates.sh              # dry-run (default)
 #   bash scripts/publish_crates.sh --dry-run
 #   bash scripts/publish_crates.sh --execute     # real publish (needs crates.io token)
+# Recovery tooling can add --source DIR --allow-dirty to package a separately
+# verified tag checkout with a reviewed manifest-only repair.
 #
 # CRATES_IO_TOKEN / CARGO_REGISTRY_TOKEN must be set for --execute.
 #
@@ -20,8 +22,9 @@
 # (always includes antecedent-core) and `cargo check`s the rest. `--execute`
 # publishes in topological order so later crates see earlier ones on the index.
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
+TOOLING_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$TOOLING_ROOT"
+PUBLISH_ARGS=()
 
 MODE="dry-run"
 case "${1:-}" in
@@ -36,19 +39,33 @@ case "${1:-}" in
     exit 2
     ;;
 esac
+[[ $# -eq 0 ]] || shift
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --source)
+      [[ $# -ge 2 ]] || { echo "--source requires a directory" >&2; exit 2; }
+      ROOT="$(cd "$2" && pwd)"
+      shift 2
+      ;;
+    --allow-dirty) PUBLISH_ARGS+=(--allow-dirty); shift ;;
+    *) echo "unknown argument: $1" >&2; exit 2 ;;
+  esac
+done
+cd "$ROOT"
 
 # Leaves first, from the workspace graph. A hand list is how design was uploaded
 # before identify and io, which it depends on. antecedent-py is the extension
 # crate and is not published here; neither is any `publish = false` crate.
 publish_order() {
-  python3 "$ROOT/scripts/publish_crates.py"
+  python3 "$TOOLING_ROOT/scripts/publish_crates.py"
 }
 
+ORDER="$(publish_order)"
 CRATES=()
 while IFS= read -r crate; do
   [[ -n "$crate" ]] || continue
   CRATES+=("$crate")
-done < <(publish_order)
+done <<<"$ORDER"
 if [[ "${#CRATES[@]}" -eq 0 ]]; then
   echo "crate publish order is empty" >&2
   exit 1
@@ -149,7 +166,7 @@ for crate in "${CRATES[@]}"; do
   attempt=1
   while true; do
     set +e
-    out="$(cargo publish -p "$crate" --locked 2>&1)"
+    out="$(cargo publish -p "$crate" --locked ${PUBLISH_ARGS[@]+"${PUBLISH_ARGS[@]}"} 2>&1)"
     status=$?
     set -e
     if [[ $status -eq 0 ]]; then

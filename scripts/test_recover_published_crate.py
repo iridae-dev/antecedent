@@ -70,9 +70,7 @@ class RecoveryTests(unittest.TestCase):
         if command[:2] == ("cargo", "publish"):
             self.assertEqual(
                 self.manifest.read_bytes().decode(),
-                self.original.decode().replace(
-                    OLD_DEPENDENCY, recovery.NEW_DEPENDENCY
-                ),
+                self.original.decode().replace(OLD_DEPENDENCY, recovery.NEW_DEPENDENCY),
             )
             if "--dry-run" in command and self.fail_dry_run:
                 raise subprocess.CalledProcessError(101, command)
@@ -137,6 +135,74 @@ class RecoveryTests(unittest.TestCase):
             with self.subTest(change=after), self.assertRaises(ValueError):
                 recovery.repair_manifest(
                     self.original.decode().replace(before, after), RELEASE.version
+                )
+
+
+class WorkspaceRecoveryTests(RecoveryTests):
+    def setUp(self):
+        super().setUp()
+        self.workspace = self.source / "Cargo.toml"
+        self.workspace_original = (
+            b'[workspace.package]\nversion = "9.8.7"\n'
+            b"[workspace.dependencies]\n"
+            b'antecedent-test-support = { version = "9.8.7", '
+            b'path = "crates/antecedent-test-support" }\n'
+        )
+        self.workspace.write_bytes(self.workspace_original)
+        helper = self.source / "crates/antecedent-test-support/Cargo.toml"
+        helper.parent.mkdir(parents=True)
+        helper.write_text(
+            '[package]\nname = "antecedent-test-support"\npublish = false\n'
+        )
+
+    def external(self, source, *command, capture=False, env=None):
+        if command[:2] == ("git", "diff"):
+            self.commands.append(command)
+            return "Cargo.toml"
+        if command[0] == "bash" and command[1].endswith("publish_crates.sh"):
+            self.commands.append(command)
+            self.assertEqual(
+                self.workspace.read_text(),
+                recovery.repair_workspace_manifest(
+                    self.workspace_original.decode(), RELEASE.version
+                ),
+            )
+            if "--dry-run" in command and self.fail_dry_run:
+                raise subprocess.CalledProcessError(101, command)
+            return ""
+        return super().external(source, *command, capture=capture, env=env)
+
+    def test_failed_dry_run_cannot_upload_and_restores_manifest(self):
+        self.fail_dry_run = True
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.attempt()
+        self.assertFalse(any("--execute" in c for c in self.commands))
+        self.assertEqual(self.workspace.read_bytes(), self.workspace_original)
+
+    def test_verified_recovery_only_uploads_facade_after_dry_run(self):
+        self.attempt()
+        publications = [
+            c
+            for c in self.commands
+            if c[0] == "bash" and c[1].endswith("publish_crates.sh")
+        ]
+        self.assertEqual(len(publications), 2)
+        self.assertIn("--dry-run", publications[0])
+        self.assertIn("--execute", publications[1])
+        self.assertIn("--allow-dirty", publications[1])
+        self.assertEqual(publications[1][-3:-1], ("--source", str(self.source)))
+        self.assertEqual(self.workspace.read_bytes(), self.workspace_original)
+        self.assertEqual(self.manifest.read_bytes(), self.original)
+
+    def test_changed_private_dependency_refuses(self):
+        for before, after in (
+            ("9.8.7", "9.8.8"),
+            ("crates/antecedent-test-support", "foreign"),
+        ):
+            with self.subTest(change=after), self.assertRaises(ValueError):
+                recovery.repair_workspace_manifest(
+                    self.workspace_original.decode().replace(before, after),
+                    RELEASE.version,
                 )
 
 
