@@ -107,7 +107,9 @@ def period_population_label(population: str, period: str) -> str:
     A quantity in the target period of a period shift is stated in this population; the
     model's own period is the source population.
     """
-    return f"{text(population, 'population', non_empty=True)}@{text(period, 'period', non_empty=True)}"
+    return (
+        f"{text(population, 'population', non_empty=True)}@{text(period, 'period', non_empty=True)}"
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -459,7 +461,9 @@ def from_adaptive_trial(
 
 def _stored(evaluation: TransportedConstruction | Mapping[str, Any], route: str) -> str:
     """The stored evaluation of ``route`` as JSON, refusing one of another route."""
-    stored = evaluation.evaluation if isinstance(evaluation, TransportedConstruction) else evaluation
+    stored = (
+        evaluation.evaluation if isinstance(evaluation, TransportedConstruction) else evaluation
+    )
     if not isinstance(stored, Mapping):
         raise CausalTypeError("evaluation must be a TransportedConstruction or its mapping")
     if stored.get("route") != route:
@@ -624,7 +628,9 @@ class Pool:
         return {
             "kind": "pool",
             "sampling_covariance": (
-                None if covariance is None else [real(v, "covariance", finite=True) for v in covariance]
+                None
+                if covariance is None
+                else [real(v, "covariance", finite=True) for v in covariance]
             ),
         }
 
@@ -753,7 +759,10 @@ class SurrogateBridge:
             "terminal": self.terminal._wire(),
             "validation": {
                 "trials": [
-                    [real(s, "surrogate effect", finite=True), real(t, "terminal effect", finite=True)]
+                    [
+                        real(s, "surrogate effect", finite=True),
+                        real(t, "terminal effect", finite=True),
+                    ]
                     for s, t in self.validation_trials
                 ],
                 "min_trials": int(self.min_trials),

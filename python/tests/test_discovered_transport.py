@@ -114,7 +114,9 @@ def test_the_envelope_follows_the_class_and_not_the_rows_at_an_unchanged_class()
     assert first.identity == again.identity
     other_rows = discovered.discover_and_transport(contract(), chain(7), **QUERY).envelope  # type: ignore[arg-type]
     assert other_rows.status == first.status
-    assert [m.directed_edges for m in other_rows.members] == [m.directed_edges for m in first.members]
+    assert [m.directed_edges for m in other_rows.members] == [
+        m.directed_edges for m in first.members
+    ]
     # Another class at the same shape and query is another envelope.
     other_class = discovered.discover_and_transport(contract(), collider(1), **QUERY).envelope  # type: ignore[arg-type]
     assert other_class.identity != first.identity
@@ -130,13 +132,18 @@ def test_a_retained_adapter_serves_the_request_without_rediscovery() -> None:
 
 
 def test_a_member_bound_that_stops_the_enumeration_makes_no_every_member_statement() -> None:
-    query = dict(QUERY, outcome="z", treatment="w", source_experiments=["w"], selection_targets=["x"])
+    query = dict(
+        QUERY, outcome="z", treatment="w", source_experiments=["w"], selection_targets=["x"]
+    )
     variables = ("w", "x", "y", "z")
     full = discovered.discover_and_transport(contract(variables), chain4(3), **query).envelope  # type: ignore[arg-type]
     assert len(full.members) == 4
     assert full.enumeration_complete
     bounded = discovered.discover_and_transport(
-        contract(variables), chain4(3), member_bound=2, **query  # type: ignore[arg-type]
+        contract(variables),
+        chain4(3),
+        member_bound=2,
+        **query,  # type: ignore[arg-type]
     ).envelope
     assert bounded.status == "partial"
     assert not bounded.enumeration_complete
@@ -190,5 +197,7 @@ def test_an_adapter_that_has_not_run_and_undeclared_names_are_refused() -> None:
 
     with pytest.raises(CausalValueError):
         discovered.discover_and_transport(
-            contract(), chain(1), **dict(QUERY, selection_targets=["nope"])  # type: ignore[arg-type]
+            contract(),
+            chain(1),
+            **dict(QUERY, selection_targets=["nope"]),  # type: ignore[arg-type]
         )

@@ -1124,7 +1124,6 @@ class PreparedMechanismComposition(ScientificResult):
         )
 
 
-
 def _query_wire(
     family: str, query: MeanContrast | Mapping[str, Any], outcome: str | None
 ) -> dict[str, Any]:
@@ -1134,7 +1133,9 @@ def _query_wire(
         return {
             "gaussian_mean_contrast": {
                 "outcome": query.outcome,
-                "arms": [[w, [[v, x] for v, x in interventions]] for w, interventions in query.arms],
+                "arms": [
+                    [w, [[v, x] for v, x in interventions]] for w, interventions in query.arms
+                ],
             }
         }
     if isinstance(query, Mapping):
@@ -1153,6 +1154,7 @@ def _query_wire(
             }
         }
     raise CausalTypeError("query must be a MeanContrast or a mapping of interventions")
+
 
 @bind_mean_reading
 def _prepared(handle: Any, scope: Mapping[str, Any] | None = None) -> PreparedMechanismComposition:
@@ -1470,9 +1472,7 @@ class TransportedMechanismComposition(ScientificResult):
         """``sum_k weight_k * E[outcome | do(arm_k)]`` in the target composition."""
         return float(_unwrap(self._handle.mean_contrast(_dumps(contrast.to_wire()))))
 
-    def mean_contrast_uncertainty(
-        self, contrast: MeanContrast
-    ) -> TransportedFunctionalUncertainty:
+    def mean_contrast_uncertainty(self, contrast: MeanContrast) -> TransportedFunctionalUncertainty:
         """The first-order parameter variance of a contrast, scoped by the transport receipt.
 
         Raises ``joint_law_required`` when the dependence between more than one mechanism is

@@ -56,8 +56,8 @@ from ._native import build_cohort_decision_source as _build
 from ._native import cohort_decision_forward_claim as _forward_claim
 from ._native import cohort_decision_interval as _interval
 from ._native import cohort_decision_law_refusal as _law_refusal
-from ._native import fit_native_cohort_effect as _fit_native
 from ._native import consume_cohort_decision_source as _consume
+from ._native import fit_native_cohort_effect as _fit_native
 from ._native import normalize_cohort_weights as _normalize
 from ._native import transport_cohort_effect as _transport
 from ._native import transport_cohort_effect_verify as _transport_verify
@@ -406,8 +406,10 @@ class CohortDecisionSource(ScientificResult):
         (``cohort_decision.interval_requires_native_fit`` or
         ``cohort_decision.interval_not_licensed``).
         """
-        if isinstance(level, bool) or not isinstance(level, int | float) or not (
-            0.0 < float(level) < 1.0
+        if (
+            isinstance(level, bool)
+            or not isinstance(level, int | float)
+            or not (0.0 < float(level) < 1.0)
         ):
             raise CausalValueError("level= must be strictly between 0 and 1")
         measured, refusal = _interval(

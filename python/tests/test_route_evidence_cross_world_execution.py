@@ -91,9 +91,7 @@ def test_consume_replays_with_a_fresh_executor_and_enforces_the_retained_identit
 
 
 def test_the_native_seal_entry_returns_the_sealed_bytes_and_a_replayable_summary() -> None:
-    request = _request(
-        (cw.FactualUnit("u"),), cw.mean_contrast(("x1", "y"), ("x0", "y"))
-    )
+    request = _request((cw.FactualUnit("u"),), cw.mean_contrast(("x1", "y"), ("x0", "y")))
     parts, refusal = _native.cross_world_seal(request.to_json(), "native-artifact", None)
     assert refusal is None and parts is not None
     data, summary = parts

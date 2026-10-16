@@ -130,9 +130,7 @@ def source_mechanisms(gcm, *, uncertain: bool = False) -> list[mc.Mechanism]:
     uncertainty = {
         "X": marginal([INTERCEPT], [0.25]) if uncertain else None,
         "M": marginal([INTERCEPT, coef("X")], [0.04, -0.01, -0.01, 0.01]) if uncertain else None,
-        "Y": marginal(
-            [INTERCEPT, coef("X"), coef("M")], [0.09, 0, 0, 0, 0.01, 0, 0, 0, 0.0025]
-        )
+        "Y": marginal([INTERCEPT, coef("X"), coef("M")], [0.09, 0, 0, 0, 0.01, 0, 0, 0, 0.0025])
         if uncertain
         else None,
     }
@@ -195,9 +193,7 @@ def refusal_of(call) -> MechanismCompositionRefusal:
 # ------------------------------------------------------------------------------ values
 
 
-def test_carried_and_refitted_components_give_the_path_algebra_law(
-    source_gcm, target_gcm
-) -> None:
+def test_carried_and_refitted_components_give_the_path_algebra_law(source_gcm, target_gcm) -> None:
     source = source_composition(source_gcm)
     transported = source.transport_to(transport(refits=[refit_m(target_gcm)]))
 
@@ -301,9 +297,7 @@ def test_an_unknown_dependence_refuses_the_variance_but_not_the_point(
     source_gcm, target_gcm
 ) -> None:
     source = source_composition(source_gcm, uncertain=True, independent=False)
-    transported = source.transport_to(
-        transport(refits=[refit_m(target_gcm, uncertain=True)])
-    )
+    transported = source.transport_to(transport(refits=[refit_m(target_gcm, uncertain=True)]))
     contrast = mc.MeanContrast.mean_at("Y", {"X": 2.0})
     assert np.isfinite(transported.mean_contrast(contrast))
     error = refusal_of(lambda: transported.mean_contrast_uncertainty(contrast))
@@ -319,7 +313,9 @@ def test_the_transported_artifact_is_the_existing_one_and_replays(source_gcm, ta
     exported = transported.export({"X": 2.0}, outcome="Y")
     names, mean, cov = scm_law(TARGET_SPEC, {"X": 2.0})
     assert exported.result.mean == pytest.approx(mean[names.index("Y")], abs=1e-8)
-    assert exported.result.variance == pytest.approx(cov[names.index("Y"), names.index("Y")], abs=1e-8)
+    assert exported.result.variance == pytest.approx(
+        cov[names.index("Y"), names.index("Y")], abs=1e-8
+    )
     consumed = mc.consume_mechanism_composition_artifact(
         exported.artifact, exported.premises_digest
     )

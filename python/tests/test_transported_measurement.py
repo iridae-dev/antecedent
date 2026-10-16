@@ -13,8 +13,8 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
-from antecedent._freeze import thaw
 from antecedent import measurement_models as mm
+from antecedent._freeze import thaw
 from antecedent.errors import CausalTypeError
 from antecedent.measurement_models import MeasurementModelRefusal
 
@@ -232,9 +232,7 @@ def test_every_unmet_premise_is_named() -> None:
 
 
 def test_a_route_with_nothing_to_carry_is_refused() -> None:
-    repeated = dataclasses.replace(
-        model("clinic_a"), parameters=mm.RepeatedParameters(20, 0.1)
-    )
+    repeated = dataclasses.replace(model("clinic_a"), parameters=mm.RepeatedParameters(20, 0.1))
     data = mm.RepeatedLinearData([1.0, 2.0, 3.0], [1.0, 1.0, 2.0, 2.0, 3.0, 3.0], [2, 2, 2])
     refused(
         lambda: mm.transport_measurement_model(
@@ -250,7 +248,10 @@ def test_declaration_types_are_checked() -> None:
         mm.InvarianceDeclaration("clinic_a", "clinic_b", "analyst", "sensitivity")
     with pytest.raises(CausalTypeError):
         mm.transport_measurement_model(
-            [model("clinic_a")], analysis(), DATA, structure={"kind": "invariant"}  # type: ignore[arg-type]
+            [model("clinic_a")],
+            analysis(),
+            DATA,
+            structure={"kind": "invariant"},  # type: ignore[arg-type]
         )
     with pytest.raises(CausalTypeError):
         mm.transport_measurement_model([], analysis(), DATA, structure=invariance())

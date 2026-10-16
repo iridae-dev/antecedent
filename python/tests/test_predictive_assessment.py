@@ -497,7 +497,9 @@ def test_the_closed_routes_raise_typed_refusals() -> None:
     expect(error, "cell_not_licensed", "predictive_assessment.interval_not_licensed")
 
 
-def test_a_scoped_score_interval_is_published_inside_a_measured_design_and_refused_outside() -> None:
+def test_a_scoped_score_interval_is_published_inside_a_measured_design_and_refused_outside() -> (
+    None
+):
     # 800 iid cases of a fixed (never fitted) Gaussian forecast on a held-out split, level 0.95:
     # inside the measured iid records (400 to 1600 cases).
     n = 800

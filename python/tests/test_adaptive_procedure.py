@@ -124,9 +124,7 @@ def test_the_posterior_mean_is_a_martingale_of_an_adaptive_stopped_procedure():
         observation=ai.OutcomeObservation(lag_looks=1),
         selection=ai.FinalSelection.highest_observed_mean(),
     )
-    report = procedure.report(
-        ai.BayesianProcedureReport(prior=(2.0, 1.0), observed=(3, 1, 1, 2))
-    )
+    report = procedure.report(ai.BayesianProcedureReport(prior=(2.0, 1.0), observed=(3, 1, 1, 2)))
     assert report.paradigm == "bayesian_posterior"
     for gap in report.body["mean_gaps"]:
         assert gap["prior_mean"] == pytest.approx(2.0 / 3.0, abs=TOL)

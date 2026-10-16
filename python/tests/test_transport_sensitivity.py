@@ -111,9 +111,7 @@ def test_a_response_that_cannot_be_shifted_is_refused_with_its_own_reason() -> N
     assert structural.detail == "transport_sensitivity.no_scalar_family"
 
     # A proportional shift of zero is no range.
-    zero = refusal_of(
-        lambda: sensitivity(point(0.0), family="proportional_shift", bound=0.5)
-    )
+    zero = refusal_of(lambda: sensitivity(point(0.0), family="proportional_shift", bound=0.5))
     assert zero.reason_code in {"invalid_argument", "route_not_supported"}
 
 

@@ -238,4 +238,3 @@ def consume_for_callback(
     _raise(refusal)
     assert summary is not None
     return _summary(json.loads(summary), bytes(data))
-

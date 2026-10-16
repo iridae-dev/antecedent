@@ -67,10 +67,7 @@ def main() -> None:
     else:
         raise AssertionError("changing retained assignments must be refused")
     assert experiment.last_result is original
-    assert (
-        experiment.refresh({"outcome": data["outcome"]}).answer.value
-        == original.answer.value
-    )
+    assert experiment.refresh({"outcome": data["outcome"]}).answer.value == original.answer.value
     # Repreparation returns a new study, resolves the names and repeats checks.
     revised = experiment.reprepare(changed_design)
     assert revised is not experiment and revised.last_result is None

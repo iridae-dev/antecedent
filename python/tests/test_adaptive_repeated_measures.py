@@ -282,12 +282,18 @@ def test_a_guarantee_is_not_paired_across_cells():
     accepted = procedure.transfer_guarantee(GREEDY_CELL, "frequentist_adaptive_weighting")
     assert accepted.body == {"kind": "cell_transfer", "cell_id": GREEDY_CELL}
     for cell_id, paradigm in (
-        ("epsilon_greedy/single_outcome/final_analysis_only/no_stopping",
-         "frequentist_adaptive_weighting"),
-        ("epsilon_greedy/hierarchical_clustered/final_analysis_only/no_stopping",
-         "frequentist_adaptive_weighting"),
-        ("epsilon_greedy/repeated_measures/fixed_interim_looks/no_stopping",
-         "frequentist_adaptive_weighting"),
+        (
+            "epsilon_greedy/single_outcome/final_analysis_only/no_stopping",
+            "frequentist_adaptive_weighting",
+        ),
+        (
+            "epsilon_greedy/hierarchical_clustered/final_analysis_only/no_stopping",
+            "frequentist_adaptive_weighting",
+        ),
+        (
+            "epsilon_greedy/repeated_measures/fixed_interim_looks/no_stopping",
+            "frequentist_adaptive_weighting",
+        ),
         (GREEDY_CELL, "anytime_valid_frequentist"),
     ):
         refused(

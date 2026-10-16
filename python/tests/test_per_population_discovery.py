@@ -48,7 +48,10 @@ def test_each_population_is_discovered_on_its_own_rows_and_the_edges_are_lined_u
     assert report.population("north").unresolved_edges == 2
     assert report.population("south").unresolved_edges == 0
     assert all(not p.search_incomplete and p.retained_statistics > 0 for p in report.populations)
-    assert report.population("north").structure_identity != report.population("south").structure_identity
+    assert (
+        report.population("north").structure_identity
+        != report.population("south").structure_identity
+    )
     assert report.population("north").data_identity != report.population("south").data_identity
 
     assert [(str(e.a), str(e.b)) for e in report.edges] == [("x", "y"), ("y", "z")]

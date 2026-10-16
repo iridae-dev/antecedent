@@ -785,9 +785,7 @@ def registry_resolved_calibration(calibration: Calibration) -> Calibration:
     wire = json.loads(
         _native.composition_registry_resolved_calibration(_dumps(calibration.to_wire()))
     )
-    return Calibration(
-        wire["kind"], wire.get("record"), wire.get("coordinate"), wire.get("from")
-    )
+    return Calibration(wire["kind"], wire.get("record"), wire.get("coordinate"), wire.get("from"))
 
 
 def unresolved_registry_calibrations(graph: CompositionGraph) -> tuple[str, ...]:

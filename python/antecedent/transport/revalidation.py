@@ -242,9 +242,7 @@ class TransportSceneBuilder:
             "calibration": stated._wire(),
             "trust": trust,
         }
-        return replace(
-            self, claims=(*self.claims, claim), responses=(*self.responses, response)
-        )
+        return replace(self, claims=(*self.claims, claim), responses=(*self.responses, response))
 
     def decision(
         self, key: str, identity: str, quantity: str, rests_on: Sequence[str] = ()
@@ -279,9 +277,7 @@ class TransportSceneBuilder:
             "claims": list(self.claims),
         }
         handle = _unwrap(
-            _native.transport_scene_build(
-                json.dumps(wire), [r._handle for r in self.responses]
-            )
+            _native.transport_scene_build(json.dumps(wire), [r._handle for r in self.responses])
         )
         return TransportScene._of(handle)
 

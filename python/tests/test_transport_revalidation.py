@@ -58,9 +58,7 @@ def scene(
             response("effect_r", "registry", "clinic_b", 1.5),
             rv.Calibration.point_only(),
         )
-        .decision(
-            "treat_or_wait", digest(40), digest(41), ["effect_trial", "effect_registry"]
-        )
+        .decision("treat_or_wait", digest(40), digest(41), ["effect_trial", "effect_registry"])
         .build()
     )
 
@@ -170,14 +168,16 @@ def test_a_refused_observation_leaves_the_state_unchanged() -> None:
 
     # A claim about another target does not build, so it never reaches the state.
     refusal_of(
-        lambda: rv.TransportScene.builder("clinic_b", digest(1))
-        .source("trial", digest(10))
-        .transported(
-            "elsewhere",
-            response("effect", "trial", "clinic_c", 2.0),
-            rv.Calibration.point_only(),
+        lambda: (
+            rv.TransportScene.builder("clinic_b", digest(1))
+            .source("trial", digest(10))
+            .transported(
+                "elsewhere",
+                response("effect", "trial", "clinic_c", 2.0),
+                rv.Calibration.point_only(),
+            )
+            .build()
         )
-        .build()
     )
     assert state.scene is not None
     assert state.scene.claims == first.claims
@@ -191,37 +191,43 @@ def test_a_refused_observation_leaves_the_state_unchanged() -> None:
 
 def test_the_builder_refuses_what_a_scene_cannot_state() -> None:
     elsewhere = refusal_of(
-        lambda: rv.TransportScene.builder("clinic_b", digest(1))
-        .source("trial", digest(10))
-        .transported(
-            "elsewhere",
-            response("effect", "trial", "clinic_c", 2.0),
-            rv.Calibration.point_only(),
+        lambda: (
+            rv.TransportScene.builder("clinic_b", digest(1))
+            .source("trial", digest(10))
+            .transported(
+                "elsewhere",
+                response("effect", "trial", "clinic_c", 2.0),
+                rv.Calibration.point_only(),
+            )
+            .build()
         )
-        .build()
     )
     assert elsewhere.detail == "transport_revalidation.claim_target_mismatch"
     assert elsewhere.reason_code == "quantity_semantics_mismatch"
 
     orphan = refusal_of(
-        lambda: rv.TransportScene.builder("clinic_b", digest(1))
-        .transported(
-            "orphan", response("effect", "trial", "clinic_b", 2.0), rv.Calibration.point_only()
+        lambda: (
+            rv.TransportScene.builder("clinic_b", digest(1))
+            .transported(
+                "orphan", response("effect", "trial", "clinic_b", 2.0), rv.Calibration.point_only()
+            )
+            .build()
         )
-        .build()
     )
     assert orphan.detail == "transport_revalidation.source_undeclared"
 
     repeated = refusal_of(
-        lambda: rv.TransportScene.builder("clinic_b", digest(1))
-        .source("trial", digest(10))
-        .transported(
-            "effect", response("effect", "trial", "clinic_b", 2.0), rv.Calibration.point_only()
+        lambda: (
+            rv.TransportScene.builder("clinic_b", digest(1))
+            .source("trial", digest(10))
+            .transported(
+                "effect", response("effect", "trial", "clinic_b", 2.0), rv.Calibration.point_only()
+            )
+            .transported(
+                "effect", response("effect", "trial", "clinic_b", 3.0), rv.Calibration.point_only()
+            )
+            .build()
         )
-        .transported(
-            "effect", response("effect", "trial", "clinic_b", 3.0), rv.Calibration.point_only()
-        )
-        .build()
     )
     assert repeated.detail == "transport_revalidation.duplicate_claim"
 

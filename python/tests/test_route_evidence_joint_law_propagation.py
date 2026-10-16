@@ -116,7 +116,9 @@ def test_the_native_aligned_linear_entry_returns_the_sealed_sum_moments() -> Non
     _, dx, dy = _columns("snap-native-linear")
     xa, xc = dx._require_artifact()
     ya, yc = dy._require_artifact()
-    claim = jl._claim(_native.joint_law_aligned_linear("sum", 1.0, 1.0, "x", xa, xc, "y", ya, yc, None))
+    claim = jl._claim(
+        _native.joint_law_aligned_linear("sum", 1.0, 1.0, "x", xa, xc, "y", ya, yc, None)
+    )
     # mean 0.5 + 1.2; Var(X + Y) = 0.25 + 0.96 + 2 * (-0.2) = 0.81.
     assert claim.value("mean") == pytest.approx(1.7, abs=1e-12)
     assert claim.value("variance") == pytest.approx(0.81, abs=1e-12)

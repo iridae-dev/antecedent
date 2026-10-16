@@ -58,9 +58,7 @@ def query(arms, constraints, *, functional: str = "mean") -> iq.InverseQuery:
 
 def gaussian_actions() -> list[src.ComposedAction]:
     return [
-        src.ComposedAction(
-            f"x{arm}", outcome_under(arm), {"X": float(arm)}, outcome="Y"
-        )
+        src.ComposedAction(f"x{arm}", outcome_under(arm), {"X": float(arm)}, outcome="Y")
         for arm in ("0", "1", "2")
     ]
 
@@ -128,9 +126,7 @@ def test_a_point_composition_refuses_laws_intervals_and_the_wrong_family() -> No
     source = src.composed_forward_source(composition, gaussian_actions())
     arms = ("0", "1", "2")
 
-    quantile = refusal_of(
-        lambda: source.evaluate(query(arms, [iq.target_quantile(0.5, 1.0)]))
-    )
+    quantile = refusal_of(lambda: source.evaluate(query(arms, [iq.target_quantile(0.5, 1.0)])))
     assert quantile.reason_code == "decision_contract_unsatisfied"
     assert quantile.detail == "inverse_forward_source.composed_law_not_materialized"
     assert quantile.remedy
@@ -143,9 +139,7 @@ def test_a_point_composition_refuses_laws_intervals_and_the_wrong_family() -> No
 
     # A finite-distribution query of a linear-Gaussian composition is refused by the composition.
     wrong = [contrast_action("0")]
-    wrong_family = refusal_of(
-        lambda: src.composed_forward_source(compose(finite_chain()), wrong)
-    )
+    wrong_family = refusal_of(lambda: src.composed_forward_source(compose(finite_chain()), wrong))
     assert wrong_family.reason_code == "route_not_supported"
     assert wrong_family.detail == "mechanism_composition.request_unsupported"
 
@@ -292,9 +286,7 @@ def test_a_finite_composition_supplies_the_exact_law_of_each_action() -> None:
 
 def test_an_uncoded_finite_outcome_is_refused_with_its_level_coding() -> None:
     composition = compose(finite_chain())
-    error = refusal_of(
-        lambda: src.composed_forward_source(composition, finite_actions({"1": 1.0}))
-    )
+    error = refusal_of(lambda: src.composed_forward_source(composition, finite_actions({"1": 1.0})))
     assert error.reason_code == "mechanism_composition_incoherent"
     assert error.detail == "inverse_forward_source.composed_level_coding"
 
@@ -457,7 +449,11 @@ def observed(name: str, role: str) -> ScientificQuantity:
 def observed_law(meaning: str = "empirical_outcome", outcome=Y) -> JointDistributionArtifact:
     identity = DistributionIdentity(
         semantic=meaning,  # type: ignore[arg-type]
-        quantities=(observed("x", "covariate"), observed("z", "covariate"), observed("y", "outcome")),
+        quantities=(
+            observed("x", "covariate"),
+            observed("z", "covariate"),
+            observed("y", "outcome"),
+        ),
         alignment="joint",
         source_id="observed-units",
         provider_id="enumerated",
@@ -573,7 +569,9 @@ def test_a_cohort_contrast_is_a_point_source_with_its_own_law_refusal() -> None:
     answered = source.evaluate(cohort_query(cohort, iq.target_mean(5.0)))
     assert answered.feasible_actions == ("treat",)
     assert answered.action("treat").point_values[0].value == pytest.approx(7.4, abs=TOL)
-    refused = refusal_of(lambda: source.evaluate(cohort_query(cohort, iq.target_quantile(0.5, 1.0))))
+    refused = refusal_of(
+        lambda: source.evaluate(cohort_query(cohort, iq.target_quantile(0.5, 1.0)))
+    )
     assert refused.detail == "inverse_forward_source.point_only_law_requested"
 
 

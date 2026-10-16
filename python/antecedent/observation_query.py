@@ -49,8 +49,8 @@ from typing import Any
 from . import _native
 from ._artifact_protocol import ExportedArtifact
 from ._freeze import thaw
-from ._measured_inference import MeasuredInference
 from ._mean_binding import bind_mean_reading
+from ._measured_inference import MeasuredInference
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError
@@ -793,7 +793,9 @@ class CountFittedObservation(ScientificResult):
             raise CausalValueError("the native interval returned neither result nor refusal")
         return MeasuredInference._from_native(measured)
 
-    def calibrated_probability(self, *, level: float = 0.95, cancel: Any = None) -> MeasuredInference:
+    def calibrated_probability(
+        self, *, level: float = 0.95, cancel: Any = None
+    ) -> MeasuredInference:
         """The calibration claim of the posterior probability: the same measured interval."""
         return self.interval(level=level, cancel=cancel)
 

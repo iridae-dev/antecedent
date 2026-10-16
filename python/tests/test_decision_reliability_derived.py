@@ -14,6 +14,7 @@ import math
 import numpy as np
 import pytest
 from antecedent import decision_reliability as dr
+from antecedent.errors import CausalValueError
 
 DR = dr.DecisionReliabilityRefusal
 Z_975 = 1.959963984540054
@@ -78,9 +79,7 @@ def test_three_components_match_the_enumerated_law() -> None:
     assert ab["interval"]["estimate"] == pytest.approx(0.5)
     assert ab["interval"]["standard_error"] == pytest.approx(math.sqrt(1.25 / 39.0), rel=1e-9)
     best = next(
-        p
-        for p in derived.numerical["probabilities"]
-        if p["id"] == "A" and p["quantity"] == "best"
+        p for p in derived.numerical["probabilities"] if p["id"] == "A" and p["quantity"] == "best"
     )
     lower, upper = _wilson(7.0 / 12.0, 40.0, Z_975)
     assert best["interval"]["lower"] == pytest.approx(lower, abs=1e-6)
@@ -280,5 +279,5 @@ def test_coverage_design_is_inspectable_data_that_measures_nothing() -> None:
     assert design.cell("ranking_probability_interval")["truth"] == "closed_form"
     assert design.cell("optimality_confidence_set")["truth"] == "simulation_known_optimum"
     assert design.to_dict()["measured"] is False
-    with pytest.raises(Exception):  # noqa: B017 - unknown route is a value error
+    with pytest.raises(CausalValueError, match="no coverage cell"):
         design.cell("no_such_route")

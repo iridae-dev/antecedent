@@ -2997,7 +2997,9 @@ def _check_carried_decision(o: Objs) -> None:
     response = _carried()
     contract = _carried_contract()
     decided = contract.evaluate_transported(
-        response, analysis=_analysis(), support_policy=comp.SupportPolicy.require_all("extrapolative")
+        response,
+        analysis=_analysis(),
+        support_policy=comp.SupportPolicy.require_all("extrapolative"),
     )
     by_id = {a.id: a for a in decided.outcomes}
     assert by_id["treat"].expected_utility == pytest.approx(6.5, abs=1e-12)
@@ -3035,7 +3037,9 @@ def _check_carried_inverse(o: Objs) -> None:
     assert native.value.detail == "inverse_forward_source.transported_not_accepted"
     assert_registered_refusal(native.value)
     with pytest.raises(iq.InverseQueryRefusal) as quantile:
-        source.evaluate(iq.InverseQuery(contract, ("wait", "treat"), (iq.target_quantile(0.5, 0.5),)))
+        source.evaluate(
+            iq.InverseQuery(contract, ("wait", "treat"), (iq.target_quantile(0.5, 0.5),))
+        )
     assert quantile.value.detail == "inverse_forward_source.point_only_law_requested"
     _check_raw_rejected(response, feeders=_INVERSE_FEEDERS)
 

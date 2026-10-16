@@ -321,9 +321,7 @@ class TransportedResponse(ScientificResult):
             raise CausalTypeError("law must be a JointDistributionArtifact")
         _declaration(declaration)
         handle = _unwrap(
-            _native.transported_response_declared_law(
-                law._native, json.dumps(declaration._wire())
-            ),
+            _native.transported_response_declared_law(law._native, json.dumps(declaration._wire())),
             TransportedResponseRefusal,
         )
         return cls._of(handle)

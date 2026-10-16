@@ -568,7 +568,11 @@ def test_a_run_adds_data_statistics_and_structure_nodes_with_its_own_identities(
 
     claims = discovery.add_claims(None, "disc")
     keys = claims.keys
-    assert (keys.data, keys.statistics, keys.graph) == ("disc.data", "disc.statistics", "disc.graph")
+    assert (keys.data, keys.statistics, keys.graph) == (
+        "disc.data",
+        "disc.statistics",
+        "disc.graph",
+    )
     assert keys.completion is None and keys.downstream_anchor == "disc.graph"
     graph = claims.graph.node("disc.graph")
     assert graph.structure == outcome.structure_identity

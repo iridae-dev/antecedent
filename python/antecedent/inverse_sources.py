@@ -257,7 +257,9 @@ class ForwardSource(ScientificResult):
             _handle=handle,
         )
 
-    def evaluate(self, query: InverseQuery, *, interval_region: bool = False) -> SourcedInverseResult:
+    def evaluate(
+        self, query: InverseQuery, *, interval_region: bool = False
+    ) -> SourcedInverseResult:
         """Evaluate ``query`` on this source; the result carries the source's origin.
 
         Raises:

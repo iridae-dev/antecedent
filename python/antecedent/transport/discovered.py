@@ -151,7 +151,9 @@ def _names_of(names: Sequence[str], raw: int) -> str:
     return names[raw] if 0 <= raw < len(names) else f"v{raw}"
 
 
-def _pairs(wire: Sequence[Mapping[str, Any]], names: Sequence[str]) -> tuple[tuple[str, str, str], ...]:
+def _pairs(
+    wire: Sequence[Mapping[str, Any]], names: Sequence[str]
+) -> tuple[tuple[str, str, str], ...]:
     return tuple(
         (_names_of(names, int(p["a"])), _names_of(names, int(p["b"])), str(p["reason"]))
         for p in wire
@@ -166,7 +168,8 @@ def _envelope(text: str, names: Sequence[str]) -> StructuralTransportEnvelope:
         members.append(
             EnvelopeMember(
                 directed_edges=tuple(
-                    (_names_of(names, int(p)), _names_of(names, int(c))) for p, c in m["directed_edges"]
+                    (_names_of(names, int(p)), _names_of(names, int(c)))
+                    for p, c in m["directed_edges"]
                 ),
                 verdict=str(verdict["kind"]),
                 rule=verdict.get("rule"),
@@ -233,7 +236,10 @@ def _query_wire(
     values = [float(v) for v in grid]
     if not values:
         raise CausalValueError("grid must hold at least one treatment value")
-    for label, text in (("source_population", source_population), ("target_population", target_population)):
+    for label, text in (
+        ("source_population", source_population),
+        ("target_population", target_population),
+    ):
         if not isinstance(text, str) or not text.strip():
             raise CausalTypeError(f"{label} must be a non-empty string")
     return json.dumps(
@@ -257,7 +263,9 @@ def _target_ids(names: Sequence[str], targets: Sequence[str]) -> list[int]:
         try:
             ids.append(list(names).index(name))
         except ValueError:
-            raise CausalValueError(f"selection target {name!r} is not a searched variable") from None
+            raise CausalValueError(
+                f"selection target {name!r} is not a searched variable"
+            ) from None
     return ids
 
 
@@ -353,15 +361,17 @@ def discover_and_transport(
     )
     targets = _target_ids(names, selection_targets)
     bound = None if member_bound is None else count(member_bound, "member_bound", minimum=0)
-    envelope_text, transport_refusal, discovery_text, discovery_refusal = _native.discovered_transport_run(
-        json.dumps(contract.to_wire(), sort_keys=True),
-        list(names),
-        _columns(contract, data),
-        query,
-        targets,
-        bound,
-        threads=threads,
-        cancel=cancel,
+    envelope_text, transport_refusal, discovery_text, discovery_refusal = (
+        _native.discovered_transport_run(
+            json.dumps(contract.to_wire(), sort_keys=True),
+            list(names),
+            _columns(contract, data),
+            query,
+            targets,
+            bound,
+            threads=threads,
+            cancel=cancel,
+        )
     )
     raise_refusal(discovery_refusal, SelectiveDiscoveryRefusal)
     assert discovery_text is not None

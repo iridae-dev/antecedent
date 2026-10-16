@@ -1584,9 +1584,7 @@ class AdaptiveProcedure:
 
     def law(self, truth: Sequence[float], *, cancel: Any = None) -> ProcedureLaw:
         """The exact law of the terminal state under ``truth`` (one probability per cell)."""
-        wire = json.loads(
-            _unwrap(self._handle.law([float(p) for p in truth], cancel))
-        )
+        wire = json.loads(_unwrap(self._handle.law([float(p) for p in truth], cancel)))
         return ProcedureLaw(
             procedure_identity=wire["procedure_identity"],
             atoms=tuple(wire["atoms"]),
@@ -1630,9 +1628,7 @@ class AdaptiveProcedure:
         wire = getattr(request, "_wire", None)
         if wire is None:
             raise CausalTypeError("a request is one of the procedure report request classes")
-        payload = json.loads(
-            _unwrap(self._handle.report(_procedure_json(wire()), cancel))
-        )
+        payload = json.loads(_unwrap(self._handle.report(_procedure_json(wire()), cancel)))
         return ProcedureReport(
             paradigm=payload["paradigm"],
             estimand=payload["estimand"],

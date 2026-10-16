@@ -108,7 +108,9 @@ def compose(mechanisms, **kwargs: Any) -> mc.PreparedMechanismComposition:
 # --------------------------------------------------------------------------- decisions
 
 
-def outcome_under(arm: str, functional: str = "mean", population: str = "pop") -> ScientificQuantity:
+def outcome_under(
+    arm: str, functional: str = "mean", population: str = "pop"
+) -> ScientificQuantity:
     """``functional`` of ``Y`` under ``do(X = arm)``."""
     return ScientificQuantity(
         variable_id="Y",
@@ -125,7 +127,9 @@ def outcome_under(arm: str, functional: str = "mean", population: str = "pop") -
 def identity_contract(arms, functional: str = "mean") -> decision.Contract:
     return decision.Contract(
         actions=tuple(
-            decision.Action(f"x{arm}", inputs=(outcome_under(arm, functional),), utility=decision.x(0))
+            decision.Action(
+                f"x{arm}", inputs=(outcome_under(arm, functional),), utility=decision.x(0)
+            )
             for arm in arms
         ),
         utility_units="u",
@@ -217,6 +221,7 @@ def digest(byte: int) -> str:
 def prepared_analysis():
     """A prepared static ATE analysis, whose causal contract a transported decision binds to."""
     import antecedent
+
     from _scm import confounded_scm
 
     data, edges = confounded_scm(n=200, seed=31)

@@ -149,7 +149,9 @@ def test_the_decision_source_is_the_existing_surface_with_the_same_mean(model) -
     assert again.mean_contrast == source.mean_contrast
 
 
-def test_changed_inputs_at_an_unchanged_shape_move_the_value_and_identity(model, other_model) -> None:
+def test_changed_inputs_at_an_unchanged_shape_move_the_value_and_identity(
+    model, other_model
+) -> None:
     base = transport(model)
     reweighted = transport(model, cohort_=cohort(w=[0.5, 0.25, 0.25]))
     expected = float(np.dot([0.5, 0.25, 0.25], np.asarray(model.predict({"z": Z}).values)))

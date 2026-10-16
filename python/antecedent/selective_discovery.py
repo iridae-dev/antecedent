@@ -938,7 +938,9 @@ def _per_population_report(text: str, names: Sequence[str]) -> PerPopulationRepo
             b=_node(e["b"], names),
             marks={
                 str(m["population"]): (
-                    None if m["marks"] is None else (str(m["marks"]["at_a"]), str(m["marks"]["at_b"]))
+                    None
+                    if m["marks"] is None
+                    else (str(m["marks"]["at_a"]), str(m["marks"]["at_b"]))
                 )
                 for m in e["marks"]
             },
@@ -1240,7 +1242,9 @@ def discover_on_split(
         raise CausalTypeError("contract must be a StaticContract")
     if discovery_rows is not None:
         if discovery_fraction is not None or seed is not None:
-            raise CausalValueError("declare discovery_rows or discovery_fraction with seed, not both")
+            raise CausalValueError(
+                "declare discovery_rows or discovery_fraction with seed, not both"
+            )
         rule: dict[str, Any] = {
             "kind": "explicit",
             "discovery_rows": [_count(r, "row") for r in discovery_rows],
@@ -1523,9 +1527,7 @@ def discovery_data_source(label: str, snapshot_id: bytes, rows: range) -> Source
     return _declaration(text)
 
 
-def discovery_rows_source(
-    label: str, snapshot_id: bytes, rows: Sequence[int]
-) -> SourceDeclaration:
+def discovery_rows_source(label: str, snapshot_id: bytes, rows: Sequence[int]) -> SourceDeclaration:
     """Declare an explicit set of rows (not necessarily contiguous) as an evidence source.
 
     As :func:`discovery_data_source`, for a row set such as one part of a sample split.

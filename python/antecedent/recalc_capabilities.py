@@ -505,7 +505,12 @@ def capability_matrix() -> tuple[Capability, ...]:
     """
     rows = []
     for family in Family:
-        identities = (*_BASE, *_STANDING, *_EXTERNAL, IdentityRequirement(Stage.QUERY, _FAMILY_FIELDS[family]))
+        identities = (
+            *_BASE,
+            *_STANDING,
+            *_EXTERNAL,
+            IdentityRequirement(Stage.QUERY, _FAMILY_FIELDS[family]),
+        )
         for operation in Operation:
             adapters: tuple[Adapter, ...] = ()
             compatible = "No family adapter; readable/prepared results do not grant this operation."

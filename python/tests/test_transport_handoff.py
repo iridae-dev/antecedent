@@ -129,9 +129,7 @@ def test_an_edited_handoff_is_refused() -> None:
     refusal_of(lambda: th.consume_for_callback(bytes(data), callback()))
     # A consumer that retained another identity refuses the bytes.
     refusal_of(
-        lambda: th.consume_for_callback(
-            handoff.export(), callback(), expected_identity=digest(9)
-        )
+        lambda: th.consume_for_callback(handoff.export(), callback(), expected_identity=digest(9))
     )
     with pytest.raises(CausalTypeError):
         th.consume_for_callback("bytes", callback())  # type: ignore[arg-type]

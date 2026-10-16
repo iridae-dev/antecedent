@@ -175,7 +175,9 @@ def test_composed_interval_opens_only_with_a_measured_record_at_its_coordinate()
     assert interval.upper == pytest.approx(-0.7 + half, abs=1e-6)
     # Another construction or a smaller evidence size has no attesting record.
     with pytest.raises(R) as error:
-        claim.check_composed_interval("aligned_draw_equal_tail_exchangeable_rank", evidence_rows=200)
+        claim.check_composed_interval(
+            "aligned_draw_equal_tail_exchangeable_rank", evidence_rows=200
+        )
     assert error.value.reason_code == "cell_not_licensed"
     assert error.value.detail == "joint_law_propagation.interval_route_closed"
     with pytest.raises(R) as error:
@@ -189,7 +191,7 @@ def test_composed_interval_opens_only_with_a_measured_record_at_its_coordinate()
     with pytest.raises(R) as error:
         claim.interval()
     assert error.value.detail == "joint_law_propagation.interval_route_closed"
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="evidence_rows"):
         claim.check_composed_interval("normal_approximation")  # type: ignore[call-arg]
 
 

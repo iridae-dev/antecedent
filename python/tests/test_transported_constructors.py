@@ -541,13 +541,13 @@ def test_bridge_refusals_are_the_bridges_and_a_native_bridge_is_not_transported(
         )
     )
     assert error.reason_code == "bridge_assumption_missing"
-    assert error.detail == (
-        "scientific_bridge.transport_premise_contradicted_by_selection_diagram"
-    )
+    assert error.detail == ("scientific_bridge.transport_premise_contradicted_by_selection_diagram")
 
     native = bridge("adults", ["survival"])
     error = refused(
-        lambda: tc.from_surrogate_bridge(native, source_claim(native), provider_id="bridge-provider")
+        lambda: tc.from_surrogate_bridge(
+            native, source_claim(native), provider_id="bridge-provider"
+        )
     )
     assert error.detail == NOT_TRANSPORTED
 

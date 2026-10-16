@@ -262,9 +262,7 @@ class PreparedDiscretizedComposition(ScientificResult):
             inference=str(info["inference"]),
             calibration=str(info["calibration"]),
             error_scope=str(info["error_scope"]),
-            parameter_uncertainty_not_propagated=bool(
-                info["parameter_uncertainty_not_propagated"]
-            ),
+            parameter_uncertainty_not_propagated=bool(info["parameter_uncertainty_not_propagated"]),
         )
 
     def uncertainty(self, paradigm: Literal["frequentist", "bayesian"] = "frequentist") -> None:
@@ -356,8 +354,6 @@ def consume_discretized_composition(
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     handle = _unwrap(
-        _native.discretized_composition_consume(
-            bytes(artifact), expected_identity, cancel=cancel
-        )
+        _native.discretized_composition_consume(bytes(artifact), expected_identity, cancel=cancel)
     )
     return PreparedDiscretizedComposition._of(handle)

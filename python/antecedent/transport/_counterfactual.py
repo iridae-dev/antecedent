@@ -39,6 +39,7 @@ from types import MappingProxyType
 from typing import Any
 
 from .._columns import coerce_fields
+from .._measured_inference import MeasuredInference
 from .._native import (
     consume_counterfactual_transport_artifact_native as _consume_exact,
 )
@@ -51,7 +52,6 @@ from .._native import (
 from .._native import (
     identify_counterfactual_transport_native as _identify,
 )
-from .._measured_inference import MeasuredInference
 from ..errors import CausalTypeError, CausalValueError
 from ..graph import Admg
 from ._impl import (

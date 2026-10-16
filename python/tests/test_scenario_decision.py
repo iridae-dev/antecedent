@@ -605,6 +605,4 @@ def test_interval_utilities_refuse_a_truncated_enumeration_and_a_missing_input()
         sd.identified_utilities_from_intervals(contract(0.2, "report_only"), elsewhere)
     assert missing.value.detail == "decision_claims.missing_scenario_utility"
     with pytest.raises(CausalValueError):
-        sd.identified_utilities_from_intervals(
-            contract(0.2, "report_only"), [], reading="midpoint"
-        )
+        sd.identified_utilities_from_intervals(contract(0.2, "report_only"), [], reading="midpoint")

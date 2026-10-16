@@ -634,9 +634,7 @@ def test_a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record():
     sources = [ledger.add_source(data(f"study_{i}", i * 100, (i + 1) * 100)) for i in range(5)]
 
     def summaries(shift: float, count: int = 5):
-        return [
-            summary(sources[i], 0.5 + shift * (i - 2), 0.01 + 0.002 * i) for i in range(count)
-        ]
+        return [summary(sources[i], 0.5 + shift * (i - 2), 0.01 + 0.002 * i) for i in range(count)]
 
     fixed = ledger.pool_summaries("fixed", summaries(0.01)).result
     random = ledger.random_effects("random", summaries(0.05)).result
