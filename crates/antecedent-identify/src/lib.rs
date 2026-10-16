@@ -163,6 +163,7 @@ mod test_support {
     }
 }
 pub mod discovered_transport;
+pub mod discovered_transport_temporal;
 #[cfg(test)]
 mod id_scm_property;
 #[cfg(test)]

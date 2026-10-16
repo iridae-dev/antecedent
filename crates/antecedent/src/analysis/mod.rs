@@ -66,6 +66,8 @@ mod derived_treatment;
 mod design_exports;
 pub mod design_ranking;
 pub mod discovered_transport;
+pub mod discovered_transport_estimate;
+pub mod discovered_transport_temporal;
 pub mod discretized_composition;
 pub mod dose_grid_functional;
 pub mod effect_constancy;

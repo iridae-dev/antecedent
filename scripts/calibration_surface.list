@@ -352,6 +352,7 @@ suite.calibration_temporal_class crates/antecedent/tests/calibration_temporal_cl
 suite.class_posterior_calibration crates/antecedent/tests/class_posterior_calibration.rs
 suite.sample_split_effect_calibration crates/antecedent/tests/sample_split_effect_calibration.rs
 suite.transport_statistical_calibration crates/antecedent/tests/transport_statistical_calibration.rs
+suite.discovered_transport_calibration crates/antecedent/tests/discovered_transport_calibration.rs
 suite.z_transport_surrogate_calibration crates/antecedent/tests/z_transport_surrogate_calibration.rs
 suite.mz_transport_calibration crates/antecedent/tests/mz_transport_calibration.rs
 # The R-443 Figure 1(c,d) structural models and law builders its designs draw from.

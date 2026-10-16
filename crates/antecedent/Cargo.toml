@@ -472,6 +472,10 @@ name = "transport_statistical_calibration"
 path = "tests/transport_statistical_calibration.rs"
 
 [[test]]
+name = "discovered_transport_calibration"
+path = "tests/discovered_transport_calibration.rs"
+
+[[test]]
 name = "transported_constructors_facade"
 path = "tests/transported_constructors_facade.rs"
 

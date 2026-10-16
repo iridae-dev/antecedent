@@ -12,16 +12,22 @@ copied_tests = false
 # original reporting engineering.
 papers = [
   { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams and the structural transportability decision"] },
+  { title = "Ancestral Graph Markov Models (Richardson and Spirtes, 2002)", doi = "10.1214/aos/1031689015", sections = ["maximal ancestral graphs"] },
+  { title = "Causal Reasoning with Ancestral Graphs (Zhang, JMLR 2008)", doi = "10.5555/1390681.1442785", sections = ["visible edges and the do-calculus on a MAG"] },
   { title = "Equivalence and Synthesis of Causal Models (Verma and Pearl, UAI 1990; the DOI is the 2022 ACM reprint of the same paper)", doi = "10.1145/3501714.3501732", sections = ["Markov equivalence: same skeleton and same v-structures"] },
 ]
 implementation_deviations = [
   "No new theorem. A structural envelope is a statement about which members the implemented rules certify; it is not a point, interval or bound on an effect and carries no probability: members are not weighted and the true graph is not asserted to be among them except under the listed ENVELOPE_ASSUMPTIONS.",
   "NotIdentifiedInEveryMember is the conservative not-certified reading, never a proof of non-transportability. Partial means the member bound stopped enumeration; the unexplored remainder is not certified empty.",
-  "Static CPDAGs under causal sufficiency only. A PAG's members are ancestral graphs whose directed edges are not causal-parent relations, so that route is refused (pag_members_not_causal_graphs). Selection targets are declared by the caller and never inferred from per-population discovery differences.",
+  "A PAG's members are maximal ancestral graphs whose directed edges state ancestry. Each completion is read as the most-confounded ADMG it is compatible with: a directed edge that is not visible (Zhang 2008) also gets a bidirected edge, because only a visible edge excludes a latent common cause (Zhang 2008, Lemma 9); a derivation on that supergraph holds in every causal model the completion represents (sound, not complete). The completion walk is budgeted and a stop is a partial envelope.",
+  "A temporal class is unrolled over the window of a declared horizon; the process before the window is replaced by a bidirected edge between every pair of window nodes the template links to it by an arrowhead, a supergraph of the latent projection (original reporting engineering, no new theorem). A selection target applies at every slice.",
+  "The estimate over a class evaluates the complete sID formula of each member against source experiment rows and target observational rows with the retained empirical-table transport grid, then summarises: a point when members agree, a labelled structural range (smallest and largest member estimate, no probability) when they differ, a refusal when a member is not identified. An optional percentile interval on a point contrast is conditional on the discovered class and not bound to a complete-procedure calibration record; a temporal estimate offers none.",
+  "Selection targets are declared by the caller and never inferred from per-population discovery differences.",
   "Enumeration is bounded (DEFAULT_ENVELOPE_MEMBER_BOUND); an unfinished search, conflicting orientation evidence, a selection target outside the structure, or a class too large is a typed refusal naming every unresolved pair.",
 ]
 upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-identify/tests/discovered_transport.rs",
+  "crates/antecedent/tests/discovered_transport_facade.rs",
   "crates/antecedent-estimate/tests/cpdag_scenarios.rs",
 ]

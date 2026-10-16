@@ -1,7 +1,10 @@
-"""Transport across a discovered equivalence class: a structural envelope, never a point.
+"""Transport across a discovered equivalence class: a structural envelope, then a point or a range.
 
 A discovered structure is not a selection diagram. A CPDAG stands for every DAG of a Markov
-equivalence class, and the data do not say which member is true. This module asks the one
+equivalence class, and the data do not say which member is true. A PAG (``algorithm="fci"``)
+stands for every maximal ancestral graph of its class: each member is read as the
+most-confounded graph it is compatible with, so a circle endpoint is enumerated and never read
+as the absence of confounding. This module asks the one
 question that can honestly be answered: *what does each member of the class say about
 transporting this response?* ::
 
@@ -38,11 +41,22 @@ every exhausted search bound: an exhausted search bound
 (``discovered_transport.search_incomplete``), an orientation conflict
 (``discovered_transport.orientation_conflict``), a selection target outside the structure
 (``discovered_transport.selection_target_unknown``), a class too large for the member bound
-(``discovered_transport.class_too_large``), a PAG
-(``discovered_transport.pag_members_not_causal_graphs``: its members are ancestral graphs, not
-causal graphs the rules describe) and a temporal structure
+(``discovered_transport.class_too_large``), PAG marks that admit more than one Markov class
+(``discovered_transport.pag_class_ambiguous``) or a selection-bias edge
+(``discovered_transport.pag_selection_bias_edge``) and a temporal structure without a horizon
 (``discovered_transport.temporal_structure_unsupported``). The remedy is always to add background
 knowledge or an intervention, or to declare the causal graph and its selection diagram.
+
+**Estimates.** :func:`estimate_discovered_transport` runs the complete derivation in every member
+of the class against source experiment rows and target observational rows (integer-coded
+columns). Every member identified and agreeing is a ``point``; every member identified but
+differing is a ``structural_range`` (the smallest and largest member estimate: which values the
+class allows, no probability over members and no interval); a member that is not identified is a
+refusal (``discovered_transport.class_not_identified``) that names it. An exported estimate
+replays with :func:`verify_discovered_transport_estimate`. An interval on the contrast of a point
+answer exists only for independent rows with ``bootstrap_replicates`` and is conditional on the
+discovered class; its calibration is ``not_bound_to_this_execution`` until the complete-procedure
+coverage design is measured.
 
 **Lifecycle.** The envelope is derived on every call from the class and the declared query.
 Outcome-only data leaves the class and so the envelope's content unchanged; a rerun that yields
@@ -74,10 +88,16 @@ from ..selective_discovery import (
 __all__ = [
     "DiscoveredTransport",
     "DiscoveredTransportRefusal",
+    "DiscoveredTransportEstimate",
     "EnvelopeMember",
+    "MemberEstimate",
     "StructuralTransportEnvelope",
+    "TransportAnswer",
+    "VerifiedEstimate",
     "discover_and_transport",
+    "estimate_discovered_transport",
     "transport_across_class",
+    "verify_discovered_transport_estimate",
 ]
 
 
@@ -86,13 +106,16 @@ class DiscoveredTransportRefusal(StructuredRefusal):
 
     ``unresolved`` lists every unresolved pair as ``(a, b, reason)`` by variable name,
     ``exhausted_search_bounds`` counts the search bounds discovery exhausted and
-    ``unknown_selection_targets`` names declared targets that are not in the structure.
+    ``unknown_selection_targets`` names declared targets that are not in the structure and
+    ``member_reasons`` lists ``(member index, reason)`` for every member an estimate could not
+    identify or estimate.
     ``outcome`` and ``report`` carry the discovery that ran, when the refusal came after one.
     """
 
     unresolved: tuple[tuple[str, str, str], ...] = ()
     exhausted_search_bounds: int = 0
     unknown_selection_targets: tuple[str, ...] = ()
+    member_reasons: tuple[tuple[int, str], ...] = ()
     outcome: Outcome | None = None
     report: RunReport | None = None
 
@@ -103,6 +126,9 @@ class EnvelopeMember:
 
     ``verdict`` is ``identified`` (an implemented sound rule certified the query; ``rule`` and
     ``formula`` say how), ``not_certified`` or ``missing_evidence`` (``reason`` says why).
+    A PAG member also lists its ``bidirected_edges`` (a latent common cause) and its
+    ``confounded_edges`` (directed edges that are not visible, so a latent common cause of the
+    pair is not excluded and the identifier read them as confounded too).
     """
 
     directed_edges: tuple[tuple[str, str], ...]
@@ -110,6 +136,8 @@ class EnvelopeMember:
     rule: str | None
     formula: str | None
     reason: str | None
+    bidirected_edges: tuple[tuple[str, str], ...] = ()
+    confounded_edges: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(repr=False, frozen=True, slots=True)
@@ -175,6 +203,14 @@ def _envelope(text: str, names: Sequence[str]) -> StructuralTransportEnvelope:
                 rule=verdict.get("rule"),
                 formula=verdict.get("formula"),
                 reason=verdict.get("reason"),
+                bidirected_edges=tuple(
+                    (_names_of(names, int(a)), _names_of(names, int(b)))
+                    for a, b in m.get("bidirected_edges", ())
+                ),
+                confounded_edges=tuple(
+                    (_names_of(names, int(a)), _names_of(names, int(b)))
+                    for a, b in m.get("confounded_edges", ())
+                ),
             )
         )
     return StructuralTransportEnvelope(
@@ -209,6 +245,9 @@ def _raise_transport(
     refusal.exhausted_search_bounds = int(wire.get("exhausted_search_bounds", 0))
     refusal.unknown_selection_targets = tuple(
         _names_of(names, int(t)) for t in wire.get("unknown_selection_targets", ())
+    )
+    refusal.member_reasons = tuple(
+        (int(r["member"]), str(r["reason"])) for r in wire.get("member_reasons", ())
     )
     refusal.outcome = outcome
     refusal.report = report
@@ -381,3 +420,195 @@ def discover_and_transport(
     _raise_transport(transport_refusal, names, outcome=found, report=report)
     assert envelope_text is not None
     return DiscoveredTransport(_envelope(envelope_text, names), found, report)
+
+
+@dataclass(frozen=True, slots=True)
+class MemberEstimate:
+    """One member's outcome in an estimate.
+
+    ``status`` is ``estimated`` (``expression`` is the formula the member derived, ``means`` the
+    estimated mean outcome at each grid level and ``contrast`` the last level minus the first),
+    ``unidentified`` or ``unestimable`` (``detail`` says why).
+    """
+
+    member: int
+    status: str
+    expression: str | None = None
+    means: tuple[float, ...] = ()
+    contrast: float | None = None
+    detail: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TransportAnswer:
+    """The summary of the members' estimates.
+
+    ``kind`` is ``point`` or ``structural_range``. ``levels`` lists ``(level, low, high)``:
+    the smallest and largest member estimate of the mean outcome (equal for a point).
+    ``contrast`` is the smallest and largest member contrast, last level minus first.
+    ``interval`` is the pointwise percentile interval on a point's contrast (``low``, ``high``,
+    ``coverage_target``, ``calibration``), present only when requested; a structural range has
+    none (``interval_reason`` says why).
+    """
+
+    kind: str
+    levels: tuple[tuple[float, float, float], ...]
+    contrast: tuple[float, float] | None
+    expressions_agree: bool
+    interval: Mapping[str, Any] | None
+    interval_reason: str | None
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class DiscoveredTransportEstimate(ScientificResult):
+    """The transported response estimated across a discovered class.
+
+    ``export()`` returns the durable artifact: pass it to
+    :func:`verify_discovered_transport_estimate` to replay every member's grid and recompute the
+    answer.
+    """
+
+    levels: tuple[float, ...]
+    members: tuple[MemberEstimate, ...]
+    answer: TransportAnswer
+    report_identity: str
+    identity: str
+    _artifact_bytes: bytes
+    outcome: Outcome
+    report: RunReport
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiedEstimate:
+    """What replaying an exported estimate established."""
+
+    answer: TransportAnswer
+    report_identity: str
+    members: tuple[int, ...]
+
+
+def _answer(wire: Mapping[str, Any]) -> TransportAnswer:
+    contrast = wire.get("contrast")
+    return TransportAnswer(
+        kind=str(wire["kind"]),
+        levels=tuple(
+            (float(x["level"]), float(x["low"]), float(x["high"])) for x in wire["levels"]
+        ),
+        contrast=None if contrast is None else (float(contrast["low"]), float(contrast["high"])),
+        expressions_agree=bool(wire["expressions_agree"]),
+        interval=wire.get("interval"),
+        interval_reason=wire.get("interval_reason"),
+    )
+
+
+def estimate_discovered_transport(
+    contract: StaticContract,
+    source: Mapping[str, Any],
+    target: Mapping[str, Any],
+    *,
+    outcome: str,
+    treatment: str,
+    grid: Sequence[float],
+    selection_targets: Sequence[str],
+    source_population: str = "source",
+    target_population: str = "target",
+    member_bound: int | None = None,
+    bootstrap_replicates: int = 0,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> DiscoveredTransportEstimate:
+    """Discover on ``source``, enumerate the class, and estimate the transported response.
+
+    ``source`` holds the rows of an experiment on ``treatment`` (its column is the assignment)
+    and ``target`` observational rows of the target population; both are integer-coded columns
+    named like ``contract.variables``. The treatment is the source experiment, the grid gives the
+    levels, and the answer is a point, a structural range or a refusal; see the module
+    documentation.
+
+    Raises:
+        DiscoveredTransportRefusal: a refusal of the transport request or of the estimate (a
+            member that is not identified or cannot be estimated, evidence that is not usable).
+        SelectiveDiscoveryRefusal: a refused contract.
+        CausalDiscoveryError: the algorithm failed or was cancelled.
+    """
+    from ..selective_discovery import SelectiveDiscoveryRefusal
+
+    if not isinstance(contract, StaticContract):
+        raise CausalTypeError("contract must be a StaticContract")
+    names = tuple(contract.variables)
+    query = _query_wire(
+        names,
+        outcome=outcome,
+        treatment=treatment,
+        grid=grid,
+        source_population=source_population,
+        target_population=target_population,
+        source_experiments=[treatment],
+    )
+    targets = _target_ids(names, selection_targets)
+    bound = None if member_bound is None else count(member_bound, "member_bound", minimum=0)
+    replicates = count(bootstrap_replicates, "bootstrap_replicates", minimum=0)
+    estimate_text, refusal, discovery_text, discovery_refusal, artifact = (
+        _native.discovered_transport_estimate_run(
+            json.dumps(contract.to_wire(), sort_keys=True),
+            list(names),
+            _columns(contract, source),
+            _columns(contract, target),
+            query,
+            targets,
+            bound,
+            replicates,
+            threads=threads,
+            cancel=cancel,
+        )
+    )
+    raise_refusal(discovery_refusal, SelectiveDiscoveryRefusal)
+    assert discovery_text is not None
+    discovery = json.loads(discovery_text)
+    report = _report(json.dumps(discovery["report"]))
+    found = _outcome(json.dumps(discovery["outcome"]), names)
+    _raise_transport(refusal, names, outcome=found, report=report)
+    assert estimate_text is not None and artifact is not None
+    wire = json.loads(estimate_text)
+    members = tuple(
+        MemberEstimate(
+            member=int(m["member"]),
+            status=str(m["status"]),
+            expression=m.get("expression"),
+            means=tuple(float(x) for x in m.get("means", ())),
+            contrast=m.get("contrast"),
+            detail=m.get("detail"),
+        )
+        for m in wire["members"]
+    )
+    return DiscoveredTransportEstimate(
+        levels=tuple(float(x) for x in wire["levels"]),
+        members=members,
+        answer=_answer(wire["answer"]),
+        report_identity=str(wire["report_identity"]),
+        identity=str(wire["identity"]),
+        _artifact_bytes=bytes(artifact),
+        outcome=found,
+        report=report,
+    )
+
+
+def verify_discovered_transport_estimate(artifact: bytes, *, seed: int = 0) -> VerifiedEstimate:
+    """Replay an exported estimate and return the answer it recomputes.
+
+    Every member's transport grid is consumed with its embedded proof and tables, the mean at
+    every level is recomputed, and the answer kind and identity are checked.
+
+    Raises:
+        CausalValueError: a malformed or forged artifact.
+    """
+    if not isinstance(artifact, (bytes, bytearray)):
+        raise CausalTypeError("artifact must be bytes")
+    wire = json.loads(
+        _native.verify_discovered_transport_estimate_artifact(bytes(artifact), seed=seed)
+    )
+    return VerifiedEstimate(
+        answer=_answer(wire["answer"]),
+        report_identity=str(wire["report_identity"]),
+        members=tuple(int(m) for m in wire["members"]),
+    )

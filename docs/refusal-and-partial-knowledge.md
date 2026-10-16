@@ -544,7 +544,14 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `discovered_transport.member_bound_zero` | `discovered_structure_unresolved` | Allow at least one member. |
 | `discovered_transport.class_too_large` | `discovered_structure_unresolved` | Restrict the structure or declare a graph. |
 | `discovered_transport.no_members` | `discovered_structure_unresolved` | Check the discovered structure. |
-| `discovered_transport.pag_members_not_causal_graphs` | `discovered_structure_unresolved` | Resolve the PAG to a declared causal graph (an ADMG you assert) and request transport with that graph. |
+| `discovered_transport.pag_class_ambiguous` | `discovered_structure_unresolved` | Rerun discovery or declare the graph. |
+| `discovered_transport.pag_selection_bias_edge` | `discovered_structure_unresolved` | Remove the edge with background knowledge or declare the graph. |
+| `discovered_transport.temporal_structure_unsupported` | `discovered_structure_unresolved` | Request transport through the temporal entry with the treatment, outcome and horizon. |
+| `discovered_transport.temporal_query_invalid` | `discovered_structure_unresolved` | State a mean response curve of one outcome under the declared treatment among the structure's variables. |
+| `discovered_transport.class_not_identified` | `discovered_structure_unresolved` | Resolve the marks that separate the members or declare the graph. |
+| `discovered_transport.member_not_estimable` | `discovered_structure_unresolved` | Supply evidence that covers every factor or declare the graph. |
+| `discovered_transport.class_enumeration_partial` | `discovered_structure_unresolved` | Raise the member bound and the completion budget or declare the graph. |
+| `discovered_transport.evidence_invalid` | `invalid_argument` | Supply complete integer-coded tables; no interval for a temporal request. |
 | `selective_discovery.pooled_population_search` | `route_not_supported` | Run one population at a time; cross-population assumptions belong to the transport contract. |
 | `selective_discovery.populations_missing` | `invalid_argument` | Supply at least two populations or use the single-population route. |
 | `selective_discovery.population_missing` | `invalid_argument` | Name every population. |

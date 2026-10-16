@@ -152,21 +152,18 @@ def test_a_member_bound_that_stops_the_enumeration_makes_no_every_member_stateme
     assert bounded.identity != full.identity
 
 
-def test_a_pag_is_refused_with_its_unresolved_pairs_and_the_discovery_is_kept() -> None:
+def test_a_pag_chain_is_enumerated_as_its_five_markov_equivalent_mags() -> None:
     fci = contract(algorithm="fci")
-    with pytest.raises(discovered.DiscoveredTransportRefusal) as info:
-        discovered.discover_and_transport(fci, chain(1), **QUERY)  # type: ignore[arg-type]
-    refusal = info.value
-    assert_registered_refusal(refusal)
-    assert refusal.reason_code == "discovered_structure_unresolved"
-    assert refusal.detail == "discovered_transport.pag_members_not_causal_graphs"
-    assert refusal.exhausted_search_bounds == 0
-    assert refusal.remedy
-    assert refusal.outcome is not None and refusal.outcome.structure_class == "pag"
-    assert refusal.report is not None
+    result = discovered.discover_and_transport(fci, chain(1), **QUERY)  # type: ignore[arg-type]
+    envelope = result.envelope
+    assert result.outcome.structure_class == "pag"
+    assert envelope.enumeration_complete
+    assert len(envelope.members) == 5
+    assert sum(1 for m in envelope.members if m.bidirected_edges) == 2
+    assert all(reason == "circle_endpoint" for _, _, reason in envelope.unresolved)
 
 
-def test_a_temporal_structure_is_refused() -> None:
+def test_a_temporal_structure_without_a_horizon_is_refused() -> None:
     rng = np.random.default_rng(11)
     n = 300
     a = np.zeros(n)
@@ -201,3 +198,26 @@ def test_an_adapter_that_has_not_run_and_undeclared_names_are_refused() -> None:
             chain(1),
             **dict(QUERY, selection_targets=["nope"]),  # type: ignore[arg-type]
         )
+
+
+def test_an_estimate_over_columns_that_are_not_integer_codes_is_refused_precisely() -> None:
+    data = chain(2)
+    with pytest.raises(discovered.DiscoveredTransportRefusal) as info:
+        discovered.estimate_discovered_transport(
+            contract(),
+            data,
+            data,
+            outcome="z",
+            treatment="x",
+            grid=[0.0, 1.0],
+            selection_targets=["y"],
+            source_population="trial",
+            target_population="clinic",
+        )
+    assert_registered_refusal(info.value)
+    assert info.value.detail == "discovered_transport.evidence_invalid"
+
+
+def test_a_forged_estimate_artifact_does_not_replay() -> None:
+    with pytest.raises(CausalValueError):
+        discovered.verify_discovered_transport_estimate(b"not an artifact")

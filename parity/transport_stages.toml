@@ -10315,7 +10315,7 @@ evidence_assertion = "chain_class_yields_its_three_members_with_the_verdicts_fix
 notes = "Never a point or interval; a class larger than the sampler limit or the member bound is refused or partial."
 
 [[routes]]
-route = "antecedent_identify.discovered_transport.refuse_pag_transport"
+route = "antecedent_identify.discovered_transport.transport_across_pag"
 stage = "identify"
 status = "closed"
 reason_code = "discovered_structure_unresolved"
@@ -12025,7 +12025,7 @@ evidence = "discovered_cpdag_declared_selection_targets_and_transport_query"
 functional = "structural_transport_verdict_and_expression_per_class_member"
 guarantee = "sound_incomplete"
 reference = "provenance/transport.cpdag_class_envelope.toml"
-limits = "Python surface of antecedent_identify.discovered_transport.transport_across_class and discover_and_transport: a structural envelope, never a point or interval; a PAG, a temporal structure, a class beyond the member bound or an unknown selection target refuse with discovered_structure_unresolved."
+limits = "Python surface of antecedent_identify.discovered_transport.transport_across_class and discover_and_transport: a structural envelope, never a point or interval, over a CPDAG or a PAG (static PC or FCI); a temporal structure without a horizon, a class beyond the member bound or an unknown selection target refuse with discovered_structure_unresolved."
 evidence_test = "python/tests/test_discovered_transport.py"
 evidence_assertion = "test_a_chain_is_a_class_and_each_member_carries_its_structural_verdict"
 

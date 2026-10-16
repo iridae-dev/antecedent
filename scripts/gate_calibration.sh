@@ -74,7 +74,7 @@ grid_group() {
     "antecedent-estimate: bayesian_"*) return 1 ;;
     antecedent-estimate:*) return 0 ;;
     # The antecedent coverage suites: every label is `<test file>: <test>`.
-    bayesian_temporal:*|calibration_admg:*|calibration_anomaly_bayesian:*|calibration_attribution_bayesian:*|calibration_backlog:*|calibration_bayesian_static:*|calibration_counterfactual:*|calibration_design:*|calibration_design_bayesian:*|calibration_distribution_admg:*|calibration_estimate:*|calibration_response:*|calibration_temporal:*|calibration_temporal_class:*|class_posterior_calibration:*|derivative_calibration:*|mixture_interval_calibration:*|panel_calibration:*|static_calibration:*|static_envelope_calibration:*|static_mixture_calibration:*|temporal_class_calibration:*|temporal_frequentist:*|temporal_response_calibration:*|transport_statistical_calibration:*) return 0 ;;
+    bayesian_temporal:*|calibration_admg:*|calibration_anomaly_bayesian:*|calibration_attribution_bayesian:*|calibration_backlog:*|calibration_bayesian_static:*|calibration_counterfactual:*|calibration_design:*|calibration_design_bayesian:*|calibration_distribution_admg:*|calibration_estimate:*|calibration_response:*|calibration_temporal:*|calibration_temporal_class:*|class_posterior_calibration:*|derivative_calibration:*|mixture_interval_calibration:*|panel_calibration:*|static_calibration:*|static_envelope_calibration:*|static_mixture_calibration:*|temporal_class_calibration:*|temporal_frequentist:*|temporal_response_calibration:*|transport_statistical_calibration:*|discovered_transport_calibration:*) return 0 ;;
     # Multi-source limited-experiment (both mz suites) and the two learned continuous trial
     # transport coverage records. The learned-transport weak-overlap and misspecified-nuisance tests print measurements, emit no record,
     # and run once at the base point.
@@ -1196,6 +1196,16 @@ run_transport_statistical shared_factor_target_observational_nominal_coverage
 run_transport_statistical source_target_imbalance_standardize_nominal_coverage
 run_transport_statistical recursive_frontdoor_nominal_coverage
 run_transport_statistical weak_overlap_near_empty_conditioner_boundary
+
+echo "== discovered PAG transport: complete-procedure coverage (antecedent) =="
+run_discovered_transport() {
+  local filter="$1"
+  echo "== antecedent: discovered_transport_calibration ${filter} =="
+  check "discovered_transport_calibration: ${filter}" \
+    cargo test --release -p antecedent --test discovered_transport_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_discovered_transport discovered_pag_transport_contrast_complete_procedure_coverage
 
 echo "== multi-source limited-experiment (TR^mz) joint bootstrap (antecedent) =="
 run_mz() {

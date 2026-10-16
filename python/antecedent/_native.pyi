@@ -7475,6 +7475,20 @@ def discovered_transport_run(
     threads: int | None = None,
     cancel: Any = None,
 ) -> tuple[str | None, str | None, str | None, str | None]: ...
+def discovered_transport_estimate_run(
+    contract_json: str,
+    names: list[str],
+    source_columns: list[Any],
+    target_columns: list[Any],
+    query_json: str,
+    selection_targets: list[int],
+    member_bound: int | None = None,
+    bootstrap_replicates: int = 0,
+    *,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> tuple[str | None, str | None, str | None, str | None, bytes | None]: ...
+def verify_discovered_transport_estimate_artifact(artifact: bytes, *, seed: int = 0) -> str: ...
 
 class CrossWorldExecutor:
     def __init__(self) -> None: ...

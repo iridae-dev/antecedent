@@ -3288,7 +3288,7 @@ configuration = { structure = "pag", variables = 8 }
 expected = { kind = "value", outputs = ["supported effect query answered", "latent-variable semantics / lag assumptions preserved", "replayable artifact"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Discovery plus transport adds one PAG or lag-structure pass to the transport route." }
 dataset = { generator = "discovered_transport_study", seed = 9599960, n = 4000, structure = "pag", variables = 8, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/discovered_transport_facade.rs::an_identified_pag_class_is_estimated_and_covers_the_enumerated_truth" }
 
 [[case]]
 id = "discovered_identified_pag_transport_interval_calibrated"
@@ -3308,7 +3308,7 @@ configuration = { structure = "pag", variables = 8, unidentified = true }
 expected = { kind = "refusal", outputs = ["structural range or precise refusal; no point effect"], refusal = "discovered structure unidentified" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Discovery plus transport adds one PAG or lag-structure pass to the transport route." }
 dataset = { generator = "discovered_transport_study", seed = 2997431, n = 4000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/discovered_transport_facade.rs::a_selected_cause_that_may_share_a_latent_cause_with_the_outcome_is_refused_with_its_members" }
 
 [[case]]
 id = "discovered_temporal_structure_transport_effect"
@@ -3318,7 +3318,7 @@ configuration = { structure = "temporal", lags = 2, variables = 6 }
 expected = { kind = "value", outputs = ["supported effect query answered", "latent-variable semantics / lag assumptions preserved", "replayable artifact"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Discovery plus transport adds one PAG or lag-structure pass to the transport route." }
 dataset = { generator = "discovered_transport_study", seed = 3476104, n = 4000, structure = "temporal", lags = 2, variables = 6, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/discovered_transport_facade.rs::a_lagged_class_is_estimated_at_the_declared_horizon_against_the_stationary_truth" }
 
 [[case]]
 id = "discovered_temporal_structure_transport_interval_calibrated"
@@ -3338,7 +3338,7 @@ configuration = { structure = "temporal", lags = 2, variables = 6, unidentified 
 expected = { kind = "refusal", outputs = ["structural range or precise refusal; no point effect"], refusal = "discovered structure unidentified" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Discovery plus transport adds one PAG or lag-structure pass to the transport route." }
 dataset = { generator = "discovered_transport_study", seed = 1078821, n = 4000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/discovered_transport_facade.rs::a_temporal_pag_with_a_confoundable_selected_cause_is_refused_not_estimated" }
 
 [[case]]
 id = "discovered_transport_unresolved_structure_preserved"
@@ -3348,7 +3348,7 @@ configuration = { unresolved_circles = 3 }
 expected = { kind = "receipt", outputs = ["unresolved marks in artifact and claim"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Discovery plus transport adds one PAG or lag-structure pass to the transport route." }
 dataset = { generator = "discovered_transport_study", seed = 6650591, n = 4000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-identify/tests/discovered_transport.rs::identified_pag_class_transports_through_every_circle_completion" }
 
 [[case]]
 id = "discovered_transport_artifact_replay"
@@ -3358,7 +3358,7 @@ configuration = { structure = "pag" }
 expected = { kind = "receipt", outputs = ["replay reproduces effect"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Discovery plus transport adds one PAG or lag-structure pass to the transport route." }
 dataset = { generator = "discovered_transport_study", seed = 3519163, n = 4000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/discovered_transport_facade.rs::an_identified_pag_class_is_estimated_and_covers_the_enumerated_truth" }
 
 [[case]]
 id = "release_installed_package_examples_pass"

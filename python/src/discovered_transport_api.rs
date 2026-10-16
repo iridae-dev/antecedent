@@ -17,12 +17,17 @@ use antecedent::analysis::discovered_transport::{
     DiscoveredTransportRun, EnvelopeStatus, MemberVerdict, discover_and_transport, formula_kind,
     transport_discovered_structure,
 };
+use antecedent::analysis::discovered_transport_estimate::{
+    DiscoveredTransportEstimate, MemberOutcome, TransportAnswer, TransportEvidence,
+    estimate_discovered_transport, verify_discovered_transport_estimate,
+};
 use antecedent_core::{
     ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery, VariableId,
 };
 use antecedent_discovery::selective::{DiscoveryOutcome, SelectiveDiscoveryError};
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
 
 use crate::bridge::RefusalJson;
@@ -71,7 +76,15 @@ fn envelope_json(report: &DiscoveredTransportReport) -> Json {
                 .iter()
                 .map(|(parent, child)| json!([parent.raw(), child.raw()]))
                 .collect();
-            json!({ "directed_edges": edges, "verdict": verdict })
+            let pairs = |edges: &[(VariableId, VariableId)]| -> Vec<Json> {
+                edges.iter().map(|(a, b)| json!([a.raw(), b.raw()])).collect()
+            };
+            json!({
+                "directed_edges": edges,
+                "bidirected_edges": pairs(&member.bidirected_edges),
+                "confounded_edges": pairs(&member.confounded_edges),
+                "verdict": verdict,
+            })
         })
         .collect();
     let unresolved: Vec<Json> =
@@ -109,6 +122,16 @@ fn refusal_of(error: &DiscoveredTransportError) -> PyResult<String> {
                 .field("unresolved", Json::Array(unresolved))
                 .field("exhausted_search_bounds", json!(refusal.exhausted_search_bounds))
                 .field("unknown_selection_targets", json!(unknown))
+                .field(
+                    "member_reasons",
+                    Json::Array(
+                        refusal
+                            .member_reasons
+                            .iter()
+                            .map(|(index, reason)| json!({ "member": index, "reason": reason }))
+                            .collect(),
+                    ),
+                )
                 .json())
         }
         other => Err(crate::value_err(other.to_string())),
@@ -244,7 +267,186 @@ fn discovered_transport_run(
     }
 }
 
+fn answer_json(answer: &TransportAnswer) -> Json {
+    json!({
+        "kind": answer.kind.label(),
+        "levels": answer
+            .levels
+            .iter()
+            .map(|l| json!({ "level": l.level, "low": l.low, "high": l.high }))
+            .collect::<Vec<_>>(),
+        "contrast": answer.contrast.map(|(low, high)| json!({ "low": low, "high": high })),
+        "expressions_agree": answer.expressions_agree,
+        "interval": answer.interval.map(|i| json!({
+            "low": i.low,
+            "high": i.high,
+            "coverage_target": i.coverage_target,
+            "calibration": i.calibration,
+        })),
+        "interval_reason": answer.interval_reason,
+    })
+}
+
+fn estimate_json(estimate: &DiscoveredTransportEstimate) -> Json {
+    let members: Vec<Json> = estimate
+        .members()
+        .iter()
+        .enumerate()
+        .map(|(index, member)| match member {
+            MemberOutcome::Estimated(e) => json!({
+                "member": index,
+                "status": "estimated",
+                "expression": e.expression,
+                "means": e.means,
+                "contrast": e.contrast,
+            }),
+            MemberOutcome::Unidentified { verdict } => {
+                json!({ "member": index, "status": "unidentified", "detail": verdict })
+            }
+            MemberOutcome::Unestimable { detail } => {
+                json!({ "member": index, "status": "unestimable", "detail": detail })
+            }
+        })
+        .collect();
+    json!({
+        "levels": estimate.levels(),
+        "members": members,
+        "answer": answer_json(estimate.answer()),
+        "report_identity": hex(estimate.report_identity()),
+        "identity": hex(estimate.identity()),
+    })
+}
+
+/// `(estimate, transport_refusal, discovery, discovery_refusal, artifact)`.
+type EstimateReply =
+    (Option<String>, Option<String>, Option<String>, Option<String>, Option<Py<PyBytes>>);
+
+/// Discover on the source columns, enumerate the class, and estimate the transported response
+/// from the source and target columns.
+///
+/// Exactly one of `estimate` and `transport_refusal` is set when discovery ran; `discovery`
+/// carries the run report and outcome in both cases, and `artifact` the exported estimate.
+#[pyfunction]
+#[pyo3(signature = (contract_json, names, source_columns, target_columns, query_json, selection_targets, member_bound=None, bootstrap_replicates=0, *, threads=None, cancel=None))]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one request: contract, two tables, query, targets, bounds"
+)]
+fn discovered_transport_estimate_run(
+    py: Python<'_>,
+    contract_json: &str,
+    names: Vec<String>,
+    source_columns: Vec<PyReadonlyArray1<'_, f64>>,
+    target_columns: Vec<PyReadonlyArray1<'_, f64>>,
+    query_json: &str,
+    selection_targets: Vec<u32>,
+    member_bound: Option<usize>,
+    bootstrap_replicates: u32,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<EstimateReply> {
+    type Ran = Result<
+        (
+            DiscoveredTransportRun,
+            Option<Result<(DiscoveredTransportEstimate, Vec<u8>), DiscoveredTransportError>>,
+        ),
+        SelectiveDiscoveryError,
+    >;
+    let parsed = sd::parse_json(contract_json)?;
+    let map = sd::contract_map(&parsed, "static")?;
+    let seed = sd::get_u64(map, "seed")?;
+    let contract = sd::static_contract(map, names.len())?;
+    let query = query_of(query_json)?;
+    let ids: Vec<VariableId> = selection_targets.into_iter().map(VariableId::from_raw).collect();
+    let bound = member_bound.unwrap_or(DEFAULT_ENVELOPE_MEMBER_BOUND);
+    let source_batch = crate::columns_to_batch(&names, &source_columns)?;
+    let target_batch = crate::columns_to_batch(&names, &target_columns)?;
+    let ctx =
+        crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
+    let ran: Ran = crate::detach_catch(py, move || {
+        let (source, _): (antecedent_data::TabularData, _) =
+            crate::discovery_api::tabular_from_batch(&source_batch)?;
+        let (target, _): (antecedent_data::TabularData, _) =
+            crate::discovery_api::tabular_from_batch(&target_batch)?;
+        let run = match discover_and_transport(&contract, &source, &ids, &query, bound, &ctx) {
+            Ok(run) => run,
+            Err(error) => return Ok(Err(error)),
+        };
+        let estimated = run.transport.as_ref().ok().map(|report| {
+            let mut evidence = TransportEvidence::new(&source, &target);
+            evidence.bootstrap_replicates = bootstrap_replicates;
+            estimate_discovered_transport(report, &query, &evidence, &ctx).and_then(|estimate| {
+                let bytes = estimate
+                    .export()
+                    .map_err(|e| DiscoveredTransportError::Estimation(e.to_string()))?;
+                Ok((estimate, bytes))
+            })
+        });
+        Ok(Ok((run, estimated)))
+    })?;
+    let (run, estimated) = match ran {
+        Err(error) => {
+            return match sd::error_json(&error) {
+                Some(refusal) => Ok((None, None, None, Some(refusal), None)),
+                None => Err(crate::CausalDiscoveryError::new_err(error.to_string())),
+            };
+        }
+        Ok(pair) => pair,
+    };
+    let discovery = json!({
+        "report": serde_json::from_str::<Json>(&sd::report_json(&run.discovery)).unwrap_or(Json::Null),
+        "outcome": serde_json::from_str::<Json>(&sd::outcome_json(&run.outcome)).unwrap_or(Json::Null),
+    })
+    .to_string();
+    let refusal_of_run = |error: &DiscoveredTransportError| -> PyResult<Reply> {
+        Ok((None, Some(refusal_of(error)?)))
+    };
+    match (&run.transport, estimated) {
+        (Err(error), _) => {
+            let (_, refusal) = refusal_of_run(error)?;
+            Ok((None, refusal, Some(discovery), None, None))
+        }
+        (Ok(_), Some(Ok((estimate, bytes)))) => Ok((
+            Some(estimate_json(&estimate).to_string()),
+            None,
+            Some(discovery),
+            None,
+            Some(PyBytes::new(py, &bytes).unbind()),
+        )),
+        (Ok(_), Some(Err(error))) => {
+            let (_, refusal) = refusal_of_run(&error)?;
+            Ok((None, refusal, Some(discovery), None, None))
+        }
+        (Ok(_), None) => Err(crate::value_err("the transport request produced no result")),
+    }
+}
+
+/// Replay an exported estimate: consume every member grid and recompute the answer.
+///
+/// Returns the recomputed answer as JSON; a malformed or forged artifact raises the shared
+/// value error.
+#[pyfunction]
+#[pyo3(signature = (artifact, *, seed=0))]
+fn verify_discovered_transport_estimate_artifact(artifact: &[u8], seed: u64) -> PyResult<String> {
+    let ctx = crate::py_execution_context_cancel(seed, crate::resolve_user_threads(None), None);
+    let verified = verify_discovered_transport_estimate(
+        artifact,
+        antecedent_expr::ExactEvaluationLimits::default(),
+        &ctx,
+    )
+    .map_err(|e| crate::value_err(e.to_string()))?;
+    Ok(json!({
+        "answer": answer_json(&verified.answer),
+        "report_identity": hex(&verified.report_identity),
+        "members": verified.members,
+    })
+    .to_string())
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(discovered_transport_run, module)?)?;
+    module.add_function(wrap_pyfunction!(discovered_transport_estimate_run, module)?)?;
+    module
+        .add_function(wrap_pyfunction!(verify_discovered_transport_estimate_artifact, module)?)?;
     Ok(())
 }
