@@ -786,7 +786,7 @@ fn a_declared_but_oversized_joint_state_is_unsupported_not_unidentified() {
     let (code, detail) = refusal_of(exec.execute(&req, &ctx()));
     assert_eq!(
         (code.as_str(), detail.as_str()),
-        ("route_not_supported", "cross_world_execution.bounds_exceeded")
+        ("route_not_supported", "cross_world_execution.joint_state_bound_exceeded")
     );
     assert_eq!(exec.counters().abductions, 0);
 }

@@ -568,4 +568,4 @@ def test_shared_exogenous_execution_replays_and_the_bound_is_not_unidentificatio
             )
         )
     assert error.value.reason_code == "route_not_supported"
-    assert error.value.detail == "cross_world_execution.bounds_exceeded"
+    assert error.value.detail == "cross_world_execution.joint_state_bound_exceeded"

@@ -39,7 +39,7 @@ the declaration that would open it; it is not a cache miss.
 | transported static additive linear path-specific | keeps its own theorem-scoped route |
 | transported cross-world execution | closed: `cell_not_licensed`, prerequisites named |
 | latent confounding without declared mechanisms, nonparametric ADMG | closed: `cross_world_not_identified` |
-| declared model whose joint exogenous enumeration exceeds the bound | `route_not_supported` (`cross_world_execution.bounds_exceeded`) |
+| declared model whose joint exogenous enumeration exceeds the bound | `route_not_supported` (`cross_world_execution.joint_state_bound_exceeded`) |
 | incompatible history, soft interventions, fitting a finite SCM from data | closed |
 
 ## The finite SCM rows

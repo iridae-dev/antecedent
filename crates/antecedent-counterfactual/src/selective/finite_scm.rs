@@ -177,7 +177,7 @@ fn bounds(what: &str) -> CrossWorldExecutionError {
 fn joint_state_bound() -> CrossWorldExecutionError {
     refuse(
         antecedent_core::reason_code!("route_not_supported"),
-        "cross_world_execution.bounds_exceeded",
+        "cross_world_execution.joint_state_bound_exceeded",
         Some("joint_exogenous_states".to_owned()),
         "reduce the number of exogenous states or terms so their product is within the \
          documented bound; the model is declared, so the counterfactual is computable but not \
@@ -211,8 +211,8 @@ impl FiniteScm {
     ///
     /// # Errors
     /// `invalid_argument` for a malformed declaration or a declaration bound;
-    /// `route_not_supported` (`cross_world_execution.bounds_exceeded`) when the
-    /// joint exogenous enumeration exceeds [`MAX_JOINT_STATES`].
+    /// `route_not_supported` (`cross_world_execution.joint_state_bound_exceeded`)
+    /// when the joint exogenous enumeration exceeds [`MAX_JOINT_STATES`].
     pub fn compile(&self) -> Result<CompiledScm<'_>, CrossWorldExecutionError> {
         let n = self.variables.len();
         if n > MAX_VARIABLES || self.exogenous.len() > MAX_VARIABLES {
