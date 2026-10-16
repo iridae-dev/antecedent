@@ -432,6 +432,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "inverse_sources",
         "discretized_composition",
         "vector_treatment",
+        "missing",
     },
     "AnalysisResult": {
         "artifact",
@@ -509,6 +510,7 @@ SNAPSHOT: dict[str, set[str]] = {
         # Licensed GCM attribution cells
         "anomaly",
         "change_attribution",
+        "missing_data",
     },
     "PreparedAnalysis": {
         "participants",
@@ -598,6 +600,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "target_population",
         "treatment",
         "treatment_lag",
+        "weights",
     },
     "SustainedEffect": {
         "active_level",
@@ -650,6 +653,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "propensity_penalty",
         "se",
         "se_lag",
+        "weights",
     },
 }
 

@@ -135,6 +135,7 @@ def test_source_report_unreachable_route_guard_is_class_only():
         "count_fitted_interval",
         "adaptive_interval",
         "split_effect",
+        "split_parent_set_effect",
     }
     assert set(re.findall(r'"([a-z_]+)"\s*=>', source)) == routes
     assert "#[new]" not in source
