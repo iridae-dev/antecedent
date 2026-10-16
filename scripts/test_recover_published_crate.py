@@ -58,8 +58,7 @@ class RecoveryTests(unittest.TestCase):
                     "headSha": RELEASE.source_sha,
                     "workflowName": "publish-release",
                     "jobs": [
-                        {"name": name, "conclusion": status}
-                        for name, status in self.jobs.items()
+                        {"name": name, "conclusion": status} for name, status in self.jobs.items()
                     ],
                 }
             )
@@ -85,9 +84,7 @@ class RecoveryTests(unittest.TestCase):
             recovery.recover(self.source, RELEASE, execute=True)
 
     def assert_no_package(self):
-        self.assertFalse(
-            any(command[:2] == ("cargo", "publish") for command in self.commands)
-        )
+        self.assertFalse(any(command[:2] == ("cargo", "publish") for command in self.commands))
         self.assertEqual(self.manifest.read_bytes(), self.original)
 
     def test_wrong_source_cannot_package_or_modify_manifest(self):
@@ -152,7 +149,7 @@ class WorkspaceRecoveryTests(RecoveryTests):
         helper = self.source / "crates/antecedent-test-support/Cargo.toml"
         helper.parent.mkdir(parents=True)
         helper.write_text(
-            '[package]\nname = "antecedent-test-support"\npublish = false\n'
+            '[package]\nname = "antecedent-test-support"\npublish = false\n', encoding="utf-8"
         )
 
     def external(self, source, *command, capture=False, env=None):
@@ -162,7 +159,7 @@ class WorkspaceRecoveryTests(RecoveryTests):
         if command[0] == "bash" and command[1].endswith("publish_crates.sh"):
             self.commands.append(command)
             self.assertEqual(
-                self.workspace.read_text(),
+                self.workspace.read_text(encoding="utf-8"),
                 recovery.repair_workspace_manifest(
                     self.workspace_original.decode(), RELEASE.version
                 ),
@@ -182,9 +179,7 @@ class WorkspaceRecoveryTests(RecoveryTests):
     def test_verified_recovery_only_uploads_facade_after_dry_run(self):
         self.attempt()
         publications = [
-            c
-            for c in self.commands
-            if c[0] == "bash" and c[1].endswith("publish_crates.sh")
+            c for c in self.commands if c[0] == "bash" and c[1].endswith("publish_crates.sh")
         ]
         self.assertEqual(len(publications), 2)
         self.assertIn("--dry-run", publications[0])

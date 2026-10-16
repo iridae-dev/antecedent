@@ -84,14 +84,18 @@ class PublishVersionTests(unittest.TestCase):
             if separate_source:
                 source = Path(directory) / "release-source"
                 source.mkdir()
-                (source / "Cargo.toml").write_text(f'[workspace.package]\nversion = "{VERSION}"\n')
+                (source / "Cargo.toml").write_text(
+                    f'[workspace.package]\nversion = "{VERSION}"\n', encoding="utf-8"
+                )
                 env["PUBLISH_TEST_SOURCE"] = str(source)
                 arguments += ["--source", str(source), "--allow-dirty"]
             if mode == "--execute":
                 curl = Path(directory) / "curl"
                 curl.write_text(
                     "#!/usr/bin/env python3\nimport sys\n"
-                    'print("200" if "/antecedent-core/" in sys.argv[-1] else "404")\n'
+                    'print("200" if "/antecedent-core/" in sys.argv[-1] else "404")\n',
+                    encoding="utf-8",
+                    newline="\n",
                 )
                 curl.chmod(0o755)
                 env["CARGO_REGISTRY_TOKEN"] = "test-token"
@@ -202,12 +206,15 @@ class ReleaseVersionBumpTests(unittest.TestCase):
                 '[workspace.package]\nversion = "9.8.7"\n'
                 "[workspace.dependencies]\n"
                 'antecedent-core = { version = "9.8.7", path = "crates/antecedent-core" }\n'
-                'antecedent-test-support = { path = "crates/antecedent-test-support" }\n'
+                'antecedent-test-support = { path = "crates/antecedent-test-support" }\n',
+                encoding="utf-8",
             )
             (root / "python/antecedent").mkdir(parents=True)
-            (root / "python/pyproject.toml").write_text('[project]\nversion = "9.8.7"\n')
+            (root / "python/pyproject.toml").write_text(
+                '[project]\nversion = "9.8.7"\n', encoding="utf-8"
+            )
             (root / "python/antecedent/__init__.py").write_text(
-                "from ._native import __version__ as __version__\n"
+                "from ._native import __version__ as __version__\n", encoding="utf-8"
             )
             with (
                 patch.object(set_version, "ROOT", root),
@@ -215,7 +222,7 @@ class ReleaseVersionBumpTests(unittest.TestCase):
                 patch.object(set_version.subprocess, "check_call"),
             ):
                 set_version.main(["set_version.py", "9.8.8", "0"])
-            manifest = tomllib.loads((root / "Cargo.toml").read_text())
+            manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
             self.assertEqual(manifest["workspace"]["package"]["version"], "9.8.8")
             self.assertEqual(
                 manifest["workspace"]["dependencies"]["antecedent-core"]["version"],
