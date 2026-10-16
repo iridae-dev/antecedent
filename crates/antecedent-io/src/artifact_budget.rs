@@ -9,6 +9,17 @@
 
 use antecedent_core::ExecutionContext;
 
+/// The refusal details one artifact reports, spelled out where the artifact is defined.
+#[derive(Clone, Copy)]
+pub(crate) struct BudgetDetails {
+    /// Cancelled before the work started: the registered reason code and the detail.
+    pub(crate) cancelled: (&'static str, &'static str),
+    /// Planned working set over the memory limit.
+    pub(crate) memory: &'static str,
+    /// Artifact over the export budget.
+    pub(crate) export: &'static str,
+}
+
 /// A typed refusal: the registered reason code and `detail: explanation`.
 pub(crate) type BudgetRefusal = (&'static str, String);
 
@@ -30,14 +41,14 @@ pub(crate) fn planned_bytes(rows: usize, words_per_row: usize, fixed_words: usiz
 /// `planned` is a conservative planning estimate of the working set, not allocator accounting;
 /// `None` (an overflowing estimate) exceeds every limit.
 pub(crate) fn admit_computation(
-    feature: &str,
+    details: BudgetDetails,
     planned: Option<u64>,
     ctx: &ExecutionContext,
 ) -> Result<(), BudgetRefusal> {
     if ctx.cancellation.is_cancelled() {
         return Err((
-            antecedent_core::reason_code!("cancelled_no_claim"),
-            format!("{feature}.cancelled: cancelled before the work started"),
+            details.cancelled.0,
+            format!("{}: cancelled before the work started", details.cancelled.1),
         ));
     }
     let planned = planned.unwrap_or(u64::MAX);
@@ -45,8 +56,9 @@ pub(crate) fn admit_computation(
         Some(limit) if planned > limit => Err((
             antecedent_core::reason_code!("route_not_supported"),
             format!(
-                "{feature}.memory_budget_exceeded: the work needs about {planned} bytes, over \
-                 the {limit}-byte memory budget of the execution context"
+                "{}: the work needs about {planned} bytes, over the {limit}-byte memory budget \
+                 of the execution context",
+                details.memory
             ),
         )),
         _ => Ok(()),
@@ -57,7 +69,7 @@ pub(crate) fn admit_computation(
 /// request's columns, the design built from them, the residuals and a few `columns`-square
 /// matrices. A conservative planning estimate, not allocator accounting.
 pub(crate) fn admit_regression(
-    feature: &str,
+    details: BudgetDetails,
     rows: usize,
     columns: usize,
     ctx: &ExecutionContext,
@@ -66,12 +78,12 @@ pub(crate) fn admit_regression(
     let fixed = columns.checked_mul(columns).and_then(|words| words.checked_mul(4));
     let planned =
         per_row.zip(fixed).and_then(|(per_row, fixed)| planned_bytes(rows, per_row, fixed));
-    admit_computation(feature, planned, ctx)
+    admit_computation(details, planned, ctx)
 }
 
 /// Refuse an export of `needed` bytes above `budget`.
 pub(crate) fn admit_export(
-    feature: &str,
+    details: BudgetDetails,
     needed: usize,
     budget: usize,
 ) -> Result<(), BudgetRefusal> {
@@ -79,8 +91,9 @@ pub(crate) fn admit_export(
         return Err((
             antecedent_core::reason_code!("route_not_supported"),
             format!(
-                "{feature}.export_budget_exceeded: the artifact needs {needed} bytes, over the \
-                 export budget of {budget} bytes; the fit is complete and stays in memory"
+                "{}: the artifact needs {needed} bytes, over the export budget of {budget} \
+                 bytes; the fit is complete and stays in memory",
+                details.export
             ),
         ));
     }

@@ -54,7 +54,7 @@ use antecedent_estimate::nonlinear_mediation::{
 use serde::{Deserialize, Serialize};
 
 use crate::artifact_budget::{
-    BudgetRefusal, admit_computation, admit_export, planned_bytes, unbounded_context,
+    BudgetDetails, BudgetRefusal, admit_computation, admit_export, planned_bytes, unbounded_context,
 };
 use crate::convert::to_cbor;
 
@@ -74,7 +74,14 @@ pub const NONLINEAR_MEDIATION_ARTIFACT_CLAIM: &str = "point_with_diagnostics";
 const ARTIFACT_KIND: &str = crate::artifact_kinds::NONLINEAR_MEDIATION;
 const META_SECTION: &str = "nonlinear_mediation_meta";
 const DATA_SECTION: &str = "nonlinear_mediation_data";
-const FEATURE: &str = "nonlinear_mediation";
+const BUDGET: BudgetDetails = BudgetDetails {
+    cancelled: (
+        antecedent_core::reason_code!("cancelled_no_claim"),
+        "nonlinear_mediation.cancelled",
+    ),
+    memory: "nonlinear_mediation.memory_budget_exceeded",
+    export: "nonlinear_mediation.export_budget_exceeded",
+};
 /// `NonlinearMediationMeta::data_binding` of a record that holds no dataset, only its digest.
 const DATA_BOUND_BY_DIGEST: &str = "digest";
 const ESTIMAND_NATURAL: &str = "natural_effects";
@@ -448,7 +455,7 @@ fn estimate_of(
     check_shape(request)?;
     let words = words_per_row(request.data.covariates.len(), request.config.outcome_degree);
     let planned = words.and_then(|words| planned_bytes(request.data.treatment.len(), words, 0));
-    admit_computation(FEATURE, planned, ctx).map_err(budget_refusal)?;
+    admit_computation(BUDGET, planned, ctx).map_err(budget_refusal)?;
     let covariates: Vec<&[f64]> = request.data.covariates.iter().map(Vec::as_slice).collect();
     let input = NonlinearMediationInput {
         treatment: &request.data.treatment,
@@ -710,7 +717,7 @@ fn encode_parts_impl(
     // A consumer reads at most the byte cap of uncompressed sections, whatever the container
     // compresses to; the caller's budget bounds the container itself.
     admit_export(
-        FEATURE,
+        BUDGET,
         meta_bytes.len().saturating_add(data.len()),
         MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES,
     )
@@ -733,7 +740,7 @@ fn encode_parts_impl(
         ],
     )
     .map_err(|error| crate::map_artifact_check!(error, NonlinearMediationArtifactError))?;
-    admit_export(FEATURE, bytes.len(), export_budget.min(MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES))
+    admit_export(BUDGET, bytes.len(), export_budget.min(MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES))
         .map_err(budget_refusal)?;
     Ok(bytes)
 }

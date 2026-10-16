@@ -61,7 +61,9 @@ use antecedent_estimate::vector_treatment::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::artifact_budget::{BudgetRefusal, admit_export, admit_regression, unbounded_context};
+use crate::artifact_budget::{
+    BudgetDetails, BudgetRefusal, admit_export, admit_regression, unbounded_context,
+};
 use crate::artifact_codec::CanonicalSize;
 use crate::convert::to_cbor;
 use crate::vector_treatment_artifact::{
@@ -93,7 +95,14 @@ const NUMBERS_SECTION: &str = "categorical_treatment_numbers";
 const REPLAY_SUMMARY: &str = "summary";
 const REPLAY_ROBUST_SUMMARY: &str = "robust_summary";
 const REPLAY_ROWS: &str = "rows";
-const FEATURE: &str = "categorical_treatment";
+const BUDGET: BudgetDetails = BudgetDetails {
+    cancelled: (
+        antecedent_core::reason_code!("cancelled_no_claim"),
+        "categorical_treatment.cancelled",
+    ),
+    memory: "categorical_treatment.memory_budget_exceeded",
+    export: "categorical_treatment.export_budget_exceeded",
+};
 
 crate::sectioned_artifact_error!(
     /// Why a categorical-treatment artifact was refused or could not be produced.
@@ -950,7 +959,7 @@ fn encode_parts_impl(
     // A consumer reads at most the byte cap of uncompressed sections, whatever the container
     // compresses to; the caller's budget bounds the container itself.
     admit_export(
-        FEATURE,
+        BUDGET,
         meta_bytes.len().saturating_add(numbers.len()),
         MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES,
     )
@@ -977,7 +986,7 @@ fn encode_parts_impl(
         ],
     )
     .map_err(|error| crate::map_artifact_check!(error, CategoricalTreatmentArtifactError))?;
-    admit_export(FEATURE, bytes.len(), export_budget.min(MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES))
+    admit_export(BUDGET, bytes.len(), export_budget.min(MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES))
         .map_err(budget_refusal)?;
     Ok(bytes)
 }
@@ -1088,7 +1097,7 @@ impl CategoricalTreatmentArtifact {
             spec: request.spec.clone(),
         };
         check_decl(&decl)?;
-        admit_regression(FEATURE, decl.n_rows, decl.columns(), ctx).map_err(budget_refusal)?;
+        admit_regression(BUDGET, decl.n_rows, decl.columns(), ctx).map_err(budget_refusal)?;
         let input = CategoricalTreatmentInput {
             outcome: request.outcome.clone(),
             row_snapshot: request.row_snapshot.clone(),
@@ -1269,7 +1278,7 @@ impl CategoricalTreatmentArtifact {
         }
         let replay = Replay::from_parts(&decl, &meta, &bytes_to_reals(&raw))?;
         let replayed_rows = if matches!(replay, Replay::Rows { .. }) { decl.n_rows } else { 0 };
-        admit_regression(FEATURE, replayed_rows, decl.columns(), ctx).map_err(budget_refusal)?;
+        admit_regression(BUDGET, replayed_rows, decl.columns(), ctx).map_err(budget_refusal)?;
         let computed = compute(&decl, &replay, meta.data_digest.as_deref())?;
         if let Some(field) = identity_diff(&meta.identity, &computed.identity) {
             return Err(CategoricalTreatmentArtifactError::IdentityMismatch { field });

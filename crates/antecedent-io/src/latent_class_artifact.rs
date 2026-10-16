@@ -51,7 +51,7 @@ use antecedent_estimate::latent_class_effects::{
 use serde::{Deserialize, Serialize};
 
 use crate::artifact_budget::{
-    BudgetRefusal, admit_computation, admit_export, planned_bytes, unbounded_context,
+    BudgetDetails, BudgetRefusal, admit_computation, admit_export, planned_bytes, unbounded_context,
 };
 use crate::convert::to_cbor;
 
@@ -73,7 +73,11 @@ pub const MAX_LATENT_CLASS_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 const ARTIFACT_KIND: &str = crate::artifact_kinds::LATENT_CLASS_EFFECTS;
 const META_SECTION: &str = "latent_class_meta";
 const DATA_SECTION: &str = "latent_class_data";
-const FEATURE: &str = "latent_class";
+const BUDGET: BudgetDetails = BudgetDetails {
+    cancelled: (antecedent_core::reason_code!("cancelled_no_claim"), "latent_class.cancelled"),
+    memory: "latent_class.memory_budget_exceeded",
+    export: "latent_class.export_budget_exceeded",
+};
 /// `LatentClassMeta::data_binding` of a record that holds no dataset, only its digest.
 const DATA_BOUND_BY_DIGEST: &str = "digest";
 
@@ -381,7 +385,7 @@ fn fit_of(
     check_shape(request)?;
     let words = words_per_row(request.data.covariates.len(), request.config.classes);
     let planned = words.and_then(|words| planned_bytes(request.data.outcome.len(), words, 0));
-    admit_computation(FEATURE, planned, ctx).map_err(budget_refusal)?;
+    admit_computation(BUDGET, planned, ctx).map_err(budget_refusal)?;
     let data = LatentClassData {
         outcome: &request.data.outcome,
         treatment: &request.data.treatment,
@@ -655,7 +659,7 @@ fn encode_parts_impl(
     // A consumer reads at most the byte cap of uncompressed sections, whatever the container
     // compresses to; the caller's budget bounds the container itself.
     admit_export(
-        FEATURE,
+        BUDGET,
         meta_bytes.len().saturating_add(data.len()),
         MAX_LATENT_CLASS_ARTIFACT_BYTES,
     )
@@ -678,7 +682,7 @@ fn encode_parts_impl(
         ],
     )
     .map_err(|error| crate::map_artifact_check!(error, LatentClassArtifactError))?;
-    admit_export(FEATURE, bytes.len(), export_budget.min(MAX_LATENT_CLASS_ARTIFACT_BYTES))
+    admit_export(BUDGET, bytes.len(), export_budget.min(MAX_LATENT_CLASS_ARTIFACT_BYTES))
         .map_err(budget_refusal)?;
     Ok(bytes)
 }
