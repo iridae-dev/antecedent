@@ -26,9 +26,9 @@ use antecedent_stats::adaptive_inference::{
     AnalysisEstimator, AssignmentRule, Attribution, BetaPrior, Estimand, EstimandStatement,
     ExposureModel, FinalAnalysis, FinalSelection, GaussianMixtureLaw, InversionGrid,
     ObservedTerminal, OutcomeModelPrior, OutcomeObservation, OutcomeStructure,
-    ProcedureDeclaration, RepeatedMeasuresDeclaration, RepeatedMeasuresRequest, SimulationRequest,
-    StoppingRule, UncertaintyParadigm, UnitAssignment, UnitSummary, WeightScheme,
-    WithinUnitCorrelation,
+    ProcedureDeclaration, RepeatedMeasuresDeclaration, RepeatedMeasuresRequest, ResourceReceipt,
+    SimulationRequest, StoppingRule, UncertaintyParadigm, UnitAssignment, UnitSummary,
+    WeightScheme, WithinUnitCorrelation,
 };
 use pyo3::prelude::*;
 use serde_json::{Map, Value as Json, json};
@@ -85,6 +85,10 @@ fn rule_of(value: &Json) -> PyResult<AssignmentRule> {
         "thompson_beta" => {
             AssignmentRule::ThompsonBeta { prior: prior_of(map, "prior_alpha", "prior_beta")? }
         }
+        "thompson_beta_floored" => AssignmentRule::ThompsonBetaFloored {
+            prior: prior_of(map, "prior_alpha", "prior_beta")?,
+            min_probability: real(map, "min_probability")?,
+        },
         "upper_confidence_bound" => {
             AssignmentRule::UpperConfidenceBound { exploration: real(map, "exploration")? }
         }
@@ -125,6 +129,11 @@ fn stopping_of(value: &Json) -> PyResult<StoppingRule> {
         },
         "posterior_expected_loss" => StoppingRule::PosteriorExpectedLoss {
             loss_threshold: real(map, "loss_threshold")?,
+            prior: prior_of(map, "prior_alpha", "prior_beta")?,
+        },
+        "posterior_futility" => StoppingRule::PosteriorFutility {
+            margin: real(map, "margin")?,
+            threshold: real(map, "threshold")?,
             prior: prior_of(map, "prior_alpha", "prior_beta")?,
         },
         "wald_boundaries" => StoppingRule::WaldBoundaries {
@@ -223,6 +232,12 @@ fn rule_json(rule: &AssignmentRule) -> Json {
             v["kind"] = json!("thompson_beta");
             v
         }
+        AssignmentRule::ThompsonBetaFloored { prior, min_probability } => {
+            let mut v = prior_json(prior);
+            v["kind"] = json!("thompson_beta_floored");
+            v["min_probability"] = json!(min_probability);
+            v
+        }
         AssignmentRule::UpperConfidenceBound { exploration } => {
             json!({"kind": "upper_confidence_bound", "exploration": exploration})
         }
@@ -243,6 +258,13 @@ fn stopping_json(rule: &StoppingRule) -> Json {
             let mut v = prior_json(prior);
             v["kind"] = json!("posterior_expected_loss");
             v["loss_threshold"] = json!(loss_threshold);
+            v
+        }
+        StoppingRule::PosteriorFutility { margin, threshold, prior } => {
+            let mut v = prior_json(prior);
+            v["kind"] = json!("posterior_futility");
+            v["margin"] = json!(margin);
+            v["threshold"] = json!(threshold);
             v
         }
         StoppingRule::WaldBoundaries { critical, sidedness } => json!({
@@ -367,6 +389,17 @@ fn request_of(value: &Json) -> PyResult<ProcedureReportRequest> {
     })
 }
 
+/// What a simulation was admitted for and did.
+pub(crate) fn receipt_json(receipt: &ResourceReceipt) -> Json {
+    json!({
+        "replications": receipt.replications,
+        "work_planned": receipt.work_planned,
+        "work_done": receipt.work_done,
+        "peak_units": receipt.peak_units,
+        "estimated_peak_bytes": receipt.estimated_peak_bytes,
+    })
+}
+
 fn law_json(law: &antecedent_stats::adaptive_inference::EstimatorLaw) -> Json {
     json!({
         "support": law.support.iter().map(|(v, p)| json!([v, p])).collect::<Vec<_>>(),
@@ -434,6 +467,7 @@ fn report_json(report: &ProcedureReport) -> Json {
             mean_enrolled,
             rule_stop_fraction,
             replications,
+            receipt,
         } => json!({
             "truth_value": truth_value,
             "defined": summary.defined,
@@ -446,6 +480,7 @@ fn report_json(report: &ProcedureReport) -> Json {
             "mean_enrolled": mean_enrolled,
             "rule_stop_fraction": rule_stop_fraction,
             "replications": replications,
+            "receipt": receipt_json(receipt),
         }),
         ProcedureReportBody::AnytimeValid { report, exclusion_probability } => json!({
             "bounds": report.as_ref().map(|r| json!({
@@ -583,6 +618,7 @@ impl AdaptiveProcedureHandle {
                         "calibration": report.calibration,
                         "mean_enrolled": report.law.mean_enrolled(),
                         "rule_stop_fraction": report.law.rule_stop_fraction(),
+                        "receipt": receipt_json(&report.law.receipt),
                         "replicates": report.law.replicates.iter().map(|r| json!({
                             "estimate": r.estimate,
                             "variance": r.variance,
@@ -850,6 +886,7 @@ fn repeated_measures_report_json(report: &RepeatedMeasuresReport) -> Json {
                 "seed": derived.seed,
                 "enrolled": derived.enrolled,
                 "mean_analysed_units": derived.mean_analysed_units,
+                "receipt": receipt_json(&derived.receipt),
             })
         }
         RepeatedMeasuresReportBody::CellTransfer { cell_id } => {

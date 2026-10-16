@@ -707,7 +707,22 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `adaptive_inference.arms_invalid` | `invalid_argument` | Correct the declared element. |
 | `adaptive_inference.contexts_invalid` | `invalid_argument` | Declare 1 to 4 contexts with known probabilities summing to one. |
 | `adaptive_inference.rule_mismatch` | `invalid_argument` | Correct the declared element. |
-| `adaptive_inference.looks_not_ordered` | `invalid_argument` | Declare 1 to 24 looks with a positive first look and at most 400 units. |
+| `adaptive_inference.looks_not_ordered` | `invalid_argument` | Declare a schedule whose first look enrols at least one unit. |
+| `adaptive_inference.declared_units_exceeded` | `invalid_argument` | Declare at most 65,535 units; split a larger study into separately declared stages. |
+| `adaptive_inference.declared_looks_exceeded` | `invalid_argument` | Declare fewer looks (24 single-outcome, 64 participant-level) or enrol larger batches between looks. |
+| `adaptive_inference.exact_law_states_exceeded` | `invalid_argument` | Simulate the whole procedure instead of enumerating it, or reduce the units, arms, contexts or delay. |
+| `adaptive_inference.exact_law_work_exceeded` | `invalid_argument` | Simulate the whole procedure instead of enumerating it, or reduce the units, arms, contexts or delay. |
+| `adaptive_inference.simulation_replications_exceeded` | `invalid_argument` | Request between 1 and 1,000,000 replications, or run several seeded requests. |
+| `adaptive_inference.simulation_work_exceeded` | `invalid_argument` | Reduce replications, units or measurements per unit so that their product is within the work budget. |
+| `adaptive_inference.simulation_memory_exceeded` | `invalid_argument` | Reduce the replications or the units, or raise the memory budget of the execution context. |
+| `adaptive_inference.retained_record_exceeded` | `invalid_argument` | Retain fewer looks or participants in the exported record. |
+| `adaptive_inference.historical_borrowing_missing` | `adaptive_contract_incomplete` | Declare the prior of every arm, with its historical sources and discounts, before recruitment. |
+| `adaptive_inference.anytime_settings_missing` | `adaptive_contract_incomplete` | Declare the miscoverage level and tuning sample size of the confidence sequences. |
+| `adaptive_inference.historical_prior_invalid` | `invalid_argument` | Declare one prior per arm with valid sources: successes within trials, a discount in [0, 1], a label. |
+| `adaptive_inference.anytime_settings_invalid` | `invalid_argument` | Declare a miscoverage level in (0, 1) and a positive tuning sample size. |
+| `adaptive_inference.borrowing_frozen` | `adaptive_assumption_violated` | Declare the borrowing before recruitment and keep it; a different plan is a new declaration. |
+| `adaptive_inference.assignment_not_replayed` | `adaptive_assumption_violated` | Retain the allocation probabilities the declared procedure computed, or declare the procedure that ran. |
+| `adaptive_inference.stopping_not_replayed` | `adaptive_assumption_violated` | Retain the looks the declared decisions performed, or declare the decisions that ran. |
 | `adaptive_inference.outcome_availability_invalid` | `invalid_argument` | Correct the declared element. |
 | `adaptive_inference.exposure_invalid` | `invalid_argument` | Correct the declared element. |
 | `adaptive_inference.posterior_premise_outcome_dependent_delay` | `cell_not_licensed` | Declare ignorable loss and delay, or analyse a paradigm that models the loss. |

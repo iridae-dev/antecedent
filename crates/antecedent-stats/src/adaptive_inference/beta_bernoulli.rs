@@ -276,6 +276,43 @@ pub fn probability_superior(
     Ok(best_arm_probabilities(&[a, b], cancelled)?[0])
 }
 
+/// Posterior probability that arm `a` exceeds arm `b` by more than `margin`,
+/// `P(theta_a - theta_b > margin)`, by quadrature of
+/// `integral f_a(x) F_b(x - margin) dx` over the window of arm `a`. With a
+/// zero margin this is [`probability_superior`].
+///
+/// # Errors
+/// A margin outside `[0, 1)`, a posterior too concentrated for the
+/// quadrature, a continued fraction that does not converge, or cancellation.
+pub fn probability_exceeds(
+    a: BetaPosterior,
+    b: BetaPosterior,
+    margin: f64,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<f64, Error> {
+    if !(margin.is_finite() && (0.0..1.0).contains(&margin)) {
+        return Err(Error::InvalidParameter("a margin must lie in [0, 1)"));
+    }
+    // Below the margin the integrand is zero and its first kink is at the margin, so the
+    // quadrature starts there and the integrand is smooth over every panel.
+    let (window_lo, hi) = a.window();
+    let lo = window_lo.max(margin);
+    if lo >= hi {
+        return Ok(0.0);
+    }
+    let panels = panel_count(lo, hi, a.standard_deviation().min(b.standard_deviation()))?;
+    let (nodes, weights) = composite_rule(&panel_rule(), lo, hi, panels);
+    let mut total = 0.0;
+    for (index, (&x, &weight)) in nodes.iter().zip(&weights).enumerate() {
+        if index % CANCEL_STRIDE == 0 && cancelled() {
+            return Err(Error::Cancelled);
+        }
+        let cdf = regularized_incomplete_beta(x - margin, b.alpha, b.beta)?;
+        total += weight * a.ln_density(x).exp() * cdf;
+    }
+    Ok(total.clamp(0.0, 1.0))
+}
+
 /// Posterior expected loss `E[max_j theta_j] - E[theta_k]` of choosing each
 /// arm `k`, in units of the success probability.
 ///

@@ -6923,6 +6923,9 @@ class AdaptiveInferenceHandle:
     def export_contract(
         self, paradigm: str, artifact_id: str
     ) -> tuple[bytes | None, str | None]: ...
+    def export_contract_with_procedure(
+        self, paradigm: str, procedure: ParticipantProcedureHandle, artifact_id: str
+    ) -> tuple[bytes | None, str | None]: ...
     def export_result(
         self, request_json: str, artifact_id: str, cancel: CancellationToken | None = None
     ) -> tuple[bytes | None, str | None]: ...
@@ -6977,6 +6980,41 @@ def adaptive_procedure_from_contract(
 def repeated_measures_procedure_declare(
     declaration_json: str,
 ) -> tuple[RepeatedMeasuresProcedureHandle | None, str | None]: ...
+
+class ParticipantProcedureHandle:
+    def identity(self) -> str: ...
+    def summary_json(self) -> str: ...
+    def simulate(
+        self,
+        truth: list[float],
+        request_json: str,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, str | None]: ...
+    def simulate_history(
+        self,
+        truth: list[float],
+        seed: int,
+        true_correlation: float | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, str | None]: ...
+    def read_history(
+        self, history_json: str, cancel: CancellationToken | None = None
+    ) -> tuple[str | None, str | None]: ...
+    def amend_borrowing(
+        self, borrowing_json: str, looks_performed: int
+    ) -> tuple[ParticipantProcedureHandle | None, str | None]: ...
+    def prepare_session(
+        self,
+        label: str,
+        arm_labels: list[str],
+        history_json: str,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[AdaptiveInferenceHandle | None, str | None]: ...
+
+def participant_procedure_declare(
+    declaration_json: str,
+) -> tuple[ParticipantProcedureHandle | None, str | None]: ...
 def decision_reliability_assess(
     draws_json: str,
     validation_json: str | None,

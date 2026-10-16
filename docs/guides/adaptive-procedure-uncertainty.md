@@ -35,14 +35,32 @@ outcome observation (lag and loss), exposure model, stopping rule and final
 selection. Nothing is defaulted; a missing element is refused with its own
 detail. The validated `ProcedureSpec` is the only input of the routes. The
 design is batched sequential with Bernoulli outcomes, at most 4 arms, 4
-contexts, 8 cells, 24 looks and 400 units.
+contexts, 8 cells, 24 looks and 65,535 units. Declaration capacity is separate
+from the cost of deriving the uncertainty: the exact law is bounded by its live
+states (1,000,000) and unit expansions (60,000,000), so a procedure of a few
+hundred units or more is refused there with `exact_law_states_exceeded` or
+`exact_law_work_exceeded` and is derived by the whole-procedure simulation
+instead, which is admitted against a work budget (replications x units x
+measurements, 4,000,000,000) and the memory budget of the execution context
+(`simulation_work_exceeded`, `simulation_memory_exceeded`) and returns a receipt of
+the work done. Only an empty or unordered schedule is `looks_not_ordered`.
+
+A Thompson rule may carry a minimum exploration probability
+(`AssignmentRule.thompson_beta_floored`), and a stopping rule may stop for
+futility (`ProcedureStopping.posterior_futility`): when every other arm has
+posterior probability below a threshold of exceeding the control (arm 0) by a
+margin, deciding for the control. The participant-level family, with
+several binary responses per participant, historical priors and
+decisions at completed-participant batch boundaries, is declared with
+`ParticipantProcedure` and described in
+[inference from adaptive experiments](../adaptive-inference.md).
 
 ## Paradigms
 
 | Paradigm | What is computed | Admitted when |
 | --- | --- | --- |
 | Bayesian posterior | Posterior-mean martingale gap under the prior predictive; a nonzero gap witnesses a failed premise | Loss of outcomes does not depend on their values |
-| Decision-theoretic stopping | Stopping time, decision and regret of the declared rule under a hypothesized truth | Posterior expected-loss rule, loss independent of values |
+| Decision-theoretic stopping | Stopping time, decision and regret of the declared rule under a hypothesized truth | Posterior expected-loss or futility rule, loss independent of values |
 | Frequentist fixed sample | Sampling law of the design as declared | Fixed assignment, no data-dependent stopping |
 | Frequentist group sequential | Law and stagewise-ordered p-value | Fixed randomization with declared boundaries |
 | Adaptive weighting | Estimator law by whole-procedure simulation; plug-in variance is a diagnostic | Loss independent of values |

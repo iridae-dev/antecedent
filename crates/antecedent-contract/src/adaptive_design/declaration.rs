@@ -178,6 +178,16 @@ pub enum StoppingSpec {
         /// Loss threshold, in units of the success probability.
         loss_threshold: f64,
     },
+    /// Stop for futility: when no treatment arm has a posterior probability
+    /// of at least `threshold` of exceeding the control (arm 0) by more than
+    /// `margin`.
+    PosteriorFutility {
+        /// Smallest advantage over the control that matters, in `[0, 1)`.
+        margin: f64,
+        /// Posterior probability below which an arm is judged futile, in
+        /// `(0, 0.5)`.
+        threshold: f64,
+    },
     /// Stop at a resource cap.
     ResourceCap {
         /// Most units that may be enrolled.
@@ -495,6 +505,13 @@ fn check_rule(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<Extern
             StoppingSpec::PosteriorExpectedLoss { loss_threshold },
         ) => loss_threshold.is_finite() && loss_threshold > 0.0,
         (StoppingRuleKind::Resource, StoppingSpec::ResourceCap { max_units }) => max_units > 0,
+        (StoppingRuleKind::Futility, StoppingSpec::PosteriorFutility { margin, threshold }) => {
+            margin.is_finite()
+                && (0.0..1.0).contains(&margin)
+                && threshold.is_finite()
+                && threshold > 0.0
+                && threshold < 0.5
+        }
         (StoppingRuleKind::Futility, spec) => !matches!(spec, StoppingSpec::NoStopping),
         _ => false,
     };
@@ -804,6 +821,9 @@ fn identity_of(declaration: &AdaptiveDesignDeclaration) -> SemanticDigest {
                 }
                 StoppingSpec::PosteriorExpectedLoss { loss_threshold } => {
                     writer.text("posterior_expected_loss").real(loss_threshold);
+                }
+                StoppingSpec::PosteriorFutility { margin, threshold } => {
+                    writer.text("posterior_futility").real(margin).real(threshold);
                 }
                 StoppingSpec::ResourceCap { max_units } => {
                     writer.text("resource_cap").word(u64::from(max_units));

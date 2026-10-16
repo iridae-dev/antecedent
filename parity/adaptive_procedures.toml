@@ -942,9 +942,8 @@ assignment = "thompson_beta_bernoulli"
 outcome = "repeated_measures"
 monitoring = "fixed_interim_looks"
 stopping = "decision_theoretic"
-status = "closed_pairing"
-reason_code = "cell_not_licensed"
-detail = "adaptive_inference.pairing_not_licensed"
+status = "licensed"
+paradigms = ["bayesian_posterior", "decision_theoretic_stopping", "anytime_valid_frequentist"]
 
 [[cell]]
 id = "thompson_beta_bernoulli/repeated_measures/group_sequential/no_stopping"

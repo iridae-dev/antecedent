@@ -78,6 +78,80 @@ pub fn mixture_hoeffding_radius(count: u64, alpha: f64, tuning_samples: f64) -> 
     Ok(boundary / m)
 }
 
+/// The running intersection of one arm's mixture-Hoeffding intervals,
+/// updated one observation at a time.
+///
+/// Pushing the outcomes of an arm in pull order and reading the state after
+/// any prefix gives the same sequence as [`bounded_mean_confidence_sequence`]
+/// over that prefix, so a procedure that looks at the arm several times reads
+/// the sequence at each look without recomputing it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SequenceState {
+    alpha: f64,
+    tuning_samples: f64,
+    count: u64,
+    sum: f64,
+    lower: f64,
+    upper: f64,
+}
+
+impl SequenceState {
+    /// An empty sequence at two-sided miscoverage `alpha`, tuned for
+    /// `tuning_samples`.
+    ///
+    /// # Errors
+    /// `alpha` outside `(0, 1)` or a non-positive tuning size.
+    pub fn new(alpha: f64, tuning_samples: f64) -> Result<Self, Error> {
+        check_level(alpha, tuning_samples)?;
+        Ok(Self { alpha, tuning_samples, count: 0, sum: 0.0, lower: 0.0, upper: 1.0 })
+    }
+
+    /// Add the next outcome of the arm.
+    ///
+    /// # Errors
+    /// An outcome outside `[0, 1]` or not finite.
+    pub fn push(&mut self, value: f64) -> Result<(), Error> {
+        if !(value.is_finite() && (0.0..=1.0).contains(&value)) {
+            return Err(Error::InvalidParameter("a bounded outcome must lie in [0, 1]"));
+        }
+        self.sum += value;
+        self.count += 1;
+        let mean = self.sum / self.count as f64;
+        let radius = mixture_hoeffding_radius(self.count, self.alpha, self.tuning_samples)?;
+        self.lower = self.lower.max(mean - radius);
+        self.upper = self.upper.min(mean + radius);
+        Ok(())
+    }
+
+    /// Outcomes pushed so far.
+    #[must_use]
+    pub const fn count(&self) -> u64 {
+        self.count
+    }
+
+    /// The sequence at the current sample size.
+    ///
+    /// # Errors
+    /// An empty intersection (evidence that the bounded independent premise
+    /// failed).
+    pub fn reading(&self) -> Result<ArmSequence, Error> {
+        if self.count == 0 {
+            return Ok(ArmSequence { count: 0, mean: f64::NAN, lower: 0.0, upper: 1.0 });
+        }
+        if self.lower > self.upper {
+            return Err(Error::Numerical(
+                "the intersected confidence sequence is empty: the bounded independent premise failed",
+            ));
+        }
+        Ok(ArmSequence {
+            count: self.count,
+            mean: self.sum / self.count as f64,
+            lower: self.lower,
+            upper: self.upper,
+        })
+    }
+}
+
 /// The running-intersection confidence sequence of a bounded arm, evaluated
 /// at the final observation, from outcomes in pull order.
 ///
@@ -91,35 +165,17 @@ pub fn bounded_mean_confidence_sequence(
     tuning_samples: f64,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<ArmSequence, Error> {
-    check_level(alpha, tuning_samples)?;
+    let mut state = SequenceState::new(alpha, tuning_samples)?;
     if values.len() > MAX_SEQUENCE_OBSERVATIONS {
         return Err(Error::Limit("more than fifty million observations"));
     }
-    if values.iter().any(|x| !(x.is_finite() && (0.0..=1.0).contains(x))) {
-        return Err(Error::InvalidParameter("a bounded outcome must lie in [0, 1]"));
-    }
-    if values.is_empty() {
-        return Ok(ArmSequence { count: 0, mean: f64::NAN, lower: 0.0, upper: 1.0 });
-    }
-    let (mut lower, mut upper, mut sum) = (0.0_f64, 1.0_f64, 0.0_f64);
-    for (index, x) in values.iter().enumerate() {
+    for (index, &x) in values.iter().enumerate() {
         if index % CANCEL_STRIDE == 0 && cancelled() {
             return Err(Error::Cancelled);
         }
-        sum += x;
-        let count = index as u64 + 1;
-        let mean = sum / count as f64;
-        let radius = mixture_hoeffding_radius(count, alpha, tuning_samples)?;
-        lower = lower.max(mean - radius);
-        upper = upper.min(mean + radius);
+        state.push(x)?;
     }
-    if lower > upper {
-        return Err(Error::Numerical(
-            "the intersected confidence sequence is empty: the bounded independent premise failed",
-        ));
-    }
-    let count = values.len() as u64;
-    Ok(ArmSequence { count, mean: sum / count as f64, lower, upper })
+    state.reading()
 }
 
 /// Bounds for the difference of two arm means, `a - b`, from two sequences

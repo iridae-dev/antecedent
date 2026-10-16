@@ -5,6 +5,8 @@
 
 #[path = "adaptive_inference_facade.rs"]
 mod adaptive_inference_facade;
+#[path = "adaptive_participant_facade.rs"]
+mod adaptive_participant_facade;
 #[path = "adaptive_procedure_facade.rs"]
 mod adaptive_procedure_facade;
 #[path = "adaptive_repeated_measures_consumer.rs"]

@@ -56,7 +56,9 @@ fn rule_for(cell: ProcedureCell) -> StoppingRuleDeclaration {
             StoppingSpec::PosteriorExpectedLoss { loss_threshold: 0.05 }
         }
         StoppingRuleKind::Resource => StoppingSpec::ResourceCap { max_units: 8 },
-        StoppingRuleKind::Futility => StoppingSpec::PosteriorProbabilityBest { threshold: 0.9 },
+        StoppingRuleKind::Futility => {
+            StoppingSpec::PosteriorFutility { margin: 0.05, threshold: 0.1 }
+        }
         _ => StoppingSpec::NoStopping,
     };
     StoppingRuleDeclaration { kind: cell.stopping, spec, ended_by_rule: false }
@@ -161,7 +163,7 @@ fn the_matrix_lists_every_combination_once_and_classifies_each() {
         incoherent,
         stopping_without_looks + looks_without_rule + spending_with_decision_theory
     );
-    assert_eq!((licensed, pairing, carried), (6, 18, 192));
+    assert_eq!((licensed, pairing, carried), (7, 17, 192));
     assert_eq!(licensed + incoherent + pairing + carried, cells.len());
 }
 
@@ -185,6 +187,15 @@ fn exactly_the_delivered_cells_are_licensed_with_their_own_paradigms() {
                 S::DecisionTheoretic,
             ),
             vec![P::BayesianPosterior, P::DecisionTheoreticStopping],
+        ),
+        (
+            cell(
+                A::ThompsonBetaBernoulli,
+                O::RepeatedMeasures,
+                M::FixedInterimLooks,
+                S::DecisionTheoretic,
+            ),
+            vec![P::BayesianPosterior, P::DecisionTheoreticStopping, P::AnytimeValidFrequentist],
         ),
         (
             cell(A::EpsilonGreedy, O::SingleOutcome, M::FixedInterimLooks, S::Efficacy),
@@ -277,6 +288,37 @@ fn the_registry_table_and_the_executable_matrix_agree_cell_by_cell() {
             _ => panic!("an unclassified cell"),
         }
     }
+}
+
+// -- the futility rule ----------------------------------------------------------------------
+
+fn futility_declaration(margin: f64, threshold: f64) -> AdaptiveDesignDeclaration {
+    let mut d = declaration(cell(
+        AssignmentFamily::ThompsonBetaBernoulli,
+        OutcomeStructure::SingleOutcome,
+        MonitoringStrategy::FixedInterimLooks,
+        StoppingRuleKind::Futility,
+    ));
+    d.stopping_rule.as_mut().unwrap().spec = StoppingSpec::PosteriorFutility { margin, threshold };
+    d
+}
+
+#[test]
+fn a_futility_rule_has_its_own_spec_with_parameters_in_range_and_part_of_the_identity() {
+    let contract = AdaptiveDesignContract::new(futility_declaration(0.05, 0.1)).expect("complete");
+    let other = AdaptiveDesignContract::new(futility_declaration(0.06, 0.1)).expect("complete");
+    assert_ne!(contract.identity(), other.identity(), "the margin is part of the identity");
+    let other = AdaptiveDesignContract::new(futility_declaration(0.05, 0.2)).expect("complete");
+    assert_ne!(contract.identity(), other.identity(), "the threshold is part of the identity");
+    for (margin, threshold) in [(1.0, 0.1), (-0.1, 0.1), (0.05, 0.0), (0.05, 0.5), (f64::NAN, 0.1)]
+    {
+        let error = AdaptiveDesignContract::new(futility_declaration(margin, threshold))
+            .expect_err("out of range");
+        assert_eq!(details(&error), ["adaptive_inference.rule_mismatch"]);
+    }
+    // Futility boundaries (error rates) stay carried forward with their owner.
+    let refusal = contract.admit_paradigm(InferenceParadigm::BayesianPosterior).unwrap_err();
+    assert_eq!(refusal.detail, "adaptive_inference.cell_carried_forward");
 }
 
 // -- completeness ---------------------------------------------------------------------------

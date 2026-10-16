@@ -655,9 +655,9 @@ def test_the_procedure_matrix_lists_every_cell_once_and_agrees_with_the_registry
         }
     classes = [c.status for c in matrix]
     assert {s: classes.count(s) for s in set(classes)} == {
-        "licensed": 6,
+        "licensed": 7,
         "closed_incoherent": 144,
-        "closed_pairing": 18,
+        "closed_pairing": 17,
         "carried_forward": 192,
     }
     assert all(c.owner for c in matrix if c.status == "carried_forward")

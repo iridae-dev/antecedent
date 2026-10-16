@@ -32,6 +32,7 @@
 include!(concat!(env!("OUT_DIR"), "/python_test_link.rs"));
 
 mod adaptive_inference_api;
+mod adaptive_participant_api;
 mod adaptive_procedure_api;
 mod artifact_api;
 mod ate_api;

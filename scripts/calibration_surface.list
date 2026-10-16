@@ -1078,13 +1078,18 @@ allow design crates/antecedent/src/analysis/transported_mechanism.rs antecedent_
 # Adaptive-procedure derivations: the exact whole-procedure law, its derived reports and
 # the repeated-measures laws and simulation; each is a number a derived-uncertainty
 # record or an adaptive-procedure emitter reads.
+core crates/antecedent-stats/src/adaptive_inference/capacity.rs
 core crates/antecedent-stats/src/adaptive_inference/group_sequential.rs
+core crates/antecedent-stats/src/adaptive_inference/historical_prior.rs
+core crates/antecedent-stats/src/adaptive_inference/participant_posterior.rs
+core crates/antecedent-stats/src/adaptive_inference/participant_procedure.rs
 core crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs
 core crates/antecedent-stats/src/adaptive_inference/procedure_law.rs
 core crates/antecedent-stats/src/adaptive_inference/procedure_repeated_measures.rs
 core crates/antecedent-stats/src/adaptive_inference/procedure_simulation.rs
 core crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs
 core crates/antecedent/src/analysis/adaptive_inference.rs
+core crates/antecedent/src/analysis/adaptive_participant_procedure.rs
 core crates/antecedent/src/analysis/adaptive_procedure_report.rs
 
 # Measured adaptive intervals: the constructions and calibration keys the harness

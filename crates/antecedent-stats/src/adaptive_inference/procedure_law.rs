@@ -35,12 +35,23 @@
 //! the law is of the declared procedure under a hypothesized truth, nothing
 //! more.
 //!
+//! The enumeration is bounded by the distinct live states it holds and by the
+//! unit expansions it performs ([`MAX_LAW_STATES`], [`MAX_LAW_WORK`]), never by
+//! the number of participants alone: a procedure past either bound is refused
+//! with its own capacity detail ([`CapacityError`]), and the whole-procedure
+//! simulation of [`super::procedure_simulation`] is the route for it. Observed
+//! counts are 16-bit; a validated declaration enrols at most 65,535 units, so
+//! no count can overflow.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
 use super::AdaptiveInferenceError as Error;
-use super::beta_bernoulli::{BetaPosterior, best_arm_probabilities, expected_losses};
+use super::beta_bernoulli::{
+    BetaPosterior, best_arm_probabilities, expected_losses, probability_exceeds,
+};
+use super::capacity::CapacityError;
 use super::group_sequential::Sidedness;
 use super::procedure_contract::{
     AssignmentRule, Attribution, BetaPrior, FinalSelection, ProcedureSpec, StoppingRule,
@@ -160,12 +171,17 @@ pub struct ProcedureLaw {
 
 /// The assignment, stopping and selection logic of a procedure as functions
 /// of the observed counts, shared by the exact law and the simulation.
+///
+/// The caches only save recomputation; one that reaches its entry limit is
+/// emptied, which changes no result.
 pub(crate) struct Rules<'a> {
     spec: &'a ProcedureSpec,
     cancelled: &'a dyn Fn() -> bool,
+    cache_limit: usize,
     policy_cache: BTreeMap<Vec<u16>, Vec<f64>>,
     best_cache: BTreeMap<Vec<u16>, Vec<f64>>,
     loss_cache: BTreeMap<Vec<u16>, Vec<f64>>,
+    futility_cache: BTreeMap<Vec<u16>, f64>,
 }
 
 pub(crate) struct Assessment {
@@ -182,7 +198,66 @@ fn posteriors(prior: BetaPrior, counts: &[u16]) -> Result<Vec<BetaPosterior>, Er
         .collect()
 }
 
-fn first_maximum(values: &[f64]) -> usize {
+fn remember<V>(cache: &mut BTreeMap<Vec<u16>, V>, limit: usize, key: &[u16], value: V) {
+    if cache.len() >= limit {
+        cache.clear();
+    }
+    cache.insert(key.to_vec(), value);
+}
+
+/// Clamp a probability row from below at `floor` and renormalize, so that
+/// every entry is at least `floor`.
+///
+/// One pass of clamping and renormalizing can push an entry back under the
+/// floor (the clamped mass has to come from somewhere), so the pass repeats:
+/// the entries below the floor are pinned at it, the rest share the remaining
+/// mass in proportion to their original probabilities, and an entry that the
+/// rescaling takes below the floor is pinned in the next pass. Each pass
+/// pins at least one more entry or ends, so the loop ends within `row.len()`
+/// passes. The result sums to one and has no entry below `floor` whenever
+/// `floor * row.len() <= 1`.
+pub fn apply_exploration_floor(row: &mut [f64], floor: f64) {
+    let mut pinned = vec![false; row.len()];
+    loop {
+        let pinned_count = pinned.iter().filter(|&&p| p).count();
+        let free_mass = (1.0 - floor * pinned_count as f64).max(0.0);
+        let free_total: f64 =
+            row.iter().zip(&pinned).filter(|&(_, &p)| !p).map(|(&value, _)| value).sum();
+        let scale = if free_total > 0.0 { free_mass / free_total } else { 0.0 };
+        let mut newly_pinned = false;
+        for (&value, pin) in row.iter().zip(pinned.iter_mut()) {
+            if !*pin && value * scale < floor {
+                *pin = true;
+                newly_pinned = true;
+            }
+        }
+        if !newly_pinned {
+            for (value, &pin) in row.iter_mut().zip(&pinned) {
+                *value = if pin { floor } else { *value * scale };
+            }
+            return;
+        }
+    }
+}
+
+/// Thompson sampling probabilities from the posterior probabilities that each
+/// arm is best: quadrature error below zero is dropped and the row is
+/// renormalized to sum to one.
+pub(crate) fn normalize_probabilities(mut row: Vec<f64>) -> Result<Vec<f64>, Error> {
+    for p in &mut row {
+        *p = p.max(0.0);
+    }
+    let total: f64 = row.iter().sum();
+    if !(total.is_finite() && total > 0.0) {
+        return Err(Error::Numerical("Thompson probabilities did not normalize"));
+    }
+    for p in &mut row {
+        *p /= total;
+    }
+    Ok(row)
+}
+
+pub(crate) fn first_maximum(values: &[f64]) -> usize {
     let mut best = 0;
     for (index, &value) in values.iter().enumerate().skip(1) {
         if value > values[best] {
@@ -193,14 +268,32 @@ fn first_maximum(values: &[f64]) -> usize {
 }
 
 impl<'a> Rules<'a> {
-    pub(crate) fn new(spec: &'a ProcedureSpec, cancelled: &'a dyn Fn() -> bool) -> Self {
+    pub(crate) fn new(
+        spec: &'a ProcedureSpec,
+        cancelled: &'a dyn Fn() -> bool,
+        cache_limit: usize,
+    ) -> Self {
         Self {
             spec,
             cancelled,
+            cache_limit,
             policy_cache: BTreeMap::new(),
             best_cache: BTreeMap::new(),
             loss_cache: BTreeMap::new(),
+            futility_cache: BTreeMap::new(),
         }
+    }
+
+    /// The Thompson sampling row: the posterior probabilities that each arm
+    /// is best, normalized.
+    fn thompson_row(&mut self, prior: BetaPrior, counts: &[u16]) -> Result<Vec<f64>, Error> {
+        if let Some(row) = self.policy_cache.get(counts) {
+            return Ok(row.clone());
+        }
+        let posts = posteriors(prior, counts)?;
+        let row = normalize_probabilities(best_arm_probabilities(&posts, self.cancelled)?)?;
+        remember(&mut self.policy_cache, self.cache_limit, counts, row.clone());
+        Ok(row)
     }
 
     /// The policy's distribution over arms given one context's observed
@@ -235,23 +328,10 @@ impl<'a> Rules<'a> {
                 }
                 Ok(row)
             }
-            AssignmentRule::ThompsonBeta { prior } => {
-                if let Some(row) = self.policy_cache.get(counts) {
-                    return Ok(row.clone());
-                }
-                let posts = posteriors(*prior, counts)?;
-                let mut row = best_arm_probabilities(&posts, self.cancelled)?;
-                for p in &mut row {
-                    *p = p.max(0.0);
-                }
-                let total: f64 = row.iter().sum();
-                if !(total.is_finite() && total > 0.0) {
-                    return Err(Error::Numerical("Thompson probabilities did not normalize"));
-                }
-                for p in &mut row {
-                    *p /= total;
-                }
-                self.policy_cache.insert(counts.to_vec(), row.clone());
+            AssignmentRule::ThompsonBeta { prior } => self.thompson_row(*prior, counts),
+            AssignmentRule::ThompsonBetaFloored { prior, min_probability } => {
+                let mut row = self.thompson_row(*prior, counts)?;
+                apply_exploration_floor(&mut row, *min_probability);
                 Ok(row)
             }
             AssignmentRule::UpperConfidenceBound { exploration } => {
@@ -279,7 +359,7 @@ impl<'a> Rules<'a> {
             return Ok(found.clone());
         }
         let value = best_arm_probabilities(&posteriors(prior, counts)?, self.cancelled)?;
-        self.best_cache.insert(counts.to_vec(), value.clone());
+        remember(&mut self.best_cache, self.cache_limit, counts, value.clone());
         Ok(value)
     }
 
@@ -288,8 +368,28 @@ impl<'a> Rules<'a> {
             return Ok(found.clone());
         }
         let value = expected_losses(&posteriors(prior, counts)?, self.cancelled)?;
-        self.loss_cache.insert(counts.to_vec(), value.clone());
+        remember(&mut self.loss_cache, self.cache_limit, counts, value.clone());
         Ok(value)
+    }
+
+    /// The largest posterior probability, over the non-control arms, of
+    /// exceeding the control (arm 0) by more than `margin`.
+    fn futility_exceedance(
+        &mut self,
+        prior: BetaPrior,
+        margin: f64,
+        counts: &[u16],
+    ) -> Result<f64, Error> {
+        if let Some(found) = self.futility_cache.get(counts) {
+            return Ok(*found);
+        }
+        let posts = posteriors(prior, counts)?;
+        let mut largest = 0.0_f64;
+        for arm in &posts[1..] {
+            largest = largest.max(probability_exceeds(*arm, posts[0], margin, self.cancelled)?);
+        }
+        remember(&mut self.futility_cache, self.cache_limit, counts, largest);
+        Ok(largest)
     }
 
     /// Evaluate the stopping rule at `look` on the observed counts.
@@ -320,6 +420,13 @@ impl<'a> Rules<'a> {
                 let arm = first_maximum(&negated);
                 if losses[arm] < loss_threshold {
                     Ok(Assessment { stop: true, decision: Some(arm) })
+                } else {
+                    Ok(none)
+                }
+            }
+            StoppingRule::PosteriorFutility { margin, threshold, prior } => {
+                if self.futility_exceedance(prior, margin, observed)? < threshold {
+                    Ok(Assessment { stop: true, decision: Some(0) })
                 } else {
                     Ok(none)
                 }
@@ -426,6 +533,16 @@ impl Layout {
 
 type StateMap = BTreeMap<Vec<u16>, f64>;
 
+fn check_states(live: usize) -> Result<(), Error> {
+    if live > MAX_LAW_STATES {
+        return Err(Error::Capacity(CapacityError::LawStates {
+            limit: MAX_LAW_STATES as u64,
+            requested: live as u64,
+        }));
+    }
+    Ok(())
+}
+
 struct Engine<'a> {
     spec: &'a ProcedureSpec,
     kernel: &'a OutcomeKernel,
@@ -438,9 +555,12 @@ struct Engine<'a> {
 impl Engine<'_> {
     fn tick(&mut self, amount: u64) -> Result<(), Error> {
         let before = self.work / CANCEL_STRIDE;
-        self.work += amount;
+        self.work = self.work.saturating_add(amount);
         if self.work > MAX_LAW_WORK {
-            return Err(Error::Limit("the procedure law exceeded its work bound"));
+            return Err(Error::Capacity(CapacityError::LawWork {
+                limit: MAX_LAW_WORK,
+                requested: self.work,
+            }));
         }
         if self.work / CANCEL_STRIDE != before && (self.cancelled)() {
             return Err(Error::Cancelled);
@@ -467,6 +587,7 @@ impl Engine<'_> {
                     }
                 }
             }
+            check_states(next.len())?;
             self.tick(next.len() as u64)?;
             law = next;
         }
@@ -495,6 +616,7 @@ impl Engine<'_> {
                 }
                 *next.entry(grown).or_insert(0.0) += probability * weight;
             }
+            check_states(next.len())?;
         }
         Ok(next)
     }
@@ -548,6 +670,7 @@ impl Engine<'_> {
                 }
             }
         }
+        check_states(next.len())?;
         self.tick(next.len() as u64 + 1)?;
         Ok(next)
     }
@@ -598,8 +721,14 @@ pub fn enumerate_law(
     let cumulative = spec.cumulative_enrolment();
     let total_length = layout.total;
     let observed_len = layout.observed_len;
-    let mut engine =
-        Engine { spec, kernel, layout, rules: Rules::new(spec, cancelled), work: 0, cancelled };
+    let mut engine = Engine {
+        spec,
+        kernel,
+        layout,
+        rules: Rules::new(spec, cancelled, MAX_LAW_STATES),
+        work: 0,
+        cancelled,
+    };
     let mut live: StateMap = BTreeMap::new();
     live.insert(vec![0_u16; total_length], 1.0);
     let mut terminal: BTreeMap<(usize, bool, Vec<u16>, Option<usize>), f64> = BTreeMap::new();
@@ -612,9 +741,7 @@ pub fn enumerate_law(
         live = engine.enrol(live, batch)?;
         live = engine.reveal(live)?;
         peak = peak.max(live.len());
-        if live.len() > MAX_LAW_STATES {
-            return Err(Error::Limit("the procedure law holds too many live states"));
-        }
+        check_states(live.len())?;
         let last = look + 1 == looks;
         let mut continuing: StateMap = BTreeMap::new();
         for (key, probability) in live {

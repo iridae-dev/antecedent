@@ -26,20 +26,20 @@
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_stats::adaptive_inference::{
     AdaptiveInferenceError, AnalysisEstimator, AnytimeReport, AssignmentRule, BayesianReport,
-    BetaPrior, CellLabel, ContractGap, DERIVED_UNMEASURED, DecisionReport, Estimand,
-    EstimandStatement, EstimatorLaw, Functional, GaussianMixtureLaw, InversionGrid,
-    InversionInterval, ObservedTerminal, OrderingPValues, OutcomeKernel, PosteriorMeanGap,
-    ProcedureLaw, RepeatedMeasuresDeclaration, RepeatedMeasuresDerivation, RepeatedMeasuresRequest,
-    RepeatedMeasuresSpec, SimulatedLaw, SimulationRequest, SimulationSummary, StagewiseInference,
-    StagewiseLook, StoppingRule, UncertaintyParadigm, UnitAssignment, admit,
-    admit_repeated_measures, anytime_exclusion_probability, anytime_valid_report, bayesian_report,
-    decision_report, derive_repeated_measures, enumerate_law, exact_fixed_contrast_law,
-    inversion_interval, ordering_p_values, posterior_mean_gaps, simulate_procedure,
-    stagewise_inference,
+    BetaPrior, CellLabel, DERIVED_UNMEASURED, DecisionReport, Estimand, EstimandStatement,
+    EstimatorLaw, Functional, GaussianMixtureLaw, InversionGrid, InversionInterval,
+    ObservedTerminal, OrderingPValues, OutcomeKernel, PosteriorMeanGap, ProcedureLaw,
+    RepeatedMeasuresDeclaration, RepeatedMeasuresDerivation, RepeatedMeasuresRequest,
+    RepeatedMeasuresSpec, ResourceBudget, ResourceReceipt, SimulatedLaw, SimulationRequest,
+    SimulationSummary, StagewiseInference, StagewiseLook, StoppingRule, UncertaintyParadigm,
+    UnitAssignment, admit, admit_repeated_measures, anytime_exclusion_probability,
+    anytime_valid_report, bayesian_report, decision_report, derive_repeated_measures_within,
+    enumerate_law, exact_fixed_contrast_law, inversion_interval, ordering_p_values,
+    posterior_mean_gaps, simulate_procedure_within, stagewise_inference,
 };
 
 use super::adaptive_inference::AdaptiveInferenceRefusal;
-use super::adaptive_procedure_declaration::AdaptiveProcedure;
+use super::adaptive_procedure_declaration::{AdaptiveProcedure, gap_refusal};
 
 /// A paradigm's request: what to compute and the hypothesized truth or
 /// observed terminal state it needs.
@@ -169,6 +169,8 @@ pub enum ProcedureReportBody {
         rule_stop_fraction: f64,
         /// Replications run.
         replications: u32,
+        /// The work the simulation was admitted for and did.
+        receipt: ResourceReceipt,
     },
     /// Time-uniform bounds and their exact exclusion probability.
     AnytimeValid {
@@ -258,20 +260,45 @@ fn premise_remedy(detail: &str) -> &'static str {
         "adaptive_inference.exact_law_unavailable" => {
             "use the simulated whole-procedure law, which has no closed form for an adaptive assignment or a weighted score"
         }
+        "adaptive_inference.borrowing_frozen" => {
+            "declare the borrowing before recruitment and keep it: a new borrowing plan is a new declaration, not an amendment of a procedure that has made a look"
+        }
+        "adaptive_inference.assignment_not_replayed" => {
+            "retain the allocation probabilities the declared procedure computed, or declare the priors, correlation, exploration floor and decisions the procedure actually ran under"
+        }
+        "adaptive_inference.stopping_not_replayed" => {
+            "retain the looks the declared decisions performed, or declare the decisions the procedure actually ran under"
+        }
         _ => {
             "declare a procedure that meets the paradigm's premise, or choose the paradigm the procedure meets"
         }
     }
 }
 
+/// Details whose premise is an assumption of the retained history or of a
+/// frozen declaration, not the licence of a cell.
+const ASSUMPTION_DETAILS: [&str; 3] = [
+    "adaptive_inference.borrowing_frozen",
+    "adaptive_inference.assignment_not_replayed",
+    "adaptive_inference.stopping_not_replayed",
+];
+
 /// Map a numerical refusal to the facade's coded refusal.
-fn refusal_of(error: &AdaptiveInferenceError) -> AdaptiveInferenceRefusal {
+pub(super) fn refusal_of(error: &AdaptiveInferenceError) -> AdaptiveInferenceRefusal {
     match error {
         AdaptiveInferenceError::PremiseFailed { detail, message } => AdaptiveInferenceRefusal {
-            code: antecedent_stats::adaptive_inference::procedure_uncertainty::premise_reason_code(
-            ),
+            code: if ASSUMPTION_DETAILS.contains(detail) {
+                antecedent_stats::adaptive_inference::participant_procedure::premise_reason_code()
+            } else {
+                antecedent_stats::adaptive_inference::procedure_uncertainty::premise_reason_code()
+            },
             detail: (*detail).to_owned(),
             message: format!("{message}; remedy: {}", premise_remedy(detail)),
+        },
+        AdaptiveInferenceError::Capacity(capacity) => AdaptiveInferenceRefusal {
+            code: capacity.reason_code(),
+            detail: capacity.detail().to_owned(),
+            message: format!("{capacity}; remedy: {}", capacity.remedy()),
         },
         AdaptiveInferenceError::Positivity { unit, arm, probability, floor } => {
             AdaptiveInferenceRefusal {
@@ -350,7 +377,8 @@ impl AdaptiveProcedure {
         admit(&self.spec, UncertaintyParadigm::FrequentistAdaptiveWeighting)
             .map_err(|e| refusal_of(&e))?;
         let cancelled = || ctx.cancellation.is_cancelled();
-        let law = simulate_procedure(&self.spec, truth, request, &cancelled)
+        let budget = ResourceBudget::from_context(ctx);
+        let law = simulate_procedure_within(&self.spec, truth, request, &budget, &cancelled)
             .map_err(|e| refusal_of(&e))?;
         Ok(ProcedureSimulationReport {
             procedure_identity: self.identity().to_owned(),
@@ -460,8 +488,10 @@ impl AdaptiveProcedure {
             }
             ProcedureReportRequest::AdaptiveWeighting { truth, simulation, z } => {
                 admit(spec, UncertaintyParadigm::FrequentistAdaptiveWeighting).map_err(fail)?;
+                let budget = ResourceBudget::from_context(ctx);
                 let simulated =
-                    simulate_procedure(spec, truth, simulation, &cancelled).map_err(fail)?;
+                    simulate_procedure_within(spec, truth, simulation, &budget, &cancelled)
+                        .map_err(fail)?;
                 let truth_value = self.estimand_value(simulation.estimand, truth)?;
                 let summary = simulated.summarize(truth_value, *z).map_err(fail)?;
                 (
@@ -472,6 +502,7 @@ impl AdaptiveProcedure {
                         mean_enrolled: simulated.mean_enrolled(),
                         rule_stop_fraction: simulated.rule_stop_fraction(),
                         replications: simulation.replications,
+                        receipt: simulated.receipt,
                     },
                 )
             }
@@ -672,14 +703,6 @@ pub struct RepeatedMeasuresProcedure {
     identity: String,
 }
 
-fn gap_refusal(gap: ContractGap) -> AdaptiveInferenceRefusal {
-    AdaptiveInferenceRefusal {
-        code: gap.reason_code(),
-        detail: gap.detail().to_owned(),
-        message: gap.remedy().to_owned(),
-    }
-}
-
 fn repeated_measures_identity(spec: &RepeatedMeasuresSpec) -> String {
     use antecedent_stats::adaptive_inference::{OutcomeStructure, WithinUnitCorrelation};
     let mut writer = CanonicalWriter::new(REPEATED_MEASURES_DOMAIN);
@@ -808,8 +831,9 @@ impl RepeatedMeasuresProcedure {
         let cancelled = || ctx.cancellation.is_cancelled();
         let spec = &self.spec;
         let fail = |e: AdaptiveInferenceError| refusal_of(&e);
+        let budget = ResourceBudget::from_context(ctx);
         let derive = |arm_means: &[f64], simulation: &RepeatedMeasuresRequest, z: f64| {
-            derive_repeated_measures(spec, arm_means, simulation, z, &cancelled)
+            derive_repeated_measures_within(spec, arm_means, simulation, z, &budget, &cancelled)
                 .map(Box::new)
                 .map(RepeatedMeasuresReportBody::Derived)
                 .map_err(fail)

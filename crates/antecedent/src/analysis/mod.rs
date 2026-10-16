@@ -21,6 +21,7 @@ pub(crate) use checked_ref;
 pub mod api;
 
 pub mod adaptive_inference;
+pub mod adaptive_participant_procedure;
 pub mod adaptive_procedure_declaration;
 pub mod adaptive_procedure_report;
 mod admg_conditional_transport;
@@ -144,6 +145,9 @@ pub use adaptive_inference::{
     AdaptiveInferenceOutcome, AdaptiveInferenceRefusal, AdaptiveInferenceSession,
     ConsumedAdaptiveResult, ConsumedMonitoringContract, consume_adaptive_inference_result_artifact,
     consume_adaptive_monitoring_contract_artifact,
+};
+pub use adaptive_participant_procedure::{
+    ParticipantHistoryReport, ParticipantProcedure, ParticipantSimulationReport,
 };
 pub use adaptive_procedure_declaration::{AdaptiveProcedure, ProcedureElements, Retention};
 pub use adaptive_procedure_report::{
