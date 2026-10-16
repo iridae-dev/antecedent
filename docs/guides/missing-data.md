@@ -69,7 +69,7 @@ contrast above. Cluster, stratified, factorial, multi-arm and switchback designs
 estimator and variance (cluster totals, stratum weights, cell contrasts, sequence scores) and
 run it on every assigned unit's inverse-probability pseudo-outcome (the weighted outcome, zero
 for a non-responder), with the observation model fitted within each assignment group. Their
-variance ignores that the response probabilities are estimated, which is conservative.
+variance is computed on pseudo-outcomes that carry the influence of the fitted response model (stacked M-estimation), so estimating the response probabilities is accounted for; across strata or clusters the shared coefficients are treated as independent between blocks.
 CUPED, ANCOVA and receipt-adjusted fits read further per-unit inputs and refuse.
 
 **Panel difference-in-differences, `balanced_panel`.** Units with a missing outcome in any

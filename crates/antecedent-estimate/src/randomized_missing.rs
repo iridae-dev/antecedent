@@ -121,11 +121,6 @@ fn weighted_arm(
             message: "responder weighting requires finite observed outcomes",
         });
     }
-    let p = ncov + 1;
-    // Design rows with the intercept first, row-major for the score algebra.
-    let row = |i: usize| -> Vec<f64> {
-        std::iter::once(1.0).chain((0..ncov).map(|c| covariates_colmajor[c * n + i])).collect()
-    };
     let probabilities = observation_probabilities(observed, covariates_colmajor, ncov)?;
     let mut weight_total = 0.0;
     let mut weighted_outcome = 0.0;
@@ -140,41 +135,13 @@ fn weighted_arm(
     }
     let mean = weighted_outcome / weight_total;
     let weight_mean = weight_total / n as f64;
-    // Score-correction vector h = mean[R (Y - mu)(1 - pi)/pi x] and information I.
-    let mut correction = vec![0.0; p];
-    let mut information = vec![0.0; p * p];
-    for i in 0..n {
-        let pi = probabilities[i];
-        let x = row(i);
-        if observed[i] {
-            let scale = (y[i] - mean) * (1.0 - pi) / pi;
-            for (slot, xv) in correction.iter_mut().zip(&x) {
-                *slot += scale * xv / n as f64;
-            }
-        }
-        for a in 0..p {
-            for b in 0..p {
-                information[a * p + b] += pi * (1.0 - pi) * x[a] * x[b] / n as f64;
-            }
-        }
-    }
-    let adjustment = if responders == n {
-        vec![0.0; p]
-    } else {
-        solve_symmetric(&mut information, &mut correction, p).ok_or(
-            EstimationError::Unsupported {
-                message: "responder weighting observation model information matrix is singular",
-            },
-        )?
-    };
+    // Estimating the observation probabilities contributes the score term h' I^-1 s_i.
+    let score = score_terms(y, observed, &probabilities, covariates_colmajor, ncov, mean)?;
     let mut sum_square = 0.0;
     for i in 0..n {
         let pi = probabilities[i];
-        let x = row(i);
-        let score_term: f64 = adjustment.iter().zip(&x).map(|(g, xv)| g * xv).sum::<f64>()
-            * (f64::from(u8::from(observed[i])) - pi);
         let u = if observed[i] { (y[i] - mean) / pi } else { 0.0 };
-        let influence = (u - score_term) / weight_mean;
+        let influence = (u - score[i]) / weight_mean;
         sum_square += influence * influence;
     }
     let variance = sum_square / (n as f64 * (n as f64 - 1.0));
@@ -186,6 +153,60 @@ fn weighted_arm(
         min_observation_probability: min_probability,
         effective_responders: weight_total * weight_total / weight_square,
     })
+}
+
+/// Per-row estimation term `h' I^{-1} s_i` of an inverse-probability-weighted mean whose
+/// observation probabilities come from a logistic fit (stacked M-estimation): `s_i =
+/// (R_i - pi_i) x_i` is the observation-model score, `I = mean(pi (1 - pi) x x')` its
+/// information and `h = mean(R (Y - centre)(1 - pi) / pi x)` the derivative of the weighted
+/// estimating equation in the model coefficients. Subtracting it from a row's weighted
+/// contribution gives the influence of the mean with the estimated probabilities, whose
+/// variance is the honest one; the term is zero when every row is observed.
+fn score_terms(
+    y: &[f64],
+    observed: &[bool],
+    probabilities: &[f64],
+    covariates_colmajor: &[f64],
+    ncov: usize,
+    centre: f64,
+) -> Result<Vec<f64>, EstimationError> {
+    let n = y.len();
+    if observed.iter().all(|seen| *seen) {
+        return Ok(vec![0.0; n]);
+    }
+    let p = ncov + 1;
+    let row = |i: usize| -> Vec<f64> {
+        std::iter::once(1.0).chain((0..ncov).map(|c| covariates_colmajor[c * n + i])).collect()
+    };
+    let mut correction = vec![0.0; p];
+    let mut information = vec![0.0; p * p];
+    for i in 0..n {
+        let pi = probabilities[i];
+        let x = row(i);
+        if observed[i] {
+            let scale = (y[i] - centre) * (1.0 - pi) / pi;
+            for (slot, xv) in correction.iter_mut().zip(&x) {
+                *slot += scale * xv / n as f64;
+            }
+        }
+        for a in 0..p {
+            for b in 0..p {
+                information[a * p + b] += pi * (1.0 - pi) * x[a] * x[b] / n as f64;
+            }
+        }
+    }
+    let adjustment = solve_symmetric(&mut information, &mut correction, p).ok_or(
+        EstimationError::Unsupported {
+            message: "responder weighting observation model information matrix is singular",
+        },
+    )?;
+    Ok((0..n)
+        .map(|i| {
+            let x = row(i);
+            adjustment.iter().zip(&x).map(|(g, xv)| g * xv).sum::<f64>()
+                * (f64::from(u8::from(observed[i])) - probabilities[i])
+        })
+        .collect())
 }
 
 /// Fitted probability of being observed for each row of one group: 1 when every row is
@@ -228,8 +249,10 @@ fn observation_probabilities(
 /// `group[i]` is the unit's assignment group (arm, factorial cell, action); the observation
 /// model is fitted within each group on the declared complete covariates. A non-responder's
 /// pseudo-outcome is zero, so it keeps its place in the design's denominators and totals.
-/// The design's variance ignores that `pi` is estimated, which is conservative for a
-/// logistic observation model.
+/// Each row also carries the estimation term of the fitted observation model (see
+/// `score_terms`), so the design's variance accounts for estimating `pi`; the group means are
+/// unchanged. A non-responder's pseudo-outcome is therefore the negative of that term rather
+/// than exactly zero, and the term is zero in a group where everyone responded.
 ///
 /// # Errors
 ///
@@ -272,15 +295,19 @@ pub fn responder_pseudo_outcomes(
             .flat_map(|c| rows.iter().map(move |&i| covariates_colmajor[c * n + i]))
             .collect();
         let probabilities = observation_probabilities(&seen, &covariates, ncov)?;
+        let values: Vec<f64> =
+            rows.iter().map(|&i| if observed[i] { outcome[i] } else { 0.0 }).collect();
+        if rows.iter().any(|&i| observed[i] && !outcome[i].is_finite()) {
+            return Err(EstimationError::Unsupported {
+                message: "responder weighting requires finite observed outcomes",
+            });
+        }
+        // The group mean of the adjusted pseudo-outcomes is the weighted mean exactly (the
+        // score terms average to zero), and each row carries the influence of that mean
+        // including the estimated observation probabilities.
+        let score = score_terms(&values, &seen, &probabilities, &covariates, ncov, 0.0)?;
         for (k, &i) in rows.iter().enumerate() {
-            if observed[i] {
-                if !outcome[i].is_finite() {
-                    return Err(EstimationError::Unsupported {
-                        message: "responder weighting requires finite observed outcomes",
-                    });
-                }
-                pseudo[i] = outcome[i] / probabilities[k];
-            }
+            pseudo[i] = if observed[i] { outcome[i] / probabilities[k] } else { 0.0 } - score[k];
         }
     }
     Ok(pseudo)
@@ -491,22 +518,45 @@ mod tests {
         assert!((mean - TRUE_EFFECT).abs() < 0.05, "mean effect {mean}");
     }
 
-    #[test]
-    fn pseudo_outcomes_have_the_weighted_arm_mean_and_keep_non_responders_at_zero() {
-        let t = trial(4_000, 21);
-        let group: Vec<usize> = t.treated.iter().map(|a| usize::from(*a)).collect();
-        let pseudo =
-            responder_pseudo_outcomes(&t.outcome, &t.observed, &group, &t.baseline, 1).unwrap();
-        for ((observed, p), y) in t.observed.iter().zip(&pseudo).zip(&t.outcome) {
-            assert_eq!(*observed, *p != 0.0 || *y == 0.0);
-        }
-        // Their arm means estimate the same effect as the Hajek contrast (up to the
-        // difference between HT and Hajek normalisation), and recover the truth.
-        let mean = |g: usize| {
-            let v: Vec<f64> = (0..4_000).filter(|&i| group[i] == g).map(|i| pseudo[i]).collect();
-            v.iter().sum::<f64>() / v.len() as f64
+    /// Difference of group means of `values` and its two-sample variance estimate.
+    fn contrast(values: &[f64], group: &[usize]) -> (f64, f64) {
+        let moments = |g: usize| {
+            let v: Vec<f64> =
+                (0..values.len()).filter(|&i| group[i] == g).map(|i| values[i]).collect();
+            let m = v.iter().sum::<f64>() / v.len() as f64;
+            let s2 = v.iter().map(|x| (x - m).powi(2)).sum::<f64>() / (v.len() as f64 - 1.0);
+            (m, s2 / v.len() as f64)
         };
-        assert!((mean(1) - mean(0) - TRUE_EFFECT).abs() < 0.2);
+        let (m1, v1) = moments(1);
+        let (m0, v0) = moments(0);
+        (m1 - m0, v1 + v0)
+    }
+
+    #[test]
+    fn pseudo_outcome_variance_includes_the_estimation_of_the_response_probabilities() {
+        // The group means of the adjusted pseudo-outcomes are the inverse-probability
+        // weighted means; the variance of their contrast, computed from the per-unit
+        // pseudo-outcomes, must match the sampling spread over repeated trials.
+        let (mut effects, mut corrected) = (vec![], vec![]);
+        for rep in 0..300u64 {
+            let t = trial(600, 5_000 + rep);
+            let group: Vec<usize> = t.treated.iter().map(|a| usize::from(*a)).collect();
+            let pseudo =
+                responder_pseudo_outcomes(&t.outcome, &t.observed, &group, &t.baseline, 1).unwrap();
+            let (effect, variance) = contrast(&pseudo, &group);
+            effects.push(effect);
+            corrected.push(variance);
+        }
+        let mean = effects.iter().sum::<f64>() / effects.len() as f64;
+        let spread = (effects.iter().map(|e| (e - mean).powi(2)).sum::<f64>()
+            / (effects.len() as f64 - 1.0))
+            .sqrt();
+        let reported = (corrected.iter().sum::<f64>() / corrected.len() as f64).sqrt();
+        assert!(
+            (reported / spread - 1.0).abs() < 0.12,
+            "pseudo-outcome se {reported} vs sampling spread {spread}"
+        );
+        assert!((mean - TRUE_EFFECT).abs() < 0.08, "mean pseudo-outcome effect {mean}");
     }
 
     #[test]
