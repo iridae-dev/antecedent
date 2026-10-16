@@ -119,14 +119,18 @@ pub fn variance_of_mean(
         }
         DependenceDeclaration::Cluster { .. } => {
             let labels = cluster.unwrap_or(&[]);
+            // One pass: clusters in order of first appearance, so each cluster's sum
+            // accumulates in case order exactly as a scan would.
+            let mut position: std::collections::HashMap<u32, usize> =
+                std::collections::HashMap::new();
             let mut sums: Vec<(u32, f64, f64)> = Vec::new();
             for (value, label) in d.iter().zip(labels) {
-                match sums.iter_mut().find(|entry| entry.0 == *label) {
-                    Some(entry) => {
-                        entry.1 += value - center;
-                        entry.2 += 1.0;
-                    }
-                    None => sums.push((*label, value - center, 1.0)),
+                if let Some(&at) = position.get(label) {
+                    sums[at].1 += value - center;
+                    sums[at].2 += 1.0;
+                } else {
+                    position.insert(*label, sums.len());
+                    sums.push((*label, value - center, 1.0));
                 }
             }
             let groups = sums.len();

@@ -21,13 +21,23 @@
 //! * `selection_corrected`: the simultaneous interval contains the true utility of
 //!   whichever candidate the rule selected. Conservative, asserted one-sided.
 //!
-//! Sample-size grid: the per-candidate Monte Carlo budget is `grid_n(1000)`, that is
-//! 500, 1000 and 2000 draws. Candidate-set sizes 2, 8 and 64. Couplings: shared streams
-//! with correlation 0 and 0.5, and separate streams for the routes that do not rank.
-//! Named boundaries (recorded under a separate functional so they never gate a route):
-//! all candidates equal at 64 candidates (maximal winner's curse), a dominant leader
-//! (probability near one) and an autocorrelated-stream stress is deliberately not
-//! measured: autocorrelated and importance-weighted carriers stay refused.
+//! Sample-size grid: the per-candidate Monte Carlo budget is `grid_n(base)`, that is half
+//! the base, the base and twice the base. Records are keyed by the candidate-count band
+//! (`candidate_count_band`), so the designs below visit every band at several counts:
+//!
+//! * base 1000 (500, 1000, 2000 draws) at 2, 8 and 64 candidates;
+//! * base 2000 (1000, 2000, 4000 draws) at 3, 5, 16, 32 and 100 candidates;
+//! * budget sweeps at 16 candidates (bases 500, 8000, 16000 and 32768, reaching 250 to
+//!   65536 draws) and at the band extremes (3 and 100 candidates; 32 at the low end);
+//! * exact ties (sixteen equal true means) and near ties (a leader a tenth of a noise
+//!   unit above fifteen equal candidates) for the routes that use the candidate count.
+//!
+//! Couplings: shared streams with correlation 0 and 0.5, and separate streams for the
+//! routes that do not rank. Named boundaries (recorded under a separate functional so
+//! they never gate a route): all candidates equal at 64 candidates (maximal winner's
+//! curse), a dominant leader (probability near one) and an autocorrelated-stream stress
+//! is deliberately not measured: autocorrelated and importance-weighted carriers stay
+//! refused.
 //!
 //! Ignored tests run via `scripts/gate_calibration.sh` (release build).
 //!
@@ -226,13 +236,16 @@ fn run_gated(
     dgp: &'static str,
     k: usize,
     lead: f64,
+    base_budget: usize,
     couplings: &[(&'static str, NoiseCoupling)],
 ) {
-    let budget = grid_n(BASE_BUDGET);
+    let budget = grid_n(base_budget);
     let (_, interval_method) = route.record_construction();
     for (cell, &(label, coupling)) in couplings.iter().enumerate() {
         let design = leader_design(k, lead, budget, coupling);
-        let run_seed = grid_seed(0x4d00_0000 + (k as u64) * 64 + cell as u64);
+        // The base-1000 designs keep the seeds they were first measured with.
+        let base_salt = if base_budget == BASE_BUDGET { 0 } else { (base_budget as u64) << 20 };
+        let run_seed = grid_seed(0x4d00_0000 + base_salt + (k as u64) * 64 + cell as u64);
         let mut tally =
             CoverageTally::for_record(RecordKey { test, dgp, interval: interval_method }, LEVEL)
                 .labelled(label);
@@ -291,10 +304,16 @@ fn run_named_boundary(
 
 macro_rules! gated {
     ($name:ident, $route:expr, $k:expr, $lead:expr, $couplings:expr, $dgp:literal) => {
+        gated_at!($name, $route, $k, $lead, BASE_BUDGET, $couplings, $dgp);
+    };
+}
+
+macro_rules! gated_at {
+    ($name:ident, $route:expr, $k:expr, $lead:expr, $base:expr, $couplings:expr, $dgp:literal) => {
         #[test]
         #[ignore = "calibration: run only at the final measurement step"]
         fn $name() {
-            run_gated($route, stringify!($name), $dgp, $k, $lead, &$couplings);
+            run_gated($route, stringify!($name), $dgp, $k, $lead, $base, &$couplings);
         }
     };
 }
@@ -397,6 +416,663 @@ gated!(
     ALL,
     "leader_plus_sixty_three_equal_candidates_gaussian_utilities"
 );
+
+// Candidate counts between and beyond the first designs, one budget grid (1000, 2000, 4000).
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn ranking_probability_three_candidates_l95() {
+    run_gated(
+        PublishedRoute::RankingProbability,
+        "ranking_probability_three_candidates_l95",
+        "leader_plus_two_equal_candidates_gaussian_utilities_shared_stream",
+        3,
+        1.0,
+        2000,
+        &SHARED,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn utility_interval_three_candidates_l95() {
+    run_gated(
+        PublishedRoute::UtilityInterval,
+        "utility_interval_three_candidates_l95",
+        "leader_plus_two_equal_candidates_gaussian_utilities",
+        3,
+        1.0,
+        2000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn confidence_set_three_candidates_l95() {
+    run_gated(
+        PublishedRoute::OptimalityConfidenceSet,
+        "confidence_set_three_candidates_l95",
+        "leader_plus_two_equal_candidates_gaussian_utilities",
+        3,
+        1.0,
+        2000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_three_candidates_l95() {
+    run_gated(
+        PublishedRoute::SelectionCorrectedInterval,
+        "selection_corrected_three_candidates_l95",
+        "leader_plus_two_equal_candidates_gaussian_utilities",
+        3,
+        1.0,
+        2000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn ranking_probability_five_candidates_l95() {
+    run_gated(
+        PublishedRoute::RankingProbability,
+        "ranking_probability_five_candidates_l95",
+        "leader_plus_four_equal_candidates_gaussian_utilities_shared_stream",
+        5,
+        1.25,
+        2000,
+        &SHARED,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn utility_interval_five_candidates_l95() {
+    run_gated(
+        PublishedRoute::UtilityInterval,
+        "utility_interval_five_candidates_l95",
+        "leader_plus_four_equal_candidates_gaussian_utilities",
+        5,
+        1.25,
+        2000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn confidence_set_five_candidates_l95() {
+    run_gated(
+        PublishedRoute::OptimalityConfidenceSet,
+        "confidence_set_five_candidates_l95",
+        "leader_plus_four_equal_candidates_gaussian_utilities",
+        5,
+        1.25,
+        2000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_five_candidates_l95() {
+    run_gated(
+        PublishedRoute::SelectionCorrectedInterval,
+        "selection_corrected_five_candidates_l95",
+        "leader_plus_four_equal_candidates_gaussian_utilities",
+        5,
+        1.25,
+        2000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn ranking_probability_sixteen_candidates_l95() {
+    run_gated(
+        PublishedRoute::RankingProbability,
+        "ranking_probability_sixteen_candidates_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities_shared_stream",
+        16,
+        2.0,
+        2000,
+        &SHARED,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn utility_interval_sixteen_candidates_l95() {
+    run_gated(
+        PublishedRoute::UtilityInterval,
+        "utility_interval_sixteen_candidates_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities",
+        16,
+        2.0,
+        2000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn confidence_set_sixteen_candidates_l95() {
+    run_gated(
+        PublishedRoute::OptimalityConfidenceSet,
+        "confidence_set_sixteen_candidates_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities",
+        16,
+        2.0,
+        2000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_sixteen_candidates_l95() {
+    run_gated(
+        PublishedRoute::SelectionCorrectedInterval,
+        "selection_corrected_sixteen_candidates_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities",
+        16,
+        2.0,
+        2000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn ranking_probability_thirty_two_candidates_l95() {
+    run_gated(
+        PublishedRoute::RankingProbability,
+        "ranking_probability_thirty_two_candidates_l95",
+        "leader_plus_thirty_one_equal_candidates_gaussian_utilities_shared_stream",
+        32,
+        2.25,
+        2000,
+        &SHARED,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn utility_interval_thirty_two_candidates_l95() {
+    run_gated(
+        PublishedRoute::UtilityInterval,
+        "utility_interval_thirty_two_candidates_l95",
+        "leader_plus_thirty_one_equal_candidates_gaussian_utilities",
+        32,
+        2.25,
+        2000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn confidence_set_thirty_two_candidates_l95() {
+    run_gated(
+        PublishedRoute::OptimalityConfidenceSet,
+        "confidence_set_thirty_two_candidates_l95",
+        "leader_plus_thirty_one_equal_candidates_gaussian_utilities",
+        32,
+        2.25,
+        2000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_thirty_two_candidates_l95() {
+    run_gated(
+        PublishedRoute::SelectionCorrectedInterval,
+        "selection_corrected_thirty_two_candidates_l95",
+        "leader_plus_thirty_one_equal_candidates_gaussian_utilities",
+        32,
+        2.25,
+        2000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn ranking_probability_one_hundred_candidates_l95() {
+    run_gated(
+        PublishedRoute::RankingProbability,
+        "ranking_probability_one_hundred_candidates_l95",
+        "leader_plus_ninety_nine_equal_candidates_gaussian_utilities_shared_stream",
+        100,
+        2.75,
+        2000,
+        &SHARED,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn utility_interval_one_hundred_candidates_l95() {
+    run_gated(
+        PublishedRoute::UtilityInterval,
+        "utility_interval_one_hundred_candidates_l95",
+        "leader_plus_ninety_nine_equal_candidates_gaussian_utilities",
+        100,
+        2.75,
+        2000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn confidence_set_one_hundred_candidates_l95() {
+    run_gated(
+        PublishedRoute::OptimalityConfidenceSet,
+        "confidence_set_one_hundred_candidates_l95",
+        "leader_plus_ninety_nine_equal_candidates_gaussian_utilities",
+        100,
+        2.75,
+        2000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_one_hundred_candidates_l95() {
+    run_gated(
+        PublishedRoute::SelectionCorrectedInterval,
+        "selection_corrected_one_hundred_candidates_l95",
+        "leader_plus_ninety_nine_equal_candidates_gaussian_utilities",
+        100,
+        2.75,
+        2000,
+        &ALL,
+    );
+}
+
+// Budget sweeps: 16 candidates over every route, the band extremes for the routes whose
+// correction depends on the candidate count.
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn ranking_probability_sixteen_candidates_budget_500_l95() {
+    run_gated(
+        PublishedRoute::RankingProbability,
+        "ranking_probability_sixteen_candidates_budget_500_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities_shared_stream",
+        16,
+        2.0,
+        500,
+        &SHARED,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn utility_interval_sixteen_candidates_budget_500_l95() {
+    run_gated(
+        PublishedRoute::UtilityInterval,
+        "utility_interval_sixteen_candidates_budget_500_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities",
+        16,
+        2.0,
+        500,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn confidence_set_sixteen_candidates_budget_500_l95() {
+    run_gated(
+        PublishedRoute::OptimalityConfidenceSet,
+        "confidence_set_sixteen_candidates_budget_500_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities",
+        16,
+        2.0,
+        500,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_sixteen_candidates_budget_500_l95() {
+    run_gated(
+        PublishedRoute::SelectionCorrectedInterval,
+        "selection_corrected_sixteen_candidates_budget_500_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities",
+        16,
+        2.0,
+        500,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn ranking_probability_sixteen_candidates_budget_8000_l95() {
+    run_gated(
+        PublishedRoute::RankingProbability,
+        "ranking_probability_sixteen_candidates_budget_8000_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities_shared_stream",
+        16,
+        2.0,
+        8000,
+        &SHARED,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn utility_interval_sixteen_candidates_budget_8000_l95() {
+    run_gated(
+        PublishedRoute::UtilityInterval,
+        "utility_interval_sixteen_candidates_budget_8000_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities",
+        16,
+        2.0,
+        8000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn confidence_set_sixteen_candidates_budget_8000_l95() {
+    run_gated(
+        PublishedRoute::OptimalityConfidenceSet,
+        "confidence_set_sixteen_candidates_budget_8000_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities",
+        16,
+        2.0,
+        8000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_sixteen_candidates_budget_8000_l95() {
+    run_gated(
+        PublishedRoute::SelectionCorrectedInterval,
+        "selection_corrected_sixteen_candidates_budget_8000_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities",
+        16,
+        2.0,
+        8000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn ranking_probability_sixteen_candidates_budget_16000_l95() {
+    run_gated(
+        PublishedRoute::RankingProbability,
+        "ranking_probability_sixteen_candidates_budget_16000_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities_shared_stream",
+        16,
+        2.0,
+        16000,
+        &SHARED,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn utility_interval_sixteen_candidates_budget_16000_l95() {
+    run_gated(
+        PublishedRoute::UtilityInterval,
+        "utility_interval_sixteen_candidates_budget_16000_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities",
+        16,
+        2.0,
+        16000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn confidence_set_sixteen_candidates_budget_16000_l95() {
+    run_gated(
+        PublishedRoute::OptimalityConfidenceSet,
+        "confidence_set_sixteen_candidates_budget_16000_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities",
+        16,
+        2.0,
+        16000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_sixteen_candidates_budget_16000_l95() {
+    run_gated(
+        PublishedRoute::SelectionCorrectedInterval,
+        "selection_corrected_sixteen_candidates_budget_16000_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities",
+        16,
+        2.0,
+        16000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn ranking_probability_sixteen_candidates_budget_32768_l95() {
+    run_gated(
+        PublishedRoute::RankingProbability,
+        "ranking_probability_sixteen_candidates_budget_32768_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities_shared_stream",
+        16,
+        2.0,
+        32768,
+        &SHARED,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn utility_interval_sixteen_candidates_budget_32768_l95() {
+    run_gated(
+        PublishedRoute::UtilityInterval,
+        "utility_interval_sixteen_candidates_budget_32768_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities",
+        16,
+        2.0,
+        32768,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn confidence_set_sixteen_candidates_budget_32768_l95() {
+    run_gated(
+        PublishedRoute::OptimalityConfidenceSet,
+        "confidence_set_sixteen_candidates_budget_32768_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities",
+        16,
+        2.0,
+        32768,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_sixteen_candidates_budget_32768_l95() {
+    run_gated(
+        PublishedRoute::SelectionCorrectedInterval,
+        "selection_corrected_sixteen_candidates_budget_32768_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities",
+        16,
+        2.0,
+        32768,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn confidence_set_three_candidates_budget_500_l95() {
+    run_gated(
+        PublishedRoute::OptimalityConfidenceSet,
+        "confidence_set_three_candidates_budget_500_l95",
+        "leader_plus_two_equal_candidates_gaussian_utilities",
+        3,
+        1.0,
+        500,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_three_candidates_budget_500_l95() {
+    run_gated(
+        PublishedRoute::SelectionCorrectedInterval,
+        "selection_corrected_three_candidates_budget_500_l95",
+        "leader_plus_two_equal_candidates_gaussian_utilities",
+        3,
+        1.0,
+        500,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn confidence_set_three_candidates_budget_32768_l95() {
+    run_gated(
+        PublishedRoute::OptimalityConfidenceSet,
+        "confidence_set_three_candidates_budget_32768_l95",
+        "leader_plus_two_equal_candidates_gaussian_utilities",
+        3,
+        1.0,
+        32768,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_three_candidates_budget_32768_l95() {
+    run_gated(
+        PublishedRoute::SelectionCorrectedInterval,
+        "selection_corrected_three_candidates_budget_32768_l95",
+        "leader_plus_two_equal_candidates_gaussian_utilities",
+        3,
+        1.0,
+        32768,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn confidence_set_thirty_two_candidates_budget_500_l95() {
+    run_gated(
+        PublishedRoute::OptimalityConfidenceSet,
+        "confidence_set_thirty_two_candidates_budget_500_l95",
+        "leader_plus_thirty_one_equal_candidates_gaussian_utilities",
+        32,
+        2.25,
+        500,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_thirty_two_candidates_budget_500_l95() {
+    run_gated(
+        PublishedRoute::SelectionCorrectedInterval,
+        "selection_corrected_thirty_two_candidates_budget_500_l95",
+        "leader_plus_thirty_one_equal_candidates_gaussian_utilities",
+        32,
+        2.25,
+        500,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn confidence_set_one_hundred_candidates_budget_500_l95() {
+    run_gated(
+        PublishedRoute::OptimalityConfidenceSet,
+        "confidence_set_one_hundred_candidates_budget_500_l95",
+        "leader_plus_ninety_nine_equal_candidates_gaussian_utilities",
+        100,
+        2.75,
+        500,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_one_hundred_candidates_budget_500_l95() {
+    run_gated(
+        PublishedRoute::SelectionCorrectedInterval,
+        "selection_corrected_one_hundred_candidates_budget_500_l95",
+        "leader_plus_ninety_nine_equal_candidates_gaussian_utilities",
+        100,
+        2.75,
+        500,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn confidence_set_one_hundred_candidates_budget_32768_l95() {
+    run_gated(
+        PublishedRoute::OptimalityConfidenceSet,
+        "confidence_set_one_hundred_candidates_budget_32768_l95",
+        "leader_plus_ninety_nine_equal_candidates_gaussian_utilities",
+        100,
+        2.75,
+        32768,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_one_hundred_candidates_budget_32768_l95() {
+    run_gated(
+        PublishedRoute::SelectionCorrectedInterval,
+        "selection_corrected_one_hundred_candidates_budget_32768_l95",
+        "leader_plus_ninety_nine_equal_candidates_gaussian_utilities",
+        100,
+        2.75,
+        32768,
+        &ALL,
+    );
+}
+
+// Exact ties (equal true means) and near ties (the leader a tenth of a noise unit above).
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn confidence_set_sixteen_equal_candidates_l95() {
+    run_gated(
+        PublishedRoute::OptimalityConfidenceSet,
+        "confidence_set_sixteen_equal_candidates_l95",
+        "sixteen_equal_candidates_gaussian_utilities",
+        16,
+        0.0,
+        2000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn confidence_set_sixteen_near_tie_candidates_l95() {
+    run_gated(
+        PublishedRoute::OptimalityConfidenceSet,
+        "confidence_set_sixteen_near_tie_candidates_l95",
+        "leader_a_tenth_above_fifteen_equal_candidates_gaussian_utilities",
+        16,
+        0.1,
+        2000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_sixteen_equal_candidates_l95() {
+    run_gated(
+        PublishedRoute::SelectionCorrectedInterval,
+        "selection_corrected_sixteen_equal_candidates_l95",
+        "sixteen_equal_candidates_gaussian_utilities",
+        16,
+        0.0,
+        2000,
+        &ALL,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_sixteen_near_tie_candidates_l95() {
+    run_gated(
+        PublishedRoute::SelectionCorrectedInterval,
+        "selection_corrected_sixteen_near_tie_candidates_l95",
+        "leader_a_tenth_above_fifteen_equal_candidates_gaussian_utilities",
+        16,
+        0.1,
+        2000,
+        &ALL,
+    );
+}
 
 #[test]
 #[ignore = "calibration: run only at the final measurement step"]

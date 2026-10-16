@@ -1003,8 +1003,9 @@ class PredictiveAssessment(ScientificResult):
         It is published only for a held-out or unfitted predictor under a declared dependence,
         where a current coverage record measured the construction at this design, score, law
         family, level and number of cases; the record is resolved in Rust. The number of cases must
-        lie in the range measured for the declared dependence (``iid`` 400 to 1,600, ``cluster``
-        800 to 3,200, ``serial`` 1,600 to 6,400); there is no extrapolation beyond it. With no
+        lie in the range measured for the declared dependence (``iid`` 400 to 102,400 in contiguous
+        grids, ``cluster`` 800 to 3,200, ``serial`` 1,600 to 6,400); there is no extrapolation
+        beyond it. With no
         predictor and score named the request is unscoped and raises ``cell_not_licensed``.
 
         Raises:

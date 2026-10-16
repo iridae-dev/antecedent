@@ -119,11 +119,22 @@ Published ranking and optimality probabilities, and intervals for a selected
 decision, are claims about the whole procedure. They are measured with
 `KnownOptimumDesign`: a finite candidate set with known true utilities (so the
 true optimum, the true value of the selected candidate and the true ranking are
-known), Monte Carlo utilities on a selection stream, over candidate-set sizes
-2, 8 and 64, per-candidate budgets of 500, 1000 and 2000 draws, shared-stream
-correlations 0 and 0.5 (ranking) and separate streams (the other routes),
-expected-utility selection and level 0.95. Component Monte Carlo error alone
-does not cover the selected decision, which is why the confidence set and the
+known), Monte Carlo utilities on a selection stream. Coverage records are keyed
+by a candidate-count band (2 to 4, 5 to 16, 17 to 64 and 65 to 100 candidates),
+not by the individual count, and every selection and multiplicity correction
+uses the actual number of candidates considered (the simultaneous critical
+value divides the level by twice the count, the paired best-set comparisons by
+the count less one, the winner's-curse bound is the exact expected maximum of
+that many Gaussian errors). The measurement visits each band at several counts:
+2, 3, 5, 8, 16, 32, 64 and 100 candidates; per-candidate budgets from 250 to
+65,536 draws (half the base, the base and twice the base for bases 500 to
+32,768); exact ties and near ties among 16 candidates; shared-stream
+correlations 0 and 0.5 (ranking) and separate streams (the other routes);
+expected-utility selection and level 0.95. A route is licensed at a count and
+budget when its band has records whose budget range contains the budget; the
+weakest of those records governs, and a boundary record in the band closes the
+route at the budgets it failed. Component Monte Carlo error alone does not
+cover the selected decision, which is why the confidence set and the
 selection-corrected interval are measured as their own routes:
 
 | Route | Construction | Truth scored | Acceptance |
@@ -138,7 +149,8 @@ probability that a candidate is best is per draw of the law, and the confidence
 set is for the best retained candidate. A named boundary (all candidates equal,
 a dominant leader) is recorded under its own key and never licenses a route.
 Autocorrelated streams, importance weights, adaptively generated candidates,
-budgets outside the measured range and levels other than 0.95 are refused.
+more than 100 candidates, budgets outside the measured range and levels other
+than 0.95 are refused.
 `DerivedUncertainty.publish` returns normally only inside a measured record.
 
 ## Refusals

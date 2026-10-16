@@ -2058,7 +2058,7 @@ configuration = { candidates = 3, monte_carlo_budget = 4000 }
 expected = { kind = "calibrated_interval", outputs = ["selection-corrected reliability interval using the actual candidate count"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Reliability repeats a Monte Carlo selection per candidate; cost is linear in candidates x budget and 100 candidates remain within minutes. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "candidate_decision_problem", seed = 1523068, n = 1000, candidates = 3, gaps = "mixed", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_three_candidates_l95" }
 
 [[case]]
 id = "decision_reliability_5_candidates_calibrated"
@@ -2068,7 +2068,7 @@ configuration = { candidates = 5, monte_carlo_budget = 4000 }
 expected = { kind = "calibrated_interval", outputs = ["selection-corrected reliability interval using the actual candidate count"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Reliability repeats a Monte Carlo selection per candidate; cost is linear in candidates x budget and 100 candidates remain within minutes. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "candidate_decision_problem", seed = 4606406, n = 1000, candidates = 5, gaps = "mixed", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_five_candidates_l95" }
 
 [[case]]
 id = "decision_reliability_16_candidates_calibrated"
@@ -2078,7 +2078,7 @@ configuration = { candidates = 16, monte_carlo_budget = 4000 }
 expected = { kind = "calibrated_interval", outputs = ["selection-corrected reliability interval using the actual candidate count"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Reliability repeats a Monte Carlo selection per candidate; cost is linear in candidates x budget and 100 candidates remain within minutes. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "candidate_decision_problem", seed = 3645273, n = 1000, candidates = 16, gaps = "mixed", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_sixteen_candidates_l95" }
 
 [[case]]
 id = "decision_reliability_32_candidates_calibrated"
@@ -2088,7 +2088,7 @@ configuration = { candidates = 32, monte_carlo_budget = 4000 }
 expected = { kind = "calibrated_interval", outputs = ["selection-corrected reliability interval using the actual candidate count"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Reliability repeats a Monte Carlo selection per candidate; cost is linear in candidates x budget and 100 candidates remain within minutes. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "candidate_decision_problem", seed = 3357509, n = 1000, candidates = 32, gaps = "mixed", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_thirty_two_candidates_l95" }
 
 [[case]]
 id = "decision_reliability_100_candidates_calibrated"
@@ -2098,7 +2098,7 @@ configuration = { candidates = 100, monte_carlo_budget = 4000 }
 expected = { kind = "calibrated_interval", outputs = ["selection-corrected reliability interval using the actual candidate count"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Reliability repeats a Monte Carlo selection per candidate; cost is linear in candidates x budget and 100 candidates remain within minutes. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "candidate_decision_problem", seed = 6418422, n = 1000, candidates = 100, gaps = "mixed", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_one_hundred_candidates_l95" }
 
 [[case]]
 id = "decision_reliability_small_monte_carlo_budget_validated"
@@ -2108,7 +2108,7 @@ configuration = { candidates = 16, monte_carlo_budget = 500 }
 expected = { kind = "calibrated_interval", outputs = ["interval or precise refusal at low budget"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Reliability repeats a Monte Carlo selection per candidate; cost is linear in candidates x budget and 100 candidates remain within minutes. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "candidate_decision_problem", seed = 4652829, n = 1000, candidates = 16, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_sixteen_candidates_budget_500_l95" }
 
 [[case]]
 id = "decision_reliability_large_monte_carlo_budget_validated"
@@ -2118,7 +2118,7 @@ configuration = { candidates = 16, monte_carlo_budget = 65536 }
 expected = { kind = "calibrated_interval", outputs = ["interval at the extended budget"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Reliability repeats a Monte Carlo selection per candidate; cost is linear in candidates x budget and 100 candidates remain within minutes. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "candidate_decision_problem", seed = 8527420, n = 1000, candidates = 16, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_sixteen_candidates_budget_32768_l95" }
 
 [[case]]
 id = "decision_reliability_exact_ties_validated"
@@ -2128,7 +2128,7 @@ configuration = { candidates = 16, ties = true }
 expected = { kind = "calibrated_interval", outputs = ["tie policy honoured"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Reliability repeats a Monte Carlo selection per candidate; cost is linear in candidates x budget and 100 candidates remain within minutes. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "candidate_decision_problem", seed = 2635241, n = 1000, candidates = 16, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_sixteen_equal_candidates_l95" }
 
 [[case]]
 id = "decision_reliability_near_ties_validated"
@@ -2138,7 +2138,7 @@ configuration = { candidates = 16, gap = 0.01 }
 expected = { kind = "calibrated_interval", outputs = ["near-tie coverage maintained"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Reliability repeats a Monte Carlo selection per candidate; cost is linear in candidates x budget and 100 candidates remain within minutes. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "candidate_decision_problem", seed = 9123874, n = 1000, candidates = 16, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_sixteen_near_tie_candidates_l95" }
 
 [[case]]
 id = "decision_reliability_shared_random_streams_validated"
@@ -2148,7 +2148,7 @@ configuration = { candidates = 16, streams = "shared" }
 expected = { kind = "calibrated_interval", outputs = ["shared-stream correlation accounted"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Reliability repeats a Monte Carlo selection per candidate; cost is linear in candidates x budget and 100 candidates remain within minutes. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "candidate_decision_problem", seed = 1440433, n = 1000, candidates = 16, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::ranking_probability_sixteen_candidates_l95" }
 
 [[case]]
 id = "decision_reliability_separate_random_streams_validated"
@@ -2158,7 +2158,7 @@ configuration = { candidates = 16, streams = "separate" }
 expected = { kind = "calibrated_interval", outputs = ["separate-stream coverage"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Reliability repeats a Monte Carlo selection per candidate; cost is linear in candidates x budget and 100 candidates remain within minutes. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "candidate_decision_problem", seed = 4511146, n = 1000, candidates = 16, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_sixteen_candidates_l95" }
 
 [[case]]
 id = "decision_reliability_numerical_precision_validated"
@@ -2168,7 +2168,7 @@ configuration = { candidates = 16, precision = "f64 vs extended" }
 expected = { kind = "calibrated_interval", outputs = ["agreement with extended precision oracle within tolerance"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Reliability repeats a Monte Carlo selection per candidate; cost is linear in candidates x budget and 100 candidates remain within minutes. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "candidate_decision_problem", seed = 2233530, n = 1000, candidates = 16, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/decision_reliability_candidate_counts.rs::the_standard_error_is_exact_at_extreme_offsets_and_budgets" }
 
 [[case]]
 id = "decision_reliability_candidate_counts_outside_old_set_validated"
@@ -2178,7 +2178,7 @@ configuration = { candidates = [4, 7, 10, 50] }
 expected = { kind = "calibrated_interval", outputs = ["candidate counts not in {2, 8, 64} supported"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Reliability repeats a Monte Carlo selection per candidate; cost is linear in candidates x budget and 100 candidates remain within minutes. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "candidate_decision_problem", seed = 1775079, n = 1000, candidates = 16, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/decision_reliability_candidate_counts.rs::records_are_keyed_by_the_candidate_count_band_not_by_the_count" }
 
 [[case]]
 id = "decision_reliability_multiplicity_uses_actual_candidate_count"
@@ -2188,7 +2188,7 @@ configuration = { candidates = [3, 5, 16, 32, 100] }
 expected = { kind = "value", outputs = ["correction equals independent computation for the supplied count"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Reliability repeats a Monte Carlo selection per candidate; cost is linear in candidates x budget and 100 candidates remain within minutes." }
 dataset = { generator = "candidate_decision_problem", seed = 5564427, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/decision_reliability_candidate_counts.rs::selection_correction_uses_the_actual_candidate_count" }
 
 [[case]]
 id = "evidence_synthesis_fixed_effect_5_studies"
@@ -2198,7 +2198,7 @@ configuration = { studies = 5, construction = "fixed_effect", variances = "unequ
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 1.68, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 9709514, n = 5, studies = 5, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_fixed_effect_five_studies" }
 
 [[case]]
 id = "evidence_synthesis_hartung_knapp_random_effects_5_studies"
@@ -2208,7 +2208,7 @@ configuration = { studies = 5, construction = "hartung_knapp_random_effects", va
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 1.68, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 1637759, n = 5, studies = 5, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_five_studies" }
 
 [[case]]
 id = "evidence_synthesis_fixed_effect_10_studies"
@@ -2218,7 +2218,7 @@ configuration = { studies = 10, construction = "fixed_effect", variances = "uneq
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 1.19, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 8345098, n = 10, studies = 10, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_fixed_effect_ten_studies" }
 
 [[case]]
 id = "evidence_synthesis_hartung_knapp_random_effects_10_studies"
@@ -2228,7 +2228,7 @@ configuration = { studies = 10, construction = "hartung_knapp_random_effects", v
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 1.19, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 2864452, n = 10, studies = 10, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_ten_studies" }
 
 [[case]]
 id = "evidence_synthesis_fixed_effect_15_studies"
@@ -2238,7 +2238,7 @@ configuration = { studies = 15, construction = "fixed_effect", variances = "uneq
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 0.97, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 9386373, n = 15, studies = 15, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_fixed_effect_fifteen_studies" }
 
 [[case]]
 id = "evidence_synthesis_hartung_knapp_random_effects_15_studies"
@@ -2248,7 +2248,7 @@ configuration = { studies = 15, construction = "hartung_knapp_random_effects", v
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 0.97, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 2439371, n = 15, studies = 15, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_fifteen_studies" }
 
 [[case]]
 id = "evidence_synthesis_fixed_effect_20_studies"
@@ -2258,7 +2258,7 @@ configuration = { studies = 20, construction = "fixed_effect", variances = "uneq
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 0.84, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 2463177, n = 20, studies = 20, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_fixed_effect_twenty_studies" }
 
 [[case]]
 id = "evidence_synthesis_hartung_knapp_random_effects_20_studies"
@@ -2268,7 +2268,7 @@ configuration = { studies = 20, construction = "hartung_knapp_random_effects", v
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 0.84, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 3292359, n = 20, studies = 20, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_twenty_studies" }
 
 [[case]]
 id = "evidence_synthesis_fixed_effect_25_studies"
@@ -2278,7 +2278,7 @@ configuration = { studies = 25, construction = "fixed_effect", variances = "uneq
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 0.75, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 9168262, n = 25, studies = 25, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_fixed_effect_twenty_five_studies" }
 
 [[case]]
 id = "evidence_synthesis_hartung_knapp_random_effects_25_studies"
@@ -2288,7 +2288,7 @@ configuration = { studies = 25, construction = "hartung_knapp_random_effects", v
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 0.75, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 4909384, n = 25, studies = 25, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_twenty_five_studies" }
 
 [[case]]
 id = "evidence_synthesis_fixed_effect_30_studies"
@@ -2298,7 +2298,7 @@ configuration = { studies = 30, construction = "fixed_effect", variances = "uneq
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 0.68, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 7001079, n = 30, studies = 30, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_fixed_effect_thirty_studies" }
 
 [[case]]
 id = "evidence_synthesis_hartung_knapp_random_effects_30_studies"
@@ -2308,7 +2308,7 @@ configuration = { studies = 30, construction = "hartung_knapp_random_effects", v
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 0.68, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 8252409, n = 30, studies = 30, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_thirty_studies" }
 
 [[case]]
 id = "predictive_score_iid_interval_400_cases"
@@ -2318,7 +2318,7 @@ configuration = { cases = 400, dependence = "iid" }
 expected = { kind = "calibrated_interval", outputs = ["iid score interval at this size"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Scores are O(n); iid interval at 100k cases is seconds. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "predictive_forecast_scores", seed = 2631638, n = 400, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_crps_mean_l95" }
 
 [[case]]
 id = "predictive_score_iid_interval_800_cases"
@@ -2328,7 +2328,7 @@ configuration = { cases = 800, dependence = "iid" }
 expected = { kind = "calibrated_interval", outputs = ["iid score interval at this size"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Scores are O(n); iid interval at 100k cases is seconds. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "predictive_forecast_scores", seed = 1649026, n = 800, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_crps_mean_l95" }
 
 [[case]]
 id = "predictive_score_iid_interval_1600_cases"
@@ -2338,7 +2338,7 @@ configuration = { cases = 1600, dependence = "iid" }
 expected = { kind = "calibrated_interval", outputs = ["iid score interval at this size"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Scores are O(n); iid interval at 100k cases is seconds. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "predictive_forecast_scores", seed = 8533866, n = 1600, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_crps_mean_l95" }
 
 [[case]]
 id = "predictive_score_iid_interval_10000_cases"
@@ -2348,7 +2348,7 @@ configuration = { cases = 10000, dependence = "iid" }
 expected = { kind = "calibrated_interval", outputs = ["iid score interval at this size"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Scores are O(n); iid interval at 100k cases is seconds. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "predictive_forecast_scores", seed = 9793887, n = 10000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_crps_mean_12800_cases_l95" }
 
 [[case]]
 id = "predictive_score_iid_interval_100000_cases"
@@ -2358,7 +2358,7 @@ configuration = { cases = 100000, dependence = "iid" }
 expected = { kind = "calibrated_interval", outputs = ["iid score interval at this size"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Scores are O(n); iid interval at 100k cases is seconds. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "predictive_forecast_scores", seed = 7378232, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_crps_mean_51200_cases_l95" }
 
 [[case]]
 id = "predictive_score_cluster_count_requirement_preserved"

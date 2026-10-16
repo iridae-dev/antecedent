@@ -15,14 +15,16 @@
 
 use antecedent_core::{CausalRng, ExecutionContext};
 use antecedent_kernels::standard_normal;
+use antecedent_kernels::{norm_cdf, norm_inv, norm_pdf};
 use antecedent_validate::predictive_assessment::{
     DependenceDeclaration, EnsembleCrpsForm, FiniteTruth, FitDeclaration, ForecastLaw, Horizon,
     LawSource, ObservationKey, Outcome, OverlapPolicy, OverlapStatus, PredictiveAssessmentError,
     PredictiveAssessmentReport, PredictiveAssessmentSpec, PredictiveReplicates, PredictiveTarget,
-    PredictorLaws, ProviderIdentity, ProviderTrustLabel, RealizedObservations,
+    PredictorLaws, ProviderIdentity, ProviderTrustLabel, RealizedObservations, ScoreIntervalQuery,
     ScoreIntervalRequest, ScoreKind, ValidationDesign, assess_predictive_laws, brier_binary,
-    crps_gaussian, crps_weighted_atoms, detail, distribution_drift, energy_score_weighted,
-    exact_expected_score, log_score_gaussian, score_case, variance_of_mean,
+    construct_expected_score_interval, crps_gaussian, crps_weighted_atoms, detail,
+    distribution_drift, energy_score_weighted, exact_expected_score, expected_score_interval,
+    log_score_gaussian, score_case, variance_of_mean,
 };
 
 fn ctx() -> ExecutionContext {
@@ -1007,4 +1009,228 @@ fn declared_bounds_on_predictors_atoms_and_joint_dimension_are_refused() {
     );
     let (code, slot) = refusal(assess_predictive_laws(&spec, &ctx()));
     assert_eq!((code.as_str(), slot.as_str()), ("invalid_argument", detail::INVALID_LAW));
+}
+
+// -- score intervals at large iid case counts -------------------------------------------
+
+const FORECAST_A: (f64, f64) = (0.3, 1.2);
+const FORECAST_B: (f64, f64) = (0.0, 1.5);
+
+/// Two fixed Gaussian forecasts against independent standard normal outcomes.
+fn large_iid_spec(n: usize) -> PredictiveAssessmentSpec {
+    let outcomes = gaussian_outcomes(n, 90_210);
+    let mut spec = PredictiveAssessmentSpec::new(
+        observations(outcomes, Horizon::Contemporaneous),
+        vec![
+            predictor(
+                "forecast_a",
+                gaussian_laws(n, FORECAST_A.0, FORECAST_A.1),
+                Horizon::Contemporaneous,
+            ),
+            predictor(
+                "forecast_b",
+                gaussian_laws(n, FORECAST_B.0, FORECAST_B.1),
+                Horizon::Contemporaneous,
+            ),
+        ],
+        ValidationDesign::HeldOutSplit,
+        vec![ScoreKind::Crps, ScoreKind::Log],
+    );
+    spec.dependence = Some(DependenceDeclaration::Iid);
+    spec
+}
+
+/// `sigma (z (2 Phi(z) - 1) + 2 phi(z) - 1 / sqrt(pi))` with `z = (y - mu) / sigma`.
+fn crps_closed_form(y: f64, (mu, sigma): (f64, f64)) -> f64 {
+    let z = (y - mu) / sigma;
+    sigma * (z * (2.0 * norm_cdf(z) - 1.0) + 2.0 * norm_pdf(z) - 1.0 / std::f64::consts::PI.sqrt())
+}
+
+fn log_closed_form(y: f64, (mu, sigma): (f64, f64)) -> f64 {
+    (sigma * (2.0 * std::f64::consts::PI).sqrt()).ln() + (y - mu).powi(2) / (2.0 * sigma * sigma)
+}
+
+/// Neumaier compensated sum, so the oracle's mean and variance carry no accumulation error.
+fn compensated_sum(values: impl IntoIterator<Item = f64>) -> f64 {
+    let (mut sum, mut compensation) = (0.0_f64, 0.0_f64);
+    for value in values {
+        let total = sum + value;
+        compensation +=
+            if sum.abs() >= value.abs() { (sum - total) + value } else { (value - total) + sum };
+        sum = total;
+    }
+    sum + compensation
+}
+
+/// Student-t upper quantile at `df` degrees of freedom by the Cornish-Fisher series in
+/// `1 / df`; the neglected term is below 1e-7 for `df >= 9999`.
+fn t_quantile_large_df(p: f64, df: f64) -> f64 {
+    let z = norm_inv(p);
+    let z3 = z.powi(3);
+    let z5 = z.powi(5);
+    z + (z3 + z) / (4.0 * df) + (5.0 * z5 + 16.0 * z3 + 3.0 * z) / (96.0 * df * df)
+}
+
+#[test]
+fn the_iid_score_interval_is_the_exact_t_interval_at_ten_thousand_and_a_hundred_thousand_cases() {
+    for n in [10_000_usize, 100_000] {
+        let spec = large_iid_spec(n);
+        let report = assess_predictive_laws(&spec, &ctx()).unwrap();
+        let outcomes: Vec<f64> = spec
+            .observations
+            .outcomes
+            .iter()
+            .map(|o| match o {
+                Outcome::Real(y) => *y,
+                other => panic!("real outcome expected, got {other:?}"),
+            })
+            .collect();
+        let nf = n as f64;
+        let cases = |kind: ScoreKind, difference: bool| -> Vec<f64> {
+            outcomes
+                .iter()
+                .map(|&y| {
+                    let score = |forecast| match kind {
+                        ScoreKind::Log => log_closed_form(y, forecast),
+                        _ => crps_closed_form(y, forecast),
+                    };
+                    if difference {
+                        score(FORECAST_B) - score(FORECAST_A)
+                    } else {
+                        score(FORECAST_A)
+                    }
+                })
+                .collect()
+        };
+        for (kind, difference) in
+            [(ScoreKind::Crps, false), (ScoreKind::Log, false), (ScoreKind::Crps, true)]
+        {
+            let values = cases(kind, difference);
+            let mean = compensated_sum(values.iter().copied()) / nf;
+            let variance = compensated_sum(values.iter().map(|v| (v - mean).powi(2))) / (nf - 1.0);
+            let standard_error = (variance / nf).sqrt();
+            let query = ScoreIntervalQuery {
+                predictor: if difference { "forecast_b" } else { "forecast_a" }.to_owned(),
+                reference: difference.then(|| "forecast_a".to_owned()),
+                score: kind,
+                level: 0.95,
+            };
+            let built = construct_expected_score_interval(&spec, &report, &query).unwrap();
+            let interval = built.interval;
+            assert_eq!(interval.cases, n);
+            assert_eq!(interval.dependence, "iid");
+            assert!(close(interval.degrees_of_freedom, nf - 1.0, 0.0));
+            assert!(
+                close(interval.mean, mean, 1e-12),
+                "{n} cases, {}: mean {} vs {mean}",
+                kind.name(),
+                interval.mean
+            );
+            assert!(close(interval.standard_error / standard_error, 1.0, 1e-9));
+            let critical = t_quantile_large_df(0.975, nf - 1.0);
+            assert!(close(interval.lower, mean - critical * standard_error, 1e-7 * standard_error));
+            assert!(close(interval.upper, mean + critical * standard_error, 1e-7 * standard_error));
+            // The scale is what the case count buys: the half-width is about 1.96 s / sqrt(n).
+            assert!(interval.upper - interval.lower < 4.0 * variance.sqrt() / nf.sqrt());
+            // The basis a coverage record is matched against carries the case count.
+            assert_eq!(built.basis.scope.row_count, n as u64);
+        }
+    }
+}
+
+#[test]
+fn the_cluster_count_and_serial_bandwidth_requirements_hold_at_any_case_count() {
+    // Many cases do not substitute for clusters: nine clusters of 2,000 cases refuse.
+    let n = 18_000;
+    let outcomes = gaussian_outcomes(n, 61);
+    let query = |name: &str| ScoreIntervalQuery {
+        predictor: name.to_owned(),
+        reference: None,
+        score: ScoreKind::Crps,
+        level: 0.95,
+    };
+    let clustered = |clusters: usize| {
+        let size = n / clusters;
+        let labels: Vec<u32> = (0..n).map(|i| u32::try_from(i / size).unwrap()).collect();
+        let mut spec = PredictiveAssessmentSpec::new(
+            observations(outcomes.clone(), Horizon::Contemporaneous),
+            vec![predictor(
+                "forecast_a",
+                gaussian_laws(n, FORECAST_A.0, FORECAST_A.1),
+                Horizon::Contemporaneous,
+            )],
+            ValidationDesign::Blocked { blocks: labels.clone() },
+            vec![ScoreKind::Crps],
+        );
+        spec.dependence = Some(DependenceDeclaration::Cluster { labels });
+        spec
+    };
+    let nine = clustered(9);
+    let report = assess_predictive_laws(&nine, &ctx()).unwrap();
+    let error =
+        construct_expected_score_interval(&nine, &report, &query("forecast_a")).unwrap_err();
+    assert_eq!(error.reason_code(), "cell_not_licensed");
+    assert_eq!(error.detail(), detail::INTERVAL_SCOPE_OUTSIDE_MEASURED);
+    // Ten clusters satisfy the requirement; the construction no longer refuses on it.
+    let ten = clustered(10);
+    let report = assess_predictive_laws(&ten, &ctx()).unwrap();
+    let built = construct_expected_score_interval(&ten, &report, &query("forecast_a")).unwrap();
+    assert_eq!(built.interval.dependence, "cluster");
+    assert!(close(built.interval.degrees_of_freedom, 9.0, 0.0));
+
+    // A serial interval needs a bandwidth inside a tenth of the cases, however many there are.
+    let serial = |lag: u32| {
+        let mut spec = PredictiveAssessmentSpec::new(
+            observations(outcomes.clone(), Horizon::Contemporaneous),
+            vec![predictor(
+                "forecast_a",
+                gaussian_laws(n, FORECAST_A.0, FORECAST_A.1),
+                Horizon::Contemporaneous,
+            )],
+            ValidationDesign::HeldOutSplit,
+            vec![ScoreKind::Crps],
+        );
+        spec.dependence = Some(DependenceDeclaration::Serial {
+            time_index: (0..n as u64).collect(),
+            truncation_lag: lag,
+        });
+        spec
+    };
+    let wide = serial(2_000);
+    let report = assess_predictive_laws(&wide, &ctx()).unwrap();
+    let error =
+        construct_expected_score_interval(&wide, &report, &query("forecast_a")).unwrap_err();
+    assert_eq!(error.detail(), detail::INTERVAL_SCOPE_OUTSIDE_MEASURED);
+    let narrow = serial(26);
+    let report = assess_predictive_laws(&narrow, &ctx()).unwrap();
+    let built = construct_expected_score_interval(&narrow, &report, &query("forecast_a")).unwrap();
+    assert_eq!(built.interval.dependence, "serial");
+    assert!(close(built.interval.degrees_of_freedom, 18_000.0 / 27.0 - 1.0, 1e-9));
+
+    // With no declared dependence, independence is never assumed at any size.
+    let mut undeclared = large_iid_spec(10_000);
+    undeclared.dependence = None;
+    let report = assess_predictive_laws(&undeclared, &ctx()).unwrap();
+    let error =
+        construct_expected_score_interval(&undeclared, &report, &query("forecast_a")).unwrap_err();
+    assert_eq!(error.reason_code(), "sampling_dependence_unknown");
+    assert_eq!(error.detail(), detail::INTERVAL_DEPENDENCE_UNDECLARED);
+}
+
+#[test]
+fn a_case_count_beyond_every_measured_record_is_not_published() {
+    // The iid construction is measured to a stated upper limit (102,400 cases); one past
+    // it refuses rather than extrapolating.
+    let n = 110_000;
+    let spec = large_iid_spec(n);
+    let report = assess_predictive_laws(&spec, &ctx()).unwrap();
+    let query = ScoreIntervalQuery {
+        predictor: "forecast_a".to_owned(),
+        reference: None,
+        score: ScoreKind::Crps,
+        level: 0.95,
+    };
+    let error = expected_score_interval(&spec, &report, &query).unwrap_err();
+    assert_eq!(error.reason_code(), "cell_not_licensed");
+    assert_eq!(error.detail(), detail::INTERVAL_SCOPE_OUTSIDE_MEASURED);
 }

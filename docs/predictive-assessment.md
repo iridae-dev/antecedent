@@ -88,13 +88,21 @@ the route. The measured design is a fixed Gaussian forecast against known
 generators, for the CRPS, the log score and the CRPS difference of two
 forecasts. The number of cases must lie inside the range measured for the
 declared dependence; there is no extrapolation above the largest count or below
-the smallest, and a count outside it refuses with `cell_not_licensed`.
+the smallest, and a count outside it refuses with `cell_not_licensed`. The
+coverage records form contiguous grids of three case counts each (half the
+base, the base and twice the base):
 
-| Declared dependence | Measured generator | Cases measured |
+| Declared dependence | Measured generator | Cases in the measurement design |
 | --- | --- | --- |
-| `iid` | independent standard normal outcomes | 400 to 1,600 |
+| `iid` | independent standard normal outcomes | 400 to 1,600; 1,600 to 6,400; 6,400 to 25,600; 25,600 to 102,400 (so 10,000, 30,000 and 100,000 cases lie inside) |
 | `cluster` | clusters of five cases with a shared cluster effect | 800 to 3,200 (160 to 640 clusters) |
 | `serial` | stationary AR(1) outcomes, `phi = 0.5`, lag `floor(n^(1/3))` | 1,600 to 6,400 |
+
+The iid interval is a Student-t interval of a mean of independent case scores,
+whose validity grows with the case count, and 102,400 cases is the stated upper
+limit of what was measured: more cases refuse. Computing it is linear in the
+cases up to the sort of the observation identities (scoring, the variance and
+the interval are single passes).
 
 The minimum of ten clusters and the bandwidth limit of the serial interval are
 requirements of the construction, not a measured range: a cluster count or

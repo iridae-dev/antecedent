@@ -442,6 +442,11 @@ pub struct LedgerExport {
 /// Nominal level of the measured pooled interval constructions.
 const POOLED_INTERVAL_LEVEL: f64 = 0.95;
 
+/// Study counts of the measured pooled-interval family, inclusive. Coverage
+/// records are keyed by this range, not by an individual count: a count inside
+/// it is licensed only because every count the measurement visited passed.
+const MEASURED_STUDY_COUNTS: std::ops::RangeInclusive<usize> = 5..=30;
+
 /// A pooled interval with the measured coverage record that governs it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PooledInterval {
@@ -478,6 +483,10 @@ pub struct PooledIntervalCandidate {
     pub level: f64,
     /// Construction and scope a coverage record is matched against.
     pub basis: antecedent_core::CalibrationBasis,
+    /// The same construction under the key of records measured at one exact study
+    /// count with the total observations as scope. Such a record licenses exactly
+    /// its count and sample range; new measurements use [`Self::basis`].
+    pub exact_count_basis: antecedent_core::CalibrationBasis,
     /// Checked facts and declared assumptions of the construction.
     pub scope: serde_json::Value,
 }
@@ -1036,6 +1045,11 @@ impl EvidenceLedgerSession {
     /// freedom, variance floored at the conditional one). Both are conditional
     /// on the declared variances being the studies' sampling variances.
     ///
+    /// The measured family is 5 to 30 independent studies, keyed by that range
+    /// and by the observations of the smallest study (the sample size its
+    /// variance estimate rests on). The interval uses the actual study count:
+    /// `k - 1` degrees of freedom for the random-effects `t`.
+    ///
     /// # Errors
     /// `cell_not_licensed` for a result with no numbers (accounting only), a
     /// hierarchical borrowing or dependence range (no measured construction),
@@ -1051,19 +1065,25 @@ impl EvidenceLedgerSession {
             .result(result)
             .and_then(|record| record.observations_digest)
             .map_or_else(|| "unknown".to_owned(), |digest| digest.to_hex());
-        let report = antecedent_io::measured_inference::build_report(
-            "evidence_ledger_pooled",
-            result.to_hex().as_bytes(),
-            &result.to_hex(),
-            &observations,
-            candidate.scope,
-            vec![antecedent_io::measured_inference::ScalarExecution {
-                name: "pooled_mean".into(),
-                point: candidate.estimate,
-                interval: (candidate.lower, candidate.upper),
-                basis: candidate.basis,
-            }],
-        )
+        let report = [candidate.basis, candidate.exact_count_basis]
+            .into_iter()
+            .map(|basis| {
+                antecedent_io::measured_inference::build_report(
+                    "evidence_ledger_pooled",
+                    result.to_hex().as_bytes(),
+                    &result.to_hex(),
+                    &observations,
+                    candidate.scope.clone(),
+                    vec![antecedent_io::measured_inference::ScalarExecution {
+                        name: "pooled_mean".into(),
+                        point: candidate.estimate,
+                        interval: (candidate.lower, candidate.upper),
+                        basis,
+                    }],
+                )
+            })
+            .reduce(Result::or)
+            .unwrap_or_else(|| unreachable!("two bases were supplied"))
         .map_err(|error| {
             EvidenceLedgerRefusal::new(
                 antecedent_core::reason_code!("cell_not_licensed"),
@@ -1153,8 +1173,10 @@ impl EvidenceLedgerSession {
                         }
                     };
                     let k = estimates.len();
-                    if k < 3 || variances.len() != k {
-                        return Err(unmeasured("random effects over fewer than three studies"));
+                    if variances.len() != k {
+                        return Err(unmeasured(
+                            "a random-effects result whose study summaries are inconsistent",
+                        ));
                     }
                     let precision: Vec<f64> =
                         variances.iter().map(|v| 1.0 / (v + r.tau_squared)).collect();
@@ -1191,28 +1213,51 @@ impl EvidenceLedgerSession {
         if !(half.is_finite() && estimate.is_finite()) {
             return Err(unmeasured("a non-finite pooled value"));
         }
-        let functional = format!("pooled_mean;{variant};studies={studies}");
-        let basis = antecedent_core::CalibrationBasis::new(
-            [
-                "PooledEffect",
-                "NoGraph",
-                "fixed",
-                "summary",
-                "Frequentist",
-                estimator,
-                interval_method,
-                se_kind,
-                dependence,
-                "",
-                functional.as_str(),
-            ]
-            .map(std::sync::Arc::from),
-            level,
-            std::sync::Arc::from("point"),
+        if !MEASURED_STUDY_COUNTS.contains(&studies) {
+            return Err(unmeasured(&format!(
+                "{studies} studies (the measured family is {} to {})",
+                MEASURED_STUDY_COUNTS.start(),
+                MEASURED_STUDY_COUNTS.end()
+            )));
+        }
+        let Some(study_rows) = self.smallest_study_rows(result) else {
+            return Err(unmeasured("studies whose observations are not all declared"));
+        };
+        let make_basis = |functional: String, rows: u64| {
+            antecedent_core::CalibrationBasis::new(
+                [
+                    "PooledEffect",
+                    "NoGraph",
+                    "fixed",
+                    "summary",
+                    "Frequentist",
+                    estimator,
+                    interval_method,
+                    se_kind,
+                    dependence,
+                    "",
+                    functional.as_str(),
+                ]
+                .map(std::sync::Arc::from),
+                level,
+                std::sync::Arc::from("point"),
+                rows,
+                None,
+                None,
+                0.0,
+            )
+        };
+        let basis = make_basis(
+            format!(
+                "pooled_mean;{variant};studies={}-{}",
+                MEASURED_STUDY_COUNTS.start(),
+                MEASURED_STUDY_COUNTS.end()
+            ),
+            study_rows,
+        );
+        let exact_count_basis = make_basis(
+            format!("pooled_mean;{variant};studies={studies}"),
             record.mass.distinct_observations,
-            None,
-            None,
-            0.0,
         );
         let (lower, upper) = (estimate - half, estimate + half);
         let scope = serde_json::json!({
@@ -1230,8 +1275,24 @@ impl EvidenceLedgerSession {
             upper,
             level,
             basis,
+            exact_count_basis,
             scope,
         })
+    }
+
+    /// Distinct observations of the smallest pooled study: the sample size the
+    /// per-study variance estimates rest on, which is what the measured
+    /// family varies across study counts. `None` when a study does not
+    /// declare its observations or the result pools no carried studies.
+    fn smallest_study_rows(&self, result: ResultId) -> Option<u64> {
+        let record = self.records.get(&result)?;
+        record
+            .sources
+            .iter()
+            .map(|&source| Some(self.ledger.source(source)?.effective.known()?.len() as u64))
+            .collect::<Option<Vec<u64>>>()?
+            .into_iter()
+            .min()
     }
 
     /// The numbers of a result that is still valid.

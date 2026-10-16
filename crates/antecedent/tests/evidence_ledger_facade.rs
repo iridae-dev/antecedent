@@ -662,6 +662,117 @@ fn a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record() {
     expect(&refusal, "cell_not_licensed", "evidence_ledger.interval_not_measured");
 }
 
+/// Studies `i = 0..k` of 20 observations each (the last has 17), with scattered
+/// estimates and unequal variances.
+fn study_family(k: usize) -> (EvidenceLedgerSession, Vec<StudySummary>) {
+    let mut session = StudyBuilder::evidence_ledger();
+    let mut summaries = Vec::with_capacity(k);
+    for i in 0..k {
+        let start = u32::try_from(i * 20).unwrap();
+        let len = if i == k - 1 { 17 } else { 20 };
+        let source = session.add_source(data(&format!("study_{i}"), start..start + len)).unwrap();
+        let estimate = 0.5 + 0.15 * (((i * 7) % 11) as f64 - 5.0) / 5.0;
+        summaries.push(summary(source, estimate, 0.01 + 0.002 * (i % 4) as f64));
+    }
+    (session, summaries)
+}
+
+/// Student-t 0.975 quantiles at `k - 1` degrees of freedom, from tables.
+fn t_975(df: usize) -> f64 {
+    match df {
+        4 => 2.776_445_105_2,
+        9 => 2.262_157_162_8,
+        14 => 2.144_786_687_9,
+        19 => 2.093_024_054_4,
+        24 => 2.063_898_561_6,
+        29 => 2.045_229_642_1,
+        other => panic!("no tabulated quantile at {other} degrees of freedom"),
+    }
+}
+
+#[test]
+fn pooled_intervals_use_the_actual_study_count_across_the_measured_family() {
+    for k in [5_usize, 10, 15, 20, 25, 30] {
+        let (mut session, summaries) = study_family(k);
+        let y: Vec<f64> = summaries.iter().map(|s| s.estimate).collect();
+        let v: Vec<f64> = summaries.iter().map(|s| s.variance).collect();
+        let kf = k as f64;
+        let c = ctx();
+        // Fixed effect: inverse-variance mean, Wald z at the model variance.
+        let w: Vec<f64> = v.iter().map(|x| 1.0 / x).collect();
+        let sw: f64 = w.iter().sum();
+        let fixed = session
+            .pool_summaries(
+                pooling("fixed", summaries.clone()),
+                PoolingDeclaration::Independent,
+                &c,
+            )
+            .unwrap()
+            .result;
+        let candidate = session.pooled_interval_candidate(fixed).unwrap();
+        let z_half = 1.959_963_984_540_054 / sw.sqrt();
+        close(0.5 * (candidate.upper - candidate.lower), z_half, "fixed-effect half-width");
+        assert_eq!(candidate.method, "wald_z");
+        assert_eq!(candidate.basis.functional.as_ref(), "pooled_mean;fixed_effect;studies=5-30");
+        // The record is keyed by the smallest study, not by the total.
+        assert_eq!(candidate.basis.row_count, 17);
+        // Random effects: DerSimonian-Laird tau^2, Hartung-Knapp variance, t at k - 1.
+        let mu_w = w.iter().zip(&y).map(|(a, b)| a * b).sum::<f64>() / sw;
+        let q: f64 = w.iter().zip(&y).map(|(a, b)| a * (b - mu_w) * (b - mu_w)).sum();
+        let sw2: f64 = w.iter().map(|a| a * a).sum();
+        let tau2 = ((q - (kf - 1.0)) / (sw - sw2 / sw)).max(0.0);
+        let ws: Vec<f64> = v.iter().map(|x| 1.0 / (x + tau2)).collect();
+        let sws: f64 = ws.iter().sum();
+        let mu = ws.iter().zip(&y).map(|(a, b)| a * b).sum::<f64>() / sws;
+        let spread: f64 = ws.iter().zip(&y).map(|(a, b)| a * (b - mu) * (b - mu)).sum();
+        let hk_variance = (spread / (kf - 1.0)).max(1.0) / sws;
+        let random = session
+            .random_effects(pooling("random", summaries), BetweenStudy::DerSimonianLaird, &c)
+            .unwrap()
+            .result;
+        let candidate = session.pooled_interval_candidate(random).unwrap();
+        close(candidate.estimate, mu, "random-effects estimate");
+        // The tabulated quantile carries ten digits.
+        let half = 0.5 * (candidate.upper - candidate.lower);
+        let expected = t_975(k - 1) * hk_variance.sqrt();
+        assert!(
+            (half - expected).abs() <= 1e-9,
+            "Hartung-Knapp half-width at {} degrees of freedom: expected {expected}, got {half}",
+            k - 1
+        );
+        assert_eq!(candidate.method, "hksj_t");
+        assert_eq!(
+            candidate.basis.functional.as_ref(),
+            "pooled_mean;random_effects_dl;studies=5-30"
+        );
+    }
+}
+
+#[test]
+fn pooled_intervals_refuse_study_counts_outside_the_measured_family() {
+    for k in [3_usize, 4, 31, 40] {
+        let (mut session, summaries) = study_family(k);
+        let c = ctx();
+        let fixed = session
+            .pool_summaries(
+                pooling("fixed", summaries.clone()),
+                PoolingDeclaration::Independent,
+                &c,
+            )
+            .unwrap()
+            .result;
+        let random = session
+            .random_effects(pooling("random", summaries), BetweenStudy::DerSimonianLaird, &c)
+            .unwrap()
+            .result;
+        for result in [fixed, random] {
+            let refusal = session.pooled_interval_candidate(result).unwrap_err();
+            expect(&refusal, "cell_not_licensed", "evidence_ledger.interval_not_measured");
+            assert!(refusal.message.contains(&format!("{k} studies")), "{refusal}");
+        }
+    }
+}
+
 #[test]
 fn a_pooled_interval_refuses_without_a_measured_record() {
     let s = scenario();
