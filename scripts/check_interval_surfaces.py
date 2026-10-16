@@ -311,15 +311,24 @@ def run_refusals(tests: list[dict]) -> list[str]:
         if crate is None:
             failures.append(f"cannot place refusal test {t['test']} in a crate")
             continue
-        target, prefix = test_target(crate, Path(t["test"]).stem, ROOT)
+        if len(parts) > 2 and parts[2] == "src":
+            # A unit test inside a library module: run the lib target, filtered by the
+            # test's name (the module path in front of it is the file's location).
+            target, prefix = "--lib", ""
+        else:
+            target, prefix = test_target(crate, Path(t["test"]).stem, ROOT)
         names = rust.setdefault((crate, target), [])
         if prefix + t["assertion"] not in names:
             names.append(prefix + t["assertion"])
     for (crate, target), names in sorted(rust.items()):
-        cmd = ["cargo", "test", "-p", crate, "--test", target, "--", "--exact", *names]
+        if target == "--lib":
+            cmd = ["cargo", "test", "-p", crate, "--lib", "--", *names]
+        else:
+            cmd = ["cargo", "test", "-p", crate, "--test", target, "--", "--exact", *names]
         proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
         passed = len(re.findall(r"^test .* \.\.\. ok$", proc.stdout, re.M))
-        print(f"  cargo test -p {crate} --test {target} ({len(names)} refusal test(s)): "
+        flag = target if target == "--lib" else f"--test {target}"
+        print(f"  cargo test -p {crate} {flag} ({len(names)} refusal test(s)): "
               f"{'ok' if proc.returncode == 0 and passed >= len(names) else 'FAILED'}", file=sys.stderr)
         if proc.returncode != 0 or passed < len(names):
             failures.append(f"{crate}/{target}: {' '.join(names)}\n{proc.stdout[-1500:]}{proc.stderr[-800:]}")
