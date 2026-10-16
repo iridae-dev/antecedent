@@ -7493,6 +7493,7 @@ def sample_split_parent_set_effect(
     transformation: str,
     max_degree: int,
     log_shift: float | None = None,
+    knowledge: str | None = None,
     *,
     threads: int | None = None,
     cancel: Any = None,

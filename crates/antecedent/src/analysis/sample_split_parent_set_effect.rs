@@ -52,8 +52,9 @@ use antecedent_io::measured_inference::split_parent_set_effect::{
 use super::sample_split_effect::table_roles;
 
 pub use antecedent_io::measured_inference::split_parent_set_effect::{
-    ACCEPTANCE, LINEAR_ESTIMATOR, LOG_LINEAR_ESTIMATOR, MAX_VARIABLES, MEAN_RATIO, MIN_VARIABLES,
-    PARENT_SET_STRUCTURE, SUPPORTED_MAX_DEGREE, TOPOLOGIES, TOTAL_EFFECT, Transformation,
+    ACCEPTANCE, Knowledge, LINEAR_ESTIMATOR, LOG_LINEAR_ESTIMATOR, MAX_VARIABLES, MEAN_RATIO,
+    MIN_VARIABLES, PARENT_SET_STRUCTURE, SUPPORTED_MAX_DEGREE, TOPOLOGIES, TOTAL_EFFECT,
+    Transformation, governing_topologies,
 };
 
 /// The declared analysis family of one parent-set study.
@@ -112,8 +113,32 @@ pub fn estimate_parent_set_effect(
     split_seed: u64,
     ctx: &ExecutionContext,
 ) -> Result<ParentSetEffect, IoError> {
+    estimate_parent_set_effect_with_knowledge(
+        data, treatment, outcome, options, None, split_seed, ctx,
+    )
+}
+
+/// As [`estimate_parent_set_effect`], with background knowledge asserted to discovery: required
+/// and forbidden `(cause, effect)` links and tiers, by column index. The knowledge is part of
+/// the source and of the calibration key, so an interval is attested only from records measured
+/// with the same kinds of statements.
+///
+/// # Errors
+///
+/// As [`estimate_parent_set_effect`], and `invalid_argument`
+/// (`parent_set_effect.knowledge_invalid`) for knowledge that names a column that is not
+/// searched, or a refused (contradictory) discovery contract.
+pub fn estimate_parent_set_effect_with_knowledge(
+    data: &TabularData,
+    treatment: VariableId,
+    outcome: VariableId,
+    options: ParentSetOptions,
+    knowledge: Option<Knowledge>,
+    split_seed: u64,
+    ctx: &ExecutionContext,
+) -> Result<ParentSetEffect, IoError> {
     let roles = table_roles(data, treatment, outcome)?;
-    let source = ParentSetEffectSource::new(
+    let mut source = ParentSetEffectSource::new(
         roles.names,
         roles.columns,
         roles.treatment,
@@ -124,6 +149,9 @@ pub fn estimate_parent_set_effect(
         options.max_degree,
         options.log_shift,
     );
+    if let Some(knowledge) = knowledge {
+        source = source.with_knowledge(knowledge);
+    }
     let run = split_parent_set_effect::run(&source, ctx)?;
     Ok(ParentSetEffect { run, source: source.to_bytes()? })
 }
@@ -189,6 +217,12 @@ impl ParentSetEffect {
     #[must_use]
     pub const fn acceptance(&self) -> &'static str {
         ACCEPTANCE
+    }
+
+    /// Every directed edge of the discovered class as `(cause, effect)` column indices.
+    #[must_use]
+    pub fn directed_edges(&self) -> &[(u32, u32)] {
+        &self.run.neighbourhood.directed
     }
 
     /// Edges of the discovered class in total.

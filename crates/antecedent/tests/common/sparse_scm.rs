@@ -1,7 +1,7 @@
 //! Sparse connected structural causal models of ten to twenty variables with a known total
 //! effect, for the discovery-then-estimation studies.
 //!
-//! Two topologies, both with maximum degree four, connected, and with every edge incident to
+//! Three topologies, with maximum degree at most four, connected, and with every edge incident to
 //! the treatment oriented by its equivalence class while the nuisance chains hanging off
 //! exogenous roots stay undirected (so the class is a partially directed graph, never a
 //! single DAG):
@@ -13,6 +13,10 @@
 //! * `layered_multi_mediator_nuisance`: two exogenous parents `a1`, `a2` of `x`; `x` reaches
 //!   `y` through a chain of two mediators `m1`, `m2`; a mediator-outcome confounder `k` acts on
 //!   `m2` and `y`; nuisance chains hang off `a1`, `a2`, `k` and `m2`.
+//! * `confounded_direct_and_mediated`: the hub `h` confounds `x` and `y`, and `x` reaches `y`
+//!   both directly and through the mediator `m` (several causal paths in one confounded
+//!   graph). Its coefficients are a fixed base vector with a small jitter, because the
+//!   strong-faithfulness margin of this denser core is met only near that base.
 //!
 //! The model is linear Gaussian and standardized: every column has unit variance, each node's
 //! noise variance is what its parents leave unexplained, so a structural coefficient is also
@@ -54,6 +58,15 @@ pub const MAX_DEGREE: usize = 4;
 const CORE_WEIGHT: (f64, f64) = (0.4, 0.7);
 /// Magnitude range of a structural coefficient along a nuisance chain.
 const CHAIN_WEIGHT: (f64, f64) = (0.5, 0.7);
+/// Half-width of the jitter around the base coefficients of the denser core.
+const BASE_JITTER: f64 = 0.03;
+/// Base coefficients of `confounded_direct_and_mediated` in node order (`h`, `p`, `x` on
+/// `(h, p)`, `m` on `x`, `y` on `(x, m, h)`, then the nuisance chains), chosen so the margin is
+/// 0.18 for every prefix up to twenty variables.
+const BASE_DENSE: [f64; 21] = [
+    -0.39, 0.59, -0.73, -0.61, 0.34, -0.64, -0.7, -0.62, 0.78, 0.7, -0.53, 0.56, 0.6, 0.43, 0.69,
+    -0.71, 0.65, -0.61, 0.46, 0.62, -0.66,
+];
 /// Magnitude range of every coefficient of the weak-signal boundary family.
 const WEAK_WEIGHT: (f64, f64) = (0.1, 0.25);
 /// Smallest variance a node's own noise keeps.
@@ -65,6 +78,7 @@ const SEPARATED: f64 = 1e-9;
 pub enum Topology {
     HubConfoundedMultiPath,
     LayeredMultiMediatorNuisance,
+    ConfoundedDirectAndMediated,
 }
 
 impl Topology {
@@ -72,7 +86,18 @@ impl Topology {
         match self {
             Self::HubConfoundedMultiPath => "hub_confounded_multi_path",
             Self::LayeredMultiMediatorNuisance => "layered_multi_mediator_nuisance",
+            Self::ConfoundedDirectAndMediated => "confounded_direct_and_mediated",
         }
+    }
+
+    /// The topologies a family declared with maximum degree `max_degree` contains: the denser
+    /// third core has degree four, so it belongs to degree four only.
+    pub fn for_degree(max_degree: usize) -> Vec<Self> {
+        let mut all = vec![Self::HubConfoundedMultiPath, Self::LayeredMultiMediatorNuisance];
+        if max_degree >= MAX_DEGREE {
+            all.push(Self::ConfoundedDirectAndMediated);
+        }
+        all
     }
 }
 
@@ -148,6 +173,8 @@ struct Shape {
     outcome: usize,
     /// Nodes before the nuisance chains.
     core: usize,
+    /// Base coefficients in node order, when the topology draws around a base.
+    base: Option<&'static [f64]>,
 }
 
 struct Builder {
@@ -173,7 +200,7 @@ fn chains(builder: &mut Builder, label: &str, anchors: &[usize], count: usize) {
     }
 }
 
-fn shape(topology: Topology, variables: usize) -> Shape {
+fn shape(topology: Topology, variables: usize, degree_cap: usize) -> Shape {
     let mut b = Builder { names: Vec::new(), parents: Vec::new() };
     match topology {
         Topology::HubConfoundedMultiPath => {
@@ -183,8 +210,10 @@ fn shape(topology: Topology, variables: usize) -> Shape {
             let m = b.node("m", &[x]);
             let y = b.node("y", &[m, h]);
             let core = b.names.len();
-            chains(&mut b, "n", &[h, p, m, h], variables - core);
-            Shape { names: b.names, parents: b.parents, treatment: x, outcome: y, core }
+            let anchors: &[usize] =
+                if degree_cap >= MAX_DEGREE { &[h, p, m, h] } else { &[h, p, m] };
+            chains(&mut b, "n", anchors, variables - core);
+            Shape { names: b.names, parents: b.parents, treatment: x, outcome: y, core, base: None }
         }
         Topology::LayeredMultiMediatorNuisance => {
             let a1 = b.node("a1", &[]);
@@ -196,7 +225,25 @@ fn shape(topology: Topology, variables: usize) -> Shape {
             let y = b.node("y", &[m2, k]);
             let core = b.names.len();
             chains(&mut b, "n", &[a1, a2, k, m2], variables - core);
-            Shape { names: b.names, parents: b.parents, treatment: x, outcome: y, core }
+            Shape { names: b.names, parents: b.parents, treatment: x, outcome: y, core, base: None }
+        }
+        Topology::ConfoundedDirectAndMediated => {
+            assert!(degree_cap >= MAX_DEGREE, "the denser core has degree four");
+            let h = b.node("h", &[]);
+            let p = b.node("p", &[]);
+            let x = b.node("x", &[h, p]);
+            let m = b.node("m", &[x]);
+            let y = b.node("y", &[x, m, h]);
+            let core = b.names.len();
+            chains(&mut b, "n", &[h, p, m, h], variables - core);
+            Shape {
+                names: b.names,
+                parents: b.parents,
+                treatment: x,
+                outcome: y,
+                core,
+                base: Some(&BASE_DENSE),
+            }
         }
     }
 }
@@ -213,8 +260,20 @@ impl Scm {
 
     /// As [`Self::new`], for a family member that departs from the published conditions.
     pub fn with_variant(topology: Topology, variables: usize, seed: u64, variant: Variant) -> Self {
+        Self::with_degree(topology, variables, seed, variant, MAX_DEGREE)
+    }
+
+    /// As [`Self::with_variant`] for a family whose graphs have degree at most `degree_cap`
+    /// (three or four; the denser core needs four).
+    pub fn with_degree(
+        topology: Topology,
+        variables: usize,
+        seed: u64,
+        variant: Variant,
+        degree_cap: usize,
+    ) -> Self {
         assert!((10..=20).contains(&variables), "ten to twenty variables");
-        let shape = shape(topology, variables);
+        let shape = shape(topology, variables, degree_cap);
         assert_eq!(shape.names.len(), variables);
         let mut stream = Stream::new(seed);
         for _ in 0..100_000 {
@@ -241,24 +300,35 @@ impl Scm {
         let mut parents = Vec::with_capacity(p);
         let mut noise_sd = Vec::with_capacity(p);
         let mut admitted = true;
+        let mut drawn = 0usize;
         for (child, list) in shape.parents.iter().enumerate() {
             let mut weighted: Vec<(usize, f64)> = list
                 .iter()
                 .map(|&parent| {
-                    let (low, high) = match variant {
-                        Variant::WeakSignal => WEAK_WEIGHT,
-                        _ if child < shape.core => CORE_WEIGHT,
-                        _ => CHAIN_WEIGHT,
+                    let weight = match (variant, shape.base) {
+                        (Variant::WeakSignal, _) | (_, None) => {
+                            let (low, high) = match variant {
+                                Variant::WeakSignal => WEAK_WEIGHT,
+                                _ if child < shape.core => CORE_WEIGHT,
+                                _ => CHAIN_WEIGHT,
+                            };
+                            stream.signed(low, high)
+                        }
+                        (_, Some(base)) => base[drawn] + BASE_JITTER * (2.0 * stream.unit() - 1.0),
                     };
-                    (parent, stream.signed(low, high))
+                    drawn += 1;
+                    (parent, weight)
                 })
                 .collect();
             if variant == Variant::CancellingPath && child == shape.outcome {
-                // The outcome's parents are the mediator and then the confounder: choose the
-                // confounder's coefficient so that its covariance with the outcome is zero.
-                let (mediator, w_mediator) = weighted[0];
-                let (confounder, _) = weighted[1];
-                weighted[1].1 = -w_mediator * cov[confounder][mediator];
+                // The confounder is the outcome's last parent: choose its coefficient so that
+                // its covariance with the outcome is zero.
+                let (&(confounder, _), rest) = weighted.split_last().expect("outcome parents");
+                let cancelling: f64 =
+                    -rest.iter().map(|&(a, w)| w * cov[confounder][a]).sum::<f64>();
+                if let Some(last) = weighted.last_mut() {
+                    last.1 = cancelling;
+                }
             }
             let explained: f64 = weighted
                 .iter()
@@ -419,6 +489,75 @@ impl Scm {
             }
         }
         margin
+    }
+
+    /// Mean outcome under the intervention that sets the treatment to `value`, by simulation:
+    /// the structural equations run with the treatment's own equation replaced by the
+    /// constant, on `rows` rows of the same noise draws whatever `value` is (common random
+    /// numbers). With `exponentiate` the outcome is exponentiated first, the mean of a
+    /// log-linear study's outcome.
+    pub fn intervention_mean(&self, value: f64, rows: usize, seed: u64, exponentiate: bool) -> f64 {
+        let p = self.variables();
+        let mut stream = Stream::new(seed);
+        let mut row = vec![0.0; p];
+        let mut total = 0.0;
+        for _ in 0..rows {
+            for v in 0..p {
+                let draw = self.noise_sd[v] * stream.normal();
+                row[v] = if v == self.treatment {
+                    value
+                } else {
+                    self.parents[v].iter().map(|&(parent, w)| w * row[parent]).sum::<f64>() + draw
+                };
+            }
+            let y = row[self.outcome];
+            total += if exponentiate { y.exp() } else { y };
+        }
+        total / rows as f64
+    }
+
+    /// The truth of a linear study by intervention simulation: the change in the outcome's mean
+    /// when the treatment is set to one instead of zero.
+    pub fn simulated_total_effect(&self, rows: usize, seed: u64) -> f64 {
+        self.intervention_mean(1.0, rows, seed, false)
+            - self.intervention_mean(0.0, rows, seed, false)
+    }
+
+    /// The truth of a log-linear study by intervention simulation: the ratio of the outcome's
+    /// mean when the logarithm of the treatment is set to `log_shift` to its mean when it is set
+    /// to zero (the treatment multiplied by `exp(log_shift)`).
+    pub fn simulated_mean_ratio(&self, log_shift: f64, rows: usize, seed: u64) -> f64 {
+        self.intervention_mean(log_shift, rows, seed, true)
+            / self.intervention_mean(0.0, rows, seed, true)
+    }
+
+    /// Background knowledge that is true of this model: every edge incident to the treatment
+    /// as `(cause, effect)`.
+    pub fn required_links(&self) -> Vec<(usize, usize)> {
+        self.edges()
+            .into_iter()
+            .filter(|&(a, b)| a == self.treatment || b == self.treatment)
+            .collect()
+    }
+
+    /// Background knowledge that is true of this model: no nuisance node causes a core node.
+    pub fn forbidden_links(&self) -> Vec<(usize, usize)> {
+        let nuisance = |v: usize| self.names[v].starts_with('n');
+        (0..self.variables())
+            .filter(|&n| nuisance(n))
+            .flat_map(|n| (0..self.variables()).filter(|&c| !nuisance(c)).map(move |c| (n, c)))
+            .collect()
+    }
+
+    /// Background knowledge that is true of this model: tiers by causal depth, so a later tier
+    /// never causes an earlier one.
+    pub fn tiers(&self) -> Vec<Vec<usize>> {
+        let mut depth = vec![0usize; self.variables()];
+        for v in 0..self.variables() {
+            depth[v] = self.parents[v].iter().map(|&(a, _)| depth[a] + 1).max().unwrap_or(0);
+        }
+        let top = depth.iter().copied().max().unwrap_or(0);
+        (0..=top).map(|d| (0..self.variables()).filter(|&v| depth[v] == d).collect()).collect()
     }
 
     /// `rows` observations of the linear-scale columns, in node order.

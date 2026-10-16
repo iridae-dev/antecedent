@@ -73,7 +73,18 @@ pub const LOG_LINEAR_ESTIMATOR: &str = "parent_set_split.pc_parcorr.log_linear_m
 /// The topologies the construction is measured on, each its own record. A table does not
 /// announce its topology, so a cell is licensed only when the record of every topology attests:
 /// the conservative intersection.
-pub const TOPOLOGIES: [&str; 2] = ["hub_confounded_multi_path", "layered_multi_mediator_nuisance"];
+pub const TOPOLOGIES: [&str; 3] = [
+    "hub_confounded_multi_path",
+    "layered_multi_mediator_nuisance",
+    "confounded_direct_and_mediated",
+];
+
+/// The topologies whose records govern a cell of declared maximum degree `max_degree`. The
+/// denser third core has degree four, so it governs degree four only.
+#[must_use]
+pub fn governing_topologies(max_degree: u32) -> &'static [&'static str] {
+    if max_degree >= SUPPORTED_MAX_DEGREE { &TOPOLOGIES } else { &TOPOLOGIES[..2] }
+}
 /// Fewest searched variables measured.
 pub const MIN_VARIABLES: usize = 10;
 /// Most searched variables measured.
@@ -147,6 +158,32 @@ impl Transformation {
     }
 }
 
+/// Background knowledge the analyst asserts about the searched variables, by column index. It
+/// is part of the source and of the calibration key: a construction that uses it is another
+/// construction.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Knowledge {
+    /// `(cause, effect)` pairs that are edges, with that direction.
+    pub required: Vec<(u32, u32)>,
+    /// `(cause, effect)` pairs that are not edges in that direction.
+    pub forbidden: Vec<(u32, u32)>,
+    /// Tiers of column indices: a later tier never causes an earlier one.
+    pub tiers: Vec<Vec<u32>>,
+}
+
+impl Knowledge {
+    /// Which statements are made, e.g. `required+tiers`; empty when none is.
+    fn label(&self) -> String {
+        let kinds = [
+            ("required", !self.required.is_empty()),
+            ("forbidden", !self.forbidden.is_empty()),
+            ("tiers", !self.tiers.is_empty()),
+        ];
+        kinds.iter().filter(|(_, present)| *present).map(|(n, _)| *n).collect::<Vec<_>>().join("+")
+    }
+}
+
 /// The complete input of one parent-set split-effect execution: the table, the declared roles
 /// and the declared analysis family.
 ///
@@ -176,6 +213,9 @@ pub struct ParentSetEffectSource {
     /// Log-scale shift of the prespecified intervention (the treatment is multiplied by
     /// `exp(shift)`); required and non-zero for a log-linear study, absent for a linear one.
     pub log_shift: Option<f64>,
+    /// Background knowledge handed to discovery, when any is asserted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub knowledge: Option<Knowledge>,
 }
 
 impl ParentSetEffectSource {
@@ -205,7 +245,15 @@ impl ParentSetEffectSource {
             transformation,
             max_degree,
             log_shift,
+            knowledge: None,
         }
+    }
+
+    /// This source with background knowledge asserted to discovery.
+    #[must_use]
+    pub fn with_knowledge(mut self, knowledge: Knowledge) -> Self {
+        self.knowledge = Some(knowledge);
+        self
     }
 
     /// Canonical bytes of this source.
@@ -306,6 +354,22 @@ impl ParentSetEffectSource {
                 }
             }
         }
+        if let Some(knowledge) = &self.knowledge {
+            let known = |v: u32| (v as usize) < k;
+            let links_ok = knowledge
+                .required
+                .iter()
+                .chain(&knowledge.forbidden)
+                .all(|&(a, b)| known(a) && known(b) && a != b);
+            let tiers_ok = knowledge.tiers.iter().flatten().all(|&v| known(v));
+            if !links_ok || !tiers_ok {
+                return Err(malformed(
+                    "parent_set_effect.knowledge_invalid",
+                    "background knowledge names a column that is not searched, or a link from a \
+                     column to itself",
+                ));
+            }
+        }
         Ok(rows)
     }
 
@@ -343,6 +407,8 @@ pub struct TreatmentNeighbourhood {
     pub parents: Vec<u32>,
     /// Column indices of the treatment's directed children, ascending.
     pub children: Vec<u32>,
+    /// Every directed edge of the class as `(cause, effect)`, ascending.
+    pub directed: Vec<(u32, u32)>,
     /// Every edge not incident to the treatment that is not a definite directed edge.
     pub unresolved: Vec<UnresolvedPair>,
     /// Edges of the class in total.
@@ -375,6 +441,7 @@ pub fn treatment_parent_set(
     let mut parents = Vec::new();
     let mut children = Vec::new();
     let mut unresolved = Vec::new();
+    let mut directed = Vec::new();
     let mut ambiguous = Vec::new();
     for edge in structure.edges() {
         let known = |v: u32| (v as usize) < variables;
@@ -402,6 +469,7 @@ pub fn treatment_parent_set(
         } else {
             (edge.b.variable, edge.a.variable)
         };
+        directed.push((source, sink));
         if sink == treatment {
             parents.push(source);
         } else if source == treatment {
@@ -426,13 +494,20 @@ pub fn treatment_parent_set(
     }
     parents.sort_unstable();
     children.sort_unstable();
+    directed.sort_unstable();
     if parents.contains(&outcome) {
         return Err(refused(
             "parent_set_effect.outcome_precedes_treatment",
             "the discovered structure orients the outcome into the treatment",
         ));
     }
-    Ok(TreatmentNeighbourhood { parents, children, unresolved, edges: structure.edges().len() })
+    Ok(TreatmentNeighbourhood {
+        parents,
+        children,
+        directed,
+        unresolved,
+        edges: structure.edges().len(),
+    })
 }
 
 /// Why an edge is not a definite directed edge, or `None` when it is one.
@@ -499,6 +574,8 @@ pub struct ParentSetEffectRun {
     pub max_degree: u32,
     /// Log-scale shift of the intervention, for a log-linear study.
     pub log_shift: Option<f64>,
+    /// Which background-knowledge statements discovery was given (`required+tiers`), or empty.
+    pub knowledge: String,
     /// Searched variables.
     pub variables: usize,
     /// Rows discovery used.
@@ -519,10 +596,15 @@ impl ParentSetEffectRun {
     #[must_use]
     pub fn keyed_basis_for(&self, topology: &str) -> CalibrationBasis {
         let functional = format!(
-            "{}.variables_{}.max_degree_{}.topology_{topology}",
+            "{}.variables_{}.max_degree_{}{}.topology_{topology}",
             self.transformation.scalar(),
             self.variables,
-            self.max_degree
+            self.max_degree,
+            if self.knowledge.is_empty() {
+                String::new()
+            } else {
+                format!(".knowledge_{}", self.knowledge)
+            },
         );
         CalibrationBasis::new(
             [
@@ -551,13 +633,16 @@ impl ParentSetEffectRun {
     /// The bases of every topology's record, in [`TOPOLOGIES`] order.
     #[must_use]
     pub fn keyed_bases(&self) -> Vec<CalibrationBasis> {
-        TOPOLOGIES.iter().map(|topology| self.keyed_basis_for(topology)).collect()
+        governing_topologies(self.max_degree)
+            .iter()
+            .map(|topology| self.keyed_basis_for(topology))
+            .collect()
     }
 
     /// The first topology's basis; attestation requires all of [`Self::keyed_bases`].
     #[must_use]
     pub fn keyed_basis(&self) -> CalibrationBasis {
-        self.keyed_basis_for(TOPOLOGIES[0])
+        self.keyed_basis_for(governing_topologies(self.max_degree)[0])
     }
 }
 
@@ -598,6 +683,22 @@ pub fn run(
     contract.fdr = None;
     contract.constraints.alpha = ALPHA;
     contract.constraints.max_cond_size = degree;
+    if let Some(knowledge) = &source.knowledge {
+        let link = |&(cause, effect): &(u32, u32)| antecedent_discovery::LaggedLink {
+            source: VariableId::from_raw(cause),
+            source_lag: antecedent_core::Lag::CONTEMPORANEOUS,
+            target: VariableId::from_raw(effect),
+            target_lag: antecedent_core::Lag::CONTEMPORANEOUS,
+        };
+        let tiers: Vec<Arc<[VariableId]>> = knowledge
+            .tiers
+            .iter()
+            .map(|tier| tier.iter().map(|&v| VariableId::from_raw(v)).collect())
+            .collect();
+        contract.constraints.required = knowledge.required.iter().map(link).collect();
+        contract.constraints.forbidden = knowledge.forbidden.iter().map(link).collect();
+        contract.constraints.tiers = tiers.into();
+    }
     contract.constraints.max_parents = Some(degree);
     let mut run_ctx = ctx.clone();
     run_ctx.rng = RngFactory::from_seed(source.discovery_seed);
@@ -642,6 +743,7 @@ pub fn run(
         transformation: source.transformation,
         max_degree: source.max_degree,
         log_shift: source.log_shift,
+        knowledge: source.knowledge.as_ref().map(Knowledge::label).unwrap_or_default(),
         variables: k,
         discovery_rows: split.receipt.n_discovery as u64,
         analysis_rows: split.receipt.n_analysis as u64,
@@ -675,6 +777,7 @@ pub fn measure(source_bytes: &[u8], ctx: &ExecutionContext) -> Result<MeasuredIn
             source.transformation.name(),
             source.max_degree,
             source.log_shift,
+            &source.knowledge,
         ),
     )?;
     let data = crate::digest_hex(IdentityDomain::Claim, &(&source.names, &source.columns))?;
@@ -694,7 +797,8 @@ pub fn measure(source_bytes: &[u8], ctx: &ExecutionContext) -> Result<MeasuredIn
         "discovery_rows":executed.discovery_rows,"analysis_rows":executed.analysis_rows,
         "variables":executed.variables,
         "acceptance":ACCEPTANCE,
-        "governing_topologies":TOPOLOGIES,
+        "governing_topologies":governing_topologies(executed.max_degree),
+        "background_knowledge":executed.knowledge,
         "topology_rule":"the cell is attested only when the record of every listed topology attests it (conservative intersection)",
         "adjustment_set":executed.coefficient.adjustment_set,
         "treatment_children":executed.neighbourhood.children,
@@ -713,7 +817,7 @@ pub fn measure(source_bytes: &[u8], ctx: &ExecutionContext) -> Result<MeasuredIn
     // A table does not announce its topology: the cell is licensed only when every topology's
     // record attests this construction, so each topology's record is resolved here and a
     // missing, stale or boundary record of any one refuses the whole.
-    for topology in TOPOLOGIES {
+    for topology in governing_topologies(executed.max_degree) {
         let name = format!("{}.topology_{topology}", executed.transformation.scalar());
         build_report(
             PARENT_SET_EFFECT_ROUTE,

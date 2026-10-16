@@ -16618,16 +16618,33 @@ inference_inventory_disposition = "outputs_listed"
 coverage_records = [
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_confounded_direct_and_mediated_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_confounded_direct_and_mediated_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_confounded_direct_and_mediated_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_forbidden_edges_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_forbidden_edges_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_forbidden_edges_confounded_direct_and_mediated_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_tiers_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_tiers_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_tiers_confounded_direct_and_mediated_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_parent_limits_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_parent_limits_layered_multi_mediator_nuisance_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_weak_signal_boundary_95",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_cancelling_path_boundary_95",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_misspecified_test_boundary_95",
@@ -16635,6 +16652,7 @@ coverage_records = [
 refusals = [
   { code = "invalid_argument", detail = "parent_set_effect.source_invalid", when = "The table has missing or non-finite values, unequal columns, fewer than eight rows, the treatment and outcome are not two distinct columns, the declared degree is zero, or the log shift is missing, zero or non-finite for a log-linear study or present for a linear one.", remedy = "Supply a finite rectangular float table, two distinct role columns and a consistent declaration." },
   { code = "invalid_argument", detail = "parent_set_effect.source_not_canonical", when = "A source's bytes are not the canonical encoding of the value they decode to.", remedy = "Use the source bytes the estimate exported." },
+  { code = "invalid_argument", detail = "parent_set_effect.knowledge_invalid", when = "Background knowledge names a column that is not searched, or a link from a column to itself.", remedy = "State knowledge about searched columns only." },
   { code = "invalid_argument", detail = "parent_set_effect.discovery_failed", when = "The discovery run failed or retained no outcome.", remedy = "Check the table and rerun discovery." },
   { code = "invalid_argument", detail = "parent_set_effect.transformation_undeclared", when = "The transformation is not declared as linear or log_linear before the data are read.", remedy = "Declare linear or log_linear." },
   { code = "invalid_argument", detail = "parent_set_effect.log_linear_input_not_positive", when = "A log-linear study has a column with a value that is not positive.", remedy = "Supply positive values for every searched column, or declare a linear study." },
@@ -16662,6 +16680,8 @@ fixtures = [
   { id = "discovery.sample_split_parent_set_effect.log_linear_positivity.negative", role = "negative", intent = "A non-positive value in a log-linear study is refused naming the column; the same table is a valid linear study.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "log_linear_inputs_must_be_positive_and_the_refusal_names_the_column" },
   { id = "discovery.sample_split_parent_set_effect.transformation_declared.negative", role = "negative", intent = "An undeclared transformation is refused before the data are read.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "the_transformation_must_be_declared_before_the_data_are_touched" },
   { id = "discovery.sample_split_parent_set_effect.degree_above_four.negative", role = "negative", intent = "A declared maximum degree of five is refused naming both the declared and the supported degree.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "a_maximum_degree_above_four_is_refused_with_both_degrees_named" },
+  { id = "discovery.sample_split_parent_set_effect.knowledge_regimes.positive", role = "positive", intent = "Required edges, forbidden edges and tiers that are true of the known-truth model leave the treatment's parents and total effect recovered, enter the calibration key, and tiers leave no edge unresolved.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "each_background_knowledge_regime_runs_end_to_end_on_the_known_truth_study" },
+  { id = "discovery.sample_split_parent_set_effect.knowledge_invalid.negative", role = "negative", intent = "Knowledge naming a column that is not searched is refused with its registered detail.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "knowledge_naming_a_column_that_is_not_searched_is_refused" },
   { id = "discovery.sample_split_parent_set_effect.source_replay.artifact", role = "artifact", intent = "A source that states another format version, equal treatment and outcome, or non-canonical bytes is refused before any replay.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "a_source_that_states_another_format_or_roles_is_refused" },
   { id = "discovery.sample_split_parent_set_effect.deterministic_source.invariance", role = "invariance", intent = "The same table, roles, declarations and seeds give the same estimate, graph identity and source bytes; another split seed is another receipt.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "the_same_seeds_give_the_same_split_graph_and_estimate_and_another_seed_another_split" },
   { id = "discovery.sample_split_parent_set_effect.attested_replay.calibration", role = "calibration", intent = "Inside a measured construction the interval resolves to a current attesting record and the claim carries the acceptance reason and the unresolved edges; without such a record it is refused as not attesting.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "the_result_preserves_the_graph_status_and_the_attestation_reports_it" },
@@ -16686,23 +16706,40 @@ measurement_suite = "crates/antecedent/tests/sample_split_parent_set_effect_cali
 allocated_coverage_records = [
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_confounded_direct_and_mediated_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_confounded_direct_and_mediated_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_confounded_direct_and_mediated_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_forbidden_edges_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_forbidden_edges_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_forbidden_edges_confounded_direct_and_mediated_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_tiers_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_tiers_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_tiers_confounded_direct_and_mediated_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_parent_limits_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_parent_limits_layered_multi_mediator_nuisance_nominal_95_coverage",
 ]
 inherited_coverage_records = []
 boundary = "A statement about the method over the measured family only: not about one dataset's graph, not outside ten to twenty variables, a maximum degree above four, the measured row range, weak or cancelling edges, a misspecified test, a declared completion or reused rows."
 activation_disposition = "retain_closed_cell_not_licensed_until_measured"
 allocation_status = "frozen_harness_compiled_measurement_pending"
 measurement_design_status = "implemented_whole_method_harness_not_run"
-truth_grid_allocation = "Total rows grid_n(2000): 1000, 2000, 4000 (half to each part); twelve tests (linear and log-linear at 10, 15 and 20 variables, one per topology), 400 replicates per grid point. A table does not announce its topology, so the runtime licenses a cell only when the records of both topologies attest it (conservative intersection)."
+truth_grid_allocation = "Total rows grid_n(2000): 1000, 2000, 4000 (half to each part); 29 tests (linear and log-linear at 10, 15 and 20 variables, one per topology, and the required, forbidden, tiers and parent-limit knowledge regimes at ten variables, one per topology of their degree), 400 replicates per grid point. A table does not announce its topology, so the runtime licenses a cell only when the records of both topologies attest it (conservative intersection)."
 
 [[record.inference_outputs]]
 id = "sample_split_parent_set_effect.2"

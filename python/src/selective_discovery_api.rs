@@ -20,8 +20,8 @@ use antecedent::analysis::sample_split_effect::{
     SplitEffect, estimate_effect_on_split, measure_source,
 };
 use antecedent::analysis::sample_split_parent_set_effect::{
-    ParentSetEffect, ParentSetOptions, Transformation, estimate_parent_set_effect,
-    measure_source as measure_parent_set_source,
+    Knowledge, ParentSetEffect, ParentSetOptions, Transformation,
+    estimate_parent_set_effect_with_knowledge, measure_source as measure_parent_set_source,
 };
 use antecedent::analysis::selective_discovery::{
     DeclaredCompletion, DiscoveryClaimKeys, DiscoverySnapshot, add_discovery_claims,
@@ -1683,7 +1683,7 @@ fn sample_split_effect_measure(
 /// The transformation is parsed before any data are read. Returns
 /// `(estimate_json, source_bytes, refusal)`.
 #[pyfunction]
-#[pyo3(signature = (names, columns, treatment, outcome, split_seed, seed, transformation, max_degree, log_shift=None, *, threads=None, cancel=None))]
+#[pyo3(signature = (names, columns, treatment, outcome, split_seed, seed, transformation, max_degree, log_shift=None, knowledge=None, *, threads=None, cancel=None))]
 #[allow(clippy::too_many_arguments, reason = "one request: data, roles, declarations and seeds")]
 fn sample_split_parent_set_effect(
     py: Python<'_>,
@@ -1696,9 +1696,16 @@ fn sample_split_parent_set_effect(
     transformation: &str,
     max_degree: u32,
     log_shift: Option<f64>,
+    knowledge: Option<&str>,
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Effect> {
+    let knowledge: Option<Knowledge> = knowledge
+        .map(|text| {
+            serde_json::from_str(text)
+                .map_err(|e| input_err(format!("knowledge is not a valid declaration: {e}")))
+        })
+        .transpose()?;
     let transformation = match Transformation::parse(transformation) {
         Ok(declared) => declared,
         Err(error) => return Ok((None, None, Some(effect_refusal(error)?))),
@@ -1709,11 +1716,12 @@ fn sample_split_parent_set_effect(
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let result = crate::detach_catch(py, move || {
         let (data, _): (TabularData, _) = crate::discovery_api::tabular_from_batch(&batch)?;
-        Ok(estimate_parent_set_effect(
+        Ok(estimate_parent_set_effect_with_knowledge(
             &data,
             VariableId::from_raw(treatment),
             VariableId::from_raw(outcome),
             options,
+            knowledge,
             split_seed,
             &ctx,
         ))

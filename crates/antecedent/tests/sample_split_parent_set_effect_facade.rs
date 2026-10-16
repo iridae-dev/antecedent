@@ -12,8 +12,9 @@
 use antecedent::analysis::sample_split_analysis::{SplitRule, split_rows};
 use antecedent::analysis::sample_split_effect::DISCOVERY_FRACTION;
 use antecedent::analysis::sample_split_parent_set_effect::{
-    LINEAR_ESTIMATOR, LOG_LINEAR_ESTIMATOR, PARENT_SET_STRUCTURE, ParentSetEffect,
+    Knowledge, LINEAR_ESTIMATOR, LOG_LINEAR_ESTIMATOR, PARENT_SET_STRUCTURE, ParentSetEffect,
     ParentSetOptions, Transformation, estimate_parent_set_effect,
+    estimate_parent_set_effect_with_knowledge,
 };
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{TableView, TabularData};
@@ -23,7 +24,7 @@ use std::collections::BTreeSet;
 #[path = "common/sparse_scm.rs"]
 mod sparse_scm;
 
-use sparse_scm::{MAX_DEGREE, Scm, Topology, invert};
+use sparse_scm::{MAX_DEGREE, Scm, Topology, Variant, invert};
 
 const SEED: u64 = 4_242;
 const SPLIT_SEED: u64 = 17;
@@ -129,7 +130,7 @@ fn unordered(a: usize, b: usize) -> (u32, u32) {
 /// from it.
 fn undirected_chain_edges(scm: &Scm) -> BTreeSet<(u32, u32)> {
     let oriented_root = match scm.topology {
-        Topology::HubConfoundedMultiPath => scm.index("m"),
+        Topology::HubConfoundedMultiPath | Topology::ConfoundedDirectAndMediated => scm.index("m"),
         Topology::LayeredMultiMediatorNuisance => scm.index("m2"),
     };
     let mut edges = BTreeSet::new();
@@ -149,6 +150,15 @@ fn undirected_chain_edges(scm: &Scm) -> BTreeSet<(u32, u32)> {
     edges
 }
 
+/// The truth by independent intervention simulation (never the path product).
+fn simulated_truth(scm: &Scm, log: bool, shift: f64) -> f64 {
+    if log {
+        scm.simulated_mean_ratio(shift, 4_000, 99)
+    } else {
+        scm.simulated_total_effect(4_000, 99)
+    }
+}
+
 fn assert_known_truth(topology: Topology, variables: usize, log: bool) {
     let study = study(topology, variables, log, ROWS);
     let scm = &study.scm;
@@ -156,7 +166,7 @@ fn assert_known_truth(topology: Topology, variables: usize, log: bool) {
     let options =
         if log { ParentSetOptions::log_linear(4, 1.0) } else { ParentSetOptions::linear(4) };
     let result = estimate(&study, options);
-    let truth = if log { scm.mean_ratio(1.0) } else { scm.total_effect() };
+    let truth = simulated_truth(scm, log, 1.0);
 
     let mut parents: Vec<u32> =
         scm.treatment_parents().iter().map(|&p| u32::try_from(p).unwrap()).collect();
@@ -185,6 +195,33 @@ fn assert_known_truth(topology: Topology, variables: usize, log: bool) {
     assert!(listed.iter().all(|&(a, b)| a != x && b != x));
     assert_eq!(listed, undirected_chain_edges(scm), "the unresolved edges are the chain edges");
     assert!(!listed.is_empty());
+}
+
+#[test]
+fn intervention_simulation_agrees_with_the_path_products_for_every_topology() {
+    for topology in Topology::for_degree(MAX_DEGREE) {
+        for variables in [10, 15, 20] {
+            let scm = Scm::new(topology, variables, WEIGHT_SEED + variables as u64);
+            assert!(scm.margin() >= sparse_scm::MIN_MARGIN);
+            let linear = scm.simulated_total_effect(2_000, 5);
+            assert!((linear - scm.total_effect()).abs() < 1e-9, "{topology:?} {variables}");
+            let ratio = scm.simulated_mean_ratio(0.5, 2_000, 5);
+            assert!((ratio / scm.mean_ratio(0.5) - 1.0).abs() < 1e-9, "{topology:?} {variables}");
+        }
+    }
+}
+
+#[test]
+fn a_direct_edge_and_a_mediated_path_under_confounding_recover_the_total_effect() {
+    let scm = Scm::new(Topology::ConfoundedDirectAndMediated, 15, WEIGHT_SEED);
+    // The total effect is the direct coefficient plus the mediated path product.
+    let (x, m, y) = (scm.index("x"), scm.index("m"), scm.index("y"));
+    let direct = scm.parents[y].iter().find(|&&(a, _)| a == x).unwrap().1;
+    let via = scm.parents[m][0].1 * scm.parents[y].iter().find(|&&(a, _)| a == m).unwrap().1;
+    assert!((scm.total_effect() - (direct + via)).abs() < 1e-12);
+    for log in [false, true] {
+        assert_known_truth(Topology::ConfoundedDirectAndMediated, 15, log);
+    }
 }
 
 #[test]
@@ -506,6 +543,7 @@ fn the_basis_is_keyed_under_its_own_structure_estimator_and_variable_count() {
         [
             "total_effect.variables_10.max_degree_4.topology_hub_confounded_multi_path",
             "total_effect.variables_10.max_degree_4.topology_layered_multi_mediator_nuisance",
+            "total_effect.variables_10.max_degree_4.topology_confounded_direct_and_mediated",
         ]
     );
     assert_eq!(basis.row_count, (ROWS / 2) as u64);
@@ -585,4 +623,118 @@ fn the_published_conditions_are_listed_for_each_family() {
         );
     }
     assert!(section.contains(&format!("{}", sparse_scm::MIN_MARGIN)));
+}
+
+fn with_knowledge(study: &Study, knowledge: Option<Knowledge>, degree: u32) -> ParentSetEffect {
+    let scm = &study.scm;
+    estimate_parent_set_effect_with_knowledge(
+        &study.data,
+        v(scm.treatment),
+        v(scm.outcome),
+        ParentSetOptions::linear(degree),
+        knowledge,
+        SPLIT_SEED,
+        &ctx(),
+    )
+    .unwrap()
+}
+
+fn links(pairs: Vec<(usize, usize)>) -> Vec<(u32, u32)> {
+    pairs.into_iter().map(|(a, b)| (u32::try_from(a).unwrap(), u32::try_from(b).unwrap())).collect()
+}
+
+/// Every background-knowledge regime, validated end to end on the known-truth study: the
+/// statements are true of the model, so the treatment's parents and the total effect are still
+/// recovered, the statements enter the calibration key, and tiers (which orient every edge)
+/// leave no edge unresolved.
+#[test]
+fn each_background_knowledge_regime_runs_end_to_end_on_the_known_truth_study() {
+    let study = study(Topology::HubConfoundedMultiPath, 10, false, ROWS);
+    let scm = &study.scm;
+    let truth = simulated_truth(scm, false, 1.0);
+    let mut parents: Vec<u32> =
+        scm.treatment_parents().iter().map(|&p| u32::try_from(p).unwrap()).collect();
+    parents.sort_unstable();
+    let regimes: [(&str, Knowledge); 3] = [
+        ("required", Knowledge { required: links(scm.required_links()), ..Knowledge::default() }),
+        (
+            "forbidden",
+            Knowledge { forbidden: links(scm.forbidden_links()), ..Knowledge::default() },
+        ),
+        (
+            "tiers",
+            Knowledge {
+                tiers: scm
+                    .tiers()
+                    .into_iter()
+                    .map(|tier| tier.into_iter().map(|v| u32::try_from(v).unwrap()).collect())
+                    .collect(),
+                ..Knowledge::default()
+            },
+        ),
+    ];
+    for (label, knowledge) in regimes {
+        let result = with_knowledge(&study, Some(knowledge), 4);
+        assert_eq!(result.treatment_parents(), parents.as_slice(), "{label}");
+        let reported = result.reported();
+        assert!(
+            (reported.point - truth).abs() <= 4.0 * reported.standard_error,
+            "{label}: {} vs {truth}",
+            reported.point
+        );
+        assert!(
+            result.keyed_basis().functional.contains(&format!(".knowledge_{label}.")),
+            "{label}: {}",
+            result.keyed_basis().functional
+        );
+        if label == "tiers" {
+            assert!(result.unresolved_edges().is_empty(), "tiers orient every edge");
+        }
+    }
+    // Knowledge changes the source, so a measured cell cannot be borrowed from the knowledge-free one.
+    let free = with_knowledge(&study, None, 4);
+    assert_ne!(
+        free.source_artifact(),
+        with_knowledge(
+            &study,
+            Some(Knowledge { required: links(scm.required_links()), ..Knowledge::default() }),
+            4
+        )
+        .source_artifact()
+    );
+}
+
+#[test]
+fn a_tight_declared_degree_runs_end_to_end_on_a_degree_three_study() {
+    let scm =
+        Scm::with_degree(Topology::HubConfoundedMultiPath, 10, WEIGHT_SEED, Variant::Licensed, 3);
+    assert!(scm.degrees().iter().all(|&d| d <= 3));
+    let columns = scm.simulate(ROWS, DATA_SEED);
+    let study = Study { data: table(&scm, &columns), scm };
+    let result = with_knowledge(&study, None, 3);
+    assert!(result.keyed_basis().functional.contains(".max_degree_3."));
+    let truth = simulated_truth(&study.scm, false, 1.0);
+    let reported = result.reported();
+    assert!((reported.point - truth).abs() <= 4.0 * reported.standard_error);
+    // The denser third core has degree four and does not belong to a degree-three family.
+    assert_eq!(result.keyed_bases().len(), 2);
+}
+
+#[test]
+fn knowledge_naming_a_column_that_is_not_searched_is_refused() {
+    let study = study(Topology::HubConfoundedMultiPath, 10, false, 600);
+    let scm = &study.scm;
+    let error = estimate_parent_set_effect_with_knowledge(
+        &study.data,
+        v(scm.treatment),
+        v(scm.outcome),
+        ParentSetOptions::linear(4),
+        Some(Knowledge { required: vec![(0, 99)], ..Knowledge::default() }),
+        SPLIT_SEED,
+        &ctx(),
+    )
+    .unwrap_err();
+    let text = error.to_string();
+    assert!(text.contains("invalid_argument"), "{text}");
+    assert!(text.contains("parent_set_effect.knowledge_invalid"), "{text}");
 }

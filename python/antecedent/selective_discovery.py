@@ -1602,6 +1602,9 @@ def sample_split_parent_set_effect(
     split_seed: int,
     max_degree: int = 4,
     log_shift: float | None = None,
+    required: Sequence[tuple[str, str]] = (),
+    forbidden: Sequence[tuple[str, str]] = (),
+    tiers: Sequence[Sequence[str]] = (),
     seed: int = 0,
     threads: int | None = None,
     cancel: Any = None,
@@ -1616,6 +1619,12 @@ def sample_split_parent_set_effect(
     one, so the treatment is multiplied by ``e`` and the reported ratio is ``exp(beta)``; a
     linear study takes none). ``max_degree`` (at most four) is the declared maximum graph degree
     and sets PC's conditioning-set size and parent limit.
+
+    Background knowledge handed to discovery is optional and part of the calibration key:
+    ``required`` and ``forbidden`` are ``(cause, effect)`` name pairs (an edge that must, or must
+    not, run in that direction) and ``tiers`` lists of names (a later tier never causes an
+    earlier one). The statements are the caller's assertions about the process; discovery
+    honours them and does not test them.
 
     The rows are split by a seeded permutation (half to discovery), PC with the partial
     correlation test (``alpha = 0.01``) runs on the discovery half, the class is accepted when
@@ -1639,6 +1648,21 @@ def sample_split_parent_set_effect(
     if transformation == "log_linear" and log_shift is None:
         log_shift = 1.0
     shift = None if log_shift is None else float(log_shift)
+
+    def position(name: str) -> int:
+        if name not in data:
+            raise CausalValueError(f"knowledge names {name!r}, which is not a column of data")
+        return names.index(name)
+
+    knowledge = None
+    if required or forbidden or tiers:
+        knowledge = json.dumps(
+            {
+                "required": [[position(a), position(b)] for a, b in required],
+                "forbidden": [[position(a), position(b)] for a, b in forbidden],
+                "tiers": [[position(v) for v in tier] for tier in tiers],
+            }
+        )
     text, source, refusal = _native.sample_split_parent_set_effect(
         names,
         columns,
@@ -1649,6 +1673,7 @@ def sample_split_parent_set_effect(
         transformation,
         _count(max_degree, "max_degree"),
         shift,
+        knowledge,
         threads=threads,
         cancel=cancel,
     )

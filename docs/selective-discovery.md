@@ -314,18 +314,45 @@ declared analysis scale:
 
 Each configuration is its own calibration key: structure
 `discovered_sample_split.treatment_parent_set`, the estimator of the declared transformation and
-a functional naming the variable count, the declared degree and the topology, so no record is
-borrowed from the fully directed five-to-seven-variable construction or from another count. The
-measured grid is ten, fifteen and twenty variables at 1,000, 2,000 and 4,000 participants (half
-to each part), gated separately for each transformation and each topology
-(`hub_confounded_multi_path`, `layered_multi_mediator_nuisance`), in
-`crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs`. A table does not
-announce its topology, so `ParentSetEffect.measure` licenses a cell only when the records of
-every topology attest it at that variable count, degree, transformation and analysis row count:
-the conservative intersection. Until the records exist `measure` refuses with
-`cell_not_licensed`. Named boundary designs at fifteen variables (weak signal below the published
-margin, an exactly cancelling path, and skewed noise the partial-correlation test cannot see
-through) are recorded under their own keys and license nothing.
+a functional naming the variable count, the declared degree, any background knowledge and the
+topology, so no record is borrowed from the fully directed five-to-seven-variable construction
+or from another count. The measured grid is ten, fifteen and twenty variables at 1,000, 2,000
+and 4,000 participants (half to each part), gated separately for each transformation and each
+topology, in `crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs`. The
+topologies are connected graphs with confounding, mediators and nuisance variables:
+`hub_confounded_multi_path` (a hub confounds the treatment and the outcome; the effect runs
+through a mediator), `layered_multi_mediator_nuisance` (two mediators in series and a
+mediator-outcome confounder) and `confounded_direct_and_mediated` (a direct edge and a mediated
+path under confounding; maximum degree four). A table does not announce its topology, so
+`ParentSetEffect.measure` licenses a cell only when the records of every topology of its
+declared degree attest it at that variable count, transformation, knowledge and analysis row
+count: the conservative intersection (a family declared at degree three has the first two
+topologies; the third has degree four). Until the records exist `measure` refuses with
+`cell_not_licensed`.
+
+Every replicate of a design reruns discovery, acceptance or refusal and estimation. The truth
+is computed independently of the estimator by simulating the intervention (the treatment's
+equation replaced by a constant, on common noise draws), for linear and log-linear studies
+alike, and is cross-checked against the path-product total effect. Each design prints the
+reporting denominator and share, every refusal reason with its count, the median interval
+width, the share of replicates whose treatment parents were recovered, and the skeleton and
+orientation precision and recall of the discovered class against the true graph. The frozen
+usefulness targets are asserted: reporting at least 0.9, median width at most 0.6, 0.42 and
+0.3 at 1,000, 2,000 and 4,000 participants, and, with the 2,000 replicates the acceptance
+manifest freezes, coverage of at least 0.93. Named boundary designs at fifteen variables (weak
+signal below the published margin, an exactly cancelling path, and skewed noise the
+partial-correlation test cannot see through) are recorded under their own keys and license
+nothing.
+
+*Background knowledge.* `estimate_parent_set_effect_with_knowledge` (Python: `required=`,
+`forbidden=`, `tiers=`) hands required and forbidden `(cause, effect)` links and tiers to
+discovery. The statements are the caller's assertions: discovery honours them and does not test
+them, they are part of the source, and they enter the calibration key
+(`.knowledge_required+tiers`), so an interval is attested only from records measured with the
+same kinds of statements. Each regime (required edges, forbidden edges, tiers, and a declared
+maximum degree of three as the parent limit) is validated end to end at ten variables with
+statements that are true of the model. Knowledge naming a column that is not searched is
+refused (`parent_set_effect.knowledge_invalid`).
 
 ### Linear family
 

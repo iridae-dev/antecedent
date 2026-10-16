@@ -388,3 +388,36 @@ def test_an_unmeasured_variable_count_is_computed_and_never_attested() -> None:
         estimate.measure()
     assert_registered_refusal(info.value)
     assert info.value.reason_code == "cell_not_licensed"
+
+
+def test_background_knowledge_that_is_true_of_the_law_enters_the_key_and_is_honoured() -> None:
+    table = hub_table(21)
+    free = sd.sample_split_parent_set_effect(
+        table, treatment="x", outcome="y", transformation="linear", split_seed=SPLIT_SEED
+    )
+    known = sd.sample_split_parent_set_effect(
+        table,
+        treatment="x",
+        outcome="y",
+        transformation="linear",
+        split_seed=SPLIT_SEED,
+        required=[("h", "x"), ("p", "x"), ("x", "m")],
+        forbidden=[(f"n{j}", "x") for j in range(5)],
+        tiers=[["h", "p"], ["x"], ["m"], ["y"]],
+    )
+    assert set(known.treatment_parents) == {"h", "p"}
+    assert abs(known.effect - TRUTH) <= 4 * known.standard_error
+    assert ".knowledge_required+forbidden+tiers." in known.basis["functional"]
+    assert ".knowledge_" not in free.basis["functional"]
+
+
+def test_knowledge_naming_a_column_that_is_not_searched_is_rejected() -> None:
+    with pytest.raises(CausalValueError):
+        sd.sample_split_parent_set_effect(
+            hub_table(22, rows=600),
+            treatment="x",
+            outcome="y",
+            transformation="linear",
+            split_seed=SPLIT_SEED,
+            required=[("h", "nowhere")],
+        )

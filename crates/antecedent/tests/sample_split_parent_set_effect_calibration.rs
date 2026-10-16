@@ -18,24 +18,45 @@
 //! One test per transformation, variable count and topology
 //! (`parent_set_<transformation>_<n>_variables_<topology>_nominal_95_coverage`), each its own
 //! record: the calibration key carries the transformation (through the estimator), the variable
-//! count, the declared degree and the topology (through the functional), so no record borrows
-//! another's evidence and none widens the fully directed five-to-seven-variable record. Total
-//! participants are `grid_n(2000)`: 1,000, 2,000 and 4,000, half to each part. The two
-//! topologies of `common::sparse_scm` (`hub_confounded_multi_path`,
-//! `layered_multi_mediator_nuisance`) have weights redrawn until the strong-faithfulness margin
-//! `sparse_scm::MIN_MARGIN` holds. A table does not announce its topology, so the runtime
-//! licenses a cell only when the records of both topologies attest it (the conservative
-//! intersection, `ParentSetEffect::keyed_bases`).
+//! count, the declared degree, any background knowledge and the topology (through the
+//! functional), so no record borrows another's evidence and none widens the fully directed
+//! five-to-seven-variable record. Total participants are `grid_n(2000)`: 1,000, 2,000 and 4,000,
+//! half to each part. The three topologies of `common::sparse_scm` (`hub_confounded_multi_path`,
+//! `layered_multi_mediator_nuisance` and `confounded_direct_and_mediated`, which has a direct
+//! edge from the treatment to the outcome plus a mediated path under confounding) have weights
+//! redrawn until the strong-faithfulness margin `sparse_scm::MIN_MARGIN` holds. A table does not
+//! announce its topology, so the runtime licenses a cell only when the records of every
+//! topology of its declared degree attest it (the conservative intersection,
+//! `ParentSetEffect::keyed_bases`).
 //!
-//! A replicate that reports no interval (an undirected treatment edge, an unfinished search, a
-//! parent limit that bound) is not scored as covered or missed: coverage is the coverage *of
-//! reported intervals*, and the share of replicates that report one is asserted to be at least
-//! 0.9 and printed with the median width and the share whose treatment parents were recovered.
+//! Every replicate reruns the whole procedure: the model is drawn, the rows simulated, and
+//! discovery, acceptance or refusal and estimation run on them. The truth is computed
+//! independently of the estimator and of the path product, by simulating the intervention
+//! (`Scm::simulated_total_effect`, `Scm::simulated_mean_ratio`: the treatment's equation
+//! replaced by the constant, common noise draws). A replicate that reports no interval is not
+//! scored as covered or missed: coverage is the coverage *of reported intervals*. Each design
+//! prints, as `info summary`, the reporting denominator and share, every refusal reason with
+//! its count, the median interval width, the share whose treatment parents were recovered, and
+//! the skeleton and orientation precision and recall of the discovered class against the true
+//! graph (orientation recall counts every true edge, including those a CPDAG leaves open).
+//!
+//! The frozen usefulness targets of the acceptance manifest are asserted: reporting share at
+//! least 0.9, median width at most 0.6, 0.42 and 0.3 at 1,000, 2,000 and 4,000 participants,
+//! and, once the run has the 2,000 replicates the manifest freezes, coverage of at least 0.93.
+//!
+//! # Knowledge regimes
+//!
+//! Each advertised background-knowledge regime is validated end to end at ten variables,
+//! linear, with statements that are true of the model:
+//! `parent_set_knowledge_<regime>_<topology>_nominal_95_coverage` for `required` (every edge
+//! incident to the treatment), `forbidden` (no nuisance node causes a core node) and `tiers`
+//! (causal depth), and `parent_limits` (a declared maximum degree of three on a degree-three
+//! family). The knowledge enters the calibration key.
 //!
 //! # Named boundary designs
 //!
 //! Each runs the same facade procedure on a family outside the published conditions at fifteen
-//! variables (linear), pooled over both topologies, and is keyed under its own label so it can
+//! variables (linear), pooled over the topologies, and is keyed under its own label so it can
 //! never govern a gated record. A boundary record states where the construction stops holding;
 //! it is not a failure.
 //!
@@ -55,12 +76,15 @@
 
 mod common;
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use antecedent::analysis::sample_split_effect::LEVEL;
 use antecedent::analysis::sample_split_parent_set_effect::{
-    ParentSetOptions, Transformation, estimate_parent_set_effect,
+    Knowledge, ParentSetOptions, Transformation, estimate_parent_set_effect_with_knowledge,
 };
 use antecedent_core::{CalibrationBasis, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
+use antecedent_io::IoError;
 use common::calibration::{
     Construction, CoverageTally, RecordKey, ScopeFacts, grid_n, map_replicates, n_sim, stream_seed,
 };
@@ -68,13 +92,52 @@ use common::sparse_scm::{Scm, Topology, Variant};
 
 const BASE_ROWS: usize = 2000;
 const MIN_REPORTED_SHARE: f64 = 0.9;
+/// The manifest's frozen coverage floor, applied once a run has its frozen replicate count.
+const COVERAGE_FLOOR: f64 = 0.93;
+const FROZEN_REPLICATES: u32 = 2000;
 const INTERVAL: &str = "analytic_se";
-const MAX_DEGREE: u32 = 4;
 /// The prespecified intervention of a log-linear study: multiply the treatment by `e`.
 const LOG_SHIFT: f64 = 1.0;
-/// The topologies a boundary design alternates between.
-const TOPOLOGY_CYCLE: [Topology; 2] =
-    [Topology::HubConfoundedMultiPath, Topology::LayeredMultiMediatorNuisance];
+/// Rows of the intervention simulations that give the truth.
+const TRUTH_ROWS: usize = 2_000;
+
+/// The frozen median-width target at `participants` total participants.
+fn width_target(participants: usize) -> f64 {
+    match participants {
+        0..=1_500 => 0.6,
+        1_501..=3_000 => 0.42,
+        _ => 0.3,
+    }
+}
+
+/// Which background knowledge a design asserts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Regime {
+    None,
+    Required,
+    Forbidden,
+    Tiers,
+    /// A declared maximum degree of three, on a degree-three family.
+    ParentLimits,
+}
+
+/// One validated configuration.
+#[derive(Clone, Copy)]
+struct Design {
+    transformation: Transformation,
+    variables: usize,
+    topology: Topology,
+    regime: Regime,
+}
+
+impl Design {
+    const fn degree(self) -> u32 {
+        match self.regime {
+            Regime::ParentLimits => 3,
+            _ => 4,
+        }
+    }
+}
 
 fn bound(basis: &CalibrationBasis) -> (Construction, ScopeFacts) {
     (
@@ -102,27 +165,61 @@ fn bound(basis: &CalibrationBasis) -> (Construction, ScopeFacts) {
     )
 }
 
-/// One replicate's report: the interval, the truth, its key and whether the discovered
-/// treatment parents are the true ones. `None` when no interval was reported.
+/// One replicate's report: the interval, the truth, its key, and how the discovered class
+/// compares with the true graph. `None` when no interval was reported.
 struct Scored {
     interval: (f64, f64),
     truth: f64,
     construction: (Construction, ScopeFacts),
     parents_recovered: bool,
+    /// `(true positives, reported, true)` of the undirected skeleton.
+    skeleton: (u32, u32, u32),
+    /// `(correctly directed, reported directed, true edges)`.
+    orientation: (u32, u32, u32),
 }
 
-fn replicate(
-    transformation: Transformation,
-    variables: usize,
-    topology: Topology,
-    variant: Variant,
-    skewed: bool,
-    rep: u64,
-) -> Option<Scored> {
+/// One replicate: the scored report, or the registered refusal detail that withheld it.
+type Replicate = Result<Scored, String>;
+
+fn knowledge_of(scm: &Scm, regime: Regime) -> Option<Knowledge> {
+    let columns = |pairs: Vec<(usize, usize)>| -> Vec<(u32, u32)> {
+        pairs.into_iter().map(|(a, b)| (a as u32, b as u32)).collect()
+    };
+    match regime {
+        Regime::None | Regime::ParentLimits => None,
+        Regime::Required => {
+            Some(Knowledge { required: columns(scm.required_links()), ..Knowledge::default() })
+        }
+        Regime::Forbidden => {
+            Some(Knowledge { forbidden: columns(scm.forbidden_links()), ..Knowledge::default() })
+        }
+        Regime::Tiers => Some(Knowledge {
+            tiers: scm
+                .tiers()
+                .into_iter()
+                .map(|tier| tier.into_iter().map(|v| v as u32).collect())
+                .collect(),
+            ..Knowledge::default()
+        }),
+    }
+}
+
+fn unordered(a: u32, b: u32) -> (u32, u32) {
+    (a.min(b), a.max(b))
+}
+
+fn replicate(design: Design, variant: Variant, skewed: bool, rep: u64) -> Replicate {
+    let variables = design.variables;
     let seed = stream_seed(0x5E7_0017 + variables as u64, rep);
-    let scm = Scm::with_variant(topology, variables, stream_seed(seed, 1), variant);
+    let scm = Scm::with_degree(
+        design.topology,
+        variables,
+        stream_seed(seed, 1),
+        variant,
+        design.degree() as usize,
+    );
     let rows = grid_n(BASE_ROWS);
-    let log = transformation == Transformation::LogLinear;
+    let log = design.transformation == Transformation::LogLinear;
     let columns = match (log, skewed) {
         (true, _) => scm.simulate_log_linear(rows, stream_seed(seed, 2)),
         (false, true) => scm.simulate_skewed(rows, stream_seed(seed, 2)),
@@ -133,46 +230,102 @@ fn replicate(
     )
     .expect("table");
     let options = if log {
-        ParentSetOptions::log_linear(MAX_DEGREE, LOG_SHIFT)
+        ParentSetOptions::log_linear(design.degree(), LOG_SHIFT)
     } else {
-        ParentSetOptions::linear(MAX_DEGREE)
+        ParentSetOptions::linear(design.degree())
     };
     let ctx = ExecutionContext::for_tests(seed);
-    let estimate = estimate_parent_set_effect(
+    let estimate = estimate_parent_set_effect_with_knowledge(
         &data,
         VariableId::from_raw(scm.treatment as u32),
         VariableId::from_raw(scm.outcome as u32),
         options,
+        knowledge_of(&scm, design.regime),
         stream_seed(seed, 3),
         &ctx,
     )
-    .ok()?;
+    .map_err(|error| match error {
+        IoError::Refused { message, .. } => {
+            message.split_once(": ").map_or(message.clone(), |(detail, _)| detail.to_owned())
+        }
+        other => format!("error: {other}"),
+    })?;
     let mut true_parents: Vec<u32> = scm.treatment_parents().iter().map(|&p| p as u32).collect();
     true_parents.sort_unstable();
     let reported = estimate.reported();
-    Some(Scored {
+    // Truth by simulating the intervention, independently of the estimator.
+    let truth_seed = stream_seed(seed, 4);
+    let truth = if log {
+        scm.simulated_mean_ratio(LOG_SHIFT, TRUTH_ROWS, truth_seed)
+    } else {
+        scm.simulated_total_effect(TRUTH_ROWS, truth_seed)
+    };
+    let true_edges: BTreeSet<(u32, u32)> =
+        scm.edges().into_iter().map(|(a, b)| (a as u32, b as u32)).collect();
+    let true_skeleton: BTreeSet<(u32, u32)> =
+        true_edges.iter().map(|&(a, b)| unordered(a, b)).collect();
+    let directed: BTreeSet<(u32, u32)> = estimate.directed_edges().iter().copied().collect();
+    let found_skeleton: BTreeSet<(u32, u32)> = directed
+        .iter()
+        .map(|&(a, b)| unordered(a, b))
+        .chain(estimate.unresolved_edges().iter().map(|e| unordered(e.a, e.b)))
+        .collect();
+    let count = |n: usize| n as u32;
+    Ok(Scored {
         interval: (reported.lower, reported.upper),
-        truth: if log { scm.mean_ratio(LOG_SHIFT) } else { scm.total_effect() },
-        construction: bound(&estimate.keyed_basis_for(topology.name())),
+        truth,
+        construction: bound(&estimate.keyed_basis_for(design.topology.name())),
         parents_recovered: estimate.treatment_parents() == true_parents.as_slice(),
+        skeleton: (
+            count(found_skeleton.intersection(&true_skeleton).count()),
+            count(found_skeleton.len()),
+            count(true_skeleton.len()),
+        ),
+        orientation: (
+            count(directed.intersection(&true_edges).count()),
+            count(directed.len()),
+            count(true_edges.len()),
+        ),
     })
 }
 
-/// Print the reporting share, coverage, median width and parent recovery of `runs`.
-fn print_summary(test: &str, runs: &[Option<Scored>], gated: bool) {
+fn ratio(numerator: u32, denominator: u32) -> f64 {
+    f64::from(numerator) / f64::from(denominator.max(1))
+}
+
+/// Print the reporting denominator and share, every refusal reason, the median width, the
+/// parent recovery and the graph recovery of `runs`; return `(reported share, median width,
+/// coverage)`.
+fn print_summary(test: &str, runs: &[Replicate]) -> (f64, f64, f64) {
     let mut reported = CoverageTally::new(format!("{test} reported"), LEVEL);
     let mut coverage = CoverageTally::new(format!("{test} covered"), LEVEL);
     let mut recovery = CoverageTally::new(format!("{test} parents"), LEVEL);
     let mut widths = Vec::new();
+    let mut refusals: BTreeMap<&str, u32> = BTreeMap::new();
+    let (mut skeleton, mut orientation) = ((0, 0, 0), (0, 0, 0));
     for run in runs {
-        if let Some(scored) = run {
-            reported.record(Some((0.0, 1.0)), 0.5);
-            recovery.record(scored.parents_recovered.then_some((0.0, 1.0)), 0.5);
-            coverage.record(Some(scored.interval), scored.truth);
-            widths.push(scored.interval.1 - scored.interval.0);
-        } else {
-            reported.record(None, 0.5);
-            recovery.record(None, 0.5);
+        match run {
+            Ok(scored) => {
+                reported.record(Some((0.0, 1.0)), 0.5);
+                recovery.record(scored.parents_recovered.then_some((0.0, 1.0)), 0.5);
+                coverage.record(Some(scored.interval), scored.truth);
+                widths.push(scored.interval.1 - scored.interval.0);
+                skeleton = (
+                    skeleton.0 + scored.skeleton.0,
+                    skeleton.1 + scored.skeleton.1,
+                    skeleton.2 + scored.skeleton.2,
+                );
+                orientation = (
+                    orientation.0 + scored.orientation.0,
+                    orientation.1 + scored.orientation.1,
+                    orientation.2 + scored.orientation.2,
+                );
+            }
+            Err(detail) => {
+                reported.record(None, 0.5);
+                recovery.record(None, 0.5);
+                *refusals.entry(detail.as_str()).or_default() += 1;
+            }
         }
     }
     reported.persist();
@@ -180,30 +333,28 @@ fn print_summary(test: &str, runs: &[Option<Scored>], gated: bool) {
     recovery.persist();
     widths.sort_by(f64::total_cmp);
     let median = widths.get(widths.len() / 2).copied().unwrap_or(f64::NAN);
-    let share = f64::from(reported.covered()) / f64::from(reported.attempts().max(1));
+    let share = ratio(reported.covered(), reported.attempts());
+    let covered = ratio(coverage.covered(), coverage.attempts());
     eprintln!(
-        "info summary {test}: reported_share={share:.3} ({} of {}) coverage={:.3} \
-         median_width={median:.3} parents_recovered={:.3}",
-        reported.covered(),
+        "info summary {test}: replicates={} reported={} reported_share={share:.3} \
+         refusals={refusals:?} coverage={covered:.3} median_width={median:.3} \
+         parents_recovered={:.3} skeleton_precision={:.3} skeleton_recall={:.3} \
+         orientation_precision={:.3} orientation_recall={:.3}",
         reported.attempts(),
-        f64::from(coverage.covered()) / f64::from(coverage.attempts().max(1)),
-        f64::from(recovery.covered()) / f64::from(recovery.attempts().max(1)),
+        reported.covered(),
+        ratio(recovery.covered(), recovery.attempts()),
+        ratio(skeleton.0, skeleton.1),
+        ratio(skeleton.0, skeleton.2),
+        ratio(orientation.0, orientation.1),
+        ratio(orientation.0, orientation.2),
     );
-    if gated {
-        assert!(
-            share >= MIN_REPORTED_SHARE,
-            "{test}: only {share:.3} of replicates reported an interval (floor \
-             {MIN_REPORTED_SHARE})"
-        );
-    }
+    (share, median, covered)
 }
 
-fn gated(test: &'static str, transformation: Transformation, variables: usize, topology: Topology) {
-    let runs = map_replicates(n_sim(), |rep| {
-        replicate(transformation, variables, topology, Variant::Licensed, false, rep)
-    });
-    print_summary(test, &runs, true);
-    let dgp = match transformation {
+fn gated(test: &'static str, design: Design) {
+    let runs = map_replicates(n_sim(), |rep| replicate(design, Variant::Licensed, false, rep));
+    let (share, median, covered) = print_summary(test, &runs);
+    let dgp = match design.transformation {
         Transformation::Linear => "crates/antecedent/tests/common/sparse_scm.rs::simulate",
         Transformation::LogLinear => {
             "crates/antecedent/tests/common/sparse_scm.rs::simulate_log_linear"
@@ -216,20 +367,33 @@ fn gated(test: &'static str, transformation: Transformation, variables: usize, t
         tally.record(Some(scored.interval), scored.truth);
     }
     tally.assert();
+    // The frozen usefulness targets.
+    assert!(share >= MIN_REPORTED_SHARE, "{test}: reporting share {share:.3}");
+    let target = width_target(grid_n(BASE_ROWS));
+    assert!(median <= target, "{test}: median width {median:.3} above the frozen {target}");
+    if n_sim() >= FROZEN_REPLICATES {
+        assert!(covered >= COVERAGE_FLOOR, "{test}: coverage {covered:.3} below the frozen floor");
+    }
 }
 
-/// A named boundary at fifteen variables (linear), pooled over both topologies and keyed under
+/// A named boundary at fifteen variables (linear), pooled over the topologies and keyed under
 /// its own label.
 fn boundary(test: &'static str, label: &str, variant: Variant, skewed: bool) {
+    let topologies = Topology::for_degree(4);
     let runs = map_replicates(n_sim(), |rep| {
-        let topology = TOPOLOGY_CYCLE[(rep % 2) as usize];
-        replicate(Transformation::Linear, 15, topology, variant, skewed, rep).map(|mut scored| {
+        let design = Design {
+            transformation: Transformation::Linear,
+            variables: 15,
+            topology: topologies[(rep as usize) % topologies.len()],
+            regime: Regime::None,
+        };
+        replicate(design, variant, skewed, rep).map(|mut scored| {
             scored.construction.0.functional =
                 format!("{}.named_boundary:{label}", scored.construction.0.functional);
             scored
         })
     });
-    print_summary(test, &runs, false);
+    print_summary(test, &runs);
     let key = RecordKey {
         test,
         dgp: "crates/antecedent/tests/common/sparse_scm.rs::simulate",
@@ -247,109 +411,320 @@ fn boundary(test: &'static str, label: &str, variant: Variant, skewed: bool) {
     tally.emit_named_boundary();
 }
 
-macro_rules! gated_design {
-    ($name:ident, $transformation:expr, $variables:expr, $topology:expr) => {
-        #[test]
-        #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-        fn $name() {
-            gated(stringify!($name), $transformation, $variables, $topology);
-        }
-    };
+const fn design(
+    transformation: Transformation,
+    variables: usize,
+    topology: Topology,
+    regime: Regime,
+) -> Design {
+    Design { transformation, variables, topology, regime }
 }
 
-macro_rules! boundary_design {
-    ($name:ident, $label:expr, $variant:expr, $skewed:expr) => {
-        #[test]
-        #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-        fn $name() {
-            boundary(stringify!($name), $label, $variant, $skewed);
-        }
-    };
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage() {
+    gated(
+        "parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage",
+        design(Transformation::Linear, 10, Topology::HubConfoundedMultiPath, Regime::None),
+    );
 }
 
-gated_design!(
-    parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage,
-    Transformation::Linear,
-    10,
-    Topology::HubConfoundedMultiPath
-);
-gated_design!(
-    parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage,
-    Transformation::Linear,
-    10,
-    Topology::LayeredMultiMediatorNuisance
-);
-gated_design!(
-    parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage,
-    Transformation::Linear,
-    15,
-    Topology::HubConfoundedMultiPath
-);
-gated_design!(
-    parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage,
-    Transformation::Linear,
-    15,
-    Topology::LayeredMultiMediatorNuisance
-);
-gated_design!(
-    parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage,
-    Transformation::Linear,
-    20,
-    Topology::HubConfoundedMultiPath
-);
-gated_design!(
-    parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage,
-    Transformation::Linear,
-    20,
-    Topology::LayeredMultiMediatorNuisance
-);
-gated_design!(
-    parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage,
-    Transformation::LogLinear,
-    10,
-    Topology::HubConfoundedMultiPath
-);
-gated_design!(
-    parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage,
-    Transformation::LogLinear,
-    10,
-    Topology::LayeredMultiMediatorNuisance
-);
-gated_design!(
-    parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage,
-    Transformation::LogLinear,
-    15,
-    Topology::HubConfoundedMultiPath
-);
-gated_design!(
-    parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage,
-    Transformation::LogLinear,
-    15,
-    Topology::LayeredMultiMediatorNuisance
-);
-gated_design!(
-    parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage,
-    Transformation::LogLinear,
-    20,
-    Topology::HubConfoundedMultiPath
-);
-gated_design!(
-    parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage,
-    Transformation::LogLinear,
-    20,
-    Topology::LayeredMultiMediatorNuisance
-);
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage() {
+    gated(
+        "parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+        design(Transformation::Linear, 10, Topology::LayeredMultiMediatorNuisance, Regime::None),
+    );
+}
 
-boundary_design!(parent_set_weak_signal_boundary_95, "weak_signal", Variant::WeakSignal, false);
-boundary_design!(
-    parent_set_cancelling_path_boundary_95,
-    "cancelling_path",
-    Variant::CancellingPath,
-    false
-);
-boundary_design!(
-    parent_set_misspecified_test_boundary_95,
-    "misspecified_test",
-    Variant::Licensed,
-    true
-);
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage() {
+    gated(
+        "parent_set_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage",
+        design(Transformation::Linear, 10, Topology::ConfoundedDirectAndMediated, Regime::None),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage() {
+    gated(
+        "parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
+        design(Transformation::Linear, 15, Topology::HubConfoundedMultiPath, Regime::None),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage() {
+    gated(
+        "parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+        design(Transformation::Linear, 15, Topology::LayeredMultiMediatorNuisance, Regime::None),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_linear_15_variables_confounded_direct_and_mediated_nominal_95_coverage() {
+    gated(
+        "parent_set_linear_15_variables_confounded_direct_and_mediated_nominal_95_coverage",
+        design(Transformation::Linear, 15, Topology::ConfoundedDirectAndMediated, Regime::None),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage() {
+    gated(
+        "parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage",
+        design(Transformation::Linear, 20, Topology::HubConfoundedMultiPath, Regime::None),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage() {
+    gated(
+        "parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+        design(Transformation::Linear, 20, Topology::LayeredMultiMediatorNuisance, Regime::None),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage() {
+    gated(
+        "parent_set_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage",
+        design(Transformation::Linear, 20, Topology::ConfoundedDirectAndMediated, Regime::None),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage() {
+    gated(
+        "parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage",
+        design(Transformation::LogLinear, 10, Topology::HubConfoundedMultiPath, Regime::None),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage() {
+    gated(
+        "parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+        design(Transformation::LogLinear, 10, Topology::LayeredMultiMediatorNuisance, Regime::None),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_log_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage() {
+    gated(
+        "parent_set_log_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage",
+        design(Transformation::LogLinear, 10, Topology::ConfoundedDirectAndMediated, Regime::None),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage() {
+    gated(
+        "parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
+        design(Transformation::LogLinear, 15, Topology::HubConfoundedMultiPath, Regime::None),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage() {
+    gated(
+        "parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+        design(Transformation::LogLinear, 15, Topology::LayeredMultiMediatorNuisance, Regime::None),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_log_linear_15_variables_confounded_direct_and_mediated_nominal_95_coverage() {
+    gated(
+        "parent_set_log_linear_15_variables_confounded_direct_and_mediated_nominal_95_coverage",
+        design(Transformation::LogLinear, 15, Topology::ConfoundedDirectAndMediated, Regime::None),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage() {
+    gated(
+        "parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage",
+        design(Transformation::LogLinear, 20, Topology::HubConfoundedMultiPath, Regime::None),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage() {
+    gated(
+        "parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+        design(Transformation::LogLinear, 20, Topology::LayeredMultiMediatorNuisance, Regime::None),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_log_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage() {
+    gated(
+        "parent_set_log_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage",
+        design(Transformation::LogLinear, 20, Topology::ConfoundedDirectAndMediated, Regime::None),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_knowledge_required_edges_hub_confounded_multi_path_nominal_95_coverage() {
+    gated(
+        "parent_set_knowledge_required_edges_hub_confounded_multi_path_nominal_95_coverage",
+        design(Transformation::Linear, 10, Topology::HubConfoundedMultiPath, Regime::Required),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage() {
+    gated(
+        "parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage",
+        design(
+            Transformation::Linear,
+            10,
+            Topology::LayeredMultiMediatorNuisance,
+            Regime::Required,
+        ),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_knowledge_required_edges_confounded_direct_and_mediated_nominal_95_coverage() {
+    gated(
+        "parent_set_knowledge_required_edges_confounded_direct_and_mediated_nominal_95_coverage",
+        design(Transformation::Linear, 10, Topology::ConfoundedDirectAndMediated, Regime::Required),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_knowledge_forbidden_edges_hub_confounded_multi_path_nominal_95_coverage() {
+    gated(
+        "parent_set_knowledge_forbidden_edges_hub_confounded_multi_path_nominal_95_coverage",
+        design(Transformation::Linear, 10, Topology::HubConfoundedMultiPath, Regime::Forbidden),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_knowledge_forbidden_edges_layered_multi_mediator_nuisance_nominal_95_coverage() {
+    gated(
+        "parent_set_knowledge_forbidden_edges_layered_multi_mediator_nuisance_nominal_95_coverage",
+        design(
+            Transformation::Linear,
+            10,
+            Topology::LayeredMultiMediatorNuisance,
+            Regime::Forbidden,
+        ),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_knowledge_forbidden_edges_confounded_direct_and_mediated_nominal_95_coverage() {
+    gated(
+        "parent_set_knowledge_forbidden_edges_confounded_direct_and_mediated_nominal_95_coverage",
+        design(
+            Transformation::Linear,
+            10,
+            Topology::ConfoundedDirectAndMediated,
+            Regime::Forbidden,
+        ),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_knowledge_tiers_hub_confounded_multi_path_nominal_95_coverage() {
+    gated(
+        "parent_set_knowledge_tiers_hub_confounded_multi_path_nominal_95_coverage",
+        design(Transformation::Linear, 10, Topology::HubConfoundedMultiPath, Regime::Tiers),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_knowledge_tiers_layered_multi_mediator_nuisance_nominal_95_coverage() {
+    gated(
+        "parent_set_knowledge_tiers_layered_multi_mediator_nuisance_nominal_95_coverage",
+        design(Transformation::Linear, 10, Topology::LayeredMultiMediatorNuisance, Regime::Tiers),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_knowledge_tiers_confounded_direct_and_mediated_nominal_95_coverage() {
+    gated(
+        "parent_set_knowledge_tiers_confounded_direct_and_mediated_nominal_95_coverage",
+        design(Transformation::Linear, 10, Topology::ConfoundedDirectAndMediated, Regime::Tiers),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_knowledge_parent_limits_hub_confounded_multi_path_nominal_95_coverage() {
+    gated(
+        "parent_set_knowledge_parent_limits_hub_confounded_multi_path_nominal_95_coverage",
+        design(Transformation::Linear, 10, Topology::HubConfoundedMultiPath, Regime::ParentLimits),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_knowledge_parent_limits_layered_multi_mediator_nuisance_nominal_95_coverage() {
+    gated(
+        "parent_set_knowledge_parent_limits_layered_multi_mediator_nuisance_nominal_95_coverage",
+        design(
+            Transformation::Linear,
+            10,
+            Topology::LayeredMultiMediatorNuisance,
+            Regime::ParentLimits,
+        ),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_weak_signal_boundary_95() {
+    boundary("parent_set_weak_signal_boundary_95", "weak_signal", Variant::WeakSignal, false);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_cancelling_path_boundary_95() {
+    boundary(
+        "parent_set_cancelling_path_boundary_95",
+        "cancelling_path",
+        Variant::CancellingPath,
+        false,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn parent_set_misspecified_test_boundary_95() {
+    boundary(
+        "parent_set_misspecified_test_boundary_95",
+        "misspecified_test",
+        Variant::Licensed,
+        true,
+    );
+}
