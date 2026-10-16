@@ -56,7 +56,7 @@ pub use adapter::{SelectiveRunReport, StaticSelectiveDiscovery, TemporalSelectiv
 pub use claims::{request_downstream_interval, request_recovery_claim, request_score_search_reuse};
 pub use contract::{
     CiTestSpec, StaticAlgorithm, StaticDiscoveryContract, TemporalAlgorithm,
-    TemporalDiscoveryContract,
+    TemporalDiscoveryContract, background_knowledge_digest, background_knowledge_identity,
 };
 pub use identity::{
     DataIdentity, Digest, column_digest, digest_from_hex, digest_hex, static_data_identity,

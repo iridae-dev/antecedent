@@ -32,6 +32,9 @@ pub enum DiscoveryError {
         /// Message.
         message: &'static str,
     },
+    /// Background knowledge the search cannot honour.
+    #[error("background knowledge: {0}")]
+    Knowledge(crate::constraints::KnowledgeFault),
     /// Orientation / rule-scheduling precondition or message.
     #[error("orientation: {0}")]
     Orientation(String),

@@ -402,8 +402,12 @@ fn pc_skeleton_pairs(
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<Vec<(u32, u32)>, DiscoveryError> {
+    // The screen reads the uncapped skeleton. The posterior enforces the parent limit through
+    // its own prior.
+    let mut screening = constraints.clone();
+    screening.max_parents = None;
     let pc = Pc::new()
-        .with_constraints(constraints.clone())
+        .with_constraints(screening)
         .with_fdr_adjustment(eng.fdr)
         .with_ci(Arc::clone(&eng.ci));
     let result = pc.run(data, variables, workspace, ctx)?;

@@ -15,7 +15,7 @@ use antecedent_graph::{Cpdag, CpdagReview, Dag, DenseNodeId, Endpoint, NodeRef};
 use antecedent_state::{GraphScoreData, GraphScoreFamily, LocalScoreCache};
 use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PartialCorrelation};
 
-use crate::constraints::DiscoveryConstraints;
+use crate::constraints::{DiscoveryConstraints, KnowledgeScope};
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::orientation::{
@@ -129,6 +129,9 @@ impl Ges {
         ctx: &ExecutionContext,
     ) -> Result<StaticCpdagDiscoveryResult, DiscoveryError> {
         self.constraints.validate()?;
+        self.constraints
+            .check_background_knowledge(KnowledgeScope::ScoreSearch, variables)
+            .map_err(DiscoveryError::Knowledge)?;
         if self.screen_pc {
             crate::ci::ensure_ci_decisions_meaningful(
                 &*self.ci,
@@ -230,6 +233,37 @@ impl Ges {
             apply_delete(&mut cpdag, best.x, best.y, &best.set)?;
         }
 
+        // Background knowledge orients what the score leaves undirected: the search forbids an
+        // insertion against a forbidden direction, but an equivalence class can still contain an
+        // edge whose direction knowledge fixes. Meek's rules then propagate the orientations.
+        let mut diagnostics = Vec::new();
+        if self.constraints.has_directional_knowledge() {
+            let var_index: HashMap<VariableId, usize> =
+                variables.iter().enumerate().map(|(i, v)| (*v, i)).collect();
+            let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
+            let mut state = OrientationState::default();
+            crate::pc::orient_fixed_directions(
+                &mut cpdag,
+                &self.constraints,
+                variables,
+                &dense_of,
+                &mut state,
+            )?;
+            let rules: [&dyn OrientationRule<Cpdag>; 4] = [&MeekR1, &MeekR2, &MeekR3, &MeekR4];
+            run_static_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;
+            if state.conflicts > 0 {
+                diagnostics.push(DiscoveryDiagnostic {
+                    code: Arc::from("ges.orientation_conflict"),
+                    message: Arc::from(format!(
+                        "{} edge(s) have a direction the score search compelled against the \
+                         background knowledge, or knowledge that closes a directed cycle; they \
+                         are marked as conflicts",
+                        state.conflicts
+                    )),
+                });
+            }
+        }
+
         let total_score = {
             // Sync cache parents from a consistent DAG extension for reporting.
             let dag = pdag_to_dag(&cpdag)?;
@@ -290,11 +324,15 @@ impl Ges {
             review,
             algorithm: crate::pipeline::algorithm_record(
                 "ges",
-                format!("family=gaussian_bic screen_pc={} score={total_score:.6}", self.screen_pc),
+                format!(
+                    "family=gaussian_bic screen_pc={} score={total_score:.6}{}",
+                    self.screen_pc,
+                    self.constraints.knowledge_config()
+                ),
             ),
             assumptions: discovery_assumptions("ges", true),
             iterations: Vec::<DiscoveryIteration>::new(),
-            diagnostics: Vec::<DiscoveryDiagnostic>::new(),
+            diagnostics,
             performance: DiscoveryPerformanceRecord {
                 ci_tests: 0,
                 links_retained: u64::try_from(edge_count).unwrap_or(u64::MAX),
@@ -366,8 +404,11 @@ fn pc_skeleton_pairs(
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<HashSet<(u32, u32)>, DiscoveryError> {
+    // The screen only reads the uncapped skeleton; GES enforces the limit in its own search.
+    let mut screening = ges.constraints.clone();
+    screening.max_parents = None;
     let pc = Pc::new()
-        .with_constraints(ges.constraints.clone())
+        .with_constraints(screening)
         .with_fdr_adjustment(ges.fdr)
         .with_ci(Arc::clone(&ges.ci));
     let result = pc.run(data, variables, workspace, ctx)?;
@@ -389,32 +430,24 @@ fn screened(screen: Option<&HashSet<(u32, u32)>>, a: DenseNodeId, b: DenseNodeId
     s.contains(&(lo, hi))
 }
 
-fn forbidden_pair(
+/// Whether an operator that makes `from` a parent of `to` is forbidden by the background
+/// knowledge. A variable outside the search is forbidden.
+fn forbidden_direction(
     constraints: &DiscoveryConstraints,
     variables: &[VariableId],
-    a: DenseNodeId,
-    b: DenseNodeId,
+    from: DenseNodeId,
+    to: DenseNodeId,
 ) -> bool {
-    let Some(va) = variables.get(a.as_usize()).copied() else {
+    let (Some(&vf), Some(&vt)) = (variables.get(from.as_usize()), variables.get(to.as_usize()))
+    else {
         return true;
     };
-    let Some(vb) = variables.get(b.as_usize()).copied() else {
-        return true;
-    };
-    let link_ab = LaggedLink {
-        source: va,
+    constraints.is_forbidden(LaggedLink {
+        source: vf,
         source_lag: Lag::CONTEMPORANEOUS,
-        target: vb,
+        target: vt,
         target_lag: Lag::CONTEMPORANEOUS,
-    };
-    let link_ba = LaggedLink {
-        source: vb,
-        source_lag: Lag::CONTEMPORANEOUS,
-        target: va,
-        target_lag: Lag::CONTEMPORANEOUS,
-    };
-    // `is_forbidden` already applies `tier_forbids` in both directions.
-    constraints.is_forbidden(link_ab) || constraints.is_forbidden(link_ba)
+    })
 }
 
 fn required_pair(
@@ -728,7 +761,7 @@ fn best_insert(
             if !screened(screen, x, y) {
                 continue;
             }
-            if forbidden_pair(constraints, variables, x, y) {
+            if forbidden_direction(constraints, variables, x, y) {
                 continue;
             }
             // T ⊆ Ne(Y) \ adj(X)
@@ -828,7 +861,7 @@ fn best_reverse(
         if !screened(screen, x, y) {
             continue;
         }
-        if forbidden_pair(constraints, variables, y, x) {
+        if forbidden_direction(constraints, variables, y, x) {
             continue;
         }
         let na = na_yx(cpdag, y, x);
@@ -1268,5 +1301,105 @@ mod tests {
             &ExecutionContext::for_tests(1),
         );
         assert!(result.is_ok(), "{result:?}");
+    }
+
+    /// Run GES on the chain data under `constraints`.
+    fn ges_chain_under(constraints: DiscoveryConstraints) -> Cpdag {
+        let (data, vars) = gaussian_chain_data(400);
+        let ges = Ges::new().with_constraints(constraints);
+        let mut ws = DiscoveryWorkspace::default();
+        ges.run(&data, &vars, &mut ws, &ExecutionContext::for_tests(1)).unwrap().evidence.graph
+    }
+
+    fn parent_child(g: &Cpdag, a: u32, b: u32) -> Option<(u32, u32)> {
+        g.edge_between(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
+            .and_then(antecedent_graph::MarkedEdge::parent_child)
+            .map(|(p, c)| (p.raw(), c.raw()))
+    }
+
+    fn contemp(a: u32, b: u32) -> LaggedLink {
+        crate::constraints::contemp_link(VariableId::from_raw(a), VariableId::from_raw(b))
+    }
+
+    /// Every present edge between variables `a < b`, as `(parent, child)` when directed.
+    fn orientations(g: &Cpdag) -> Vec<(u32, u32, Option<(u32, u32)>)> {
+        g.edges()
+            .into_iter()
+            .map(|e| {
+                let (lo, hi) = (e.a.raw().min(e.b.raw()), e.a.raw().max(e.b.raw()));
+                (lo, hi, e.parent_child().map(|(p, c)| (p.raw(), c.raw())))
+            })
+            .collect()
+    }
+
+    // The tests below assert what the knowledge guarantees for whatever skeleton the score
+    // search finds: a tier or a forbidden direction fixes the direction of every adjacent pair
+    // it covers, and a required link is an edge that is never oriented against the statement.
+
+    #[test]
+    fn tiers_orient_every_present_edge_from_the_earlier_tier_to_the_later() {
+        let tier = |ids: &[u32]| -> Arc<[VariableId]> {
+            ids.iter().copied().map(VariableId::from_raw).collect()
+        };
+        let mut forward = Ges::new().constraints;
+        forward.tiers = Arc::from([tier(&[0]), tier(&[1]), tier(&[2])]);
+        let edges = orientations(&ges_chain_under(forward));
+        assert!(!edges.is_empty());
+        for (lo, hi, direction) in edges {
+            assert_eq!(direction, Some((lo, hi)), "edge {lo}-{hi}");
+        }
+
+        let mut backward = Ges::new().constraints;
+        backward.tiers = Arc::from([tier(&[2]), tier(&[1]), tier(&[0])]);
+        let edges = orientations(&ges_chain_under(backward));
+        assert!(!edges.is_empty());
+        for (lo, hi, direction) in edges {
+            assert_eq!(direction, Some((hi, lo)), "edge {lo}-{hi}");
+        }
+    }
+
+    #[test]
+    fn a_forbidden_direction_is_never_present_in_the_output() {
+        let mut c = Ges::new().constraints;
+        c.forbidden = Arc::from([contemp(1, 0), contemp(2, 1)]);
+        let g = ges_chain_under(c);
+        assert_ne!(parent_child(&g, 0, 1), Some((1, 0)));
+        assert_ne!(parent_child(&g, 1, 2), Some((2, 1)));
+        // Neither pair is left undirected: the single allowed direction is fixed.
+        for (lo, hi, direction) in orientations(&g) {
+            if (lo, hi) == (0, 1) || (lo, hi) == (1, 2) {
+                assert_eq!(direction, Some((lo, hi)), "edge {lo}-{hi}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_required_link_is_an_edge_and_is_not_oriented_against_the_statement() {
+        let mut c = Ges::new().constraints;
+        c.required = Arc::from([contemp(2, 1)]);
+        let g = ges_chain_under(c);
+        assert!(g.has_edge(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)));
+        assert_ne!(parent_child(&g, 1, 2), Some((1, 2)));
+    }
+
+    #[test]
+    fn a_parent_limit_is_enforced_and_unknown_variables_are_refused() {
+        // Every insertion scores at least the new parent, so a limit of zero admits no edge.
+        let mut capped = Ges::new().constraints;
+        capped.max_parents = Some(0);
+        assert!(ges_chain_under(capped).edges().is_empty());
+
+        let (data, vars) = gaussian_chain_data(50);
+        let mut unknown = Ges::new().constraints;
+        unknown.forbidden = Arc::from([contemp(0, 9)]);
+        let mut ws = DiscoveryWorkspace::default();
+        let error = Ges::new()
+            .with_constraints(unknown)
+            .run(&data, &vars, &mut ws, &ExecutionContext::for_tests(1))
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            DiscoveryError::Knowledge(crate::constraints::KnowledgeFault::UnknownVariable(_))
+        ));
     }
 }

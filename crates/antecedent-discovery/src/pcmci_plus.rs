@@ -17,10 +17,10 @@ use antecedent_graph::{DenseNodeId, NodeRef, TemporalCpdagReview};
 use antecedent_stats::FdrAdjustment;
 
 use crate::combinations::Combinations;
-use crate::constraints::DiscoveryConstraints;
+use crate::constraints::{DiscoveryConstraints, KnowledgeScope};
 use crate::engine::{
-    CiMemo, CiProbe, DiscoveryWorkspace, LaggedSearch, PcmciEngine, mci_conditioning_bounded,
-    parents_of_target, refuse_truncated_mci,
+    CiMemo, CiProbe, DiscoveryWorkspace, LaggedSearch, PcmciEngine, ci_conditioning_capacity,
+    mci_conditioning, parents_of_target, refuse_truncated_mci,
 };
 use crate::error::DiscoveryError;
 use crate::evidence::{
@@ -41,10 +41,6 @@ use crate::result::{
     CpdagDiscoveryResult, DiscoveryIteration, DiscoveryPerformanceRecord, LaggedLink, PcSepsets,
     ScoredLink, discovery_assumptions,
 };
-
-/// Column budget for one MCI conditioning set (kernel cap `MAX_CI_COLS` minus the pair
-/// under test).
-const MAX_MCI_COND: usize = 30;
 
 /// PCMCI+ discovery: contemporaneous + lagged links → oriented [`antecedent_graph::TemporalCpdag`].
 #[derive(Clone, Debug)]
@@ -140,6 +136,10 @@ impl PcmciPlus {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CpdagDiscoveryResult, DiscoveryError> {
+        self.engine
+            .constraints
+            .check_background_knowledge(KnowledgeScope::Lagged, variables)
+            .map_err(DiscoveryError::Knowledge)?;
         let alpha = self.engine.constraints.alpha;
         crate::ci::ensure_ci_decisions_meaningful(
             &*self.engine.ci,
@@ -193,12 +193,27 @@ impl PcmciPlus {
             alpha,
             crate::evidence::fdr_family_size(&scored, self.fdr),
         );
-        let scored = threshold_scored_links(scored, self.fdr, alpha);
-        let scored = symmetrize_contemporaneous_links(scored);
+        let scored = self
+            .engine
+            .constraints
+            .with_required_links(threshold_scored_links(scored.clone(), self.fdr, alpha), &scored);
+        let scored = symmetrize_contemporaneous_links(
+            self.engine.constraints.with_mirrored_contemporaneous(scored),
+        );
 
         let mut cpdag = cpdag_from_scored_links(&scored, variables, max_lag)?;
         let node_ids = lagged_node_index(cpdag.nodes());
         let mut state = orientation_state_from_sepsets(&node_ids, &sepsets);
+
+        // Background knowledge orients first, as in static PC: the collider rule then records a
+        // conflict instead of overriding a fixed direction.
+        orient_fixed_directions(
+            &mut cpdag,
+            &self.engine.constraints,
+            variables,
+            &node_ids,
+            &mut state,
+        )?;
 
         // --- Step 3: majority collider (with subset re-tests) ---
         let (majority_delta, majority_tests) = orient_majority_colliders(
@@ -224,11 +239,12 @@ impl PcmciPlus {
         let algorithm = algorithm_record(
             "pcmci_plus",
             format!(
-                "alpha={},max_lag={},fdr={:?},min_lag={},collider=majority,meek=r1-r4-contemp",
+                "alpha={},max_lag={},fdr={:?},min_lag={},collider=majority,meek=r1-r4-contemp{}",
                 alpha,
                 max_lag,
                 self.fdr,
-                self.engine.constraints.temporal.min_lag.raw()
+                self.engine.constraints.temporal.min_lag.raw(),
+                self.engine.constraints.knowledge_config()
             ),
         );
         let evidence = cpdag_evidence_from_oriented(cpdag.clone(), scored, &sepsets);
@@ -277,6 +293,37 @@ impl PcmciPlus {
             sepsets,
         })
     }
+}
+
+/// Orient the undirected contemporaneous edges whose direction background knowledge fixes
+/// (a required link, or exactly one forbidden direction, a tier included). Knowledge that would
+/// close a directed cycle is recorded as a conflict. Pairs with no edge are left alone.
+fn orient_fixed_directions(
+    cpdag: &mut antecedent_graph::TemporalCpdag,
+    constraints: &DiscoveryConstraints,
+    variables: &[VariableId],
+    node_ids: &HashMap<(u32, u32), DenseNodeId>,
+    state: &mut OrientationState,
+) -> Result<(), DiscoveryError> {
+    let mut delta = RuleDelta::default();
+    for (i, &a) in variables.iter().enumerate() {
+        for &b in &variables[i + 1..] {
+            let Some(fixed) = constraints.static_direction(a, b) else {
+                continue;
+            };
+            let (Some(&from), Some(&to)) =
+                (node_ids.get(&(fixed.from.raw(), 0)), node_ids.get(&(fixed.to.raw(), 0)))
+            else {
+                continue;
+            };
+            if !cpdag.has_edge(from, to) {
+                continue;
+            }
+            let premise = format!("background knowledge: {}→{}", fixed.from.raw(), fixed.to.raw());
+            try_orient_undirected(cpdag, state, &mut delta, from, to, premise)?;
+        }
+    }
+    Ok(())
 }
 
 type AdjMap = HashMap<VariableId, Vec<(VariableId, Lag)>>;
@@ -425,14 +472,10 @@ pub(crate) fn contemp_mci_phase(
                 // tail, which is the lagged block — the fixed control set that makes the MCI
                 // test valid under autocorrelation — so the old order evicted mandatory
                 // conditions in favour of the optional candidate set.
-                let s_budget = MAX_MCI_COND.saturating_sub(contemp_others.len());
-                let dropped = mci_conditioning_bounded(
-                    link,
-                    lagged_tgt,
-                    lagged_src,
-                    s_budget,
-                    &mut workspace.others,
-                );
+                let s_budget =
+                    ci_conditioning_capacity(frame, ctx).saturating_sub(contemp_others.len());
+                let dropped =
+                    mci_conditioning(link, lagged_tgt, lagged_src, s_budget, &mut workspace.others);
                 truncated += dropped;
                 refuse_truncated_mci(dropped)?;
                 // S first, strongest candidate first: `contemp_others` is already sorted by
@@ -448,7 +491,6 @@ pub(crate) fn contemp_mci_phase(
                     }
                 }
                 workspace.others = merged;
-                debug_assert!(workspace.others.len() <= MAX_MCI_COND);
 
                 let cond = std::mem::take(&mut workspace.others);
                 let link = LaggedLink {
@@ -754,9 +796,10 @@ fn majority_sep_counts(
     // Reserve room for S *before* building the lagged MCI block (same honesty as the
     // contemporaneous MCI phase): truncating after appending S would drop lagged parents from
     // the tail.
+    let capacity = ci_conditioning_capacity(frame, ctx);
     let sets = (0..=max_cond.min(cand.len())).flat_map(|q| Combinations::new(&cand, q)).map(|s| {
-        let s_budget = MAX_MCI_COND.saturating_sub(s.len());
-        let dropped = mci_conditioning_bounded(
+        let s_budget = capacity.saturating_sub(s.len());
+        let dropped = mci_conditioning(
             link,
             parents_of_target(lagged_parents, vb),
             parents_of_target(lagged_parents, va),

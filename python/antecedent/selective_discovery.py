@@ -69,10 +69,12 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from . import _native
+from ._columns import encode_identifier
 from ._freeze import freeze
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _shared_count
+from .discovery import BackgroundKnowledge, Link
 from .errors import CausalTypeError, CausalValueError
 
 if TYPE_CHECKING:
@@ -159,16 +161,6 @@ def _count(value: object, what: str, **kwargs: Any) -> int:
 
 
 @dataclass(frozen=True, slots=True)
-class Link:
-    """A directed lagged link ``source[t - source_lag] -> target[t - target_lag]`` by name."""
-
-    source: str
-    target: str
-    source_lag: int = 0
-    target_lag: int = 0
-
-
-@dataclass(frozen=True, slots=True)
 class Fdr:
     """A multiple-testing adjustment: ``method`` is ``bh``, ``by``, ``bonferroni`` or ``holm``."""
 
@@ -208,22 +200,12 @@ def _common_wire(contract: Any, kind: str) -> dict[str, Any]:
     names = tuple(_name(v, "variable") for v in contract.variables)
     if len(set(names)) != len(names) or not names:
         raise CausalValueError("variables must be a non-empty sequence of distinct names")
-    index = {name: i for i, name in enumerate(names)}
-
-    def at(name: str) -> int:
-        try:
-            return index[name]
-        except KeyError:
-            raise CausalValueError(f"{name!r} is not one of the contract's variables") from None
-
-    def link(item: Link) -> list[int]:
-        return [
-            at(item.source),
-            _count(item.source_lag, "lag"),
-            at(item.target),
-            _count(item.target_lag, "lag"),
-        ]
-
+    knowledge = BackgroundKnowledge(
+        required=contract.required,
+        forbidden=contract.forbidden,
+        tiers=contract.tiers,
+        max_parents=contract.max_parents,
+    )
     wire: dict[str, Any] = {
         "kind": kind,
         "algorithm": contract.algorithm,
@@ -234,14 +216,10 @@ def _common_wire(contract: Any, kind: str) -> dict[str, Any]:
         "alpha": float(contract.alpha),
         "significance": contract.significance.to_wire(),
         "mask_type": contract.mask_type,
-        "required": [link(item) for item in contract.required],
-        "forbidden": [link(item) for item in contract.forbidden],
-        "tiers": [[at(v) for v in tier] for tier in contract.tiers],
+        **knowledge.to_wire(names),
     }
     if contract.max_cond_size is not None:
         wire["max_cond_size"] = _count(contract.max_cond_size, "max_cond_size")
-    if contract.max_parents is not None:
-        wire["max_parents"] = _count(contract.max_parents, "max_parents")
     if contract.fdr is not _DEFAULT:
         wire["fdr"] = None if contract.fdr is None else contract.fdr.to_wire()
     return wire
@@ -1067,6 +1045,13 @@ class PerPopulationDiscovery(ScientificResult):
 class SplitReceipt:
     """The record of one row split: enough to re-derive the partition and check a table.
 
+    Rows are filtered before they are split: first by the analysis mask (``masked_out_rows``),
+    then to complete cases over the searched variables (``incomplete_rows``); both lists hold
+    original row indices and those rows belong to neither part. ``weights`` is ``None`` for an
+    unweighted source, else the digests of the source, discovery and analysis weights and the
+    Kish effective sample size of each part's weights; ``mask_identity`` is the digest of the
+    source mask when it had one.
+
     ``whole_method_calibration`` is always ``unmeasured`` for an analysis you run yourself on the
     analysis part. The one whole-method construction with a measured coverage record is
     :func:`sample_split_effect`, which attests its own interval.
@@ -1074,10 +1059,15 @@ class SplitReceipt:
 
     rule: Mapping[str, Any]
     n_rows: int
+    masked_out_rows: tuple[int, ...]
+    incomplete_rows: tuple[int, ...]
     n_discovery: int
     n_analysis: int
     discovery_rows_identity: str
     analysis_rows_identity: str
+    mask_identity: str | None
+    weights: Mapping[str, Any] | None
+    source_data_identity: str
     discovery_data_identity: str
     analysis_data_identity: str
     identity: str
@@ -1102,12 +1092,38 @@ class AnalysisBinding:
     whole_method_calibration: str
 
 
+def _weights(weights: Sequence[float] | None) -> list[float] | None:
+    if weights is None:
+        return None
+    array = np.asarray(weights, dtype=np.float64)
+    if array.ndim != 1:
+        raise CausalValueError("weights must be a 1-D array")
+    return [float(w) for w in array]
+
+
+def _mask(mask: Sequence[bool] | None) -> list[bool] | None:
+    if mask is None:
+        return None
+    array = np.asarray(mask)
+    if array.ndim != 1 or array.dtype != np.bool_:
+        raise CausalValueError("mask must be a 1-D boolean array (True keeps the row)")
+    return [bool(m) for m in array]
+
+
 class SampleSplit(ScientificResult):
     """A row split, the discovery run on its discovery part and the receipt tying them together.
 
     ``discovery`` and ``analysis`` map every column of the split table to that part's values.
     Only ``analysis`` may be used by the downstream analysis; :meth:`check_analysis_table`
     refuses any other rows.
+
+    Rows were filtered (analysis mask, then complete cases over the searched variables) before
+    they were split; the excluded rows are in :attr:`receipt` and in neither part.
+    :attr:`analysis_row_ids` gives the original row of each analysis row, and
+    :attr:`analysis_weights` its observation weight exactly as the source held it
+    (unnormalized: normalizing is the consumer's, by what the weights mean).
+    :attr:`analysis_effective_sample_size` is the Kish size ``(sum w)^2 / sum w^2``, which an
+    interval for a weighted analysis uses instead of the row count.
     """
 
     def __init__(
@@ -1125,6 +1141,61 @@ class SampleSplit(ScientificResult):
         self.analysis: Mapping[str, np.ndarray] = analysis
 
     @property
+    def discovery_row_ids(self) -> np.ndarray:
+        """Original row index of each discovery row, in the part's row order."""
+        return np.asarray(self._handle.discovery_row_ids(), dtype=np.int64)
+
+    @property
+    def analysis_row_ids(self) -> np.ndarray:
+        """Original row index of each analysis row, in the part's row order."""
+        return np.asarray(self._handle.analysis_row_ids(), dtype=np.int64)
+
+    def participants(
+        self, data: Mapping[str, Any], column: str, *, require_disjoint: bool = True
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Original participant labels of the ``(discovery, analysis)`` rows, in part order.
+
+        ``column`` of ``data`` (the source table that was split) holds the participant of
+        every original row, strings or whole numbers; each part's labels are read at its
+        original row ids. A participant with rows on both sides would let the analysis part
+        reuse what discovery saw, so by default that is refused.
+
+        Raises:
+            CausalValueError: the table does not have the split's row count, a label is
+                missing, or a participant appears in both parts.
+        """
+        binding, _ = encode_identifier(data, column, what="participant", keep_rows=True)
+        if binding.rows != self.receipt.n_rows:
+            raise CausalValueError(
+                f"participant column {column!r} labels {binding.rows} rows; the split was made "
+                f"on {self.receipt.n_rows}",
+                reason_code="invalid_argument",
+            )
+        labels = binding.row_labels
+        discovery = tuple(labels[int(row)] for row in self.discovery_row_ids)
+        analysis = tuple(labels[int(row)] for row in self.analysis_row_ids)
+        shared = sorted(set(discovery) & set(analysis))
+        if require_disjoint and shared:
+            raise CausalValueError(
+                f"participants {shared[:5]} have rows in both the discovery and the analysis "
+                "part; split by participant so that no participant is on both sides",
+                reason_code="invalid_argument",
+            )
+        return discovery, analysis
+
+    @property
+    def analysis_weights(self) -> np.ndarray | None:
+        """Weights of the analysis rows, unnormalized; ``None`` for an unweighted source."""
+        weights = self._handle.analysis_weights()
+        return None if weights is None else np.asarray(weights, dtype=np.float64)
+
+    @property
+    def analysis_effective_sample_size(self) -> float | None:
+        """Kish effective sample size of the analysis weights; ``None`` when unweighted."""
+        weights = self.receipt.weights
+        return None if weights is None else float(weights["analysis_effective_sample_size"])
+
+    @property
     def report(self) -> RunReport:
         """What the discovery request did (stage plan, observed work)."""
         return self._report
@@ -1136,10 +1207,15 @@ class SampleSplit(ScientificResult):
         return SplitReceipt(
             rule=freeze(wire["rule"]),
             n_rows=int(wire["n_rows"]),
+            masked_out_rows=tuple(int(r) for r in wire["masked_out_rows"]),
+            incomplete_rows=tuple(int(r) for r in wire["incomplete_rows"]),
             n_discovery=int(wire["n_discovery"]),
             n_analysis=int(wire["n_analysis"]),
             discovery_rows_identity=str(wire["discovery_rows_identity"]),
             analysis_rows_identity=str(wire["analysis_rows_identity"]),
+            mask_identity=None if wire["mask_identity"] is None else str(wire["mask_identity"]),
+            weights=None if wire["weights"] is None else freeze(wire["weights"]),
+            source_data_identity=str(wire["source_data_identity"]),
             discovery_data_identity=str(wire["discovery_data_identity"]),
             analysis_data_identity=str(wire["analysis_data_identity"]),
             identity=str(wire["identity"]),
@@ -1153,12 +1229,51 @@ class SampleSplit(ScientificResult):
         return _outcome(self._handle.outcome_json(), self._names)
 
     def verify(self) -> None:
-        """Re-derive the partition from the rule and check the stored identities.
+        """Re-derive the partition and check the receipt against both parts.
+
+        The partition is re-derived from the rule and the recorded exclusions; the stored
+        identities, the parts' original row ids, masks, weights and content are checked against
+        the receipt.
 
         Raises:
-            SelectiveDiscoveryRefusal: ``split_not_disjoint`` or ``split_receipt_mismatch``.
+            SelectiveDiscoveryRefusal: ``split_not_disjoint``, ``split_receipt_mismatch``,
+                ``split_rows_mismatch``, ``split_mask_mismatch`` or ``split_weights_mismatch``.
         """
         _raise(self._handle.verify())
+
+    def verify_source(
+        self,
+        data: Mapping[str, Any],
+        *,
+        weights: Sequence[float] | None = None,
+        mask: Sequence[bool] | None = None,
+    ) -> None:
+        """Replay the split on the source table and require it to be the one that was split.
+
+        ``data``, ``weights`` and ``mask`` are the source table as it is now. A different mask or
+        different weights are refused by name before the split is replayed.
+
+        Raises:
+            SelectiveDiscoveryRefusal: ``split_mask_mismatch``, ``split_weights_mismatch``,
+                ``split_source_mismatch`` or a refusal of the replayed split.
+        """
+        columns = self._table_columns(data)
+        _raise(
+            self._handle.verify_source(list(self._names), columns, _weights(weights), _mask(mask))
+        )
+
+    def _table_columns(self, data: Mapping[str, Any]) -> list[np.ndarray]:
+        if not isinstance(data, Mapping):
+            raise CausalTypeError("data must map variable names to 1-D arrays")
+        columns = []
+        for name in self._names:
+            if name not in data:
+                raise CausalValueError(f"data has no column {name!r}")
+            column = np.ascontiguousarray(np.asarray(data[name], dtype=np.float64))
+            if column.ndim != 1:
+                raise CausalValueError(f"column {name!r} must be 1-D")
+            columns.append(column)
+        return columns
 
     def evidence_sources(self, snapshot_id: bytes) -> tuple[SourceDeclaration, SourceDeclaration]:
         """The two parts as evidence-ledger sources, ``(discovery, analysis)``.
@@ -1176,24 +1291,19 @@ class SampleSplit(ScientificResult):
         wire = json.loads(text)
         return _declaration(wire["discovery"]), _declaration(wire["analysis"])
 
-    def check_analysis_table(self, data: Mapping[str, Any]) -> AnalysisBinding:
-        """Check that ``data`` is exactly the analysis part and bind it to this discovery.
+    def check_analysis_table(
+        self, data: Mapping[str, Any], *, weights: Sequence[float] | None = None
+    ) -> AnalysisBinding:
+        """Check that ``data`` (and its ``weights``) are exactly the analysis part.
 
         Raises:
             SelectiveDiscoveryRefusal: ``selective_discovery.analysis_rows_not_the_split_part``
-                for the discovery rows, the unsplit table or any other rows.
+                for the discovery rows, the unsplit table, re-weighted rows or any other rows.
         """
-        if not isinstance(data, Mapping):
-            raise CausalTypeError("data must map variable names to 1-D arrays")
-        columns = []
-        for name in self._names:
-            if name not in data:
-                raise CausalValueError(f"data has no column {name!r}")
-            column = np.ascontiguousarray(np.asarray(data[name], dtype=np.float64))
-            if column.ndim != 1:
-                raise CausalValueError(f"column {name!r} must be 1-D")
-            columns.append(column)
-        text, refusal = self._handle.check_analysis_table(list(self._names), columns)
+        columns = self._table_columns(data)
+        text, refusal = self._handle.check_analysis_table(
+            list(self._names), columns, _weights(weights)
+        )
         _raise(refusal)
         assert text is not None
         wire = json.loads(text)
@@ -1222,20 +1332,32 @@ def discover_on_split(
     discovery_fraction: float | None = None,
     seed: int | None = None,
     discovery_rows: Sequence[int] | None = None,
+    weights: Sequence[float] | None = None,
+    mask: Sequence[bool] | None = None,
     threads: int | None = None,
     cancel: Any = None,
 ) -> SampleSplit:
     """Split the rows of ``data`` and discover on the discovery part only.
 
-    Declare the split either as ``discovery_rows`` (the rows discovery may use; every other row
-    is an analysis row) or as ``discovery_fraction`` with ``seed`` (a seeded permutation; the
-    first ``round(fraction * n)`` rows of the permutation are discovery rows). ``data`` must hold
-    every searched variable as a 1-D float array; rows are assumed exchangeable.
+    Declare the split either as ``discovery_rows`` (original row indices the discovery part
+    takes; every other eligible row is an analysis row) or as ``discovery_fraction`` with
+    ``seed`` (a seeded permutation of the eligible rows; the first ``round(fraction * n)`` of
+    them are discovery rows). ``data`` must hold every searched variable as a 1-D float array;
+    rows are assumed exchangeable.
+
+    Rows are filtered before they are split: first by ``mask`` (a boolean array, ``True`` keeps
+    the row), then to the rows with no missing (``NaN``) value in a searched variable. The
+    excluded rows are recorded in the receipt and belong to neither part, and the rule only
+    ever sees the rows that remain. ``weights`` (one non-negative weight per row) are carried to
+    the part of their row unchanged and unnormalized; use ``ci_test="weighted_parcorr"`` so
+    that discovery reads the discovery part's weights (weights under any other test, or that
+    test without weights, are refused).
 
     Raises:
-        SelectiveDiscoveryRefusal: weighted, masked or non-numeric rows
+        SelectiveDiscoveryRefusal: non-numeric rows
             (``selective_discovery.split_unsupported_rows``), a rule that leaves a part empty,
-            repeats or exceeds a row, or a refused contract.
+            repeats, exceeds or names an excluded row, a part without positive weight, weights
+            the declared test does not read, or a refused contract.
         CausalDiscoveryError: the algorithm failed or was cancelled.
     """
     if not isinstance(contract, StaticContract):
@@ -1263,6 +1385,8 @@ def discover_on_split(
         list(contract.variables),
         columns,
         json.dumps(rule, sort_keys=True),
+        weights=_weights(weights),
+        mask=_mask(mask),
         threads=threads,
         cancel=cancel,
     )

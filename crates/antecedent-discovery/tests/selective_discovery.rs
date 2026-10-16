@@ -830,3 +830,251 @@ fn exhausted_search_bound_is_preserved_identically_by_selective_and_full_runs() 
         (a, b) => panic!("selective and full disagree: {a:?} vs {b:?}"),
     }
 }
+
+// -- background knowledge --------------------------------------------------------------------
+
+fn contemp(source: u32, target: u32) -> LaggedLink {
+    LaggedLink {
+        source: VariableId::from_raw(source),
+        source_lag: Lag::CONTEMPORANEOUS,
+        target: VariableId::from_raw(target),
+        target_lag: Lag::CONTEMPORANEOUS,
+    }
+}
+
+fn tiers(layers: &[&[u32]]) -> Arc<[Arc<[VariableId]>]> {
+    layers.iter().map(|ids| ids.iter().copied().map(VariableId::from_raw).collect()).collect()
+}
+
+/// `0 -> 1 -> 2` as a d-separation oracle: no v-structure, so PC returns the undirected chain.
+fn chain_contract(algorithm: StaticAlgorithm) -> StaticDiscoveryContract {
+    let oracle = DsepOracle { parents: vec![vec![], vec![0], vec![1]], nodes: vec![0, 1, 2] };
+    let mut contract = StaticDiscoveryContract::new(
+        algorithm,
+        vars(&[0, 1, 2]),
+        CiTestSpec::declared("dsep-oracle:chain", Arc::new(oracle)),
+        SEED,
+    );
+    contract.fdr = None;
+    contract
+}
+
+/// The marks `(at a, at b)` of the edge between variables `a < b`, if it is in the structure.
+fn marks(outcome: &DiscoveryOutcome, a: u32, b: u32) -> Option<(Mark, Mark)> {
+    outcome
+        .structure
+        .edges()
+        .iter()
+        .find(|e| (e.a.variable, e.b.variable) == (a, b))
+        .map(|e| (e.at_a, e.at_b))
+}
+
+#[test]
+fn a_required_link_orients_the_chain_and_meek_propagates_it() {
+    let data = collider_table(40, 70);
+    let (plain, _) = full_static(&chain_contract(StaticAlgorithm::Pc), &data);
+    assert_eq!(marks(&plain, 0, 1), Some((Mark::Tail, Mark::Tail)));
+
+    let mut contract = chain_contract(StaticAlgorithm::Pc);
+    contract.constraints.required = Arc::from([contemp(0, 1)]);
+    let (outcome, _) = full_static(&contract, &data);
+    // 0 -> 1 is stated; 0 and 2 are non-adjacent, so Meek rule 1 gives 1 -> 2.
+    assert_eq!(marks(&outcome, 0, 1), Some((Mark::Tail, Mark::Arrow)));
+    assert_eq!(marks(&outcome, 1, 2), Some((Mark::Tail, Mark::Arrow)));
+    assert!(outcome.structure.is_fully_directed());
+    assert_ne!(outcome.structure_identity, plain.structure_identity);
+}
+
+#[test]
+fn tiers_orient_pc_and_place_arrowheads_only_in_fci() {
+    let data = collider_table(40, 71);
+    let mut pc = chain_contract(StaticAlgorithm::Pc);
+    pc.constraints.tiers = tiers(&[&[0], &[1], &[2]]);
+    let (outcome, _) = full_static(&pc, &data);
+    assert_eq!(marks(&outcome, 0, 1), Some((Mark::Tail, Mark::Arrow)));
+    assert_eq!(marks(&outcome, 1, 2), Some((Mark::Tail, Mark::Arrow)));
+
+    // In a PAG a later tier excludes a tail at the later end, so the earlier end keeps its
+    // circle; rule R1 then turns 1 o-> 2 after the arrowhead at 1 into 1 -> 2.
+    let mut fci = chain_contract(StaticAlgorithm::Fci);
+    fci.constraints.tiers = tiers(&[&[0], &[1], &[2]]);
+    let (outcome, _) = full_static(&fci, &data);
+    assert_eq!(marks(&outcome, 0, 1), Some((Mark::Circle, Mark::Arrow)));
+    assert_eq!(marks(&outcome, 1, 2), Some((Mark::Tail, Mark::Arrow)));
+}
+
+#[test]
+fn a_required_link_in_fci_is_adjacency_plus_tail_and_arrow() {
+    let data = collider_table(40, 72);
+    let mut fci = chain_contract(StaticAlgorithm::Fci);
+    fci.constraints.required = Arc::from([contemp(1, 0)]);
+    let (outcome, _) = full_static(&fci, &data);
+    assert_eq!(marks(&outcome, 0, 1), Some((Mark::Arrow, Mark::Tail)));
+}
+
+#[test]
+fn refused_knowledge_names_its_reason_and_detail() {
+    let refusal = |contract: &StaticDiscoveryContract| contract.validate().unwrap_err();
+    let mut contradictory = chain_contract(StaticAlgorithm::Pc);
+    contradictory.constraints.required = Arc::from([contemp(0, 1)]);
+    contradictory.constraints.forbidden = Arc::from([contemp(0, 1)]);
+    let error = refusal(&contradictory);
+    assert_eq!(error.detail(), Some("selective_discovery.background_knowledge_contradictory"));
+    assert_eq!(error.code(), Some("invalid_argument"));
+
+    let mut unknown = chain_contract(StaticAlgorithm::Pc);
+    unknown.constraints.forbidden = Arc::from([contemp(0, 9)]);
+    let error = refusal(&unknown);
+    assert_eq!(error.detail(), Some("selective_discovery.background_knowledge_unknown_variable"));
+    assert_eq!(error.code(), Some("unknown_variable"));
+
+    // A static contract with a lagged link has nothing to search it in.
+    let mut lagged = chain_contract(StaticAlgorithm::Pc);
+    lagged.constraints.forbidden =
+        Arc::from([LaggedLink { source_lag: Lag::from_raw(1), ..contemp(0, 1) }]);
+    let error = refusal(&lagged);
+    assert_eq!(error.detail(), Some("selective_discovery.background_knowledge_not_applicable"));
+    assert_eq!(error.code(), Some("option_not_applicable"));
+    // The parent limit is enforced by PC and FCI, so their contracts accept it.
+    for algorithm in [StaticAlgorithm::Pc, StaticAlgorithm::Fci] {
+        let mut capped = chain_contract(algorithm);
+        capped.constraints.max_parents = Some(1);
+        capped.validate().unwrap();
+    }
+
+    // PCMCI enforces a parent limit, but a required link outside its lag window cannot hold.
+    let mut series = TemporalDiscoveryContract::new(
+        TemporalAlgorithm::Pcmci,
+        vars(&[0, 1]),
+        CiTestSpec::named("parcorr"),
+        SEED,
+    );
+    series.constraints.max_parents = Some(1);
+    series.validate().unwrap();
+    series.constraints.required = Arc::from([contemp(0, 1)]);
+    let error = series.validate().unwrap_err();
+    assert_eq!(error.detail(), Some("selective_discovery.background_knowledge_not_applicable"));
+}
+
+#[test]
+fn the_contract_identity_changes_with_each_background_knowledge_statement() {
+    let base = chain_contract(StaticAlgorithm::Pc);
+    let identity = base.identity().unwrap();
+    let mut seen = vec![identity];
+    let mut edit = |change: &dyn Fn(&mut StaticDiscoveryContract)| {
+        let mut contract = base.clone();
+        change(&mut contract);
+        let id = contract.identity().unwrap();
+        assert!(!seen.contains(&id), "an edit left the identity unchanged");
+        seen.push(id);
+    };
+    edit(&|c| c.constraints.required = Arc::from([contemp(0, 1)]));
+    edit(&|c| c.constraints.forbidden = Arc::from([contemp(2, 0)]));
+    edit(&|c| c.constraints.tiers = tiers(&[&[0], &[1, 2]]));
+
+    // The parent limit is background knowledge too.
+    let series = TemporalDiscoveryContract::new(
+        TemporalAlgorithm::Pcmci,
+        vars(&[0, 1]),
+        CiTestSpec::named("parcorr"),
+        SEED,
+    );
+    let mut capped = series.clone();
+    capped.constraints.max_parents = Some(2);
+    assert_ne!(series.identity().unwrap(), capped.identity().unwrap());
+    let mut capped_again = series.clone();
+    capped_again.constraints.max_parents = Some(3);
+    assert_ne!(capped.identity().unwrap(), capped_again.identity().unwrap());
+}
+
+// -- background knowledge in PCMCI+ -------------------------------------------------------------
+
+/// `x` white noise, `y = 0.9 x + 0.4 e` in the same step, `z` white noise: one contemporaneous
+/// edge `x - y` that no collider can orient.
+fn contemporaneous_pair(n: usize, seed: u64) -> TimeSeriesData {
+    let mut rng = Lcg(seed);
+    let (mut x, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for t in 0..n {
+        x[t] = rng.normal();
+        y[t] = 0.9 * x[t] + 0.4 * rng.normal();
+        z[t] = rng.normal();
+    }
+    TimeSeriesData::from_f64_columns(
+        [("x", x.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
+        1,
+    )
+    .unwrap()
+}
+
+fn pcmci_plus_contract() -> TemporalDiscoveryContract {
+    let mut contract = TemporalDiscoveryContract::new(
+        TemporalAlgorithm::PcmciPlus,
+        vars(&[0, 1, 2]),
+        CiTestSpec::named("parcorr"),
+        SEED,
+    );
+    contract.constraints.temporal.min_lag = Lag::CONTEMPORANEOUS;
+    contract.constraints.temporal.max_lag = Lag::from_raw(1);
+    contract.constraints.alpha = 0.001;
+    contract.fdr = None;
+    contract
+}
+
+/// Marks `(at x, at y)` of the contemporaneous edge between variables 0 and 1.
+fn contemporaneous_marks(outcome: &DiscoveryOutcome) -> Option<(Mark, Mark)> {
+    outcome.structure.edges().iter().find_map(|e| {
+        let both_now = e.a.aux == 0 && e.b.aux == 0;
+        match (e.a.variable, e.b.variable) {
+            (0, 1) if both_now => Some((e.at_a, e.at_b)),
+            (1, 0) if both_now => Some((e.at_b, e.at_a)),
+            _ => None,
+        }
+    })
+}
+
+#[test]
+fn pcmci_plus_orients_a_contemporaneous_edge_by_knowledge() {
+    let data = contemporaneous_pair(1500, 90);
+    let (plain, _) = full_temporal(&pcmci_plus_contract(), &data);
+    assert_eq!(contemporaneous_marks(&plain), Some((Mark::Tail, Mark::Tail)));
+
+    let mut tiered = pcmci_plus_contract();
+    tiered.constraints.tiers = tiers(&[&[0], &[1]]);
+    let (outcome, _) = full_temporal(&tiered, &data);
+    assert_eq!(contemporaneous_marks(&outcome), Some((Mark::Tail, Mark::Arrow)));
+
+    let mut required = pcmci_plus_contract();
+    required.constraints.required = Arc::from([contemp(1, 0)]);
+    let (outcome, _) = full_temporal(&required, &data);
+    assert_eq!(contemporaneous_marks(&outcome), Some((Mark::Arrow, Mark::Tail)));
+    assert_ne!(outcome.result_identity, plain.result_identity);
+
+    let mut forbidden = pcmci_plus_contract();
+    forbidden.constraints.forbidden = Arc::from([contemp(0, 1)]);
+    let (outcome, _) = full_temporal(&forbidden, &data);
+    assert_eq!(contemporaneous_marks(&outcome), Some((Mark::Arrow, Mark::Tail)));
+}
+
+#[test]
+fn a_required_link_is_in_the_output_even_when_its_own_test_would_drop_it() {
+    // z is independent noise: its lagged link to y fails every test, but the statement stands.
+    let data = contemporaneous_pair(1500, 91);
+    let lagged = LaggedLink { source_lag: Lag::from_raw(1), ..contemp(2, 1) };
+    let mut contract = pcmci_plus_contract();
+    contract.constraints.required = Arc::from([lagged]);
+    let (outcome, _) = full_temporal(&contract, &data);
+    let present = outcome.structure.edges().iter().any(|e| {
+        let vars = (e.a.variable, e.b.variable);
+        (vars == (2, 1) || vars == (1, 2)) && (e.a.aux == 1 || e.b.aux == 1)
+    });
+    assert!(present, "{:?}", outcome.structure.edges());
+}
+
+#[test]
+fn contradictory_knowledge_is_refused_by_pcmci_plus() {
+    let mut contract = pcmci_plus_contract();
+    contract.constraints.required = Arc::from([contemp(0, 1)]);
+    contract.constraints.tiers = tiers(&[&[1], &[0]]);
+    let error = contract.validate().unwrap_err();
+    assert_eq!(error.detail(), Some("selective_discovery.background_knowledge_contradictory"));
+}

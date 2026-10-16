@@ -724,6 +724,7 @@ fn discover_ci_screened_posterior(
             ci: ci_impl,
             screen_pc: false,
             max_subset: None,
+            knowledge: antecedent::discovery::BackgroundKnowledge::default(),
         };
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin);
         let post = facade_discover_ci_screened(

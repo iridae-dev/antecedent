@@ -1586,6 +1586,7 @@ fn static_discover_params() -> StaticDiscoverParams {
         ci: resolve_ci("parcorr", None).unwrap(),
         screen_pc: false,
         max_subset: None,
+        knowledge: antecedent_discovery::BackgroundKnowledge::default(),
     }
 }
 
@@ -1597,6 +1598,7 @@ fn temporal_discover_params(max_lag: u32) -> DiscoverParams {
         ci: resolve_ci("parcorr", None).unwrap(),
         multi_dataset: MultiDatasetConstraints::default(),
         max_cond_size: 2,
+        knowledge: antecedent_discovery::BackgroundKnowledge::default(),
     }
 }
 

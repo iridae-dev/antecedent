@@ -7,6 +7,18 @@
 //! rows, and returns an [`AnalysisBinding`] that a claim carries so the discovery and the
 //! split it rests on are part of the claim's identity.
 //!
+//! # Order of operations, masks and weights
+//!
+//! Rows are filtered before they are split: first the analysis mask, then complete cases over
+//! the searched variables; the excluded rows are recorded in the receipt and belong to neither
+//! part, and the rule assigns only the rows that remain. Weights are gathered with their rows,
+//! unnormalized; weighted discovery reads the discovery part's weights through
+//! `weighted_parcorr`, and the analysis part's weights, original row ids and Kish effective
+//! sample size are exposed for a downstream weighted estimate
+//! ([`SplitDiscovery::analysis_weights`], [`SplitDiscovery::analysis_row_ids`],
+//! [`SplitDiscovery::analysis_effective_sample_size`]). The derivation, the estimands and the
+//! normalization contract are in `antecedent_discovery::selective::reuse`.
+//!
 //! # What the binding licenses
 //!
 //! Because discovery saw none of the analysis rows, an analysis of those rows that treats the
@@ -37,13 +49,17 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::sync::Arc;
+
 use antecedent_contract::evidence_ledger::SourceDeclaration;
 use antecedent_core::{CanonicalWriter, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_discovery::selective::{
-    DiscoveryOutcome, SelectiveDiscoveryError, SelectiveRunReport, StaticDiscoveryContract,
-    StaticSelectiveDiscovery, request_downstream_interval,
+    CiTestSpec, DiscoveryOutcome, SelectiveDiscoveryError, SelectiveRunReport,
+    StaticDiscoveryContract, StaticSelectiveDiscovery, column_digest, digest_hex,
+    request_downstream_interval,
 };
+use antecedent_stats::WeightedPartialCorrelation;
 
 pub use antecedent_discovery::selective::reuse::{
     SampleSplitReceipt, SplitRows, SplitRule, split_rows,
@@ -96,16 +112,67 @@ impl AnalysisBinding {
     }
 }
 
+/// Test names that read the table's observation weights.
+const WEIGHTED_TESTS: [&str; 2] = ["weighted_parcorr", "weighted_partial_corr"];
+
+/// The contract discovery runs under on `part`.
+///
+/// Weighted discovery uses the weighted partial-correlation test on the discovery part's own
+/// weights (its identity names the weights, so a retained statistic is served only to the same
+/// weights). A weight that no declared test reads, or a weighted test without weights, is
+/// refused: a split must not drop weights silently or invent them.
+fn contract_on_part(
+    contract: &StaticDiscoveryContract,
+    part: &TabularData,
+) -> Result<StaticDiscoveryContract, SelectiveDiscoveryError> {
+    let weighted_test = matches!(
+        &contract.ci_test,
+        CiTestSpec::Named(name)
+            if WEIGHTED_TESTS.contains(&name.trim().to_ascii_lowercase().as_str())
+    );
+    let refuse = |detail, remedy: &str| {
+        SelectiveDiscoveryError::refused(
+            antecedent_core::reason_code!("option_not_applicable"),
+            detail,
+            remedy,
+        )
+    };
+    match (part.storage().weights(), weighted_test) {
+        (None, false) => Ok(contract.clone()),
+        (Some(weights), true) => {
+            let mut weighted = contract.clone();
+            weighted.ci_test = CiTestSpec::declared(
+                format!("weighted_parcorr:weights={}", digest_hex(&column_digest(weights))),
+                Arc::new(WeightedPartialCorrelation::new(weights.to_vec())),
+            );
+            Ok(weighted)
+        }
+        (Some(_), false) => Err(refuse(
+            "selective_discovery.weights_not_read_by_test",
+            "the table carries observation weights but the declared test ignores them; declare \
+             `weighted_parcorr`, or split an unweighted table",
+        )),
+        (None, true) => Err(refuse(
+            "selective_discovery.weighted_test_without_weights",
+            "`weighted_parcorr` needs observation weights and the table carries none",
+        )),
+    }
+}
+
 /// Split `data` by `rule` and run `contract` on the discovery part.
 ///
-/// The receipt records the content of both parts over `contract.variables`. The analysis part
-/// carries every column of `data`, so an analysis may use covariates discovery did not search.
+/// Rows are filtered (analysis mask, then complete cases over `contract.variables`) before they
+/// are split; see [`split_rows`]. The receipt records the exclusions and the content of the
+/// source and of both parts over `contract.variables`. The analysis part carries every column
+/// of `data`, so an analysis may use covariates discovery did not search, and the weights of
+/// its rows, unnormalized ([`SplitDiscovery::analysis_weights`]).
 ///
 /// # Errors
 ///
-/// Weighted or masked rows, a non-numeric column, a rule that leaves a part empty or names a
-/// row twice or out of range (all refused before discovery runs), or a refused contract or an
-/// algorithm failure or cancellation in discovery.
+/// A non-numeric column, a rule that leaves a part empty or names a row twice, out of range or
+/// excluded, a part without positive weight, weights that the declared test does not read (or a
+/// weighted test without weights; all refused before discovery runs), or a refused contract or
+/// an algorithm failure or cancellation in discovery.
 pub fn discover_on_split(
     contract: &StaticDiscoveryContract,
     data: &TabularData,
@@ -113,8 +180,9 @@ pub fn discover_on_split(
     ctx: &ExecutionContext,
 ) -> Result<SplitDiscovery, SelectiveDiscoveryError> {
     let split = split_rows(data, &contract.variables, rule)?;
+    let contract = contract_on_part(contract, &split.discovery)?;
     let mut adapter = StaticSelectiveDiscovery::new();
-    let report = adapter.run(contract, &split.discovery, ctx)?;
+    let report = adapter.run(&contract, &split.discovery, ctx)?;
     let outcome = adapter.outcome().cloned().ok_or_else(|| {
         SelectiveDiscoveryError::refused(
             antecedent_core::reason_code!("invalid_argument"),
@@ -144,6 +212,30 @@ impl SplitDiscovery {
         &self.split.receipt
     }
 
+    /// The original row index of each analysis row, in the part's row order.
+    #[must_use]
+    pub fn analysis_row_ids(&self) -> &[usize] {
+        &self.split.analysis_row_ids
+    }
+
+    /// The original row index of each discovery row, in the part's row order.
+    #[must_use]
+    pub fn discovery_row_ids(&self) -> &[usize] {
+        &self.split.discovery_row_ids
+    }
+
+    /// The weights of the analysis rows, unnormalized, or `None` for an unweighted source.
+    #[must_use]
+    pub fn analysis_weights(&self) -> Option<&[f64]> {
+        self.split.analysis_weights()
+    }
+
+    /// Kish effective sample size of the analysis weights (`None` when unweighted).
+    #[must_use]
+    pub fn analysis_effective_sample_size(&self) -> Option<f64> {
+        self.split.analysis_effective_sample_size()
+    }
+
     /// The structure discovery returned on the discovery part.
     #[must_use]
     pub const fn outcome(&self) -> &DiscoveryOutcome {
@@ -156,13 +248,26 @@ impl SplitDiscovery {
         &self.report
     }
 
-    /// Re-derive the partition from the rule and check the stored identities.
+    /// Re-derive the partition from the rule and the recorded exclusions, and check the stored
+    /// identities, the parts' row ids, masks, weights and content against the receipt.
     ///
     /// # Errors
     ///
-    /// As [`SampleSplitReceipt::verify`].
+    /// As [`SplitRows::verify`].
     pub fn verify(&self) -> Result<(), SelectiveDiscoveryError> {
-        self.split.receipt.verify()
+        self.split.verify(&self.variables)
+    }
+
+    /// Replay the split on `source` and require it to be the table the receipt describes.
+    ///
+    /// # Errors
+    ///
+    /// As [`SampleSplitReceipt::verify_against_source`].
+    pub fn verify_against_source(
+        &self,
+        source: &TabularData,
+    ) -> Result<(), SelectiveDiscoveryError> {
+        self.split.receipt.verify_against_source(source, &self.variables)
     }
 
     /// Check that `table` is the receipt's analysis part and bind it to this discovery.
@@ -214,6 +319,9 @@ impl SplitDiscovery {
 /// part then overlaps it on exactly the rows it holds, and the two parts are independent of
 /// each other.
 ///
+/// The rows are the original row indices of the split table, so an excluded row belongs to
+/// neither part.
+///
 /// # Errors
 ///
 /// A receipt whose rule no longer assigns rows (as [`SampleSplitReceipt::verify`]).
@@ -221,8 +329,7 @@ pub fn split_evidence_sources(
     receipt: &SampleSplitReceipt,
     snapshot_id: &[u8],
 ) -> Result<(SourceDeclaration, SourceDeclaration), SelectiveDiscoveryError> {
-    receipt.verify()?;
-    let (discovery, analysis) = receipt.rule.assign(receipt.n_rows)?;
+    let (discovery, analysis) = receipt.assigned_rows()?;
     Ok((
         discovery_rows_source("discovery rows of the split", snapshot_id, &discovery),
         discovery_rows_source("analysis rows of the split", snapshot_id, &analysis),

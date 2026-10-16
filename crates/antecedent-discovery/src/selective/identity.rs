@@ -15,6 +15,10 @@ use antecedent_data::{
 use crate::error::DiscoveryError;
 
 /// Version word written into every selective-discovery identity.
+///
+/// The version is unchanged since identities were introduced: later inputs (split exclusions,
+/// mask and weights in a split receipt, background knowledge in a result) enter an identity
+/// only when present, so an identity derived without them is the one derived before they existed.
 pub const SELECTIVE_IDENTITY_VERSION: u64 = 1;
 
 const COLUMN_TAG: &str = "antecedent.selective_discovery.column.v1";

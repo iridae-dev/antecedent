@@ -65,6 +65,7 @@ nav:
     - Prior bank: priors.md
     - Graph uncertainty: graph_uncertainty.md
     - Selective discovery: selective-discovery.md
+    - Background knowledge in discovery: guides/discovery-background-knowledge.md
   - Transport:
     - Transport and interference: transport-interference.md
     - Transport failures: guides/transport-failure.md

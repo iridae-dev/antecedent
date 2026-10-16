@@ -180,7 +180,7 @@ class AcceptedGraph:
     or constructing a new handle may replace structure and bump :attr:`version`.
     """
 
-    __slots__ = ("_graph", "_version", "_algorithm_id")
+    __slots__ = ("_graph", "_version", "_algorithm_id", "_background_knowledge")
 
     def __init__(
         self,
@@ -188,12 +188,14 @@ class AcceptedGraph:
         *,
         version: int = 1,
         algorithm_id: str | None = None,
+        background_knowledge: str | None = None,
     ) -> None:
         if version < 1:
             raise CausalValueError("version must be >= 1")
         self._graph = graph
         self._version = int(version)
         self._algorithm_id = algorithm_id
+        self._background_knowledge = background_knowledge
 
     @property
     def graph(self) -> _GraphTypes:
@@ -206,6 +208,17 @@ class AcceptedGraph:
     @property
     def algorithm_id(self) -> str | None:
         return self._algorithm_id
+
+    @property
+    def background_knowledge(self) -> str | None:
+        """Hex digest of the background knowledge the structure was discovered under.
+
+        ``None`` for a hand-authored graph and for a discovery that was given none. The digest
+        is part of this handle's serialized identity (:meth:`to_json`), so a graph discovered
+        under different required or forbidden links, tiers or parent limit is a different
+        artifact.
+        """
+        return self._background_knowledge
 
     @classmethod
     def from_graph(
@@ -234,7 +247,12 @@ class AcceptedGraph:
             graph: _GraphTypes = _result_to_temporal_graph(result, algo)
         else:
             graph = _result_to_graph(result, algo)
-        return cls(graph, version=version, algorithm_id=algo)
+        return cls(
+            graph,
+            version=version,
+            algorithm_id=algo,
+            background_knowledge=getattr(result, "background_knowledge", None),
+        )
 
     def replace(
         self,
@@ -247,6 +265,7 @@ class AcceptedGraph:
             graph,
             version=self._version + 1,
             algorithm_id=algorithm_id if algorithm_id is not None else self._algorithm_id,
+            background_knowledge=self._background_knowledge,
         )
 
     def rediscover(
@@ -264,7 +283,12 @@ class AcceptedGraph:
         else:
             result, algo = run_static_discovery(data, discovery, seed=seed, threads=threads)
             graph = _result_to_graph(result, algo)
-        return AcceptedGraph(graph, version=self._version + 1, algorithm_id=algo)
+        return AcceptedGraph(
+            graph,
+            version=self._version + 1,
+            algorithm_id=algo,
+            background_knowledge=getattr(result, "background_knowledge", None),
+        )
 
     @property
     def pending(self) -> tuple[PendingEdge, ...]:
@@ -339,18 +363,16 @@ class AcceptedGraph:
     def to_json(self) -> str:
         """Serialize for durable hold (JSON interchange, not CBOR wire)."""
         kind, payload = _encode_graph(self._graph)
-        return json.dumps(
-            {
-                "format": "causal.AcceptedGraph/v1",
-                "version": self._version,
-                "algorithm_id": self._algorithm_id,
-                "kind": kind,
-                "payload": payload,
-            },
-            separators=(",", ":"),
-            sort_keys=True,
-            allow_nan=False,
-        )
+        wire: dict[str, Any] = {
+            "format": "causal.AcceptedGraph/v1",
+            "version": self._version,
+            "algorithm_id": self._algorithm_id,
+            "kind": kind,
+            "payload": payload,
+        }
+        if self._background_knowledge is not None:
+            wire["background_knowledge"] = self._background_knowledge
+        return json.dumps(wire, separators=(",", ":"), sort_keys=True, allow_nan=False)
 
     @classmethod
     def from_json(cls, s: str) -> AcceptedGraph:
@@ -363,6 +385,7 @@ class AcceptedGraph:
             graph,
             version=int(obj["version"]),
             algorithm_id=obj.get("algorithm_id"),
+            background_knowledge=obj.get("background_knowledge"),
         )
 
     def __len__(self) -> int:
@@ -512,7 +535,9 @@ def accept_discovery(
         # test stand-in) is held through the structural conversion instead.
         return AcceptedGraph.from_discovery(result, algorithm_id=config.algorithm_id)
     return AcceptedGraph(
-        accept(accept_discovered=accept_discovered), algorithm_id=config.algorithm_id
+        accept(accept_discovered=accept_discovered),
+        algorithm_id=config.algorithm_id,
+        background_knowledge=getattr(result, "background_knowledge", None),
     )
 
 

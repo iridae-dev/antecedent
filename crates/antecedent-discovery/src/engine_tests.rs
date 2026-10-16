@@ -384,7 +384,7 @@ fn mci_conditioning_shifts_source_parents_by_link_lag() {
     let parents_target = [(x, Lag::from_raw(2)), (y, Lag::from_raw(1))];
     let parents_source = [(x, Lag::from_raw(1))];
     let mut out = Vec::new();
-    let dropped = mci_conditioning(link, &parents_target, &parents_source, &mut out);
+    let dropped = mci_conditioning(link, &parents_target, &parents_source, usize::MAX, &mut out);
     assert_eq!(dropped, 0);
     assert_eq!(out, vec![(y, Lag::from_raw(1)), (x, Lag::from_raw(3))]);
 }
@@ -392,14 +392,12 @@ fn mci_conditioning_shifts_source_parents_by_link_lag() {
 /// The budget must bind on the lagged block *before* a caller prepends its own conditions.
 ///
 /// PCMCI+ appends a contemporaneous candidate set `S` to the MCI conditioning set. It used
-/// to prepend `S` and then truncate the combined vector to 30 — but truncation drops from
+/// to prepend `S` and then truncate the combined vector — but truncation drops from
 /// the tail, which is the lagged MCI block. That block is the fixed control set that makes
 /// the MCI test valid under autocorrelation, so the optional candidates were evicting the
 /// mandatory ones. Reserving the budget up front keeps that from happening.
 #[test]
-fn mci_conditioning_bounded_reserves_room_for_caller_conditions() {
-    use crate::engine::mci_conditioning_bounded;
-
+fn mci_conditioning_reserves_room_for_caller_conditions() {
     let y = VariableId::from_raw(99);
     let link = LaggedLink {
         source: VariableId::from_raw(98),
@@ -407,28 +405,212 @@ fn mci_conditioning_bounded_reserves_room_for_caller_conditions() {
         target: y,
         target_lag: Lag::CONTEMPORANEOUS,
     };
-    // 40 distinct lagged parents of the target — well past the 30-column cap.
+    // 40 distinct lagged parents of the target: no fixed column cap truncates them.
     let parents_target: Vec<(VariableId, Lag)> =
         (0..40).map(|i| (VariableId::from_raw(i), Lag::from_raw(1))).collect();
 
-    // Unbounded: fills the full 30 and reports the overflow.
+    // Unbounded: all 40 conditions are kept and nothing is dropped.
     let mut out = Vec::new();
-    let dropped = mci_conditioning(link, &parents_target, &[], &mut out);
-    assert_eq!(out.len(), 30);
-    assert_eq!(dropped, 10);
+    let dropped = mci_conditioning(link, &parents_target, &[], usize::MAX, &mut out);
+    assert_eq!(out.len(), 40);
+    assert_eq!(dropped, 0);
 
-    // Reserving 3 slots for `S` leaves 27 lagged conditions and accounts for all 13 drops,
-    // so the caller's 3 conditions fit without evicting anything after the fact.
+    // Reserving 3 slots for `S` out of 30 leaves 27 lagged conditions and accounts for all 13
+    // drops, so the caller's 3 conditions fit without evicting anything after the fact.
     let mut out = Vec::new();
-    let dropped = mci_conditioning_bounded(link, &parents_target, &[], 27, &mut out);
+    let dropped = mci_conditioning(link, &parents_target, &[], 27, &mut out);
     assert_eq!(out.len(), 27);
     assert_eq!(dropped, 13);
+    assert_eq!(out[..], parents_target[..27]);
 
-    // A budget above the kernel cap is still clamped by it.
+    // A budget above the set size drops nothing.
     let mut out = Vec::new();
-    let dropped = mci_conditioning_bounded(link, &parents_target, &[], 1000, &mut out);
-    assert_eq!(out.len(), 30);
-    assert_eq!(dropped, 10);
+    let dropped = mci_conditioning(link, &parents_target, &[], 1000, &mut out);
+    assert_eq!(out.len(), 40);
+    assert_eq!(dropped, 0);
+}
+
+/// Deterministic uniform draws on `(-0.5, 0.5)`.
+fn uniform_draws(state: &mut u64, n: usize) -> Vec<f64> {
+    (0..n)
+        .map(|_| {
+            *state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            ((*state >> 11) as f64) / ((1u64 << 53) as f64) - 0.5
+        })
+        .collect()
+}
+
+/// Partial correlation of `x` and `y` given `z`, by residualising both on `[1, z…]` through
+/// the normal equations (Gaussian elimination with partial pivoting). Independent of the
+/// production kernel.
+fn reference_partial_correlation(x: &[f64], y: &[f64], z: &[&[f64]]) -> f64 {
+    let n = x.len();
+    let centre = |v: &[f64]| {
+        let mean = v.iter().sum::<f64>() / n as f64;
+        v.iter().map(|e| e - mean).collect::<Vec<f64>>()
+    };
+    let (x, y) = (centre(x), centre(y));
+    let z: Vec<Vec<f64>> = z.iter().map(|c| centre(c)).collect();
+    let p = z.len();
+    let dot = |a: &[f64], b: &[f64]| a.iter().zip(b).map(|(u, v)| u * v).sum::<f64>();
+    let residual = |target: &[f64]| {
+        // Augmented normal equations [Z'Z | Z'target].
+        let mut m = vec![vec![0.0; p + 1]; p];
+        for i in 0..p {
+            for j in 0..p {
+                m[i][j] = dot(&z[i], &z[j]);
+            }
+            m[i][p] = dot(&z[i], target);
+        }
+        for col in 0..p {
+            let pivot =
+                (col..p).max_by(|&a, &b| m[a][col].abs().total_cmp(&m[b][col].abs())).unwrap();
+            m.swap(col, pivot);
+            for row in (col + 1)..p {
+                let factor = m[row][col] / m[col][col];
+                for k in col..=p {
+                    let v = m[col][k];
+                    m[row][k] -= factor * v;
+                }
+            }
+        }
+        let mut beta = vec![0.0; p];
+        for i in (0..p).rev() {
+            let tail: f64 = ((i + 1)..p).map(|j| m[i][j] * beta[j]).sum();
+            beta[i] = (m[i][p] - tail) / m[i][i];
+        }
+        (0..n)
+            .map(|t| target[t] - (0..p).map(|j| beta[j] * z[j][t]).sum::<f64>())
+            .collect::<Vec<f64>>()
+    };
+    let (rx, ry) = (residual(&x), residual(&y));
+    dot(&rx, &ry) / (dot(&rx, &rx) * dot(&ry, &ry)).sqrt()
+}
+
+/// `2 + conditioning` columns on 400 rows: `x`, `y` and `conditioning` independent draws with
+/// `x` and `y` both loading on the first few of them.
+fn wide_conditioning_series(conditioning: usize) -> (TimeSeriesData, Vec<VariableId>) {
+    let n = 400usize;
+    let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+    let z: Vec<Vec<f64>> = (0..conditioning).map(|_| uniform_draws(&mut state, n)).collect();
+    let noise_x = uniform_draws(&mut state, n);
+    let noise_y = uniform_draws(&mut state, n);
+    let x: Vec<f64> = (0..n).map(|t| 0.4 * z[0][t] + 0.3 * z[1][t] + noise_x[t]).collect();
+    let y: Vec<f64> =
+        (0..n).map(|t| 0.5 * x[t] + 0.2 * z[0][t] + 0.1 * z[2][t] + noise_y[t]).collect();
+    let mut b = CausalSchemaBuilder::new();
+    let names: Vec<String> = ["x".to_owned(), "y".to_owned()]
+        .into_iter()
+        .chain((0..conditioning).map(|j| format!("z{j}")))
+        .collect();
+    for name in &names {
+        b.add_variable(
+            name.as_str(),
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let cols: Vec<OwnedColumn> = [x, y]
+        .into_iter()
+        .chain(z)
+        .enumerate()
+        .map(|(i, values)| {
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(u32::try_from(i).unwrap()),
+                    Arc::from(values),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            )
+        })
+        .collect();
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+    let data = TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap();
+    let vars = (0..names.len()).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect();
+    (data, vars)
+}
+
+#[test]
+fn a_forty_column_conditioning_set_matches_an_independent_partial_correlation() {
+    // 42 columns in one CI query: past the old 32-column ceiling.
+    let conditioning = 40;
+    let (data, vars) = wide_conditioning_series(conditioning);
+    let frame =
+        LaggedFrame::from_series(&data, &vars, 1, &antecedent_core::KernelPolicy::default_policy())
+            .unwrap();
+    let engine = PcmciEngine::new().with_constraints(constraints());
+    let mut ws = DiscoveryWorkspace::default();
+    let ctx = ExecutionContext::for_tests(1);
+    let x = VariableId::from_raw(0);
+    let y = VariableId::from_raw(1);
+    let link = LaggedLink {
+        source: x,
+        source_lag: Lag::CONTEMPORANEOUS,
+        target: y,
+        target_lag: Lag::CONTEMPORANEOUS,
+    };
+    let cond: Vec<(VariableId, Lag)> = (0..conditioning)
+        .map(|j| (VariableId::from_raw(u32::try_from(2 + j).unwrap()), Lag::CONTEMPORANEOUS))
+        .collect();
+    let (statistic, p_value) = engine.ci_statistic(&frame, link, &cond, &mut ws, &ctx).unwrap();
+
+    let column = |v: VariableId| frame.column(frame.column_index(v, Lag::CONTEMPORANEOUS).unwrap());
+    let given: Vec<&[f64]> = cond.iter().map(|&(v, _)| column(v)).collect();
+    let expected = reference_partial_correlation(column(x), column(y), &given);
+    assert!(
+        (statistic - expected).abs() < 1e-8,
+        "engine partial correlation {statistic} vs independent {expected}"
+    );
+    // x drives y, so the dependence given the 40 others is strong.
+    assert!(expected.abs() > 0.3 && p_value < 1e-6, "r={expected}, p={p_value}");
+
+    // The batch path carries the same 40-column set.
+    let sets: Vec<&[(VariableId, Lag)]> = vec![&cond, &cond[..39]];
+    let batch = engine.ci_batch(&frame, link, &sets, &mut ws, &ctx).expect("batchable");
+    assert!((batch[0].statistic - expected).abs() < 1e-8);
+}
+
+#[test]
+fn a_conditioning_set_over_the_memory_limit_is_refused_not_truncated() {
+    let (data, vars) = wide_conditioning_series(40);
+    let frame =
+        LaggedFrame::from_series(&data, &vars, 1, &antecedent_core::KernelPolicy::default_policy())
+            .unwrap();
+    let engine = PcmciEngine::new().with_constraints(constraints());
+    let mut ws = DiscoveryWorkspace::default();
+    let link = LaggedLink {
+        source: VariableId::from_raw(0),
+        source_lag: Lag::CONTEMPORANEOUS,
+        target: VariableId::from_raw(1),
+        target_lag: Lag::CONTEMPORANEOUS,
+    };
+    let cond: Vec<(VariableId, Lag)> =
+        (2..42u32).map(|raw| (VariableId::from_raw(raw), Lag::CONTEMPORANEOUS)).collect();
+    let mut tight = ExecutionContext::for_tests(1);
+    tight.memory.hard_limit_bytes = Some(10_000);
+    let error = engine.ci_statistic(&frame, link, &cond, &mut ws, &tight).unwrap_err();
+    assert!(matches!(error, DiscoveryError::Resource(_)), "{error:?}");
+
+    // The capacity is the largest conditioning set the limit admits.
+    let rows = frame.column(0).len();
+    let limit = 400_000;
+    tight.memory.hard_limit_bytes = Some(limit);
+    let capacity = ci_conditioning_capacity(&frame, &tight);
+    assert!(ci_query_bytes(rows, capacity) <= limit);
+    assert!(ci_query_bytes(rows, capacity + 1) > limit);
+    assert_eq!(ci_conditioning_capacity(&frame, &ExecutionContext::for_tests(1)), usize::MAX);
 }
 
 #[test]
@@ -446,7 +628,7 @@ fn mci_conditioning_keeps_shifted_autocorrelation_parent() {
     let parents_target = [(x, Lag::from_raw(1))];
     let parents_source = [(x, Lag::from_raw(1))];
     let mut out = Vec::new();
-    let dropped = mci_conditioning(link, &parents_target, &parents_source, &mut out);
+    let dropped = mci_conditioning(link, &parents_target, &parents_source, usize::MAX, &mut out);
     assert_eq!(dropped, 0);
     assert_eq!(out, vec![(x, Lag::from_raw(2))]);
 }
@@ -653,7 +835,7 @@ fn mci_conditioning_shifts_target_parents_by_target_lag() {
     let parents_target = [(z, Lag::from_raw(1))];
     let parents_source = [(w, Lag::from_raw(1))];
     let mut out = Vec::new();
-    let dropped = mci_conditioning(link, &parents_target, &parents_source, &mut out);
+    let dropped = mci_conditioning(link, &parents_target, &parents_source, usize::MAX, &mut out);
     assert_eq!(dropped, 0);
     assert_eq!(out, vec![(z, Lag::from_raw(3)), (w, Lag::from_raw(1))]);
 }

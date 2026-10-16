@@ -558,7 +558,18 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `selective_discovery.split_not_disjoint` | `invalid_argument` | Re-split the table. |
 | `selective_discovery.split_receipt_mismatch` | `invalid_argument` | Regenerate the receipt from the rule. |
 | `selective_discovery.analysis_rows_not_the_split_part` | `invalid_argument` | Analyse the analysis part the receipt names. |
-| `selective_discovery.split_unsupported_rows` | `route_not_supported` | Split an unweighted, unmasked float64 table. |
+| `selective_discovery.split_unsupported_rows` | `route_not_supported` | Split a float64 table. |
+| `selective_discovery.split_row_excluded` | `invalid_argument` | Name only eligible rows (inside the mask, complete in the searched variables). |
+| `selective_discovery.split_rows_mismatch` | `invalid_argument` | Re-split the table. |
+| `selective_discovery.split_mask_mismatch` | `invalid_argument` | Replay the split on the table it was made from. |
+| `selective_discovery.split_weights_mismatch` | `invalid_argument` | Replay the split on the table it was made from. |
+| `selective_discovery.split_source_mismatch` | `invalid_argument` | Replay the split on the table it was made from. |
+| `selective_discovery.split_part_weight_invalid` | `invalid_argument` | Give the rule rows that carry weight. |
+| `selective_discovery.weights_not_read_by_test` | `option_not_applicable` | Declare `weighted_parcorr`, or split an unweighted table. |
+| `selective_discovery.weighted_test_without_weights` | `option_not_applicable` | Supply observation weights, or declare an unweighted test. |
+| `selective_discovery.background_knowledge_contradictory` | `invalid_argument` | Remove the conflicting statement. |
+| `selective_discovery.background_knowledge_unknown_variable` | `unknown_variable` | Name only searched variables. |
+| `selective_discovery.background_knowledge_not_applicable` | `option_not_applicable` | Use an algorithm that enforces the statement, or drop it. |
 
 ### Provider-sourced transport and handoff
 

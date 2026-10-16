@@ -36,6 +36,30 @@ The data enter a run as a *data identity*: the content of each searched column a
 patterns, its name and type, the analysis mask and weights, and (temporal) the sampling
 index.
 
+## Background knowledge
+
+Background knowledge (`required`, `forbidden`, `tiers`, `max_parents`) is read by the
+contracts and by the ordinary classes (`PC`, `FCI`, `RFCI`, `GES`, `PCMCI`, `PCMCIPlus` take
+`knowledge=BackgroundKnowledge(...)`) through one wire parser, and has one digest: the
+`background_knowledge` input of the contract is the same value as
+`DiscoveryResult.background_knowledge`. A result's digest also covers the parent limit when one is given (a contract declares it under its search limits). What each
+algorithm does with each statement, and which statements it refuses, is one table, in
+[Background knowledge in discovery](guides/discovery-background-knowledge.md#what-each-algorithm-does-with-each-statement).
+In short:
+
+| Statement | PC | FCI | PCMCI | PCMCI+ |
+|---|---|---|---|---|
+| required `a -> b` | adjacency kept untested, oriented `a -> b`, Meek propagates | adjacency kept untested, tail at `a` and arrow at `b`, Zhang rules propagate | kept through parent selection, exempt from the parent limit, reported with its own statistic | as PCMCI, and a contemporaneous link is oriented `a -> b` before the collider rule |
+| forbidden `a -> b` | no edge if both directions are forbidden, else the pair is oriented `b -> a` | no edge if both are forbidden, else an arrowhead at `a` only | not a candidate | not a candidate |
+| tiers | forbid the later tier causing the earlier; orient across tiers | arrowheads only | forbid at every lag | forbid at every lag |
+| `max_parents` | restricts the adjacency search to at most `max_parents` possible-parent adjacencies per variable, reported when it binds | the same | caps the parent set parent selection keeps | as PCMCI |
+
+A contract refuses, with a `selective_discovery.background_knowledge_*` detail: statements
+that contradict each other (`invalid_argument`), a variable the contract does not search
+(`unknown_variable`), and a statement with no meaning for the algorithm
+(`option_not_applicable`: a lagged link in a static contract,
+a required link outside the lag window).
+
 ## Stages and their identities
 
 | Stage | Depends on | Reused when |
@@ -161,6 +185,61 @@ Limits: Portable receipts: 250000. Structure items: 65536.
   `request_downstream_interval` refuses with `cell_not_licensed`; selecting the graph and
   estimating on the same rows is not a construction with a measured coverage.
 
+### Splitting rows: filter, then split
+
+`antecedent::analysis::sample_split_analysis::discover_on_split` (Python:
+`selective_discovery.discover_on_split`) partitions the rows of a static table into a
+discovery part and an analysis part. The order of operations is fixed:
+
+1. **Filter by the analysis mask.** Rows outside the mask are excluded.
+2. **Filter to complete cases** over the searched variables. A row of the mask with a missing
+   cell in any of them is excluded. Covariates outside the searched variables keep their
+   missing cells in the analysis part.
+3. **Record the exclusions.** The receipt lists the masked-out rows and the incomplete rows
+   by original index; they belong to neither part.
+4. **Split the eligible rows.** A seeded permutation permutes only the eligible rows and
+   gives `round(fraction * n_eligible)` of them to discovery. An explicit rule names original
+   row indices; naming an excluded row is refused (`selective_discovery.split_row_excluded`).
+
+Filtering happens before the split so that completeness and the mask cannot decide a row's
+part, and so that the discovery part is a table the discovery algorithm can read without
+dropping rows (a weighted test needs one weight per row).
+
+*Preserved through the split.* Each part holds the original row id of every row
+(`SplitRows::discovery_row_ids` / `analysis_row_ids`, `SampleSplit.analysis_row_ids`), the
+weights of its rows, and the all-included analysis mask when the source had a mask. The
+receipt records the exclusions, the identity of the source mask and of the source,
+discovery and analysis weights, and the content identity of the source and both parts. The identity version is unchanged: exclusions, mask and weights enter the receipt identity only when present, so a split of a complete, unmasked, unweighted table keeps the identity it always had.
+
+*Weights.* Weights are gathered with their rows, bit for bit and unnormalized, so a part's
+weights sum to whatever its rows held. Zero weights are legitimate and stay in their part; a
+part without positive weight is refused (`split_part_weight_invalid`).
+
+* **Estimand.** The weights define the population the rows represent. Weighted discovery
+  (`ci_test="weighted_parcorr"`, read from the discovery part's own weights; weights under any
+  other test, or that test without weights, are refused) targets the conditional-independence
+  structure of that weighted population. The split is exchangeable in the weighted sense only
+  when the weights are fixed design weights rather than functions of the outcomes, which is
+  the caller's assertion.
+* **Normalization** belongs to the consumer, because it depends on what the weights mean
+  (a weighted mean divides by the sum of the analysis weights; a population total does not).
+  The analysis weights are exposed unscaled, with the source digest to show they were not
+  altered.
+* **Effective sample size.** A weighted interval uses the Kish size `(sum w)^2 / sum w^2`
+  of the analysis weights (`antecedent_kernels::kish_ess`), not the row count; both parts'
+  sizes are recorded in the receipt (`SplitWeights`). Downstream weighted estimation on the
+  analysis part is not wired here: the split exposes the weights, the original row ids and
+  the effective size for it.
+
+*What verification checks.* `SampleSplitReceipt::verify` re-derives the partition from the
+rule and the recorded exclusions and checks every stored identity (rows, exclusions, mask,
+weights, source and part contents). `SampleSplitReceipt::verify_against_source` replays the
+split on the table it was made from and refuses a changed mask
+(`split_mask_mismatch`), changed weights (`split_weights_mismatch`) or any other change
+(`split_source_mismatch`). `SplitRows::verify` checks the parts themselves: their original
+row ids (`split_rows_mismatch`), masks, weights and content. `check_analysis_table` accepts
+only the recorded analysis part, weights included.
+
 ### The interval that is licensed: the whole method on a row split
 
 `antecedent::analysis::sample_split_effect::estimate_effect_on_split` (Python:
@@ -239,7 +318,10 @@ interval, no posterior). Paradigm: neither Frequentist nor Bayesian output is pr
 
 ## Python surface
 
-`antecedent.selective_discovery`: `StaticContract`, `TemporalContract`, `SelectiveDiscovery`
+`antecedent.selective_discovery`: `StaticContract`, `TemporalContract`, `Link` (shared with
+`antecedent.discovery`, which also holds `BackgroundKnowledge`), `discover_on_split` (with `weights=` and
+`mask=`) and `SampleSplit` (`receipt`, `verify`, `verify_source`, `analysis_row_ids`,
+`analysis_weights`, `analysis_effective_sample_size`), `SelectiveDiscovery`
 (`run`, `plan`, `outcome`, `export_state`, `resume`, `request_recovery_claim`,
 `request_downstream_interval`, `request_selection_diagram`), `sample_split_effect` and `SplitEffect` (with `measure`), `Outcome` (structure with
 `unresolved_edges`, `directed_edges`, evidence, bounded-search receipts), `RunReport` and

@@ -6,6 +6,7 @@
 //! bit for bit, a direct run of the same contract on the discovery part.
 
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use antecedent::analysis::sample_split_analysis::{
     SplitRule, WHOLE_METHOD_CALIBRATION, discover_on_split, split_evidence_sources,
@@ -13,10 +14,12 @@ use antecedent::analysis::sample_split_analysis::{
 use antecedent::analysis::selective_discovery::discovery_data_source;
 use antecedent_contract::evidence_ledger::{EvidenceLedger, Overlap};
 use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_data::{TableView, TabularData, ValidityBitmap};
+use antecedent_data::{OwnedColumnarStorage, TableView, TabularData, ValidityBitmap};
 use antecedent_discovery::selective::{
-    CiTestSpec, StaticAlgorithm, StaticDiscoveryContract, StaticSelectiveDiscovery,
+    CiTestSpec, StaticAlgorithm, StaticDiscoveryContract, StaticSelectiveDiscovery, column_digest,
+    digest_hex,
 };
+use antecedent_stats::WeightedPartialCorrelation;
 
 const SEED: u64 = 8_675;
 const ROWS: usize = 500;
@@ -196,15 +199,122 @@ fn an_explicit_rule_names_the_discovery_rows_and_malformed_rules_are_refused() {
     );
 }
 
+/// `data` with the observation weights and analysis mask given (`mask[i]` keeps row `i`).
+fn with_rows(data: &TabularData, weights: Option<Vec<f64>>, mask: Option<&[bool]>) -> TabularData {
+    let storage = data.storage();
+    let mask = mask.map(|keep| {
+        let mut bytes = vec![0u8; keep.len().div_ceil(8)];
+        for (i, kept) in keep.iter().enumerate() {
+            if *kept {
+                bytes[i / 8] |= 1 << (i % 8);
+            }
+        }
+        ValidityBitmap::from_bytes(bytes, keep.len()).unwrap()
+    });
+    TabularData::new(
+        OwnedColumnarStorage::try_new(
+            storage.schema().clone(),
+            storage.columns().to_vec(),
+            mask,
+            weights.map(Arc::from),
+        )
+        .unwrap(),
+    )
+}
+
 #[test]
-fn masked_rows_are_not_split() {
+fn masked_rows_are_filtered_before_the_split_and_recorded_in_the_receipt() {
     let data = table(6);
-    let mut bytes = vec![0xFF_u8; ROWS.div_ceil(8)];
-    bytes[0] &= !1; // row 0 is outside the analysis mask
-    let masked = data.with_analysis_mask(ValidityBitmap::from_bytes(bytes, ROWS).unwrap()).unwrap();
-    let error = discover_on_split(&contract(), &masked, rule(1), &ctx()).unwrap_err();
-    assert_eq!(error.code(), Some("route_not_supported"));
-    assert_eq!(error.detail(), Some("selective_discovery.split_unsupported_rows"));
+    let mut keep = vec![true; ROWS];
+    keep[0] = false;
+    keep[17] = false;
+    let masked = with_rows(&data, None, Some(&keep));
+    let split = discover_on_split(&contract(), &masked, rule(1), &ctx()).unwrap();
+
+    let receipt = split.receipt();
+    assert_eq!(receipt.masked_out_rows, vec![0, 17]);
+    assert!(receipt.incomplete_rows.is_empty());
+    // The rule splits the 498 eligible rows: round(0.4 * 498) = 199.
+    assert_eq!((receipt.n_discovery, receipt.n_analysis), (199, 299));
+    split.verify().unwrap();
+
+    // The original row index of each part row is the `row` column's value; the two masked-out
+    // rows are in neither part.
+    assert_eq!(row_ids(split.discovery_rows()), split.discovery_row_ids());
+    assert_eq!(row_ids(split.analysis_rows()), split.analysis_row_ids());
+    let held: BTreeSet<usize> =
+        split.discovery_row_ids().iter().chain(split.analysis_row_ids()).copied().collect();
+    assert_eq!(held.len(), ROWS - 2);
+    assert!(!held.contains(&0) && !held.contains(&17));
+
+    // The mask is preserved: each part is the all-included mask of rows that passed it, and the
+    // check accepts the analysis part only with it.
+    assert!(split.analysis_rows().storage().analysis_mask().is_some());
+    split.check_analysis_table(split.analysis_rows()).unwrap();
+    split.verify_against_source(&masked).unwrap();
+    // The unmasked table is not the table that was split.
+    assert_eq!(
+        split.verify_against_source(&data).unwrap_err().detail(),
+        Some("selective_discovery.split_mask_mismatch")
+    );
+}
+
+#[test]
+fn weights_must_be_read_by_the_declared_test() {
+    let data = table(8);
+    let weighted = with_rows(&data, Some(vec![1.0; ROWS]), None);
+    let error = discover_on_split(&contract(), &weighted, rule(2), &ctx()).unwrap_err();
+    assert_eq!(error.code(), Some("option_not_applicable"));
+    assert_eq!(error.detail(), Some("selective_discovery.weights_not_read_by_test"));
+
+    let mut weighted_test = contract();
+    weighted_test.ci_test = CiTestSpec::named("weighted_parcorr");
+    let error = discover_on_split(&weighted_test, &data, rule(2), &ctx()).unwrap_err();
+    assert_eq!(error.code(), Some("option_not_applicable"));
+    assert_eq!(error.detail(), Some("selective_discovery.weighted_test_without_weights"));
+}
+
+#[test]
+fn weighted_discovery_reads_the_discovery_weights_and_the_analysis_weights_are_exposed() {
+    let data = table(9);
+    // Unequal weights with explicit zeros.
+    let weights: Vec<f64> = (0..ROWS).map(|i| [0.0, 1.0, 2.5, 4.0][i % 4]).collect();
+    let weighted = with_rows(&data, Some(weights.clone()), None);
+    let mut weighted_contract = contract();
+    weighted_contract.ci_test = CiTestSpec::named("weighted_parcorr");
+    let split = discover_on_split(&weighted_contract, &weighted, rule(3), &ctx()).unwrap();
+    split.verify().unwrap();
+
+    // The analysis weights are the source weights of the analysis rows, unnormalized.
+    let ids = split.analysis_row_ids();
+    let gathered: Vec<f64> = ids.iter().map(|&r| weights[r]).collect();
+    assert_eq!(split.analysis_weights(), Some(gathered.as_slice()));
+    let (sum, sum_sq) = gathered.iter().fold((0.0, 0.0), |(s, q), w| (s + w, q + w * w));
+    let kish = sum * sum / sum_sq;
+    assert!((split.analysis_effective_sample_size().unwrap() - kish).abs() < 1e-9 * kish);
+    assert!(kish < gathered.len() as f64, "unequal weights lose information");
+    assert!(sum > 1.0, "the gathered weights are not normalized");
+
+    // Discovery ran the weighted test on the discovery part's own weights: it equals a direct
+    // run of the same declaration on that part.
+    let part_weights = split.discovery_rows().storage().weights().unwrap().to_vec();
+    let mut direct_contract = contract();
+    direct_contract.ci_test = CiTestSpec::declared(
+        format!("weighted_parcorr:weights={}", digest_hex(&column_digest(&part_weights))),
+        Arc::new(WeightedPartialCorrelation::new(part_weights)),
+    );
+    let mut direct = StaticSelectiveDiscovery::new();
+    direct.run(&direct_contract, split.discovery_rows(), &ctx()).unwrap();
+    assert_eq!(split.outcome().result_identity, direct.outcome().unwrap().result_identity);
+
+    // Re-weighted analysis rows are other rows.
+    let other_weights = vec![1.0; split.analysis_rows().row_count()];
+    let reweighted = with_rows(split.analysis_rows(), Some(other_weights), None);
+    assert_eq!(
+        split.check_analysis_table(&reweighted).unwrap_err().detail(),
+        Some("selective_discovery.analysis_rows_not_the_split_part")
+    );
+    split.check_analysis_table(split.analysis_rows()).unwrap();
 }
 
 #[test]

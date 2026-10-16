@@ -11,6 +11,7 @@ return types; the per-algorithm knowledge itself lives on the config classes.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
@@ -72,7 +73,8 @@ from ._native import (
 from ._native import (
     discover_structure_mcmc as _discover_structure_mcmc,
 )
-from .errors import CausalTypeError, CausalValueError
+from ._validate import count as _count
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
 # Re-exported. The definitions live in `graph`, a leaf importing only `_native` and
 # `errors`, so `_coerce` can reach `cpdag_oriented_edges` without importing this module.
@@ -98,24 +100,163 @@ def _ci_str(ci: CiSpec) -> str:
     return ci if isinstance(ci, str) else "parcorr"
 
 
+@dataclass(frozen=True, slots=True)
+class Link:
+    """A directed lagged link ``source[t - source_lag] -> target[t - target_lag]`` by name."""
+
+    source: str
+    target: str
+    source_lag: int = 0
+    target_lag: int = 0
+
+
+def _variable_name(value: object, what: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise CausalTypeError(f"{what} must be a non-empty string")
+    return value
+
+
+def _lag(value: object) -> int:
+    return _count(value, "lag", minimum=0, maximum=2**32 - 1)
+
+
+@dataclass(frozen=True, slots=True)
+class BackgroundKnowledge:
+    """What the analyst asserts about the graph before the data are consulted.
+
+    ``required`` links must be in the graph, ``forbidden`` links must not, ``tiers`` order the
+    variables (a variable in a later tier cannot cause one in an earlier tier; variables in no
+    tier are unconstrained), and ``max_parents`` bounds the parents of each variable. Statements
+    name variables, and are checked against the searched variables when the discovery runs.
+
+    The same statement is read by the ordinary discovery classes (``PC``, ``FCI``, ``GES``,
+    ``PCMCI``) and by the selective-discovery contracts, and has one digest
+    (``DiscoveryResult.background_knowledge``) that changes exactly when the statements do.
+    What each algorithm does with a statement, and which it refuses, is the table in the
+    discovery guide: a statement an algorithm cannot honour is refused, never ignored.
+    """
+
+    required: tuple[Link, ...] = ()
+    forbidden: tuple[Link, ...] = ()
+    tiers: tuple[tuple[str, ...], ...] = ()
+    max_parents: int | None = None
+
+    def __post_init__(self) -> None:
+        for field_name in ("required", "forbidden"):
+            links = tuple(getattr(self, field_name))
+            for link in links:
+                if not isinstance(link, Link):
+                    raise CausalTypeError(f"{field_name} must hold Link objects")
+            object.__setattr__(self, field_name, links)
+        tiers = tuple(tuple(tier) for tier in self.tiers)
+        for tier in tiers:
+            for name in tier:
+                _variable_name(name, "a tier member")
+        object.__setattr__(self, "tiers", tiers)
+        if self.max_parents is not None:
+            object.__setattr__(
+                self, "max_parents", _count(self.max_parents, "max_parents", minimum=0)
+            )
+
+    @property
+    def is_empty(self) -> bool:
+        """Whether nothing is asserted."""
+        return not (self.required or self.forbidden or self.tiers or self.max_parents is not None)
+
+    def as_dict(self) -> dict[str, Any]:
+        """The statements by variable name, in a form that round-trips and prints."""
+
+        def link(item: Link) -> list[Any]:
+            return [item.source, item.source_lag, item.target, item.target_lag]
+
+        out: dict[str, Any] = {
+            "required": [link(item) for item in self.required],
+            "forbidden": [link(item) for item in self.forbidden],
+            "tiers": [list(tier) for tier in self.tiers],
+        }
+        if self.max_parents is not None:
+            out["max_parents"] = self.max_parents
+        return out
+
+    def to_wire(self, names: Sequence[str]) -> dict[str, Any]:
+        """The statements by position in ``names``, as the native layer reads them.
+
+        The one translation both discovery paths use. A name outside ``names`` is refused with
+        reason code ``unknown_variable``.
+        """
+        index = {name: i for i, name in enumerate(names)}
+
+        def at(name: str) -> int:
+            _variable_name(name, "variable")
+            try:
+                return index[name]
+            except KeyError:
+                raise CausalUnsupportedError(
+                    f"background knowledge names {name!r}, which is not one of the searched "
+                    f"variables {tuple(names)}",
+                    reason_code="unknown_variable",
+                ) from None
+
+        def link(item: Link) -> list[int]:
+            return [
+                at(item.source),
+                _lag(item.source_lag),
+                at(item.target),
+                _lag(item.target_lag),
+            ]
+
+        wire: dict[str, Any] = {
+            "required": [link(item) for item in self.required],
+            "forbidden": [link(item) for item in self.forbidden],
+            "tiers": [[at(name) for name in tier] for tier in self.tiers],
+        }
+        if self.max_parents is not None:
+            wire["max_parents"] = self.max_parents
+        return wire
+
+
+def _knowledge_kwargs(
+    knowledge: BackgroundKnowledge | None, names: Sequence[str]
+) -> dict[str, str]:
+    """The native ``background_knowledge`` argument for a run over ``names``, if any."""
+    if knowledge is None:
+        return {}
+    if not isinstance(knowledge, BackgroundKnowledge):
+        raise CausalTypeError("knowledge must be a BackgroundKnowledge")
+    if knowledge.is_empty:
+        return {}
+    return {"background_knowledge": json.dumps(knowledge.to_wire(names), sort_keys=True)}
+
+
+def _wire_knowledge(wire: dict[str, Any], knowledge: BackgroundKnowledge | None) -> dict[str, Any]:
+    """``wire`` with the by-name statements of non-empty ``knowledge`` added."""
+    if knowledge is not None and not knowledge.is_empty:
+        wire["background_knowledge"] = knowledge.as_dict()
+    return wire
+
+
 @dataclass(frozen=True)
 class PC:
     alpha: float = 0.05
     fdr: bool = True
     ci: CiSpec = "parcorr"
     max_cond_size: int = 2
+    knowledge: BackgroundKnowledge | None = None
     kind: Literal["pc"] = "pc"
 
     algorithm_id: ClassVar[str] = "pc"
 
     def _wire(self) -> dict[str, Any]:
-        return {
-            "algorithm": "pc",
-            "alpha": self.alpha,
-            "fdr": self.fdr,
-            "ci": self.ci,
-            "max_cond_size": self.max_cond_size,
-        }
+        return _wire_knowledge(
+            {
+                "algorithm": "pc",
+                "alpha": self.alpha,
+                "fdr": self.fdr,
+                "ci": self.ci,
+                "max_cond_size": self.max_cond_size,
+            },
+            self.knowledge,
+        )
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
@@ -128,6 +269,7 @@ class PC:
             threads=threads,
             ci=self.ci,
             max_cond_size=self.max_cond_size,
+            **_knowledge_kwargs(self.knowledge, names),
         )
 
     def accept(
@@ -157,19 +299,23 @@ class PCMCI:
     fdr: bool = True
     ci: CiSpec = "parcorr"
     max_cond_size: int = 2
+    knowledge: BackgroundKnowledge | None = None
     kind: Literal["pcmci"] = "pcmci"
 
     algorithm_id: ClassVar[str] = "pcmci"
 
     def _wire(self) -> dict[str, Any]:
-        return {
-            "algorithm": "pcmci",
-            "max_lag": self.max_lag,
-            "alpha": self.alpha,
-            "fdr": self.fdr,
-            "ci": self.ci,
-            "max_cond_size": self.max_cond_size,
-        }
+        return _wire_knowledge(
+            {
+                "algorithm": "pcmci",
+                "max_lag": self.max_lag,
+                "alpha": self.alpha,
+                "fdr": self.fdr,
+                "ci": self.ci,
+                "max_cond_size": self.max_cond_size,
+            },
+            self.knowledge,
+        )
 
     def run(
         self,
@@ -192,6 +338,7 @@ class PCMCI:
             weights=weights,
             threads=threads,
             max_cond_size=self.max_cond_size,
+            **_knowledge_kwargs(self.knowledge, names),
         )
 
     def accept(
@@ -221,6 +368,7 @@ class PCMCIPlus:
     fdr: bool = True
     ci: CiSpec = "parcorr"
     max_cond_size: int = 2
+    knowledge: BackgroundKnowledge | None = None
     kind: Literal["pcmci_plus"] = "pcmci_plus"
 
     # NB: asymmetric on purpose. ``run_temporal_discovery`` has always
@@ -230,14 +378,17 @@ class PCMCIPlus:
     algorithm_id: ClassVar[str] = "pcmci+"
 
     def _wire(self) -> dict[str, Any]:
-        return {
-            "algorithm": "pcmci_plus",
-            "max_lag": self.max_lag,
-            "alpha": self.alpha,
-            "fdr": self.fdr,
-            "ci": self.ci,
-            "max_cond_size": self.max_cond_size,
-        }
+        return _wire_knowledge(
+            {
+                "algorithm": "pcmci_plus",
+                "max_lag": self.max_lag,
+                "alpha": self.alpha,
+                "fdr": self.fdr,
+                "ci": self.ci,
+                "max_cond_size": self.max_cond_size,
+            },
+            self.knowledge,
+        )
 
     def run(
         self,
@@ -260,6 +411,7 @@ class PCMCIPlus:
             weights=weights,
             threads=threads,
             max_cond_size=self.max_cond_size,
+            **_knowledge_kwargs(self.knowledge, names),
         )
 
     def accept(
@@ -524,18 +676,22 @@ class GES:
     max_cond_size: int = 2
     screen_pc: bool = False
     max_subset: int | None = None
+    knowledge: BackgroundKnowledge | None = None
     kind: Literal["ges"] = "ges"
 
     algorithm_id: ClassVar[str] = "ges"
 
     def _wire(self) -> dict[str, Any]:
-        return {
-            "algorithm": "ges",
-            "alpha": self.alpha,
-            "fdr": self.fdr,
-            "ci": self.ci,
-            "max_cond_size": self.max_cond_size,
-        }
+        return _wire_knowledge(
+            {
+                "algorithm": "ges",
+                "alpha": self.alpha,
+                "fdr": self.fdr,
+                "ci": self.ci,
+                "max_cond_size": self.max_cond_size,
+            },
+            self.knowledge,
+        )
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
@@ -550,6 +706,7 @@ class GES:
             max_cond_size=self.max_cond_size,
             screen_pc=self.screen_pc,
             max_subset=self.max_subset,
+            **_knowledge_kwargs(self.knowledge, names),
         )
 
     def accept(
@@ -682,18 +839,22 @@ class FCI:
     fdr: bool = True
     ci: CiSpec = "parcorr"
     max_cond_size: int = 2
+    knowledge: BackgroundKnowledge | None = None
     kind: Literal["fci"] = "fci"
 
     algorithm_id: ClassVar[str] = "fci"
 
     def _wire(self) -> dict[str, Any]:
-        return {
-            "algorithm": "fci",
-            "alpha": self.alpha,
-            "fdr": self.fdr,
-            "ci": self.ci,
-            "max_cond_size": self.max_cond_size,
-        }
+        return _wire_knowledge(
+            {
+                "algorithm": "fci",
+                "alpha": self.alpha,
+                "fdr": self.fdr,
+                "ci": self.ci,
+                "max_cond_size": self.max_cond_size,
+            },
+            self.knowledge,
+        )
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
@@ -706,6 +867,7 @@ class FCI:
             threads=threads,
             ci=self.ci,
             max_cond_size=self.max_cond_size,
+            **_knowledge_kwargs(self.knowledge, names),
         )
 
     def accept(
@@ -734,18 +896,22 @@ class RFCI:
     fdr: bool = True
     ci: CiSpec = "parcorr"
     max_cond_size: int = 2
+    knowledge: BackgroundKnowledge | None = None
     kind: Literal["rfci"] = "rfci"
 
     algorithm_id: ClassVar[str] = "rfci"
 
     def _wire(self) -> dict[str, Any]:
-        return {
-            "algorithm": "rfci",
-            "alpha": self.alpha,
-            "fdr": self.fdr,
-            "ci": self.ci,
-            "max_cond_size": self.max_cond_size,
-        }
+        return _wire_knowledge(
+            {
+                "algorithm": "rfci",
+                "alpha": self.alpha,
+                "fdr": self.fdr,
+                "ci": self.ci,
+                "max_cond_size": self.max_cond_size,
+            },
+            self.knowledge,
+        )
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
@@ -758,6 +924,7 @@ class RFCI:
             threads=threads,
             ci=self.ci,
             max_cond_size=self.max_cond_size,
+            **_knowledge_kwargs(self.knowledge, names),
         )
 
     def accept(
@@ -1113,6 +1280,7 @@ def graph_posterior_map_dag(post: GraphPosterior) -> Dag:
 
 
 __all__ = [
+    "BackgroundKnowledge",
     "CiScreenedPosterior",
     "DbnPosterior",
     "DiscoveredLink",
@@ -1125,6 +1293,7 @@ __all__ = [
     "JPCMCIPlus",
     "LPCMCI",
     "LiNGAM",
+    "Link",
     "NOTEARS",
     "OrderMcmc",
     "PC",

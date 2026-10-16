@@ -94,9 +94,9 @@ pub use ci::{
 pub use antecedent_stats::{FdrAdjustment, MultipleTestingMethod};
 pub use ci_screened_posterior::{CiScreenedPosterior, CiSoftWeight};
 pub use constraints::{
-    CandidateCatalog, CiMaskType, CompiledConstraints, ContextKind, CrossEnvLinkAssumption,
-    DiscoveryConstraints, JpcmciNodeRole, MultiDatasetConstraints, SpaceDummyCiMode,
-    TemporalConstraints, TimeDummyCiMode,
+    BackgroundKnowledge, CandidateCatalog, CiMaskType, CompiledConstraints, ContextKind,
+    CrossEnvLinkAssumption, DiscoveryConstraints, JpcmciNodeRole, KnowledgeFault, KnowledgeScope,
+    MultiDatasetConstraints, SpaceDummyCiMode, TemporalConstraints, TimeDummyCiMode,
 };
 pub use dbn_posterior::{
     DbnPosterior, temporal_cpdag_from_dbn_masks, temporal_dag_from_dbn_masks,

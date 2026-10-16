@@ -847,6 +847,7 @@ class PcmciDiscoveryResult:
     cpdag_undirected_edges: int
     graph_edges: list[GraphEdge]
     variable_names: list[str]
+    background_knowledge: str | None
 
     def accepted_graph(self, *, accept_discovered: bool = True) -> Any:
         """The reviewed accepted graph; refuses while edges are pending."""
@@ -2462,6 +2463,7 @@ def discover_pcmci(
     cancel: CancellationToken | None = None,
     max_cond_size: int = 2,
     unit_lengths: list[int] | None = None,
+    background_knowledge: str | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_pcmci_plus(
     names: list[str],
@@ -2477,6 +2479,7 @@ def discover_pcmci_plus(
     cancel: CancellationToken | None = None,
     max_cond_size: int = 2,
     unit_lengths: list[int] | None = None,
+    background_knowledge: str | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_pc(
     names: list[str],
@@ -2489,6 +2492,7 @@ def discover_pc(
     max_cond_size: int = 2,
     threads: int | None = None,
     cancel: CancellationToken | None = None,
+    background_knowledge: str | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_ges(
     names: list[str],
@@ -2503,6 +2507,7 @@ def discover_ges(
     cancel: CancellationToken | None = None,
     screen_pc: bool = False,
     max_subset: int | None = None,
+    background_knowledge: str | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_lingam(
     names: list[str],
@@ -2537,6 +2542,7 @@ def discover_fci(
     max_cond_size: int = 2,
     threads: int | None = None,
     cancel: CancellationToken | None = None,
+    background_knowledge: str | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_rfci(
     names: list[str],
@@ -2549,6 +2555,7 @@ def discover_rfci(
     max_cond_size: int = 2,
     threads: int | None = None,
     cancel: CancellationToken | None = None,
+    background_knowledge: str | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_lpcmci(
     names: list[str],
@@ -7385,8 +7392,18 @@ class SampleSplitDiscoveryHandle:
     def analysis_columns(self) -> list[Any]: ...
     def evidence_sources(self, snapshot_id: bytes) -> tuple[str | None, str | None]: ...
     def verify(self) -> str | None: ...
+    def discovery_row_ids(self) -> list[int]: ...
+    def analysis_row_ids(self) -> list[int]: ...
+    def analysis_weights(self) -> list[float] | None: ...
+    def verify_source(
+        self,
+        names: list[str],
+        columns: list[Any],
+        weights: list[float] | None,
+        mask: list[bool] | None,
+    ) -> str | None: ...
     def check_analysis_table(
-        self, names: list[str], columns: list[Any]
+        self, names: list[str], columns: list[Any], weights: list[float] | None
     ) -> tuple[str | None, str | None]: ...
     def request_unsplit_interval(self) -> str: ...
 
@@ -7417,6 +7434,8 @@ def sample_split_discover(
     columns: list[Any],
     rule_json: str,
     *,
+    weights: list[float] | None = None,
+    mask: list[bool] | None = None,
     threads: int | None = None,
     cancel: Any = None,
 ) -> tuple[SampleSplitDiscoveryHandle | None, str | None, str | None]: ...

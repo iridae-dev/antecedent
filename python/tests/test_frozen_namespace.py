@@ -278,6 +278,7 @@ _EXPECTED_STAGE_ALL = {
         "exact_randomization_test",
     },
     "discovery": {
+        "BackgroundKnowledge",
         "CiScreenedPosterior",
         "DbnPosterior",
         "DiscoveredLink",
@@ -290,6 +291,7 @@ _EXPECTED_STAGE_ALL = {
         "JPCMCIPlus",
         "LPCMCI",
         "LiNGAM",
+        "Link",
         "NOTEARS",
         "OrderMcmc",
         "PC",

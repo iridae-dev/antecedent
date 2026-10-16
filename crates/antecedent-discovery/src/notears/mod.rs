@@ -36,7 +36,7 @@ use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DagReview, DenseNodeId, NodeRef};
 use antecedent_stats::standardize_columns;
 
-use crate::constraints::DiscoveryConstraints;
+use crate::constraints::{DiscoveryConstraints, KnowledgeScope};
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::lingam::StaticDagDiscoveryResult;
@@ -161,6 +161,9 @@ impl Notears {
         ctx: &ExecutionContext,
     ) -> Result<NotearsDiscoveryResult, DiscoveryError> {
         self.constraints.validate()?;
+        self.constraints
+            .check_background_knowledge(KnowledgeScope::ScoreSearch, variables)
+            .map_err(DiscoveryError::Knowledge)?;
         if variables.is_empty() {
             return Err(DiscoveryError::Unsupported {
                 message: "NOTEARS requires at least one variable",
@@ -348,8 +351,13 @@ impl Notears {
             algorithm: AlgorithmRecord {
                 id: Arc::from("notears"),
                 config: Arc::from(format!(
-                    "lambda={} threshold={} standardize={} max_iter={} h_tol={}",
-                    self.lambda, self.threshold, self.standardize, self.max_iter, self.h_tol
+                    "lambda={} threshold={} standardize={} max_iter={} h_tol={}{}",
+                    self.lambda,
+                    self.threshold,
+                    self.standardize,
+                    self.max_iter,
+                    self.h_tol,
+                    self.constraints.knowledge_config()
                 )),
             },
             assumptions: discovery_assumptions("notears", true),
