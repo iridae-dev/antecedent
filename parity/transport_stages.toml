@@ -6189,6 +6189,12 @@ notes = "Rust facade route labelled assumption_range: the extremes over the decl
 route = "antecedent.evidence_ledger.pooled_interval"
 stage = "uncertainty"
 status = "licensed"
+graph = "not_applicable_no_graph"
+evidence = "measured_whole_method_coverage_record_attesting"
+functional = "pooled_mean_wald_z_or_hartung_knapp_t_interval"
+guarantee = "pooled_mean_interval_measured_fixed_effect_wald_and_random_effects_hksj_point_otherwise"
+evidence_test = "crates/antecedent/tests/evidence_ledger_facade.rs"
+evidence_assertion = "a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record"
 notes = "Measured Wald z (fixed effect) and Hartung-Knapp t (random effects) pooled-mean intervals bound to a currently attesting coverage record; other results refuse cell_not_licensed."
 
 [[routes]]
@@ -6704,6 +6710,12 @@ evidence_assertion = "the_ledger_declares_overlap_and_unknown_stays_unknown"
 route = "antecedent_estimate.counterfactual_transport_sampled.interval"
 stage = "uncertainty"
 status = "licensed"
+graph = "as_the_sampled_counterfactual_transport_route"
+evidence = "sampled_estimate_with_standard_error_and_measured_coverage_record_attesting"
+functional = "delta_method_wald_interval_of_the_sampled_counterfactual_transport_query"
+guarantee = "delta_wald_interval_measured_named_queries_independent_units_refused_unseen_cells"
+evidence_test = "crates/antecedent-io/tests/sampled_counterfactual_transport_artifact.rs"
+evidence_assertion = "a_measured_construction_reports_an_interval_bound_to_its_coverage_record"
 notes = "Delta-method Wald interval reported only as a measured scalar bound to a currently attesting coverage record (independent units, refused unseen cells, 250 to 4000 units per table, level 0.95); every other request refuses cell_not_licensed (detail counterfactual_transport_sampled.interval_not_licensed or measured_interval.protocol_not_measured)."
 
 # Python surface of general and sampled counterfactual transport (records
@@ -7120,6 +7132,12 @@ notes = "Accepted only under an explicit declaration naming the invariant modifi
 route = "antecedent.cohort_decision.interval"
 stage = "uncertainty"
 status = "licensed"
+graph = "as_the_cohort_mean_contrast_route"
+evidence = "natively_fitted_linear_effect_declared_cohort_and_measured_coverage_record_attesting"
+functional = "student_t_hc3_interval_of_the_declared_cohort_mean_effect"
+guarantee = "student_t_hc3_cohort_mean_interval_measured_native_linear_effect_fit_declared_export_point_only"
+evidence_test = "crates/antecedent-io/tests/cohort_interval_artifact.rs"
+evidence_assertion = "a_native_fit_is_bound_to_its_record_or_refused_for_want_of_one"
 notes = "Student-t interval of the declared-cohort mean of a natively fitted linear effect (OLS with an HC3 covariance), reported only as a measured scalar bound to a currently attesting coverage record; a caller-built export refuses cohort_decision.interval_requires_native_fit, a shifted cohort or portable model refuses cohort_decision.interval_not_licensed, and the model-based standard error alone stays a labelled diagnostic."
 
 [[routes]]
@@ -7193,6 +7211,12 @@ notes = "Rust facade route; point-only diagnostic, no interval or calibration. T
 route = "antecedent.decision_reliability.publish"
 stage = "uncertainty"
 status = "licensed"
+graph = "not_applicable_no_graph"
+evidence = "finite_candidate_set_of_draws_and_measured_coverage_record_attesting"
+functional = "published_ranking_probability_confidence_set_and_utility_interval"
+guarantee = "published_probability_and_interval_routes_resolved_from_current_coverage_record_at_the_coordinate_refused_elsewhere"
+evidence_test = "crates/antecedent-design/tests/decision_reliability.rs"
+evidence_assertion = "every_published_route_is_licensed_inside_a_measured_coverage_record"
 notes = "A ranking probability, optimality confidence set, utility interval or selection-corrected interval is published only where a current attesting coverage record measured it at its candidate-set size, Monte Carlo budget, selection rule, coupling and serial dependence; every other coordinate refuses cell_not_licensed."
 
 [[routes]]
@@ -7292,6 +7316,12 @@ notes = "Rust facade route closed with a typed refusal for an unscoped interval 
 route = "antecedent.predictive_assessment.expected_score_interval"
 stage = "uncertainty"
 status = "licensed"
+graph = "not_applicable_no_graph"
+evidence = "predictive_laws_realized_observations_and_measured_coverage_record_attesting"
+functional = "student_t_interval_of_the_expected_score_or_score_difference"
+guarantee = "expected_score_interval_resolved_from_current_coverage_record_unscoped_and_unmeasured_requests_refused"
+evidence_test = "crates/antecedent/tests/predictive_score_interval_facade.rs"
+evidence_assertion = "an_expected_score_interval_inside_a_measured_design_is_bound_to_its_record"
 notes = "The Student-t interval of one predictor's expected score (or of an expected difference) under a declared iid, serial or cluster dependence, for a held-out or unfitted predictor, bound to a currently attesting coverage record; any other design refuses cell_not_licensed."
 
 [[routes]]
@@ -7663,6 +7693,12 @@ notes = "A declared model's posterior probability is exact and has no sampling i
 route = "antecedent.analysis.count_fitted_observation.interval"
 stage = "uncertainty"
 status = "licensed"
+graph = "as_the_finite_law_conditioning_route"
+evidence = "count_fitted_tables_independent_dirichlet_posteriors_and_measured_coverage_record_attesting"
+functional = "equal_tailed_posterior_interval_of_the_fitted_conditional_probability"
+guarantee = "declared_model_has_no_sampling_interval_count_fitted_posterior_interval_measured"
+evidence_test = "crates/antecedent/tests/count_fitted_observation_facade.rs"
+evidence_assertion = "the_interval_is_bound_to_its_record_or_refused_for_want_of_one"
 notes = "Equal-tailed posterior interval of a conditional probability of count-fitted tables (independent Dirichlet posteriors, Monte Carlo with exact enumeration), reported only as a measured scalar bound to a currently attesting coverage record; every other request refuses cell_not_licensed."
 
 [[routes]]
@@ -7819,6 +7855,12 @@ notes = "Permanently closed adjacent route of the scientific bridge for an unsco
 route = "antecedent.scientific_bridge.bridged_interval"
 stage = "uncertainty"
 status = "licensed"
+graph = "as_the_typed_scientific_bridges"
+evidence = "bridged_claim_with_declared_source_standard_error_and_measured_coverage_record_attesting"
+functional = "interval_of_the_bridged_value_carried_through_the_declared_mapping"
+guarantee = "bridged_value_interval_from_declared_source_standard_error_resolved_from_current_coverage_record_unscoped_posterior_and_joint_law_refused"
+evidence_test = "crates/antecedent/tests/scientific_bridge_interval_facade.rs"
+evidence_assertion = "a_correction_inside_a_measured_record_is_published_bound_to_it"
 notes = "The interval of a bridged value from the source claim's declared standard error carried through the mapping: an exact transform for identity and affine maps, a measured prediction interval for the trial-level line and a measured delta-method interval for the misclassification correction; any other design refuses cell_not_licensed."
 
 [[routes]]
@@ -8213,18 +8255,36 @@ notes = "Closed adjacent route of adaptive-experiment inference: the request is 
 route = "antecedent.adaptive_inference.measured_interval"
 stage = "uncertainty"
 status = "licensed"
+graph = "as_the_adaptive_inference_records"
+evidence = "adaptive_procedure_result_and_measured_coverage_record_attesting"
+functional = "thompson_credible_interval_weighted_contrast_and_confidence_sequence"
+guarantee = "measured_interval_for_three_procedure_cells_fixed_sample_and_stopped_wald_closed"
+evidence_test = "crates/antecedent/tests/adaptive_inference_facade.rs"
+evidence_assertion = "a_thompson_credible_interval_inside_the_measured_range_is_bound_to_its_record"
 notes = "Measured adaptive intervals (Thompson credible interval of the second arm, epsilon-greedy repeated-measures weighted contrast, epsilon-greedy confidence sequence) bound to a currently attesting coverage record; every other procedure refuses cell_not_licensed."
 
 [[routes]]
 route = "antecedent.adaptive_inference.group_sequential.repeated_interval"
 stage = "uncertainty"
 status = "licensed"
+graph = "not_applicable_no_graph"
+evidence = "standardized_statistics_at_performed_looks_and_measured_coverage_record_attesting"
+functional = "repeated_confidence_interval_of_a_fixed_randomization_group_sequential_trial"
+guarantee = "alpha_spending_boundaries_point_and_repeated_confidence_interval_measured_stagewise_adjustment_closed"
+evidence_test = "crates/antecedent/tests/adaptive_inference_facade.rs"
+evidence_assertion = "a_group_sequential_repeated_interval_is_bound_to_its_record"
 notes = "Measured repeated confidence interval of a fixed-randomization group-sequential trial bound to a currently attesting coverage record; stagewise-adjusted inference stays closed."
 
 [[routes]]
 route = "antecedent.cross_world_execution.measured_interval"
 stage = "uncertainty"
 status = "licensed"
+graph = "finite_markovian_scm"
+evidence = "executed_finite_markovian_row_declared_unit_sampling_and_measured_coverage_record_attesting"
+functional = "whole_path_interval_of_the_executed_row_under_the_declared_model"
+guarantee = "measured_interval_under_the_declared_model_from_60_units_posterior_and_sampled_abduction_closed"
+evidence_test = "python/tests/test_cross_world_execution.py"
+evidence_assertion = "test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record"
 notes = "Measured whole-path interval of an executed finite Markovian row under a declared unit sampling, bound to a currently attesting coverage record and conditional on the declared model; a posterior and a sampled abduction stay closed."
 
 [[routes]]
@@ -8516,6 +8576,12 @@ notes = "A declared model's posterior probability has no sampling interval; the 
 route = "antecedent.python.observation_query.CountFittedObservation.interval"
 stage = "uncertainty"
 status = "licensed"
+graph = "as_the_finite_law_conditioning_route"
+evidence = "count_fitted_tables_independent_dirichlet_posteriors_and_measured_coverage_record_attesting"
+functional = "equal_tailed_posterior_interval_of_the_fitted_conditional_probability"
+guarantee = "declared_model_has_no_sampling_interval_count_fitted_posterior_interval_measured"
+evidence_test = "python/tests/test_observation_query.py"
+evidence_assertion = "test_count_fitted_interval_is_measured_or_a_typed_refusal"
 notes = "Python surface of the count-fitted measured posterior interval; refuses cell_not_licensed without a currently attesting record."
 
 [[routes]]
@@ -9365,7 +9431,7 @@ evidence = "declared_mechanisms_and_factual_evidence"
 functional = "cross_world_execution.finite_markovian_scm"
 guarantee = "exact_enumeration_point_only_conditional_on_declared_model"
 evidence_test = "crates/antecedent-io-core/tests/cross_world_execution_artifact.rs"
-evidence_assertion = "resealed_semantic_mutations_are_refused"
+evidence_assertion = "corrupted_bytes_and_cancellation_are_refused"
 notes = "Point-only from exact enumeration; no interval, no transported guarantee."
 
 [[routes]]
@@ -10242,7 +10308,8 @@ status = "licensed"
 graph = "cpdag_equivalence_class_members_enumerated_causal_sufficiency"
 evidence = "discovered_cpdag_declared_selection_targets_and_transport_query"
 functional = "structural_transport_verdict_and_expression_per_class_member"
-guarantee = "structural_envelope_no_member_preferred_no_point_no_interval"
+guarantee = "sound_incomplete"
+limits = "Structural envelope over the enumerated members of the discovered class: the verdict and expression are reported per member, no member is preferred, and no point or interval is produced; a class beyond the sampler limit or the member bound is refused or partial."
 evidence_test = "crates/antecedent-identify/tests/discovered_transport.rs"
 evidence_assertion = "chain_class_yields_its_three_members_with_the_verdicts_fixed_for_each_dag"
 notes = "Never a point or interval; a class larger than the sampler limit or the member bound is refused or partial."
@@ -11731,6 +11798,12 @@ evidence_assertion = "test_transported_spread_from_aligned_pieces_matches_the_ro
 route = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval"
 stage = "uncertainty"
 status = "licensed"
+graph = "as_the_joint_law_propagation_records"
+evidence = "composed_claim_with_declared_dependence_and_measured_coverage_record_attesting"
+functional = "normal_approximation_interval_of_a_linear_composed_contrast_or_sum"
+guarantee = "linear_moment_composed_interval_measured_from_200_observations_posterior_and_other_operations_closed"
+evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs"
+evidence_assertion = "a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate"
 notes = "Measured normal-approximation interval of a linear composed contrast or sum, resolved against a currently attesting coverage record of its coordinate and declared evidence size; every other coordinate refuses cell_not_licensed."
 
 [[routes]]
