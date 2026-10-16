@@ -221,3 +221,92 @@ def test_an_estimate_over_columns_that_are_not_integer_codes_is_refused_precisel
 def test_a_forged_estimate_artifact_does_not_replay() -> None:
     with pytest.raises(CausalValueError):
         discovered.verify_discovered_transport_estimate(b"not an artifact")
+
+
+TEMPORAL_QUERY = {
+    "outcome": "y",
+    "treatment": "x",
+    "grid": [0.0, 1.0],
+    "selection_targets": ["z"],
+    "source_population": "trial",
+    "target_population": "clinic",
+    "source_experiments": ["x"],
+    "horizon_steps": 1,
+}
+
+
+def test_a_lagged_dag_is_identified_at_horizon_one_with_autoregressive_history() -> None:
+    from antecedent.graph import TemporalDag
+
+    template = TemporalDag.from_lagged_edges(
+        ["x", "y", "z"],
+        [("x", 1, "y", 0), ("z", 1, "y", 0), ("z", 1, "z", 0)],
+    )
+    envelope = discovered.transport_temporal_graph(
+        template,
+        ["x", "y", "z"],
+        **TEMPORAL_QUERY,  # type: ignore[arg-type]
+    )
+    assert envelope.kind == "structural_envelope"
+    assert envelope.status == "identified_in_every_member"
+    assert envelope.horizon_steps == 1
+    assert envelope.max_lag == 1
+    assert envelope.members[0].formula == "standardize"
+    assert ("x", "y", 1) in envelope.members[0].directed_edges
+
+
+def test_a_temporal_pag_enumerates_circles_and_its_members_disagree() -> None:
+    from antecedent.graph import TemporalPag
+
+    pag = TemporalPag.from_marked_lagged_edges(
+        ["x", "y", "z"],
+        [("x", 1, "y", 0, "circle", "arrow"), ("z", 1, "y", 0, "circle", "arrow")],
+    )
+    envelope = discovered.transport_temporal_graph(
+        pag,
+        ["x", "y", "z"],
+        **TEMPORAL_QUERY,  # type: ignore[arg-type]
+    )
+    assert envelope.status == "members_disagree"
+    assert len(envelope.members) == 4
+    assert any(m.bidirected_edges for m in envelope.members)
+    assert all(reason == "circle_endpoint" for _, _, reason in envelope.unresolved)
+
+
+def test_a_temporal_query_outside_the_structure_is_refused() -> None:
+    from antecedent.graph import TemporalDag
+
+    # Every declared target is in the structure, so the unknown outcome is the refusal's cause.
+    template = TemporalDag.from_lagged_edges(["x", "y", "z"], [("x", 1, "y", 0), ("z", 1, "z", 0)])
+    with pytest.raises(discovered.DiscoveredTransportRefusal) as info:
+        discovered.transport_temporal_graph(
+            template,
+            ["x", "y", "z", "w"],
+            **dict(TEMPORAL_QUERY, outcome="w"),  # type: ignore[arg-type]
+        )
+    assert_registered_refusal(info.value)
+    assert info.value.detail == "discovered_transport.temporal_query_invalid"
+
+
+def test_a_temporal_estimate_over_columns_that_are_not_integer_codes_is_refused() -> None:
+    # Strong lagged links put all three variables in the discovered structure.
+    rng = np.random.default_rng(5)
+    x, z = rng.normal(size=600), rng.normal(size=600)
+    y = 0.3 * rng.normal(size=600)
+    y[1:] += 0.9 * x[:-1] + 0.9 * z[:-1]
+    series = {"x": x, "y": y, "z": z}
+    with pytest.raises(discovered.DiscoveredTransportRefusal) as info:
+        discovered.estimate_discovered_temporal_transport(
+            sd.TemporalContract(variables=("x", "y", "z"), seed=1),
+            series,
+            series,
+            outcome="y",
+            treatment="x",
+            grid=[0.0, 1.0],
+            selection_targets=["z"],
+            horizon_steps=1,
+            source_population="trial",
+            target_population="clinic",
+        )
+    assert_registered_refusal(info.value)
+    assert info.value.detail == "discovered_transport.evidence_invalid"

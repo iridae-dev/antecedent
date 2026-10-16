@@ -21,6 +21,11 @@ use antecedent::analysis::discovered_transport_estimate::{
     DiscoveredTransportEstimate, MemberOutcome, TransportAnswer, TransportEvidence,
     estimate_discovered_transport, verify_discovered_transport_estimate,
 };
+use antecedent::analysis::discovered_transport_temporal::{
+    DiscoveredTemporalTransportReport, TemporalClass, TemporalHorizon,
+    estimate_discovered_temporal_transport, transport_discovered_temporal_structure,
+    transport_temporal_class,
+};
 use antecedent_core::{
     ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery, VariableId,
 };
@@ -443,9 +448,236 @@ fn verify_discovered_transport_estimate_artifact(artifact: &[u8], seed: u64) -> 
     .to_string())
 }
 
+fn lagged_edges_json(
+    edges: &[antecedent::analysis::discovered_transport_temporal::LaggedEdge],
+) -> Vec<Json> {
+    edges.iter().map(|e| json!([e.from.raw(), e.to.raw(), e.lag])).collect()
+}
+
+fn temporal_envelope_json(report: &DiscoveredTemporalTransportReport) -> Json {
+    let envelope = report.envelope();
+    let members: Vec<Json> = envelope
+        .members()
+        .iter()
+        .map(|member| {
+            let verdict = match &member.verdict {
+                MemberVerdict::Identified { rule, formula } => {
+                    json!({ "kind": "identified", "rule": rule, "formula": formula_kind(formula) })
+                }
+                MemberVerdict::NotCertified { reason } => {
+                    json!({ "kind": "not_certified", "reason": reason })
+                }
+                MemberVerdict::MissingEvidence { reason } => {
+                    json!({ "kind": "missing_evidence", "reason": reason })
+                }
+            };
+            json!({
+                "directed_edges": lagged_edges_json(&member.directed_edges),
+                "bidirected_edges": lagged_edges_json(&member.bidirected_edges),
+                "confounded_edges": lagged_edges_json(&member.confounded_edges),
+                "verdict": verdict,
+            })
+        })
+        .collect();
+    json!({
+        "kind": report.kind(),
+        "status": status_label(envelope.status()),
+        "formulas_agree": envelope.formulas_agree(),
+        "enumeration_complete": envelope.enumeration_complete(),
+        "member_bound": envelope.member_bound(),
+        "identified_members": envelope.identified_members(),
+        "members": members,
+        "unresolved": envelope.unresolved().iter().map(|p| pair_json(p.a, p.b, p.reason)).collect::<Vec<_>>(),
+        "assumptions": report.assumptions(),
+        "selection_targets": report.selection_targets().iter().map(|t| t.raw()).collect::<Vec<_>>(),
+        "history": envelope.history(),
+        "horizon_steps": envelope.horizon_steps(),
+        "max_lag": envelope.max_lag(),
+        "structure_identity": hex(report.structure_identity()),
+        "result_identity": report.result_identity().map(hex),
+        "identity": hex(report.identity()),
+    })
+}
+
+/// The temporal transport verdict across the class a retained temporal outcome returned.
+pub(crate) fn across_temporal_outcome(
+    outcome: &DiscoveryOutcome,
+    horizon_steps: u32,
+    history: Option<u32>,
+    query_json: &str,
+    targets: &[u32],
+    member_bound: Option<usize>,
+) -> PyResult<Reply> {
+    let query = query_of(query_json)?;
+    let ids: Vec<VariableId> = targets.iter().copied().map(VariableId::from_raw).collect();
+    let bound = member_bound.unwrap_or(DEFAULT_ENVELOPE_MEMBER_BOUND);
+    match transport_discovered_temporal_structure(
+        outcome,
+        TemporalHorizon { horizon_steps, history },
+        &ids,
+        &query,
+        bound,
+    ) {
+        Ok(report) => Ok((Some(temporal_envelope_json(&report).to_string()), None)),
+        Err(error) => Ok((None, Some(refusal_of(&error)?))),
+    }
+}
+
+/// The temporal transport verdict across a temporal graph held in Python (a `TemporalDag`,
+/// `TemporalCpdag` or `TemporalPag`).
+#[pyfunction]
+#[pyo3(signature = (graph, horizon_steps, query_json, selection_targets, history=None, member_bound=None, exhausted_search_bounds=0))]
+fn discovered_temporal_graph_transport(
+    graph: &Bound<'_, PyAny>,
+    horizon_steps: u32,
+    query_json: &str,
+    selection_targets: Vec<u32>,
+    history: Option<u32>,
+    member_bound: Option<usize>,
+    exhausted_search_bounds: usize,
+) -> PyResult<Reply> {
+    let query = query_of(query_json)?;
+    let ids: Vec<VariableId> = selection_targets.into_iter().map(VariableId::from_raw).collect();
+    let bound = member_bound.unwrap_or(DEFAULT_ENVELOPE_MEMBER_BOUND);
+    let horizon = TemporalHorizon { horizon_steps, history };
+    let run = |class: TemporalClass<'_>| {
+        transport_temporal_class(class, exhausted_search_bounds, horizon, &ids, &query, bound)
+    };
+    let report = if let Ok(dag) = graph.extract::<crate::graphs::TemporalDag>() {
+        run(TemporalClass::Dag(&dag.dag))
+    } else if let Ok(cpdag) = graph.extract::<crate::graphs::TemporalCpdag>() {
+        run(TemporalClass::Cpdag(&cpdag.cpdag))
+    } else if let Ok(pag) = graph.extract::<crate::graphs::TemporalPag>() {
+        run(TemporalClass::Pag(&pag.pag))
+    } else {
+        return Err(crate::value_err("graph must be a TemporalDag, TemporalCpdag or TemporalPag"));
+    };
+    match report {
+        Ok(report) => Ok((Some(temporal_envelope_json(&report).to_string()), None)),
+        Err(error) => Ok((None, Some(refusal_of(&error)?))),
+    }
+}
+
+/// Discover on the source series, unroll the class at the horizon, and estimate the transported
+/// response from the source and target series. Returns
+/// `(estimate, transport_refusal, discovery, discovery_refusal, artifact)` like the static run.
+#[pyfunction]
+#[pyo3(signature = (contract_json, names, source_columns, target_columns, query_json, selection_targets, horizon_steps, history=None, member_bound=None, bootstrap_replicates=0, block_length=None, *, threads=None, cancel=None))]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one request: contract, two series, query, horizon, bounds"
+)]
+fn discovered_temporal_transport_estimate_run(
+    py: Python<'_>,
+    contract_json: &str,
+    names: Vec<String>,
+    source_columns: Vec<PyReadonlyArray1<'_, f64>>,
+    target_columns: Vec<PyReadonlyArray1<'_, f64>>,
+    query_json: &str,
+    selection_targets: Vec<u32>,
+    horizon_steps: u32,
+    history: Option<u32>,
+    member_bound: Option<usize>,
+    bootstrap_replicates: u32,
+    block_length: Option<u32>,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<EstimateReply> {
+    let parsed = sd::parse_json(contract_json)?;
+    let map = sd::contract_map(&parsed, "temporal")?;
+    let seed = sd::get_u64(map, "seed")?;
+    let contract = sd::temporal_contract(map, names.len())?;
+    let query = query_of(query_json)?;
+    let ids: Vec<VariableId> = selection_targets.into_iter().map(VariableId::from_raw).collect();
+    let bound = member_bound.unwrap_or(DEFAULT_ENVELOPE_MEMBER_BOUND);
+    let source_batch = crate::columns_to_batch(&names, &source_columns)?;
+    let target_batch = crate::columns_to_batch(&names, &target_columns)?;
+    let ctx =
+        crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
+    type Ran = Result<
+        (
+            antecedent_discovery::selective::DiscoveryOutcome,
+            antecedent_discovery::selective::SelectiveRunReport,
+            Result<DiscoveredTemporalTransportReport, DiscoveredTransportError>,
+            Option<Result<(DiscoveredTransportEstimate, Vec<u8>), DiscoveredTransportError>>,
+        ),
+        SelectiveDiscoveryError,
+    >;
+    let ran: Ran = crate::detach_catch(py, move || {
+        let (series, _): (antecedent_data::TimeSeriesData, _) =
+            crate::discovery_api::series_from_batch(&source_batch)?;
+        let (source, _): (antecedent_data::TabularData, _) =
+            crate::discovery_api::tabular_from_batch(&source_batch)?;
+        let (target, _): (antecedent_data::TabularData, _) =
+            crate::discovery_api::tabular_from_batch(&target_batch)?;
+        let mut adapter = antecedent_discovery::selective::TemporalSelectiveDiscovery::new();
+        let discovery = match adapter.run(&contract, &series, &ctx) {
+            Ok(report) => report,
+            Err(error) => return Ok(Err(error)),
+        };
+        let Some(outcome) = adapter.outcome().cloned() else {
+            return Ok(Err(SelectiveDiscoveryError::refused(
+                antecedent_core::reason_code!("invalid_argument"),
+                "selective_discovery.nothing_retained",
+                "the discovery run retained no outcome",
+            )));
+        };
+        let transport = transport_discovered_temporal_structure(
+            &outcome,
+            TemporalHorizon { horizon_steps, history },
+            &ids,
+            &query,
+            bound,
+        );
+        let estimated = transport.as_ref().ok().map(|report| {
+            let mut evidence = TransportEvidence::new(&source, &target);
+            evidence.bootstrap_replicates = bootstrap_replicates;
+            evidence.block_length = block_length;
+            estimate_discovered_temporal_transport(report, &query, &evidence, &ctx).and_then(
+                |estimate| {
+                    let bytes = estimate
+                        .export()
+                        .map_err(|e| DiscoveredTransportError::Estimation(e.to_string()))?;
+                    Ok((estimate, bytes))
+                },
+            )
+        });
+        Ok(Ok((outcome, discovery, transport, estimated)))
+    })?;
+    let (outcome, discovery, transport, estimated) = match ran {
+        Err(error) => {
+            return match sd::error_json(&error) {
+                Some(refusal) => Ok((None, None, None, Some(refusal), None)),
+                None => Err(crate::CausalDiscoveryError::new_err(error.to_string())),
+            };
+        }
+        Ok(parts) => parts,
+    };
+    let discovery_json = json!({
+        "report": serde_json::from_str::<Json>(&sd::report_json(&discovery)).unwrap_or(Json::Null),
+        "outcome": serde_json::from_str::<Json>(&sd::outcome_json(&outcome)).unwrap_or(Json::Null),
+    })
+    .to_string();
+    match (transport, estimated) {
+        (Err(error), _) | (Ok(_), Some(Err(error))) => {
+            Ok((None, Some(refusal_of(&error)?), Some(discovery_json), None, None))
+        }
+        (Ok(_), Some(Ok((estimate, bytes)))) => Ok((
+            Some(estimate_json(&estimate).to_string()),
+            None,
+            Some(discovery_json),
+            None,
+            Some(PyBytes::new(py, &bytes).unbind()),
+        )),
+        (Ok(_), None) => Err(crate::value_err("the transport request produced no result")),
+    }
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(discovered_transport_run, module)?)?;
     module.add_function(wrap_pyfunction!(discovered_transport_estimate_run, module)?)?;
+    module.add_function(wrap_pyfunction!(discovered_temporal_graph_transport, module)?)?;
+    module.add_function(wrap_pyfunction!(discovered_temporal_transport_estimate_run, module)?)?;
     module
         .add_function(wrap_pyfunction!(verify_discovered_transport_estimate_artifact, module)?)?;
     Ok(())

@@ -276,6 +276,7 @@ markers below and compares it. Prose outside those markers is not read.
 | discovery.sample_split_effect | max_variables | 7 | `crates/antecedent-io/src/measured_inference/split_effect.rs` |
 | discovery.sample_split_parent_set_effect | min_variables | 10 | `crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs` |
 | discovery.sample_split_parent_set_effect | max_variables | 20 | `crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs` |
+| transport.cpdag_class_envelope | max_levels_per_variable | 32 | `crates/antecedent/src/analysis/discovered_transport_estimate.rs` |
 <!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.

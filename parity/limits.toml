@@ -2192,3 +2192,12 @@ documentation = [{ path = "crates/antecedent-io/src/measured_inference/split_par
 guard = { path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", pattern = "if\\ !\\(MIN_VARIABLES\\.\\.=MAX_VARIABLES\\)\\.contains\\(&k\\)\\ \\{" }
 refusal = { path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", pattern = "if\\ !\\(MIN_VARIABLES\\.\\.=MAX_VARIABLES\\)\\.contains\\(&k\\)\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", pattern = "parent_set_effect\\.variable_count_not_measured" }
+
+[[bound]]
+record = "transport.cpdag_class_envelope"
+key = "max_levels_per_variable"
+implementation = [{ path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", constant = "MAX_LEVELS_PER_VARIABLE" }]
+documentation = [{ path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", constant = "MAX_LEVELS_PER_VARIABLE" }]
+guard = { path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", pattern = "if\\ levels\\ >\\ MAX_LEVELS_PER_VARIABLE\\ \\{" }
+refusal = { path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", pattern = "if\\ levels\\ >\\ MAX_LEVELS_PER_VARIABLE\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+scope_fixture = { path = "crates/antecedent/tests/discovered_transport_facade.rs", pattern = "\\ba_variable_with_more_levels_than_supported_is_refused\\b" }

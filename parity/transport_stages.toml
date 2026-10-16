@@ -10380,13 +10380,6 @@ evidence_assertion = "an_identified_pag_class_is_estimated_and_covers_the_enumer
 notes = "Replay reproduces the effect."
 
 [[routes]]
-route = "antecedent.analysis.discovered_transport_temporal.estimate_discovered_temporal_transport.interval"
-stage = "evaluate"
-status = "closed"
-reason_code = "invalid_argument"
-notes = "Closed interval route of an in_progress record: the rows of a temporal window overlap, the independent-row bootstrap does not apply, and a request for an interval is refused."
-
-[[routes]]
 route = "antecedent_discovery.selective.populations.PerPopulationDiscovery.run"
 stage = "evaluate"
 status = "licensed"

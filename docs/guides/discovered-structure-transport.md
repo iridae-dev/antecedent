@@ -109,9 +109,12 @@ answer on independent rows can carry a pointwise percentile interval on the cont
 (`bootstrap_replicates`); it is conditional on the discovered class and its calibration
 is `not_bound_to_this_execution` until the complete-procedure design in
 `crates/antecedent/tests/discovered_transport_calibration.rs` (discovery, enumeration,
-identification and estimation in every replicate) is measured. A temporal estimate
-(rows of overlapping windows are dependent) is point only and refuses an interval
-request.
+identification and estimation in every replicate) is measured. A temporal estimate's interval (rows of overlapping windows are dependent) is a circular
+block bootstrap of each table's rows, with `block_length` rows per block (default twice
+the window span); it is conditional on the class, labelled `not_bound_to_this_execution`,
+and its complete-procedure design (`discovered_temporal_transport_contrast_complete_procedure_coverage`)
+is unmeasured. Python: `transport.discovered.{transport_across_temporal_class,
+transport_temporal_graph, estimate_discovered_temporal_transport}`.
 
 ## Per-population discovery
 

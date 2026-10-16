@@ -18,9 +18,12 @@
 //!
 //! Each table is a time series: one row per step, one column per variable, integer codes. A
 //! window row is the values at the offsets the unrolled graph names, so the rows of the window
-//! table overlap and are dependent. The estimate is therefore a point estimate under
-//! stationarity and an iid-window plug-in; no interval is offered, and a request for one is
-//! refused.
+//! table overlap and are dependent. The estimate is a plug-in under stationarity, and an
+//! interval on a point answer comes from a circular block bootstrap of each series' time axis:
+//! blocks of consecutive steps are drawn once per population and every column, hence every arm
+//! of the source experiment, is taken at those steps, so blocks are contiguous in time and arms
+//! are resampled jointly. The block length defaults to twice the window's span and is conditional on the discovered class; it
+//! carries no coverage claim until its complete-procedure design is measured.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -339,8 +342,7 @@ fn window_columns(
 /// Estimate `query` at the report's horizon across the temporal class `report` was made over.
 ///
 /// `evidence` holds two time-ordered tables (one row per step, one column per variable of the
-/// structure). Rows of a window overlap, so the rows are not independent: an interval request
-/// is refused, and the answer is a point or a structural range.
+/// structure). Rows of a window overlap, so an interval uses the circular block bootstrap.
 ///
 /// # Errors
 ///
@@ -353,12 +355,6 @@ pub fn estimate_discovered_temporal_transport(
     evidence: &TransportEvidence<'_>,
     ctx: &ExecutionContext,
 ) -> Result<DiscoveredTransportEstimate, DiscoveredTransportError> {
-    if evidence.bootstrap_replicates > 0 {
-        return Err(invalid(
-            "the rows of a temporal window overlap, so the independent-row bootstrap does not \
-             apply and no interval is offered; leave bootstrap_replicates at zero",
-        ));
-    }
     let envelope = report.envelope();
     let window = envelope.window();
     let antecedent_core::ResponseFunctional::MeanCurve { treatment, .. } =
@@ -414,7 +410,15 @@ pub fn estimate_discovered_temporal_transport(
             MemberProblem { graph, selection, treatment: window.treatment, outcome: window.outcome }
         })
         .collect();
-    let windowed = TransportEvidence { rows_independent: false, ..*evidence };
+    // Window rows overlap, so a block of at least two windows' span keeps their dependence
+    // inside a block; the default doubles the span of a window.
+    let span = window.indexer.history().saturating_add(window.indexer.horizon());
+    let block_length = evidence.block_length.unwrap_or_else(|| span.saturating_mul(2).max(2));
+    let windowed = TransportEvidence {
+        rows_independent: false,
+        block_length: Some(block_length),
+        ..*evidence
+    };
     let settings = Settings {
         levels,
         source: &query.source_population,

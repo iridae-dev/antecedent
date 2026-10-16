@@ -28,7 +28,8 @@
 //! # Intervals
 //!
 //! A point answer carries a pointwise percentile-bootstrap interval for the contrast only when
-//! replicates are requested and the rows are declared independent. The interval is conditional
+//! replicates are requested and the rows are declared independent, or a block length declares
+//! them an ordered series (a circular block bootstrap of each table). The interval is conditional
 //! on the discovered class (discovery is not repeated in a replicate) and carries no coverage
 //! claim until a complete-procedure calibration record is bound to it; its calibration status
 //! is `not_bound_to_this_execution`. A structural range has no interval.
@@ -98,6 +99,10 @@ pub struct TransportEvidence<'a> {
     pub rows_independent: bool,
     /// Bootstrap replicates for a pointwise interval on a point answer; zero asks for none.
     pub bootstrap_replicates: u32,
+    /// Rows per block of a circular block bootstrap, for tables whose rows are an ordered
+    /// series. `None` resamples rows independently, which needs `rows_independent`. A temporal
+    /// estimate chooses a length from its window when this is `None`.
+    pub block_length: Option<u32>,
     /// Evaluation limits of the retained grid.
     pub limits: ExactEvaluationLimits,
     /// Search limits of the sID derivation run on each member.
@@ -114,6 +119,7 @@ impl<'a> TransportEvidence<'a> {
             target_sampling: TargetSampling::RepresentativeSample,
             rows_independent: true,
             bootstrap_replicates: 0,
+            block_length: None,
             limits: ExactEvaluationLimits::default(),
             sid_limits: SidLimits::default(),
         }
@@ -831,13 +837,18 @@ fn is_evidence_gap(error: &IoError) -> bool {
     matches!(error.reason_code(), Some("transport_missing_provider" | "transport_support_failure"))
 }
 
-/// Identify and estimate one member.
-pub(crate) fn estimate_member(
+/// A member whose effect the complete sID derived, ready to bind to evidence.
+struct Identified {
+    diagram: SelectionDiagram,
+    derivation: antecedent_identify::ClassicalTransportDerivation,
+}
+
+/// Run the complete sID on one member, or say why it did not identify.
+fn identify_member(
     problem: &MemberProblem,
-    columns: &EvidenceColumns,
     settings: &Settings<'_>,
     ctx: &ExecutionContext,
-) -> Result<MemberOutcome, DiscoveredTransportError> {
+) -> Result<Result<Identified, MemberOutcome>, DiscoveredTransportError> {
     let invalid = |error: antecedent_graph::GraphError| estimation_failure(&error);
     let diagram = SelectionDiagram::try_new(problem.graph.clone(), problem.selection.to_vec())
         .map_err(invalid)?;
@@ -847,24 +858,62 @@ pub(crate) fn estimate_member(
         source: Arc::clone(settings.source),
         target: Arc::clone(settings.target),
     };
-    let derivation =
+    Ok(
         match identify_classical_transport(&diagram, &query, settings.evidence.sid_limits, ctx)
             .map_err(|e| estimation_failure(&e))?
         {
-            ClassicalTransportResult::Identified(derivation) => derivation,
+            ClassicalTransportResult::Identified(derivation) => {
+                Ok(Identified { diagram, derivation: *derivation })
+            }
             ClassicalTransportResult::NotCertified => {
-                return Ok(MemberOutcome::Unidentified { verdict: "not_certified" });
+                Err(MemberOutcome::Unidentified { verdict: "not_certified" })
             }
             ClassicalTransportResult::ProvenNonTransportable(_) => {
-                return Ok(MemberOutcome::Unidentified { verdict: "proven_non_transportable" });
+                Err(MemberOutcome::Unidentified { verdict: "proven_non_transportable" })
             }
-        };
+        },
+    )
+}
+
+/// Identify and estimate one member.
+pub(crate) fn estimate_member(
+    problem: &MemberProblem,
+    columns: &EvidenceColumns,
+    settings: &Settings<'_>,
+    ctx: &ExecutionContext,
+) -> Result<MemberOutcome, DiscoveredTransportError> {
+    let identified = match identify_member(problem, settings, ctx)? {
+        Ok(identified) => identified,
+        Err(outcome) => return Ok(outcome),
+    };
+    let replicates = if settings.evidence.block_length.is_some() {
+        0
+    } else {
+        settings.evidence.bootstrap_replicates
+    };
+    evaluate_member(&identified, problem, columns, settings, replicates, true, ctx)
+}
+
+/// Bind an identified member's formula to the evidence and evaluate it at every level.
+///
+/// `replicates` is the iid row bootstrap of the retained grid; `export` keeps the durable grid
+/// artifact.
+fn evaluate_member(
+    identified: &Identified,
+    problem: &MemberProblem,
+    columns: &EvidenceColumns,
+    settings: &Settings<'_>,
+    replicates: u32,
+    export: bool,
+    ctx: &ExecutionContext,
+) -> Result<MemberOutcome, DiscoveredTransportError> {
+    let Identified { diagram, derivation } = identified;
     let leaves = derivation.arena().leaf_signatures(derivation.root());
     let plans = plan_regimes(&leaves);
     let variables: BTreeSet<VariableId> =
         plans.iter().flat_map(|p| p.measured.iter().copied()).collect();
     let cardinalities = domain_cardinalities(columns, &variables)?;
-    let catalog = catalog_of(&plans, &cardinalities, &diagram, settings, columns)?;
+    let catalog = catalog_of(&plans, &cardinalities, diagram, settings, columns)?;
     let functional = match derivation.bind_catalog(&catalog) {
         Ok(functional) => functional,
         Err(error) => {
@@ -893,11 +942,16 @@ pub(crate) fn estimate_member(
         .collect::<Result<Vec<_>, _>>()?;
     let expression = functional.arena().pretty(functional.root());
     let options = EmpiricalTableOptions {
-        bootstrap_replicates: settings.evidence.bootstrap_replicates,
+        bootstrap_replicates: replicates,
         ..EmpiricalTableOptions::default()
     };
     let grid = StudyBuilder::transport_grid(
-        TransportGridQuery { diagram, functional, at, limits: settings.evidence.limits },
+        TransportGridQuery {
+            diagram: diagram.clone(),
+            functional,
+            at,
+            limits: settings.evidence.limits,
+        },
         TransportGridData::Statistical(
             StatisticalTransportInput { supplied: Vec::new(), samples },
             options,
@@ -911,13 +965,14 @@ pub(crate) fn estimate_member(
         }
         Err(error) => return Err(estimation_failure(&error)),
     };
-    member_estimate(&result, problem.outcome, expression)
+    member_estimate(&result, problem.outcome, expression, export)
 }
 
 fn member_estimate(
     result: &TransportGridResult,
     outcome: VariableId,
     expression: String,
+    export: bool,
 ) -> Result<MemberOutcome, DiscoveredTransportError> {
     let mut means = Vec::with_capacity(result.points().len());
     for (index, point) in result.points().iter().enumerate() {
@@ -943,7 +998,8 @@ fn member_estimate(
     } else {
         None
     };
-    let artifact = result.export().map_err(|e| estimation_failure(&e))?;
+    let artifact =
+        if export { result.export().map_err(|e| estimation_failure(&e))? } else { Vec::new() };
     Ok(MemberOutcome::Estimated(MemberEstimate {
         expression,
         contrast: contrast_of(&means),
@@ -952,6 +1008,76 @@ fn member_estimate(
         artifact,
         outcome,
     }))
+}
+
+/// Rows of every column at the drawn time indices.
+fn gathered(table: &Columns, times: &[u32]) -> Columns {
+    table
+        .iter()
+        .map(|(variable, column)| {
+            (*variable, times.iter().map(|t| column[*t as usize]).collect::<Vec<_>>())
+        })
+        .collect()
+}
+
+/// A pointwise percentile interval on the `last - first` contrast of a member from a circular
+/// block bootstrap of the time axis.
+///
+/// Each replicate draws blocks of `length` consecutive time indices once per population and
+/// takes every column, and so every arm of an experiment, at those indices: contiguous in time,
+/// and arms that share a time axis are resampled jointly. The formula is re-evaluated on the
+/// resampled evidence; a replicate that cannot be evaluated is counted as failed and the
+/// interval is withheld unless the replicate floor is met.
+fn blocked_contrast_interval(
+    identified: &Identified,
+    problem: &MemberProblem,
+    columns: &EvidenceColumns,
+    settings: &Settings<'_>,
+    length: u32,
+    ctx: &ExecutionContext,
+) -> Result<Option<(f64, f64, f64)>, DiscoveredTransportError> {
+    let requested = settings.evidence.bootstrap_replicates;
+    let rows = |table: &Columns| table.values().next().map_or(0, Vec::len);
+    let plan = antecedent_data::ResamplingPlan::CircularBlock { length: length as usize };
+    let draw = |population: u64, replicate: u32, n: usize| -> Option<Vec<u32>> {
+        let mut rng = ctx.rng.stream_for(
+            antecedent_core::StreamDomain::Transport,
+            (0x626c_6f63_u64 << 32) | (population << 24) | u64::from(replicate),
+        );
+        let mut times = Vec::new();
+        antecedent_data::fill_resample_indexes(plan, n, &mut rng, &mut times).ok()?;
+        Some(times)
+    };
+    let mut contrasts = Vec::new();
+    for replicate in 0..requested {
+        if ctx.cancellation.is_cancelled() {
+            return Err(DiscoveredTransportError::Estimation("cancelled".to_owned()));
+        }
+        let (Some(source_times), Some(target_times)) =
+            (draw(0, replicate, rows(&columns.source)), draw(1, replicate, rows(&columns.target)))
+        else {
+            continue;
+        };
+        let resampled = EvidenceColumns {
+            source: gathered(&columns.source, &source_times),
+            target: gathered(&columns.target, &target_times),
+        };
+        if let MemberOutcome::Estimated(estimate) =
+            evaluate_member(identified, problem, &resampled, settings, 0, false, ctx)?
+        {
+            if let Some(contrast) = estimate.contrast.filter(|c| c.is_finite()) {
+                contrasts.push(contrast);
+            }
+        }
+    }
+    let ok = u32::try_from(contrasts.len()).unwrap_or(u32::MAX);
+    let failed = requested.saturating_sub(ok);
+    if super::transport_common::PERCENTILE_FLOOR.decide(requested, ok, failed).is_err() {
+        return Ok(None);
+    }
+    let level = EmpiricalTableOptions::default().coverage_level;
+    Ok(antecedent_estimate::percentile_interval(&contrasts, level)
+        .map(|(low, high)| (low, high, level)))
 }
 
 /// What the structural report contributes to an estimate.
@@ -994,10 +1120,39 @@ pub(crate) fn estimate_class(
     for problem in problems {
         members.push(estimate_member(problem, columns, settings, ctx)?);
     }
-    let interval = members.iter().find_map(|m| match m {
+    let mut interval = members.iter().find_map(|m| match m {
         MemberOutcome::Estimated(e) => e.contrast_interval,
         _ => None,
     });
+    if let Some(length) = settings.evidence.block_length {
+        // Ordered rows: the interval is the block bootstrap of the time axis, for a point only.
+        interval = None;
+        let estimated: Vec<(usize, &MemberEstimate)> = members
+            .iter()
+            .enumerate()
+            .filter_map(|(i, m)| match m {
+                MemberOutcome::Estimated(e) => Some((i, e)),
+                _ => None,
+            })
+            .collect();
+        let agree = estimated.len() == members.len()
+            && estimated.windows(2).all(|w| w[0].1.expression == w[1].1.expression);
+        if settings.evidence.bootstrap_replicates > 0 && agree {
+            if let Some((index, _)) = estimated.first() {
+                if let Ok(identified) = identify_member(&problems[*index], settings, ctx)? {
+                    interval = blocked_contrast_interval(
+                        &identified,
+                        &problems[*index],
+                        columns,
+                        settings,
+                        length,
+                        ctx,
+                    )?
+                    .map(|(low, high, _)| (low, high));
+                }
+            }
+        }
+    }
     let coverage = EmpiricalTableOptions::default().coverage_level;
     let answer = match summarise(
         settings.levels,

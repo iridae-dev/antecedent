@@ -58,6 +58,15 @@ answer exists only for independent rows with ``bootstrap_replicates`` and is con
 discovered class; its calibration is ``not_bound_to_this_execution`` until the complete-procedure
 coverage design is measured.
 
+**Temporal classes.** :func:`transport_across_temporal_class` (a retained PCMCI or PCMCI+ outcome)
+and :func:`transport_temporal_graph` (a ``TemporalDag``, ``TemporalCpdag`` or ``TemporalPag``, for
+example an LPCMCI result) answer at a declared ``horizon_steps``: the stationary completions
+never point backward in time, a selection target applies at every slice, and the template's
+largest lag is reported as ``max_lag``. :func:`estimate_discovered_temporal_transport` discovers
+on a source series, unrolls the class and estimates from two integer-coded series; its interval,
+when ``bootstrap_replicates`` is requested, is a circular block bootstrap of each series' window
+rows (``block_length``, default twice the window span) and is unmeasured like the static one.
+
 **Lifecycle.** The envelope is derived on every call from the class and the declared query.
 Outcome-only data leaves the class and so the envelope's content unchanged; a rerun that yields
 another class is a new input, and the envelope and its identity are recomputed from it.
@@ -80,6 +89,7 @@ from ..selective_discovery import (
     RunReport,
     SelectiveDiscovery,
     StaticContract,
+    TemporalContract,
     _columns,
     _outcome,
     _report,
@@ -92,11 +102,16 @@ __all__ = [
     "EnvelopeMember",
     "MemberEstimate",
     "StructuralTransportEnvelope",
+    "TemporalEnvelopeMember",
+    "TemporalStructuralEnvelope",
     "TransportAnswer",
     "VerifiedEstimate",
     "discover_and_transport",
+    "estimate_discovered_temporal_transport",
     "estimate_discovered_transport",
     "transport_across_class",
+    "transport_across_temporal_class",
+    "transport_temporal_graph",
     "verify_discovered_transport_estimate",
 ]
 
@@ -569,7 +584,12 @@ def estimate_discovered_transport(
     found = _outcome(json.dumps(discovery["outcome"]), names)
     _raise_transport(refusal, names, outcome=found, report=report)
     assert estimate_text is not None and artifact is not None
-    wire = json.loads(estimate_text)
+    return _estimate_of(json.loads(estimate_text), bytes(artifact), found, report)
+
+
+def _estimate_of(
+    wire: Mapping[str, Any], artifact: bytes, found: Outcome, report: RunReport
+) -> DiscoveredTransportEstimate:
     members = tuple(
         MemberEstimate(
             member=int(m["member"]),
@@ -587,7 +607,7 @@ def estimate_discovered_transport(
         answer=_answer(wire["answer"]),
         report_identity=str(wire["report_identity"]),
         identity=str(wire["identity"]),
-        _artifact_bytes=bytes(artifact),
+        artifact=artifact,
         outcome=found,
         report=report,
     )
@@ -612,3 +632,267 @@ def verify_discovered_transport_estimate(artifact: bytes, *, seed: int = 0) -> V
         report_identity=str(wire["report_identity"]),
         members=tuple(int(m) for m in wire["members"]),
     )
+
+
+@dataclass(frozen=True, slots=True)
+class TemporalEnvelopeMember:
+    """One member of a temporal class at the declared horizon.
+
+    Edges are ``(from, to, lag)``: ``from`` at ``t - lag`` and ``to`` at ``t`` (a directed edge
+    goes from ``from`` to ``to``; a bidirected edge lists its earlier end first).
+    """
+
+    directed_edges: tuple[tuple[str, str, int], ...]
+    bidirected_edges: tuple[tuple[str, str, int], ...]
+    confounded_edges: tuple[tuple[str, str, int], ...]
+    verdict: str
+    rule: str | None
+    formula: str | None
+    reason: str | None
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class TemporalStructuralEnvelope(ScientificResult):
+    """The structural transport verdicts across a discovered temporal class.
+
+    ``kind`` is always ``structural_envelope``; ``status`` reads as for
+    :class:`StructuralTransportEnvelope`. ``history``, ``horizon_steps`` and ``max_lag`` state
+    the window and the lag assumption the verdicts were decided under.
+    """
+
+    kind: str
+    status: str
+    formulas_agree: bool
+    enumeration_complete: bool
+    member_bound: int
+    identified_members: int
+    history: int
+    horizon_steps: int
+    max_lag: int
+    members: tuple[TemporalEnvelopeMember, ...]
+    unresolved: tuple[tuple[str, str, str], ...]
+    assumptions: tuple[str, ...]
+    selection_targets: tuple[str, ...]
+    structure_identity: str
+    identity: str
+
+
+def _lagged(
+    wire: Sequence[Sequence[Any]], names: Sequence[str]
+) -> tuple[tuple[str, str, int], ...]:
+    return tuple(
+        (_names_of(names, int(a)), _names_of(names, int(b)), int(lag)) for a, b, lag in wire
+    )
+
+
+def _temporal_envelope(text: str, names: Sequence[str]) -> TemporalStructuralEnvelope:
+    wire = json.loads(text)
+    members = []
+    for m in wire["members"]:
+        verdict = m["verdict"]
+        members.append(
+            TemporalEnvelopeMember(
+                directed_edges=_lagged(m["directed_edges"], names),
+                bidirected_edges=_lagged(m["bidirected_edges"], names),
+                confounded_edges=_lagged(m["confounded_edges"], names),
+                verdict=str(verdict["kind"]),
+                rule=verdict.get("rule"),
+                formula=verdict.get("formula"),
+                reason=verdict.get("reason"),
+            )
+        )
+    return TemporalStructuralEnvelope(
+        kind=str(wire["kind"]),
+        status=str(wire["status"]),
+        formulas_agree=bool(wire["formulas_agree"]),
+        enumeration_complete=bool(wire["enumeration_complete"]),
+        member_bound=int(wire["member_bound"]),
+        identified_members=int(wire["identified_members"]),
+        history=int(wire["history"]),
+        horizon_steps=int(wire["horizon_steps"]),
+        max_lag=int(wire["max_lag"]),
+        members=tuple(members),
+        unresolved=_pairs(wire["unresolved"], names),
+        assumptions=tuple(str(a) for a in wire["assumptions"]),
+        selection_targets=tuple(_names_of(names, int(t)) for t in wire["selection_targets"]),
+        structure_identity=str(wire["structure_identity"]),
+        identity=str(wire["identity"]),
+    )
+
+
+def _horizon(horizon_steps: int, history: int | None) -> tuple[int, int | None]:
+    steps = count(horizon_steps, "horizon_steps", minimum=0)
+    return steps, None if history is None else count(history, "history", minimum=0)
+
+
+def transport_across_temporal_class(
+    adapter: SelectiveDiscovery,
+    *,
+    outcome: str,
+    treatment: str,
+    grid: Sequence[float],
+    selection_targets: Sequence[str],
+    horizon_steps: int,
+    history: int | None = None,
+    source_population: str = "source",
+    target_population: str = "target",
+    source_experiments: Sequence[str] = (),
+    member_bound: int | None = None,
+) -> TemporalStructuralEnvelope:
+    """The structural verdict of a mean-curve query at ``horizon_steps`` across a temporal class.
+
+    ``adapter`` is a temporal :class:`~antecedent.selective_discovery.SelectiveDiscovery` that has
+    run (PCMCI or PCMCI+). The intervention is on ``treatment`` at the origin and the outcome is
+    ``outcome`` ``horizon_steps`` later; ``selection_targets`` apply at every slice.
+
+    Raises:
+        DiscoveredTransportRefusal: see the module documentation.
+    """
+    if not isinstance(adapter, SelectiveDiscovery):
+        raise CausalTypeError("adapter must be a SelectiveDiscovery")
+    names = adapter._names
+    if adapter.outcome is None:
+        _, refusal = adapter._handle.transport_across_temporal_class("{}", [], 0, None, None)
+        raise_refusal(refusal, DiscoveredTransportRefusal)
+    query = _query_wire(
+        names,
+        outcome=outcome,
+        treatment=treatment,
+        grid=grid,
+        source_population=source_population,
+        target_population=target_population,
+        source_experiments=source_experiments,
+    )
+    steps, window = _horizon(horizon_steps, history)
+    bound = None if member_bound is None else count(member_bound, "member_bound", minimum=0)
+    text, refusal = adapter._handle.transport_across_temporal_class(
+        query, _target_ids(names, selection_targets), steps, window, bound
+    )
+    _raise_transport(refusal, names, outcome=adapter.outcome)
+    assert text is not None
+    return _temporal_envelope(text, names)
+
+
+def transport_temporal_graph(
+    graph: Any,
+    variables: Sequence[str],
+    *,
+    outcome: str,
+    treatment: str,
+    grid: Sequence[float],
+    selection_targets: Sequence[str],
+    horizon_steps: int,
+    history: int | None = None,
+    source_population: str = "source",
+    target_population: str = "target",
+    source_experiments: Sequence[str] = (),
+    member_bound: int | None = None,
+    exhausted_search_bounds: int = 0,
+) -> TemporalStructuralEnvelope:
+    """The structural verdict across a temporal graph you hold (``TemporalDag``,
+    ``TemporalCpdag`` or ``TemporalPag``), for example an LPCMCI result.
+
+    ``variables`` are the graph's variable names in id order. A circle endpoint of a
+    ``TemporalPag`` is enumerated and never read as the absence of confounding.
+
+    Raises:
+        DiscoveredTransportRefusal: see the module documentation.
+    """
+    names = tuple(variables)
+    query = _query_wire(
+        names,
+        outcome=outcome,
+        treatment=treatment,
+        grid=grid,
+        source_population=source_population,
+        target_population=target_population,
+        source_experiments=source_experiments,
+    )
+    steps, window = _horizon(horizon_steps, history)
+    bound = None if member_bound is None else count(member_bound, "member_bound", minimum=0)
+    exhausted = count(exhausted_search_bounds, "exhausted_search_bounds", minimum=0)
+    text, refusal = _native.discovered_temporal_graph_transport(
+        graph, steps, query, _target_ids(names, selection_targets), window, bound, exhausted
+    )
+    _raise_transport(refusal, names)
+    assert text is not None
+    return _temporal_envelope(text, names)
+
+
+def estimate_discovered_temporal_transport(
+    contract: TemporalContract,
+    source: Mapping[str, Any],
+    target: Mapping[str, Any],
+    *,
+    outcome: str,
+    treatment: str,
+    grid: Sequence[float],
+    selection_targets: Sequence[str],
+    horizon_steps: int,
+    history: int | None = None,
+    source_population: str = "source",
+    target_population: str = "target",
+    member_bound: int | None = None,
+    bootstrap_replicates: int = 0,
+    block_length: int | None = None,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> DiscoveredTransportEstimate:
+    """Discover on the ``source`` series, unroll the class at ``horizon_steps`` and estimate.
+
+    ``source`` and ``target`` are time-ordered, integer-coded columns named like
+    ``contract.variables``; the source's treatment column is the experimental assignment. The
+    answer is a point, a structural range or a refusal as for
+    :func:`estimate_discovered_transport`. Window rows overlap, so an interval
+    (``bootstrap_replicates``) is a circular block bootstrap of each series' window rows with
+    ``block_length`` rows per block (default twice the window span); it is conditional on the
+    discovered class and its calibration is ``not_bound_to_this_execution``.
+
+    Raises:
+        DiscoveredTransportRefusal: a refusal of the transport request or of the estimate.
+        SelectiveDiscoveryRefusal: a refused contract.
+        CausalDiscoveryError: the algorithm failed or was cancelled.
+    """
+    from ..selective_discovery import SelectiveDiscoveryRefusal
+
+    if not isinstance(contract, TemporalContract):
+        raise CausalTypeError("contract must be a TemporalContract")
+    names = tuple(contract.variables)
+    query = _query_wire(
+        names,
+        outcome=outcome,
+        treatment=treatment,
+        grid=grid,
+        source_population=source_population,
+        target_population=target_population,
+        source_experiments=[treatment],
+    )
+    steps, window = _horizon(horizon_steps, history)
+    bound = None if member_bound is None else count(member_bound, "member_bound", minimum=0)
+    replicates = count(bootstrap_replicates, "bootstrap_replicates", minimum=0)
+    block = None if block_length is None else count(block_length, "block_length", minimum=1)
+    estimate_text, refusal, discovery_text, discovery_refusal, artifact = (
+        _native.discovered_temporal_transport_estimate_run(
+            json.dumps(contract.to_wire(), sort_keys=True),
+            list(names),
+            _columns(contract, source),
+            _columns(contract, target),
+            query,
+            _target_ids(names, selection_targets),
+            steps,
+            window,
+            bound,
+            replicates,
+            block,
+            threads=threads,
+            cancel=cancel,
+        )
+    )
+    raise_refusal(discovery_refusal, SelectiveDiscoveryRefusal)
+    assert discovery_text is not None
+    discovery = json.loads(discovery_text)
+    report = _report(json.dumps(discovery["report"]))
+    found = _outcome(json.dumps(discovery["outcome"]), names)
+    _raise_transport(refusal, names, outcome=found, report=report)
+    assert estimate_text is not None and artifact is not None
+    return _estimate_of(json.loads(estimate_text), bytes(artifact), found, report)

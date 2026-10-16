@@ -3288,7 +3288,7 @@ configuration = { structure = "pag", variables = 8 }
 expected = { kind = "value", outputs = ["supported effect query answered", "latent-variable semantics / lag assumptions preserved", "replayable artifact"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Discovery plus transport adds one PAG or lag-structure pass to the transport route." }
 dataset = { generator = "discovered_transport_study", seed = 9599960, n = 4000, structure = "pag", variables = 8, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent/tests/discovered_transport_facade.rs::an_identified_pag_class_is_estimated_and_covers_the_enumerated_truth" }
+evidence = { status = "bound", test = "crates/antecedent/tests/discovered_transport_facade.rs::fci_on_simulated_rows_then_transport_recovers_the_enumerated_target_effect" }
 
 [[case]]
 id = "discovered_identified_pag_transport_interval_calibrated"

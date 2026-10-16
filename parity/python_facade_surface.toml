@@ -620,20 +620,20 @@ python = "antecedent.transport.discovered.verify_discovered_transport_estimate"
 [[entry]]
 rust = "antecedent::analysis::discovered_transport_temporal::estimate_discovered_temporal_transport"
 kind = "fn"
-status = "missing"
-reason = "a temporal discovery contract and time-ordered tables have no Python call yet; the Rust entry is tested in crates/antecedent/tests/discovered_transport_facade.rs"
+status = "bound"
+python = "antecedent.transport.discovered.estimate_discovered_temporal_transport"
 
 [[entry]]
 rust = "antecedent::analysis::discovered_transport_temporal::transport_discovered_temporal_structure"
 kind = "fn"
-status = "missing"
-reason = "a temporal discovery contract has no Python call to this entry yet; the Rust entry is tested in crates/antecedent/tests/discovered_transport_facade.rs"
+status = "bound"
+python = "antecedent.transport.discovered.transport_across_temporal_class"
 
 [[entry]]
 rust = "antecedent::analysis::discovered_transport_temporal::transport_temporal_class"
 kind = "fn"
-status = "missing"
-reason = "a temporal graph held as a Python object has no call to this entry yet; the Rust entry is tested in crates/antecedent/tests/discovered_transport_facade.rs"
+status = "bound"
+python = "antecedent.transport.discovered.transport_temporal_graph"
 
 [[entry]]
 rust = "antecedent::analysis::discretized_composition::consume_discretized_composition"

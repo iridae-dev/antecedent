@@ -7392,6 +7392,14 @@ class SelectiveDiscoveryHandle:
         selection_targets: list[int],
         member_bound: int | None = None,
     ) -> tuple[str | None, str | None]: ...
+    def transport_across_temporal_class(
+        self,
+        query_json: str,
+        selection_targets: list[int],
+        horizon_steps: int,
+        history: int | None = None,
+        member_bound: int | None = None,
+    ) -> tuple[str | None, str | None]: ...
 
 class PerPopulationDiscoveryHandle:
     def __init__(self) -> None: ...
@@ -7530,6 +7538,31 @@ def discovered_transport_estimate_run(
     cancel: Any = None,
 ) -> tuple[str | None, str | None, str | None, str | None, bytes | None]: ...
 def verify_discovered_transport_estimate_artifact(artifact: bytes, *, seed: int = 0) -> str: ...
+def discovered_temporal_graph_transport(
+    graph: Any,
+    horizon_steps: int,
+    query_json: str,
+    selection_targets: list[int],
+    history: int | None = None,
+    member_bound: int | None = None,
+    exhausted_search_bounds: int = 0,
+) -> tuple[str | None, str | None]: ...
+def discovered_temporal_transport_estimate_run(
+    contract_json: str,
+    names: list[str],
+    source_columns: list[Any],
+    target_columns: list[Any],
+    query_json: str,
+    selection_targets: list[int],
+    horizon_steps: int,
+    history: int | None = None,
+    member_bound: int | None = None,
+    bootstrap_replicates: int = 0,
+    block_length: int | None = None,
+    *,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> tuple[str | None, str | None, str | None, str | None, bytes | None]: ...
 
 class CrossWorldExecutor:
     def __init__(self) -> None: ...

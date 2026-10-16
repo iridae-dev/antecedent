@@ -1292,6 +1292,7 @@ run_discovered_transport() {
     -- --ignored --exact --nocapture
 }
 run_discovered_transport discovered_pag_transport_contrast_complete_procedure_coverage
+run_discovered_transport discovered_temporal_transport_contrast_complete_procedure_coverage
 
 echo "== multi-source limited-experiment (TR^mz) joint bootstrap (antecedent) =="
 run_mz() {

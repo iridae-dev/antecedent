@@ -704,15 +704,17 @@ fn a_lagged_class_is_estimated_at_the_declared_horizon_against_the_stationary_tr
     }
     assert_eq!(estimate.answer().kind, AnswerKind::Point);
 
-    // Windows overlap, so an interval request is refused.
+    // Windows overlap, so an interval comes from the circular block bootstrap and is labelled
+    // as unmeasured; the point answer is unchanged by asking for it.
     let mut with_interval = TransportEvidence::new(&source, &target);
     with_interval.bootstrap_replicates = 200;
-    let error =
+    let bootstrapped =
         estimate_discovered_temporal_transport(&report, &effect_query(), &with_interval, &ctx())
-            .unwrap_err();
-    let refusal = refused(error);
-    assert_eq!(refusal.detail, "discovered_transport.evidence_invalid");
-    assert_eq!(refusal.code, "invalid_argument");
+            .unwrap();
+    assert_eq!(bootstrapped.answer().levels, estimate.answer().levels);
+    let interval = bootstrapped.answer().interval.expect("a block-bootstrap interval");
+    assert_eq!(interval.calibration, "not_bound_to_this_execution");
+    assert!(interval.low < interval.high && interval.high - interval.low < 0.1, "{interval:?}");
 
     let bytes = estimate.export().unwrap();
     verify_discovered_transport_estimate(
@@ -752,4 +754,90 @@ fn a_temporal_pag_with_a_confoundable_selected_cause_is_refused_not_estimated() 
     )
     .unwrap_err();
     assert_eq!(refused(error).detail, "discovered_transport.class_not_identified");
+}
+
+#[test]
+fn a_variable_with_more_levels_than_supported_is_refused() {
+    let fci = latent_contract(StaticAlgorithm::Fci, "dsep:latent:fci3", latent_parents(), 8);
+    let source = study_table(2_000, false, 61);
+    let report = discover_and_transport(&fci, &source, &[v(2)], &effect_query(), 256, &ctx())
+        .unwrap()
+        .transport
+        .unwrap();
+    let wide: Vec<Vec<f64>> =
+        (0..8).map(|_| (0..2_000).map(|i| f64::from(i % 41)).collect()).collect();
+    let names: Vec<String> = (0..8).map(|i| format!("v{i}")).collect();
+    let target = TabularData::from_f64_columns(
+        names.iter().map(String::as_str).zip(wide.iter().map(Vec::as_slice)),
+    )
+    .unwrap();
+    let error = estimate_discovered_transport(
+        &report,
+        &effect_query(),
+        &TransportEvidence::new(&source, &target),
+        &ctx(),
+    )
+    .unwrap_err();
+    let refusal = refused(error);
+    assert_eq!(refusal.detail, "discovered_transport.evidence_invalid");
+    assert!(refusal.remedy.contains("at most 32"));
+}
+
+// -- discovery from data, then transport --------------------------------------------------------------
+
+/// `x -> y <- z <- {c, d}` with strong effects, so FCI with the G-squared test recovers the
+/// skeleton and the colliders at this size. Variables: x0 y1 z2 c3 d4. The mechanism of `z`
+/// differs between the populations.
+fn strong_effects_table(rows: usize, target: bool, seed: u64) -> TabularData {
+    let mut rng = Lcg(seed);
+    let mut columns = vec![Vec::with_capacity(rows); 5];
+    for _ in 0..rows {
+        let (x, c, d) = (rng.bernoulli(0.5), rng.bernoulli(0.5), rng.bernoulli(0.5));
+        let pz = if target { 0.9 - 0.4 * c - 0.4 * d } else { 0.1 + 0.4 * c + 0.4 * d };
+        let z = rng.bernoulli(pz);
+        let y = rng.bernoulli(0.05 + 0.4 * x + 0.35 * z + 0.1 * x * z);
+        for (column, value) in columns.iter_mut().zip([x, y, z, c, d]) {
+            column.push(value);
+        }
+    }
+    let names: Vec<String> = (0..5).map(|i| format!("v{i}")).collect();
+    TabularData::from_f64_columns(
+        names.iter().map(String::as_str).zip(columns.iter().map(Vec::as_slice)),
+    )
+    .unwrap()
+}
+
+#[test]
+fn fci_on_simulated_rows_then_transport_recovers_the_enumerated_target_effect() {
+    let source = strong_effects_table(20_000, false, 71);
+    let target = strong_effects_table(20_000, true, 72);
+    let mut fci = StaticDiscoveryContract::new(
+        StaticAlgorithm::Fci,
+        vars(5),
+        CiTestSpec::named("gsquared"),
+        SEED,
+    );
+    fci.fdr = None;
+    fci.constraints.alpha = 0.001;
+    let run = discover_and_transport(&fci, &source, &[v(2)], &effect_query(), 256, &ctx()).unwrap();
+    assert_eq!(run.outcome.structure.class().as_str(), "pag");
+    let report = run.transport.unwrap();
+    // The collider at z puts an arrowhead into z from both causes, so z -> y is visible and the
+    // class is identified in every member.
+    assert_eq!(report.envelope().status(), EnvelopeStatus::IdentifiedInEveryMember);
+    let estimate = estimate_discovered_transport(
+        &report,
+        &effect_query(),
+        &TransportEvidence::new(&source, &target),
+        &ctx(),
+    )
+    .unwrap();
+    // E*[y | do(x = a)] = 0.05 + 0.4 a + (0.35 + 0.1 a) E*[z], with E*[z] = 0.9 - 0.4 = 0.5.
+    let truth = |a: f64| 0.05 + 0.4 * a + (0.35 + 0.1 * a) * 0.5;
+    for (level, expected) in estimate.answer().levels.iter().zip([truth(0.0), truth(1.0)]) {
+        assert!(
+            level.low - 0.02 <= expected && expected <= level.high + 0.02,
+            "{level:?} vs {expected}"
+        );
+    }
 }

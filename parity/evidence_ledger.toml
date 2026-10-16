@@ -8746,23 +8746,6 @@ provider_trust = "native_structural_identifier_over_a_discovered_class_selection
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
-id = "transport.cpdag_class_envelope"
-route = "antecedent.analysis.discovered_transport_temporal.estimate_discovered_temporal_transport.interval"
-algorithm_provenance = ["provenance/transport.cpdag_class_envelope.toml"]
-parity_registry = "parity/promotion.toml"
-support_registry = "parity/transport_stages.toml"
-positive_fixture = "transport.cpdag_class_envelope.estimate_temporal_truth.truth"
-oracle_kind = "enumerated_finite_law"
-oracle_inputs = "A lagged class estimated from series of 40000 steps with 200 bootstrap replicates requested."
-expected_values = "The interval request is refused with invalid_argument and discovered_transport.evidence_invalid; the point estimate is unaffected."
-tolerance = "exact code and detail match for refusals"
-calibration = "point_only_no_interval_claim"
-executing_gate = "scripts/gate_promotion.sh"
-artifact_consumer_fixture = "transport.cpdag_class_envelope.directed_class_is_still_an_envelope.artifact"
-provider_trust = "native_structural_identifier_over_a_discovered_class_selection_targets_are_declared"
-exact_request_verification = "not_applicable_no_external_provider"
-
-[[cell]]
 id = "discovery.per_population"
 route = "antecedent_discovery.selective.populations.PerPopulationDiscovery.run"
 algorithm_provenance = ["provenance/discovery.per_population.toml"]

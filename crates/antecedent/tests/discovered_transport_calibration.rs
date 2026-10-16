@@ -20,12 +20,19 @@ use antecedent::analysis::discovered_transport::discover_and_transport;
 use antecedent::analysis::discovered_transport_estimate::{
     AnswerKind, TransportEvidence, estimate_discovered_transport,
 };
+use antecedent::analysis::discovered_transport_temporal::{
+    TemporalHorizon, estimate_discovered_temporal_transport,
+    transport_discovered_temporal_structure,
+};
 use antecedent_core::{
     ContinuousDomain, ExecutionContext, GridSpec, ResponseFunctional, ResponseQuery,
     TransportQuery, VariableId,
 };
-use antecedent_data::TabularData;
-use antecedent_discovery::selective::{CiTestSpec, StaticAlgorithm, StaticDiscoveryContract};
+use antecedent_data::{TabularData, TimeSeriesData};
+use antecedent_discovery::selective::{
+    CiTestSpec, StaticAlgorithm, StaticDiscoveryContract, TemporalAlgorithm,
+    TemporalDiscoveryContract, TemporalSelectiveDiscovery,
+};
 use common::calibration::{
     Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, map_replicates,
     n_sim, stream_seed, unit_uniform,
@@ -162,6 +169,98 @@ fn discovered_pag_transport_contrast_complete_procedure_coverage() {
             &construction(),
             ScopeFacts {
                 row_count: n as u64,
+                replicates_ok: Some(REPLICATES),
+                posterior_draws: None,
+                unidentified_mass: 0.0,
+            },
+        );
+        tally.record(outcome, effect);
+    }
+    tally.assert();
+}
+
+fn p_y_lagged(x: f64, z: f64) -> f64 {
+    0.1 + 0.4 * x + 0.3 * z + 0.1 * x * z
+}
+
+/// A binary series: `z` autoregressive with a population-specific mechanism, `x` randomized,
+/// `y_t` caused by `x_{t-1}` and `z_{t-1}`.
+fn series(steps: usize, target: bool, seed: u64) -> (TimeSeriesData, TabularData) {
+    let (mut xs, mut ys, mut zs) = (vec![0.0], vec![0.0], vec![0.0]);
+    for t in 1..steps {
+        let draw = |k: u64| stream_seed(seed, t as u64 * 4 + k);
+        let pz = if target { 0.6 - 0.4 * zs[t - 1] } else { 0.2 + 0.5 * zs[t - 1] };
+        zs.push(bern(draw(0), pz));
+        xs.push(bern(draw(1), 0.5));
+        ys.push(bern(draw(2), p_y_lagged(xs[t - 1], zs[t - 1])));
+    }
+    let columns = [("v0", xs.as_slice()), ("v1", ys.as_slice()), ("v2", zs.as_slice())];
+    (
+        TimeSeriesData::from_f64_columns(columns, 1_000_000_000).unwrap(),
+        TabularData::from_f64_columns(columns).unwrap(),
+    )
+}
+
+fn temporal_construction() -> Construction {
+    Construction {
+        graph_class: "TemporalCpdag".into(),
+        dependence: "block".into(),
+        interval_method: "block_percentile_bootstrap".into(),
+        ..construction()
+    }
+}
+
+/// Complete-procedure coverage of the temporal contrast interval: PCMCI+ on the source series,
+/// the temporal class at horizon one, identification in every member, the estimate over the
+/// windowed tables and the circular block bootstrap interval, in every replicate.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn discovered_temporal_transport_contrast_complete_procedure_coverage() {
+    let steps = grid_n(4000);
+    let pi = 0.6 / 1.4;
+    let truth = |a: f64| (1.0 - pi) * p_y_lagged(a, 0.0) + pi * p_y_lagged(a, 1.0);
+    let effect = truth(1.0) - truth(0.0);
+    let mut tally = CoverageTally::for_record(
+        RecordKey {
+            test: "discovered_temporal_transport_contrast_complete_procedure_coverage",
+            dgp: "lagged_selection_on_autoregressive_z",
+            interval: "block_percentile_bootstrap",
+        },
+        REPORTED_LEVEL,
+    );
+    for outcome in map_replicates(n_sim(), |rep| {
+        let seed = rep.wrapping_mul(1_000_003);
+        let (source, source_table) = series(steps, false, seed);
+        let (_, target_table) = series(steps, true, seed ^ 0x5eed);
+        let ctx = ExecutionContext::for_tests(rep);
+        let contract = TemporalDiscoveryContract::new(
+            TemporalAlgorithm::PcmciPlus,
+            (0..3).map(VariableId::from_raw).collect(),
+            CiTestSpec::named("gsquared"),
+            rep,
+        );
+        let mut adapter = TemporalSelectiveDiscovery::new();
+        adapter.run(&contract, &source, &ctx).ok()?;
+        let report = transport_discovered_temporal_structure(
+            adapter.outcome()?,
+            TemporalHorizon { horizon_steps: 1, history: None },
+            &[v(2)],
+            &query(),
+            256,
+        )
+        .ok()?;
+        let mut evidence = TransportEvidence::new(&source_table, &target_table);
+        evidence.bootstrap_replicates = REPLICATES;
+        let estimate =
+            estimate_discovered_temporal_transport(&report, &query(), &evidence, &ctx).ok()?;
+        (estimate.answer().kind == AnswerKind::Point)
+            .then(|| estimate.answer().interval.map(|i| (i.low, i.high)))
+            .flatten()
+    }) {
+        tally.bind(
+            &temporal_construction(),
+            ScopeFacts {
+                row_count: steps as u64,
                 replicates_ok: Some(REPLICATES),
                 posterior_draws: None,
                 unidentified_mass: 0.0,

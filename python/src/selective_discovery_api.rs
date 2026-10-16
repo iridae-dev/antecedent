@@ -374,7 +374,10 @@ pub(crate) fn static_contract(
     Ok(contract)
 }
 
-fn temporal_contract(map: &Map<String, Json>, n: usize) -> PyResult<TemporalDiscoveryContract> {
+pub(crate) fn temporal_contract(
+    map: &Map<String, Json>,
+    n: usize,
+) -> PyResult<TemporalDiscoveryContract> {
     let algorithm = match get_text(map, "algorithm")?.as_str() {
         "pcmci" => TemporalAlgorithm::Pcmci,
         "pcmci_plus" => TemporalAlgorithm::PcmciPlus,
@@ -779,6 +782,41 @@ impl SelectiveDiscoveryHandle {
         };
         crate::discovered_transport_api::across_outcome(
             outcome,
+            query_json,
+            &selection_targets,
+            member_bound,
+        )
+    }
+
+    /// The structural transport verdict of a mean-curve query at a declared horizon across the
+    /// retained temporal class.
+    ///
+    /// Returns `(envelope_json, refusal_json)`.
+    #[pyo3(signature = (query_json, selection_targets, horizon_steps, history=None, member_bound=None))]
+    fn transport_across_temporal_class(
+        &self,
+        query_json: &str,
+        selection_targets: Vec<u32>,
+        horizon_steps: u32,
+        history: Option<u32>,
+        member_bound: Option<usize>,
+    ) -> PyResult<(Option<String>, Option<String>)> {
+        let Some(outcome) = self.inner.as_ref().and_then(Adapter::outcome) else {
+            return Ok((
+                None,
+                Some(refusal_json(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    STAGE,
+                    "selective_discovery.nothing_retained",
+                    "no discovery has run",
+                    "run discovery before requesting transport across its class",
+                )),
+            ));
+        };
+        crate::discovered_transport_api::across_temporal_outcome(
+            outcome,
+            horizon_steps,
+            history,
             query_json,
             &selection_targets,
             member_bound,
