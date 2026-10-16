@@ -322,7 +322,7 @@ def _label_digest(labels: Sequence[str]) -> str:
     """BLAKE2b-256 of the labels, each length-prefixed so no two label lists collide."""
     import hashlib
 
-    digest = hashlib.blake2b(digest_size=32, person=b"antecedent.dropped")
+    digest = hashlib.blake2b(digest_size=32, person=b"antecedent.drops")
     digest.update(len(labels).to_bytes(8, "little"))
     for label in labels:
         encoded = label.encode()

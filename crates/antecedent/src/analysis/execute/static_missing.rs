@@ -19,16 +19,26 @@ impl Study {
         data: &TabularData,
         result: &mut StudyResult,
     ) -> Result<(), CausalError> {
-        if result.missing_data.is_some()
-            || !matches!(
-                route,
-                AnalysisRoute::StaticAte
-                    | AnalysisRoute::Conditional
-                    | AnalysisRoute::StaticMediation
-                    | AnalysisRoute::Response
-                    | AnalysisRoute::Distribution
-            )
-        {
+        if !matches!(
+            route,
+            AnalysisRoute::StaticAte
+                | AnalysisRoute::Conditional
+                | AnalysisRoute::StaticMediation
+                | AnalysisRoute::Response
+                | AnalysisRoute::Distribution
+        ) {
+            return Ok(());
+        }
+        self.report_static_missing_data(data, result)
+    }
+
+    /// The missing-data report of a static adjustment result, attached once.
+    pub(crate) fn report_static_missing_data(
+        &self,
+        data: &TabularData,
+        result: &mut StudyResult,
+    ) -> Result<(), CausalError> {
+        if result.missing_data.is_some() {
             return Ok(());
         }
         let mut variables: Vec<antecedent_core::VariableId> = Vec::new();

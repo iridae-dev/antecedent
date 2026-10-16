@@ -40,6 +40,7 @@ from ._data import (
     ingest_columns,
     project_columns,
     read_columns,
+    table_column_names,
     try_as_arrow_c_columns,
 )
 from ._estimate_helpers import (
@@ -1369,6 +1370,11 @@ class PreparedAnalysis(Generic[ResultT]):
                 data, participant, what="participant", keep_rows=True
             )
             identifier_bindings[participant] = participant_binding
+            # The labels are bound to their rows; the column is not an analysis variable and
+            # must not reach the numeric ingest of a route that reads every column.
+            columns = table_column_names(data)
+            if columns is not None and participant in columns:
+                data = project_columns(data, [c for c in columns if c != participant])
         if latency is not None:
             latency = str(coerce_latency(latency))  # type: ignore[assignment]
         # The native side takes a suite name or False; the parameter keeps its

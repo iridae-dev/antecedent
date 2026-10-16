@@ -16,6 +16,7 @@ use crate::analysis::helpers::{
     AssembleArgs, RefutationRun, assemble_result, overlap_diagnostic, provenance_pair,
     stamp_result_context,
 };
+use crate::analysis::missing_data::MissingRoute;
 use crate::analysis::{CheckedConditionalOperation, ConditionalProcedure};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
@@ -50,6 +51,11 @@ impl PreparedStudy {
         defer: bool,
         result: &mut StudyResult,
     ) -> Result<(), CausalError> {
+        if let (DataInput::Tabular(tabular), Some(MissingRoute::Static)) =
+            (data, MissingRoute::of(&self.study().query, &self.study().data))
+        {
+            self.study().report_static_missing_data(tabular, result)?;
+        }
         if !defer {
             result.executed_contract = Some(self.executed_contract(data, refute, None)?);
         }
