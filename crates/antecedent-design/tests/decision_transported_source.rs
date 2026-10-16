@@ -589,6 +589,7 @@ fn transported_policies(faulty: f64) -> TransportedResponse {
                 target_population: "plant_b",
                 target_initial: Some(&law),
                 diagram: Some(&diagram),
+                target_utility: None,
                 limits: EvaluationLimits::default(),
             };
             let evaluation = evaluate_transported_policy(&request, &ctx).unwrap();
