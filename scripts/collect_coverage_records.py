@@ -885,10 +885,14 @@ def sync_licensed_cells(
                         f"--only-cell {cell_key}: record {rid} estimator {rec.get('estimator')!r} "
                         "is not owned by the licensed cell"
                     )
+        # A point-only cell states `no_interval_reported` itself and keeps it: the
+        # runtime publishes no interval there, so there is nothing to measure.
+        point_only = (
+            cell["query"] in NO_INTERVAL_QUERIES
+            or cell.get("calibration_reason") == "no_interval_reported"
+        )
         reason = (
-            "no_interval_reported"
-            if not ids and cell["query"] in NO_INTERVAL_QUERIES
-            else "estimator_grid_not_measured"
+            "no_interval_reported" if not ids and point_only else "estimator_grid_not_measured"
         )
         new_block = replace_pair(block, ids, reason, all_boundary_at_reported_level(ids, records))
         changed += int(new_block != block)

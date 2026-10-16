@@ -63,7 +63,7 @@ def registered_inference() -> list[str]:
             f"{len(expected)} registered routes, including closed producers and independent "
             "consumers. It is generated from the promotion registry and evidence ledger. "
             "A point-only status can still carry unmeasured standard errors, p-values, "
-            "posterior summaries or Monte Carlo diagnostics. The inherited 40-cell backlog "
+            "posterior summaries or Monte Carlo diagnostics. The inherited 39-cell backlog "
             "above does not allocate designs for those outputs. Neither this table nor an "
             "allocated coverage ID establishes that a measurement suite exists or has run."
         ),
@@ -116,21 +116,6 @@ def registered_inference() -> list[str]:
 
 
 def disposition(row: dict) -> tuple[str, str]:
-    if row["structure"] == "explicit":
-        if (row["query"], row["graph_class"], row["inference"]) != (
-            "NestedCounterfactualEffect",
-            "Dag",
-            "Frequentist",
-        ):
-            raise ValueError("unreviewed fixed-graph backlog coordinate")
-        return (
-            "point_only_no_interval",
-            (
-                "The fixed Markovian natural-direct-effect route publishes a point only. "
-                "Build a separate whole-estimator interval and repeated-row known-SCM grid "
-                "before claiming sampling coverage; retain its current point truth fixture."
-            ),
-        )
     if row["structure"] != "graph_posterior":
         raise ValueError("unreviewed backlog structure")
     quantity = row["query"]
@@ -351,7 +336,7 @@ def render() -> str:
         if row.get("calibration_reason") == "estimator_grid_not_measured"
     ]
     counts = Counter(tuple(row[a] for a in AXES) for row in cells)
-    if len(cells) != 40 or len(counts) != 18:
+    if len(cells) != 39 or len(counts) != 17:
         raise ValueError(
             f"backlog changed to {len(cells)} cells / {len(counts)} coordinates; review plan"
         )
@@ -365,7 +350,7 @@ def render() -> str:
     lines = [
         "# Calibration backlog plan",
         "",
-        "Generated from `support_licensed.toml` without changing its `estimator_grid_not_measured` markers. These are 40 cells across 18 distinct coordinates. The fixed-DAG point route is reviewed first; graph-posterior rows remain pending. A typed reason below explains why the missing calibration does not license an inferential claim. It is not a waiver or a coverage record.",
+        f"Generated from `support_licensed.toml` without changing its `estimator_grid_not_measured` markers. These are {len(cells)} cells across {len(counts)} distinct coordinates. The fixed-DAG point route is reviewed first; graph-posterior rows remain pending. A typed reason below explains why the missing calibration does not license an inferential claim. It is not a waiver or a coverage record.",
         "",
         "| Priority | Query | Graph | Structure | Inference | Validation | Estimator | Typed reason | Required next evidence |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
@@ -459,7 +444,7 @@ def main() -> None:
     else:
         OUTPUT.write_text(content, encoding="utf-8", newline="\n")
     print(
-        "calibration plan: inherited 40 cells / 18 coordinates retained; "
+        "calibration plan: inherited 39 cells / 17 coordinates retained; "
         "current promotion routes and inference boundaries inventoried"
     )
 

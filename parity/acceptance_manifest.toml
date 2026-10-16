@@ -1908,7 +1908,7 @@ configuration = { contrast = "total", participants = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["total contrast interval executed separately and bound to its own record"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Separate record per contrast; 95% required wherever runtime reports 95%. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "mediation_scm", seed = 8063669, n = 2000, direct = 0.3, indirect = 0.2, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/static_calibration.rs::mediation_contrasts_bind_separate_records_on_one_dataset" }
 
 [[case]]
 id = "mediation_direct_contrast_executed_and_bound"
@@ -1918,7 +1918,7 @@ configuration = { contrast = "direct", participants = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["direct contrast interval executed separately and bound to its own record"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Separate record per contrast; 95% required wherever runtime reports 95%. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "mediation_scm", seed = 6500050, n = 2000, direct = 0.3, indirect = 0.2, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/static_calibration.rs::mediation_contrasts_bind_separate_records_on_one_dataset" }
 
 [[case]]
 id = "mediation_mediated_contrast_executed_and_bound"
@@ -1928,7 +1928,7 @@ configuration = { contrast = "mediated", participants = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["mediated contrast interval executed separately and bound to its own record"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Separate record per contrast; 95% required wherever runtime reports 95%. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "mediation_scm", seed = 9170820, n = 2000, direct = 0.3, indirect = 0.2, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/static_calibration.rs::mediation_contrasts_bind_separate_records_on_one_dataset" }
 
 [[case]]
 id = "runtime_reported_levels_have_95_percent_records"
@@ -1938,7 +1938,7 @@ configuration = { levels = [0.95] }
 expected = { kind = "receipt", outputs = ["every runtime 95% claim has an applicable 95% record"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Evidence reconciliation reads registries and executes the existing workflows once per coordinate." }
 dataset = { generator = "registry_check", seed = 5207820, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/check_interval_levels.py::audit" }
 
 [[case]]
 id = "intentional_90_percent_bands_preserved"
@@ -1948,7 +1948,7 @@ configuration = { levels = [0.9] }
 expected = { kind = "receipt", outputs = ["configured 90% bands remain 90% with their own records"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Evidence reconciliation reads registries and executes the existing workflows once per coordinate." }
 dataset = { generator = "registry_check", seed = 3779819, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/check_interval_levels.py::audit" }
 
 [[case]]
 id = "support_matrix_citations_match_records_and_endpoints"
@@ -1958,7 +1958,7 @@ configuration = { registries = ["calibration", "support_matrix"] }
 expected = { kind = "receipt", outputs = ["runtime endpoint, reported level, record and support-matrix citation agree"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Evidence reconciliation reads registries and executes the existing workflows once per coordinate." }
 dataset = { generator = "registry_check", seed = 2735937, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/check_interval_levels.py::audit" }
 
 [[case]]
 id = "simulated_datasets_reused_across_contrasts_where_valid"
@@ -1968,7 +1968,7 @@ configuration = { contrasts = 3 }
 expected = { kind = "receipt", outputs = ["shared dataset digest across contrasts with identical generator"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Evidence reconciliation reads registries and executes the existing workflows once per coordinate." }
 dataset = { generator = "registry_check", seed = 9924652, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/static_calibration.rs::mediation_contrasts_bind_separate_records_on_one_dataset" }
 
 [[case]]
 id = "ready_backlog_coordinates_executed_and_failures_resolved"

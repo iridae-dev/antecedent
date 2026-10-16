@@ -45,7 +45,7 @@ use common::calibration::{
     CoverageTally, GRID_POINTS, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n,
     map_replicates, n_sim, normal_interval, quantile_interval,
 };
-use common::calibration_bind::{bind, bind_all};
+use common::calibration_bind::{bind, bind_all, constructions};
 // The laws this suite shares with the `calibration_*` suites live in one owner, so the
 // two measurements of a cell cannot silently diverge.
 use common::static_dgp::{
@@ -158,9 +158,13 @@ fn level_query(level: f64) -> ResponseQuery {
 }
 
 fn response_options(simultaneous: Option<u32>) -> ContinuousResponseOptions {
+    response_options_at(LEVEL, simultaneous)
+}
+
+fn response_options_at(level: f64, simultaneous: Option<u32>) -> ContinuousResponseOptions {
     ContinuousResponseOptions {
         bandwidth: Some(0.5),
-        confidence_level: LEVEL,
+        confidence_level: level,
         simultaneous_replicates: simultaneous,
         ..ContinuousResponseOptions::default()
     }
@@ -205,9 +209,54 @@ fn run_response(
         .map(|(_, result)| result)
 }
 
+/// One replicate fitted at the gated level and again at the level the runtime
+/// reports by default, on one simulated dataset.
+///
+/// The two fits differ only in `confidence_level`: the response estimator draws
+/// its nuisance fit, influence functions and multiplier replicates from the
+/// data and the seed, and takes the level only for the interval quantile, so
+/// each level's interval is a function of the same draw and is valid evidence
+/// at its own level.
+struct LevelPair {
+    gated: (Study, StudyResult),
+    reported: (Study, StudyResult),
+}
+
+/// Fit `query` at [`LEVEL`] and at [`REPORTED_LEVEL`] on the same data and seed.
+fn run_response_pair(
+    data: &TabularData,
+    graph: &(impl antecedent::IntoGraphInput + Clone),
+    query: &ResponseQuery,
+    inference: impl Fn() -> InferenceMode,
+    simultaneous: Option<u32>,
+    seed: u64,
+) -> Option<LevelPair> {
+    let fit = |level| {
+        run_response_study(
+            data.clone(),
+            graph.clone(),
+            query.clone(),
+            inference(),
+            Some(response_options_at(level, simultaneous)),
+            None,
+            seed,
+        )
+    };
+    Some(LevelPair { gated: fit(LEVEL)?, reported: fit(REPORTED_LEVEL)? })
+}
+
 /// One record-keyed tally per grid coordinate of a response band.
 fn grid_tallies(key: RecordKey) -> Vec<CoverageTally> {
     GRID.iter().map(|a| CoverageTally::for_record(key, LEVEL).labelled(format!("a={a}"))).collect()
+}
+
+/// [`grid_tallies`] at the runtime's reported level, emitted without a gate.
+fn reported_grid_tallies(key: RecordKey) -> Vec<CoverageTally> {
+    GRID.iter()
+        .map(|a| {
+            CoverageTally::for_record(key, REPORTED_LEVEL).labelled(format!("a={a}")).unasserted()
+        })
+        .collect()
 }
 
 /// `(mean, lower, upper)` per grid coordinate of a pointwise or simultaneous band.
@@ -233,43 +282,74 @@ fn scalar_interval(result: &StudyResult) -> Option<(f64, f64)> {
     }
 }
 
+/// Score a pair's pointwise bands per grid coordinate against `truth(j)`; a pair
+/// without both bands skips every tally.
+fn score_band_pair(
+    gated: &mut [CoverageTally],
+    reported: &mut [CoverageTally],
+    pair: Option<&LevelPair>,
+    truth: impl Fn(usize) -> f64,
+) {
+    let bands = pair.and_then(|p| Some((band(&p.gated.1)?, band(&p.reported.1)?)));
+    let (Some(pair), Some((at_gated, at_reported))) = (pair, bands) else {
+        gated.iter_mut().chain(reported.iter_mut()).for_each(CoverageTally::skip);
+        return;
+    };
+    bind_all(&mut gated.iter_mut().collect::<Vec<_>>(), &pair.gated.0, &pair.gated.1);
+    bind_all(&mut reported.iter_mut().collect::<Vec<_>>(), &pair.reported.0, &pair.reported.1);
+    for (tallies, (_, lower, upper)) in [(gated, at_gated), (reported, at_reported)] {
+        for (j, tally) in tallies.iter_mut().enumerate() {
+            tally.record(Some((lower[j], upper[j])), truth(j));
+        }
+    }
+}
+
+/// Score a pair's scalar intervals against `truth`; a failed pair skips both.
+fn score_scalar_pair(
+    gated: &mut CoverageTally,
+    reported: &mut CoverageTally,
+    pair: Option<&LevelPair>,
+    truth: f64,
+) {
+    let Some(pair) = pair else {
+        gated.skip();
+        reported.skip();
+        return;
+    };
+    bind(gated, &pair.gated.0, &pair.gated.1);
+    bind(reported, &pair.reported.0, &pair.reported.1);
+    gated.record(scalar_interval(&pair.gated.1), truth);
+    reported.record(scalar_interval(&pair.reported.1), truth);
+}
+
 /// Kennedy-DR pointwise band: nominal 90% at each of the five grid points,
 /// scored against `m(a) = 1 + 2a`.
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn response_curve_dag_frequentist_pointwise_nominal_90_coverage() {
-    // The band is configured at 90%, so no 95% level is reported beside it.
-    let mut tallies = grid_tallies(RecordKey {
+    // Gated at 90%; the runtime's default 95% band is fitted on the same data
+    // and recorded beside it.
+    let key = RecordKey {
         test: "response_curve_dag_frequentist_pointwise_nominal_90_coverage",
         dgp: "response_data",
         interval: "analytic_se",
-    });
+    };
+    let mut tallies = grid_tallies(key);
+    let mut reported = reported_grid_tallies(key);
     let runs = map_replicates(n_sim(), |rep| {
         let seed = 21_000 + rep;
         let (data, _) = response_data(grid_n(500), seed);
-        run_response_study(
-            data,
-            response_dag(),
-            curve_query(),
-            InferenceMode::Frequentist,
-            Some(response_options(None)),
+        run_response_pair(
+            &data,
+            &response_dag(),
+            &curve_query(),
+            || InferenceMode::Frequentist,
             None,
             seed,
         )
     });
     for run in &runs {
-        let bands = run.as_ref().and_then(|(_, result)| band(result));
-        if let (Some((study, result)), Some(_)) = (run, &bands) {
-            bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), study, result);
-        }
-        for (j, tally) in tallies.iter_mut().enumerate() {
-            match &bands {
-                Some((_, lower, upper)) => {
-                    tally.record(Some((lower[j], upper[j])), 1.0 + 2.0 * GRID[j]);
-                }
-                None => tally.skip(),
-            }
-        }
+        score_band_pair(&mut tallies, &mut reported, run.as_ref(), |j| 1.0 + 2.0 * GRID[j]);
     }
     // Grid point 0: a=1 measured 0.885 at 2000 replicates, under the floor.
     for (j, tally) in tallies.iter().enumerate() {
@@ -279,6 +359,7 @@ fn response_curve_dag_frequentist_pointwise_nominal_90_coverage() {
             tally.assert();
         }
     }
+    reported.iter().for_each(CoverageTally::emit);
 }
 
 /// Overlap-stress probe (ρ = 0.6): same law and band, measured coverage only.
@@ -325,59 +406,64 @@ fn response_curve_dag_frequentist_weak_overlap_probe() {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn response_curve_dag_frequentist_simultaneous_nominal_90_coverage() {
-    // The band is configured at 90%, so no 95% level is reported beside it.
-    let mut tally = CoverageTally::for_record(
-        RecordKey {
-            test: "response_curve_dag_frequentist_simultaneous_nominal_90_coverage",
-            dgp: "response_data",
-            interval: "simultaneous_band",
-        },
-        LEVEL,
-    );
+    // Gated at 90%; the runtime's default 95% band is fitted on the same data
+    // and recorded beside it.
+    let key = RecordKey {
+        test: "response_curve_dag_frequentist_simultaneous_nominal_90_coverage",
+        dgp: "response_data",
+        interval: "simultaneous_band",
+    };
+    let mut tally = CoverageTally::for_record(key, LEVEL);
+    let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     let mut half_widths = Vec::new();
     let runs = map_replicates(n_sim(), |rep| {
         let seed = 22_000 + rep;
         let (data, _) = response_data(grid_n(500), seed);
-        run_response_study(
-            data,
-            response_dag(),
-            curve_query(),
-            InferenceMode::Frequentist,
-            Some(response_options(Some(1_000))),
-            None,
+        run_response_pair(
+            &data,
+            &response_dag(),
+            &curve_query(),
+            || InferenceMode::Frequentist,
+            Some(1_000),
             seed,
         )
     });
     for scored in &runs {
-        let Some((study, result)) = scored else {
+        let Some(pair) = scored else {
             tally.skip();
+            reported.skip();
             continue;
         };
-        assert!(
-            matches!(
-                result.response().map(|r| &r.uncertainty),
-                Some(ResponseUncertainty::SimultaneousBand { .. })
-            ),
-            "simultaneous replicates must publish a SimultaneousBand"
-        );
-        bind(&mut tally, study, result);
-        let Some((mean, lower, upper)) = band(result) else {
-            tally.record(None, 0.5);
-            continue;
-        };
-        let covered = GRID
-            .iter()
-            .enumerate()
-            .all(|(j, a)| lower[j] <= 1.0 + 2.0 * a && 1.0 + 2.0 * a <= upper[j]);
-        debug_assert_eq!(mean.len(), GRID.len());
-        half_widths.push((upper[2] - lower[2]) / 2.0);
-        tally.record(Some((0.0, 1.0)), if covered { 0.5 } else { 2.0 });
+        for (at, (study, result)) in [(&mut tally, &pair.gated), (&mut reported, &pair.reported)] {
+            assert!(
+                matches!(
+                    result.response().map(|r| &r.uncertainty),
+                    Some(ResponseUncertainty::SimultaneousBand { .. })
+                ),
+                "simultaneous replicates must publish a SimultaneousBand"
+            );
+            bind(at, study, result);
+            let Some((mean, lower, upper)) = band(result) else {
+                at.record(None, 0.5);
+                continue;
+            };
+            let covered = GRID
+                .iter()
+                .enumerate()
+                .all(|(j, a)| lower[j] <= 1.0 + 2.0 * a && 1.0 + 2.0 * a <= upper[j]);
+            debug_assert_eq!(mean.len(), GRID.len());
+            at.record(Some((0.0, 1.0)), if covered { 0.5 } else { 2.0 });
+        }
+        if let Some((_, lower, upper)) = band(&pair.gated.1) {
+            half_widths.push((upper[2] - lower[2]) / 2.0);
+        }
     }
     let (w, _) = mean_sd(&half_widths);
     eprintln!(
         "calibration response_curve_dag_frequentist_simultaneous: mean half-width at a=0 {w:.4}"
     );
     tally.assert_boundary_at([Some(0.873), None, None]);
+    reported.emit();
 }
 
 /// Bayesian linear-additive response curve. The credible band holds the
@@ -387,42 +473,32 @@ fn response_curve_dag_frequentist_simultaneous_nominal_90_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn response_curve_dag_bayesian_pointwise_nominal_90_coverage() {
-    // The credible band is configured at 90%, so no 95% level is reported beside it.
-    let mut tallies = grid_tallies(RecordKey {
+    // Gated at 90%; the runtime's default 95% band is fitted on the same data
+    // and recorded beside it.
+    let key = RecordKey {
         test: "response_curve_dag_bayesian_pointwise_nominal_90_coverage",
         dgp: "response_data",
         interval: "posterior_quantile",
-    });
+    };
+    let mut tallies = grid_tallies(key);
+    let mut reported = reported_grid_tallies(key);
     let mut population = [0u32; 5];
     let mut scored = 0u32;
     let runs = map_replicates(n_sim(), |rep| {
         let seed = 23_000 + rep;
         let (data, z_bar) = response_data(grid_n(500), seed);
-        let run = run_response_study(
-            data,
-            response_dag(),
-            curve_query(),
-            bayes(),
-            Some(response_options(None)),
-            None,
-            seed,
-        );
-        (run, z_bar)
+        let pair = run_response_pair(&data, &response_dag(), &curve_query(), bayes, None, seed);
+        (pair, z_bar)
     });
-    for (run, z_bar) in &runs {
-        let bands = run.as_ref().and_then(|(_, result)| band(result));
-        if let (Some((study, result)), Some(_)) = (run, &bands) {
+    for (pair, z_bar) in &runs {
+        score_band_pair(&mut tallies, &mut reported, pair.as_ref(), |j| {
+            1.0 + 2.0 * GRID[j] + 0.8 * z_bar
+        });
+        if let Some((_, lower, upper)) = pair.as_ref().and_then(|p| band(&p.gated.1)) {
             scored += 1;
-            bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), study, result);
-        }
-        for (j, tally) in tallies.iter_mut().enumerate() {
-            match &bands {
-                Some((_, lower, upper)) => {
-                    tally.record(Some((lower[j], upper[j])), 1.0 + 2.0 * GRID[j] + 0.8 * z_bar);
-                    let truth = 1.0 + 2.0 * GRID[j];
-                    population[j] += u32::from(lower[j] <= truth && truth <= upper[j]);
-                }
-                None => tally.skip(),
+            for (j, covered) in population.iter_mut().enumerate() {
+                let truth = 1.0 + 2.0 * GRID[j];
+                *covered += u32::from(lower[j] <= truth && truth <= upper[j]);
             }
         }
     }
@@ -437,6 +513,7 @@ fn response_curve_dag_bayesian_pointwise_nominal_90_coverage() {
     for tally in &tallies {
         tally.assert();
     }
+    reported.iter().for_each(CoverageTally::emit);
 }
 
 /// Additive-GAM g-computation level `E[Y | do(T = 1)] = 3`; its SE includes the
@@ -444,38 +521,32 @@ fn response_curve_dag_bayesian_pointwise_nominal_90_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn intervention_response_dag_frequentist_nominal_90_coverage() {
-    // The response is configured at 90%, so no 95% level is reported beside it.
-    let mut tally = CoverageTally::for_record(
-        RecordKey {
-            test: "intervention_response_dag_frequentist_nominal_90_coverage",
-            dgp: "response_data",
-            interval: "analytic_se",
-        },
-        LEVEL,
-    );
+    // Gated at 90%; the runtime's default 95% interval is fitted on the same
+    // data and recorded beside it.
+    let key = RecordKey {
+        test: "intervention_response_dag_frequentist_nominal_90_coverage",
+        dgp: "response_data",
+        interval: "analytic_se",
+    };
+    let mut tally = CoverageTally::for_record(key, LEVEL);
+    let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     let runs = map_replicates(n_sim(), |rep| {
         let seed = 24_000 + rep;
         let (data, _) = response_data(grid_n(500), seed);
-        run_response_study(
-            data,
-            response_dag(),
-            level_query(1.0),
-            InferenceMode::Frequentist,
-            Some(response_options(None)),
+        run_response_pair(
+            &data,
+            &response_dag(),
+            &level_query(1.0),
+            || InferenceMode::Frequentist,
             None,
             seed,
         )
     });
-    for result in &runs {
-        match result {
-            Some((study, result)) => {
-                bind(&mut tally, study, result);
-                tally.record(scalar_interval(result), 3.0);
-            }
-            None => tally.skip(),
-        }
+    for pair in &runs {
+        score_scalar_pair(&mut tally, &mut reported, pair.as_ref(), 3.0);
     }
     tally.assert();
+    reported.emit();
 }
 
 /// Bayesian level at `do(T = 1)`: sample-covariate target `3 + 0.8·z̄` (gated),
@@ -483,39 +554,25 @@ fn intervention_response_dag_frequentist_nominal_90_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn intervention_response_dag_bayesian_nominal_90_coverage() {
-    // The response is configured at 90%, so no 95% level is reported beside it.
-    let mut tally = CoverageTally::for_record(
-        RecordKey {
-            test: "intervention_response_dag_bayesian_nominal_90_coverage",
-            dgp: "response_data",
-            interval: "posterior_quantile",
-        },
-        LEVEL,
-    );
+    // Gated at 90%; the runtime's default 95% interval is fitted on the same
+    // data and recorded beside it.
+    let key = RecordKey {
+        test: "intervention_response_dag_bayesian_nominal_90_coverage",
+        dgp: "response_data",
+        interval: "posterior_quantile",
+    };
+    let mut tally = CoverageTally::for_record(key, LEVEL);
+    let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     let (mut population, mut scored) = (0u32, 0u32);
     let runs = map_replicates(n_sim(), |rep| {
         let seed = 25_000 + rep;
         let (data, z_bar) = response_data(grid_n(500), seed);
-        let result = run_response_study(
-            data,
-            response_dag(),
-            level_query(1.0),
-            bayes(),
-            Some(response_options(None)),
-            None,
-            seed,
-        );
-        (result, z_bar)
+        let pair = run_response_pair(&data, &response_dag(), &level_query(1.0), bayes, None, seed);
+        (pair, z_bar)
     });
-    for (result, z_bar) in &runs {
-        let Some((study, result)) = result else {
-            tally.skip();
-            continue;
-        };
-        bind(&mut tally, study, result);
-        let interval = scalar_interval(result);
-        tally.record(interval, 3.0 + 0.8 * z_bar);
-        if let Some((lo, hi)) = interval {
+    for (pair, z_bar) in &runs {
+        score_scalar_pair(&mut tally, &mut reported, pair.as_ref(), 3.0 + 0.8 * z_bar);
+        if let Some((lo, hi)) = pair.as_ref().and_then(|p| scalar_interval(&p.gated.1)) {
             scored += 1;
             population += u32::from(lo <= 3.0 && 3.0 <= hi);
         }
@@ -527,6 +584,7 @@ fn intervention_response_dag_bayesian_nominal_90_coverage() {
         "target 3 (population covariate law)",
     );
     tally.assert();
+    reported.emit();
 }
 
 // ------------------------------------------------------------ cell.aipw
@@ -706,45 +764,40 @@ fn class_response_cpdag_disagreeing_completions_publish_unbanded_identified_set(
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn class_response_cpdag_intervention_joint_if_nominal_90_coverage() {
-    // The response is configured at 90%, so no 95% level is reported beside it.
-    let mut tally = CoverageTally::for_record(
-        RecordKey {
-            test: "class_response_cpdag_intervention_joint_if_nominal_90_coverage",
-            dgp: "class_response_data",
-            interval: "analytic_se",
-        },
-        LEVEL,
-    );
+    // Gated at 90%; the runtime's default 95% interval is fitted on the same
+    // data and recorded beside it.
+    let key = RecordKey {
+        test: "class_response_cpdag_intervention_joint_if_nominal_90_coverage",
+        dgp: "class_response_data",
+        interval: "analytic_se",
+    };
+    let mut tally = CoverageTally::for_record(key, LEVEL);
+    let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     let runs = map_replicates(n_sim(), |rep| {
         let seed = 27_000 + rep;
-        let (study, result) = run_response_study(
-            class_response_data(grid_n(500), seed),
-            agreeing_cpdag(),
-            level_query(1.0),
-            InferenceMode::Frequentist,
-            Some(response_options(None)),
+        let pair = run_response_pair(
+            &class_response_data(grid_n(500), seed),
+            &agreeing_cpdag(),
+            &level_query(1.0),
+            || InferenceMode::Frequentist,
             None,
             seed,
         )?;
         if rep == 0 {
-            let mixture = result.structural_response.as_ref().expect("structural response");
+            let mixture = pair.gated.1.structural_response.as_ref().expect("structural response");
             assert_eq!(
                 mixture.atoms.iter().filter(|atom| atom.value.is_some()).count(),
                 2,
                 "two identified completions must contribute"
             );
         }
-        Some((study, result))
+        Some(pair)
     });
-    for scored in &runs {
-        let Some((study, result)) = scored else {
-            tally.skip();
-            continue;
-        };
-        bind(&mut tally, study, result);
-        tally.record(scalar_interval(result), 1.0);
+    for pair in &runs {
+        score_scalar_pair(&mut tally, &mut reported, pair.as_ref(), 1.0);
     }
     tally.assert();
+    reported.emit();
 }
 
 /// Joint-IF pointwise band of the class-aware Kennedy curve `m(a) = a` over two
@@ -763,35 +816,28 @@ fn class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage() {
         [None, None, None],
         [Some(0.879), None, Some(0.886)],
     ];
-    // The band is configured at 90%, so no 95% level is reported beside it.
-    let mut tallies = grid_tallies(RecordKey {
+    // Gated at 90%; the runtime's default 95% band is fitted on the same data
+    // and recorded beside it.
+    let key = RecordKey {
         test: "class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage",
         dgp: "class_response_data",
         interval: "analytic_se",
-    });
+    };
+    let mut tallies = grid_tallies(key);
+    let mut reported = reported_grid_tallies(key);
     let runs = map_replicates(n_sim(), |rep| {
         let seed = 28_000 + rep;
-        run_response_study(
-            class_response_data(grid_n(500), seed),
-            agreeing_cpdag(),
-            curve_query(),
-            InferenceMode::Frequentist,
-            Some(response_options(None)),
+        run_response_pair(
+            &class_response_data(grid_n(500), seed),
+            &agreeing_cpdag(),
+            &curve_query(),
+            || InferenceMode::Frequentist,
             None,
             seed,
         )
     });
     for run in &runs {
-        let bands = run.as_ref().and_then(|(_, result)| band(result));
-        if let (Some((study, result)), Some(_)) = (run, &bands) {
-            bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), study, result);
-        }
-        for (j, tally) in tallies.iter_mut().enumerate() {
-            match &bands {
-                Some((_, lower, upper)) => tally.record(Some((lower[j], upper[j])), GRID[j]),
-                None => tally.skip(),
-            }
-        }
+        score_band_pair(&mut tallies, &mut reported, run.as_ref(), |j| GRID[j]);
     }
     let failures: Vec<String> = tallies
         .iter()
@@ -802,6 +848,7 @@ fn class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage() {
             })
         })
         .collect();
+    reported.iter().for_each(CoverageTally::emit);
     assert!(failures.is_empty(), "{}", failures.join("; "));
 }
 
@@ -844,8 +891,26 @@ fn run_mediation_study(
     inference: InferenceMode,
     seed: u64,
 ) -> Option<(Study, StudyResult)> {
+    run_mediation_study_on(
+        mediation_data(grid_n(400), gamma, seed),
+        gamma,
+        contrast,
+        inference,
+        seed,
+    )
+}
+
+/// [`run_mediation_study`] on a dataset the caller drew, so several contrasts of
+/// one replicate can be executed on the same draw.
+fn run_mediation_study_on(
+    data: TabularData,
+    gamma: f64,
+    contrast: MediationContrast,
+    inference: InferenceMode,
+    seed: u64,
+) -> Option<(Study, StudyResult)> {
     let bayesian = matches!(inference, InferenceMode::Bayesian(_));
-    let study = Study::tabular(mediation_data(grid_n(400), gamma, seed))
+    let study = Study::tabular(data)
         .graph(mediation_graph(gamma != 0.0))
         .query(mediation_query(contrast))
         .inference(inference)
@@ -989,6 +1054,127 @@ fn mediation_nie_bayesian_nominal_90_coverage() {
         30_500,
         [None, None, None],
     );
+}
+
+/// Total, Direct and Mediated contrasts of the static mediation law, each its own
+/// query and its own record at the level the runtime reports (95%).
+///
+/// The three contrasts of a replicate are executed separately on one simulated
+/// dataset. Sharing it is valid because each tally scores a distinct functional
+/// (total `0.7`, direct `0.4`, mediated `0.3`) of the same draw and is judged on
+/// its own marginal coverage; the tallies are never combined into a joint claim,
+/// so a pass of one contrast says nothing about another and none is adjusted.
+fn mediation_contrasts_coverage(test: &'static str, bayesian: bool, seed: u64) {
+    let contrasts = [
+        ("total", MediationContrast::Total, 0.7),
+        ("direct", MediationContrast::Direct, 0.4),
+        ("mediated", MediationContrast::Mediated, 0.3),
+    ];
+    let key = RecordKey {
+        test,
+        dgp: "mediation_data",
+        interval: if bayesian { "posterior_quantile" } else { "bootstrap_se" },
+    };
+    let mut tallies: Vec<CoverageTally> = contrasts
+        .iter()
+        .map(|(label, _, _)| CoverageTally::for_record(key, REPORTED_LEVEL).labelled(*label))
+        .collect();
+    let runs = map_replicates(n_sim(), |rep| {
+        let data = mediation_data(grid_n(400), 0.0, seed + rep);
+        contrasts.map(|(_, contrast, _)| {
+            let inference = if bayesian { bayes() } else { InferenceMode::Frequentist };
+            run_mediation_study_on(data.clone(), 0.0, contrast, inference, seed + rep)
+        })
+    });
+    for replicate in &runs {
+        for ((_, _, truth), (scored, tally)) in
+            contrasts.iter().zip(replicate.iter().zip(&mut tallies))
+        {
+            let Some((study, result)) = scored else {
+                tally.skip();
+                continue;
+            };
+            bind(tally, study, result);
+            tally.record(mediation_interval_at(result, bayesian, REPORTED_LEVEL), *truth);
+        }
+    }
+    let failures: Vec<String> = tallies
+        .iter()
+        .filter_map(|tally| {
+            std::panic::catch_unwind(|| tally.assert()).err().map(|e| {
+                e.downcast_ref::<String>().cloned().unwrap_or_else(|| "coverage failure".into())
+            })
+        })
+        .collect();
+    assert!(failures.is_empty(), "{}", failures.join("; "));
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn mediation_contrasts_frequentist_nominal_95_coverage() {
+    mediation_contrasts_coverage(
+        "mediation_contrasts_frequentist_nominal_95_coverage",
+        false,
+        37_000,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn mediation_contrasts_bayesian_nominal_95_coverage() {
+    mediation_contrasts_coverage("mediation_contrasts_bayesian_nominal_95_coverage", true, 37_500);
+}
+
+/// One replicate of the contrast design: the Total, Direct and Mediated queries
+/// execute separately on one dataset (one content digest), report the interval
+/// the design scores, and bind to three distinct records at the reported level.
+#[test]
+fn mediation_contrasts_bind_separate_records_on_one_dataset() {
+    let seed = 41;
+    let data = mediation_data(grid_n(400), 0.0, seed);
+    let digest = data.storage().content_digest();
+    assert_eq!(
+        digest,
+        mediation_data(grid_n(400), 0.0, seed).storage().content_digest(),
+        "the generator is deterministic in its seed, so a re-draw is the same dataset"
+    );
+    for bayesian in [false, true] {
+        let key = RecordKey {
+            test: "mediation_contrasts_fixture",
+            dgp: "mediation_data",
+            interval: if bayesian { "posterior_quantile" } else { "bootstrap_se" },
+        };
+        let mut ids = Vec::new();
+        for (label, contrast, truth) in [
+            ("total", MediationContrast::Total, 0.7),
+            ("direct", MediationContrast::Direct, 0.4),
+            ("mediated", MediationContrast::Mediated, 0.3),
+        ] {
+            let inference = if bayesian { bayes() } else { InferenceMode::Frequentist };
+            let (study, result) =
+                run_mediation_study_on(data.clone(), 0.0, contrast, inference, seed)
+                    .expect("the contrast executes");
+            let (construction, _) = constructions(&study.inspect().expect("inspect"), &result)
+                .into_iter()
+                .find(|(construction, _)| construction.interval_method == key.interval)
+                .expect("the contrast reports the scored interval");
+            assert!(
+                construction.functional.starts_with(label),
+                "{label}: bound under {}",
+                construction.functional
+            );
+            assert!((construction.reported_level - REPORTED_LEVEL).abs() < 1e-12);
+            let interval = mediation_interval_at(&result, bayesian, REPORTED_LEVEL)
+                .expect("the contrast reports an interval");
+            assert!(interval.0 < interval.1 && (interval.0 - truth).abs() < 2.0);
+            let mut tally = CoverageTally::for_record(key, REPORTED_LEVEL).labelled(label);
+            bind(&mut tally, &study, &result);
+            ids.push(tally.record_id().expect("a bound tally has an id"));
+        }
+        let distinct: std::collections::HashSet<_> = ids.iter().collect();
+        assert_eq!(distinct.len(), 3, "three contrasts, three records: {ids:?}");
+        assert!(ids.iter().all(|id| id.contains(".l95.")), "{ids:?}");
+    }
 }
 
 /// Mediator–outcome confounder `x -> m` (γ = 0.7) that is in the graph but not

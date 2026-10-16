@@ -37,3 +37,9 @@ fi
 python3 "$ROOT/scripts/gate_coverage_citations.py"
 
 python3 scripts/coverage_citations.py check
+
+# The level the runtime reports each interval at, the records that measure it and the cells that
+# cite them agree (scripts/check_interval_levels.py); a missing record that a registered design
+# will produce on the next measurement is reported as pending, not a failure.
+python3 scripts/check_interval_levels.py --self-test
+python3 scripts/check_interval_levels.py

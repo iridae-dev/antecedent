@@ -59,8 +59,8 @@ use antecedent_data::TabularData;
 use antecedent_estimate::{ContinuousResponseEstimator, ContinuousResponseOptions};
 use antecedent_graph::{Dag, DenseNodeId};
 use common::calibration::{
-    Construction, CoverageTally, GRID_POINTS, RecordKey, SampleGrid, ScopeFacts, coverage_band,
-    gaussian, map_replicates, n_sim,
+    Construction, CoverageTally, GRID_POINTS, REPORTED_LEVEL, RecordKey, SampleGrid, ScopeFacts,
+    coverage_band, gaussian, map_replicates, n_sim,
 };
 use common::calibration_bind::{bind, bind_all};
 
@@ -266,12 +266,27 @@ fn run_study(
     inference: Option<InferenceMode>,
     seed: u64,
 ) -> Result<(Study, StudyResult), String> {
+    run_study_at(data, graph, functional, bandwidth, inference, seed, LEVEL)
+}
+
+/// [`run_study`] at an explicit interval `level`. The level enters only the
+/// interval quantile, so fitting one dataset at the gated level and again at
+/// the runtime's reported level scores two intervals of one draw.
+fn run_study_at(
+    data: &TabularData,
+    graph: &Dag,
+    functional: F,
+    bandwidth: Option<f64>,
+    inference: Option<InferenceMode>,
+    seed: u64,
+    level: f64,
+) -> Result<(Study, StudyResult), String> {
     let mut builder = Study::tabular(data.clone())
         .graph(graph.clone())
         .query(CausalQuery::Response(ResponseQuery::new(functional)))
         .response_options(ContinuousResponseOptions {
             bandwidth,
-            confidence_level: LEVEL,
+            confidence_level: level,
             ..Default::default()
         })
         .refute(RefuteSuite::None)
@@ -313,10 +328,13 @@ fn scalar_interval_at(response: &CausalResponse, expected_level: f64) -> Option<
     }
 }
 
-fn band_interval(response: &CausalResponse, j: usize) -> Option<(f64, f64)> {
+fn band_interval(response: &CausalResponse, j: usize, expected_level: f64) -> Option<(f64, f64)> {
     match &response.uncertainty {
         ResponseUncertainty::PointwiseBand { lower, upper, level, .. } => {
-            assert!((level - LEVEL).abs() < 1e-12, "band level {level} != {LEVEL}");
+            assert!(
+                (level - expected_level).abs() < 1e-12,
+                "band level {level} != {expected_level}"
+            );
             Some((lower[j], upper[j]))
         }
         _ => None,
@@ -355,6 +373,10 @@ fn scalar_coverage(
         Some(key) => CoverageTally::for_record(key, LEVEL),
         None => CoverageTally::new(name, LEVEL),
     };
+    // A record-keyed cell also scores the interval at the runtime's default
+    // level on the same dataset, recorded without a gate.
+    let mut reported =
+        record.map(|key| CoverageTally::for_record(key, REPORTED_LEVEL).unasserted());
     let graph = point_graph();
     // Interval centres and half-widths, so a failing gate says whether the
     // interval is mis-centred (bias) or mis-scaled (SE).
@@ -364,16 +386,33 @@ fn scalar_coverage(
     let runs = map_replicates(n_sim(), |rep| {
         let seed = replicate_seed(0x0D0E, rep);
         let data = data_fn(SampleGrid::HEAVY.n(N_POINT), seed);
-        run_study(&data, &graph, functional.clone(), bandwidth, bayesian.then(bayes), seed)
-            .map_err(|error| error.to_string())
+        let fit = |level| {
+            run_study_at(
+                &data,
+                &graph,
+                functional.clone(),
+                bandwidth,
+                bayesian.then(bayes),
+                seed,
+                level,
+            )
+        };
+        let gated = fit(LEVEL)?;
+        let at_reported = if record.is_some() { Some(fit(REPORTED_LEVEL)?) } else { None };
+        Ok::<_, String>((gated, at_reported))
     });
     for (rep, scored) in runs.iter().enumerate() {
         match scored {
-            Ok((study, result)) => {
+            Ok(((study, result), at_reported)) => {
                 let response = result.response().expect("response");
                 let interval = scalar_interval(response);
                 if record.is_some() {
                     bind(&mut tally, study, result);
+                }
+                if let (Some(reported), Some((study, result))) = (reported.as_mut(), at_reported) {
+                    bind(reported, study, result);
+                    let response = result.response().expect("response");
+                    reported.record(scalar_interval_at(response, REPORTED_LEVEL), truth);
                 }
                 tally.record(interval, truth);
                 if let Some((lo, hi)) = interval {
@@ -389,8 +428,14 @@ fn scalar_coverage(
             Err(error) => {
                 eprintln!("{name}: replicate {rep} refused: {error}");
                 tally.skip();
+                if let Some(reported) = reported.as_mut() {
+                    reported.skip();
+                }
             }
         }
+    }
+    if let Some(reported) = &reported {
+        reported.emit();
     }
     let m = centres.len().max(2) as f64;
     let mean = centres.iter().sum::<f64>() / m;
@@ -837,6 +882,12 @@ fn gam_coverage(
     let mut tallies: Vec<_> = (0..truth.len())
         .map(|j| CoverageTally::for_record(key, LEVEL).labelled(format!("j={j}")))
         .collect();
+    // The band is also scored at the runtime's default level on the same dataset.
+    let mut reported: Vec<_> = (0..truth.len())
+        .map(|j| {
+            CoverageTally::for_record(key, REPORTED_LEVEL).labelled(format!("j={j}")).unasserted()
+        })
+        .collect();
     let graph = gam_graph();
     // Posterior means and band half-widths per coordinate, so a failing gate
     // says whether the band is mis-centred (bias) or mis-scaled (SE).
@@ -847,13 +898,24 @@ fn gam_coverage(
     let runs = map_replicates(n_sim(), |rep| {
         let seed = replicate_seed(0x0D0F, rep);
         let data = gam_data(SampleGrid::HEAVY.n(N_GAM), seed);
-        run_study(&data, &graph, functional.clone(), None, Some(bayes()), seed)
-            .map_err(|error| error.to_string())
+        let fit = |level| {
+            run_study_at(&data, &graph, functional.clone(), None, Some(bayes()), seed, level)
+        };
+        Ok::<_, String>((fit(LEVEL)?, fit(REPORTED_LEVEL)?))
     });
     for (rep, scored) in runs.iter().enumerate() {
         match scored {
-            Ok((study, result)) => {
+            Ok(((study, result), (reported_study, reported_result))) => {
                 bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), study, result);
+                bind_all(
+                    &mut reported.iter_mut().collect::<Vec<_>>(),
+                    reported_study,
+                    reported_result,
+                );
+                let reported_response = reported_result.response().expect("response");
+                for (j, tally) in reported.iter_mut().enumerate() {
+                    tally.record(band_interval(reported_response, j, REPORTED_LEVEL), truth[j]);
+                }
                 let response = result.response().expect("response");
                 let values: Vec<f64> = match &response.estimate {
                     ResponseIdentification::PointIdentified(
@@ -862,7 +924,7 @@ fn gam_coverage(
                     other => panic!("{name}: unexpected estimate {other:?}"),
                 };
                 for (j, tally) in tallies.iter_mut().enumerate() {
-                    let interval = band_interval(response, j);
+                    let interval = band_interval(response, j, LEVEL);
                     tally.record(interval, truth[j]);
                     points[j].push(values[j]);
                     if let Some((lo, hi)) = interval {
@@ -873,12 +935,13 @@ fn gam_coverage(
             }
             Err(error) => {
                 eprintln!("{name}: replicate {rep} refused: {error}");
-                for tally in &mut tallies {
+                for tally in tallies.iter_mut().chain(reported.iter_mut()) {
                     tally.skip();
                 }
             }
         }
     }
+    reported.iter().for_each(CoverageTally::emit);
     for j in 0..truth.len() {
         let n = points[j].len().max(2) as f64;
         let mean = points[j].iter().sum::<f64>() / n;

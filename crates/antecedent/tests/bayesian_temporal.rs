@@ -488,46 +488,60 @@ fn run_mediation_study(
 }
 
 /// Total, Direct and Mediated 90% equal-tail coverage of the composed Bayesian
-/// temporal mediation posterior (one horizon; columns 1–3 of the posterior).
+/// temporal mediation posterior (one horizon).
 ///
-/// The query's contrast is Mediated, so the reported posterior interval (the
-/// effect column) is the Mediated column: that tally backs a record, with the
-/// reported 95% interval scored on the same replicates. Total and Direct are
-/// decomposition columns the facade does not report as an interval: no record.
+/// Each contrast is its own query: the study is executed once per contrast and
+/// the posterior interval the facade reports for that contrast (the effect
+/// column) is scored against that contrast's truth, with the reported 95%
+/// interval scored beside it. Each contrast therefore backs its own record
+/// (labelled `total`, `direct`, `mediated`) with its own pass or fail, and a
+/// failing contrast cannot hide behind a passing one.
+///
+/// The three executions of a replicate share one simulated series. That is
+/// valid because every tally scores one functional (`c' + ab`, `c'`, `ab`) of
+/// that draw: a record's coverage is the marginal probability that the interval
+/// of its own contrast covers its own truth, which does not depend on what other
+/// functionals were computed from the same series. The tallies are never
+/// combined into a joint statement, so no multiplicity adjustment applies.
 fn mediation_coverage(test: &'static str, regime: Regime, measured: [[Option<f64>; 3]; 3]) {
     let regime = regime.at_grid();
-    let targets =
-        [("Total", 1, MED_C + MED_A * MED_B), ("Direct", 2, MED_C), ("Mediated", 3, MED_A * MED_B)];
+    let contrasts = [
+        ("Total", MediationContrast::Total, MED_C + MED_A * MED_B),
+        ("Direct", MediationContrast::Direct, MED_C),
+        ("Mediated", MediationContrast::Mediated, MED_A * MED_B),
+    ];
     let key = RecordKey { test, dgp: "series_mediation", interval: "posterior_quantile" };
-    let mut tallies: Vec<CoverageTally> = targets
+    let mut tallies: Vec<CoverageTally> = contrasts
+        .iter()
+        .map(|(name, _, _)| CoverageTally::for_record(key, LEVEL).labelled(name.to_lowercase()))
+        .collect();
+    let mut reported: Vec<CoverageTally> = contrasts
         .iter()
         .map(|(name, _, _)| {
-            if *name == "Mediated" {
-                CoverageTally::for_record(key, LEVEL).labelled("mediated")
-            } else {
-                CoverageTally::new(
-                    format!("Bayesian TemporalDag mediation {name} {}", regime.label()),
-                    LEVEL,
-                )
-            }
+            CoverageTally::for_record(key, REPORTED_LEVEL)
+                .labelled(name.to_lowercase())
+                .unasserted()
         })
         .collect();
-    let mut reported =
-        CoverageTally::for_record(key, REPORTED_LEVEL).labelled("mediated").unasserted();
     let runs = map_replicates(n_sim(), |rep| {
-        run_mediation_study(series_mediation(regime, rep), MediationContrast::Mediated, 13 + rep)
+        let data = series_mediation(regime, rep);
+        contrasts.map(|(_, contrast, _)| run_mediation_study(data.clone(), contrast, 13 + rep))
     });
-    for (study, result) in &runs {
-        let post = result.posterior.as_ref().expect("single-horizon mediation posterior");
-        for ((name, column, truth), tally) in targets.iter().zip(&mut tallies) {
-            let draws = post.draws.column(*column).expect("decomposition draws");
-            if *name == "Mediated" {
-                bind_all(&mut [&mut *tally, &mut reported], study, result);
-                reported.record(quantile_interval(draws, REPORTED_LEVEL), *truth);
-            }
+    for replicate in &runs {
+        for (((_, _, truth), (study, result)), (tally, reported)) in
+            contrasts.iter().zip(replicate).zip(tallies.iter_mut().zip(&mut reported))
+        {
+            let post = result.posterior.as_ref().expect("single-horizon mediation posterior");
+            let draws = post
+                .draws
+                .column(post.effect_column().expect("contrast effect draws"))
+                .expect("contrast effect draws");
+            bind_all(&mut [&mut *tally, &mut *reported], study, result);
+            reported.record(quantile_interval(draws, REPORTED_LEVEL), *truth);
             tally.record(quantile_interval(draws, LEVEL), *truth);
         }
     }
+    eprintln!("info {test}: Bayesian TemporalDag mediation, {}", regime.label());
     // Print every contrast's calibration line before failing on any of them.
     let failures: Vec<String> = tallies
         .iter()
@@ -538,7 +552,7 @@ fn mediation_coverage(test: &'static str, regime: Regime, measured: [[Option<f64
             })
         })
         .collect();
-    reported.emit();
+    reported.iter().for_each(CoverageTally::emit);
     assert!(failures.is_empty(), "{}", failures.join("; "));
 }
 

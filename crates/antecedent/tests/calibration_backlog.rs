@@ -57,17 +57,28 @@ fn bayes() -> InferenceMode {
     InferenceMode::Bayesian(BayesianConfig::laplace())
 }
 
-fn mediated_query() -> CausalQuery {
+fn mediation_query(contrast: MediationContrast) -> CausalQuery {
     CausalQuery::Mediation(
         MediationQuery::binary(
             VariableId::from_raw(0),
             VariableId::from_raw(2),
             [VariableId::from_raw(1)],
-            MediationContrast::Mediated,
+            contrast,
         )
         .with_horizons(vec![1])
         .unwrap(),
     )
+}
+
+/// The mediation contrasts, each executed as its own query with its own record,
+/// and the path-product truth each interval is scored against. The Mediated
+/// record keeps its unlabelled id; the others carry their contrast as the label.
+fn contrasts() -> [(Option<&'static str>, MediationContrast, f64); 3] {
+    [
+        (Some("total"), MediationContrast::Total, fixtures::mediation_total_truth()),
+        (Some("direct"), MediationContrast::Direct, fixtures::mediation_direct_truth()),
+        (None, MediationContrast::Mediated, fixtures::mediation_truth()),
+    ]
 }
 
 fn intervention_query() -> CausalQuery {
@@ -129,6 +140,17 @@ fn run_mediation(
     suite: RefuteSuite,
     seed: u64,
 ) -> Option<(Study, StudyResult)> {
+    run_mediation_contrast(kappa, n, MediationContrast::Mediated, accepted, suite, seed)
+}
+
+fn run_mediation_contrast(
+    kappa: f64,
+    n: usize,
+    contrast: MediationContrast,
+    accepted: bool,
+    suite: RefuteSuite,
+    seed: u64,
+) -> Option<(Study, StudyResult)> {
     let data = mediation_series(n, kappa, seed);
     let builder = Study::series(data);
     let builder = if accepted {
@@ -136,7 +158,8 @@ fn run_mediation(
     } else {
         builder.graph(mediation_cpdag_two())
     };
-    let study = builder.query(mediated_query()).inference(bayes()).refute(suite).build().ok()?;
+    let study =
+        builder.query(mediation_query(contrast)).inference(bayes()).refute(suite).build().ok()?;
     let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
     Some((study, result))
 }
@@ -172,36 +195,71 @@ where
     }
 }
 
+/// Total, Direct and Mediated coverage of the agreeing-completion posterior,
+/// each contrast executed as its own query on the replicate's series and bound
+/// to its own record. Sharing the series is valid because each tally scores one
+/// functional of that draw against its own truth and is judged on its own
+/// marginal coverage; the tallies are never combined into a joint claim.
 fn mediation_coverage(test: &'static str, kappa: f64, seed_base: u64, accepted: bool) {
-    let mut tallies = keyed_pair(test, "mediation_series");
+    let contrasts = contrasts();
+    let mut tallies: Vec<[CoverageTally; 2]> = contrasts
+        .iter()
+        .map(|(label, _, _)| {
+            let mut pair = keyed_pair(test, "mediation_series");
+            if let Some(label) = label {
+                pair = pair.map(|tally| tally.labelled(*label));
+            }
+            pair
+        })
+        .collect();
     let runs = map_replicates(n_sim(), |rep| {
         let seed = seed_base + rep;
-        let (study, result) =
-            run_mediation(kappa, grid_n(MEDIATION_N), accepted, RefuteSuite::None, seed)?;
-        let intervals = posterior_intervals(&result);
+        let n = grid_n(MEDIATION_N);
+        let scored: Option<Vec<_>> = contrasts
+            .iter()
+            .map(|(_, contrast, _)| {
+                let (study, result) =
+                    run_mediation_contrast(kappa, n, *contrast, accepted, RefuteSuite::None, seed)?;
+                let intervals = posterior_intervals(&result);
+                Some((study, result, intervals))
+            })
+            .collect();
+        let scored = scored?;
         if rep == 0 {
+            let (_, result, intervals) = &scored[2];
             assert_eq!(
                 result.logical_plan.estimator.as_deref(),
                 Some("temporal.mediation.bayesian")
             );
             assert!(intervals[0].is_some(), "agreeing completions must publish the posterior");
             same_interval(
-                |accepted, suite| run_mediation(kappa, grid_n(MEDIATION_N), accepted, suite, seed),
-                intervals,
+                |accepted, suite| run_mediation(kappa, n, accepted, suite, seed),
+                *intervals,
             );
         }
-        Some((study, result, intervals))
+        Some(scored)
     });
-    for scored in &runs {
-        let Some((study, result, intervals)) = scored else {
-            skip_pair(&mut tallies);
-            continue;
-        };
-        let [first, second] = &mut tallies;
-        bind_all(&mut [first, second], study, result);
-        record_pair(&mut tallies, *intervals, fixtures::mediation_truth());
+    for replicate in &runs {
+        for (i, (_, _, truth)) in contrasts.iter().enumerate() {
+            let Some(scored) = replicate else {
+                skip_pair(&mut tallies[i]);
+                continue;
+            };
+            let (study, result, intervals) = &scored[i];
+            let [first, second] = &mut tallies[i];
+            bind_all(&mut [first, second], study, result);
+            record_pair(&mut tallies[i], *intervals, *truth);
+        }
     }
-    gate(&tallies, &[None, None]);
+    let failures: Vec<String> = tallies
+        .iter()
+        .filter_map(|pair| {
+            std::panic::catch_unwind(|| gate(pair, &[None, None])).err().map(|e| {
+                e.downcast_ref::<String>().cloned().unwrap_or_else(|| "coverage failure".into())
+            })
+        })
+        .collect();
+    assert!(failures.is_empty(), "{}", failures.join("; "));
 }
 
 fn publishes_mediation(kappa: f64, seed: u64) {
@@ -992,6 +1050,101 @@ fn response_curve_admg_graph_posterior_frequentist_pointwise_nominal_coverage() 
         // failure. a=0 and the other grid points gate at nominal.
         [[None, None, None], [None, Some(0.939), None]],
     );
+}
+
+/// Bayesian twins of the Frequentist ADMG graph-posterior tests above: one
+/// fully identified ADMG atom, so the study reports structure `graph_posterior`
+/// and the atom publishes its own posterior.
+fn run_intervention_gp_bayes(n: usize, seed: u64) -> Option<(Study, StudyResult)> {
+    let study = Study::tabular(frontdoor_data(n, seed))
+        .graph_posterior(frontdoor_admg_gp())
+        .query(intervention_query())
+        .inference(bayes())
+        .refute(RefuteSuite::None)
+        .build()
+        .ok()?;
+    let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
+    Some((study, result))
+}
+
+fn run_admg_curve_gp_bayes(n: usize, seed: u64) -> Option<(Study, StudyResult)> {
+    let study = Study::tabular(frontdoor_data(n, seed))
+        .graph_posterior(frontdoor_admg_gp())
+        .query(CausalQuery::Response(admg_curve_query()))
+        .inference(bayes())
+        .refute(RefuteSuite::None)
+        .build()
+        .ok()?;
+    let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
+    Some((study, result))
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn intervention_response_admg_graph_posterior_bayesian_nominal_coverage() {
+    let mut tallies = keyed_pair(
+        "intervention_response_admg_graph_posterior_bayesian_nominal_coverage",
+        "frontdoor_data",
+    );
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(0x110_0415, rep);
+        let (study, result) = run_intervention_gp_bayes(SampleGrid::HEAVY.n(FRONTDOOR_N), seed)?;
+        let intervals = posterior_intervals(&result);
+        if rep == 0 {
+            assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
+            assert_posterior_quantile(&study, &result);
+            assert!(intervals[0].is_some(), "the single atom must publish its posterior");
+        }
+        Some((study, result, intervals))
+    });
+    for scored in &runs {
+        let Some((study, result, intervals)) = scored else {
+            skip_pair(&mut tallies);
+            continue;
+        };
+        let [first, second] = &mut tallies;
+        bind_all(&mut [first, second], study, result);
+        record_pair(&mut tallies, *intervals, P_Y1_DO_T1);
+    }
+    gate(&tallies, &[None, None]);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn response_curve_admg_graph_posterior_bayesian_pointwise_nominal_coverage() {
+    let mut tallies: Vec<CoverageTally> = ADMG_CURVE
+        .iter()
+        .map(|a| {
+            CoverageTally::for_record(
+                RecordKey {
+                    test: "response_curve_admg_graph_posterior_bayesian_pointwise_nominal_coverage",
+                    dgp: "frontdoor_data",
+                    interval: "posterior_quantile",
+                },
+                REPORTED_LEVEL,
+            )
+            .labelled(format!("a={a}"))
+        })
+        .collect();
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(0x110_0424, rep);
+        run_admg_curve_gp_bayes(SampleGrid::HEAVY.n(FRONTDOOR_N), seed)
+    });
+    for run in &runs {
+        let bands = run.as_ref().and_then(|(_, result)| response_band(result));
+        if let (Some((study, result)), Some(_)) = (run, &bands) {
+            bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), study, result);
+        }
+        for (j, tally) in tallies.iter_mut().enumerate() {
+            match &bands {
+                Some((lower, upper, _)) => {
+                    tally.record(Some((lower[j], upper[j])), ADMG_CURVE_TRUTH[j]);
+                }
+                None => tally.skip(),
+            }
+        }
+    }
+    gate(&tallies, &[None; 2]);
 }
 
 const UNKNOWN_TRUTH: [f64; 2] = [1.0, -1.0];
