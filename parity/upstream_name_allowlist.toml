@@ -13,6 +13,14 @@ exact = [
   "scripts/gate_upstream_names.sh",
   "scripts/gate_metadata_consistency.py",
   "scripts/gate_metadata_consistency.sh",
+  # The DoWhy interoperability guide and its runnable handoff example name the
+  # package they exchange a reviewed graph with; these files only wire that
+  # documentation into the site, the example catalog and the optional-dependency job.
+  ".github/workflows/docs.yml",
+  "examples/catalog.toml",
+  "mkdocs.yml",
+  "scripts/generate_example_catalog.py",
+  "scripts/run_optional_doc_example.py",
 ]
 
 prefix = [
