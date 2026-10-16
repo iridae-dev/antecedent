@@ -520,6 +520,7 @@ pub(crate) fn fit_once(
         if estimator.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
             || estimator.cluster_ids.is_some()
             || estimator.source_cluster_ids.is_some()
+            || estimator.sampling_weights.is_some()
             || estimator.multiway_ids.is_some()
             || estimator.panel_times.is_some()
             || !matches!(estimator.fit_kind, antecedent_estimate::LinearFitKind::Ols)
@@ -725,6 +726,7 @@ fn panel_prepare_with_extras(
         treatment: Arc::from(all_t),
         active,
         control,
+        sampling_weights: None,
     })
 }
 

@@ -278,6 +278,16 @@ def test_participant_reaches_plan():
     assert _resolve(plain, "data_snapshot.participants") is _ABSENT
 
 
+def test_missing_reaches_plan():
+    """A policy that differs from the route's default binds to the data snapshot."""
+    explicit = _bound(_analyze(missing="error"), "missing")
+    assert explicit == {"policy": "error", "covariates": []}
+    # The adjustment route's own default is complete case: declaring it changes nothing, so
+    # the snapshot carries none and earlier identities are unchanged.
+    for plain in (_analyze(), _analyze(missing="complete_case")):
+        assert _resolve(_contract(plain), "data_snapshot.missing") is _ABSENT
+
+
 def test_latency_reaches_plan():
     """A tier sets the omitted budgets; the bound inference differs between tiers."""
     interactive = _analyze(bootstrap=None, refute=None, latency="interactive")

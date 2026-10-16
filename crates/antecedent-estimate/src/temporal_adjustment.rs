@@ -106,6 +106,80 @@ pub struct TemporalDesignInputs<'a> {
     pub policy: &'a KernelPolicy,
 }
 
+/// Which lag-aligned windows of a series with gaps are intact.
+///
+/// Window `r` is the one ending at series time `first_time + r`; time keeps its original
+/// grid, so a missing time point removes the windows that read it and moves no other row.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GapSelection {
+    /// Series time of window 0.
+    pub first_time: usize,
+    /// Whether each window has every planned column observed.
+    pub complete: Vec<bool>,
+}
+
+impl GapSelection {
+    /// Series times of the windows that were dropped, ascending.
+    #[must_use]
+    pub fn dropped_times(&self) -> Vec<usize> {
+        self.complete
+            .iter()
+            .enumerate()
+            .filter(|(_, intact)| !**intact)
+            .map(|(r, _)| self.first_time + r)
+            .collect()
+    }
+}
+
+/// Apply the series' sampling weights to a lag-aligned design: window `r` is weighted by the
+/// weight of the observation it ends at, series time `first_time + r`.
+///
+/// A window of weight zero stays in the design, scaled to nothing, so the windows keep their
+/// consecutive times (the block bootstrap and the HAC lags need them) and contribute no score.
+/// The weights are normalized to mean one over the windows of positive weight. A series with
+/// gaps, whose windows are not consecutive, refuses.
+///
+/// # Errors
+///
+/// `route_unsupported` for a gapped series; `invalid` for weights that do not cover the windows
+/// or leave none with a positive weight.
+fn weight_windows(
+    design: CompiledDesign,
+    data: &TimeSeriesData,
+    first_time: usize,
+    windows: usize,
+    allow_gaps: bool,
+) -> Result<(CompiledDesign, Option<crate::sampling_weights::SamplingWeightRecord>), EstimationError>
+{
+    let Some(weights) = data.storage().weights() else {
+        return Ok((design, None));
+    };
+    if allow_gaps {
+        return Err(crate::sampling_weights::unsupported_route(
+            "sampling weights are read by consecutive lag windows; a series with gaps has none",
+        ));
+    }
+    let Some(window_weights) = weights.get(first_time..first_time + windows) else {
+        return Err(crate::sampling_weights::invalid(
+            "the series' sampling weights do not cover its lag-aligned windows",
+        ));
+    };
+    let positive: Vec<f64> = window_weights.iter().copied().filter(|w| *w > 0.0).collect();
+    if positive.is_empty() {
+        return Err(crate::sampling_weights::invalid(
+            "no lag window has a positive sampling weight; the weighted population is empty",
+        ));
+    }
+    let zero_weight_windows = (window_weights.len() - positive.len()) as u64;
+    let retained = crate::sampling_weights::RetainedSamplingWeights::from_positive(
+        &positive,
+        zero_weight_windows,
+    );
+    let scale = positive.len() as f64 / positive.iter().sum::<f64>();
+    let normalized: Vec<f64> = window_weights.iter().map(|w| w * scale).collect();
+    Ok((crate::sampling_weights::root_weight_design(design, &normalized), Some(retained.record)))
+}
+
 /// Temporal linear adjustment for unfolded backdoor estimands.
 #[derive(Clone, Debug)]
 pub struct TemporalLinearAdjustment {
@@ -197,16 +271,60 @@ impl TemporalLinearAdjustment {
         )
     }
 
-    #[allow(
-        clippy::too_many_lines,
-        reason = "resolve lag-aligned columns, prepare the sample, then split and gather the design inputs; every step reads the same aligned row range"
-    )]
     fn prepare_aligned_with_extras(
         &self,
         inputs: &TemporalDesignInputs<'_>,
         extra_contemporaneous: &[VariableId],
     ) -> Result<(PreparedEstimationProblem, crate::temporal_block::AlignedRows), EstimationError>
     {
+        self.prepare_windows(inputs, extra_contemporaneous, false)
+            .map(|(prep, aligned, _)| (prep, aligned))
+    }
+
+    /// Like [`Self::prepare`], on a series that may have missing time points.
+    ///
+    /// Windows that read a missing value are dropped and every other window keeps its own
+    /// time and its own lags, so nothing is concatenated across a gap. The design holds the
+    /// intact windows in time order. Valid for the point estimate under outcome and
+    /// covariate missingness that is independent of the innovation given the retained
+    /// lagged regressors; resampling consecutive windows (the block bootstrap) is not
+    /// defined across gaps, so a caller must not bootstrap the returned design.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::prepare`], and a split series (its row ranges index complete windows).
+    pub fn prepare_with_gaps(
+        &self,
+        data: &TimeSeriesData,
+        estimand: &IdentifiedEstimand,
+        query: &TemporalEffectQuery,
+        indexer: &TemporalIndexer,
+        policy: &antecedent_core::KernelPolicy,
+    ) -> Result<(PreparedEstimationProblem, GapSelection), EstimationError> {
+        let (prep, _, selection) = self.prepare_windows(
+            &TemporalDesignInputs { data, estimand, query, indexer, split: None, policy },
+            &[],
+            true,
+        )?;
+        let selection = selection.ok_or(EstimationError::Unsupported {
+            message: "gap-aware preparation did not report its windows",
+        })?;
+        Ok((prep, selection))
+    }
+
+    #[allow(
+        clippy::too_many_lines,
+        reason = "resolve lag-aligned columns, prepare the sample, then split and gather the design inputs; every step reads the same aligned row range"
+    )]
+    fn prepare_windows(
+        &self,
+        inputs: &TemporalDesignInputs<'_>,
+        extra_contemporaneous: &[VariableId],
+        allow_gaps: bool,
+    ) -> Result<
+        (PreparedEstimationProblem, crate::temporal_block::AlignedRows, Option<GapSelection>),
+        EstimationError,
+    > {
         let TemporalDesignInputs { data, estimand, query, indexer, split, policy } = *inputs;
         if self.inner.overlap != OverlapPolicy::ExplicitOverride {
             return Err(EstimationError::Overlap {
@@ -268,7 +386,14 @@ impl TemporalLinearAdjustment {
             .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
         let mut sample_ws = LaggedSampleWorkspace::default();
-        let prep = plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?;
+        let (prep, complete) = if allow_gaps {
+            let gapped = plan
+                .prepare_with_gaps(data, &mut sample_ws, policy)
+                .map_err(EstimationError::from)?;
+            (gapped.sample, Some(gapped.complete))
+        } else {
+            (plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?, None)
+        };
 
         let n = prep.n;
         let (row_start, row_end) = if let Some(s) = split {
@@ -295,9 +420,32 @@ impl TemporalLinearAdjustment {
             .enumerate()
             .map(|(i, &vid)| (vid, &prep.column(2 + i)[row_start..row_end]))
             .collect();
-        let selected: Vec<usize> = (0..nrows).collect();
-        let design = CompiledDesign::linear_adjustment(t, &cov_refs, y, &selected)
+        // Intact windows only, in time order; every window when the series has no gaps.
+        let selected: Vec<usize> = match &complete {
+            Some(intact) => (0..nrows).filter(|&r| intact[row_start + r]).collect(),
+            None => (0..nrows).collect(),
+        };
+        if allow_gaps && selected.len() < 3 {
+            return Err(EstimationError::data_msg(
+                "fewer than three complete lag windows remain after dropping windows that read a missing value",
+            ));
+        }
+        // The design holds only the selected windows; `selected` labels each design row with
+        // its source window.
+        let gather = |values: &[f64]| -> Vec<f64> { selected.iter().map(|&r| values[r]).collect() };
+        let (t_sel, y_sel) = (gather(t), gather(y));
+        let cov_sel: Vec<(VariableId, Vec<f64>)> =
+            cov_refs.iter().map(|(id, values)| (*id, gather(values))).collect();
+        let cov_sel_refs: Vec<(VariableId, &[f64])> =
+            cov_sel.iter().map(|(id, values)| (*id, values.as_slice())).collect();
+        let design = CompiledDesign::linear_adjustment(&t_sel, &cov_sel_refs, &y_sel, &selected)
             .map_err(EstimationError::from)?;
+        let (design, sampling_weights) =
+            weight_windows(design, data, max_lag as usize + row_start, nrows, allow_gaps)?;
+        let selection = complete.as_ref().map(|intact| GapSelection {
+            first_time: max_lag as usize + row_start,
+            complete: intact[row_start..row_end].to_vec(),
+        });
 
         let active = intervention_f64(&query.active)?;
         let control = intervention_f64(&query.control)?;
@@ -320,11 +468,13 @@ impl TemporalLinearAdjustment {
                 overlap: self.inner.overlap,
                 treatment_delta,
                 target_population: TargetPopulation::AllObserved,
-                treatment: Arc::from(t),
+                treatment: selected.iter().map(|&r| t[r]).collect(),
                 active,
                 control,
+                sampling_weights,
             },
             aligned,
+            selection,
         ))
     }
 
@@ -451,6 +601,7 @@ impl TemporalLinearAdjustment {
                 treatment: Arc::from(all_t),
                 active: first.active,
                 control: first.control,
+                sampling_weights: None,
             },
             row_clusters,
             panel_times,
@@ -556,6 +707,96 @@ impl TemporalLinearAdjustment {
         // (`bootstrap.ci_coverage`) can reuse the length instead of re-deriving it.
         estimate.uncertainty.block.resampling =
             Some(crate::adjustment::BlockResampling { block_length, rows, kernel_bias });
+        Ok((estimate, info))
+    }
+
+    /// [`Self::fit_dependence_honest`] for a design built by [`Self::prepare_with_gaps`].
+    ///
+    /// The circular blocks run over the original window axis, so two windows are in one block
+    /// only when they are adjacent in time; a replicate keeps the intact windows its blocks
+    /// cover, so a block never joins windows across a gap and the replicate size varies.
+    /// The block length is the structural rule (history plus horizon, at least the cube root
+    /// of the window count) on the window axis. The Bartlett kernel-bias inflation of
+    /// [`Self::fit_dependence_honest`] is not applied: it is defined for consecutive scores.
+    ///
+    /// # Errors
+    ///
+    /// Point-fit failures. Failed replicates are counted, not raised.
+    pub fn fit_dependence_honest_gapped(
+        &self,
+        prep: &PreparedEstimationProblem,
+        selection: &GapSelection,
+        indexer: &TemporalIndexer,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+    ) -> Result<(EffectEstimate, TemporalDependenceSe), EstimationError> {
+        let rows = prep.design.nrows;
+        let windows = selection.complete.len();
+        let fitter = self.point_fitter();
+        let mut workspace = EstimationWorkspace::default();
+        let mut point = fitter.fit_point(prep, &mut workspace, assumptions)?;
+        point.uncertainty.analytic.se = f64::NAN;
+        let structural_span = (indexer.history() as usize + indexer.horizon() as usize).max(1);
+        let block_length = antecedent_data::circular_block_length(structural_span, windows);
+        // Design row of each intact window, by position on the original axis.
+        let mut row_of = vec![usize::MAX; windows];
+        let mut next = 0;
+        for (position, intact) in selection.complete.iter().enumerate() {
+            if *intact {
+                row_of[position] = next;
+                next += 1;
+            }
+        }
+        let replicates = self.inner.bootstrap_replicates;
+        let p = prep.design.ncols;
+        let boot = (replicates > 0).then(|| {
+            crate::temporal_block::row_block_bootstrap_vec(
+                windows,
+                block_length,
+                replicates,
+                TEMPORAL_BLOCK_STREAM,
+                ctx,
+                |positions| {
+                    let row_src: Vec<usize> = positions
+                        .iter()
+                        .map(|&position| row_of[position])
+                        .filter(|&row| row != usize::MAX)
+                        .collect();
+                    if row_src.len() <= p {
+                        return None;
+                    }
+                    let mut x_boot = vec![0.0; row_src.len() * p];
+                    let mut y_boot = vec![0.0; row_src.len()];
+                    fitter
+                        .ate_on_row_indices_into(
+                            prep,
+                            &mut workspace,
+                            &row_src,
+                            &mut x_boot,
+                            &mut y_boot,
+                        )
+                        .ok()
+                        .map(|ate| vec![ate])
+                },
+            )
+        });
+        let info = TemporalDependenceSe {
+            block_length,
+            rows,
+            effective_rows: crate::temporal_block::score_effective_rows(
+                &point.scores.influence.as_deref().into_iter().collect::<Vec<_>>(),
+                block_length,
+            ),
+            replicates_attempted: boot.as_ref().map_or(0, |b| b.attempted),
+            kernel_bias: 1.0,
+        };
+        let boot = boot.map(|b| b.se_result(0));
+        let mut estimate = point.with_bootstrap(boot);
+        estimate.uncertainty.block.resampling = Some(crate::adjustment::BlockResampling {
+            block_length,
+            rows: windows,
+            kernel_bias: 1.0,
+        });
         Ok((estimate, info))
     }
 

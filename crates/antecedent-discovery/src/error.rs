@@ -41,6 +41,15 @@ pub enum DiscoveryError {
     /// Resource / memory budget exceeded.
     #[error("resource: {0}")]
     Resource(String),
+    /// A refusal carrying a registered runtime reason code, rendered
+    /// `reason=<code>: <message>`.
+    #[error("{}{code}: {message}", antecedent_core::reason_code::PREFIX)]
+    Refused {
+        /// Registered reason code (checked with `antecedent_core::reason_code!`).
+        code: &'static str,
+        /// What was refused and what the caller can do instead.
+        message: String,
+    },
     /// Cooperative cancellation.
     #[error("cancelled")]
     Cancelled,

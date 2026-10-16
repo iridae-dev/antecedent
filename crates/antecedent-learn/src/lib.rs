@@ -57,7 +57,8 @@ pub use bayesian_basis_regression::{
 };
 pub use crossfit::cross_fit_selected;
 pub use crossfit::{
-    CrossFittedPrediction, NuisanceDiagnostics, assign_folds, cross_fit_with_folds, diagnose,
+    CrossFittedPrediction, NuisanceDiagnostics, assign_folds, cross_fit_with_folds,
+    cross_fit_with_folds_weighted, diagnose,
 };
 pub use design::{DenseDesign, DesignView, Layout, RowSelection, TargetView};
 pub use error::LearnError;
@@ -217,11 +218,18 @@ mod tests {
         let err = RidgeLearner::for_task(PredictionTask::BinaryProbability, RidgeSpec::default())
             .unwrap_err();
         assert!(matches!(err, LearnError::TaskMismatch { .. }));
-        assert!(
-            RidgeLearner::new(RidgeSpec::default())
-                .fit(view, TargetView::new(&y), Some(&[1.0; 20]), &ctx)
-                .is_err()
-        );
+        // Unit prior weights reproduce the unweighted ridge fit.
+        let unweighted = RidgeLearner::new(RidgeSpec::default())
+            .fit(view, TargetView::new(&y), None, &ctx)
+            .unwrap();
+        let weighted = RidgeLearner::new(RidgeSpec::default())
+            .fit(view, TargetView::new(&y), Some(&[1.0; 20]), &ctx)
+            .unwrap();
+        unweighted.predict(view, &mut a, &ctx).unwrap();
+        weighted.predict(view, &mut b, &ctx).unwrap();
+        for i in 0..n {
+            assert!((a[i] - b[i]).abs() < 1e-12);
+        }
     }
 
     #[test]

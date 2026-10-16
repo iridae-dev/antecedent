@@ -115,6 +115,7 @@ fn exact_randomized_design_claims_require_measured_assignment_support() {
 }
 
 #[test]
+#[expect(clippy::too_many_lines, reason = "one table of refusal cases, each a short literal")]
 fn additional_randomized_interval_rows_refuse_each_missing_gate() {
     let binary = GraphlessAssignmentSupport {
         assignment_unit: "unit",
@@ -122,6 +123,7 @@ fn additional_randomized_interval_rows_refuse_each_missing_gate() {
         control: 200,
         rows: 400,
         min_probability: 0.2,
+        min_expected_arm_units: 200.0,
         interval_95_published: true,
         reported_intervals: 1,
         all_reported_intervals: true,
@@ -137,8 +139,30 @@ fn additional_randomized_interval_rows_refuse_each_missing_gate() {
         classify_graphless(bernoulli, binary),
         GraphlessSupportStatus::Licensed { .. }
     ));
+    // The two-action score rule is arm support, not a row count: 300 balanced rows are licensed,
+    // an arm the design expects to fill with 39 rows is not.
+    assert!(matches!(
+        classify_graphless(
+            bernoulli,
+            GraphlessAssignmentSupport {
+                rows: 300,
+                treated: 150,
+                control: 150,
+                min_expected_arm_units: 150.0,
+                ..binary
+            }
+        ),
+        GraphlessSupportStatus::Licensed { .. }
+    ));
     assert_eq!(
-        classify_graphless(bernoulli, GraphlessAssignmentSupport { rows: 399, ..binary }),
+        classify_graphless(
+            bernoulli,
+            GraphlessAssignmentSupport { min_expected_arm_units: 39.0, ..binary }
+        ),
+        GraphlessSupportStatus::Refused
+    );
+    assert_eq!(
+        classify_graphless(bernoulli, GraphlessAssignmentSupport { treated: 29, ..binary }),
         GraphlessSupportStatus::Refused
     );
     assert_eq!(
@@ -217,6 +241,7 @@ fn precision_adjusted_bernoulli_rows_are_exact_and_cap_ancova_covariates() {
         control: 200,
         rows: 400,
         min_probability: 0.2,
+        min_expected_arm_units: 200.0,
         interval_95_published: true,
         reported_intervals: 1,
         covariates: 2,
@@ -237,9 +262,25 @@ fn precision_adjusted_bernoulli_rows_are_exact_and_cap_ancova_covariates() {
         GraphlessSupportStatus::Refused
     );
     assert_eq!(
-        classify_graphless(ancova, GraphlessAssignmentSupport { rows: 399, ..observed }),
+        classify_graphless(
+            ancova,
+            GraphlessAssignmentSupport { min_expected_arm_units: 39.0, ..observed }
+        ),
         GraphlessSupportStatus::Refused
     );
+    assert!(matches!(
+        classify_graphless(
+            ancova,
+            GraphlessAssignmentSupport {
+                rows: 300,
+                treated: 150,
+                control: 150,
+                min_expected_arm_units: 150.0,
+                ..observed
+            }
+        ),
+        GraphlessSupportStatus::Licensed { .. }
+    ));
     let cuped = GraphlessSupportKey { method: "fixed_cuped_ht_score", ..ancova };
     assert!(matches!(classify_graphless(cuped, observed), GraphlessSupportStatus::Licensed { .. }));
     assert_eq!(

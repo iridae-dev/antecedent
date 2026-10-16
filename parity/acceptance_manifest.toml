@@ -168,7 +168,7 @@ configuration = { route = "rct", missing_cells = 50, policy = "unspecified" }
 expected = { kind = "refusal", outputs = ["precise refusal naming the first missing cell and the available policies"], refusal = "missing values require a declared policy" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Default behaviour must never alter assignment, panel structure or temporal spacing silently." }
 dataset = { generator = "gaussian_scm_with_missing_cells", seed = 9281377, n = 600, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/missing_data_routes.rs::a_randomized_trial_with_missing_outcomes_refuses_without_a_policy" }
 
 [[case]]
 id = "did_route_refuses_missing_values_by_default"
@@ -178,7 +178,7 @@ configuration = { route = "did", missing_cells = 50, policy = "unspecified" }
 expected = { kind = "refusal", outputs = ["precise refusal naming the first missing cell and the available policies"], refusal = "missing values require a declared policy" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Default behaviour must never alter assignment, panel structure or temporal spacing silently." }
 dataset = { generator = "gaussian_scm_with_missing_cells", seed = 4012222, n = 600, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/missing_data_routes.rs::panel_did_refuses_missing_cells_and_never_deletes_single_unit_periods" }
 
 [[case]]
 id = "temporal_route_refuses_missing_values_by_default"
@@ -188,7 +188,7 @@ configuration = { route = "temporal", missing_cells = 50, policy = "unspecified"
 expected = { kind = "refusal", outputs = ["precise refusal naming the first missing cell and the available policies"], refusal = "missing values require a declared policy" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Default behaviour must never alter assignment, panel structure or temporal spacing silently." }
 dataset = { generator = "gaussian_scm_with_missing_cells", seed = 6668447, n = 600, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/missing_data_routes.rs::a_series_with_gaps_refuses_without_a_policy_and_without_a_point_estimate_path" }
 
 [[case]]
 id = "notears_route_refuses_missing_values_by_default"
@@ -198,7 +198,7 @@ configuration = { route = "notears", missing_cells = 50, policy = "unspecified" 
 expected = { kind = "refusal", outputs = ["precise refusal naming the first missing cell and the available policies"], refusal = "missing values require a declared policy" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Default behaviour must never alter assignment, panel structure or temporal spacing silently." }
 dataset = { generator = "gaussian_scm_with_missing_cells", seed = 8854739, n = 600, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-discovery/tests/notears_missing.rs::a_missing_value_is_refused_naming_the_cell_and_the_policy" }
 
 [[case]]
 id = "ate_routes_report_dropped_incomplete_rows"
@@ -208,7 +208,7 @@ configuration = { route = "ate", rows = 2000, incomplete_rows = 200, policy = "c
 expected = { kind = "receipt", outputs = ["rows analysed, rows dropped and reason per exclusion", "no silent drop under the default policy"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Row accounting is linear; refusal is a pre-fit check so its budget is tiny. Executing routes inherit the ordinary fit budget." }
 dataset = { generator = "gaussian_scm_with_missing_cells", seed = 1448255, n = 2000, missing_mechanism = "mcar", missing_fraction = 0.1, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/missing_data_routes.rs::average_effect_keeps_complete_case_and_reports_what_it_dropped" }
 
 [[case]]
 id = "rct_missing_outcomes_keep_assignment_intact"
@@ -218,7 +218,7 @@ configuration = { participants = 600, arms = 2, missing_outcome_fraction = 0.15,
 expected = { kind = "value", outputs = ["randomized assignment vector unchanged", "row accounting by arm", "published missingness assumption (missing at random given arm and baseline)"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Row accounting is linear; refusal is a pre-fit check so its budget is tiny. Executing routes inherit the ordinary fit budget." }
 dataset = { generator = "randomized_trial_with_attrition", seed = 4712626, n = 600, effect = 0.3, missing_mechanism = "mar_on_baseline", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/missing_data_routes.rs::inverse_probability_weighting_recovers_the_effect_that_complete_case_misses" }
 
 [[case]]
 id = "rct_missing_outcomes_policy_calibrated"
@@ -238,7 +238,7 @@ configuration = { units = 200, periods = 6, missing_cells = 60, policy = "declar
 expected = { kind = "value", outputs = ["unit and period identities preserved", "no unit relabelling", "row accounting per unit-period"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Row accounting is linear; refusal is a pre-fit check so its budget is tiny. Executing routes inherit the ordinary fit budget." }
 dataset = { generator = "panel_did_with_missing_cells", seed = 8406409, n = 1200, effect = 0.5, missing_mechanism = "mcar", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/missing_data_routes.rs::staggered_available_case_uses_each_contrasts_observed_units_without_relabelling" }
 
 [[case]]
 id = "temporal_missing_values_preserve_spacing"
@@ -248,7 +248,7 @@ configuration = { steps = 1024, missing_steps = 40, policy = "declared_gap_handl
 expected = { kind = "value", outputs = ["time index spacing preserved", "no concatenation across gaps", "lags never cross a gap"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Row accounting is linear; refusal is a pre-fit check so its budget is tiny. Executing routes inherit the ordinary fit budget." }
 dataset = { generator = "var_process_with_missing_steps", seed = 6201275, n = 1024, missing_mechanism = "mcar", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/missing_data_routes.rs::gaps_drop_only_the_windows_that_read_them_and_never_compress_time" }
 
 [[case]]
 id = "notears_declared_missing_policy_row_accounting"
@@ -258,7 +258,7 @@ configuration = { variables = 10, rows = 2000, missing_cells = 400, policy = "co
 expected = { kind = "receipt", outputs = ["rows used and dropped", "graph identical to complete-case input"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Row accounting is linear; refusal is a pre-fit check so its budget is tiny. Executing routes inherit the ordinary fit budget." }
 dataset = { generator = "gaussian_scm_with_missing_cells", seed = 7093444, n = 2000, missing_mechanism = "mcar", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-discovery/tests/notears_missing.rs::complete_case_equals_the_run_on_the_complete_rows_and_reports_the_rest" }
 
 [[case]]
 id = "missingness_assumptions_published"
@@ -268,7 +268,7 @@ configuration = { routes = ["ate", "rct", "did", "temporal", "notears"] }
 expected = { kind = "receipt", outputs = ["each supported pattern has a published assumption statement", "claim object carries the policy and assumption"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Row accounting is linear; refusal is a pre-fit check so its budget is tiny. Executing routes inherit the ordinary fit budget." }
 dataset = { generator = "documentation_check", seed = 6988369, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/missing_data_routes.rs::the_claim_carries_the_policy_and_assumption_only_when_the_policy_is_not_the_default" }
 
 [[case]]
 id = "propensity_honors_declared_active_two_control_one"
@@ -368,7 +368,7 @@ configuration = { participants = 2000, weights = "unequal_survey", zero_weight_f
 expected = { kind = "value", outputs = ["estimate equals the independent weighted-population oracle", "target population stated", "effective sample size reported"] }
 targets = { runtime_seconds = 90, memory_bytes = 4294967296, rationale = "Weighted fits cost about one unweighted fit; variance construction adds a sandwich pass." }
 dataset = { generator = "survey_weighted_population", seed = 3474606, n = 2000, weight_cv = 0.8, effect = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/sampling_weights.rs::linear_adjustment_is_the_weighted_least_squares_fit_with_a_sampling_sandwich" }
 
 [[case]]
 id = "sampling_weights_propensity_and_aipw_match_weighted_population_oracle"
@@ -378,7 +378,7 @@ configuration = { participants = 2000, weights = "unequal_survey", zero_weight_f
 expected = { kind = "value", outputs = ["estimate equals the independent weighted-population oracle", "target population stated", "effective sample size reported"] }
 targets = { runtime_seconds = 90, memory_bytes = 4294967296, rationale = "Weighted fits cost about one unweighted fit; variance construction adds a sandwich pass." }
 dataset = { generator = "survey_weighted_population", seed = 5590743, n = 2000, weight_cv = 0.8, effect = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/sampling_weights.rs::weighting_is_the_hajek_effect_of_the_weighted_logistic_fit" }
 
 [[case]]
 id = "sampling_weights_matching_match_weighted_population_oracle"
@@ -388,7 +388,7 @@ configuration = { participants = 2000, weights = "unequal_survey", zero_weight_f
 expected = { kind = "value", outputs = ["estimate equals the independent weighted-population oracle", "target population stated", "effective sample size reported"] }
 targets = { runtime_seconds = 90, memory_bytes = 4294967296, rationale = "Weighted fits cost about one unweighted fit; variance construction adds a sandwich pass." }
 dataset = { generator = "survey_weighted_population", seed = 6113632, n = 2000, weight_cv = 0.8, effect = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/sampling_weights.rs::matching_is_the_weighted_mean_of_matched_effects_with_its_donor_variance" }
 
 [[case]]
 id = "sampling_weights_randomized_trial_match_weighted_population_oracle"
@@ -398,7 +398,7 @@ configuration = { participants = 600, weights = "unequal_survey", zero_weight_fr
 expected = { kind = "value", outputs = ["estimate equals the independent weighted-population oracle", "target population stated", "effective sample size reported"] }
 targets = { runtime_seconds = 90, memory_bytes = 4294967296, rationale = "Weighted fits cost about one unweighted fit; variance construction adds a sandwich pass." }
 dataset = { generator = "survey_weighted_population", seed = 1492519, n = 600, weight_cv = 0.8, effect = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sampling_weight_routes.rs::a_weighted_bernoulli_trial_is_the_hajek_contrast_with_its_linearized_variance" }
 
 [[case]]
 id = "sampling_weights_panel_difference_in_differences_match_weighted_population_oracle"
@@ -408,7 +408,7 @@ configuration = { participants = 1200, weights = "unequal_survey", zero_weight_f
 expected = { kind = "value", outputs = ["estimate equals the independent weighted-population oracle", "target population stated", "effective sample size reported"] }
 targets = { runtime_seconds = 90, memory_bytes = 4294967296, rationale = "Weighted fits cost about one unweighted fit; variance construction adds a sandwich pass." }
 dataset = { generator = "survey_weighted_population", seed = 2314717, n = 1200, weight_cv = 0.8, effect = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sampling_weight_routes.rs::a_weighted_panel_did_is_the_weighted_change_contrast_with_a_weighted_cluster_sandwich" }
 
 [[case]]
 id = "sampling_weights_temporal_effect_match_weighted_population_oracle"
@@ -418,7 +418,7 @@ configuration = { participants = 2048, weights = "unequal_survey", zero_weight_f
 expected = { kind = "value", outputs = ["estimate equals the independent weighted-population oracle", "target population stated", "effective sample size reported"] }
 targets = { runtime_seconds = 90, memory_bytes = 4294967296, rationale = "Weighted fits cost about one unweighted fit; variance construction adds a sandwich pass." }
 dataset = { generator = "survey_weighted_population", seed = 8914205, n = 2048, weight_cv = 0.8, effect = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sampling_weight_routes.rs::a_weighted_temporal_window_is_weighted_least_squares_on_lag_windows" }
 
 [[case]]
 id = "sampling_weights_rescaling_invariance"
@@ -428,7 +428,7 @@ configuration = { scales = [0.001, 1, 1000] }
 expected = { kind = "value", outputs = ["estimate, interval and effective sample size invariant to weight rescaling"] }
 targets = { runtime_seconds = 90, memory_bytes = 4294967296, rationale = "Weighted fits cost about one unweighted fit; variance construction adds a sandwich pass." }
 dataset = { generator = "survey_weighted_population", seed = 6635948, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/sampling_weights.rs::rescaling_the_weights_changes_neither_the_estimate_nor_the_interval_nor_the_effective_size" }
 
 [[case]]
 id = "sampling_weights_zero_weight_rows_excluded_with_accounting"
@@ -438,7 +438,7 @@ configuration = { zero_weight_fraction = 0.2, participants = 2000 }
 expected = { kind = "receipt", outputs = ["zero-weight rows excluded and counted", "estimate unchanged by deleting those rows"] }
 targets = { runtime_seconds = 90, memory_bytes = 4294967296, rationale = "Weighted fits cost about one unweighted fit; variance construction adds a sandwich pass." }
 dataset = { generator = "survey_weighted_population", seed = 8946990, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/sampling_weights.rs::a_zero_weight_row_is_a_deleted_row_that_is_counted" }
 
 [[case]]
 id = "sampling_weights_clustered_variance"
@@ -448,7 +448,7 @@ configuration = { participants = 3000, clusters = 60, weights = "unequal_survey"
 expected = { kind = "value", outputs = ["design-based clustered standard error equals independent oracle"] }
 targets = { runtime_seconds = 90, memory_bytes = 4294967296, rationale = "Weighted fits cost about one unweighted fit; variance construction adds a sandwich pass." }
 dataset = { generator = "survey_weighted_population", seed = 6326264, n = 3000, icc = 0.1, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/sampling_weights.rs::linear_adjustment_cluster_se_is_the_weighted_cluster_sandwich" }
 
 [[case]]
 id = "sampling_weights_invalid_weights_refused"
@@ -458,7 +458,7 @@ configuration = { invalid = ["negative", "nan", "all_zero"] }
 expected = { kind = "refusal", outputs = ["names the first invalid weight"], refusal = "sampling weights invalid" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Pre-fit validation." }
 dataset = { generator = "survey_weighted_population", seed = 4648198, n = 500, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/sampling_weights.rs::invalid_weights_are_refused_naming_the_first_offender" }
 
 [[case]]
 id = "weighted_matching_interval_calibrated"
@@ -468,7 +468,7 @@ configuration = { participants = 2000, weights = "unequal_survey", kneighbors = 
 expected = { kind = "calibrated_interval", outputs = ["weighted matching interval", "effective sample size"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Weighted matching changes the variance construction and so earns a matching calibration record. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5, min_power = 0.75 }
 dataset = { generator = "survey_weighted_population", seed = 8513648, n = 2000, weight_cv = 0.8, effect = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/weighted_interval_calibration.rs::weighted_matching_interval" }
 
 [[case]]
 id = "weighted_aipw_interval_calibrated"
@@ -478,7 +478,7 @@ configuration = { participants = 2000, weights = "unequal_survey" }
 expected = { kind = "calibrated_interval", outputs = ["weighted AIPW interval", "effective sample size"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Weighted influence-function variance is a new construction. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "survey_weighted_population", seed = 5262727, n = 2000, weight_cv = 0.8, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/weighted_interval_calibration.rs::weighted_aipw_interval" }
 
 [[case]]
 id = "weighted_randomized_trial_interval_calibrated"
@@ -488,7 +488,7 @@ configuration = { participants = 600, weights = "unequal_survey" }
 expected = { kind = "calibrated_interval", outputs = ["weighted randomized-trial interval"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Applicable randomized interval claims need weighted records. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "survey_weighted_population", seed = 5251644, n = 600, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/weighted_interval_calibration.rs::weighted_randomized_itt_interval" }
 
 [[case]]
 id = "adaptive_procedure_executes_600_participants"
@@ -1818,7 +1818,7 @@ configuration = { participants = 10000, covariates = 20, clusters = 0 }
 expected = { kind = "calibrated_interval", outputs = ["calibrated interval or a precise refusal naming the limit", "published actual limit"] }
 targets = { runtime_seconds = 120, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "100k-row workflows hold the data once plus nuisance fits; 8 GiB leaves headroom on a 16 GiB workstation. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5, min_power = 0.75 }
 dataset = { generator = "practitioner_observational_study", seed = 6360033, n = 10000, covariates = 20, effect = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_linear_adjustment_analytic_interval" }
 
 [[case]]
 id = "practitioner_aipw_interval_10000_rows"
@@ -1828,7 +1828,7 @@ configuration = { participants = 10000, covariates = 20, clusters = 0 }
 expected = { kind = "calibrated_interval", outputs = ["calibrated interval or a precise refusal naming the limit", "published actual limit"] }
 targets = { runtime_seconds = 120, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "100k-row workflows hold the data once plus nuisance fits; 8 GiB leaves headroom on a 16 GiB workstation. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5, min_power = 0.75 }
 dataset = { generator = "practitioner_observational_study", seed = 9257266, n = 10000, covariates = 20, effect = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_aipw_analytic_interval" }
 
 [[case]]
 id = "practitioner_clustered_effect_interval_10000_rows"
@@ -1838,7 +1838,7 @@ configuration = { participants = 10000, covariates = 20, clusters = 500 }
 expected = { kind = "calibrated_interval", outputs = ["calibrated interval or a precise refusal naming the limit", "published actual limit"] }
 targets = { runtime_seconds = 120, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "100k-row workflows hold the data once plus nuisance fits; 8 GiB leaves headroom on a 16 GiB workstation. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5, min_power = 0.75 }
 dataset = { generator = "practitioner_observational_study", seed = 3608641, n = 10000, covariates = 20, effect = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_linear_adjustment_cluster_interval" }
 
 [[case]]
 id = "practitioner_linear_adjustment_interval_100000_rows"
@@ -1848,7 +1848,7 @@ configuration = { participants = 100000, covariates = 20, clusters = 0 }
 expected = { kind = "calibrated_interval", outputs = ["calibrated interval or a precise refusal naming the limit", "published actual limit"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "100k-row workflows hold the data once plus nuisance fits; 8 GiB leaves headroom on a 16 GiB workstation. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5, min_power = 0.75 }
 dataset = { generator = "practitioner_observational_study", seed = 7143972, n = 100000, covariates = 20, effect = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_linear_adjustment_analytic_interval" }
 
 [[case]]
 id = "practitioner_aipw_interval_100000_rows"
@@ -1858,7 +1858,7 @@ configuration = { participants = 100000, covariates = 20, clusters = 0 }
 expected = { kind = "calibrated_interval", outputs = ["calibrated interval or a precise refusal naming the limit", "published actual limit"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "100k-row workflows hold the data once plus nuisance fits; 8 GiB leaves headroom on a 16 GiB workstation. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5, min_power = 0.75 }
 dataset = { generator = "practitioner_observational_study", seed = 9886299, n = 100000, covariates = 20, effect = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_aipw_analytic_interval" }
 
 [[case]]
 id = "practitioner_clustered_effect_interval_100000_rows"
@@ -1868,7 +1868,7 @@ configuration = { participants = 100000, covariates = 20, clusters = 500 }
 expected = { kind = "calibrated_interval", outputs = ["calibrated interval or a precise refusal naming the limit", "published actual limit"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "100k-row workflows hold the data once plus nuisance fits; 8 GiB leaves headroom on a 16 GiB workstation. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5, min_power = 0.75 }
 dataset = { generator = "practitioner_observational_study", seed = 3861406, n = 100000, covariates = 20, effect = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_linear_adjustment_cluster_interval" }
 
 [[case]]
 id = "practitioner_temporal_effect_interval_1024_steps"
@@ -1878,7 +1878,7 @@ configuration = { steps = 1024, variables = 5, lags = 3 }
 expected = { kind = "calibrated_interval", outputs = ["calibrated temporal interval beyond 320 steps"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Temporal fits are O(steps x lags^2) so the budget is modest; coverage under serial dependence is the point. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5, min_power = 0.75 }
 dataset = { generator = "var_process", seed = 4019076, n = 1024, variables = 5, lags = 3, effect = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_temporal_pulse_h1_interval" }
 
 [[case]]
 id = "practitioner_temporal_effect_interval_4096_steps"
@@ -1888,7 +1888,7 @@ configuration = { steps = 4096, variables = 5, lags = 3 }
 expected = { kind = "calibrated_interval", outputs = ["calibrated temporal interval beyond 320 steps"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Temporal fits are O(steps x lags^2) so the budget is modest; coverage under serial dependence is the point. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5, min_power = 0.75 }
 dataset = { generator = "var_process", seed = 6987391, n = 4096, variables = 5, lags = 3, effect = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_temporal_pulse_h1_interval" }
 
 [[case]]
 id = "practitioner_scale_limits_published_beyond_measured_grid"
@@ -1898,7 +1898,7 @@ configuration = { unmeasured_size = "above published limit" }
 expected = { kind = "refusal", outputs = ["refusal beyond published limit names the limit; two passing grid points are not read as unlimited"], refusal = "beyond measured range" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "100k-row workflows hold the data once plus nuisance fits; 8 GiB leaves headroom on a 16 GiB workstation." }
 dataset = { generator = "practitioner_observational_study", seed = 4326786, n = 1000000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/practitioner_scale_calibration.rs::the_grids_span_the_published_limits" }
 
 [[case]]
 id = "mediation_total_contrast_executed_and_bound"
@@ -2368,7 +2368,7 @@ configuration = { clusters = 3 }
 expected = { kind = "refusal", outputs = ["names the cluster-count requirement"], refusal = "cluster count" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Scores are O(n); iid interval at 100k cases is seconds." }
 dataset = { generator = "predictive_forecast_scores", seed = 4787019, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-validate/tests/predictive_assessment.rs::the_cluster_count_and_serial_bandwidth_requirements_hold_at_any_case_count" }
 
 [[case]]
 id = "predictive_score_serial_dependence_requirement_preserved"
@@ -2378,7 +2378,7 @@ configuration = { dependence = "serial", insufficient_blocks = true }
 expected = { kind = "refusal", outputs = ["names the serial-dependence requirement"], refusal = "serial dependence" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Scores are O(n); iid interval at 100k cases is seconds." }
 dataset = { generator = "predictive_forecast_scores", seed = 9569560, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-validate/tests/predictive_assessment.rs::the_cluster_count_and_serial_bandwidth_requirements_hold_at_any_case_count" }
 
 [[case]]
 id = "predictive_score_release_note_states_measured_iid_range"
@@ -2398,7 +2398,7 @@ configuration = { participants = 300, arms = 2, allocation = "independent_balanc
 expected = { kind = "calibrated_interval", outputs = ["valid interval despite n < 400", "published assumptions"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "n=300 balanced trials are fast; calibration across imbalance cells is the cost. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5, min_power = 0.75 }
 dataset = { generator = "randomized_trial", seed = 6957336, n = 300, effect = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/src/randomized_scores.rs::independent_two_action_coverage_at_the_arm_support_boundary" }
 
 [[case]]
 id = "imbalanced_independent_assignment_score_interval"
@@ -2408,7 +2408,7 @@ configuration = { participants = 300, allocation_ratio = "2:1" }
 expected = { kind = "calibrated_interval", outputs = ["interval or construction-specific refusal"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "n=300 balanced trials are fast; calibration across imbalance cells is the cost. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "randomized_trial", seed = 1715790, n = 300, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/randomized_precision_intervals.rs::three_hundred_row_trials_publish_intervals_from_their_own_arm_support" }
 
 [[case]]
 id = "weak_arm_support_score_interval"
@@ -2418,7 +2418,7 @@ configuration = { participants = 300, smallest_arm = 20 }
 expected = { kind = "calibrated_interval", outputs = ["interval or construction-specific refusal naming arm support"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "n=300 balanced trials are fast; calibration across imbalance cells is the cost. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "randomized_trial", seed = 4430214, n = 300, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/randomized_precision_intervals.rs::weak_arm_support_withholds_the_interval_and_names_the_arm_rule" }
 
 [[case]]
 id = "balanced_300_participant_independent_assignment_ancova_interval"
@@ -2428,7 +2428,7 @@ configuration = { participants = 300, arms = 2, allocation = "independent_balanc
 expected = { kind = "calibrated_interval", outputs = ["valid interval despite n < 400", "published assumptions"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "n=300 balanced trials are fast; calibration across imbalance cells is the cost. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5, min_power = 0.75 }
 dataset = { generator = "randomized_trial", seed = 1109593, n = 300, effect = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/src/ancova.rs::bernoulli_ancova_hc0_covers_known_finite_population_effect" }
 
 [[case]]
 id = "imbalanced_independent_assignment_ancova_interval"
@@ -2438,7 +2438,7 @@ configuration = { participants = 300, allocation_ratio = "2:1" }
 expected = { kind = "calibrated_interval", outputs = ["interval or construction-specific refusal"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "n=300 balanced trials are fast; calibration across imbalance cells is the cost. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "randomized_trial", seed = 2335606, n = 300, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/randomized_precision_intervals.rs::three_hundred_row_trials_publish_intervals_from_their_own_arm_support" }
 
 [[case]]
 id = "weak_arm_support_ancova_interval"
@@ -2448,7 +2448,7 @@ configuration = { participants = 300, smallest_arm = 20 }
 expected = { kind = "calibrated_interval", outputs = ["interval or construction-specific refusal naming arm support"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "n=300 balanced trials are fast; calibration across imbalance cells is the cost. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "randomized_trial", seed = 6185594, n = 300, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/randomized_precision_intervals.rs::weak_arm_support_withholds_the_interval_and_names_the_arm_rule" }
 
 [[case]]
 id = "rct_construction_specific_support_replaces_blanket_threshold"
@@ -2458,7 +2458,7 @@ configuration = { participants = 300, previous_rule = "n>=400" }
 expected = { kind = "receipt", outputs = ["refusals cite the construction's own support rule, not the row threshold"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "n=300 balanced trials are fast; calibration across imbalance cells is the cost." }
 dataset = { generator = "randomized_trial", seed = 6260932, n = 300, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/randomized_precision_intervals.rs::weak_arm_support_withholds_the_interval_and_names_the_arm_rule" }
 
 [[case]]
 id = "rct_balanced_300_not_refused_by_blanket_row_threshold"
@@ -2468,7 +2468,7 @@ configuration = { participants = 300, arms = 2, balanced = true }
 expected = { kind = "interval", outputs = ["interval returned"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, rationale = "n=300 balanced trials are fast; calibration across imbalance cells is the cost." }
 dataset = { generator = "randomized_trial", seed = 5911367, n = 300, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/randomized_precision_intervals.rs::three_hundred_row_trials_publish_intervals_from_their_own_arm_support" }
 
 [[case]]
 id = "complete_randomization_neyman_interval_preserved"
@@ -2478,7 +2478,7 @@ configuration = { participants = 300, allocation = "complete_randomization" }
 expected = { kind = "calibrated_interval", outputs = ["Neyman construction remains separate and unchanged"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "n=300 balanced trials are fast; calibration across imbalance cells is the cost. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "randomized_trial", seed = 8628443, n = 300, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/randomized_trial_route.rs::complete_randomization_keeps_its_own_neyman_construction_at_300_rows" }
 
 [[case]]
 id = "rct_very_small_sample_still_refused"
@@ -2488,7 +2488,7 @@ configuration = { participants = 40 }
 expected = { kind = "refusal", outputs = ["names support rule violated"], refusal = "randomized support" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "n=300 balanced trials are fast; calibration across imbalance cells is the cost." }
 dataset = { generator = "randomized_trial", seed = 6333132, n = 40, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/randomized_precision_intervals.rs::sparse_ancova_and_fixed_cuped_remain_point_only" }
 
 [[case]]
 id = "sorted_exact_one_dimensional_propensity_matching_20000_donors"

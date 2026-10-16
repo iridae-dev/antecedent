@@ -19,7 +19,7 @@ mod tests;
 pub use evaluator::{CompiledGCompAte, GCompAteEvaluator, PosteriorFunctionalEvaluator};
 pub use gcomp::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
-    PreparedBayesianProblem,
+    LAPLACE_INTERVAL_DRAWS, LAPLACE_INTERVAL_DRAWS_NOTE_PREFIX, PreparedBayesianProblem,
 };
 #[cfg(test)]
 pub(crate) use hydrate::HYDRATED_COEFFICIENT_COVARIANCE_ID;

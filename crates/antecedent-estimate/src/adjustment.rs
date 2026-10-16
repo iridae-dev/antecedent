@@ -61,6 +61,11 @@ pub struct PreparedEstimationProblem {
     pub active: f64,
     /// Control treatment level.
     pub control: f64,
+    /// What declared sampling weights did to this problem. When present the design matrix and
+    /// outcome are the weighted-least-squares transform (every row multiplied by the square
+    /// root of its mean-one weight), so each normal-equation and sandwich formula downstream
+    /// reads the sampling-weighted score `w_i x_i e_i`; `treatment` stays unweighted.
+    pub sampling_weights: Option<crate::sampling_weights::SamplingWeightRecord>,
 }
 
 /// Receipt for a linear adjustment preparation checked against an identification result.
@@ -233,6 +238,10 @@ pub struct LinearAdjustmentAte {
     pub fit_kind: LinearFitKind,
     /// Registry for named [`TargetPopulation::Predicate`] selections.
     pub population_registry: Option<antecedent_core::PopulationRegistry>,
+    /// Sampling weights of every row of the source table. The fit is weighted least squares
+    /// with the linearization (sandwich) variance; see [`crate::sampling_weights`] for the
+    /// estimand, normalization and zero-weight rules. Only the OLS fit reads them.
+    pub sampling_weights: Option<crate::sampling_weights::SamplingWeights>,
 }
 
 impl Default for LinearAdjustmentAte {
@@ -256,6 +265,7 @@ impl LinearAdjustmentAte {
             panel_times: None,
             fit_kind: LinearFitKind::Ols,
             population_registry: None,
+            sampling_weights: None,
         }
     }
 
@@ -299,6 +309,19 @@ impl LinearAdjustmentAte {
     #[must_use]
     pub fn with_source_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
         self.source_cluster_ids = Some(cluster_ids);
+        self
+    }
+
+    /// Declare sampling weights for every row of the source table (OLS only). The classical
+    /// homoskedastic SE kind is refused with weights at `prepare`: a model-based variance
+    /// treats weights as precision, which is invalid for sampling weights. Choose an HC or
+    /// cluster kind.
+    #[must_use]
+    pub fn with_sampling_weights(
+        mut self,
+        weights: crate::sampling_weights::SamplingWeights,
+    ) -> Self {
+        self.sampling_weights = Some(weights);
         self
     }
 
@@ -382,6 +405,25 @@ impl LinearAdjustmentAte {
             data.row_count(),
             self.population_registry.as_ref(),
         )?;
+        if self.sampling_weights.is_some() && !matches!(self.fit_kind, LinearFitKind::Ols) {
+            return Err(crate::sampling_weights::unsupported_route(
+                "sampling weights are read by the ordinary least-squares fit only; ridge, lasso \
+                 and Huber fits have no sampling-weighted variance",
+            ));
+        }
+        if self.sampling_weights.is_some() && matches!(self.se_kind, AnalyticSeKind::Homoskedastic)
+        {
+            return Err(crate::sampling_weights::unsupported_route(
+                "the classical homoskedastic standard error treats weights as precision and is \
+                 invalid for sampling weights; request a heteroskedasticity-robust kind \
+                 (hc0..hc3) or the cluster sandwich",
+            ));
+        }
+        let retained = self
+            .sampling_weights
+            .as_ref()
+            .map(|weights| weights.restrict(&mut row_mask))
+            .transpose()?;
         let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
         let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
         let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
@@ -394,6 +436,12 @@ impl LinearAdjustmentAte {
             row_mask.iter().enumerate().filter_map(|(i, keep)| keep.then_some(i)).collect();
         let design = CompiledDesign::linear_adjustment(&t, &cov_refs, &y, &selected_rows)
             .map_err(EstimationError::from)?;
+        let design = match &retained {
+            Some(retained) => {
+                crate::sampling_weights::root_weight_design(design, &retained.weights)
+            }
+            None => design,
+        };
         Ok(PreparedEstimationProblem {
             design,
             method: Arc::clone(&estimand.method),
@@ -404,6 +452,7 @@ impl LinearAdjustmentAte {
             treatment: Arc::from(t),
             active,
             control,
+            sampling_weights: retained.map(|retained| retained.record),
         })
     }
 
@@ -655,6 +704,7 @@ impl LinearAdjustmentAte {
         let point = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_n_obs(u64::try_from(nrows).unwrap_or(u64::MAX))
             .with_se_kind(self.se_kind)
+            .with_sampling_weights(problem.sampling_weights)
             .with_influence(influence.map(Arc::from));
         let residuals =
             matches!(fit.variance, FitVariance::Ols).then(|| std::mem::take(&mut fit.residuals));
@@ -1101,6 +1151,13 @@ fn gcomp_or_coef_ate(
 ) -> Result<f64, EstimationError> {
     match problem.target_population {
         TargetPopulation::AllObserved | TargetPopulation::Predicate(_) => {
+            Ok(coefficients[t_col] * problem.treatment_delta)
+        }
+        // The design is the weighted transform, which g-computation cannot average over. Under
+        // the main-effects model every target has the effect `β_T · Δ`.
+        TargetPopulation::Treated | TargetPopulation::Untreated
+            if problem.sampling_weights.is_some() =>
+        {
             Ok(coefficients[t_col] * problem.treatment_delta)
         }
         TargetPopulation::Treated | TargetPopulation::Untreated => {

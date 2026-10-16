@@ -22,6 +22,7 @@ use crate::propensity::{
     OtherLevels, PreparedPropensityProblem, clip_of, default_propensity_overlap,
     prepare_propensity_problem_with_levels, trim_of, trim_retained_rows,
 };
+use crate::sampling_weights::SamplingWeights;
 use crate::scores::{ScoreColumn, ScoreTable};
 use crate::se::AnalyticSeKind;
 
@@ -72,6 +73,11 @@ pub struct DmlAte {
     /// cross-fit plan owns whole units and the standard error is the cluster sandwich of the
     /// cross-fitted scores.
     pub units: DeclaredUnits,
+    /// Sampling weights of every row of the source table (see [`crate::sampling_weights`]).
+    /// Both nuisance learners are fit under them (the learner must carry prior weights), the
+    /// score is averaged under them, and the standard error is that of the weighted score.
+    /// A weighted fit keeps no row-identified score table, so it is not retargetable.
+    pub sampling_weights: Option<SamplingWeights>,
 }
 
 impl Default for DmlAte {
@@ -98,7 +104,15 @@ impl DmlAte {
                 second: None,
                 second_source: None,
             },
+            sampling_weights: None,
         }
+    }
+
+    /// Declare sampling weights for every row of the source table.
+    #[must_use]
+    pub fn with_sampling_weights(mut self, weights: SamplingWeights) -> Self {
+        self.sampling_weights = Some(weights);
+        self
     }
 
     /// Declare whole-cluster cross-fitting over the unit labels set with
@@ -210,7 +224,14 @@ impl DmlAte {
             self.overlap,
             None,
             self.other_levels,
+            self.sampling_weights.as_ref(),
         )?;
+        if self.sampling_weights.is_some() && self.units.spec.is_some() {
+            return Err(crate::sampling_weights::unsupported_route(
+                "a cluster-DML declaration reads the unweighted cross-fitted score table; a \
+                 weighted cluster sandwich is available on the AIPW estimator only",
+            ));
+        }
         if self.units.spec.is_some() && !matches!(self.score, DmlScore::Aipw) {
             return Err(EstimationError::unsupported(
                 "a cluster-DML declaration needs the AIPW score, whose per-arm scores the \
@@ -314,11 +335,13 @@ impl DmlAte {
         ctx: &ExecutionContext,
         mut assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        let row_weights = problem.sampling_weights.as_ref().map(|s| &*s.weights);
         let m = cross_fit_nuisance(
             self.outcome,
             PredictionTask::Regression,
             NuisanceDesign::of(problem),
             problem.outcome.as_ref(),
+            row_weights,
             self.folds,
             ctx,
         )?;
@@ -327,6 +350,7 @@ impl DmlAte {
             PredictionTask::BinaryProbability,
             NuisanceDesign::of(problem),
             problem.treatment.as_ref(),
+            row_weights,
             self.folds,
             ctx,
         )?;
@@ -348,9 +372,10 @@ impl DmlAte {
             }
             let dt = problem.treatment[i] - e.predictions[i];
             let dy = problem.outcome[i] - m.predictions[i];
+            let weight = row_weights.map_or(1.0, |w| w[i]);
             residual_t[i] = dt;
-            num += dt * dy;
-            den += dt * dt;
+            num += weight * dt * dy;
+            den += weight * dt * dt;
         }
         if !num.is_finite() || !den.is_finite() || den <= 0.0 {
             return Err(EstimationError::stats_msg("DML PLR denominator is zero"));
@@ -360,7 +385,8 @@ impl DmlAte {
             .map(|i| {
                 let dt = residual_t[i];
                 let dy = problem.outcome[i] - m.predictions[i];
-                dt * dy - theta * dt * dt
+                let weight = row_weights.map_or(1.0, |w| w[i]);
+                weight * (dt * dy - theta * dt * dt)
             })
             .collect();
         let nf = n as f64;
@@ -392,6 +418,7 @@ impl DmlAte {
             .with_overlap_report(Some(report))
             .with_n_obs(u64::try_from(keep.iter().filter(|&&v| v).count()).unwrap_or(u64::MAX))
             .with_se_kind(AnalyticSeKind::Homoskedastic)
+            .with_sampling_weights(problem.sampling_weights.as_ref().map(|s| s.record))
             .with_influence(Some(Arc::from(psi)));
         effect.crossfit.folds = Some(self.folds);
         effect.crossfit.seed = Some(ctx.rng.master_seed());
@@ -409,8 +436,11 @@ impl DmlAte {
 /// retarget then refuses with `score_table_unavailable` rather than reweighting scores of
 /// another construction).
 pub(crate) fn scores_retargetable(problem: &PreparedPropensityProblem) -> bool {
+    // A weighted fit's scores describe the weighted population; a retarget under another
+    // weight vector would silently drop the sampling weights, so no table is kept.
     matches!(problem.target_population, TargetPopulation::AllObserved)
         && trim_of(problem.overlap).is_none()
+        && problem.sampling_weights.is_none()
 }
 
 /// Per-arm scores `μ_a + 1{T=a}(Y - μ_a)/e_a` from one cross-fitted nuisance bundle. The same
@@ -598,11 +628,16 @@ pub(crate) fn finish_dml(
     if kept < 2 {
         return Err(EstimationError::data_msg("DML inference requires two retained rows"));
     }
-    let ate = rows.iter().map(|&i| phi[i]).sum::<f64>() / kept as f64;
+    // Under sampling weights the estimate is the weighted mean of the scores and each row's
+    // influence carries its weight; with none, every weight is one.
+    let row_weights = problem.sampling_weights.as_ref().map(|s| &*s.weights);
+    let weight_of = |i: usize| row_weights.map_or(1.0, |w| w[i]);
+    let mass: f64 = rows.iter().map(|&i| weight_of(i)).sum();
+    let ate = rows.iter().map(|&i| weight_of(i) * phi[i]).sum::<f64>() / mass;
     // Embed the retained-population ratio influence in the original row universe.
     let mut influence = vec![0.0; n];
     for &i in &rows {
-        influence[i] = (phi[i] - ate) * n as f64 / kept as f64;
+        influence[i] = weight_of(i) * (phi[i] - ate) * n as f64 / mass;
     }
     let se = iid_se(&influence);
     let report = OverlapReport::from_propensities(
@@ -617,6 +652,7 @@ pub(crate) fn finish_dml(
         .with_overlap_report(Some(report))
         .with_n_obs(u64::try_from(kept).unwrap_or(u64::MAX))
         .with_se_kind(AnalyticSeKind::Homoskedastic)
+        .with_sampling_weights(problem.sampling_weights.as_ref().map(|s| s.record))
         .with_influence(Some(Arc::from(influence)));
     effect.crossfit.outcome_oof_r2 = outcome_r2;
     effect.crossfit.treatment_oof_logloss = treat_logloss;

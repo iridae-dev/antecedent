@@ -3,6 +3,8 @@
 
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
+use crate::randomized_scores::MIN_EXPECTED_ARM_ROWS_FOR_INTERVAL;
+
 /// Fitted treatment coefficient, HC0 variance, and covariate coefficients.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AncovaFit {
@@ -20,19 +22,24 @@ pub struct AncovaFit {
 
 /// Pointwise interval calibrated for independently assigned Bernoulli rows.
 ///
-/// The coefficient and HC0 variance remain available below this measured
-/// support boundary; an interval does not.
+/// The interval needs 30 observed rows in each arm and at least
+/// [`MIN_EXPECTED_ARM_ROWS_FOR_INTERVAL`](crate::randomized_scores::MIN_EXPECTED_ARM_ROWS_FOR_INTERVAL)
+/// expected rows in each arm (`n·p` treated, `n·(1−p)` control): HC0 omits the leverage correction,
+/// whose size is set by how few rows an arm holds, not by the total row count. The coefficient and
+/// HC0 variance remain available below this measured support boundary; an interval does not.
 #[must_use]
 pub fn calibrated_bernoulli_interval_95(fit: &AncovaFit, probability: f64) -> Option<[f64; 2]> {
     use antecedent_stats::NORMAL_Q975 as NORMAL_95;
+    let rows = (fit.treated + fit.control) as f64;
     if fit.covariate_coefficients.is_empty()
         || fit.covariate_coefficients.len() > 2
-        || fit.treated + fit.control < 400
         || fit.treated < 30
         || fit.control < 30
         || !probability.is_finite()
         || probability + 1e-12 < 0.2
         || probability > 0.8 + 1e-12
+        || rows * probability + 1e-9 < MIN_EXPECTED_ARM_ROWS_FOR_INTERVAL
+        || rows * (1.0 - probability) + 1e-9 < MIN_EXPECTED_ARM_ROWS_FOR_INTERVAL
         || !fit.hc0_variance.is_finite()
         || fit.hc0_variance <= 0.0
     {
@@ -135,22 +142,45 @@ mod tests {
         assert!(e.contains("rank deficient"), "{e}");
     }
 
+    /// Cells `(rows, covariates, probability)` from the 400-row boundary of the earlier blanket rule
+    /// down to the arm-support boundary: 150 rows at 0.5, a 2:1 allocation, and 200 rows at 0.2
+    /// (exactly 40 expected treated rows), plus 300 and 600 rows at the probability boundaries.
+    const ANCOVA_COVERAGE_CELLS: [(usize, usize, f64); 20] = [
+        (400, 1, 0.2),
+        (400, 1, 0.5),
+        (400, 1, 0.8),
+        (400, 2, 0.2),
+        (400, 2, 0.5),
+        (400, 2, 0.8),
+        (150, 1, 0.5),
+        (150, 2, 0.5),
+        (150, 2, 1.0 / 3.0),
+        (200, 2, 0.2),
+        (200, 2, 0.8),
+        (300, 1, 0.2),
+        (300, 1, 0.5),
+        (300, 2, 0.2),
+        (300, 2, 0.5),
+        (300, 2, 0.8),
+        (300, 2, 1.0 / 3.0),
+        (600, 1, 0.2),
+        (600, 2, 0.5),
+        (600, 2, 0.8),
+    ];
+
     #[test]
     fn bernoulli_ancova_hc0_covers_known_finite_population_effect() {
         const REPLICATES: usize = 2_000;
-        const N: usize = 400;
-        let x1 = (0..N).map(|i| (0.17 * i as f64).sin()).collect::<Vec<_>>();
-        let x2 = (0..N).map(|i| (0.11 * i as f64).cos()).collect::<Vec<_>>();
-        let effect = (0..N).map(|i| 1.4 + 0.2 * x1[i]).sum::<f64>() / N as f64;
-        for (covariate_count, probability) in
-            [(1, 0.2), (1, 0.5), (1, 0.8), (2, 0.2), (2, 0.5), (2, 0.8)]
-        {
-            let mut covered = 0;
+        for (n, covariate_count, probability) in ANCOVA_COVERAGE_CELLS {
+            let x1 = (0..n).map(|i| (0.17 * i as f64).sin()).collect::<Vec<_>>();
+            let x2 = (0..n).map(|i| (0.11 * i as f64).cos()).collect::<Vec<_>>();
+            let effect = (0..n).map(|i| 1.4 + 0.2 * x1[i]).sum::<f64>() / n as f64;
+            let (mut covered, mut published) = (0, 0);
             for rep in 0..REPLICATES {
-                let assignment = (0..N)
+                let assignment = (0..n)
                     .map(|i| crate::splitmix::keyed_unit(rep as u64, i as u64) < probability)
                     .collect::<Vec<_>>();
-                let outcome = (0..N)
+                let outcome = (0..n)
                     .map(|i| {
                         2.0 + 1.2 * x1[i] - 0.7 * x2[i]
                             + 0.5 * (0.29 * i as f64).sin()
@@ -161,12 +191,19 @@ mod tests {
                     if covariate_count == 1 { vec![&x1] } else { vec![&x1, &x2] };
                 let fit = fit_ancova(&outcome, &assignment, &covariates).unwrap();
                 assert!(fit.hc0_variance > 0.0);
-                let [lower, upper] = calibrated_bernoulli_interval_95(&fit, probability).unwrap();
+                // An allocation that realizes fewer than 30 rows in an arm publishes no interval;
+                // coverage is scored over the allocations that do.
+                let Some([lower, upper]) = calibrated_bernoulli_interval_95(&fit, probability)
+                else {
+                    continue;
+                };
+                published += 1;
                 covered += usize::from(lower <= effect && effect <= upper);
             }
-            let rate = covered as f64 / REPLICATES as f64;
+            assert!(published * 10 >= REPLICATES * 9, "n={n} p={probability}: {published}");
+            let rate = covered as f64 / published as f64;
             eprintln!(
-                "Bernoulli ANCOVA HC0 covariates={covariate_count} p={probability} known-truth coverage: {covered}/{REPLICATES} = {rate:.4}"
+                "Bernoulli ANCOVA HC0 n={n} covariates={covariate_count} p={probability:.3} known-truth coverage: {covered}/{published} = {rate:.4}"
             );
             assert!((0.93..=0.985).contains(&rate));
         }
@@ -185,6 +222,14 @@ mod tests {
         let fit = AncovaFit { treated: 200, control: 200, ..fit };
         assert!(calibrated_bernoulli_interval_95(&fit, 0.1).is_none());
         assert!(calibrated_bernoulli_interval_95(&fit, 0.5).is_some());
+        // 300 balanced rows are supported; a design expecting 39 treated rows is not, however many
+        // the allocation happened to realize, and 40 expected rows are the boundary.
+        let balanced = AncovaFit { treated: 150, control: 150, ..fit.clone() };
+        assert!(calibrated_bernoulli_interval_95(&balanced, 0.5).is_some());
+        let sparse_design = AncovaFit { treated: 45, control: 150, ..fit.clone() };
+        assert!(calibrated_bernoulli_interval_95(&sparse_design, 0.2).is_none());
+        let boundary = AncovaFit { treated: 45, control: 155, ..fit.clone() };
+        assert!(calibrated_bernoulli_interval_95(&boundary, 0.2).is_some());
         let fit = AncovaFit { hc0_variance: 0.0, ..fit };
         assert!(calibrated_bernoulli_interval_95(&fit, 0.5).is_none());
         let fit = AncovaFit { hc0_variance: 0.1, covariate_coefficients: vec![0.0; 3], ..fit };

@@ -583,6 +583,8 @@ pub struct StudyBuilder {
     population_registry: Option<PopulationRegistry>,
     /// Participant labels bound to the rows of the data (digests only).
     participants: Option<antecedent_io::ParticipantBindingWire>,
+    /// Declared handling of missing values; `None` leaves each route on its own default.
+    missing: Option<antecedent_data::MissingDeclaration>,
     /// Custom slow-path validators appended after the built-in refute suite.
     custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     /// Optional tier-rule background (fast-path generalized adjustment).
@@ -898,6 +900,7 @@ impl StudyBuilder {
             overlap_policy: None,
             population_registry: None,
             participants: None,
+            missing: None,
             custom_validators: Vec::new(),
             tiered: None,
             caller_graph: None,
@@ -1302,6 +1305,18 @@ impl StudyBuilder {
         self
     }
 
+    /// Declare how missing values are handled.
+    ///
+    /// Without a declaration, average-effect routes keep their complete-case selection and
+    /// report the rows it dropped, while randomized, panel and temporal routes refuse any
+    /// missing value. A declaration enters the data-snapshot identity only when a route
+    /// would behave differently for it.
+    #[must_use]
+    pub fn missing(mut self, declaration: antecedent_data::MissingDeclaration) -> Self {
+        self.missing = Some(declaration);
+        self
+    }
+
     /// Bindings for named predicates and custom target-distribution weights.
     #[must_use]
     pub fn population_registry(mut self, registry: PopulationRegistry) -> Self {
@@ -1385,6 +1400,7 @@ impl StudyBuilder {
             overlap_policy: self.overlap_policy,
             population_registry: self.population_registry,
             participants: self.participants,
+            missing: self.missing,
             custom_validators: self.custom_validators,
             tiered: self.tiered,
             caller_graph: self.caller_graph.is_some(),

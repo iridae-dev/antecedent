@@ -1,0 +1,459 @@
+//! Row accounting for declared missing-data handling.
+//!
+//! Every route that drops, weights or restricts rows reports the same record: how many rows
+//! the table had, how many were analysed, why the others were not, and a digest of exactly
+//! which rows they were. The digest is taken over original row positions, so two analyses
+//! that excluded the same rows agree and an analysis that excluded different rows does not.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::Arc;
+
+use antecedent_core::VariableId;
+
+use crate::column::ValidityBitmap;
+use crate::error::DataError;
+use crate::sample_policy::MissingPolicy;
+use crate::table::TableView;
+
+/// Domain-separated BLAKE3 context of the dropped-row digest.
+const DROPPED_DIGEST_CONTEXT: &str = "antecedent.data.row_accounting.v1";
+
+/// A missing cell: the first (by variable order, then row) invalid value of a requested column.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MissingCell {
+    /// Column id.
+    pub id: VariableId,
+    /// Column name.
+    pub variable: Arc<str>,
+    /// Zero-based row position in the submitted table.
+    pub row: usize,
+}
+
+/// Reason a row left the analysed sample.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum DropReason {
+    /// The row was hidden by the analysis mask.
+    AnalysisMask,
+    /// A requested column was missing on the row.
+    MissingValue,
+    /// The row was complete but its unit was removed by a panel restriction.
+    UnitIncomplete,
+}
+
+impl DropReason {
+    /// Stable name used in receipts.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::AnalysisMask => "analysis_mask",
+            Self::MissingValue => "missing_value",
+            Self::UnitIncomplete => "unit_incomplete",
+        }
+    }
+}
+
+/// Rows and kept rows of one labelled group (an arm, a treatment group).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GroupAccounting {
+    /// Group label.
+    pub label: Arc<str>,
+    /// Rows in the group.
+    pub total: usize,
+    /// Rows of the group that were analysed.
+    pub kept: usize,
+    /// Rows of the group whose analysed variables are all observed. Equal to `kept` unless
+    /// a route keeps rows with a missing value (responder weighting keeps every assigned
+    /// row and weights the observed ones).
+    pub observed: usize,
+}
+
+/// Units removed by a panel restriction.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct UnitAccounting {
+    /// Units in the panel.
+    pub total: usize,
+    /// Units removed.
+    pub dropped: usize,
+}
+
+/// The row accounting of one analysis.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RowAccounting {
+    /// Declared policy the accounting was produced under.
+    pub policy: MissingPolicy,
+    /// Rows in the submitted table.
+    pub rows_total: usize,
+    /// Rows whose analysed values entered the estimate.
+    pub rows_kept: usize,
+    /// Rows the estimate's denominators count. Equal to `rows_kept` unless a route keeps
+    /// rows it cannot observe: responder weighting counts every assigned participant in its
+    /// arm's denominator and corrects for the non-responders through the weights.
+    pub rows_in_denominator: usize,
+    /// Rows missing each analysed variable, in the order the variables were requested.
+    pub missing_by_variable: Arc<[(Arc<str>, usize)]>,
+    /// Dropped rows by first applicable reason.
+    pub reasons: Arc<[(DropReason, usize)]>,
+    /// Zero-based positions of the dropped rows in the submitted table, ascending.
+    pub dropped_rows: Arc<[u64]>,
+    /// Lower-case hex BLAKE3 of the row total and the dropped positions.
+    pub dropped_digest: Arc<str>,
+    /// Per-group totals, when the route has groups (arms, treatment groups).
+    pub groups: Arc<[GroupAccounting]>,
+    /// Units removed, for panel routes.
+    pub units: Option<UnitAccounting>,
+}
+
+impl RowAccounting {
+    /// Accounting of a selection `keep` over `variables`.
+    ///
+    /// A dropped row is attributed to the analysis mask when it hides the row, else to a
+    /// missing value when a requested column is invalid on it, else to its unit.
+    ///
+    /// # Errors
+    ///
+    /// Unknown variables, or a `keep` mask whose length differs from the table's.
+    pub fn from_selection<T: TableView>(
+        table: &T,
+        analysis_mask: Option<&ValidityBitmap>,
+        policy: MissingPolicy,
+        variables: &[VariableId],
+        keep: &[bool],
+    ) -> Result<Self, DataError> {
+        let n = table.row_count();
+        if keep.len() != n {
+            return Err(DataError::LengthMismatch {
+                expected: n,
+                actual: keep.len(),
+                context: "row accounting keep mask",
+            });
+        }
+        let mut validities = Vec::with_capacity(variables.len());
+        let mut missing_by_variable = Vec::with_capacity(variables.len());
+        for &id in variables {
+            let validity = table.column(id)?.validity();
+            let name = Arc::clone(&table.schema().get(id)?.name);
+            let missing = (0..n).filter(|&row| !validity.is_valid(row)).count();
+            missing_by_variable.push((name, missing));
+            validities.push(validity);
+        }
+        let mut counts = [0usize; 3];
+        let mut dropped_rows = Vec::new();
+        for (row, kept) in keep.iter().enumerate() {
+            if *kept {
+                continue;
+            }
+            let reason = if analysis_mask.is_some_and(|mask| !mask.is_valid(row)) {
+                DropReason::AnalysisMask
+            } else if validities.iter().any(|validity| !validity.is_valid(row)) {
+                DropReason::MissingValue
+            } else {
+                DropReason::UnitIncomplete
+            };
+            counts[reason as usize] += 1;
+            dropped_rows.push(row as u64);
+        }
+        let reasons =
+            [DropReason::AnalysisMask, DropReason::MissingValue, DropReason::UnitIncomplete]
+                .into_iter()
+                .map(|reason| (reason, counts[reason as usize]))
+                .filter(|(_, count)| *count > 0)
+                .collect::<Vec<_>>();
+        let dropped_digest = dropped_row_digest(n, &dropped_rows);
+        Ok(Self {
+            policy,
+            rows_total: n,
+            rows_kept: n - dropped_rows.len(),
+            rows_in_denominator: n - dropped_rows.len(),
+            missing_by_variable: missing_by_variable.into(),
+            reasons: reasons.into(),
+            dropped_rows: dropped_rows.into(),
+            dropped_digest: Arc::from(dropped_digest),
+            groups: Arc::from([]),
+            units: None,
+        })
+    }
+
+    /// Accounting of rows a route dropped for a missing value and identified by position,
+    /// for routes whose rows are not a table's rows (the lag-aligned windows of a series).
+    ///
+    /// `dropped_rows` are ascending positions (original series times for windows).
+    #[must_use]
+    pub fn from_dropped(
+        policy: MissingPolicy,
+        rows_total: usize,
+        dropped_rows: Vec<u64>,
+        missing_by_variable: Vec<(Arc<str>, usize)>,
+    ) -> Self {
+        let dropped = dropped_rows.len();
+        let reasons: Vec<(DropReason, usize)> =
+            if dropped == 0 { Vec::new() } else { vec![(DropReason::MissingValue, dropped)] };
+        let dropped_digest = dropped_row_digest(rows_total, &dropped_rows);
+        Self {
+            policy,
+            rows_total,
+            rows_kept: rows_total - dropped,
+            rows_in_denominator: rows_total - dropped,
+            missing_by_variable: missing_by_variable.into(),
+            reasons: reasons.into(),
+            dropped_rows: dropped_rows.into(),
+            dropped_digest: Arc::from(dropped_digest),
+            groups: Arc::from([]),
+            units: None,
+        }
+    }
+
+    /// Accounting of the complete-case selection over `variables`: rows the analysis mask
+    /// hides or where a requested column is missing are dropped.
+    ///
+    /// # Errors
+    ///
+    /// Unknown variables.
+    pub fn complete_case<T: TableView>(
+        table: &T,
+        analysis_mask: Option<&ValidityBitmap>,
+        variables: &[VariableId],
+    ) -> Result<Self, DataError> {
+        let keep = complete_rows(table, analysis_mask, variables)?;
+        Self::from_selection(table, analysis_mask, MissingPolicy::CompleteCase, variables, &keep)
+    }
+
+    /// Rows removed from the analysis.
+    #[must_use]
+    pub fn rows_dropped(&self) -> usize {
+        self.rows_total - self.rows_kept
+    }
+
+    /// Add per-group totals from one label per table row, the rows kept and the rows whose
+    /// analysed variables are all observed.
+    ///
+    /// # Errors
+    ///
+    /// `labels`, `keep` or `observed` differ in length from the table.
+    pub fn with_groups(
+        mut self,
+        labels: &[Arc<str>],
+        keep: &[bool],
+        observed: &[bool],
+    ) -> Result<Self, DataError> {
+        if labels.len() != self.rows_total
+            || keep.len() != self.rows_total
+            || observed.len() != self.rows_total
+        {
+            return Err(DataError::LengthMismatch {
+                expected: self.rows_total,
+                actual: labels.len().min(keep.len()).min(observed.len()),
+                context: "row accounting group labels",
+            });
+        }
+        let mut groups: Vec<GroupAccounting> = Vec::new();
+        for ((label, kept), seen) in labels.iter().zip(keep).zip(observed) {
+            let slot = if let Some(slot) = groups.iter().position(|g| g.label == *label) {
+                slot
+            } else {
+                groups.push(GroupAccounting {
+                    label: Arc::clone(label),
+                    total: 0,
+                    kept: 0,
+                    observed: 0,
+                });
+                groups.len() - 1
+            };
+            groups[slot].total += 1;
+            groups[slot].kept += usize::from(*kept);
+            groups[slot].observed += usize::from(*seen);
+        }
+        self.groups = groups.into();
+        Ok(self)
+    }
+
+    /// Record that the estimate's denominators count `rows` rows.
+    #[must_use]
+    pub fn with_denominator(mut self, rows: usize) -> Self {
+        self.rows_in_denominator = rows;
+        self
+    }
+
+    /// Record the units a panel restriction removed.
+    #[must_use]
+    pub fn with_units(mut self, total: usize, dropped: usize) -> Self {
+        self.units = Some(UnitAccounting { total, dropped });
+        self
+    }
+}
+
+/// Rows the analysis mask exposes and where every requested column is observed.
+///
+/// Unlike `TabularData::complete_case_mask`, an empty selection is not an error: the caller
+/// is accounting for a selection, not drawing a sample from it.
+///
+/// # Errors
+///
+/// Unknown variables.
+pub fn complete_rows<T: TableView>(
+    table: &T,
+    analysis_mask: Option<&ValidityBitmap>,
+    variables: &[VariableId],
+) -> Result<Vec<bool>, DataError> {
+    let n = table.row_count();
+    let mut keep: Vec<bool> =
+        (0..n).map(|row| analysis_mask.is_none_or(|mask| mask.is_valid(row))).collect();
+    for &id in variables {
+        let validity = table.column(id)?.validity();
+        for (row, slot) in keep.iter_mut().enumerate() {
+            *slot = *slot && validity.is_valid(row);
+        }
+    }
+    Ok(keep)
+}
+
+/// Lower-case hex BLAKE3 of the row total and the ascending dropped positions.
+#[must_use]
+pub fn dropped_row_digest(rows_total: usize, dropped: &[u64]) -> String {
+    let mut hasher = blake3::Hasher::new_derive_key(DROPPED_DIGEST_CONTEXT);
+    hasher.update(&(rows_total as u64).to_le_bytes());
+    hasher.update(&(dropped.len() as u64).to_le_bytes());
+    for row in dropped {
+        hasher.update(&row.to_le_bytes());
+    }
+    hasher.finalize().to_hex().to_string()
+}
+
+/// The first missing cell of `variables` in `table`: the first requested variable with an
+/// invalid row, and its first such row.
+///
+/// # Errors
+///
+/// Unknown variables.
+pub fn first_missing_cell<T: TableView>(
+    table: &T,
+    variables: &[VariableId],
+) -> Result<Option<MissingCell>, DataError> {
+    for &id in variables {
+        let validity = table.column(id)?.validity();
+        if let Some(row) = (0..table.row_count()).find(|&row| !validity.is_valid(row)) {
+            return Ok(Some(MissingCell {
+                id,
+                variable: Arc::clone(&table.schema().get(id)?.name),
+                row,
+            }));
+        }
+    }
+    Ok(None)
+}
+
+/// The text every route's refusal of an undeclared policy shares: the first missing cell and
+/// the policies the route can execute.
+#[must_use]
+pub fn policy_required_text(
+    cell: &MissingCell,
+    route: &str,
+    available: &[MissingPolicy],
+) -> String {
+    format!(
+        "{route} found a missing value in column `{}` at row {} and no missing-data policy is \
+         declared; declare one of: {}",
+        cell.variable,
+        cell.row,
+        available.iter().map(|policy| policy.name()).collect::<Vec<_>>().join(", "),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dataset::TabularData;
+
+    fn table() -> TabularData {
+        let x = [1.0, f64::NAN, 3.0, 4.0, 5.0, 6.0];
+        let y = [1.0, 2.0, f64::NAN, 4.0, f64::NAN, 6.0];
+        TabularData::from_f64_columns([("x", &x[..]), ("y", &y[..])]).unwrap()
+    }
+
+    fn ids() -> [VariableId; 2] {
+        [VariableId::from_raw(0), VariableId::from_raw(1)]
+    }
+
+    #[test]
+    fn first_missing_cell_names_the_variable_and_row() {
+        let data = table();
+        let cell = first_missing_cell(&data, &ids()).unwrap().unwrap();
+        assert_eq!((cell.variable.as_ref(), cell.row), ("x", 1));
+        let only_y = first_missing_cell(&data, &ids()[1..]).unwrap().unwrap();
+        assert_eq!((only_y.variable.as_ref(), only_y.row), ("y", 2));
+        let complete = TabularData::from_f64_columns([("z", &[1.0, 2.0][..])]).unwrap();
+        assert_eq!(first_missing_cell(&complete, &[VariableId::from_raw(0)]).unwrap(), None);
+    }
+
+    #[test]
+    fn accounting_counts_dropped_rows_by_variable_and_reason() {
+        let data = table();
+        let keep = data.complete_case_mask(&ids()).unwrap();
+        let accounting =
+            RowAccounting::from_selection(&data, None, MissingPolicy::CompleteCase, &ids(), &keep)
+                .unwrap();
+        assert_eq!((accounting.rows_total, accounting.rows_kept), (6, 3));
+        assert_eq!(accounting.rows_dropped(), 3);
+        let by_variable: Vec<_> =
+            accounting.missing_by_variable.iter().map(|(n, c)| (n.as_ref(), *c)).collect();
+        assert_eq!(by_variable, [("x", 1), ("y", 2)]);
+        assert_eq!(accounting.dropped_rows.as_ref(), [1, 2, 4]);
+        assert_eq!(accounting.reasons.as_ref(), [(DropReason::MissingValue, 3)]);
+    }
+
+    #[test]
+    fn the_refusal_text_names_the_cell_and_the_policies() {
+        let data = table();
+        let cell = first_missing_cell(&data, &ids()).unwrap().unwrap();
+        let text = policy_required_text(
+            &cell,
+            "a route",
+            &[MissingPolicy::CompleteCase, MissingPolicy::BalancedPanel],
+        );
+        assert!(text.contains("column `x` at row 1"), "{text}");
+        assert!(text.ends_with("declare one of: complete_case, balanced_panel"), "{text}");
+    }
+
+    #[test]
+    fn digest_identifies_which_rows_were_dropped() {
+        let one = dropped_row_digest(6, &[1, 2, 4]);
+        assert_eq!(one, dropped_row_digest(6, &[1, 2, 4]));
+        assert_ne!(one, dropped_row_digest(6, &[1, 2, 5]));
+        assert_ne!(one, dropped_row_digest(7, &[1, 2, 4]));
+        assert_eq!(one.len(), 64);
+    }
+
+    #[test]
+    fn complete_rows_removed_with_their_unit_are_attributed_to_the_unit() {
+        let data = table();
+        let mut keep = data.complete_case_mask(&ids()).unwrap();
+        keep[3] = false;
+        let accounting =
+            RowAccounting::from_selection(&data, None, MissingPolicy::BalancedPanel, &ids(), &keep)
+                .unwrap()
+                .with_units(3, 1);
+        assert_eq!(
+            accounting.reasons.as_ref(),
+            [(DropReason::MissingValue, 3), (DropReason::UnitIncomplete, 1)]
+        );
+        assert_eq!(accounting.units, Some(UnitAccounting { total: 3, dropped: 1 }));
+    }
+
+    #[test]
+    fn group_totals_follow_the_labels() {
+        let data = table();
+        let keep = data.complete_case_mask(&ids()).unwrap();
+        let labels: Vec<Arc<str>> = ["a", "a", "a", "b", "b", "b"].map(Arc::from).to_vec();
+        let accounting =
+            RowAccounting::from_selection(&data, None, MissingPolicy::CompleteCase, &ids(), &keep)
+                .unwrap()
+                .with_groups(&labels, &keep, &keep)
+                .unwrap();
+        let groups: Vec<_> = accounting
+            .groups
+            .iter()
+            .map(|g| (g.label.as_ref(), g.total, g.kept, g.observed))
+            .collect();
+        assert_eq!(groups, [("a", 3, 1, 1), ("b", 3, 2, 2)]);
+    }
+}

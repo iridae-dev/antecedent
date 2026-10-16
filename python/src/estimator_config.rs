@@ -51,6 +51,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "se_lag",
             "cluster_ids",
             "source_cluster_ids",
+            "source_sampling_weights",
             "multiway_ids",
             "panel_times",
             "fit_kind",
@@ -58,7 +59,18 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "fit_c",
         ],
     ),
-    ("propensity.weighting", &["bootstrap_replicates", "glm_options", "overlap", "other_levels"]),
+    (
+        "propensity.weighting",
+        &[
+            "bootstrap_replicates",
+            "glm_options",
+            "overlap",
+            "other_levels",
+            "cluster_ids",
+            "source_cluster_ids",
+            "source_sampling_weights",
+        ],
+    ),
     (
         "propensity.matching",
         &[
@@ -73,11 +85,21 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "caliper_scale",
             "overlap",
             "other_levels",
+            "source_sampling_weights",
         ],
     ),
     (
         "propensity.stratification",
-        &["bootstrap_replicates", "glm_options", "n_strata", "overlap", "other_levels"],
+        &[
+            "bootstrap_replicates",
+            "glm_options",
+            "n_strata",
+            "overlap",
+            "other_levels",
+            "cluster_ids",
+            "source_cluster_ids",
+            "source_sampling_weights",
+        ],
     ),
     (
         "distance.matching",
@@ -91,6 +113,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "glm_options",
             "caliper",
             "overlap",
+            "source_sampling_weights",
         ],
     ),
     (
@@ -109,6 +132,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "nuisance_fallback",
             "cluster_dml",
             "other_levels",
+            "source_sampling_weights",
         ],
     ),
     (
@@ -123,6 +147,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "panel_times",
             "glm_options",
             "family",
+            "source_sampling_weights",
         ],
     ),
     (
@@ -167,13 +192,26 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "overlap",
             "other_levels",
             "cluster_dml",
+            "source_sampling_weights",
         ],
     ),
     (
         "dr.learner",
-        &["learner", "outcome", "treatment", "final_learner", "folds", "overlap", "cluster_dml"],
+        &[
+            "learner",
+            "outcome",
+            "treatment",
+            "final_learner",
+            "folds",
+            "overlap",
+            "cluster_dml",
+            "source_sampling_weights",
+        ],
     ),
-    ("causal.forest", &["n_trees", "min_leaf", "max_depth", "honesty"]),
+    (
+        "causal.forest",
+        &["n_trees", "min_leaf", "max_depth", "honesty", "source_cluster_ids", "min_clusters"],
+    ),
 ];
 
 /// Valid `glm_options` sub-dict keys (see [`build_glm_options`]).
@@ -284,7 +322,8 @@ pub(crate) fn parse_estimator_config(
         let key: String =
             key_obj.extract().map_err(|_| crate::value_err("estimator_config keys must be str"))?;
         // `dml` and `dr.learner` declare dependence through whole-cluster cross-fitting only.
-        let declares_units = matches!(resolved_id, "dml" | "dr.learner") && key == "cluster_dml";
+        let declares_units = (matches!(resolved_id, "dml" | "dr.learner") && key == "cluster_dml")
+            || (resolved_id == "causal.forest" && key == "source_cluster_ids");
         if FLEXIBLE_LEARNER_IDS.contains(&resolved_id)
             && DEPENDENCE_KEYS.contains(&key.as_str())
             && !declares_units
@@ -453,6 +492,33 @@ fn get_u32_list(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<Vec<u32>
             type_name(&v)
         ))
     })
+}
+
+fn get_f64_list(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<Vec<f64>>> {
+    let Some(v) = dict.get_item(key)? else { return Ok(None) };
+    v.extract::<Vec<f64>>().map(Some).map_err(|_| {
+        crate::value_err(format!(
+            "estimator_config[{key:?}] must be a list of floats, got {}",
+            type_name(&v)
+        ))
+    })
+}
+
+/// The declared per-source-row sampling weights, validated as a weighted population: a
+/// negative, NaN or infinite weight (named by its row) or all-zero weights are refused here.
+fn build_sampling_weights(
+    dict: &Bound<'_, PyDict>,
+) -> PyResult<Option<antecedent_estimate::SamplingWeights>> {
+    let Some(weights) = get_f64_list(dict, "source_sampling_weights")? else { return Ok(None) };
+    antecedent_estimate::SamplingWeights::new(weights).map(Some).map_err(coded_refusal)
+}
+
+/// A typed estimation refusal as a value error carrying its registered reason code.
+pub(crate) fn coded_refusal(error: antecedent_estimate::EstimationError) -> PyErr {
+    let message = error.to_string();
+    let (code, tail) = antecedent_core::reason_code::split_prefix(&message)
+        .unwrap_or((antecedent_core::reason_code!("invalid_argument"), message.as_str()));
+    crate::value_err_code(code, tail)
 }
 
 fn get_u32_list_list(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<Vec<Vec<u32>>>> {
@@ -993,6 +1059,7 @@ fn build_configured_spec(
     let glm_options = build_glm_options(dict)?;
     let overlap = build_overlap(dict)?;
     let other_levels = build_other_levels(dict)?;
+    let sampling_weights = build_sampling_weights(dict)?;
 
     Ok(match resolved_id {
         "linear.adjustment.ate" => {
@@ -1015,6 +1082,9 @@ fn build_configured_spec(
             if let Some(fit) = build_fit_kind(dict)? {
                 est = est.with_fit_kind(fit);
             }
+            if let Some(weights) = sampling_weights {
+                est = est.with_sampling_weights(weights);
+            }
             est.into()
         }
         "propensity.weighting" => {
@@ -1027,6 +1097,15 @@ fn build_configured_spec(
             }
             if let Some(policy) = other_levels {
                 est = est.with_other_levels(policy);
+            }
+            if let Some(ids) = cluster_ids {
+                est = est.with_cluster_ids(ids);
+            }
+            if let Some(ids) = source_cluster_ids {
+                est = est.with_source_cluster_ids(ids);
+            }
+            if let Some(weights) = sampling_weights {
+                est = est.with_sampling_weights(weights);
             }
             est.into()
         }
@@ -1071,6 +1150,9 @@ fn build_configured_spec(
             if let Some(policy) = other_levels {
                 est = est.with_other_levels(policy);
             }
+            if let Some(weights) = sampling_weights {
+                est = est.with_sampling_weights(weights);
+            }
             est.into()
         }
         "propensity.stratification" => {
@@ -1086,6 +1168,15 @@ fn build_configured_spec(
             }
             if let Some(policy) = other_levels {
                 est = est.with_other_levels(policy);
+            }
+            if let Some(ids) = cluster_ids {
+                est = est.with_cluster_ids(ids);
+            }
+            if let Some(ids) = source_cluster_ids {
+                est = est.with_source_cluster_ids(ids);
+            }
+            if let Some(weights) = sampling_weights {
+                est = est.with_sampling_weights(weights);
             }
             est.into()
         }
@@ -1111,6 +1202,9 @@ fn build_configured_spec(
             }
             if let Some(policy) = overlap {
                 est = est.with_overlap(policy);
+            }
+            if let Some(weights) = sampling_weights {
+                est = est.with_sampling_weights(weights);
             }
             est.into()
         }
@@ -1151,6 +1245,9 @@ fn build_configured_spec(
             if let Some(nuisance) = build_propensity_nuisance(dict)? {
                 est = est.with_propensity_nuisance(nuisance);
             }
+            if let Some(weights) = sampling_weights {
+                est = est.with_sampling_weights(weights);
+            }
             if let Some(ClusterDmlConfig { spec, first, second, per_source_row }) = cluster_dml {
                 est = est.with_cluster_dml(spec);
                 est = if per_source_row {
@@ -1190,6 +1287,9 @@ fn build_configured_spec(
             }
             if let Some(fam) = build_family(dict)? {
                 est = est.with_family(fam);
+            }
+            if let Some(weights) = sampling_weights {
+                est = est.with_sampling_weights(weights);
             }
             est.into()
         }
@@ -1264,6 +1364,9 @@ fn build_configured_spec(
                 est = est.with_other_levels(policy);
             }
             declare_units(&mut est.units, build_cluster_dml(dict)?);
+            if let Some(weights) = sampling_weights {
+                est = est.with_sampling_weights(weights);
+            }
             est.into()
         }
         "dr.learner" => {
@@ -1287,6 +1390,9 @@ fn build_configured_spec(
                 est = est.with_overlap(policy);
             }
             declare_units(&mut est.units, build_cluster_dml(dict)?);
+            if let Some(weights) = sampling_weights {
+                est = est.with_sampling_weights(weights);
+            }
             est.into()
         }
         "causal.forest" => {
@@ -1302,6 +1408,16 @@ fn build_configured_spec(
             }
             if let Some(honesty) = get_bool(dict, "honesty")? {
                 est = est.with_honesty(honesty);
+            }
+            if let Some(ids) = source_cluster_ids {
+                let min_clusters = get_u32(dict, "min_clusters")?
+                    .map_or(antecedent_estimate::DEFAULT_MIN_CLUSTERS, |m| m as usize);
+                est = est
+                    .with_cluster_dml(
+                        antecedent_estimate::ClusterDml::new(min_clusters)
+                            .map_err(coded_refusal)?,
+                    )
+                    .with_source_cluster_ids(ids);
             }
             est.into()
         }

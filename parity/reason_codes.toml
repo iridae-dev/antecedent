@@ -350,6 +350,11 @@ applies_to = ["runtime_refusal"]
 meaning = "The point is retained but its interval is withheld: sampling dependence between the studies or units it combines is undeclared, and independence is never assumed."
 
 [[code]]
+id = "sampling_weights_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "Declared sampling weights are not a valid weighted population: a weight is negative, NaN or infinite, every weight is zero, no analysed row has a positive weight, or the declaration does not cover the table's rows. The refusal names the first offending weight."
+
+[[code]]
 id = "scenario_aggregate_not_licensed"
 applies_to = ["runtime_refusal"]
 meaning = "An inferential statement across structural scenarios that share data was requested; only per-scenario results and structural envelopes are licensed."

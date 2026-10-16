@@ -39,6 +39,22 @@ use super::{
     require_bayesian_n_draws,
 };
 
+/// Draw count the Laplace credible interval is taken from: the count its coverage records were
+/// measured at. A declared count below it keeps its draws and summaries; only the interval is
+/// supplemented.
+pub const LAPLACE_INTERVAL_DRAWS: usize = 1000;
+/// Prefix of the inference-diagnostics note recorded, only when the interval was supplemented,
+/// with the declared and the interval draw counts.
+pub const LAPLACE_INTERVAL_DRAWS_NOTE_PREFIX: &str = "bayesian.laplace.interval_draws";
+
+/// Seed of the interval supplement: an independent stream derived from the study's seed.
+fn interval_seed(seed: u64) -> u64 {
+    let mut z = seed ^ 0x1A91_ACE5_17E4_D5ED;
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
+}
+
 /// Which inference backend to use for Bayesian g-computation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum BayesianBackendKind {
@@ -383,6 +399,10 @@ impl BayesianGComputationAte {
     /// # Errors
     ///
     /// Backend / evaluation failures.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one linear fit: draw, optional interval supplement, then summaries"
+    )]
     pub fn fit(
         &self,
         problem: &PreparedBayesianProblem,
@@ -405,7 +425,7 @@ impl BayesianGComputationAte {
             Some((x, y)) => (x.as_slice(), y.as_slice()),
             None => (problem.design.matrix.as_ref(), problem.design.outcome.as_ref()),
         };
-        let design_ref = BayesDesignRef {
+        let design_ref: BayesDesignRef<'_> = BayesDesignRef {
             x_colmajor: x_fit,
             nrows: problem.design.nrows,
             ncols: problem.design.ncols,
@@ -472,6 +492,55 @@ impl BayesianGComputationAte {
             self.seed,
         )?;
         let summaries = draws.summarize();
+        // A Laplace interval is the type-7 quantile interval of the draws, whose expected posterior
+        // mass `0.95(m-1)/(m+1)` is 0.921 at 64 draws and 0.949 at 1,000. The declared draws
+        // (their count, summaries and identity) stay as the caller set them; the interval alone
+        // is taken from an independent fit of the measured minimum on a derived seed stream.
+        let mut interval_draws = None;
+        let mut summaries = summaries;
+        if matches!(self.backend, BayesianBackendKind::Laplace) && n_draws < LAPLACE_INTERVAL_DRAWS
+        {
+            let supplement = BackendInputs {
+                likelihood,
+                design: design_ref,
+                prior: &prior,
+                opts: BayesFitOptions {
+                    n_draws: LAPLACE_INTERVAL_DRAWS,
+                    seed: interval_seed(self.seed),
+                    ..BayesFitOptions::default()
+                },
+                max_draws: LAPLACE_INTERVAL_DRAWS,
+            }
+            .fit(self.backend, workspace, ctx)
+            .map_err(prob_err)?;
+            if !supplement.diagnostics.allows_posterior() {
+                return Err(EstimationError::stats_msg("Bayesian fit refused without diagnostics"));
+            }
+            let supplement_coef = coefficient_only_draws(&supplement.draws)?;
+            let supplement_effects =
+                eval.effects(&supplement_coef, supplement.draws.n_draws, workspace, ctx)?;
+            let mut sorted = supplement_effects;
+            sorted.sort_by(f64::total_cmp);
+            if let Some(column) = draws
+                .schema
+                .quantities
+                .iter()
+                .position(|quantity| matches!(quantity, PosteriorQuantityKind::Effect { .. }))
+            {
+                let mut q025 = summaries.q025.to_vec();
+                let mut q975 = summaries.q975.to_vec();
+                q025[column] = antecedent_kernels::quantile_type7_sorted(&sorted, 0.025);
+                q975[column] = antecedent_kernels::quantile_type7_sorted(&sorted, 0.975);
+                summaries.q025 = Arc::from(q025);
+                summaries.q975 = Arc::from(q975);
+                interval_draws = Some(sorted.len());
+            }
+        }
+        if let Some(used) = interval_draws {
+            fit.diagnostics.notes.push(Arc::from(format!(
+                "{LAPLACE_INTERVAL_DRAWS_NOTE_PREFIX} declared={n_draws} used={used}"
+            )));
+        }
         Ok(CausalPosterior {
             subsampled_out_mass: 0.0,
             unevaluable_mass: 0.0,

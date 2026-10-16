@@ -111,6 +111,15 @@ grid_group() {
     batch_retarget_calibration:*) return 0 ;;
     # Clustered DML: the published t_(G-1) Wald interval (wired, unmeasured).
     cluster_dml_calibration:*) return 0 ;;
+    # Randomized outcomes missing at random: the responder-weighted and complete-case
+    # candidate intervals (designs only; nothing is published until a record measures them).
+    missing_outcome_calibration:*) return 0 ;;
+    # Sampling-weighted effects: the candidate intervals of the weighted routes (designs only;
+    # nothing is published until a record measures them).
+    weighted_interval_calibration:*) return 0 ;;
+    # Practitioner-scale intervals: 1,000 to 100,000 rows and 320 to 4,160 steps, each record
+    # measured at the three points of its own grid and limited to that span.
+    practitioner_scale_calibration:*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -1302,6 +1311,77 @@ run_cd() {
     -- --ignored --exact --nocapture
 }
 run_cd cluster_dml_t_wald_interval
+
+echo "== sampling-weighted candidate intervals (antecedent) =="
+# Designs for the intervals of the weighted linear, inverse-probability, augmented, stratified,
+# matching, randomized-trial and panel difference-in-differences routes, each scored on units
+# drawn from a super-population with known unequal inclusion probabilities. The routes publish
+# no weighted interval until a coverage record measures one.
+run_wi() {
+  local filter="$1"
+  echo "== antecedent: weighted_interval_calibration ${filter} =="
+  check "weighted_interval_calibration: ${filter}" \
+    cargo test --release -p antecedent --test weighted_interval_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_wi weighted_linear_adjustment_hc1_interval
+run_wi weighted_linear_adjustment_cluster_interval
+run_wi weighted_ipw_hajek_interval
+run_wi weighted_ipw_hajek_cluster_interval
+run_wi weighted_aipw_interval
+run_wi weighted_stratification_interval
+run_wi weighted_matching_interval
+run_wi weighted_randomized_itt_interval
+run_wi weighted_panel_did_interval
+run_wi weighted_glm_logit_interval
+run_wi weighted_glm_gaussian_interval
+run_wi weighted_distance_matching_interval
+run_wi weighted_dml_aipw_interval
+run_wi weighted_dml_partially_linear_interval
+run_wi weighted_dr_learner_interval
+run_wi weighted_aipw_att_interval
+run_wi weighted_aipw_atc_interval
+run_wi weighted_aipw_trimmed_interval
+run_wi weighted_aipw_cluster_dml_interval
+
+echo "== randomized missing-outcome candidate intervals (antecedent) =="
+# Designs for the responder-weighted and complete-case normal intervals; the routes publish no
+# interval until a coverage record measures one.
+run_mo() {
+  local filter="$1"
+  echo "== antecedent: missing_outcome_calibration ${filter} =="
+  check "missing_outcome_calibration: ${filter}" \
+    cargo test --release -p antecedent --test missing_outcome_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_mo responder_weighted_mar_interval
+run_mo responder_complete_case_mcar_interval
+
+echo "== practitioner-scale intervals: 1,000 to 100,000 rows, 320 to 4,160 steps (antecedent) =="
+# Each design draws its row count or series length from its own three-point grid
+# (practitioner_scale_calibration.rs); the record's range is that span and is the published limit.
+run_ps() {
+  local filter="$1"
+  echo "== antecedent: practitioner_scale_calibration ${filter} =="
+  check "practitioner_scale_calibration: ${filter}" \
+    cargo test --release -p antecedent --test practitioner_scale_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_ps practitioner_linear_adjustment_analytic_interval
+run_ps practitioner_linear_adjustment_hc1_interval
+run_ps practitioner_linear_adjustment_cluster_interval
+run_ps practitioner_linear_adjustment_bootstrap_interval
+run_ps practitioner_aipw_analytic_interval
+run_ps practitioner_aipw_hc1_interval
+run_ps practitioner_aipw_cluster_interval
+run_ps practitioner_bayesian_laplace_interval
+run_ps practitioner_class_posterior_interval
+run_ps practitioner_temporal_pulse_h1_interval
+run_ps practitioner_temporal_pulse_h2_interval
+run_ps practitioner_temporal_sustained_interval
+run_ps practitioner_temporal_bayesian_pulse_interval
+run_ps practitioner_temporal_mediation_interval
+run_ps practitioner_temporal_bayesian_mediation_interval
 
 echo "== response/observation/transport/interference =="
 check "gate_response_calibration.sh" bash scripts/gate_response_calibration.sh

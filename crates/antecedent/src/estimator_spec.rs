@@ -146,6 +146,27 @@ impl EstimatorSpec {
         policy != antecedent_estimate::OtherLevels::Refuse
     }
 
+    /// The suffix declared sampling weights add to the calibration key's functional label, so
+    /// an interval measured on unweighted rows never binds to a weighted-population estimate
+    /// (the standard error, the estimand and the effective sample size all differ); `None`
+    /// when the configured estimator reads no weights.
+    #[must_use]
+    pub fn sampling_weights_calibration_label(&self) -> Option<&'static str> {
+        let weighted = match self {
+            Self::LinearAdjustmentAte(cfg) => cfg.sampling_weights.is_some(),
+            Self::PropensityWeighting(cfg) => cfg.sampling_weights.is_some(),
+            Self::PropensityMatching(cfg) => cfg.sampling_weights.is_some(),
+            Self::PropensityStratification(cfg) => cfg.sampling_weights.is_some(),
+            Self::Aipw(cfg) => cfg.sampling_weights.is_some(),
+            Self::DistanceMatching(cfg) => cfg.sampling_weights.is_some(),
+            Self::GlmAdjustment(cfg) => cfg.sampling_weights.is_some(),
+            Self::Dml(cfg) => cfg.sampling_weights.is_some(),
+            Self::DrLearner(cfg) => cfg.sampling_weights.is_some(),
+            _ => false,
+        };
+        weighted.then_some(SAMPLING_WEIGHTS_LABEL)
+    }
+
     /// The suffix a declared non-default AIPW propensity nuisance (a ridge or lasso penalty,
     /// or a GLM-to-penalized fallback) adds to the calibration key's functional label, so an
     /// interval measured under one nuisance never binds to another; `None` otherwise.
@@ -157,6 +178,9 @@ impl EstimatorSpec {
         }
     }
 }
+
+/// The functional-label suffix of a weighted-population estimate.
+pub const SAMPLING_WEIGHTS_LABEL: &str = "weights=sampling";
 
 impl From<EstimatorId> for EstimatorSpec {
     fn from(id: EstimatorId) -> Self {

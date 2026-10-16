@@ -444,6 +444,24 @@ fn irls_fit(
     data_start: bool,
     working: impl Fn(f64, f64) -> (f64, f64),
 ) -> Result<(Vec<f64>, u32, bool), StatsError> {
+    irls_fit_scaled(design, backend, workspace, options, data_start, None, working)
+}
+
+/// [`irls_fit`] with optional square-root prior weights: row `r` of the working design and
+/// response is multiplied by `row_scale[r]`, which solves the prior-weighted IRLS step.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
+fn irls_fit_scaled(
+    design: GlmDesignRef<'_>,
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+    data_start: bool,
+    row_scale: Option<&[f64]>,
+    working: impl Fn(f64, f64) -> (f64, f64),
+) -> Result<(Vec<f64>, u32, bool), StatsError> {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let mut beta = vec![0.0; ncols];
     let mut x_w = vec![0.0; nrows * ncols];
@@ -460,7 +478,11 @@ fn irls_fit(
             } else {
                 eta_at(x_colmajor, nrows, ncols, &beta, r)
             };
-            let (w, zw) = working(eta, y[r]);
+            let (mut w, mut zw) = working(eta, y[r]);
+            if let Some(scale) = row_scale {
+                w *= scale[r];
+                zw *= scale[r];
+            }
             z[r] = zw;
             for c in 0..ncols {
                 x_w[c * nrows + r] = x_colmajor[c * nrows + r] * w;
@@ -508,6 +530,209 @@ fn fit_logistic(
         design,
         workspace,
         options,
+        beta,
+        iterations,
+        converged,
+    )
+}
+
+/// Logistic regression with nonnegative prior (case) weights: the maximizer of
+/// `Σ w_i [y_i log μ_i + (1 − y_i) log(1 − μ_i)]`.
+///
+/// This is the design-consistent fit when `w` are sampling weights: its estimating equation
+/// `Σ w_i x_i (y_i − μ_i) = 0` is the weighted-population score. Separation diagnostics
+/// are those of the unweighted rows (a zero weight is the caller's to drop beforehand), and
+/// the separation ridge refit is not offered: estimation paths refuse every separated fit.
+///
+/// # Errors
+///
+/// Shape mismatch, a weight that is negative or not finite, non-0/1 outcomes, or a
+/// linear-algebra failure.
+#[allow(clippy::float_cmp, reason = "binomial outcomes must be exactly the coded values 0 or 1")]
+pub fn fit_logistic_weighted(
+    design: GlmDesignRef<'_>,
+    weights: &[f64],
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+) -> Result<GlmFit, StatsError> {
+    validate_glm_shape(design)?;
+    if weights.len() != design.nrows {
+        return Err(StatsError::Shape { message: "weights length != nrows" });
+    }
+    if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
+        return Err(StatsError::Shape { message: "prior weights must be finite and non-negative" });
+    }
+    if design.y.iter().any(|&yi| !(yi == 0.0 || yi == 1.0)) {
+        return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
+    }
+    let root_weights: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
+    let (beta, iterations, converged) = irls_fit_scaled(
+        design,
+        backend,
+        workspace,
+        options,
+        false,
+        Some(&root_weights),
+        |eta, yi| {
+            let mu = sigmoid(eta).clamp(1e-9, 1.0 - 1e-9);
+            let w = (mu * (1.0 - mu)).sqrt();
+            let z = eta + (yi - mu) / (mu * (1.0 - mu));
+            (w, z * w)
+        },
+    )?;
+    finish_binomial(
+        GlmFamily::BinomialLogit,
+        design,
+        workspace,
+        &options.without_separation_ridge(),
+        beta,
+        iterations,
+        converged,
+    )
+}
+
+/// Prior-weighted GLM fit: the maximizer of `Σ w_i ℓ_i(β)` for nonnegative case weights `w`,
+/// whose estimating equation `Σ w_i x_i s_i(β) = 0` is the weighted-population score when the
+/// weights are sampling weights.
+///
+/// Logit, probit, Poisson and Gaussian families are supported. The negative-binomial family
+/// estimates its dispersion jointly with the mean and has no prior-weighted moment or
+/// likelihood update here, so it is refused. Separation diagnostics are those of the
+/// unweighted rows and the separation ridge refit is not offered. The Gaussian `deviance` is
+/// the weighted residual sum of squares `Σ w_i r_i²`.
+///
+/// # Errors
+///
+/// Shape mismatch, a weight that is negative or not finite, outcomes invalid for the family,
+/// the negative-binomial family, or a linear-algebra failure.
+pub fn fit_glm_weighted(
+    family: GlmFamily,
+    design: GlmDesignRef<'_>,
+    weights: &[f64],
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+) -> Result<GlmFit, StatsError> {
+    match family {
+        GlmFamily::BinomialLogit => {
+            fit_logistic_weighted(design, weights, backend, workspace, options)
+        }
+        GlmFamily::BinomialProbit => {
+            fit_probit_weighted(design, weights, backend, workspace, options)
+        }
+        GlmFamily::PoissonLog => fit_poisson_weighted(design, weights, backend, workspace, options),
+        GlmFamily::GaussianIdentity => fit_gaussian_weighted(design, weights, backend, workspace),
+        GlmFamily::NegativeBinomial => Err(StatsError::Shape {
+            message: "the negative-binomial family has no prior-weighted fit",
+        }),
+    }
+}
+
+fn check_prior_weights(design: GlmDesignRef<'_>, weights: &[f64]) -> Result<(), StatsError> {
+    validate_glm_shape(design)?;
+    if weights.len() != design.nrows {
+        return Err(StatsError::Shape { message: "weights length != nrows" });
+    }
+    if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
+        return Err(StatsError::Shape { message: "prior weights must be finite and non-negative" });
+    }
+    Ok(())
+}
+
+fn fit_gaussian_weighted(
+    design: GlmDesignRef<'_>,
+    weights: &[f64],
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+) -> Result<GlmFit, StatsError> {
+    check_prior_weights(design, weights)?;
+    let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
+    let root: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
+    let mut x_w = x_colmajor.to_vec();
+    for column in x_w.chunks_exact_mut(nrows.max(1)) {
+        for (value, scale) in column.iter_mut().zip(&root) {
+            *value *= scale;
+        }
+    }
+    let y_w: Vec<f64> = y.iter().zip(&root).map(|(v, scale)| v * scale).collect();
+    let fit = backend.least_squares(&x_w, nrows, ncols, &y_w, workspace)?;
+    Ok(GlmFit {
+        coefficients: fit.coefficients,
+        iterations: 1,
+        converged: true,
+        separated: false,
+        boundary_saturated: false,
+        boundary_margin: None,
+        boundary_count: None,
+        penalized: false,
+        deviance: fit.rss,
+        nb_alpha: None,
+        diagnostics: fit.diagnostics,
+    })
+}
+
+fn fit_poisson_weighted(
+    design: GlmDesignRef<'_>,
+    weights: &[f64],
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+) -> Result<GlmFit, StatsError> {
+    check_prior_weights(design, weights)?;
+    let GlmDesignRef { ncols, y, .. } = design;
+    if y.iter().any(|&yi| !(yi.is_finite() && yi >= 0.0)) {
+        return Err(StatsError::Shape { message: "Poisson GLM requires non-negative outcomes" });
+    }
+    let root: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
+    let (beta, iterations, converged) =
+        irls_fit_scaled(design, backend, workspace, options, true, Some(&root), |eta, yi| {
+            let mu = eta.exp().max(1e-12);
+            let w = mu.sqrt();
+            (w, (eta + (yi - mu) / mu) * w)
+        })?;
+    let deviance = poisson_deviance_at(design, &beta);
+    Ok(GlmFit {
+        coefficients: beta,
+        iterations,
+        converged,
+        separated: false,
+        boundary_saturated: false,
+        boundary_margin: None,
+        boundary_count: None,
+        penalized: false,
+        deviance,
+        nb_alpha: None,
+        diagnostics: FitDiagnostics::new(ncols, None, "glm-irls", workspace.grow_count),
+    })
+}
+
+#[allow(clippy::float_cmp, reason = "binomial outcomes must be exactly the coded values 0 or 1")]
+fn fit_probit_weighted(
+    design: GlmDesignRef<'_>,
+    weights: &[f64],
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+) -> Result<GlmFit, StatsError> {
+    check_prior_weights(design, weights)?;
+    if design.y.iter().any(|&yi| !(yi == 0.0 || yi == 1.0)) {
+        return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
+    }
+    let root: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
+    let (beta, iterations, converged) =
+        irls_fit_scaled(design, backend, workspace, options, false, Some(&root), |eta, yi| {
+            let mu = norm_cdf(eta).clamp(1e-9, 1.0 - 1e-9);
+            let phi = norm_pdf(eta).max(1e-12);
+            let denom = (mu * (1.0 - mu)).max(1e-12);
+            let w = ((phi * phi) / denom).sqrt();
+            (w, (eta + (yi - mu) / phi) * w)
+        })?;
+    finish_binomial(
+        GlmFamily::BinomialProbit,
+        design,
+        workspace,
+        &options.without_separation_ridge(),
         beta,
         iterations,
         converged,

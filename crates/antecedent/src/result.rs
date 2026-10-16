@@ -457,6 +457,36 @@ impl RowWeightsBinding {
     }
 }
 
+/// How an execution treated missing values: the policy, the assumption that policy needs,
+/// and the row accounting.
+///
+/// Present on every result whose route reads rows of a table, including results that dropped
+/// nothing, so a reader never has to infer that no row was removed.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub struct MissingDataReport {
+    /// Rows total, kept and dropped, per variable and per reason, with the dropped-row digest.
+    pub accounting: antecedent_data::RowAccounting,
+    /// Whether the caller declared the policy; `false` when the route's own default applied.
+    pub declared: bool,
+    /// Names of the covariates of the observation model, for responder weighting.
+    pub covariates: std::sync::Arc<[std::sync::Arc<str>]>,
+    /// The missingness assumption the policy needs, as published in the missing-data guide.
+    pub assumption: std::sync::Arc<str>,
+    /// Whether the policy differs from the route's default. Only then does a claim over the
+    /// result carry the policy, its assumption and the dropped-row digest, so default claims
+    /// keep their identity.
+    pub non_default: bool,
+}
+
+impl MissingDataReport {
+    /// The policy the accounting was produced under.
+    #[must_use]
+    pub fn policy(&self) -> antecedent_data::MissingPolicy {
+        self.accounting.policy
+    }
+}
+
 /// Meaning of structural atom weights retained on a response result.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
@@ -1171,6 +1201,8 @@ pub struct StudyResult {
     pub interval: Option<IntervalBinding>,
     /// Row-weight population recorded by a nonconstant retarget.
     pub row_weights: Option<RowWeightsBinding>,
+    /// Missing-data policy, assumption and row accounting of this execution.
+    pub missing_data: Option<MissingDataReport>,
     /// Names of caller-supplied custom validators that ran on this execution.
     pub custom_validator_names: Vec<std::sync::Arc<str>>,
     /// Prepared contract this result was executed under, stamped by the

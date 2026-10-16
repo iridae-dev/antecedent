@@ -178,6 +178,8 @@ pub struct Study {
     pub(crate) population_registry: Option<PopulationRegistry>,
     /// Digests of the participant labels bound to the rows of the data.
     pub(crate) participants: Option<antecedent_io::ParticipantBindingWire>,
+    /// Declared handling of missing values, when the caller declared one.
+    pub(crate) missing: Option<antecedent_data::MissingDeclaration>,
     pub(crate) custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     pub(crate) latency_mode: Option<super::latency::LatencyMode>,
     /// Prepare-time identification for the static ATE path (including the
@@ -338,6 +340,7 @@ mod checked_temporal_graph_posterior_effect;
 mod checked_temporal_graph_posterior_response;
 mod checked_transport_trial;
 mod sequential_validation;
+mod static_missing;
 mod static_path;
 #[cfg(test)]
 mod study_clone_tests;

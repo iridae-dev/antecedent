@@ -30,6 +30,8 @@ const KEYS: &[&str] = &[
     "inference",
     "discovery_algorithm",
     "participants",
+    "missing",
+    "sampling_weights",
 ];
 
 /// Declared inference: mode plus the Bayesian prior and draw budget.
@@ -115,6 +117,11 @@ pub(crate) struct PrepareOptions {
     pub discovery_algorithm: Option<String>,
     /// Participant labels bound to the data rows (digests only).
     pub participants: Option<antecedent_io::ParticipantBindingWire>,
+    /// Declared handling of missing values.
+    pub missing: Option<antecedent_data::MissingDeclaration>,
+    /// One sampling weight per row of the table, read by the routes that estimate in the
+    /// weighted population (randomized ITT, balanced panel DiD); every other route refuses it.
+    pub sampling_weights: Option<Arc<[f64]>>,
 }
 
 impl PrepareOptions {
@@ -188,6 +195,12 @@ impl PrepareOptions {
                 })
             })
             .transpose()?;
+        let missing = item("missing")?
+            .map(|value| crate::missing_report::parse_declaration(&value))
+            .transpose()?;
+        let sampling_weights = item("sampling_weights")?
+            .map(|value| value.extract::<Vec<f64>>().map(Arc::from))
+            .transpose()?;
         Ok(Self {
             refute,
             bootstrap,
@@ -200,6 +213,8 @@ impl PrepareOptions {
             inference,
             discovery_algorithm,
             participants,
+            missing,
+            sampling_weights,
         })
     }
 
@@ -268,6 +283,9 @@ impl PrepareOptions {
         if let Some(participants) = &self.participants {
             builder = builder.participants(participants.clone());
         }
+        if let Some(missing) = &self.missing {
+            builder = builder.missing(missing.clone());
+        }
         builder
     }
 
@@ -289,6 +307,8 @@ impl PrepareOptions {
             inference: InferenceSpec::default(),
             discovery_algorithm: None,
             participants: self.participants.clone(),
+            missing: self.missing.clone(),
+            sampling_weights: self.sampling_weights.clone(),
         };
         without_bootstrap.apply(builder)
     }

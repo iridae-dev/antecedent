@@ -719,10 +719,12 @@ impl super::Study {
                 split: self.split.as_ref(),
                 latency_mode: self.latency_mode,
                 completed_to_dag: super::temporal_effect_core::plan_completed_to_dag(physical),
+                missing: self.missing.as_ref(),
             },
             ctx,
         )?;
         let point_only = fit.point_only;
+        let missing_data = fit.missing_data.clone();
         let args = fit.finish_args(
             physical,
             identification,
@@ -735,10 +737,12 @@ impl super::Study {
                 wall_time_ns: elapsed_ns(started),
             },
         );
-        Ok(super::temporal_effect_core::seal_point_only(
+        let mut result = super::temporal_effect_core::seal_point_only(
             point_only,
             self.finish_identified_execute(args),
-        ))
+        );
+        result.missing_data = missing_data;
+        Ok(result)
     }
 
     /// Temporal natural mediation on a resolved `TemporalDag`: identify per horizon, then fit

@@ -54,6 +54,7 @@ use crate::support::{CellStatus, StructureSource};
 use super::batch::PreparedBatch;
 use super::builder::DataInput;
 use super::execute::Study;
+use super::missing_data;
 use super::prepared::{
     CachedTemporalHorizonIdentification, CachedTemporalIdentification, CheckedProgramBinding,
     PreparedStudy,
@@ -587,6 +588,7 @@ impl PreparedStudy {
             data,
             self.study().interference.as_ref(),
             self.study().participants.as_ref(),
+            missing_data::policy_wire(self.study()),
             &program.observation_digest,
         )?;
         let mut snapshot = snapshot;
@@ -1146,6 +1148,26 @@ impl PreparedBatch {
     }
 }
 
+/// The evidence references of a claim: the three identities, plus, only when the result's
+/// missing-data policy differs from its route default, the policy, the assumption it needs and
+/// the digest of the dropped rows. Default claims keep exactly the references they always had.
+fn claim_evidence(result: &StudyResult, contract: &CausalContract) -> Vec<Arc<str>> {
+    let mut evidence: Vec<Arc<str>> = vec![
+        Arc::from(format!("snapshot:{}", contract.identities.data_snapshot.to_hex())),
+        Arc::from(format!("identification:{}", contract.identities.identification.to_hex())),
+        Arc::from(format!(
+            "program:{}",
+            contract.identities.program.map_or_else(String::new, |p| p.to_hex())
+        )),
+    ];
+    if let Some(report) = result.missing_data.as_ref().filter(|report| report.non_default) {
+        evidence.push(Arc::from(format!("missing_policy:{}", report.policy().name())));
+        evidence.push(Arc::from(format!("missing_assumption:{}", report.assumption)));
+        evidence.push(Arc::from(format!("missing_dropped:{}", report.accounting.dropped_digest)));
+    }
+    evidence
+}
+
 impl StudyResult {
     /// Portable claim over `contract` and this execution.
     ///
@@ -1263,17 +1285,7 @@ impl StudyResult {
                 domain(&domains.evaluated)?,
             ),
             Some(execution),
-            [
-                Arc::from(format!("snapshot:{}", contract.identities.data_snapshot.to_hex())),
-                Arc::from(format!(
-                    "identification:{}",
-                    contract.identities.identification.to_hex()
-                )),
-                Arc::from(format!(
-                    "program:{}",
-                    contract.identities.program.map_or_else(String::new, |p| p.to_hex())
-                )),
-            ],
+            claim_evidence(self, contract),
         );
         envelope.calibration = calibration_view(&calibration);
         envelope.attested = attested_evidence(self);
@@ -1720,6 +1732,7 @@ fn contract_payloads(
         &study.data,
         study.interference.as_ref(),
         study.participants.as_ref(),
+        missing_data::policy_wire(study),
         &program.observation_digest,
     )?;
     if let (Some(prepared), DataInput::Tabular(tabular)) = (prepared, &study.data) {
@@ -1988,6 +2001,22 @@ fn compile_with_payloads(
     {
         functional = format!("{functional}+{propensity}");
     }
+    // Sampling weights change the estimand and the variance: an interval measured on unweighted
+    // rows must not bind to a weighted-population estimate.
+    let weighted_table = match &study.data {
+        DataInput::Tabular(data) => data.storage().weights().is_some(),
+        DataInput::Temporal(data) | DataInput::Event(data) => data.storage().weights().is_some(),
+        DataInput::MultiEnv(_) | DataInput::Panel(_) => false,
+    };
+    if weighted_table
+        || study
+            .estimator_spec
+            .as_deref()
+            .and_then(crate::estimator_spec::EstimatorSpec::sampling_weights_calibration_label)
+            .is_some()
+    {
+        functional = format!("{functional}+{}", crate::estimator_spec::SAMPLING_WEIGHTS_LABEL);
+    }
     Ok((
         CausalContract {
             identities: payloads.identities,
@@ -2017,6 +2046,16 @@ fn compile_with_payloads(
             posterior: Arc::from(posterior_label(&study.inference)),
             functional: Arc::from(functional),
             posterior_draws: match &study.inference {
+                // The Laplace g-computation takes a below-minimum declared count's interval from
+                // a supplement of the measured minimum (`LAPLACE_INTERVAL_DRAWS`); the claim's
+                // scope is that interval's draw count. The declared count stays in the binding.
+                InferenceMode::Bayesian(cfg)
+                    if matches!(cfg.backend, antecedent_estimate::BayesianBackendKind::Laplace)
+                        && matches!(study.query, CausalQuery::AverageEffect(_))
+                        && study.graph.class() == GraphClass::Dag =>
+                {
+                    u32::try_from(cfg.n_draws.max(antecedent_estimate::LAPLACE_INTERVAL_DRAWS)).ok()
+                }
                 InferenceMode::Bayesian(cfg) => u32::try_from(cfg.n_draws).ok(),
                 InferenceMode::Frequentist => None,
             },
@@ -2058,6 +2097,7 @@ fn data_snapshot_wire(
     data_input: &DataInput,
     interference: Option<&super::builder::InterferenceSpec>,
     participants: Option<&antecedent_io::ParticipantBindingWire>,
+    missing: Option<antecedent_io::MissingPolicyWire>,
     observation: &antecedent_core::SemanticDigest,
 ) -> Result<DataSnapshotIdentityWire, CausalError> {
     let modality = snapshot_modality(data_input);
@@ -2104,6 +2144,7 @@ fn data_snapshot_wire(
         nested_counterfactual_fit: None,
         linear_fit_moments: None,
         participants: participants.cloned(),
+        missing,
     })
 }
 

@@ -1544,8 +1544,24 @@ fn effect_refusal(error: antecedent_io::IoError) -> PyResult<String> {
     }
 }
 
+fn basis_json(basis: &antecedent_core::CalibrationBasis) -> Json {
+    json!({
+        "query": &*basis.query,
+        "graph_class": &*basis.graph_class,
+        "structure": &*basis.structure,
+        "modality": &*basis.modality,
+        "inference": &*basis.inference,
+        "estimator": &*basis.estimator,
+        "interval_method": &*basis.interval_method,
+        "se_kind": &*basis.se_kind,
+        "dependence": &*basis.dependence,
+        "functional": &*basis.functional,
+        "identification": &*basis.identification,
+        "row_count": basis.row_count,
+    })
+}
+
 fn effect_json(estimate: &SplitEffect) -> String {
-    let basis = estimate.keyed_basis();
     let (lower, upper) = estimate.interval();
     json!({
         "effect": estimate.effect(),

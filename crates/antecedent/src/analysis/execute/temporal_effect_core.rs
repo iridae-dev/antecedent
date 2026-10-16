@@ -45,6 +45,8 @@ pub(super) struct TemporalEffectInputs<'a> {
     pub latency_mode: Option<crate::analysis::latency::LatencyMode>,
     /// Whether the graph came from completing a PAG to a DAG; the result says so.
     pub completed_to_dag: bool,
+    /// Declared handling of missing time points, when the caller declared one.
+    pub missing: Option<&'a antecedent_data::MissingDeclaration>,
 }
 
 /// An assembled temporal-effect fit, before the result envelope.
@@ -59,6 +61,8 @@ pub(super) struct TemporalEffectFit {
     pub cancelled: bool,
     /// A point value with no published interval or posterior.
     pub point_only: bool,
+    /// Windows dropped for a missing time point, when the fit accounts for them.
+    pub missing_data: Option<crate::result::MissingDataReport>,
     estimate_provenance: (&'static str, &'static str),
 }
 
@@ -149,6 +153,9 @@ pub(super) fn fit_temporal_effect(
         return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_ESTIMATE_POINT });
     }
     require_identified(inputs.identification)?;
+    if inputs.data.storage().weights().is_some() {
+        require_sampling_weight_route(inputs)?;
+    }
     if inputs.query.is_multi_step_sustained() {
         fit_sustained(inputs, ctx)
     } else if !inputs.query.effect_modifiers.is_empty() {
@@ -250,6 +257,7 @@ fn fit_sustained(
         posterior,
         predictive_checks,
         point_only: false,
+        missing_data: None,
         estimate_provenance: SEQUENTIAL_PROVENANCE,
     })
 }
@@ -311,6 +319,7 @@ fn fit_conditional(
         bootstrap_replicates_ok: None,
         cancelled: false,
         point_only: true,
+        missing_data: None,
         estimate_provenance: LINEAR_PROVENANCE,
     })
 }
@@ -469,6 +478,131 @@ fn single_window_refutations(
     Ok((refutations, diagnostics))
 }
 
+/// Variables the single-window design reads: treatment, outcome and the series variables of
+/// the unfolded adjustment set.
+fn single_window_variables(
+    inputs: &TemporalEffectInputs<'_>,
+) -> Result<Vec<antecedent_core::VariableId>, CausalError> {
+    let mut variables = vec![inputs.query.treatment, inputs.query.outcome];
+    for &dense in inputs.estimand.adjustment_set.iter() {
+        let key = inputs
+            .indexer
+            .key_of(dense.raw())
+            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        if !variables.contains(&key.variable) {
+            variables.push(key.variable);
+        }
+    }
+    Ok(variables)
+}
+
+/// The route name used in missing-data refusals and reports.
+const TEMPORAL_ROUTE: crate::analysis::missing_data::MissingRoute =
+    crate::analysis::missing_data::MissingRoute::Temporal;
+
+/// Admit a series with missing time points only under a declared complete-window policy that
+/// this fit can honour; otherwise refuse, naming the first missing cell and the way forward.
+///
+/// Dropping the windows that read a missing value leaves the surviving windows at their own
+/// times, so the point estimate is the regression on intact windows and the circular-block
+/// bootstrap draws blocks on the original time axis, keeping the intact windows each covers.
+/// The refuters refit through contiguous windows and are refused.
+fn require_gap_policy(
+    inputs: &TemporalEffectInputs<'_>,
+    cell: &antecedent_data::MissingCell,
+) -> Result<(), CausalError> {
+    use antecedent_data::MissingPolicy;
+    let supported = TEMPORAL_ROUTE.supported();
+    if inputs.missing.is_none() {
+        // No declaration: the error this fit has always raised for an incomplete series, so
+        // callers matching on it still match; the message adds the remedy.
+        return Err(CausalError::Data(antecedent_data::DataError::IncompleteSeries {
+            id: Some(cell.id),
+            message: "missing values in series; lagged temporal analysis requires complete series (declare missing=\"complete_case\" to drop the lag windows that read a gap)",
+        }));
+    }
+    let Some(declaration) =
+        inputs.missing.filter(|declaration| declaration.policy == MissingPolicy::CompleteCase)
+    else {
+        return Err(CausalError::Estimate(antecedent_estimate::missing_policy::policy_required(
+            cell,
+            TEMPORAL_ROUTE.label(),
+            &supported[1..],
+        )));
+    };
+    let refuse = |reason: &str| {
+        CausalError::Estimate(antecedent_estimate::missing_policy::policy_not_applicable(
+            declaration.policy,
+            TEMPORAL_ROUTE.label(),
+            reason,
+            &supported[..1],
+        ))
+    };
+    if inputs.refute != RefuteSuite::None {
+        return Err(refuse(
+            "the refuters refit the lagged design through contiguous windows, which a series with gaps does not have; request no refuters (the block bootstrap runs on the original time axis and is available)",
+        ));
+    }
+    if !matches!(inputs.inference, InferenceMode::Frequentist) || inputs.split.is_some() {
+        return Err(refuse(
+            "gap-aware windows are executed for the frequentist linear adjustment on an unsplit series",
+        ));
+    }
+    Ok(())
+}
+
+/// Accounting of the windows a series with gaps lost: the dropped windows by their original
+/// series time, and the missing time points of each variable.
+fn gap_report(
+    data: &TimeSeriesData,
+    variables: &[antecedent_core::VariableId],
+    selection: &antecedent_estimate::GapSelection,
+) -> Result<crate::result::MissingDataReport, CausalError> {
+    let dropped = selection.dropped_times().into_iter().map(|time| time as u64).collect();
+    let accounting = antecedent_data::RowAccounting::from_dropped(
+        antecedent_data::MissingPolicy::CompleteCase,
+        selection.complete.len(),
+        dropped,
+        missing_time_points(data, variables)?,
+    );
+    Ok(crate::analysis::missing_data::report(TEMPORAL_ROUTE, true, Arc::from([]), accounting))
+}
+
+/// Accounting of a complete series under a declared policy: nothing dropped. `None` when no
+/// policy was declared, so a default execution is unchanged.
+fn complete_window_report(
+    inputs: &TemporalEffectInputs<'_>,
+    variables: &[antecedent_core::VariableId],
+    windows: usize,
+) -> Result<Option<crate::result::MissingDataReport>, CausalError> {
+    let Some(declaration) = inputs.missing else {
+        return Ok(None);
+    };
+    let accounting = antecedent_data::RowAccounting::from_dropped(
+        declaration.policy,
+        windows,
+        Vec::new(),
+        missing_time_points(inputs.data, variables)?,
+    );
+    Ok(Some(crate::analysis::missing_data::report(TEMPORAL_ROUTE, true, Arc::from([]), accounting)))
+}
+
+/// Missing time points per variable, in the order of `variables`.
+fn missing_time_points(
+    data: &TimeSeriesData,
+    variables: &[antecedent_core::VariableId],
+) -> Result<Vec<(Arc<str>, usize)>, CausalError> {
+    use antecedent_data::TableView;
+    variables
+        .iter()
+        .map(|&id| {
+            let validity = data.column(id)?.validity();
+            let name = Arc::clone(&data.schema().get(id)?.name);
+            Ok((name, (0..data.row_count()).filter(|&row| !validity.is_valid(row)).count()))
+        })
+        .collect()
+}
+
 fn fit_single_window(
     inputs: &TemporalEffectInputs<'_>,
     ctx: &ExecutionContext,
@@ -478,9 +612,24 @@ fn fit_single_window(
     let mut estimator = TemporalLinearAdjustment::new();
     estimator.inner.bootstrap_replicates = inputs.bootstrap_replicates;
     estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
-    let prep = estimator
-        .prepare(data, estimand, query, indexer, inputs.split, &ctx.kernel_policy)
-        .map_err(CausalError::from)?;
+    let variables = single_window_variables(inputs)?;
+    let first_gap = antecedent_data::first_missing_cell(data, &variables)?;
+    let mut gap_selection = None;
+    let (prep, gap_report) = if let Some(cell) = &first_gap {
+        require_gap_policy(inputs, cell)?;
+        let (prep, selection) = estimator
+            .prepare_with_gaps(data, estimand, query, indexer, &ctx.kernel_policy)
+            .map_err(CausalError::from)?;
+        let report = gap_report(data, &variables, &selection)?;
+        gap_selection = Some(selection);
+        (prep, Some(report))
+    } else {
+        let prep = estimator
+            .prepare(data, estimand, query, indexer, inputs.split, &ctx.kernel_policy)
+            .map_err(CausalError::from)?;
+        let report = complete_window_report(inputs, &variables, prep.design.nrows)?;
+        (prep, report)
+    };
 
     // Bayesian fits keep the estimator (with the resolved prior in force) and the
     // lag-named, serial-dependence-tempered design so every check reuses both.
@@ -496,14 +645,18 @@ fn fit_single_window(
             // One series: lagged rows are serially dependent, so the only SE is a
             // fixed-b-scaled circular-block bootstrap over consecutive lag-aligned
             // rows, never the iid OLS / iid row-bootstrap pair of the static estimator.
-            let (estimate, info) = estimator
-                .fit_dependence_honest(
+            let assumptions = identification.required_assumptions.clone();
+            let (estimate, info) = match &gap_selection {
+                Some(selection) => estimator.fit_dependence_honest_gapped(
                     &prep,
+                    selection,
                     indexer,
                     ctx,
-                    identification.required_assumptions.clone(),
-                )
-                .map_err(CausalError::from)?;
+                    assumptions,
+                ),
+                None => estimator.fit_dependence_honest(&prep, indexer, ctx, assumptions),
+            }
+            .map_err(CausalError::from)?;
             dependence_se = Some(info);
             (
                 estimate.with_block_family(antecedent_estimate::CircularBlockFamily::SingleWindow),
@@ -555,6 +708,7 @@ fn fit_single_window(
         posterior,
         predictive_checks,
         point_only: false,
+        missing_data: gap_report,
         estimate_provenance,
     })
 }
@@ -567,4 +721,23 @@ pub(super) fn plan_completed_to_dag(physical: &PhysicalExecutionPlan) -> bool {
         .discovery_algorithm
         .as_deref()
         .is_some_and(|a| a.contains("pag_completed_to_dag") || a.contains("completed_to_dag"))
+}
+
+/// Sampling weights are read by the frequentist single-window linear adjustment, whose lag
+/// windows are weighted by the observation they end at; every other temporal construction
+/// (sustained windows, conditional effects, Bayesian fits and the refuters, which refit on the
+/// unweighted series) refuses them rather than ignore them.
+fn require_sampling_weight_route(inputs: &TemporalEffectInputs<'_>) -> Result<(), CausalError> {
+    let supported = !inputs.query.is_multi_step_sustained()
+        && inputs.query.effect_modifiers.is_empty()
+        && matches!(inputs.inference, InferenceMode::Frequentist)
+        && inputs.refute == RefuteSuite::None;
+    if supported {
+        return Ok(());
+    }
+    Err(CausalError::Estimate(antecedent_estimate::sampling_weights::unsupported_route(
+        "sampling weights are read by the frequentist single-window temporal linear adjustment \
+         without refuters (refute=False); sustained windows, conditional effects, Bayesian \
+         fits and the refuters have no sampling-weighted construction",
+    )))
 }

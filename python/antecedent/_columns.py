@@ -327,7 +327,9 @@ class IdentifierBinding:
     the per-row codes. A refreshed table that encodes differently holds different
     identifiers (other labels, or the same labels on other rows) and is refused.
     ``row_labels`` keeps the original label of every row for a participant column, whose
-    values the caller reads back; it is empty for a cluster column.
+    values the caller reads back; it is empty for a cluster column. A ``kind="weights"``
+    binding covers a sampling-weight column: its ``digest`` is over the exact weight bits, and
+    it has no labels.
     """
 
     column: str
@@ -335,6 +337,7 @@ class IdentifierBinding:
     digest: str
     rows: int
     row_labels: tuple[str, ...] = ()
+    kind: str = "identifier"
 
     def contract_binding(self) -> dict[str, Any]:
         """The digests that enter the exported contract's data snapshot: rows, labels, codes."""
@@ -406,6 +409,51 @@ def encode_identifier(
     return binding, codes
 
 
+def encode_weights(
+    data: Any, weights: Any, *, estimator: str | None
+) -> tuple[list[float], IdentifierBinding | None]:
+    """Sampling weights for every original row of ``data``, and the binding of a named column.
+
+    ``weights`` names a numeric column of ``data`` (read before the numeric ingest, so its
+    values are the table's own) or is an array of one weight per row. A weight that is
+    negative, NaN or infinite, or weights that are all zero, are refused natively with the
+    row of the first offender; this only checks that the values are numbers. The binding
+    freezes the column's exact bits so a refreshed table with other weights is refused.
+    """
+    if estimator not in _WEIGHTED_ESTIMATORS:
+        raise CausalUnsupportedError(
+            f"weights= declares sampling weights, which {estimator!r} does not read "
+            "(weights= is available for linear.adjustment.ate, aipw, propensity.weighting, "
+            "propensity.matching, propensity.stratification, distance.matching, "
+            "glm.adjustment, dml and dr.learner)",
+            reason_code="option_not_applicable",
+        )
+    column: str | None = None
+    if isinstance(weights, str):
+        if not weights.strip():
+            raise CausalValueError(
+                "weights must name a data column or hold one weight per row",
+                reason_code="invalid_argument",
+            )
+        column = weights
+        values = read_columns(data, [column], what="weights")[column].tolist()
+    else:
+        values = list(weights)
+    try:
+        floats = [float(value) for value in values]
+    except (TypeError, ValueError) as error:
+        raise CausalValueError(
+            f"sampling weights must be numbers: {error}", reason_code="invalid_argument"
+        ) from error
+    if column is None:
+        return floats, None
+    digest = hashlib.sha256(np.asarray(floats, dtype="<f8").tobytes()).hexdigest()
+    binding = IdentifierBinding(
+        column=column, labels=(), digest=digest, rows=len(floats), kind="weights"
+    )
+    return floats, binding
+
+
 _CLUSTER_DML_ESTIMATORS = ("aipw", "dml", "dr.learner")
 _CLUSTER_ESTIMATORS = (
     None,
@@ -413,6 +461,21 @@ _CLUSTER_ESTIMATORS = (
     "glm.adjustment",
     "aipw",
     "frontdoor.linear_two_stage",
+    "propensity.weighting",
+    "propensity.stratification",
+    "causal.forest",
+)
+_WEIGHTED_ESTIMATORS = (
+    None,
+    "linear.adjustment.ate",
+    "aipw",
+    "propensity.weighting",
+    "propensity.matching",
+    "propensity.stratification",
+    "distance.matching",
+    "glm.adjustment",
+    "dml",
+    "dr.learner",
 )
 _NO_CLUSTER_VARIANCE = {
     "iv.wald": "carries no cluster-robust variance",
@@ -433,7 +496,8 @@ def _check_cluster_estimator(estimator: str | None, allowed: tuple[str | None, .
     raise CausalUnsupportedError(
         f"cluster= names a cluster column that the estimator aligns to the rows it analyses; "
         f"{estimator!r} {reason} (cluster= is available for linear.adjustment.ate, "
-        "glm.adjustment, aipw, dml and frontdoor.linear_two_stage)",
+        "glm.adjustment, aipw, dml, dr.learner, frontdoor.linear_two_stage, "
+        "propensity.weighting, propensity.stratification and causal.forest)",
         reason_code="option_not_applicable",
     )
 
@@ -460,13 +524,15 @@ def _joint_codes(data: Any, columns: Sequence[str]) -> list[list[int]]:
 def resolve_estimator_identifiers(
     estimator: str | None, config: Mapping[str, Any] | None, data: Any
 ) -> tuple[Mapping[str, Any] | None, dict[str, IdentifierBinding]]:
-    """Replace named ``cluster`` columns in an estimator configuration by their labels.
+    """Replace named ``cluster`` and ``weights`` columns in an estimator configuration.
 
     The labels are those of every original row of ``data``; the estimator aligns them to
     the rows it analyses after its complete-case and population masks, so a row that is
     dropped takes its label with it. A ``cluster_dml`` declaration names its unit columns
-    the same way (``cluster``, and ``second_cluster`` for a dyad). Returns the configuration
-    the native parser reads and the frozen bindings to check a later refresh against.
+    the same way (``cluster``, and ``second_cluster`` for a dyad). ``weights`` names a numeric
+    column (or gives one weight per row) of sampling weights, declared for every original row
+    like the cluster labels. Returns the configuration the native parser reads and the frozen
+    bindings to check a later refresh against.
     """
     if not config:
         return config, {}
@@ -474,10 +540,21 @@ def resolve_estimator_identifiers(
     named_dml = isinstance(declared, Mapping) and (
         "cluster" in declared or "second_cluster" in declared
     )
-    if "cluster" not in config and not named_dml:
+    if "cluster" not in config and not named_dml and "weights" not in config:
         return config, {}
     resolved = dict(config)
     bindings: dict[str, IdentifierBinding] = {}
+    if "weights" in config:
+        if "source_sampling_weights" in config:
+            raise CausalValueError(
+                "weights declares the sampling weights; do not also pass source_sampling_weights",
+                reason_code="invalid_argument",
+            )
+        floats, weight_binding = encode_weights(data, config["weights"], estimator=estimator)
+        del resolved["weights"]
+        resolved["source_sampling_weights"] = floats
+        if weight_binding is not None:
+            bindings[weight_binding.column] = weight_binding
     if "cluster" in config:
         column = config["cluster"]
         if not isinstance(column, str) or not column.strip():
@@ -541,10 +618,17 @@ def guard_identifiers(study: Any, data: Any) -> None:
             raise refusal
         if available is None or column not in available:
             continue  # the frozen labels stay; the native side checks the row count
-        supplied, _ = encode_identifier(data, column, what="cluster")
-        if supplied != frozen:
+        if frozen.kind == "weights":
+            supplied, _ = encode_weights(data, column, estimator=None)
+            digest = hashlib.sha256(np.asarray(supplied, dtype="<f8").tobytes()).hexdigest()
+            changed = digest != frozen.digest
+        else:
+            supplied_binding, _ = encode_identifier(data, column, what="cluster")
+            changed = supplied_binding != frozen
+        if changed:
             refusal = CausalValueError(
-                f"frozen identifier column {column!r} changed labels or row order; "
+                f"frozen {'weights' if frozen.kind == 'weights' else 'identifier'} column "
+                f"{column!r} changed {'values' if frozen.kind == 'weights' else 'labels or row order'}; "
                 "use study.reprepare(data) to declare new identifiers",
                 reason_code="invalid_argument",
             )
@@ -608,10 +692,16 @@ def analysis_columns(
 
 
 def refuse_named_identifiers(config: Mapping[str, Any] | None, route: str) -> None:
-    """Refuse a named ``cluster`` column on a route that never reads the raw table."""
+    """Refuse a named ``cluster`` or ``weights`` column on a route that never reads the raw table."""
     if config and "cluster" in config:
         raise CausalUnsupportedError(
             f"{route} does not resolve cluster= against a table; pass cluster_ids aligned to the "
             "analysed rows, or use analyze / prepare, which bind a named cluster column",
+            reason_code="option_not_applicable",
+        )
+    if config and isinstance(config.get("weights"), str):
+        raise CausalUnsupportedError(
+            f"{route} does not resolve weights= against a table; pass one weight per row, or "
+            "use analyze / prepare, which bind a named weights column",
             reason_code="option_not_applicable",
         )

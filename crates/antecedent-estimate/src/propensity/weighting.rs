@@ -3,7 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry};
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{FaerBackend, GlmOptions};
 
@@ -15,12 +15,26 @@ use super::prepare::{
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
+use crate::sampling_weights::SamplingWeights;
+use crate::se::AnalyticSeKind;
 use crate::util::BootstrapSeResult;
 
 /// Inverse-probability weighting estimator (ATE/ATT/ATC via `TargetPopulation`).
 ///
 /// Point estimate is the Hajek (self-normalized) weighted difference of means. Positivity is
 /// mandatory: [`OverlapPolicy::ExplicitOverride`] is refused.
+///
+/// **Sampling weights.** With [`Self::sampling_weights`] the propensity model is the
+/// weighted logistic fit, every row's inverse-probability weight is multiplied by its sampling
+/// weight (and by a custom target weight when there is one), and the estimand is the effect in
+/// the weighted population. The analytic SE is the linearization of the stacked weighted
+/// logistic and weighted-mean estimating equations, so the estimated propensity enters the
+/// variance.
+///
+/// **Clusters.** With cluster labels the analytic SE is the cluster sandwich of that same
+/// corrected influence function (the propensity-estimation term is a per-row score, so it sums
+/// within clusters), and the bootstrap resamples whole clusters, refitting the propensity on
+/// each replicate.
 #[derive(Clone, Debug)]
 pub struct PropensityWeighting {
     /// Dense linear-algebra backend used for the logistic IRLS fit.
@@ -37,6 +51,13 @@ pub struct PropensityWeighting {
     /// exclusion that restricts the target population to the rows at the two declared levels
     /// must be declared.
     pub other_levels: OtherLevels,
+    /// Sampling weights of every row of the source table (see [`crate::sampling_weights`]).
+    pub sampling_weights: Option<SamplingWeights>,
+    /// Cluster label of each complete-case row. Exclusive with [`Self::source_cluster_ids`].
+    pub cluster_ids: Option<Vec<u32>>,
+    /// Cluster label of every row of the source table, subset to the retained rows by their
+    /// original index. Exclusive with [`Self::cluster_ids`].
+    pub source_cluster_ids: Option<Vec<u32>>,
 }
 
 impl Default for PropensityWeighting {
@@ -56,6 +77,9 @@ impl PropensityWeighting {
             glm_options: GlmOptions::default(),
             population_registry: None,
             other_levels: OtherLevels::default(),
+            sampling_weights: None,
+            cluster_ids: None,
+            source_cluster_ids: None,
         }
     }
 
@@ -91,6 +115,45 @@ impl PropensityWeighting {
         self
     }
 
+    /// Declare sampling weights for every row of the source table.
+    #[must_use]
+    pub fn with_sampling_weights(mut self, weights: SamplingWeights) -> Self {
+        self.sampling_weights = Some(weights);
+        self
+    }
+
+    /// Declare the cluster of each complete-case row. The analytic SE becomes the cluster
+    /// sandwich and the bootstrap resamples whole clusters.
+    #[must_use]
+    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
+        self.cluster_ids = Some(cluster_ids);
+        self
+    }
+
+    /// Declare the cluster of every row of the source table; rows dropped as incomplete or
+    /// outside the target population take their labels with them.
+    #[must_use]
+    pub fn with_source_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
+        self.source_cluster_ids = Some(cluster_ids);
+        self
+    }
+
+    /// Cluster label of each row of `problem`, when clusters are declared.
+    fn clusters(
+        &self,
+        problem: &PreparedPropensityProblem,
+    ) -> Result<Option<std::borrow::Cow<'_, [u32]>>, EstimationError> {
+        let labels = crate::se::declared_row_labels(
+            self.cluster_ids.as_deref(),
+            self.source_cluster_ids.as_deref(),
+            problem.row_index.iter().map(|&row| row as usize),
+        )?;
+        if let Some(labels) = &labels {
+            crate::se::require_clusters(Some(labels.as_ref()), problem.nrows)?;
+        }
+        Ok(labels)
+    }
+
     /// Prepare the covariate design from tabular data, identified estimand, and query.
     ///
     /// # Errors
@@ -103,6 +166,13 @@ impl PropensityWeighting {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
+        if let Some(source) = self.source_cluster_ids.as_deref() {
+            crate::se::require_source_labels(
+                source,
+                self.cluster_ids.as_deref(),
+                data.row_count(),
+            )?;
+        }
         prepare_propensity_problem_with_levels(
             data,
             estimand,
@@ -110,6 +180,7 @@ impl PropensityWeighting {
             self.overlap,
             self.population_registry.as_ref(),
             self.other_levels,
+            self.sampling_weights.as_ref(),
         )
     }
 
@@ -172,6 +243,8 @@ impl PropensityWeighting {
             &self.glm_options,
         )?;
 
+        let sampling = problem.sampling_weights.as_ref().map(|s| &*s.weights);
+        let clusters = self.clusters(problem)?;
         let mut weights = compute_ipw_weights(
             &problem.treatment,
             &model.clipped_scores,
@@ -180,8 +253,9 @@ impl PropensityWeighting {
             trim,
         );
         apply_target_weights(&mut weights, problem.target_weights.as_deref());
+        apply_target_weights(&mut weights, sampling);
         let ate = hajek_difference(&problem.treatment, &problem.outcome, &weights)?;
-        let se_analytic = hajek_influence_se(
+        let psi = hajek_influence_values(
             &problem.treatment,
             &problem.outcome,
             &weights,
@@ -191,8 +265,13 @@ impl PropensityWeighting {
                 ncols: problem.design_ncols,
                 target,
                 clip: clip_of(problem.overlap),
+                row_mass: sampling,
             }),
         )?;
+        let se_analytic = match clusters.as_deref() {
+            Some(groups) => crate::se::cluster_influence_se(&psi, groups)?,
+            None => hajek_iid_se(&psi, problem.design_ncols),
+        };
 
         let overlap_report = Some(crate::propensity::propensity_overlap_report(
             problem,
@@ -202,11 +281,16 @@ impl PropensityWeighting {
         ));
 
         let n_obs = weights.iter().filter(|w| w.is_finite() && **w > 0.0).count();
-        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+        let mut estimate = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_n_obs(u64::try_from(n_obs).unwrap_or(u64::MAX))
             .with_overlap_report(overlap_report)
             .with_treatment_levels(problem.treatment_levels)
-            .with_retained_memory_bytes(Some(workspace.retained_memory_bytes())))
+            .with_sampling_weights(problem.sampling_weights.as_ref().map(|s| s.record))
+            .with_retained_memory_bytes(Some(workspace.retained_memory_bytes()));
+        if clusters.is_some() {
+            estimate = estimate.with_se_kind(AnalyticSeKind::Cluster);
+        }
+        Ok(estimate)
     }
 
     fn bootstrap_se(
@@ -217,61 +301,111 @@ impl PropensityWeighting {
         _workspace: &mut PropensityEstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
+        let n = problem.nrows;
+        // Replicates own a cold workspace. A warm logistic start would change the replicate fit.
+        let replicate = |scratch: &mut IpwReplicate, idx: &[usize]| {
+            Ok(self.replicate_ate(problem, target, trim, scratch, idx))
+        };
+        match self.clusters(problem)? {
+            Some(labels) => crate::util::bootstrap_se_clusters_with_scratch(
+                self.bootstrap_replicates,
+                ctx,
+                0x9A17_u64,
+                &crate::util::ClusterRows::new(&labels)?,
+                IpwReplicate::default,
+                replicate,
+            ),
+            None => crate::util::bootstrap_se_with_scratch(
+                self.bootstrap_replicates,
+                ctx,
+                0x9A17_u64,
+                n,
+                IpwReplicate::default,
+                replicate,
+            ),
+        }
+    }
+
+    /// The Hajek effect of one resample of the prepared rows, refitting the propensity model
+    /// on it; `None` when the replicate cannot be fit. `idx` selects the rows, whatever their
+    /// number: a whole-cluster resample is longer or shorter than the data.
+    fn replicate_ate(
+        &self,
+        problem: &PreparedPropensityProblem,
+        target: IpwTarget,
+        trim: Option<f64>,
+        scratch: &mut IpwReplicate,
+        idx: &[usize],
+    ) -> Option<f64> {
         let clip = clip_of(problem.overlap);
         let n = problem.nrows;
         let ncols = problem.design_ncols;
+        let m = idx.len();
         let tw = problem.target_weights.as_deref();
-        // Replicates own a cold workspace. A warm logistic start would change the replicate fit.
-        crate::util::bootstrap_se_with_scratch(
-            self.bootstrap_replicates,
-            ctx,
-            0x9A17_u64,
-            n,
-            || {
-                (
-                    PropensityEstimationWorkspace::default(),
-                    vec![0.0; n * ncols],
-                    vec![0.0; n],
-                    vec![0.0; n],
-                    vec![0.0; n],
-                    vec![0.0; n],
-                )
-            },
-            |(workspace, x_boot, t_boot, y_boot, clipped, w), idx| {
-                crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
-                crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
-                crate::util::gather_bootstrap_design(x_boot, &problem.design_matrix, n, ncols, idx);
-                if antecedent_stats::fit_propensity_in_place(
-                    x_boot,
-                    n,
+        let sampling = problem.sampling_weights.as_ref().map(|s| &*s.weights);
+        let IpwReplicate { workspace, x, t, y, clipped, w, s } = scratch;
+        x.resize(m * ncols, 0.0);
+        for buffer in [&mut *t, &mut *y, &mut *clipped, &mut *w, &mut *s] {
+            buffer.resize(m, 0.0);
+        }
+        crate::util::gather_bootstrap_vector(t, &problem.treatment, idx);
+        crate::util::gather_bootstrap_vector(y, &problem.outcome, idx);
+        crate::util::gather_resampled_design(x, &problem.design_matrix, n, ncols, idx);
+        let fitted = match sampling {
+            Some(full) => {
+                crate::util::gather_bootstrap_vector(s, full, idx);
+                antecedent_stats::fit_propensity_weighted_in_place(
+                    x,
+                    m,
                     ncols,
-                    t_boot,
+                    t,
+                    s,
                     &self.backend,
                     &mut workspace.propensity,
                     &self.glm_options,
                 )
-                .is_err()
-                {
-                    return Ok(None);
-                }
-                let raw = &workspace.propensity.scores[..n];
-                clipped.copy_from_slice(raw);
-                if let Some(c) = clip {
-                    clamp_scores(clipped, c);
-                }
-                compute_ipw_weights_into(w, t_boot, clipped, raw, target, trim);
-                if let Some(full_tw) = tw {
-                    for (r, &src) in idx.iter().enumerate() {
-                        w[r] *= full_tw[src];
-                    }
-                }
-                match hajek_difference(t_boot, y_boot, w) {
-                    Ok(a) => Ok(Some(a)),
-                    Err(_) => Ok(None),
-                }
-            },
-        )
+            }
+            None => antecedent_stats::fit_propensity_in_place(
+                x,
+                m,
+                ncols,
+                t,
+                &self.backend,
+                &mut workspace.propensity,
+                &self.glm_options,
+            ),
+        };
+        if fitted.is_err() {
+            return None;
+        }
+        let raw = &workspace.propensity.scores[..m];
+        clipped.copy_from_slice(raw);
+        if let Some(c) = clip {
+            clamp_scores(clipped, c);
+        }
+        compute_ipw_weights_into(w, t, clipped, raw, target, trim);
+        for (r, &src) in idx.iter().enumerate() {
+            if let Some(full_tw) = tw {
+                w[r] *= full_tw[src];
+            }
+            if let Some(full) = sampling {
+                w[r] *= full[src];
+            }
+        }
+        hajek_difference(t, y, w).ok()
     }
+}
+
+/// Per-worker buffers of one IPW bootstrap replicate; resized to each resample's length.
+#[derive(Default)]
+struct IpwReplicate {
+    workspace: PropensityEstimationWorkspace,
+    x: Vec<f64>,
+    t: Vec<f64>,
+    y: Vec<f64>,
+    clipped: Vec<f64>,
+    w: Vec<f64>,
+    s: Vec<f64>,
 }
 
 // IPW weights + Hajek estimator (shared by `PropensityWeighting`)
@@ -366,28 +500,43 @@ pub(crate) struct HajekPropensity<'a> {
     ncols: usize,
     target: IpwTarget,
     clip: Option<f64>,
+    /// Sampling weight of each row when the logistic model was fit under them: they scale the
+    /// model's score and information, which are the estimating equation being linearized.
+    row_mass: Option<&'a [f64]>,
 }
 
-/// Hajek analytic SE from stacked logistic and weighted-mean estimating equations.
+/// Linearized influence values of the Hajek difference, one per row, with the logistic
+/// propensity-estimation term added.
 ///
 /// The IF is the fixed-weight ratio IF plus `B' I⁻¹ x(T-e)`, where `B`
 /// differentiates the two weighted means with respect to logistic coefficients.
 /// Its derivative depends on the target and is zero beyond clipping thresholds.
 /// Trimming membership is locally fixed; all original rows still contribute to
 /// the logistic nuisance fit. Bootstrap refits also capture membership changes.
-pub(crate) fn hajek_influence_se(
+///
+/// `weights` are the full per-row weights (inverse-probability times any sampling and target
+/// weights), so the values are already the sampling-weighted scores. The correction term
+/// is a per-row score, so it sums within clusters like the rest of the influence.
+///
+/// # Errors
+///
+/// A mismatch between rows and the propensity inputs, or singular logistic information.
+pub(crate) fn hajek_influence_values(
     treatment: &[f64],
     outcome: &[f64],
     weights: &[f64],
     propensity: Option<HajekPropensity<'_>>,
-) -> Result<f64, EstimationError> {
+) -> Result<Vec<f64>, EstimationError> {
     let n = treatment.len();
     if n < 2 || weights.len() != n || outcome.len() != n {
-        return Ok(f64::NAN);
+        return Ok(Vec::new());
     }
     let ncols = propensity.as_ref().map_or(0, |p| p.ncols);
     if let Some(p) = &propensity {
-        if p.scores.len() != n || p.design.len() != n * ncols {
+        if p.scores.len() != n
+            || p.design.len() != n * ncols
+            || p.row_mass.is_some_and(|mass| mass.len() != n)
+        {
             return Err(EstimationError::data_msg("Hajek propensity design/score length mismatch"));
         }
     }
@@ -402,7 +551,7 @@ pub(crate) fn hajek_influence_se(
         }
     }
     if sum_w1 <= 0.0 || sum_w0 <= 0.0 {
-        return Ok(f64::NAN);
+        return Ok(Vec::new());
     }
     let nf = n as f64;
     let mut psi = vec![0.0; n];
@@ -430,8 +579,9 @@ pub(crate) fn hajek_influence_se(
                     (IpwTarget::Atc, true) => -1.0,
                 }
             };
-            score_mult[i] = treatment[i] - e;
-            information_weight[i] = e * (1.0 - e);
+            let mass = p.row_mass.map_or(1.0, |mass| mass[i]);
+            score_mult[i] = mass * (treatment[i] - e);
+            information_weight[i] = mass * e * (1.0 - e);
             derivative_weight[i] = psi[i] * log_weight_derivative;
         }
         crate::se::add_nuisance_correction(
@@ -444,12 +594,41 @@ pub(crate) fn hajek_influence_se(
             "singular logistic information in Hajek SE",
         )?;
     }
+    Ok(psi)
+}
 
+/// Independent-rows SE of the Hajek difference from its influence values, with the
+/// finite-sample inflation for the `ncols` estimated propensity coefficients. `NaN` when the
+/// influence could not be formed.
+pub(crate) fn hajek_iid_se(psi: &[f64], ncols: usize) -> f64 {
+    let n = psi.len();
+    if n < 2 {
+        return f64::NAN;
+    }
+    let nf = n as f64;
     let mean = psi.iter().sum::<f64>() / nf;
     let var = psi.iter().map(|p| (p - mean).powi(2)).sum::<f64>() / (nf - 1.0);
     // Finite-sample inflation for estimated propensity (p design columns).
     let df = (nf - ncols.max(1) as f64).max(1.0);
-    Ok((var / nf * (nf / df)).max(0.0).sqrt())
+    (var / nf * (nf / df)).max(0.0).sqrt()
+}
+
+/// Hajek analytic SE from stacked logistic and weighted-mean estimating equations
+/// ([`hajek_influence_values`] under independent rows).
+///
+/// # Errors
+///
+/// As [`hajek_influence_values`].
+#[cfg(test)]
+pub(crate) fn hajek_influence_se(
+    treatment: &[f64],
+    outcome: &[f64],
+    weights: &[f64],
+    propensity: Option<HajekPropensity<'_>>,
+) -> Result<f64, EstimationError> {
+    let ncols = propensity.as_ref().map_or(0, |p| p.ncols);
+    let psi = hajek_influence_values(treatment, outcome, weights, propensity)?;
+    Ok(hajek_iid_se(&psi, ncols))
 }
 
 #[cfg(test)]
@@ -543,6 +722,7 @@ mod tests {
                         ncols: 2,
                         target,
                         clip,
+                        row_mass: None,
                     }),
                 )
                 .unwrap();

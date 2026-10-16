@@ -488,6 +488,34 @@ fn ensure_multiway_meat_psd(
     Ok(())
 }
 
+/// Eigendecomposition of a symmetric row-major `d x d` matrix (lower triangle read).
+///
+/// Returns the eigenvalues in nondecreasing order and the eigenvectors as the columns of a
+/// row-major matrix (`vectors[row * d + k]` is component `row` of eigenvector `k`).
+///
+/// # Errors
+///
+/// A shape mismatch, a non-finite entry, or a backend failure to converge.
+pub fn symmetric_eigen(matrix: &[f64], d: usize) -> Result<(Vec<f64>, Vec<f64>), StatsError> {
+    if matrix.len() != d * d || matrix.iter().any(|v| !v.is_finite()) {
+        return Err(StatsError::Shape {
+            message: "symmetric eigendecomposition needs a finite d x d matrix",
+        });
+    }
+    let mat = faer::Mat::<f64>::from_fn(d, d, |r, c| matrix[r * d + c]);
+    let eig = mat
+        .self_adjoint_eigen(faer::Side::Lower)
+        .map_err(|_| StatsError::Backend("symmetric eigendecomposition failed".into()))?;
+    let values = (0..d).map(|k| eig.S().column_vector()[k]).collect();
+    let mut vectors = vec![0.0; d * d];
+    for r in 0..d {
+        for k in 0..d {
+            vectors[r * d + k] = eig.U()[(r, k)];
+        }
+    }
+    Ok((values, vectors))
+}
+
 fn newey_west_meat(
     x_colmajor: &[f64],
     nrows: usize,

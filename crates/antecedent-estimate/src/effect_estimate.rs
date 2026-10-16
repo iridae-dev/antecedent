@@ -156,6 +156,10 @@ pub struct EstimateDiagnostics {
     /// that were excluded, and the target population that restriction implies. `None` for
     /// every estimator that does not recode a treatment column to declared levels.
     pub treatment_levels: Option<crate::propensity::DeclaredTreatmentLevels>,
+    /// What declared sampling weights did to the analysis: the rows used, the zero-weight rows
+    /// excluded, the Kish effective sample size and the unnormalized weight sum. `None` when
+    /// no weights were declared, so unweighted results are unchanged.
+    pub sampling_weights: Option<crate::sampling_weights::SamplingWeightRecord>,
 }
 
 /// Nuisance cross-fitting record.
@@ -394,6 +398,16 @@ impl EffectEstimate {
         levels: crate::propensity::DeclaredTreatmentLevels,
     ) -> Self {
         self.diagnostics.treatment_levels = Some(levels);
+        self
+    }
+
+    /// Record what declared sampling weights did to this estimate.
+    #[must_use]
+    pub fn with_sampling_weights(
+        mut self,
+        record: Option<crate::sampling_weights::SamplingWeightRecord>,
+    ) -> Self {
+        self.diagnostics.sampling_weights = record;
         self
     }
 

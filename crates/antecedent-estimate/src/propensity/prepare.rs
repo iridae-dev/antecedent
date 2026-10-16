@@ -85,9 +85,27 @@ pub struct PreparedPropensityProblem {
     /// of the problem so every score-table build over it, however it is reached, fits the
     /// nuisance it was prepared for.
     pub propensity: crate::propensity::PropensityNuisance,
+    /// Sampling weights of the complete-case rows, normalized to mean one, with the record of
+    /// what they did to the analysis. `None` when none were declared. Every row of the
+    /// problem has a positive weight: rows of weight zero never enter it.
+    pub sampling_weights: Option<crate::sampling_weights::RetainedSamplingWeights>,
 }
 
 impl PreparedPropensityProblem {
+    /// The per-row weights the cross-fitted scores are averaged under: the target weights, the
+    /// sampling weights, or their product; `None` when neither is declared.
+    pub(crate) fn score_weights(&self) -> Option<std::borrow::Cow<'_, [f64]>> {
+        use std::borrow::Cow;
+        match (self.target_weights.as_deref(), self.sampling_weights.as_ref()) {
+            (None, None) => None,
+            (Some(target), None) => Some(Cow::Borrowed(target)),
+            (None, Some(sampling)) => Some(Cow::Borrowed(&*sampling.weights)),
+            (Some(target), Some(sampling)) => Some(Cow::Owned(
+                target.iter().zip(sampling.weights.iter()).map(|(t, s)| t * s).collect(),
+            )),
+        }
+    }
+
     /// Stratum of each row for the arm-stratified cross-fit fold plan: `1` at the higher of
     /// the two declared levels, `0` at the lower. It depends on the declared levels only
     /// through their order, so swapping active and control deals the same folds, and a
@@ -126,15 +144,27 @@ impl PropensityModel {
         workspace: &mut PropensityWorkspace,
         options: &GlmOptions,
     ) -> Result<Self, EstimationError> {
-        let fit = fit_propensity(
-            &problem.design_matrix,
-            problem.nrows,
-            problem.design_ncols,
-            &problem.treatment,
-            &backend,
-            workspace,
-            options,
-        )
+        let fit = match problem.sampling_weights.as_ref() {
+            Some(sampling) => antecedent_stats::fit_propensity_weighted(
+                &problem.design_matrix,
+                problem.nrows,
+                problem.design_ncols,
+                &problem.treatment,
+                &sampling.weights,
+                &backend,
+                workspace,
+                &options.without_separation_ridge(),
+            ),
+            None => fit_propensity(
+                &problem.design_matrix,
+                problem.nrows,
+                problem.design_ncols,
+                &problem.treatment,
+                &backend,
+                workspace,
+                options,
+            ),
+        }
         .map_err(stats_err)?;
         fit.glm.require_ok().map_err(stats_err)?;
         let clip = clip_of(problem.overlap);
@@ -312,11 +342,14 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         overlap,
         registry,
         OtherLevels::default(),
+        None,
     )
 }
 
 /// Prepare propensity inputs, recoding the query's active level to `1.0` and its control
-/// level to `0.0` and applying `other_levels` to rows at neither.
+/// level to `0.0` and applying `other_levels` to rows at neither. Declared `sampling`
+/// weights remove the rows of weight zero (counted on the problem's record) before the
+/// treatment levels are classified, since such a row stands for no population unit.
 #[allow(
     clippy::too_many_lines,
     reason = "one preparation: validate the query, mask rows, read the columns, resolve target weights and build the design; each step reads the same row mask"
@@ -328,6 +361,7 @@ pub(crate) fn prepare_propensity_problem_with_levels(
     overlap: OverlapPolicy,
     registry: Option<&PopulationRegistry>,
     other_levels: OtherLevels,
+    sampling: Option<&crate::sampling_weights::SamplingWeights>,
 ) -> Result<PreparedPropensityProblem, EstimationError> {
     crate::util::refuse_explicit_override(
         overlap,
@@ -375,6 +409,8 @@ pub(crate) fn prepare_propensity_problem_with_levels(
         }
         _ => {}
     }
+    let zero_weight_rows =
+        sampling.map(|weights| weights.drop_zero_weight_rows(&mut row_mask)).transpose()?;
     let t_source = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
     if t_source.is_empty() {
         return Err(EstimationError::data_msg("no complete-case rows for propensity design"));
@@ -399,6 +435,10 @@ pub(crate) fn prepare_propensity_problem_with_levels(
         .collect();
     let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
     let nrows = t.len();
+    let sampling_weights = sampling
+        .zip(zero_weight_rows)
+        .map(|(weights, zero_weight_rows)| weights.retained(&row_mask, zero_weight_rows))
+        .transpose()?;
     let target_weights = if let Some(w) = full_weights {
         let mut aligned = Vec::with_capacity(nrows);
         for (i, &keep) in row_mask.iter().enumerate() {
@@ -463,6 +503,7 @@ pub(crate) fn prepare_propensity_problem_with_levels(
         fold_seed: 0,
         shared_design: false,
         propensity: crate::propensity::PropensityNuisance::default(),
+        sampling_weights,
     }))
 }
 

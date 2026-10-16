@@ -780,16 +780,37 @@ class LiNGAM:
 
 @dataclass(frozen=True)
 class NOTEARS:
+    """Continuous-SEM (NOTEARS) discovery over numeric columns.
+
+    ``missing`` declares how rows with a missing value are handled. ``None`` (the default)
+    refuses the table at the first missing cell. ``"complete_case"`` drops every row with a
+    missing value in any discovery column and learns the graph on the complete rows.
+    ``"pairwise_available"`` scores the least-squares loss on the pairwise-available
+    covariance (each pair uses the rows observed on both), repaired to positive
+    semidefinite by clipping negative eigenvalues. Both report ``result.row_accounting``
+    (rows used and dropped or per-pair row counts, missing values per variable, a digest of
+    the dropped rows) and speak for the full data only when missingness is completely at
+    random.
+    """
+
     l1: float = 0.1
     threshold: float = 0.3
     standardize: bool = True
     max_cond_size: int = 8
+    missing: Literal["error", "complete_case", "pairwise_available"] | None = None
     kind: Literal["notears"] = "notears"
 
     algorithm_id: ClassVar[str] = "notears"
 
+    def __post_init__(self) -> None:
+        if self.missing not in (None, "error", "complete_case", "pairwise_available"):
+            raise CausalValueError(
+                f"NOTEARS missing must be None, 'error', 'complete_case' or 'pairwise_available'; got {self.missing!r}",
+                reason_code="invalid_argument",
+            )
+
     def _wire(self) -> dict[str, Any]:
-        return {
+        wire: dict[str, Any] = {
             "algorithm": "notears",
             "lambda": self.l1,
             "threshold": self.threshold,
@@ -799,6 +820,9 @@ class NOTEARS:
             "fdr": True,
             "ci": "parcorr",
         }
+        if self.missing is not None:
+            wire["missing"] = self.missing
+        return wire
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
@@ -811,6 +835,7 @@ class NOTEARS:
             seed=seed,
             max_cond_size=self.max_cond_size,
             threads=threads,
+            missing=self.missing,
         )
 
     def accept(

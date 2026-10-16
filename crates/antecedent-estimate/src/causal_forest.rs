@@ -21,10 +21,11 @@ use std::sync::Arc;
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalRng, ExecutionContext, StreamDomain, TargetPopulation,
 };
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 
 use crate::adjustment::EffectEstimate;
+use crate::cluster_dml_aipw::DeclaredUnits;
 use crate::dml::DmlAte;
 use crate::error::EstimationError;
 use crate::prepare::{require_adjustment_shaped, validate_ate_query_with_targets};
@@ -36,6 +37,14 @@ const SUBSAMPLE_FRACTION: f64 = 0.5;
 const MAX_CUTS: usize = 16;
 
 /// Native honest causal forest with a cross-fitted AIPW marginal ATE.
+///
+/// **Clusters.** With a declared independence unit ([`Self::units`]) rows are no longer
+/// exchangeable draws, so the forest respects the unit at every stage: each tree is grown on a
+/// subsample of whole clusters, honesty splits those clusters (not their rows) between the
+/// placement of splits and the estimation of leaf effects, so no cluster informs both, and the
+/// marginal ATE is the whole-cluster cross-fitted AIPW score with its cluster-sandwich
+/// standard error. The per-row leaf dispersion stays a descriptive measure of effect
+/// heterogeneity, not a sampling standard error.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CausalForest {
     /// Number of trees.
@@ -46,6 +55,8 @@ pub struct CausalForest {
     pub max_depth: usize,
     /// Honest sample split (splitting vs estimation).
     pub honesty: bool,
+    /// Declared independence unit of the rows. Without a declaration rows are the unit.
+    pub units: DeclaredUnits,
 }
 
 impl Default for CausalForest {
@@ -58,7 +69,41 @@ impl CausalForest {
     /// Two hundred honest trees, depth 8, min-leaf 8.
     #[must_use]
     pub const fn new() -> Self {
-        Self { n_trees: 200, min_leaf: 8, max_depth: 8, honesty: true }
+        Self {
+            n_trees: 200,
+            min_leaf: 8,
+            max_depth: 8,
+            honesty: true,
+            units: DeclaredUnits {
+                spec: None,
+                first: None,
+                first_source: None,
+                second: None,
+                second_source: None,
+            },
+        }
+    }
+
+    /// Declare the independence unit: whole-cluster subsampling, honesty and cross-fitting over
+    /// the unit labels set with [`Self::with_cluster_ids`] or [`Self::with_source_cluster_ids`].
+    #[must_use]
+    pub fn with_cluster_dml(mut self, spec: crate::cluster_dml_aipw::ClusterDml) -> Self {
+        self.units.spec = Some(spec);
+        self
+    }
+
+    /// Cluster label of every analysed row.
+    #[must_use]
+    pub fn with_cluster_ids(mut self, labels: Vec<u32>) -> Self {
+        self.units.first = Some(labels);
+        self
+    }
+
+    /// Cluster label of every row of the source table.
+    #[must_use]
+    pub fn with_source_cluster_ids(mut self, labels: Vec<u32>) -> Self {
+        self.units.first_source = Some(labels);
+        self
     }
 
     /// Tree count.
@@ -102,13 +147,46 @@ impl CausalForest {
     ) -> Result<PreparedPropensityProblem, EstimationError> {
         require_adjustment_shaped(estimand, "CausalForest requires an adjustment-shaped estimand")?;
         validate_ate_query_with_targets(query)?;
-        prepare_propensity_problem_with_registry(
+        self.require_row_units()?;
+        self.units.check_source_rows(data.row_count())?;
+        let mut problem = prepare_propensity_problem_with_registry(
             data,
             estimand,
             query,
             default_propensity_overlap(),
             None,
-        )
+        )?;
+        self.units.declare(
+            &mut problem,
+            query.outcome_functional == antecedent_core::OutcomeFunctional::Mean,
+            default_propensity_overlap(),
+        )?;
+        Ok(problem)
+    }
+
+    /// A forest has one cluster dimension: a dyadic declaration, or labels without a declared
+    /// unit, are refused.
+    fn require_row_units(&self) -> Result<(), EstimationError> {
+        if self.units.has_second() {
+            return Err(crate::sampling_weights::unsupported_route(
+                "a causal forest has one cluster dimension; a dyadic unit has no whole-cluster \
+                 subsample",
+            ));
+        }
+        let labelled = self.units.first.is_some() || self.units.first_source.is_some();
+        if labelled != self.units.spec.is_some() {
+            return Err(EstimationError::unsupported(
+                "causal-forest clusters need both the unit labels and the cluster declaration",
+            ));
+        }
+        Ok(())
+    }
+
+    /// The marginal-ATE estimator on the forest's nuisances and units.
+    fn marginal(&self, n: usize) -> DmlAte {
+        let mut dml = DmlAte::new().with_folds(5.min(n));
+        dml.units = self.units.clone();
+        dml
     }
 
     /// Cross-fitted AIPW score table of the marginal ATE [`Self::fit`] reports. That ATE is the
@@ -126,7 +204,7 @@ impl CausalForest {
         if !matches!(problem.target_population, TargetPopulation::AllObserved) {
             return Err(EstimationError::TargetPopulation);
         }
-        DmlAte::new().with_folds(5.min(problem.nrows)).score_table(problem, ctx)
+        self.marginal(problem.nrows).score_table(problem, ctx)
     }
 
     /// Grow CATE trees and estimate the marginal ATE with cross-fitted AIPW.
@@ -176,7 +254,21 @@ impl CausalForest {
                 "CausalForest requires binary treatment in {0, 1}",
             ));
         }
-        let data = ForestData { x: &x, n, p, y, t };
+        self.require_row_units()?;
+        let cluster_rows = self
+            .units
+            .labels(&problem.row_index)?
+            .0
+            .map(|labels| crate::util::ClusterRows::new(&labels))
+            .transpose()?;
+        let data = ForestData {
+            x: &x,
+            n,
+            p,
+            y,
+            t,
+            clusters: cluster_rows.as_ref().map(crate::util::ClusterRows::members),
+        };
         let shape = TreeShape { min_leaf: self.min_leaf, max_depth: self.max_depth };
         let honesty = self.honesty;
         let trees = ctx.map_indexed(self.n_trees, |b, inner| {
@@ -187,7 +279,7 @@ impl CausalForest {
             aggregate_forest_cate(&trees, &x, n, p);
         // Variation across fitted CATEs is heterogeneity, not sampling
         // uncertainty in the ATE. Use the orthogonal marginal score instead.
-        let mut effect = DmlAte::new().with_folds(5.min(n)).fit(problem, ctx, assumptions)?;
+        let mut effect = self.marginal(n).fit(problem, ctx, assumptions)?;
         let model = portable_forest(&trees, problem, p);
         model.validate()?;
         effect.heterogeneity.fitted_effect = Some(Arc::new(model));
@@ -354,6 +446,8 @@ struct ForestData<'a> {
     p: usize,
     y: &'a [f64],
     t: &'a [f64],
+    /// The rows of each declared cluster, when rows are not the independence unit.
+    clusters: Option<&'a [Vec<u32>]>,
 }
 
 /// Stopping rules shared by every tree of the forest.
@@ -364,21 +458,63 @@ struct TreeShape {
 }
 
 fn grow_tree(data: &ForestData<'_>, shape: TreeShape, honesty: bool, rng: &mut CausalRng) -> Node {
-    let ForestData { n, y, t, .. } = *data;
+    let ForestData { n, y, t, clusters, .. } = *data;
     let TreeShape { min_leaf, .. } = shape;
-    let sample = subsample(n, SUBSAMPLE_FRACTION, min_leaf, rng);
-    if sample.len() < min_leaf.saturating_mul(2) {
-        return Node::Leaf { cate: leaf_tau(y, t, &sample), se: leaf_se(y, t, &sample) };
-    }
-    let (split_idx, est_idx) = if honesty {
-        let mid = sample.len() / 2;
-        (sample[..mid].to_vec(), sample[mid..].to_vec())
+    let (split_idx, est_idx) = if let Some(members) = clusters {
+        cluster_subsample(members, SUBSAMPLE_FRACTION, honesty, rng)
     } else {
-        (sample.clone(), sample)
+        let sample = subsample(n, SUBSAMPLE_FRACTION, min_leaf, rng);
+        if sample.len() < min_leaf.saturating_mul(2) {
+            return Node::Leaf { cate: leaf_tau(y, t, &sample), se: leaf_se(y, t, &sample) };
+        }
+        if honesty {
+            let mid = sample.len() / 2;
+            (sample[..mid].to_vec(), sample[mid..].to_vec())
+        } else {
+            (sample.clone(), sample)
+        }
     };
     let mut root = grow_from(&split_idx, 0, data, shape, rng);
     fill_cate(&mut root, &est_idx, data, None);
     root
+}
+
+/// Rows of a subsample of whole clusters, drawn without replacement: about `frac` of the
+/// clusters. With honesty the sampled clusters are halved, one half placing splits and the
+/// other estimating leaf effects, so no cluster contributes to both; otherwise both sets are
+/// every sampled row.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "frac is in (0, 1], so the rounded count is a non-negative integer no larger than the cluster count; a u64 draw reduced modulo rest is below rest"
+)]
+fn cluster_subsample(
+    members: &[Vec<u32>],
+    frac: f64,
+    honesty: bool,
+    rng: &mut CausalRng,
+) -> (Vec<u32>, Vec<u32>) {
+    let groups = members.len();
+    let mut order: Vec<usize> = (0..groups).collect();
+    let want = ((groups as f64) * frac).round() as usize;
+    // Honesty needs a cluster on each side.
+    let k = want.clamp(2.min(groups), groups);
+    for i in 0..k {
+        let rest = groups - i;
+        let j = i + (rng.next_u64() as usize % rest);
+        order.swap(i, j);
+    }
+    order.truncate(k);
+    let rows_of = |clusters: &[usize]| -> Vec<u32> {
+        clusters.iter().flat_map(|&g| members[g].iter().copied()).collect()
+    };
+    if honesty {
+        let (placement, estimation) = order.split_at(k / 2);
+        (rows_of(placement), rows_of(estimation))
+    } else {
+        let all = rows_of(&order);
+        (all.clone(), all)
+    }
 }
 
 #[allow(
@@ -429,7 +565,7 @@ fn best_split(
     min_leaf: usize,
     rng: &mut CausalRng,
 ) -> Option<(usize, f64, Vec<u32>, Vec<u32>)> {
-    let ForestData { x, n, p, y, t } = *data;
+    let ForestData { x, n, p, y, t, .. } = *data;
     let feats = choose_features(p, rng);
     let mut best_score = f64::NEG_INFINITY;
     let mut best: Option<(usize, f64)> = None;
@@ -530,7 +666,7 @@ fn fill_cate(
     data: &ForestData<'_>,
     parent: Option<(f64, Option<f64>)>,
 ) {
-    let ForestData { x, n, p, y, t } = *data;
+    let ForestData { x, n, p, y, t, .. } = *data;
     let honest = leaf_stat(y, t, rows).or(parent);
     match node {
         Node::Leaf { cate, se } => {
@@ -620,7 +756,7 @@ mod tests {
     #[test]
     fn honest_leaf_never_reuses_split_outcomes() {
         let mut node = Node::Leaf { cate: Some(999.0), se: None };
-        let data = ForestData { x: &[], n: 1, p: 0, y: &[10.0], t: &[1.0] };
+        let data = ForestData { x: &[], n: 1, p: 0, y: &[10.0], t: &[1.0], clusters: None };
         fill_cate(&mut node, &[0], &data, None);
         assert!(node.predict_leaf(&[], 1, 0, 0).is_none());
         fill_cate(&mut node, &[0], &data, Some((2.0, Some(0.5))));
@@ -759,5 +895,26 @@ mod tests {
         assert_eq!(se.len(), cate.len());
         assert!(se.iter().all(|&s| s.is_finite() && s >= 0.0));
         assert!(se.iter().any(|&s| s > 0.0));
+    }
+    #[test]
+    fn honest_cluster_subsample_never_puts_a_cluster_on_both_sides() {
+        let members: Vec<Vec<u32>> = (0..12u32).map(|g| (g * 5..g * 5 + 5).collect()).collect();
+        let owner = |row: u32| row / 5;
+        let mut rng = ExecutionContext::for_tests(5).rng.stream_for(StreamDomain::Estimate, 1);
+        for _ in 0..50 {
+            let (placement, estimation) = cluster_subsample(&members, 0.5, true, &mut rng);
+            let side = |rows: &[u32]| -> std::collections::BTreeSet<u32> {
+                rows.iter().map(|&r| owner(r)).collect()
+            };
+            let (p, e) = (side(&placement), side(&estimation));
+            assert!(p.is_disjoint(&e), "a cluster informs both splitting and estimation");
+            assert_eq!(p.len() + e.len(), 6, "about half the clusters are sampled");
+            // Whole clusters only.
+            assert_eq!(placement.len(), 5 * p.len());
+            assert_eq!(estimation.len(), 5 * e.len());
+        }
+        let (all_a, all_b) = cluster_subsample(&members, 0.5, false, &mut rng);
+        assert_eq!(all_a, all_b);
+        assert_eq!(all_a.len() % 5, 0);
     }
 }

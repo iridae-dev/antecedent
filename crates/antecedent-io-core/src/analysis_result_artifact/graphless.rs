@@ -10,6 +10,10 @@ use super::AnalysisResultWire;
 use crate::IoError;
 use crate::graphless_support::{GraphlessAssignmentSupport, GraphlessSupportKey, graphless_admits};
 
+/// Expected rows in each arm of an independent Bernoulli intention-to-treat interval (the support
+/// row's `min_expected_arm_units`, restated for this self-contained recompute).
+const MIN_EXPECTED_ARM_UNITS: f64 = 40.0;
+
 /// Whether a stored graphless support status matches the independently
 /// recomputed license for a row. This is only the status comparison shared
 /// across the families; each family's eligibility recompute (`*_licensed`) is
@@ -172,6 +176,14 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
             })
             .fold(f64::INFINITY, f64::min)
     };
+    // Expected rows of the thinner arm of an independent Bernoulli design: the summed known
+    // probabilities, which the two-arm score, ANCOVA and fixed-CUPED intervals are supported by.
+    let expected_arm_units = if matches!(query.design, crate::RandomizationDesignWire::Bernoulli) {
+        let expected_treated: f64 = query.assignment_probabilities.iter().sum();
+        expected_treated.min(query.assignment_probabilities.len() as f64 - expected_treated)
+    } else {
+        0.0
+    };
     let expected_allocations = if query.exact_randomization_test {
         let n = crate::error::fit_u64(query.realized_assignment.len())?;
         let k = crate::error::fit_u64(treated)?;
@@ -187,7 +199,11 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                     | crate::RandomizedEstimandWire::CaceLate
                     | crate::RandomizedEstimandWire::TreatmentOnTreated
             ) && query.ancova_covariates.len() <= 2
-                && query.realized_assignment.len() >= 400
+                && if query.estimand == crate::RandomizedEstimandWire::Itt {
+                    expected_arm_units + 1e-9 >= MIN_EXPECTED_ARM_UNITS
+                } else {
+                    query.realized_assignment.len() >= 400
+                }
                 && control >= 30
                 && treated >= 30
                 && query
@@ -410,6 +426,7 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                     min_factorial_cell,
                     min_action_rows,
                     min_probability,
+                    min_expected_arm_units: expected_arm_units,
                     reported_intervals,
                     covariates: query.ancova_covariates.len(),
                     all_reported_intervals,
@@ -518,7 +535,8 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
             graphless_licensed,
             allow_legacy_graphless_missing,
         )
-        || randomized.uncertainty != expected_uncertainty
+        || (randomized.uncertainty != expected_uncertainty
+            && !sampling_weighted_uncertainty(&randomized.uncertainty, &query.design, has_interval))
         || !extra_intervals_valid
         || !multi_arm_intervals_valid
         || randomized.estimand
@@ -1856,7 +1874,10 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
             (None, _) => {
                 result.standard_error.is_none()
                     && (query.augmented.is_some()
-                        || did.uncertainty == "cluster_robust_standard_error_no_interval")
+                        || did.uncertainty == "cluster_robust_standard_error_no_interval"
+                        || (did.uncertainty == SAMPLING_WEIGHTED_DID_UNCERTAINTY
+                            && !query.repeated_cross_section
+                            && !query.staggered_event_study))
             }
             _ => false,
         }
@@ -2167,4 +2188,30 @@ pub(in crate::analysis_result_artifact) fn validate_survival_graphless(
         return Err(IoError::Convert("invalid survival payload or fabricated uncertainty".into()));
     }
     Ok(())
+}
+
+/// Uncertainty label of a sampling-weighted two-arm intention-to-treat fit: the linearized
+/// variance of the weighted Hajek arm means, with no interval.
+pub(crate) const SAMPLING_WEIGHTED_RANDOMIZED_UNCERTAINTY: &str =
+    "sampling_weighted_hajek_linearized_variance_no_interval";
+
+/// Uncertainty label of a sampling-weighted balanced two-period panel `DiD`: the cluster score
+/// sandwich over weighted scores, with no interval.
+pub(crate) const SAMPLING_WEIGHTED_DID_UNCERTAINTY: &str =
+    "sampling_weighted_cluster_robust_standard_error_no_interval";
+
+/// Whether `label` is the sampling-weighted uncertainty, which only the unadjusted Bernoulli
+/// and complete designs carry and which publishes no interval.
+fn sampling_weighted_uncertainty(
+    label: &str,
+    design: &crate::RandomizationDesignWire,
+    has_interval: bool,
+) -> bool {
+    label == SAMPLING_WEIGHTED_RANDOMIZED_UNCERTAINTY
+        && !has_interval
+        && matches!(
+            design,
+            crate::RandomizationDesignWire::Bernoulli
+                | crate::RandomizationDesignWire::Complete { .. }
+        )
 }

@@ -111,6 +111,7 @@ class AteAnalysisResult:
     def effect_source_json(
         self, units: str, population: str, supplied_value: float
     ) -> tuple[str | None, str | None]: ...
+    missing_data_json: str | None
     structural_weight_basis: str | None
     structural_identified_mass: float | None
     structural_unidentified_mass: float | None
@@ -658,6 +659,7 @@ class EstimateSection:
     score_table: ScoreTableSection | None
     joint_covariance: list[list[float]] | None
     score_inference: ScoreInferenceSection | None
+    sampling_weights: tuple[int, int, float, float] | None
     scenario_effects: list[float] | None
     scenario_intervals: list[tuple[float, float]] | None
     simultaneous_interval: tuple[float, float, float] | None
@@ -848,6 +850,7 @@ class PcmciDiscoveryResult:
     graph_edges: list[GraphEdge]
     variable_names: list[str]
     background_knowledge: str | None
+    row_accounting: dict[str, Any] | None
 
     def accepted_graph(self, *, accept_discovered: bool = True) -> Any:
         """The reviewed accepted graph; refuses while edges are pending."""
@@ -2530,6 +2533,7 @@ def discover_notears(
     max_cond_size: int = 8,
     threads: int | None = None,
     cancel: CancellationToken | None = None,
+    missing: str | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_fci(
     names: list[str],

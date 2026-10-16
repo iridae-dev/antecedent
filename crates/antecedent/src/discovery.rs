@@ -447,11 +447,18 @@ pub fn discover_lingam(
 
 /// Discover a static DAG with NOTEARS (continuous SEM).
 ///
-/// Returns the hard DAG review plus the soft weight matrix for mechanism seeding.
+/// Returns the hard DAG review plus the soft weight matrix for mechanism seeding and the row
+/// accounting of the run. `missing` declares how missing values are handled: `None` refuses a
+/// table with a missing value, `Some(CompleteCase)` drops the incomplete rows and reports them.
 ///
 /// # Errors
 ///
-/// Discovery / solver failures.
+/// Discovery / solver failures, and `missing_policy_required` for a missing value without a
+/// declared policy.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "public entry point whose parameters mirror the binding-level keyword list"
+)]
 pub fn discover_notears(
     data: &TabularData,
     variables: &[VariableId],
@@ -459,13 +466,15 @@ pub fn discover_notears(
     lambda: f64,
     threshold: f64,
     standardize: bool,
+    missing: Option<antecedent_data::MissingPolicy>,
     ctx: &ExecutionContext,
 ) -> Result<NotearsDiscoveryResult, CausalError> {
-    let alg = Notears::new()
+    let mut alg = Notears::new()
         .with_constraints(static_constraints(params))
         .with_lambda(lambda)
         .with_threshold(threshold)
         .with_standardize(standardize);
+    alg.missing = missing;
     let mut ws = DiscoveryWorkspace::default();
     Ok(alg.run(data, variables, &mut ws, ctx)?)
 }

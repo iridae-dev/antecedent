@@ -49,6 +49,7 @@ impl LearnerFactory for RidgeLearner {
     fn capabilities(&self) -> LearnerCapabilities {
         LearnerCapabilities {
             regression: true,
+            sample_weights: true,
             deterministic_seed: true,
             ..LearnerCapabilities::none()
         }
@@ -61,16 +62,32 @@ impl LearnerFactory for RidgeLearner {
         weights: Option<&[f64]>,
         _ctx: &ExecutionContext,
     ) -> Result<Box<dyn FittedPredictor>, LearnError> {
-        if weights.is_some() {
-            return Err(LearnError::Unsupported {
-                message: "ridge learner does not accept sample weights",
-            });
-        }
-        let (design, nrows, ncols) = materialize_dense_colmajor(x)?;
+        let (mut design, nrows, ncols) = materialize_dense_colmajor(x)?;
         if y.len() != x.physical_nrows() {
             return Err(LearnError::Shape { message: "target length != physical rows" });
         }
-        let gathered_y = gather_physical(y.values(), x, nrows)?;
+        let mut gathered_y = gather_physical(y.values(), x, nrows)?;
+        if let Some(w) = weights {
+            // Prior-weighted ridge `Σ w_i (y_i − x_iβ)² + λ|β|²`: scale each row of the design
+            // and the target by √w_i and solve the ordinary ridge problem.
+            if w.len() != x.physical_nrows() {
+                return Err(LearnError::Shape { message: "weights length != physical rows" });
+            }
+            let gathered_w = gather_physical(w, x, nrows)?;
+            if gathered_w.iter().any(|v| !v.is_finite() || *v < 0.0) {
+                return Err(LearnError::Shape {
+                    message: "prior weights must be finite and non-negative",
+                });
+            }
+            for column in design.to_mut().chunks_exact_mut(nrows.max(1)) {
+                for (value, weight) in column.iter_mut().zip(&gathered_w) {
+                    *value *= weight.sqrt();
+                }
+            }
+            for (value, weight) in gathered_y.iter_mut().zip(&gathered_w) {
+                *value *= weight.sqrt();
+            }
+        }
         let mut ws = LeastSquaresWorkspace::default();
         let fit =
             fit_ridge(&design, nrows, ncols, &gathered_y, self.spec.lambda, &FaerBackend, &mut ws)?;

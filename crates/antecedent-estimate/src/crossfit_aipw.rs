@@ -24,7 +24,7 @@ use antecedent_stats::{
     FaerBackend, GlmOptions, PropensityWorkspace, fit_propensity, predict_propensity,
 };
 
-use crate::aipw::{AipwWorkspace, fit_outcome_models, predict_colmajor};
+use crate::aipw::{AipwWorkspace, fit_outcome_models_weighted, predict_colmajor};
 use crate::crossfit_plan::{
     CrossfitPlan, FoldRows, FoldSource, SHARED_FOLD_ID_ERRORS, rows_colmajor,
 };
@@ -197,7 +197,14 @@ fn build_scores_pass(
     let fold_seed = fold_seed.unwrap_or(problem.fold_seed);
     problem.propensity.validate_for_execution()?;
     let penalized = problem.propensity.fold_penalty();
-    let share = share && penalized.is_none();
+    // Nuisances fit under sampling weights are not the unweighted fits a shared cache holds.
+    let share = share && penalized.is_none() && problem.sampling_weights.is_none();
+    if penalized.is_some() && problem.sampling_weights.is_some() {
+        return Err(crate::sampling_weights::unsupported_route(
+            "a penalized propensity has no sampling-weighted nuisance fit",
+        ));
+    }
+    let sampling = problem.sampling_weights.as_ref().map(|s| &*s.weights);
     let local_ctx =
         (penalized.is_some() && ctx.is_none()).then(|| ExecutionContext::production(fold_seed, 1));
     let penalized = penalized.zip(ctx.or(local_ctx.as_ref()));
@@ -335,15 +342,27 @@ fn build_scores_pass(
                 selections.push(selection);
                 predicted
             } else {
-                let fit = fit_propensity(
-                    &design_train,
-                    train.len(),
-                    ncols,
-                    &t_train,
-                    &backend,
-                    &mut prop_ws,
-                    glm_options,
-                )
+                let fit = match sampling {
+                    Some(weights) => antecedent_stats::fit_propensity_weighted(
+                        &design_train,
+                        train.len(),
+                        ncols,
+                        &t_train,
+                        &gather(weights, train),
+                        &backend,
+                        &mut prop_ws,
+                        glm_options,
+                    ),
+                    None => fit_propensity(
+                        &design_train,
+                        train.len(),
+                        ncols,
+                        &t_train,
+                        &backend,
+                        &mut prop_ws,
+                        glm_options,
+                    ),
+                }
                 .map_err(stats_err)
                 .and_then(|fit| {
                     fit.glm.require_ok().map_err(stats_err)?;
@@ -387,12 +406,14 @@ fn build_scores_pass(
                     out_ws.mu1 = gather(mu1, valid);
                 } else {
                     let y_train = gather(y_source, train);
-                    let (beta0, beta1) = fit_outcome_models(
+                    let train_weights = sampling.map(|weights| gather(weights, train));
+                    let (beta0, beta1) = fit_outcome_models_weighted(
                         &design_train,
                         train.len(),
                         ncols,
                         &t_train,
                         &y_train,
+                        train_weights.as_deref(),
                         backend,
                         &mut out_ws,
                     )?;

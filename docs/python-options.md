@@ -243,13 +243,31 @@ up front (`cluster_interval_not_licensed`), fewer clusters than
 second_cluster_ids=...)` declares two-way dependence: folds own whole connected components of
 the endpoint graph (no endpoint crosses folds) and `se_analytic` is the two-way sandwich; an entity used in both
 endpoint roles or one giant component refuses `dyadic_dependence_not_licensed`, and fewer
-than `min_components_per_fold` components per fold refuse `too_few_clusters`. `DML`,
-`DRLearner` and `CausalForest` take no cluster option: a `cluster_ids`/`cluster_dml`/
+than `min_components_per_fold` components per fold refuse `too_few_clusters`. `DML` and
+`DRLearner` declare dependence through `cluster_dml` only, and `CausalForest` through
+`cluster="site"` (whole-cluster subsampling, honesty and cross-fitting; see
+[the guide](guides/cluster-inference.md)): a row-aligned `cluster_ids`, `cluster_dml` or
 `multiway_ids` key in their `estimator_config` refuses `route_not_supported`.
+`PropensityWeighting` and `PropensityStratification` take `cluster="site"` for a cluster
+sandwich with the propensity-estimation correction and a whole-cluster bootstrap.
 `CandidateScreen.from_units(...)` builds a
 deterministic screen/estimate split from entity labels, or from dyad endpoints so that
 connected endpoints never cross the split, and records the seed and a unit digest in
 `screen_id`. See [the guide](guides/clustered-dml.md).
+
+## Sampling weights
+
+`weights="w"` on `LinearAdjustment`, `GlmAdjustment`, `Aipw`, `PropensityWeighting`,
+`PropensityMatching`, `DistanceMatching`, `PropensityStratification`, `DML` and `DRLearner`, on
+`RandomizedEffect`, on `PanelDifferenceInDifferences` and on
+`PulseEffect` names a column of sampling weights (or gives one weight per row). The estimate
+speaks for the weighted population, weights are normalized to mean one (so their scale changes
+nothing), rows of weight zero are excluded and counted, a negative, NaN or infinite weight
+refuses naming its row (`sampling_weights_invalid`), and `result.estimate.sampling_weights`
+reports the rows used, the zero-weight rows, the Kish effective sample size and the declared
+weight sum. A construction with no weighted contrast refuses the weights
+(`option_not_applicable`, `sampling_weights.route_unsupported`). See
+[the guide](guides/sampling-weights.md).
 
 ## Read identification details
 

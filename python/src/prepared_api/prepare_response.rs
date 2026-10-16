@@ -300,7 +300,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<Self> {
         let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         let class_graph = extract_temporal_class(class_graph, &req.names)?;
-        let input = req.load_frame(py, columns, frame.as_ref())?;
+        let input = req.load_weighted_series(py, columns, frame.as_ref())?;
         let policy = policy.to_ascii_lowercase();
         req.off_gil(py, move |mut req| {
             let data = input.materialize()?;

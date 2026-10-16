@@ -35,6 +35,8 @@ mod lpcmci_evidence_reconciliation;
 mod lpcmci_oracle_matrix;
 #[path = "multiplicity_oracle.rs"]
 mod multiplicity_oracle;
+#[path = "notears_missing.rs"]
+mod notears_missing;
 #[path = "rpcmci_fixed_regime_oracle.rs"]
 mod rpcmci_fixed_regime_oracle;
 #[path = "selective_discovery.rs"]

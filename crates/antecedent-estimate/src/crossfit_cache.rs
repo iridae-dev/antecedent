@@ -451,6 +451,11 @@ fn same_learner_preparation(
         && a.fold_seed == b.fold_seed
         && a.shared_design == b.shared_design
         && a.propensity == b.propensity
+        && match (&a.sampling_weights, &b.sampling_weights) {
+            (None, None) => true,
+            (Some(a), Some(b)) => floats(&a.weights, &b.weights),
+            _ => false,
+        }
 }
 
 fn learner_preparation_cost(problem: &crate::propensity::PreparedPropensityProblem) -> usize {
@@ -493,6 +498,7 @@ mod learned_preparation_tests {
             fold_seed: 0,
             shared_design: false,
             propensity: PropensityNuisance::default(),
+            sampling_weights: None,
         }
     }
     #[test]

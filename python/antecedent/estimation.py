@@ -32,6 +32,7 @@ from ._columns import (
     analysis_columns,
     drop_columns,
     encode_identifier,
+    encode_weights,
     resolve_estimator_identifiers,
 )
 from ._data import (
@@ -83,6 +84,7 @@ from .inference import (
 from .interference import (
     InterferenceQuery,
 )
+from .missing import MissingPolicy, coerce_missing, native_declaration
 from .policy import (
     ConditionalDoseResponse,
     MultiActionPolicyValue,
@@ -1036,6 +1038,7 @@ class PreparedAnalysis(Generic[ResultT]):
         provider: Any | None = None,
         controls: TransportControls | None = None,
         participant: str | None = None,
+        missing: str | MissingPolicy | None = None,
     ) -> PreparedAnalysis[_PreparedResult]:
         """Compile a durable plan for a licensed analysis cell.
 
@@ -1093,6 +1096,13 @@ class PreparedAnalysis(Generic[ResultT]):
         every estimate click; ``on_stage`` streams the stages of each click on
         routes that have them. The handle retains all three; a click may
         override them.
+
+        ``missing=`` declares how missing values are handled (a policy name or an
+        :class:`antecedent.missing.MissingPolicy`). Average-effect routes keep their
+        complete-case selection by default and report the rows it dropped; randomized,
+        panel and temporal routes refuse a missing value until a policy is declared. A
+        policy the route cannot execute is refused when the study is built, and every
+        result carries ``missing_data`` (policy, assumption and row accounting).
         """
         from .transport import ExactTransportData, StatisticalTransportData
         from .transport._day1 import prepare_transport, refuse_transport_only_kwargs
@@ -1124,6 +1134,25 @@ class PreparedAnalysis(Generic[ResultT]):
                 "participant= labels the rows of a prepared table; a transport study is bound "
                 "to an evidence catalog or distributional providers, which have no table rows "
                 "to carry the labels",
+                reason_code="option_not_applicable",
+            )
+        missing_policy = coerce_missing(missing)
+        if missing_policy is not None and (
+            isinstance(
+                query,
+                (
+                    Transport,
+                    TransportResponseGridQuery,
+                    StatisticalTransportQuery,
+                    ExactTransportQuery,
+                ),
+            )
+            or isinstance(data, (ExactTransportData, StatisticalTransportData))
+        ):
+            raise CausalUnsupportedError(
+                "missing= declares how rows with missing values are handled; a transport study "
+                "is bound to an evidence catalog or distributional providers, which have no "
+                "table rows",
                 reason_code="option_not_applicable",
             )
         # A design-carrying query may name its row-aligned inputs by data column;
@@ -1459,6 +1488,15 @@ class PreparedAnalysis(Generic[ResultT]):
             "inference": _inference_wire(inference),
             "discovery_algorithm": discovery_algorithm,
         }
+        if missing_policy is not None:
+            options["missing"] = native_declaration(missing_policy, names)
+        if getattr(query, "weights", None) is not None:
+            # A design query that declares sampling weights: one weight per original row,
+            # frozen like a cluster column so a refreshed table with other weights is refused.
+            declared, weight_binding = encode_weights(data, query.weights, estimator=None)
+            options["sampling_weights"] = declared
+            if weight_binding is not None:
+                identifier_bindings[weight_binding.column] = weight_binding
         if participant_binding is not None:
             if table_names is None:
                 raise CausalUnsupportedError(

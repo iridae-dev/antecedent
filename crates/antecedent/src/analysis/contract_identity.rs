@@ -33,6 +33,7 @@ macro_rules! grouped {
     (@digest multiway_ids, $v:expr) => { $v.as_deref().map(multiway_ids) };
     (@digest panel_times, $v:expr) => { $v.as_deref().map(panel_times) };
     (@digest population_registry, $v:expr) => { $v.as_ref().map(population_registry) };
+    (@digest sampling_weights, $v:expr) => { $v.as_ref().map(sampling_weights) };
     ($cfg:expr, $wire:expr; $($field:ident),+ $(,)?) => {{
         let mut wire = $wire;
         $( wire.$field = grouped!(@digest $field, $cfg.$field); )+
@@ -59,7 +60,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
                 ..grouped!(
                     cfg,
                     base(cfg.bootstrap_replicates, cfg.overlap);
-                    multiway_ids, panel_times, population_registry
+                    multiway_ids, panel_times, population_registry, sampling_weights
                 )
             })
         }
@@ -67,10 +68,14 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
             EstimatorSpecWire::PropensityWeighting(EstimatorConfigWire {
                 glm: Some(glm_options(&cfg.glm_options)),
                 other_levels: other_levels_key(cfg.other_levels),
+                cluster_ids: declared_clusters(
+                    cfg.cluster_ids.as_deref(),
+                    cfg.source_cluster_ids.as_deref(),
+                ),
                 ..grouped!(
                     cfg,
                     base(cfg.bootstrap_replicates, cfg.overlap);
-                    population_registry
+                    population_registry, sampling_weights
                 )
             })
         }
@@ -90,7 +95,8 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
                 ..grouped!(
                     cfg,
                     base(cfg.bootstrap_replicates, cfg.overlap);
-                    cluster_ids, multiway_ids, panel_times, population_registry
+                    cluster_ids, multiway_ids, panel_times, population_registry,
+                    sampling_weights
                 )
             })
         }
@@ -99,10 +105,14 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
                 glm: Some(glm_options(&cfg.glm_options)),
                 other_levels: other_levels_key(cfg.other_levels),
                 n_strata: Some(cfg.n_strata),
+                cluster_ids: declared_clusters(
+                    cfg.cluster_ids.as_deref(),
+                    cfg.source_cluster_ids.as_deref(),
+                ),
                 ..grouped!(
                     cfg,
                     base(cfg.bootstrap_replicates, cfg.overlap);
-                    population_registry
+                    population_registry, sampling_weights
                 )
             })
         }
@@ -114,7 +124,8 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
                 ..grouped!(
                     cfg,
                     base(cfg.bootstrap_replicates, cfg.overlap);
-                    cluster_ids, multiway_ids, panel_times, population_registry
+                    cluster_ids, multiway_ids, panel_times, population_registry,
+                    sampling_weights
                 )
             })
         }
@@ -143,7 +154,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
             ..grouped!(
                 cfg,
                 base(cfg.bootstrap_replicates, cfg.overlap);
-                multiway_ids, panel_times, population_registry
+                multiway_ids, panel_times, population_registry, sampling_weights
             )
         }),
         EstimatorSpec::GlmAdjustment(cfg) => {
@@ -158,7 +169,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
                 ..grouped!(
                     cfg,
                     base(cfg.bootstrap_replicates, cfg.overlap);
-                    multiway_ids, panel_times, population_registry
+                    multiway_ids, panel_times, population_registry, sampling_weights
                 )
             })
         }
@@ -218,6 +229,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
                 cfg.units.first.as_deref(),
                 cfg.units.first_source.as_deref(),
             ),
+            sampling_weights: cfg.sampling_weights.as_ref().map(sampling_weights),
             ..base(0, cfg.overlap)
         }),
         EstimatorSpec::DrLearner(cfg) => EstimatorSpecWire::DrLearner(EstimatorConfigWire {
@@ -239,6 +251,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
                 cfg.units.first.as_deref(),
                 cfg.units.first_source.as_deref(),
             ),
+            sampling_weights: cfg.sampling_weights.as_ref().map(sampling_weights),
             ..base(0, cfg.overlap)
         }),
         EstimatorSpec::CausalForest(cfg) => EstimatorSpecWire::CausalForest(EstimatorConfigWire {
@@ -246,6 +259,13 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
             min_leaf: Some(u32::try_from(cfg.min_leaf).unwrap_or(u32::MAX)),
             max_depth: Some(u32::try_from(cfg.max_depth).unwrap_or(u32::MAX)),
             honesty: Some(cfg.honesty),
+            // The unit declaration changes the subsample, the honest split and the standard
+            // error, so it is part of the identity when declared.
+            score: cfg.units.spec.as_ref().map(|spec| cluster_dml_key(spec, None, None)),
+            cluster_ids: declared_clusters(
+                cfg.units.first.as_deref(),
+                cfg.units.first_source.as_deref(),
+            ),
             ..base(0, antecedent_estimate::DmlAte::new().overlap)
         }),
     }
@@ -269,6 +289,7 @@ fn base(bootstrap_replicates: u32, overlap: OverlapPolicy) -> EstimatorConfigWir
         multiway_ids: None,
         panel_times: None,
         population_registry: None,
+        sampling_weights: None,
         folds: None,
         outcome: None,
         treatment: None,
@@ -377,6 +398,11 @@ fn declared_clusters(
     retained
         .map(cluster_ids)
         .or_else(|| source.map(|ids| PayloadDigestWire::u32s("estimator.source_cluster_ids", ids)))
+}
+
+/// The declared sampling weights of every source row, as the exact bits of each weight.
+fn sampling_weights(weights: &antecedent_estimate::SamplingWeights) -> PayloadDigestWire {
+    PayloadDigestWire::f64s("estimator.sampling_weights", weights.source())
 }
 
 fn multiway_ids(groups: &[Vec<u32>]) -> PayloadDigestWire {

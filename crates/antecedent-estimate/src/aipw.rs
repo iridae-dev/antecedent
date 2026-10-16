@@ -81,6 +81,7 @@ use crate::propensity::{
     gather, gather_into, prepare_propensity_problem_with_levels, split_by_treatment, trim_of,
     trim_retained_rows,
 };
+use crate::sampling_weights::SamplingWeights;
 use crate::se::AnalyticSeKind;
 use crate::util::{BootstrapSeResult, bootstrap_se, refuse, stats_err};
 
@@ -269,6 +270,12 @@ pub struct AipwAte {
     /// them restricts the target population to the rows at the two declared levels (the
     /// pairwise-subpopulation target) and must be declared. The checked route refuses it.
     pub other_levels: OtherLevels,
+    /// Sampling weights of every row of the source table (see [`crate::sampling_weights`]).
+    /// The cross-fitted ATE route reads them: nuisances are fit by weighted logistic and
+    /// weighted least squares, the scores are averaged under the weights, and the standard
+    /// error is the linearization of that weighted mean. Trimmed, ATT/ATC, penalized and
+    /// cluster-DML constructions refuse them.
+    pub sampling_weights: Option<SamplingWeights>,
 }
 
 /// Per-row influence of the control-to-treated score contrast: the plain score difference
@@ -320,7 +327,16 @@ impl AipwAte {
             propensity: PropensityNuisance::default(),
             cluster_dml: None,
             other_levels: OtherLevels::default(),
+            sampling_weights: None,
         }
+    }
+
+    /// Declare sampling weights for every row of the source table. They are read by the
+    /// cross-fitted ATE route; the estimand is the effect in the weighted population.
+    #[must_use]
+    pub fn with_sampling_weights(mut self, weights: SamplingWeights) -> Self {
+        self.sampling_weights = Some(weights);
+        self
     }
 
     /// Declare what to do with rows whose treatment is at neither declared level (see
@@ -476,6 +492,9 @@ impl AipwAte {
                 self.overlap,
             )?;
         }
+        if self.sampling_weights.is_some() {
+            self.require_weighted_scope(query)?;
+        }
         if let Some(source) = self.source_cluster_ids.as_deref() {
             crate::se::require_source_labels(
                 source,
@@ -519,6 +538,7 @@ impl AipwAte {
             self.overlap,
             self.population_registry.as_ref(),
             self.other_levels,
+            self.sampling_weights.as_ref(),
         )?;
         problem.propensity = self.propensity.clone();
         if let Some(cluster_dml) = &self.cluster_dml {
@@ -531,6 +551,27 @@ impl AipwAte {
             problem.fold_unit_kind = cluster_dml.independence_unit();
         }
         Ok(problem)
+    }
+
+    /// Sampling weights are read by every mean-functional construction (cross-fitted ATE or
+    /// custom target, the in-sample ATT, ATC and trimmed ATE, and the cluster-DML sandwich).
+    /// Non-mean functionals have no sampling-weighted score here, and a penalized propensity
+    /// has no weighted penalty-selection criterion, so both refuse rather than ignore them.
+    fn require_weighted_scope(&self, query: &AverageEffectQuery) -> Result<(), EstimationError> {
+        if query.outcome_functional != antecedent_core::OutcomeFunctional::Mean {
+            return Err(crate::sampling_weights::unsupported_route(
+                "AIPW reads sampling weights on the mean functional; a non-mean outcome \
+                 functional has no sampling-weighted score here",
+            ));
+        }
+        if self.propensity.is_penalized() {
+            return Err(crate::sampling_weights::unsupported_route(
+                "a penalized propensity selects its penalty by an unweighted out-of-fold \
+                 criterion and has no sampling-weighted nuisance fit; use the unpenalized \
+                 propensity with weights",
+            ));
+        }
+        Ok(())
     }
 
     /// A penalized propensity is licensed for one construction only: the untrimmed
@@ -875,9 +916,14 @@ impl AipwAte {
         if matches!(problem.target_population, TargetPopulation::AllObserved)
             && trim_of(problem.overlap).is_none()
         {
-            return self.fit_crossfit_scores(problem, ctx, assumptions, None, false);
+            return self.fit_crossfit_scores(
+                problem,
+                ctx,
+                assumptions,
+                problem.score_weights().as_deref(),
+                false,
+            );
         }
-
         let model = PropensityModel::fit(
             problem,
             self.backend,
@@ -888,6 +934,14 @@ impl AipwAte {
         // Trim on raw scores: excluded units match the overlap report's common-support claim.
         let retained = trim_retained_rows(&model.fit.scores, trim_of(problem.overlap))?;
         let ncols = problem.design_ncols;
+        // Sampling weights of the rows the contrast uses, renormalized to mean one among
+        // them (a trimmed fit estimates the effect in the retained weighted population).
+        let used_sampling = match (&retained, problem.sampling_weights.as_ref()) {
+            (Some(idx), Some(sampling)) => Some(sampling.subset(idx)),
+            (None, Some(sampling)) => Some(sampling.clone()),
+            (_, None) => None,
+        };
+        let used_weights: Option<&[f64]> = used_sampling.as_ref().map(|s| &*s.weights);
         let (design_used, t_used, y_used, e_used) = match &retained {
             Some(idx) => {
                 let mut design = Vec::new();
@@ -913,26 +967,35 @@ impl AipwAte {
             ),
         };
         let nrows = t_used.len();
-        let (beta0, beta1) = fit_outcome_models(
+        let (beta0, beta1) = fit_outcome_models_weighted(
             &design_used,
             nrows,
             ncols,
             &t_used,
             &y_used,
+            used_weights,
             self.backend,
             workspace,
         )?;
         predict_colmajor(&design_used, nrows, ncols, &beta0, &mut workspace.mu0);
         predict_colmajor(&design_used, nrows, ncols, &beta1, &mut workspace.mu1);
-        aipw_psi(
+        aipw_psi_weighted(
             &t_used,
             &y_used,
             &e_used,
             &workspace.mu0,
             &workspace.mu1,
             &problem.target_population,
+            used_weights,
             &mut workspace.psi,
         )?;
+        if let Some(weights) = used_weights {
+            // The weighted estimate is the mean of `m_i ψ_i`; every later step (centering,
+            // nuisance correction, variance) reads these weighted scores.
+            for (value, &m) in workspace.psi.iter_mut().zip(weights) {
+                *value *= m;
+            }
+        }
         let ate = workspace.psi.iter().sum::<f64>() / workspace.psi.len() as f64;
         if matches!(
             problem.target_population,
@@ -944,7 +1007,13 @@ impl AipwAte {
             // robust even though the point estimate is. The estimand depends on the propensity
             // (it averages over the treated / control law), so E[ψ·S_γ] ≠ 0 and
             // projecting ψ off the logistic scores would remove genuine variance.
-            center_population_psi(&mut workspace.psi, &t_used, &problem.target_population, ate);
+            center_population_psi(
+                &mut workspace.psi,
+                &t_used,
+                &problem.target_population,
+                ate,
+                used_weights,
+            );
         } else {
             let e_raw: Cow<'_, [f64]> = match &retained {
                 Some(idx) => Cow::Owned(gather(&model.fit.scores, idx)),
@@ -959,6 +1028,7 @@ impl AipwAte {
                 mu1: &workspace.mu1,
                 design: &design_used,
                 ncols,
+                weights: used_weights,
             };
             correct_aipw_psi_for_nuisances(&mut workspace.psi, &fit)?;
         }
@@ -984,6 +1054,7 @@ impl AipwAte {
         ));
         let estimate = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_se_kind(self.se_kind)
+            .with_sampling_weights(used_sampling.as_ref().map(|s| s.record))
             .with_overlap_report(overlap_report)
             .with_influence(Some(Arc::from(workspace.psi.as_slice())));
         Ok(estimate)
@@ -1003,14 +1074,17 @@ impl AipwAte {
             ));
         }
         let weights = problem
-            .target_weights
-            .as_deref()
+            .score_weights()
             .ok_or_else(|| EstimationError::data_msg("missing custom target weights"))?;
-        self.fit_crossfit_scores(problem, ctx, assumptions, Some(weights), true)
+        self.fit_crossfit_scores(problem, ctx, assumptions, Some(&weights), true)
     }
 
     /// Cross-fitted binary AIPW contrast. Uniform weights (`None`) are the
     /// `AllObserved` retarget(`1`) object.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one linear cross-fit pass: nuisances, scores, influence correction and variance"
+    )]
     fn fit_crossfit_scores(
         &self,
         problem: &PreparedPropensityProblem,
@@ -1080,7 +1154,12 @@ impl AipwAte {
         };
         let cluster_se = match (self.cluster_dml, first_units.as_deref()) {
             (Some(spec), Some(labels)) => {
-                let receipt = spec.receipt(&table, labels, second_units.as_deref())?;
+                let receipt = spec.receipt_with_influence(
+                    &table,
+                    labels,
+                    second_units.as_deref(),
+                    problem.sampling_weights.is_some().then_some(&influence[..]),
+                )?;
                 Some((receipt.cluster_sandwich_se, receipt.reference_df))
             }
             _ => None,
@@ -1088,6 +1167,7 @@ impl AipwAte {
         let mut result =
             EffectEstimate::new(contrast.value, se_analytic, assumptions, problem.overlap)
                 .with_se_kind(self.se_kind)
+                .with_sampling_weights(problem.sampling_weights.as_ref().map(|s| s.record))
                 .with_overlap_report(overlap_report)
                 .with_joint_covariance(iid_se.then_some(summary.covariance))
                 .with_influence(Some(influence.into()))
@@ -1192,7 +1272,7 @@ impl AipwAte {
             let Ok((t, _)) = self.crossfit_table(&p, false, ctx, Some(fold_seed)) else {
                 return Ok(None);
             };
-            let ss = t.summarize(p.target_weights.as_deref())?;
+            let ss = t.summarize(p.score_weights().as_deref())?;
             Ok(Some(ss.means[1] - ss.means[0]))
         })
     }
@@ -1318,6 +1398,10 @@ impl AipwAte {
         Ok(estimate)
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one linear replicate loop: resample, refit nuisances, rescore and aggregate"
+    )]
     fn bootstrap_se(
         &self,
         problem: &PreparedPropensityProblem,
@@ -1351,17 +1435,33 @@ impl AipwAte {
                 crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
                 crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
                 crate::util::gather_bootstrap_design(x_boot, &problem.design_matrix, n, ncols, idx);
-                if antecedent_stats::fit_propensity_in_place(
-                    x_boot,
-                    n,
-                    ncols,
-                    t_boot,
-                    &self.backend,
-                    &mut workspace.propensity,
-                    &self.glm_options,
-                )
-                .is_err()
-                {
+                // The resample carries each drawn row's sampling weight.
+                let w_boot: Option<Vec<f64>> = problem
+                    .sampling_weights
+                    .as_ref()
+                    .map(|s| idx.iter().map(|&i| s.weights[i]).collect());
+                let propensity_fit = match w_boot.as_deref() {
+                    Some(w) => antecedent_stats::fit_propensity_weighted_in_place(
+                        x_boot,
+                        n,
+                        ncols,
+                        t_boot,
+                        w,
+                        &self.backend,
+                        &mut workspace.propensity,
+                        &self.glm_options,
+                    ),
+                    None => antecedent_stats::fit_propensity_in_place(
+                        x_boot,
+                        n,
+                        ncols,
+                        t_boot,
+                        &self.backend,
+                        &mut workspace.propensity,
+                        &self.glm_options,
+                    ),
+                };
+                if propensity_fit.is_err() {
                     return Ok(None);
                 }
                 let raw = &workspace.propensity.scores[..n];
@@ -1384,12 +1484,25 @@ impl AipwAte {
                         None => (x_boot, t_boot, y_boot, e),
                     };
                 let nrows = t_used.len();
-                let Ok((beta0, beta1)) = fit_outcome_models(
+                // Weights of the rows the contrast uses, renormalized to mean one.
+                let w_used: Option<Vec<f64>> = w_boot.as_ref().map(|w| {
+                    let mut used: Vec<f64> = match &retained {
+                        Some(rows) => rows.iter().map(|&i| w[i]).collect(),
+                        None => w.clone(),
+                    };
+                    let scale = used.len() as f64 / used.iter().sum::<f64>();
+                    for value in &mut used {
+                        *value *= scale;
+                    }
+                    used
+                });
+                let Ok((beta0, beta1)) = fit_outcome_models_weighted(
                     design_used,
                     nrows,
                     ncols,
                     t_used,
                     y_used,
+                    w_used.as_deref(),
                     self.backend,
                     workspace,
                 ) else {
@@ -1397,18 +1510,24 @@ impl AipwAte {
                 };
                 predict_colmajor(design_used, nrows, ncols, &beta0, &mut workspace.mu0);
                 predict_colmajor(design_used, nrows, ncols, &beta1, &mut workspace.mu1);
-                if aipw_psi(
+                if aipw_psi_weighted(
                     t_used,
                     y_used,
                     e_used,
                     &workspace.mu0,
                     &workspace.mu1,
                     &problem.target_population,
+                    w_used.as_deref(),
                     &mut workspace.psi,
                 )
                 .is_err()
                 {
                     return Ok(None);
+                }
+                if let Some(w) = w_used.as_deref() {
+                    for (value, &m) in workspace.psi.iter_mut().zip(w) {
+                        *value *= m;
+                    }
                 }
                 let m = workspace.psi.len() as f64;
                 Ok(Some(workspace.psi.iter().sum::<f64>() / m))
@@ -1468,6 +1587,9 @@ pub(crate) fn resampled_problem(
     if let Some(w) = weights {
         p.target_weights = Some(gather(w, idx).into());
     }
+    if let Some(sampling) = problem.sampling_weights.as_ref() {
+        p.sampling_weights = Some(sampling.subset(idx));
+    }
     p
 }
 
@@ -1503,12 +1625,49 @@ fn select_values(values: &[f64], idx: &[usize], out: &mut Vec<f64>) {
 /// # Errors
 ///
 /// Empty treated/control arm, or an OLS backend failure (e.g. rank deficiency within an arm).
+#[allow(
+    dead_code,
+    reason = "the unweighted entry point of fit_outcome_models_weighted, kept for callers without weights"
+)]
 pub(crate) fn fit_outcome_models(
     design_matrix: &[f64],
     nrows: usize,
     ncols: usize,
     treatment: &[f64],
     outcome: &[f64],
+    backend: FaerBackend,
+    workspace: &mut AipwWorkspace,
+) -> Result<(Vec<f64>, Vec<f64>), EstimationError> {
+    fit_outcome_models_weighted(
+        design_matrix,
+        nrows,
+        ncols,
+        treatment,
+        outcome,
+        None,
+        backend,
+        workspace,
+    )
+}
+
+/// [`fit_outcome_models`] under optional prior (sampling) weights: each arm's model is the
+/// weighted least-squares fit, computed as OLS on rows scaled by the square root of their
+/// weights.
+///
+/// # Errors
+///
+/// As [`fit_outcome_models`].
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the unweighted entry point's arguments plus the weights"
+)]
+pub(crate) fn fit_outcome_models_weighted(
+    design_matrix: &[f64],
+    nrows: usize,
+    ncols: usize,
+    treatment: &[f64],
+    outcome: &[f64],
+    weights: Option<&[f64]>,
     backend: FaerBackend,
     workspace: &mut AipwWorkspace,
 ) -> Result<(Vec<f64>, Vec<f64>), EstimationError> {
@@ -1521,6 +1680,15 @@ pub(crate) fn fit_outcome_models(
 
     select_rows_colmajor(design_matrix, nrows, ncols, &control_idx, &mut workspace.control_design);
     select_values(outcome, &control_idx, &mut workspace.control_outcome);
+    if let Some(w) = weights {
+        root_weight_rows(
+            &mut workspace.control_design,
+            &mut workspace.control_outcome,
+            ncols,
+            &control_idx,
+            w,
+        );
+    }
     let fit0 = backend
         .least_squares(
             &workspace.control_design,
@@ -1534,6 +1702,15 @@ pub(crate) fn fit_outcome_models(
 
     select_rows_colmajor(design_matrix, nrows, ncols, &treated_idx, &mut workspace.treated_design);
     select_values(outcome, &treated_idx, &mut workspace.treated_outcome);
+    if let Some(w) = weights {
+        root_weight_rows(
+            &mut workspace.treated_design,
+            &mut workspace.treated_outcome,
+            ncols,
+            &treated_idx,
+            w,
+        );
+    }
     let fit1 = backend
         .least_squares(
             &workspace.treated_design,
@@ -1546,6 +1723,25 @@ pub(crate) fn fit_outcome_models(
     let beta1 = fit1.coefficients;
 
     Ok((beta0, beta1))
+}
+
+/// Multiply the rows of an arm's column-major design and outcome by the square root of the
+/// weight of the source row each came from (`rows[r]` indexes `weights`).
+fn root_weight_rows(
+    design: &mut [f64],
+    outcome: &mut [f64],
+    ncols: usize,
+    rows: &[usize],
+    weights: &[f64],
+) {
+    let m = rows.len();
+    for (r, &source) in rows.iter().enumerate() {
+        let root = weights[source].sqrt();
+        outcome[r] *= root;
+        for c in 0..ncols {
+            design[c * m + r] *= root;
+        }
+    }
 }
 
 /// Predict `design · coef` for every row of a column-major `nrows × ncols` design.
@@ -1568,6 +1764,7 @@ pub(crate) fn predict_colmajor(
 }
 
 /// Compute AIPW per-unit IF values for ATE / ATT / ATC.
+#[cfg(test)]
 fn aipw_psi(
     treatment: &[f64],
     outcome: &[f64],
@@ -1577,6 +1774,28 @@ fn aipw_psi(
     target: &TargetPopulation,
     out: &mut Vec<f64>,
 ) -> Result<(), EstimationError> {
+    aipw_psi_weighted(treatment, outcome, propensity, mu0, mu1, target, None, out)
+}
+
+/// [`aipw_psi`] with optional sampling weights (mean one): the ATT / ATC arm share `π̂` is
+/// the weighted share, so `mean(m_i ψ_i)` is the weighted-population effect. The ATE score
+/// per row does not depend on the weights.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the score reads the six aligned nuisance and data columns, the target and the weights"
+)]
+fn aipw_psi_weighted(
+    treatment: &[f64],
+    outcome: &[f64],
+    propensity: &[f64],
+    mu0: &[f64],
+    mu1: &[f64],
+    target: &TargetPopulation,
+    weights: Option<&[f64]>,
+    out: &mut Vec<f64>,
+) -> Result<(), EstimationError> {
+    let weight = |i: usize| weights.map_or(1.0, |w| w[i]);
+    let n_rows = treatment.len() as f64;
     out.clear();
     out.reserve(treatment.len());
     match target {
@@ -1589,7 +1808,13 @@ fn aipw_psi(
             }
         }
         TargetPopulation::Treated => {
-            let pi = treatment.iter().filter(|&&t| t > 0.5).count() as f64 / treatment.len() as f64;
+            let pi = treatment
+                .iter()
+                .enumerate()
+                .filter(|(_, t)| **t > 0.5)
+                .map(|(i, _)| weight(i))
+                .sum::<f64>()
+                / n_rows;
             if pi <= 0.0 {
                 return Err(EstimationError::data_msg("ATT requires treated units"));
             }
@@ -1602,8 +1827,13 @@ fn aipw_psi(
             }
         }
         TargetPopulation::Untreated => {
-            let pi0 =
-                treatment.iter().filter(|&&t| t <= 0.5).count() as f64 / treatment.len() as f64;
+            let pi0 = treatment
+                .iter()
+                .enumerate()
+                .filter(|(_, t)| **t <= 0.5)
+                .map(|(i, _)| weight(i))
+                .sum::<f64>()
+                / n_rows;
             if pi0 <= 0.0 {
                 return Err(EstimationError::data_msg("ATC requires control units"));
             }
@@ -1642,8 +1872,10 @@ fn center_population_psi(
     treatment: &[f64],
     target: &TargetPopulation,
     estimate: f64,
+    weights: Option<&[f64]>,
 ) {
     let n = treatment.len() as f64;
+    let weight = |i: usize| weights.map_or(1.0, |w| w[i]);
     let arm_indicator =
         |t: f64, treated: bool| -> f64 { if (t > 0.5) == treated { 1.0 } else { 0.0 } };
     let treated = match target {
@@ -1651,12 +1883,17 @@ fn center_population_psi(
         TargetPopulation::Untreated => false,
         _ => return,
     };
-    let share = treatment.iter().map(|&t| arm_indicator(t, treated)).sum::<f64>() / n;
+    let share = treatment
+        .iter()
+        .enumerate()
+        .map(|(i, &t)| weight(i) * arm_indicator(t, treated))
+        .sum::<f64>()
+        / n;
     if share <= 0.0 {
         return;
     }
-    for (value, &t) in psi.iter_mut().zip(treatment) {
-        *value -= estimate * arm_indicator(t, treated) / share;
+    for (i, (value, &t)) in psi.iter_mut().zip(treatment).enumerate() {
+        *value -= estimate * weight(i) * arm_indicator(t, treated) / share;
     }
 }
 
@@ -1715,6 +1952,25 @@ fn correct_aipw_psi_for_nuisances(
         b0_info[i] = 1.0 - t;
         b0_deriv[i] = -(1.0 - (1.0 - t) / (1.0 - e));
     }
+    if let Some(weights) = fit.weights {
+        // Weighted stacked system: every block's score, information and derivative carries
+        // the row's sampling weight.
+        for block in [
+            &mut e_score,
+            &mut e_info,
+            &mut e_deriv,
+            &mut b1_score,
+            &mut b1_info,
+            &mut b1_deriv,
+            &mut b0_score,
+            &mut b0_info,
+            &mut b0_deriv,
+        ] {
+            for (value, &m) in block.iter_mut().zip(weights) {
+                *value *= m;
+            }
+        }
+    }
     let singular = "singular AIPW nuisance-score information; refusing an uncorrected analytic SE";
     // Each block's derivative is a function of the data only, so the terms add independently.
     for (score, info, deriv) in [
@@ -1741,6 +1997,8 @@ struct AipwNuisanceFit<'a> {
     mu1: &'a [f64],
     design: &'a [f64],
     ncols: usize,
+    /// Sampling weights of the rows (mean one), when declared.
+    weights: Option<&'a [f64]>,
 }
 
 /// Overlap report of the treated arm's cross-fitted propensities, when the table carries one.

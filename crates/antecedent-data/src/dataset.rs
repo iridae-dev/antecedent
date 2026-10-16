@@ -223,6 +223,31 @@ impl TimeSeriesData {
         Self::try_new(replaced.storage().clone(), self.time_index.clone())
     }
 
+    /// Attach observation weights (one per time step), replacing any existing ones; preserves
+    /// columns, validity, the analysis mask and the time index.
+    ///
+    /// # Errors
+    ///
+    /// A weight count that is not the series length, or weights that are not finite and
+    /// non-negative with positive total over the analysis rows.
+    pub fn with_weights(&self, weights: Arc<[f64]>) -> Result<Self, DataError> {
+        let storage = &self.storage;
+        if weights.len() != storage.row_count() {
+            return Err(DataError::LengthMismatch {
+                expected: storage.row_count(),
+                actual: weights.len(),
+                context: "observation weights",
+            });
+        }
+        let new_storage = OwnedColumnarStorage::try_new(
+            storage.schema().clone(),
+            storage.columns().to_vec(),
+            storage.analysis_mask().cloned(),
+            Some(weights),
+        )?;
+        Self::try_new(new_storage, self.time_index.clone())
+    }
+
     /// Restrict analysis to rows where `mask` is valid, intersected (AND) with any existing
     /// analysis mask; preserves columns, validity, weights, and time index.
     ///

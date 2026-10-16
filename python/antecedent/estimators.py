@@ -42,7 +42,7 @@ equivalent::
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Final, Literal
 
@@ -494,6 +494,39 @@ def _wire_other_levels(other_levels: OtherLevelsName) -> dict[str, Any]:
     return {} if other_levels == "refuse" else {"other_levels": other_levels}
 
 
+def _validate_weights(weights: str | Sequence[float] | None) -> None:
+    """``weights`` names a data column of sampling weights or holds one weight per row."""
+    if weights is None:
+        return
+    if isinstance(weights, str):
+        if not weights.strip():
+            raise CausalValueError(
+                "weights must name a data column or hold one weight per row",
+                reason_code="invalid_argument",
+            )
+        return
+    if isinstance(weights, Mapping | bytes) or not hasattr(weights, "__len__"):
+        raise CausalValueError(
+            f"weights must name a data column or hold one weight per row, got {weights!r}",
+            reason_code="invalid_argument",
+        )
+
+
+def _wire_weights(weights: str | Sequence[float] | None) -> dict[str, Any]:
+    if weights is None:
+        return {}
+    return {"weights": weights if isinstance(weights, str) else [float(w) for w in weights]}
+
+
+def _validate_cluster_only(cluster: str | None, cluster_ids: Sequence[int] | None) -> None:
+    """``cluster`` of an estimator whose cluster declaration needs no ``se`` choice."""
+    if cluster is not None:
+        if not isinstance(cluster, str) or not cluster.strip():
+            raise ValueError(f"cluster must name a data column, got {cluster!r}")
+        if cluster_ids is not None:
+            raise ValueError("cluster names a column; do not also pass cluster_ids")
+
+
 def _wire_overlap(overlap: Overlap | None) -> dict[str, Any]:
     if overlap is None:
         return {}
@@ -570,6 +603,7 @@ class LinearAdjustment:
     fit_lambda: float | None = None
     fit_c: float | None = None
     cluster: str | None = None
+    weights: str | Sequence[float] | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -581,6 +615,19 @@ class LinearAdjustment:
             cluster=self.cluster,
         )
         _validate_linear_fit(fit=self.fit, fit_lambda=self.fit_lambda, fit_c=self.fit_c, se=self.se)
+        _validate_weights(self.weights)
+        if self.weights is not None and self.se == "homoskedastic":
+            raise CausalValueError(
+                "se='homoskedastic' treats weights as precision and is invalid for sampling "
+                "weights; use se='hc1' (the default with weights), another hc kind or 'cluster'",
+                reason_code="option_not_applicable",
+            )
+        if self.weights is not None and self.fit not in (None, "ols"):
+            raise CausalValueError(
+                "weights= are read by the ordinary least-squares fit only; ridge, lasso and "
+                "Huber fits have no sampling-weighted variance",
+                reason_code="option_not_applicable",
+            )
 
     @property
     def estimator_id(self) -> str:
@@ -602,6 +649,16 @@ class LinearAdjustment:
             out["fit_lambda"] = self.fit_lambda
         if self.fit_c is not None:
             out["fit_c"] = self.fit_c
+        out.update(_wire_weights(self.weights))
+        if (
+            self.weights is not None
+            and self.se is None
+            and self.cluster is None
+            and self.cluster_ids is None
+        ):
+            # Weighted fits default to the HC1 sandwich; the classical homoskedastic
+            # request is refused natively, so it is never a silent substitution.
+            out["se_kind"] = "hc1"
         return _omit_empty(out)
 
 
@@ -609,19 +666,32 @@ class LinearAdjustment:
 class PropensityWeighting:
     """``propensity.weighting`` — Hajek-normalized IPW.
 
-    No ``se``/``cluster_ids``/... fields: the Rust struct carries no
-    ``AnalyticSeKind`` at all for this estimator (the Hajek SE isn't
-    parameterized that way) — only ``bootstrap_replicates`` and ``glm_options``
-    are configurable, plus the propensity ``overlap`` policy.
+    No ``se`` field: the Hajek SE is the linearization of the stacked propensity and
+    weighted-mean estimating equations, so the estimated propensity is in the variance.
+    ``cluster="site"`` names the data column of cluster labels: the standard error is then
+    the cluster sandwich of that same corrected influence function, and ``bootstrap`` resamples
+    whole clusters (a replicate has as many clusters as the data and a variable number of
+    rows), refitting the propensity on each.
+
+    ``weights="w"`` names a column of sampling weights (or gives one weight per row). The
+    propensity model is fit by weighted logistic regression, the inverse-probability weights
+    are multiplied by the sampling weights, and the estimate is the effect in the weighted
+    population; rows of weight zero are excluded and counted, and the effective sample size is
+    reported with the result.
     """
 
     bootstrap: int | None = None
     glm_options: GlmOptions | None = None
     overlap: Overlap | None = None
     other_levels: OtherLevelsName = "refuse"
+    cluster: str | None = None
+    cluster_ids: Sequence[int] | None = None
+    weights: str | Sequence[float] | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
+        _validate_cluster_only(self.cluster, self.cluster_ids)
+        _validate_weights(self.weights)
 
     @property
     def estimator_id(self) -> str:
@@ -634,6 +704,11 @@ class PropensityWeighting:
         out.update(_wire_glm_options(self.glm_options))
         out.update(_wire_overlap(self.overlap))
         out.update(_wire_other_levels(self.other_levels))
+        if self.cluster is not None:
+            out["cluster"] = self.cluster
+        if self.cluster_ids is not None:
+            out["cluster_ids"] = list(self.cluster_ids)
+        out.update(_wire_weights(self.weights))
         return _omit_empty(out)
 
 
@@ -654,6 +729,11 @@ class PropensityMatching:
     are accepted here but refused at fit (``estimator_inference_mismatch``): no
     clustered influence function exists for fixed-match nearest-neighbour matching.
     Use :class:`Aipw` for clustered or serially dependent data.
+
+    ``weights="w"`` names a column of sampling weights (or gives one weight per row): the
+    propensity model is fit with them, donors stay the nearest rows of the sample, and the
+    effect is the weighted mean of the matched unit effects with the Abadie-Imbens variance
+    of a weighted matched mean. The weighted interval is a separate calibration claim.
     """
 
     bootstrap: int | None = None
@@ -667,6 +747,7 @@ class PropensityMatching:
     caliper_scale: Literal["logit", "raw"] | None = None
     overlap: Overlap | None = None
     other_levels: OtherLevelsName = "refuse"
+    weights: str | Sequence[float] | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -676,6 +757,7 @@ class PropensityMatching:
             cluster_ids=self.cluster_ids,
             multiway_ids=self.multiway_ids,
         )
+        _validate_weights(self.weights)
         _validate_positive("caliper", self.caliper)
         if self.caliper_scale is not None and self.caliper_scale not in ("logit", "raw"):
             raise CausalValueError(
@@ -702,22 +784,36 @@ class PropensityMatching:
             out["caliper_scale"] = self.caliper_scale
         out.update(_wire_overlap(self.overlap))
         out.update(_wire_other_levels(self.other_levels))
+        out.update(_wire_weights(self.weights))
         return _omit_empty(out)
 
 
 @dataclass(frozen=True, slots=True)
 class PropensityStratification:
-    """``propensity.stratification`` — propensity-score strata (default 5 strata)."""
+    """``propensity.stratification`` — propensity-score strata (default 5 strata).
+
+    ``cluster="site"`` names the data column of cluster labels: the analytic SE is the cluster
+    sandwich of the stratified influence values given the strata, and ``bootstrap`` resamples
+    whole clusters, refitting the propensity and re-cutting the strata on each replicate (the
+    construction that carries the nuisance fit). ``weights="w"`` names a column of sampling
+    weights: the propensity model is fit with them and strata pool weighted arm means by
+    weighted stratum mass.
+    """
 
     bootstrap: int | None = None
     glm_options: GlmOptions | None = None
     n_strata: int | None = None
     overlap: Overlap | None = None
     other_levels: OtherLevelsName = "refuse"
+    cluster: str | None = None
+    cluster_ids: Sequence[int] | None = None
+    weights: str | Sequence[float] | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
         _validate_positive("n_strata", self.n_strata)
+        _validate_cluster_only(self.cluster, self.cluster_ids)
+        _validate_weights(self.weights)
 
     @property
     def estimator_id(self) -> str:
@@ -732,6 +828,11 @@ class PropensityStratification:
             out["n_strata"] = self.n_strata
         out.update(_wire_overlap(self.overlap))
         out.update(_wire_other_levels(self.other_levels))
+        if self.cluster is not None:
+            out["cluster"] = self.cluster
+        if self.cluster_ids is not None:
+            out["cluster_ids"] = list(self.cluster_ids)
+        out.update(_wire_weights(self.weights))
         return _omit_empty(out)
 
 
@@ -753,6 +854,7 @@ class DistanceMatching:
     glm_options: GlmOptions | None = None
     caliper: float | None = None
     overlap: Overlap | None = None
+    weights: str | Sequence[float] | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -763,6 +865,7 @@ class DistanceMatching:
             multiway_ids=self.multiway_ids,
         )
         _validate_positive("caliper", self.caliper)
+        _validate_weights(self.weights)
 
     @property
     def estimator_id(self) -> str:
@@ -781,6 +884,7 @@ class DistanceMatching:
         if self.caliper is not None:
             out["caliper"] = self.caliper
         out.update(_wire_overlap(self.overlap))
+        out.update(_wire_weights(self.weights))
         return _omit_empty(out)
 
 
@@ -811,6 +915,12 @@ class Aipw:
     ``cluster="site"`` names the data column of cluster labels for ``se="cluster"``, as for
     :class:`LinearAdjustment`; the cross-fit units of ``cluster_dml`` take ``cluster_ids``
     aligned to the analysed rows instead.
+    ``weights="w"`` names a column of sampling weights (or gives one weight per row): nuisances
+    are fit by weighted logistic and weighted least squares, scores are averaged under the
+    weights and the estimate is the effect in the weighted population. This covers the
+    cross-fitted ATE, the in-sample ATT / ATC and trimmed ATE, and ``cluster_dml`` (the cluster
+    sandwich of the weighted influence). A penalized propensity and a penalized fallback select
+    their penalty by an unweighted criterion and refuse them (``option_not_applicable``).
     """
 
     bootstrap: int | None = None
@@ -826,6 +936,7 @@ class Aipw:
     cluster_dml: ClusterDml | None = None
     other_levels: OtherLevelsName = "refuse"
     cluster: str | None = None
+    weights: str | Sequence[float] | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -836,6 +947,18 @@ class Aipw:
             multiway_ids=self.multiway_ids,
             cluster=self.cluster,
         )
+        _validate_weights(self.weights)
+        if self.weights is not None and (
+            self.propensity_penalty is not None
+            or isinstance(self.nuisance_fallback, PropensityPenalty)
+            or self.nuisance_fallback not in (None, "none")
+        ):
+            raise CausalValueError(
+                "weights= are read by the unpenalized propensity; a penalized propensity and a "
+                "penalized fallback select their penalty by an unweighted out-of-fold criterion "
+                "and have no sampling-weighted nuisance fit",
+                reason_code="option_not_applicable",
+            )
         if self.cluster_dml is not None:
             if not isinstance(self.cluster_dml, ClusterDml):
                 raise CausalValueError(
@@ -900,6 +1023,7 @@ class Aipw:
             out["nuisance_fallback"] = self.nuisance_fallback
         if self.cluster_dml is not None:
             out["cluster_dml"] = self.cluster_dml._wire()
+        out.update(_wire_weights(self.weights))
         return _omit_empty(out)
 
 
@@ -920,6 +1044,7 @@ class GlmAdjustment:
     glm_options: GlmOptions | None = None
     family: GlmFamilyName | None = None
     cluster: str | None = None
+    weights: str | Sequence[float] | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -930,6 +1055,21 @@ class GlmAdjustment:
             multiway_ids=self.multiway_ids,
             cluster=self.cluster,
         )
+        _validate_weights(self.weights)
+        if self.weights is not None:
+            if self.family == "negative_binomial":
+                raise CausalValueError(
+                    "weights= are not read by the negative-binomial family (its dispersion has "
+                    "no prior-weighted fit); use the logit, probit, Poisson or Gaussian family",
+                    reason_code="option_not_applicable",
+                )
+            if self.se == "homoskedastic":
+                raise CausalValueError(
+                    "se='homoskedastic' treats weights as precision and is invalid for sampling "
+                    "weights; use se='hc1' (the default with weights), another hc kind or "
+                    "'cluster'",
+                    reason_code="option_not_applicable",
+                )
 
     @property
     def estimator_id(self) -> str:
@@ -948,6 +1088,14 @@ class GlmAdjustment:
         out.update(_wire_glm_options(self.glm_options))
         if self.family is not None:
             out["family"] = self.family
+        out.update(_wire_weights(self.weights))
+        if (
+            self.weights is not None
+            and self.se is None
+            and self.cluster is None
+            and self.cluster_ids is None
+        ):
+            out["se_kind"] = "hc1"
         return _omit_empty(out)
 
 
@@ -1109,10 +1257,18 @@ class DML:
     overlap: Overlap | None = None
     other_levels: OtherLevelsName = "refuse"
     cluster_dml: ClusterDml | None = None
+    weights: str | Sequence[float] | None = None
 
     def __post_init__(self) -> None:
         if self.cluster_dml is not None and not isinstance(self.cluster_dml, ClusterDml):
             raise CausalValueError(f"cluster_dml must be a ClusterDml, got {self.cluster_dml!r}")
+        _validate_weights(self.weights)
+        if self.weights is not None and self.cluster_dml is not None:
+            raise CausalValueError(
+                "weights= with cluster_dml= is available on Aipw only: the DML cluster sandwich "
+                "reads the unweighted score table",
+                reason_code="option_not_applicable",
+            )
         if self.cluster_dml is not None and self.score == "partially_linear":
             raise CausalValueError(
                 "DML(cluster_dml=...) needs the AIPW score (reason=route_not_supported)"
@@ -1142,6 +1298,7 @@ class DML:
         out.update(_wire_other_levels(self.other_levels))
         if self.cluster_dml is not None:
             out["cluster_dml"] = self.cluster_dml._wire()
+        out.update(_wire_weights(self.weights))
         return _omit_empty(out)
 
 
@@ -1166,10 +1323,18 @@ class DRLearner:
     folds: int | None = None
     overlap: Overlap | None = None
     cluster_dml: ClusterDml | None = None
+    weights: str | Sequence[float] | None = None
 
     def __post_init__(self) -> None:
         if self.cluster_dml is not None and not isinstance(self.cluster_dml, ClusterDml):
             raise CausalValueError(f"cluster_dml must be a ClusterDml, got {self.cluster_dml!r}")
+        _validate_weights(self.weights)
+        if self.weights is not None and self.cluster_dml is not None:
+            raise CausalValueError(
+                "weights= with cluster_dml= is available on Aipw only: the DR-learner cluster "
+                "sandwich reads the unweighted score table",
+                reason_code="option_not_applicable",
+            )
         if self.folds is not None and self.folds < 2:
             raise ValueError(f"DRLearner folds must be at least 2, got {self.folds!r}")
 
@@ -1192,6 +1357,7 @@ class DRLearner:
         out.update(_wire_overlap(self.overlap))
         if self.cluster_dml is not None:
             out["cluster_dml"] = self.cluster_dml._wire()
+        out.update(_wire_weights(self.weights))
         return _omit_empty(out)
 
 
@@ -1199,18 +1365,26 @@ class DRLearner:
 class CausalForest:
     """``causal.forest`` — honest causal-forest CATE.
 
-    These flexible-learner estimators take no cluster or dependence option: an
-    ``estimator_config`` carrying ``cluster_ids``, ``cluster_dml`` or ``multiway_ids`` for
-    them refuses ``route_not_supported`` (``cluster_dml.flexible_learner_closed``) instead of
-    being ignored; use ``Aipw(bootstrap=0, cluster_dml=ClusterDml(...))`` for clustered data.
+    ``cluster="site"`` names the data column of cluster labels and declares the independence
+    unit: every tree is grown on a subsample of whole clusters, honesty splits those clusters
+    (not their rows) between placing splits and estimating leaf effects, and the marginal ATE is
+    the whole-cluster cross-fitted score with its cluster-sandwich standard error;
+    ``min_clusters`` (default 20) is the smallest cluster count accepted. Row-aligned
+    ``cluster_ids``, ``cluster_dml`` and ``multiway_ids`` in an ``estimator_config`` refuse
+    ``route_not_supported`` (``cluster_dml.flexible_learner_closed``) instead of being ignored.
     """
 
     n_trees: int | None = None
     min_leaf: int | None = None
     max_depth: int | None = None
     honesty: bool | None = None
+    cluster: str | None = None
+    min_clusters: int | None = None
 
     def __post_init__(self) -> None:
+        _validate_cluster_only(self.cluster, None)
+        if self.min_clusters is not None and self.cluster is None:
+            raise ValueError("CausalForest min_clusters requires cluster")
         if self.n_trees is not None and self.n_trees < 1:
             raise ValueError(f"CausalForest n_trees must be at least 1, got {self.n_trees!r}")
         if self.min_leaf is not None and self.min_leaf < 1:
@@ -1232,6 +1406,10 @@ class CausalForest:
             out["max_depth"] = self.max_depth
         if self.honesty is not None:
             out["honesty"] = self.honesty
+        if self.cluster is not None:
+            out["cluster"] = self.cluster
+        if self.min_clusters is not None:
+            out["min_clusters"] = self.min_clusters
         return _omit_empty(out)
 
 

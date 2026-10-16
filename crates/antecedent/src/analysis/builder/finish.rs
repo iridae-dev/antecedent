@@ -64,6 +64,7 @@ pub(super) struct FinishInput {
     pub(super) overlap_policy: Option<OverlapPolicy>,
     pub(super) population_registry: Option<PopulationRegistry>,
     pub(super) participants: Option<antecedent_io::ParticipantBindingWire>,
+    pub(super) missing: Option<antecedent_data::MissingDeclaration>,
     pub(super) custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     pub(super) tiered: Option<TieredBackground>,
     pub(super) caller_graph: bool,
@@ -106,6 +107,7 @@ struct Carry {
     overlap_policy: Option<OverlapPolicy>,
     population_registry: Option<PopulationRegistry>,
     participants: Option<antecedent_io::ParticipantBindingWire>,
+    missing: Option<antecedent_data::MissingDeclaration>,
     custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     tiered: Option<TieredBackground>,
     continuous_cell: Option<(VariableId, Arc<[f64]>)>,
@@ -215,6 +217,7 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
         overlap_policy,
         population_registry,
         participants,
+        missing,
         custom_validators,
         tiered,
         caller_graph: _,
@@ -254,6 +257,7 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
             overlap_policy,
             population_registry,
             participants,
+            missing,
             custom_validators,
             tiered,
             continuous_cell,
@@ -272,6 +276,11 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
 
 /// Refuses builder inputs that are mutually exclusive before any field is moved.
 fn refuse_conflicting_inputs(input: &FinishInput) -> Result<(), CausalError> {
+    crate::analysis::missing_data::validate_declaration(
+        input.query.as_ref(),
+        &input.data,
+        input.missing.as_ref(),
+    )?;
     if let Some(spec) = &input.estimator_spec {
         if spec.is_configured() {
             if input.bootstrap_explicit {
@@ -1252,6 +1261,7 @@ fn into_study(exposure: BoundExposure) -> Study {
         overlap_policy: carry.overlap_policy,
         population_registry: carry.population_registry,
         participants: carry.participants,
+        missing: carry.missing,
         custom_validators: carry.custom_validators,
         latency_mode: carry.latency_mode,
         identification_cache,

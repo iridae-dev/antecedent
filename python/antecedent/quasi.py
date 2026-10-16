@@ -14,7 +14,7 @@ import numpy as np
 from ._data import as_columns
 from ._native import difference_in_differences as _difference_in_differences
 from ._native import group_time_att as _group_time_att
-from .errors import CausalValueError
+from .errors import CausalUnsupportedError, CausalValueError
 
 
 def _binary(values: Iterable[Any], name: str) -> list[bool]:
@@ -101,6 +101,14 @@ class PanelDifferenceInDifferences:
     cluster across groups is refused. With two periods, parallel untreated
     trends is an identifying assumption and cannot be tested from pre-trends.
     The design does not support staggered adoption or missing waves.
+
+    ``weights="w"`` names a column of sampling weights of the balanced panel (both rows of a
+    subject carry the subject's weight). The estimate is the difference of the two groups'
+    weighted mean change scores in the weighted population; the standard error is the cluster
+    score sandwich over sampling-weighted scores, treating clusters as the independent primary
+    sampling units. Weights are normalized to mean one (the estimate does not depend on their
+    scale), subjects of weight zero are excluded and counted, the Kish effective sample size is
+    reported, and no interval is published.
     """
 
     outcome: str
@@ -109,6 +117,7 @@ class PanelDifferenceInDifferences:
     post: str
     cluster: str | None = None
     sampling: Literal["balanced_panel", "repeated_cross_section"] = "balanced_panel"
+    weights: str | None = None
 
     @classmethod
     def repeated_cross_section(
@@ -137,6 +146,20 @@ class PanelDifferenceInDifferences:
             raise CausalValueError("cluster must be a distinct non-empty column name")
         if self.sampling not in ("balanced_panel", "repeated_cross_section"):
             raise CausalValueError("sampling must be balanced_panel or repeated_cross_section")
+        if self.weights is not None:
+            if (
+                not isinstance(self.weights, str)
+                or not self.weights.strip()
+                or self.weights in fields
+                or self.weights == self.cluster
+            ):
+                raise CausalValueError("weights must be a distinct non-empty column name")
+            if self.sampling != "balanced_panel":
+                raise CausalUnsupportedError(
+                    "weights= are read by the balanced two-period panel DiD; a repeated "
+                    "cross-section has no sampling-weighted contrast",
+                    reason_code="option_not_applicable",
+                )
 
 
 @dataclass(frozen=True, slots=True)

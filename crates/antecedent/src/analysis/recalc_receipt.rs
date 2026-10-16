@@ -712,6 +712,10 @@ fn estimator_identity_bytes(estimator: &AipwAte) -> Vec<u8> {
         out.push(3);
         push_u32s(&mut out, labels);
     }
+    if let Some(weights) = estimator.sampling_weights.as_ref() {
+        out.push(4);
+        push_f64s(&mut out, weights.source());
+    }
     out
 }
 

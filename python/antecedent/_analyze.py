@@ -12,6 +12,7 @@ from .extensibility import providers as _providers
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
+from .missing import MissingPolicy
 from .interference import InterferenceQuery
 from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
 from .quasi import (
@@ -146,6 +147,7 @@ def analyze(
     class_prior: ClassPrior | None = None,
     max_completions: int | None = None,
     participant: str | None = None,
+    missing: str | MissingPolicy | None = None,
     outcome_units: str | None = None,
     dose_units: str | None = None,
     quantity_population: str = "target",
@@ -233,6 +235,14 @@ def analyze(
         numbers. The labels are read from the raw table, kept with their original rows and
         frozen in the prepared study: ``refresh`` refuses a table that holds other labels or
         other rows, and ``reprepare`` rebuilds them.
+    missing:
+        How rows with missing values are handled: a policy name (``"error"``,
+        ``"complete_case"``, ``"inverse_probability"``, ``"balanced_panel"``,
+        ``"available_case"``) or an :class:`antecedent.missing.MissingPolicy`. Average-effect
+        routes keep their complete-case selection by default and report the rows it dropped;
+        randomized, panel, temporal and NOTEARS routes refuse a missing value until a policy
+        is declared, naming the first missing cell. Every result carries ``missing_data``:
+        the policy, the assumption it needs and the row accounting.
     latency:
         Optional compute tier (``interactive`` / ``standard`` / ``report``).
         The study builder maps it onto the omitted bootstrap / refute / draw
@@ -308,6 +318,7 @@ def analyze(
                 )
             )
             or participant is not None
+            or missing is not None
             or seed != 1
             or not accept_discovered
             or return_posterior_artifact
@@ -402,6 +413,7 @@ def analyze(
         class_prior=class_prior,
         max_completions=max_completions,
         participant=participant,
+        missing=missing,
         population_registry=population_registry,
         cancel=cancel,
         on_progress=on_progress,

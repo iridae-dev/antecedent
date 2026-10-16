@@ -1014,6 +1014,14 @@ reason = ""
 test = "python/tests/test_parameter_bindings.py::test_participant_reaches_plan"
 
 [[parameter]]
+name = "missing"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "data_snapshot.missing"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_missing_reaches_plan"
+
+[[parameter]]
 name = "latency"
 entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
 binding = "contract"

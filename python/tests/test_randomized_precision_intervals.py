@@ -65,3 +65,38 @@ def test_sparse_precision_adjustment_reports_point_only():
         assert result.randomized_effect.interval_95 is None
         assert result.randomized_effect.standard_error is None
         assert result.evidence_status == "off_axis"
+
+
+def test_three_hundred_balanced_rows_publish_each_bernoulli_interval():
+    data, design = _data(300)
+    for query in (
+        ant.experiment.RandomizedEffect("outcome", design),
+        ant.experiment.RandomizedEffect(
+            "outcome", design, ancova_covariates=("baseline_a", "baseline_b")
+        ),
+        ant.experiment.RandomizedEffect(
+            "outcome", design, cuped=ant.experiment.FixedCUPED("baseline_a", 1.2)
+        ),
+    ):
+        result = ant.analyze(data, query=query, refute="none")
+        fit = result.randomized_effect
+        assert fit.interval_95 is not None
+        assert fit.interval_95[0] < fit.effect < fit.interval_95[1]
+        assert fit.support_status == "licensed"
+
+
+def test_weak_arm_support_reports_point_only_and_names_the_arm_rule():
+    n = 300
+    assigned = [i % 15 == 0 for i in range(n)]
+    data, _ = _data(n)
+    design = ant.experiment.ExperimentDesign(
+        interference.BernoulliAssignment(0.5),
+        assigned,
+        [f"unit-{i}" for i in range(n)],
+        [f"row-{i}" for i in range(n)],
+    )
+    result = ant.analyze(
+        data, query=ant.experiment.RandomizedEffect("outcome", design), refute="none"
+    )
+    assert result.randomized_effect.interval_95 is None
+    assert result.evidence_status == "off_axis"

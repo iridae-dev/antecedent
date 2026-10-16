@@ -59,7 +59,9 @@ pub use cluster::{
     effective_nw_lag, few_cluster_t_ratio, intern_cluster_tuples, multiway_subset_masks,
     newey_west_meat_scalar, panel_hac_meat_scalar,
 };
-pub use covariance::{SandwichKind, coefficient_covariance, score_coefficient_covariance};
+pub use covariance::{
+    SandwichKind, coefficient_covariance, score_coefficient_covariance, symmetric_eigen,
+};
 pub use dcor::distance_correlation;
 pub use describe::{iid_se, mean_and_se};
 pub use design::{
@@ -85,8 +87,8 @@ pub use gam::{
 };
 pub use glm::{
     DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MultinomialDesignRef,
-    MultinomialFit, NbAlphaPolicy, fit_glm, fit_glm_ridge, fit_multinomial_logit,
-    fit_multinomial_logit_weighted,
+    MultinomialFit, NbAlphaPolicy, fit_glm, fit_glm_ridge, fit_glm_weighted, fit_logistic_weighted,
+    fit_multinomial_logit, fit_multinomial_logit_weighted,
 };
 pub use gram::{
     accumulate_xtx_xty_row, chol_log_det, chol_solve, cholesky_spd, column_is_constant, form_xtx,
@@ -124,7 +126,8 @@ pub use observation::{
 };
 pub use propensity::{
     PropensityFit, PropensityWorkspace, fit_propensity, fit_propensity_diagnostic,
-    fit_propensity_in_place, predict_propensity,
+    fit_propensity_in_place, fit_propensity_weighted, fit_propensity_weighted_in_place,
+    predict_propensity,
 };
 pub use quantile::{
     QuantileRule, equal_tail_interval_sorted, mad_sigma, median_sorted, quantile_sorted,

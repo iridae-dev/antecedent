@@ -98,6 +98,7 @@ mod measured_inference_api;
 mod measurement_model_api;
 mod mechanism_composition_api;
 mod mechanism_discrepancy_api;
+mod missing_report;
 mod msm_sensitivity_api;
 mod multi_level_treatment_api;
 mod nested_bayesian_api;
@@ -1077,6 +1078,9 @@ pub(crate) struct AteAnalysisResult {
     pub(crate) structural_identified_set_interval_truncated: Option<bool>,
     #[pyo3(get)]
     pub(crate) certificate_json: Option<String>,
+    /// Missing-data policy, assumption and row accounting of this execution, as JSON.
+    #[pyo3(get)]
+    pub(crate) missing_data_json: Option<String>,
     #[pyo3(get)]
     ate: f64,
     #[pyo3(get)]
@@ -1490,6 +1494,11 @@ pub(crate) struct EstimateSection {
     joint_covariance: Option<Vec<Vec<f64>>>,
     #[pyo3(get)]
     score_inference: Option<ScoreInferenceSection>,
+    /// What declared sampling weights did to the analysis, as
+    /// `(rows_used, zero_weight_rows, effective_sample_size, weight_sum)`; `None` when no
+    /// weights were declared.
+    #[pyo3(get)]
+    sampling_weights: Option<(u64, u64, f64, f64)>,
     #[pyo3(get)]
     scenario_effects: Option<Vec<f64>>,
     #[pyo3(get)]
@@ -1796,6 +1805,14 @@ pub(crate) fn shared_study_sections(
             .as_ref()
             .map(|c| (0..c.dim).map(|i| (0..c.dim).map(|j| c.get(i, j)).collect()).collect()),
         score_inference: estimate.scores.inference.as_ref().map(ScoreInferenceSection::from),
+        sampling_weights: estimate.diagnostics.sampling_weights.map(|record| {
+            (
+                record.rows_used,
+                record.zero_weight_rows,
+                record.effective_sample_size,
+                record.weight_sum,
+            )
+        }),
         scenario_effects: estimate.scenarios.effects.as_ref().map(|v| v.to_vec()),
         scenario_intervals: estimate.scenarios.intervals.as_ref().map(|v| v.to_vec()),
         exceedance_cdf: estimate.joint.exceedance_cdf.as_ref().map(|v| v.to_vec()),

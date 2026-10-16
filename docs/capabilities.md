@@ -935,9 +935,13 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   least 30 independent clusters per arm, and stratified randomization with at
   least four blocks, 15 units per arm in every block, and 60 per arm overall.
   Bernoulli ITT reports a pointwise 95% independent-unit score interval with at
-  least 400 rows, 30 observed assignments per arm, and both assignment
-  probabilities at least 0.2 on every row. Smaller designs retain their point
-  and labeled variance without an interval. The native estimator's repeated
+  least 30 observed and 40 expected assignments per arm (the arm's summed known
+  probabilities) and both assignment probabilities at least 0.2 on every row;
+  there is no row-count threshold, so 300 balanced rows, a 2:1 allocation and a
+  200-row trial at probability 0.2 are supported, while an arm the design
+  expects to fill with fewer than 40 rows, or that happens to realize fewer than
+  30, retains its point and labeled variance without an interval and the
+  diagnostic names the arm rule. The native estimator's repeated
   randomization fixtures score each reported interval against a known
   finite-population effect. Exact retained Bernoulli, complete-unit,
   complete-cluster, stratified/block, fixed-cell factorial, and independent
@@ -948,12 +952,16 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   licensed.
   Bernoulli ANCOVA now reports a pointwise HC0 interval with one or two
   pre-assignment covariates, a common assignment probability from 0.2 through
-  0.8, 400 rows, and 30 observed assignments per arm. Fixed CUPED reports a
-  pointwise score interval under the same row and arm support with a
-  coefficient set independently of the trial outcomes; its known probabilities
-  may vary by row. Both are exact separate graphless licenses, backed by
-  2,000-allocation known-truth calibration at the probability boundaries and
-  artifact checks. Three or more ANCOVA covariates, sparse allocations, and
+  0.8, and 30 observed and 40 expected rows in each arm (the row count times the
+  probability, and times one minus it). Fixed CUPED reports a pointwise score
+  interval under the same arm support with a coefficient set independently of
+  the trial outcomes; its known probabilities may vary by row. Both are exact
+  separate graphless licenses, backed by 2,000-allocation known-truth coverage
+  from 150 to 600 rows (ANCOVA) and 200 to 400 rows (CUPED) at the probability
+  boundaries, a 2:1 allocation and 300 balanced rows, and by artifact checks.
+  Complete-randomization Neyman keeps its own construction and 30-unit-per-arm
+  rule; contrasts among three or more actions and the receipt-adjusted contrasts
+  keep their 400-row rule. Three or more ANCOVA covariates, sparse allocations, and
   zero realized variance retain point and labeled variance without an interval.
   `SwitchbackEffect` also runs through retained `analyze` with row-aligned
   sequence and period labels, known marginal assignment probabilities, and

@@ -511,6 +511,26 @@ class FixedCUPED:
             raise CausalValueError("fixed CUPED coefficient must be finite")
 
 
+def _check_sampling_weights_design(query: RandomizedEffect) -> None:
+    """Sampling weights are read by unadjusted Bernoulli and complete randomization of units."""
+    if isinstance(query.weights, str) and not query.weights.strip():
+        raise CausalValueError("weights must name a data column or hold one weight per row")
+    unsupported = (
+        isinstance(query.design, MultiArmExperimentDesign)
+        or query.cuped is not None
+        or bool(query.ancova_covariates)
+        or query.exact_randomization_test
+        or not isinstance(query.design.assignment, (BernoulliAssignment, CompleteRandomization))
+    )
+    if unsupported:
+        raise CausalUnsupportedError(
+            "weights= are read by unadjusted Bernoulli and complete randomization of units; "
+            "cluster, stratified, factorial, multi-arm, CUPED, ANCOVA and exact-randomization "
+            "designs have no sampling-weighted contrast",
+            reason_code="option_not_applicable",
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class RandomizedEffect:
     """Intention-to-treat contrast carried through the ordinary analysis API.
@@ -518,6 +538,16 @@ class RandomizedEffect:
     Bernoulli, complete, stratified, and cluster designs use their corresponding
     design-based point estimates and variance contracts. Other design families
     are explicitly refused by the retained analysis route.
+
+    ``weights="w"`` names a column of sampling weights (or gives one weight per row) for an
+    unadjusted Bernoulli or completely randomized design. The estimate is then the
+    intention-to-treat effect in the weighted population: the difference of the arms' Hajek
+    means with each row weighted by its sampling weight over the known probability of its
+    assigned arm, weights normalized to mean one (the estimate does not depend on their
+    scale). The variance linearizes the two ratio means treating units as independent draws
+    (Neyman's conservative bound for equal weights); rows of weight zero are excluded and
+    counted, and the Kish effective sample size is reported with the result. No interval is
+    published: its coverage is a separate, unmeasured claim.
     """
 
     outcome: str
@@ -526,6 +556,7 @@ class RandomizedEffect:
     cuped: FixedCUPED | None = None
     ancova_covariates: tuple[str, ...] = ()
     exact_randomization_test: bool = False
+    weights: str | Sequence[float] | None = None
     kind: Literal["randomized_effect"] = field(default="randomized_effect", init=False, repr=False)
 
     #: Recurse into the design so its column-name inputs resolve at prepare.
@@ -534,6 +565,8 @@ class RandomizedEffect:
     def __post_init__(self) -> None:
         if not isinstance(self.outcome, str) or not self.outcome.strip():
             raise CausalValueError("outcome must be a non-empty variable name")
+        if self.weights is not None:
+            _check_sampling_weights_design(self)
         # The design's row-length checks below re-run when resolve_columns rebuilds
         # this query with the design resolved against the data.
         deferred = getattr(self.design, "_deferred_columns", False)

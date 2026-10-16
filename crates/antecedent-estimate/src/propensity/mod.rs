@@ -37,6 +37,7 @@ mod stratification;
 pub(crate) mod weighting;
 
 pub use distance::DistanceMatching;
+pub(crate) use generalized::{CategoryTrainingRows, fit_category_probabilities};
 pub use generalized::{
     GENERALIZED_PROPENSITY_PROVENANCE, LevelMean, LevelRows, MultiLevelAipw, MultiLevelEstimate,
     MultiLevelPopulation, MultiLevelTarget,

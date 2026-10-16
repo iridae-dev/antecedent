@@ -19,6 +19,19 @@
 //! [`SplitDiscovery::analysis_effective_sample_size`]). The derivation, the estimands and the
 //! normalization contract are in `antecedent_discovery::selective::reuse`.
 //!
+//! # Weighted estimation on the analysis part
+//!
+//! [`SplitDiscovery::estimate_analysis_effect`] estimates a linear treatment effect on the
+//! analysis part with the part's own weights declared as sampling weights, adjusting for a
+//! declared set (typically the treatment's parents in the discovered graph). Its estimand,
+//! normalization and uncertainty are stated on [`SplitAnalysisEffect`]: the effect in the
+//! weighted population the analysis part's weights represent, conditional on the selected
+//! graph; weights are normalized to mean one over the rows used (the estimate is the same
+//! under any rescaling); the standard error is the sampling-weighted sandwich (HC1, or the
+//! cluster sandwich over declared analysis-part clusters); rows of weight zero are excluded and
+//! counted; and the Kish effective sample size is reported beside the row count. The interval
+//! it supports is a separate, unmeasured claim: no interval is published.
+//!
 //! # What the binding licenses
 //!
 //! Because discovery saw none of the analysis rows, an analysis of those rows that treats the
@@ -58,6 +71,10 @@ use antecedent_discovery::selective::{
     CiTestSpec, DiscoveryOutcome, SelectiveDiscoveryError, SelectiveRunReport,
     StaticDiscoveryContract, StaticSelectiveDiscovery, column_digest, digest_hex,
     request_downstream_interval,
+};
+use antecedent_estimate::{
+    AnalyticSeKind, EstimationError, EstimationWorkspace, LinearAdjustmentAte,
+    SamplingWeightRecord, SamplingWeights,
 };
 use antecedent_stats::WeightedPartialCorrelation;
 
@@ -334,4 +351,134 @@ pub fn split_evidence_sources(
         discovery_rows_source("discovery rows of the split", snapshot_id, &discovery),
         discovery_rows_source("analysis rows of the split", snapshot_id, &analysis),
     ))
+}
+
+/// What to estimate on the analysis part of a split.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AnalysisEffectRequest {
+    /// Treatment column.
+    pub treatment: VariableId,
+    /// Outcome column.
+    pub outcome: VariableId,
+    /// Adjustment columns; the discovered treatment parents are the declared choice.
+    pub adjustment: Vec<VariableId>,
+    /// Control and active treatment levels of the contrast.
+    pub levels: (f64, f64),
+    /// Cluster label of every analysis row, in the part's row order, for the cluster
+    /// sandwich; `None` treats rows as the independent units.
+    pub clusters: Option<Vec<u32>>,
+}
+
+/// A linear effect estimated on the analysis part of a split, weighted by that part's weights.
+///
+/// **Estimand.** The coefficient of the treatment contrast in the weighted least-squares
+/// regression of the outcome on the treatment and the adjustment columns: the effect in the
+/// weighted population the analysis part's weights represent, conditional on the graph that
+/// chose the adjustment set (discovery saw none of these rows). Without weights it is the
+/// ordinary least-squares coefficient.
+///
+/// **Normalization.** Estimates and standard errors depend on the weights only up to scale;
+/// they are normalized to mean one over the rows used. The weight sum is reported unnormalized
+/// and is never read as a population size.
+///
+/// **Uncertainty.** The standard error is the sampling-weighted HC1 sandwich, or the cluster
+/// sandwich when clusters are declared; no interval is published (its coverage is unmeasured).
+///
+/// **Effective sample size.** The Kish size of the weights of the rows used is in
+/// [`Self::sampling_weights`]; `None` for an unweighted source.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SplitAnalysisEffect {
+    /// The estimated effect of the declared contrast.
+    pub effect: f64,
+    /// Sandwich standard error of [`Self::effect`].
+    pub standard_error: f64,
+    /// The standard-error construction that ran.
+    pub se_kind: AnalyticSeKind,
+    /// What the part's weights did: rows used, zero-weight rows excluded, effective size.
+    pub sampling_weights: Option<SamplingWeightRecord>,
+    /// Rows the effect was estimated on.
+    pub rows: u64,
+    /// Original row index of each analysis row, in the part's row order (including rows that
+    /// had weight zero).
+    pub analysis_row_ids: Vec<usize>,
+    /// The binding of this analysis to the split receipt and the discovery it followed.
+    pub binding: AnalysisBinding,
+}
+
+impl SplitAnalysisEffect {
+    /// The population the effect speaks for.
+    pub const TARGET_POPULATION: &'static str =
+        "the weighted population the analysis part's weights represent, given the selected graph";
+}
+
+impl SplitDiscovery {
+    /// Estimate a linear effect on the analysis part, weighted by the part's own weights.
+    ///
+    /// The estimate rests on the analysis rows alone, so it is conditional on the selected
+    /// graph and never reuses the rows discovery saw; the returned binding says so.
+    ///
+    /// # Errors
+    ///
+    /// A receipt that does not re-derive, weights that are invalid on the analysis part, a
+    /// singular design, or fewer than two clusters when clusters are declared.
+    pub fn estimate_analysis_effect(
+        &self,
+        request: &AnalysisEffectRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<SplitAnalysisEffect, EstimationError> {
+        let binding =
+            self.check_analysis_table(self.analysis_rows()).map_err(|error| match error {
+                SelectiveDiscoveryError::Refused { code, detail, remedy } => {
+                    EstimationError::refused(code, format!("{detail}: {remedy}"))
+                }
+                other => EstimationError::data_msg(other.to_string()),
+            })?;
+        let (control, active) = request.levels;
+        let query = antecedent_core::AverageEffectQuery::with_levels(
+            request.treatment,
+            request.outcome,
+            control,
+            active,
+        );
+        let mut arena = antecedent_expr::CausalExprArena::new();
+        let functional = arena.backdoor_ate(
+            request.treatment,
+            request.outcome,
+            &request.adjustment,
+            antecedent_core::Value::f64(active),
+            antecedent_core::Value::f64(control),
+        );
+        let estimand = antecedent_expr::IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from(request.adjustment.clone()),
+            functional,
+        );
+        let mut estimator = LinearAdjustmentAte::new()
+            .with_bootstrap_replicates(0)
+            .with_se_kind(AnalyticSeKind::Hc1);
+        if let Some(weights) = self.analysis_weights() {
+            estimator = estimator.with_sampling_weights(SamplingWeights::new(weights.to_vec())?);
+        }
+        if let Some(clusters) = &request.clusters {
+            estimator = estimator
+                .with_se_kind(AnalyticSeKind::Cluster)
+                .with_source_cluster_ids(clusters.clone());
+        }
+        let prepared = estimator.prepare(self.analysis_rows(), &estimand, &query)?;
+        let fit = estimator.fit(
+            &prepared,
+            &mut EstimationWorkspace::default(),
+            ctx,
+            antecedent_core::AssumptionSet::new(),
+        )?;
+        Ok(SplitAnalysisEffect {
+            effect: fit.ate,
+            standard_error: fit.se_analytic(),
+            se_kind: fit.uncertainty.analytic.kind.unwrap_or(AnalyticSeKind::Hc1),
+            sampling_weights: fit.diagnostics.sampling_weights,
+            rows: fit.provenance.n_obs.unwrap_or(0),
+            analysis_row_ids: self.analysis_row_ids().to_vec(),
+            binding,
+        })
+    }
 }

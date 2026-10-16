@@ -32,7 +32,10 @@ mod solver;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
-use antecedent_data::TabularData;
+use antecedent_data::{
+    MissingPolicy, RowAccounting, TableView, TabularData, complete_rows, first_missing_cell,
+    policy_required_text,
+};
 use antecedent_graph::{Dag, DagReview, DenseNodeId, NodeRef};
 use antecedent_stats::standardize_columns;
 
@@ -60,6 +63,11 @@ pub struct NotearsDiscoveryResult {
     pub weights: Arc<[f64]>,
     /// Dimension \(d\) (`weights.len() == dim * dim`).
     pub dim: usize,
+    /// Rows used and dropped, with the missing count per variable and the dropped-row digest.
+    ///
+    /// Dropped rows are those with a missing value in any discovery variable; a table
+    /// without missing values drops none.
+    pub row_accounting: RowAccounting,
 }
 
 /// Continuous SEM discovery (NOTEARS) over tabular continuous data.
@@ -73,6 +81,10 @@ pub struct Notears {
     pub threshold: f64,
     /// Standardize columns before solving (default `true`; see module docs).
     pub standardize: bool,
+    /// Declared handling of missing values. `None` (the default) refuses a table with a
+    /// missing value; [`MissingPolicy::CompleteCase`] drops every row with a missing value
+    /// among the discovery variables and reports the rows dropped.
+    pub missing: Option<MissingPolicy>,
     /// Maximum augmented-Lagrangian outer iterations (default `100`).
     pub max_iter: u32,
     /// Convergence tolerance on \(|h(W)|\) (default `1e-8`).
@@ -102,6 +114,7 @@ impl Notears {
             lambda: 0.1,
             threshold: 0.3,
             standardize: true,
+            missing: None,
             max_iter: 100,
             h_tol: 1e-8,
             rho_max: 1e16,
@@ -133,6 +146,13 @@ impl Notears {
     #[must_use]
     pub fn with_standardize(mut self, standardize: bool) -> Self {
         self.standardize = standardize;
+        self
+    }
+
+    /// Declare how missing values are handled; see [`Self::missing`].
+    #[must_use]
+    pub fn with_missing(mut self, policy: MissingPolicy) -> Self {
+        self.missing = Some(policy);
         self
     }
 
@@ -176,28 +196,98 @@ impl Notears {
             return Err(DiscoveryError::unsupported("NOTEARS threshold must be finite and >= 0"));
         }
 
-        let col_owned = collect_float_columns(data, variables)?;
-        let n = col_owned[0].len();
-        if n < 3 {
-            return Err(DiscoveryError::stats_msg("insufficient rows for NOTEARS"));
+        let mut col_owned = collect_float_columns(data, variables)?;
+        let policy = self.missing.unwrap_or(MissingPolicy::ErrorOnMissing);
+        if !matches!(
+            policy,
+            MissingPolicy::ErrorOnMissing
+                | MissingPolicy::CompleteCase
+                | MissingPolicy::PairwiseAvailable
+        ) {
+            return Err(DiscoveryError::Refused {
+                code: antecedent_core::reason_code!("missing_policy_not_applicable"),
+                message: format!(
+                    "missing_data.policy_not_applicable: NOTEARS cannot execute missing-data \
+                     policy `{}`; use one of: error, complete_case, pairwise_available",
+                    policy.name()
+                ),
+            });
         }
-        for c in &col_owned {
-            if c.len() != n {
-                return Err(DiscoveryError::data_msg("column length mismatch"));
+        // The analysis mask is not consulted here (as before); only missing cells are.
+        let keep = complete_rows(data, None, variables)?;
+        let mut row_accounting =
+            RowAccounting::from_selection(data, None, policy, variables, &keep)?;
+        let mut pairwise = None;
+        if row_accounting.rows_dropped() > 0 {
+            if policy == MissingPolicy::ErrorOnMissing {
+                let cell = first_missing_cell(data, variables)?.ok_or(
+                    DiscoveryError::unsupported("NOTEARS missing values changed during the run"),
+                )?;
+                return Err(DiscoveryError::Refused {
+                    code: antecedent_core::reason_code!("missing_policy_required"),
+                    message: format!(
+                        "missing_data.policy_required: {}",
+                        policy_required_text(
+                            &cell,
+                            "NOTEARS",
+                            &[MissingPolicy::CompleteCase, MissingPolicy::PairwiseAvailable]
+                        )
+                    ),
+                });
+            }
+            if policy == MissingPolicy::PairwiseAvailable {
+                let valid = variables
+                    .iter()
+                    .map(|&v| {
+                        let validity = data.column(v)?.validity();
+                        Ok((0..col_owned[0].len()).map(|r| validity.is_valid(r)).collect())
+                    })
+                    .collect::<Result<Vec<Vec<bool>>, DiscoveryError>>()?;
+                let factor = pairwise_factor(&col_owned, &valid, self.standardize)?;
+                row_accounting = pairwise_accounting(&row_accounting, variables, data, &factor);
+                pairwise = Some(factor);
+            } else {
+                col_owned = col_owned
+                    .iter()
+                    .map(|column| {
+                        column
+                            .iter()
+                            .zip(&keep)
+                            .filter(|(_, kept)| **kept)
+                            .map(|(value, _)| *value)
+                            .collect::<Arc<[f64]>>()
+                    })
+                    .collect();
             }
         }
-
         let d = variables.len();
-        // Column-major n×d design.
-        let mut x = vec![0.0; n * d];
-        for (j, col) in col_owned.iter().enumerate() {
-            x[j * n..(j + 1) * n].copy_from_slice(col.as_ref());
-        }
-        if self.standardize {
-            let cols: Vec<usize> = (0..d).collect();
-            standardize_columns(&mut x, n, d, &cols, 1e-12, &ctx.kernel_policy)
-                .map_err(DiscoveryError::from)?;
-        }
+        let (x, n) = if let Some(factor) = pairwise {
+            // The pairwise covariance enters the least-squares score through this d×d
+            // factor, whose Gram matrix over d is the repaired covariance (already
+            // standardized when requested).
+            (factor.design, d)
+        } else {
+            let n = col_owned[0].len();
+            if n < 3 {
+                return Err(DiscoveryError::stats_msg("insufficient rows for NOTEARS"));
+            }
+            for c in &col_owned {
+                if c.len() != n {
+                    return Err(DiscoveryError::data_msg("column length mismatch"));
+                }
+            }
+            // Column-major n×d design.
+            let mut x = vec![0.0; n * d];
+            for (j, col) in col_owned.iter().enumerate() {
+                x[j * n..(j + 1) * n].copy_from_slice(col.as_ref());
+            }
+            if self.standardize {
+                let cols: Vec<usize> = (0..d).collect();
+                standardize_columns(&mut x, n, d, &cols, 1e-12, &ctx.kernel_policy)
+                    .map_err(DiscoveryError::from)?;
+            }
+            (x, n)
+        };
 
         // Freeze diagonal + forbidden / tier-forbidden.
         let mut frozen = vec![false; d * d];
@@ -380,8 +470,124 @@ impl Notears {
             sepsets: crate::result::PcSepsets::default(),
         };
 
-        Ok(NotearsDiscoveryResult { discovery, weights: Arc::from(soft_w), dim: d })
+        Ok(NotearsDiscoveryResult { discovery, weights: Arc::from(soft_w), dim: d, row_accounting })
     }
+}
+
+/// A pairwise-available covariance as a least-squares design.
+struct PairwiseFactor {
+    /// Column-major `d × d` design `X` with `XᵀX / d` equal to the repaired covariance.
+    design: Vec<f64>,
+    /// Rows observed on both variables of each pair `(i, j)`, `i < j`.
+    overlaps: Vec<(usize, usize, usize)>,
+    /// Eigenvalues clipped to zero by the positive-semidefinite repair.
+    clipped: usize,
+}
+
+/// Pairwise-available covariance (or correlation when `standardize`), repaired to positive
+/// semidefinite by clipping negative eigenvalues, factored so the NOTEARS least-squares score
+/// `tr((I-W)ᵀ S (I-W)) / 2` is evaluated on it exactly.
+fn pairwise_factor(
+    columns: &[Arc<[f64]>],
+    valid: &[Vec<bool>],
+    standardize: bool,
+) -> Result<PairwiseFactor, DiscoveryError> {
+    let d = columns.len();
+    let n = columns[0].len();
+    let mean: Vec<f64> = (0..d)
+        .map(|i| {
+            let seen: Vec<f64> = (0..n).filter(|&r| valid[i][r]).map(|r| columns[i][r]).collect();
+            seen.iter().sum::<f64>() / seen.len().max(1) as f64
+        })
+        .collect();
+    let mut cov = vec![0.0; d * d];
+    let mut overlaps = Vec::new();
+    for i in 0..d {
+        for j in i..d {
+            let rows: Vec<usize> = (0..n).filter(|&r| valid[i][r] && valid[j][r]).collect();
+            if rows.len() < 3 {
+                return Err(DiscoveryError::unsupported(
+                    "pairwise-available NOTEARS needs at least three rows observed on every pair of variables",
+                ));
+            }
+            let c = rows
+                .iter()
+                .map(|&r| (columns[i][r] - mean[i]) * (columns[j][r] - mean[j]))
+                .sum::<f64>()
+                / rows.len() as f64;
+            cov[i * d + j] = c;
+            cov[j * d + i] = c;
+            if i < j {
+                overlaps.push((i, j, rows.len()));
+            }
+        }
+    }
+    if standardize {
+        let sd: Vec<f64> = (0..d).map(|i| cov[i * d + i].sqrt()).collect();
+        if sd.iter().any(|v| !v.is_finite() || *v <= 1e-12) {
+            return Err(DiscoveryError::unsupported(
+                "pairwise-available NOTEARS found a variable with no variance",
+            ));
+        }
+        for i in 0..d {
+            for j in 0..d {
+                cov[i * d + j] /= sd[i] * sd[j];
+            }
+        }
+    }
+    let (values, vectors) = antecedent_stats::symmetric_eigen(&cov, d)?;
+    let clipped = values.iter().filter(|v| **v < 0.0).count();
+    // Z = Λ^{1/2} Vᵀ has ZᵀZ = V Λ Vᵀ = S; scale by √d so that XᵀX / d = S.
+    let scale = (d as f64).sqrt();
+    let mut design = vec![0.0; d * d];
+    for r in 0..d {
+        let root = values[r].max(0.0).sqrt();
+        for j in 0..d {
+            design[j * d + r] = scale * root * vectors[j * d + r];
+        }
+    }
+    Ok(PairwiseFactor { design, overlaps, clipped })
+}
+
+/// Accounting of a pairwise-available run: nothing is dropped; each pair reports the rows both
+/// of its variables were observed on, and the repair is named.
+fn pairwise_accounting(
+    base: &RowAccounting,
+    variables: &[VariableId],
+    data: &TabularData,
+    factor: &PairwiseFactor,
+) -> RowAccounting {
+    use antecedent_data::GroupAccounting;
+    let name = |i: usize| {
+        data.schema()
+            .get(variables[i])
+            .map_or_else(|_| Arc::<str>::from("?"), |v| Arc::clone(&v.name))
+    };
+    let total = base.rows_total;
+    let mut pairs: Vec<GroupAccounting> = factor
+        .overlaps
+        .iter()
+        .map(|&(i, j, rows)| GroupAccounting {
+            label: Arc::from(format!("pair:{},{}", name(i), name(j))),
+            total,
+            kept: rows,
+            observed: rows,
+        })
+        .collect();
+    pairs.push(GroupAccounting {
+        label: Arc::from(format!("psd_repair:eigenvalues_clipped={}", factor.clipped)),
+        total: 0,
+        kept: 0,
+        observed: 0,
+    });
+    let mut out = RowAccounting::from_dropped(
+        base.policy,
+        total,
+        Vec::new(),
+        base.missing_by_variable.to_vec(),
+    );
+    out.groups = pairs.into();
+    out
 }
 
 #[cfg(test)]

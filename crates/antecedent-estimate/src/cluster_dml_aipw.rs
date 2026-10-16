@@ -396,6 +396,28 @@ impl ClusterDml {
         clusters: &[u32],
         second: Option<&[u32]>,
     ) -> Result<ClusterDmlReceipt, EstimationError> {
+        self.receipt_with_influence(table, clusters, second, None)
+    }
+
+    /// [`Self::receipt`] whose sandwich reads `influence` (one value per table row) instead of
+    /// the table's unweighted score contrast. Sampling-weighted fits pass the weighted
+    /// influence `m_i (ψ_i − τ̂)`, so the cluster sandwich is that of the weighted score.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::receipt`], or an influence that does not align with the table rows.
+    pub fn receipt_with_influence(
+        &self,
+        table: &ScoreTable,
+        clusters: &[u32],
+        second: Option<&[u32]>,
+        influence: Option<&[f64]>,
+    ) -> Result<ClusterDmlReceipt, EstimationError> {
+        if influence.is_some_and(|values| values.len() != table.n_rows) {
+            return Err(EstimationError::data_msg(
+                "the weighted influence must align with the score table rows",
+            ));
+        }
         if clusters.len() != table.n_rows || table.fold_ids.len() != table.n_rows {
             return Err(EstimationError::data_msg(
                 "cluster labels and fold ids must align with the score table rows",
@@ -408,6 +430,9 @@ impl ClusterDml {
         }
         let found = distinct_count(clusters);
         let psi_of = || -> Result<Vec<f64>, EstimationError> {
+            if let Some(values) = influence {
+                return Ok(values.to_vec());
+            }
             Ok(table.column(0)?.iter().zip(table.column(1)?).map(|(&a, &b)| b - a).collect())
         };
         let (units, n_second, se) = match (self.unit, second) {

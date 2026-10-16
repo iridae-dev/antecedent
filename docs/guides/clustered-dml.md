@@ -182,8 +182,9 @@ loosened to absorb one. It is a test with fixed seeds, not a coverage record.
   standard error; no interval), on the same scope as the AIPW route: the untrimmed
   `AllObserved` mean ATE and the AIPW score (the partially linear score is refused). Their
   flexible nuisances are fit on other units only, so the dependence the sandwich allows for is
-  also respected by the learners. `CausalForest`, a bare `cluster_ids` or `multiway_ids` on
-  these estimators, and `cluster_dml` on a score-less route are refused with
+  also respected by the learners. `CausalForest` declares its unit with `cluster=` (see
+  [cluster inference](cluster-inference.md)); a bare `cluster_ids` or `multiway_ids` on
+  these estimators, `cluster_dml` on the forest, and `cluster_dml` on a score-less route are refused with
   `route_not_supported` (`cluster_dml.flexible_learner_closed`) rather than reported as an
   unknown key or ignored; the refusal is raised by `flexible_learner_dependence_refusal`.
 - **Named unit columns.** `ClusterDml(cluster="site")` (and `second_cluster="..."` for a dyad)

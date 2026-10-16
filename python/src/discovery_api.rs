@@ -244,6 +244,9 @@ pub(crate) struct PcmciDiscoveryResult {
     pub(crate) background_knowledge: Option<String>,
     /// The Rust review artifact and variable names this discovery produced.
     pub(crate) review: Option<Arc<(ReviewSlot, Vec<String>)>>,
+    /// Row accounting of a run that reads table rows (NOTEARS), as JSON: rows used and
+    /// dropped, the missing count per variable and the dropped-row digest.
+    pub(crate) row_accounting_json: Option<String>,
 }
 
 /// Discovery review artifact retained so acceptance runs the Rust review gate.
@@ -259,6 +262,12 @@ pub(crate) enum ReviewSlot {
 impl PcmciDiscoveryResult {
     fn with_review(mut self, slot: ReviewSlot, names: &[String]) -> Self {
         self.review = Some(Arc::new((slot, names.to_vec())));
+        self
+    }
+
+    fn with_row_accounting(mut self, accounting: &antecedent_data::RowAccounting) -> Self {
+        self.row_accounting_json =
+            Some(crate::missing_report::accounting_json(accounting).to_string());
         self
     }
 
@@ -296,6 +305,17 @@ pub(crate) fn accepted_graph_object(
 
 #[pymethods]
 impl PcmciDiscoveryResult {
+    /// Row accounting of a run that reads table rows (NOTEARS) as a mapping, else `None`:
+    /// `rows_total`, `rows_kept`, `rows_dropped`, `missing_by_variable`, `reasons`,
+    /// `dropped_rows` and `dropped_digest`.
+    #[getter]
+    fn row_accounting(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+        self.row_accounting_json
+            .as_deref()
+            .map(|json| Ok(py.import("json")?.call_method1("loads", (json,))?.unbind()))
+            .transpose()
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "PcmciDiscoveryResult(algorithm={:?}, links={}, ci_tests={})",
@@ -554,6 +574,7 @@ fn discovery_result_fields(
         variable_names: names.to_vec(),
         background_knowledge: None,
         review: None,
+        row_accounting_json: None,
     }
 }
 
@@ -833,7 +854,7 @@ fn discover_lingam(
 
 /// Run NOTEARS discovery over tabular columns → DAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, l1=0.1, threshold=0.3, standardize=true, seed=1, max_cond_size=8, threads=None, cancel=None))]
+#[pyo3(signature = (names, columns, *, l1=0.1, threshold=0.3, standardize=true, seed=1, max_cond_size=8, threads=None, cancel=None, missing=None))]
 fn discover_notears(
     py: Python<'_>,
     names: Vec<String>,
@@ -845,7 +866,9 @@ fn discover_notears(
     max_cond_size: usize,
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
+    missing: Option<String>,
 ) -> PyResult<PcmciDiscoveryResult> {
+    let missing = missing.as_deref().map(crate::missing_report::parse_policy).transpose()?;
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
 
@@ -862,9 +885,17 @@ fn discover_notears(
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-        let result =
-            facade_discover_notears(&data, &variables, &params, l1, threshold, standardize, &ctx)
-                .map_err(py_err)?;
+        let result = facade_discover_notears(
+            &data,
+            &variables,
+            &params,
+            l1,
+            threshold,
+            standardize,
+            missing,
+            &ctx,
+        )
+        .map_err(py_err)?;
 
         let dag = &result.discovery.evidence.graph;
         let directed = dag.edges().count() as u64;
@@ -885,7 +916,8 @@ fn discover_notears(
             0,
             graph_edges,
         )
-        .with_review(ReviewSlot::Dag(result.discovery.review.clone()), &names))
+        .with_review(ReviewSlot::Dag(result.discovery.review.clone()), &names)
+        .with_row_accounting(&result.row_accounting))
     })
 }
 

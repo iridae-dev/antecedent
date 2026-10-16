@@ -405,25 +405,20 @@ impl MultiLevelAipw {
                         ),
                     ));
                 }
-                let design_train = rows_colmajor(&prepared.design, n, ncols, train);
                 let design_valid = rows_colmajor(&prepared.design, n, ncols, valid);
-                let fit = fit_multinomial_logit_weighted(
-                    MultinomialDesignRef {
-                        x_colmajor: &design_train,
-                        nrows: train.len(),
-                        ncols,
-                        y_category: &train_category,
+                let design_train = rows_colmajor(&prepared.design, n, ncols, train);
+                let e_valid = fit_category_probabilities(
+                    &CategoryTrainingRows {
+                        design: &design_train,
+                        category: &train_category,
                         n_categories: k,
+                        ncols,
                     },
-                    None,
-                    &FaerBackend,
-                    &mut glm_workspace,
+                    &design_valid,
+                    valid.len(),
                     &self.glm_options,
-                )
-                .map_err(stats_err)?;
-                fit.require_ok().map_err(stats_err)?;
-                let e_valid =
-                    multinomial_probabilities(&fit.coefficients, &design_valid, valid.len(), ncols, k);
+                    &mut glm_workspace,
+                )?;
                 // The clip is the only floor. With none, a generalized propensity of exactly 0
                 // (infinite weight) is refused rather than floored at a hidden constant.
                 if clip.is_none() && e_valid.iter().any(|&e| e.is_nan() || e <= 0.0) {
@@ -505,6 +500,55 @@ impl MultiLevelAipw {
             intervened: Arc::from([]),
         })
     }
+}
+
+/// Training rows of a categorical (multinomial-logit) fit.
+pub(crate) struct CategoryTrainingRows<'a> {
+    /// Column-major `[1 | Z...]` design of the training rows.
+    pub design: &'a [f64],
+    /// Category index of each training row.
+    pub category: &'a [u32],
+    /// Number of categories.
+    pub n_categories: usize,
+    /// Design columns.
+    pub ncols: usize,
+}
+
+/// Fit a multinomial logit on `train` and return the category probabilities of `valid_rows`
+/// design rows, category `c`, row `r` at `c * valid_rows + r`.
+///
+/// # Errors
+///
+/// A GLM failure: separation, non-convergence or a singular design.
+pub(crate) fn fit_category_probabilities(
+    train: &CategoryTrainingRows<'_>,
+    design_valid: &[f64],
+    valid_rows: usize,
+    options: &GlmOptions,
+    workspace: &mut LeastSquaresWorkspace,
+) -> Result<Vec<f64>, EstimationError> {
+    let fit = fit_multinomial_logit_weighted(
+        MultinomialDesignRef {
+            x_colmajor: train.design,
+            nrows: train.category.len(),
+            ncols: train.ncols,
+            y_category: train.category,
+            n_categories: train.n_categories,
+        },
+        None,
+        &FaerBackend,
+        workspace,
+        options,
+    )
+    .map_err(stats_err)?;
+    fit.require_ok().map_err(stats_err)?;
+    Ok(multinomial_probabilities(
+        &fit.coefficients,
+        design_valid,
+        valid_rows,
+        train.ncols,
+        train.n_categories,
+    ))
 }
 
 /// Softmax probabilities of a baseline-category multinomial logit on the rows of a

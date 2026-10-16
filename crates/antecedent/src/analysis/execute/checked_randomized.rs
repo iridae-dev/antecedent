@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::randomized_fit::{
-    RandomizedMethod, assignment_probability_floor, exact_randomization_test, fit_randomized,
+    RandomizedMethod, SAMPLING_WEIGHTED_DIAGNOSTIC, SAMPLING_WEIGHTED_UNCERTAINTY,
+    assignment_probability_floor, exact_randomization_test, expected_arm_units,
+    fit_missing_outcomes, fit_randomized,
 };
 use super::{
     Arc, CausalError, CausalExprArena, CausalQuery, DerivationTrace, Diagnostic, DiagnosticKind,
@@ -13,13 +15,78 @@ use super::{
     RefuteSuite, Study, StudyResult, TableView, TabularData,
     finish_identified_execute_with_context,
 };
+use crate::analysis::missing_data;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
 
 /// Frozen randomized-design analysis. Assignment metadata is part of query identity.
-pub(crate) type CheckedRandomizedOperation =
-    RandomizedTrialOperation<antecedent_core::RandomizedEffectQuery>;
+pub(crate) type CheckedRandomizedOperation = RandomizedTrialOperation<
+    antecedent_core::RandomizedEffectQuery,
+    Option<antecedent_data::MissingDeclaration>,
+>;
+
+/// Uncertainty label of a fit that handled missing outcomes; no interval is published.
+fn responder_uncertainty(
+    policy: antecedent_data::MissingPolicy,
+    method: RandomizedMethod,
+) -> &'static str {
+    if !matches!(method, RandomizedMethod::Bernoulli | RandomizedMethod::Complete) {
+        return "responder_pseudo_outcome_design_variance_no_interval";
+    }
+    match policy {
+        antecedent_data::MissingPolicy::InverseProbabilityOfObservation => {
+            "responder_weighted_influence_variance_no_interval"
+        }
+        _ => "responder_complete_case_neyman_variance_no_interval",
+    }
+}
+
+/// Diagnostic text of a fit that handled missing outcomes.
+fn responder_diagnostic(
+    policy: antecedent_data::MissingPolicy,
+    method: RandomizedMethod,
+) -> &'static str {
+    if !matches!(method, RandomizedMethod::Bernoulli | RandomizedMethod::Complete) {
+        return "Responder-weighted ITT for this design: each outcome is replaced by its inverse-probability-of-observation pseudo-outcome (zero for a non-responder) and the design's own estimator and variance run on every assigned unit; the variance ignores that the observation probabilities are estimated, which is conservative; no confidence interval is reported";
+    }
+    match policy {
+        antecedent_data::MissingPolicy::InverseProbabilityOfObservation => {
+            "Responder-weighted ITT: within each arm, observed outcomes are weighted by the inverse of their estimated probability of being observed given the declared baseline covariates (Hajek ratio); every assigned participant stays in its arm's denominator; the variance is the arm-wise influence-function variance including the observation-model score; no confidence interval is reported"
+        }
+        _ => {
+            "Complete-case ITT: the difference of responder means with Neyman variance over responders; valid only when outcomes are missing completely at random within arm; every assigned participant is still counted in the arm sizes; no confidence interval is reported"
+        }
+    }
+}
+
+/// Designs with a responder estimator: every intention-to-treat design. Bernoulli and complete
+/// randomization use the Hajek contrast; cluster, stratified, factorial, multi-arm and
+/// switchback designs apply their own estimator to inverse-probability pseudo-outcomes.
+/// Receipt-adjusted, CUPED and ANCOVA fits read further inputs that have no responder form.
+fn check_declaration_for_design(
+    query: &antecedent_core::RandomizedEffectQuery,
+    declaration: &antecedent_data::MissingDeclaration,
+) -> Result<(), CausalError> {
+    use antecedent_data::MissingPolicy;
+    if declaration.policy == MissingPolicy::ErrorOnMissing
+        || !matches!(
+            RandomizedMethod::of(query),
+            RandomizedMethod::Ancova
+                | RandomizedMethod::TreatmentOnTreated
+                | RandomizedMethod::ComplierEffect
+                | RandomizedMethod::FixedCuped
+        )
+    {
+        return Ok(());
+    }
+    Err(CausalError::Estimate(antecedent_estimate::missing_policy::policy_not_applicable(
+        declaration.policy,
+        missing_data::MissingRoute::Randomized.label(),
+        "receipt-adjusted, CUPED and ANCOVA fits read further per-unit inputs that have no responder form",
+        &[MissingPolicy::ErrorOnMissing],
+    )))
+}
 
 impl RandomizedTrialQuery for antecedent_core::RandomizedEffectQuery {
     const OPERATION: &'static str = "CheckedRandomizedOperation";
@@ -73,10 +140,25 @@ impl CheckedRandomizedOperation {
                 message: "randomized target or design differs from its compiled plan".into(),
             });
         }
+        if let Some(declaration) = &study.missing {
+            check_declaration_for_design(query, declaration)?;
+        }
         let (identification, estimand) = randomized_identification(query);
-        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
+        Ok(Self::freeze(
+            study,
+            query,
+            data,
+            physical,
+            identification,
+            estimand,
+            study.missing.clone(),
+        ))
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one linear execution: validate, read the outcome, fit by method, then assemble the result"
+    )]
     pub(crate) fn execute(
         &self,
         data: &TabularData,
@@ -84,31 +166,62 @@ impl CheckedRandomizedOperation {
     ) -> Result<StudyResult, CausalError> {
         self.begin_execute(data, ctx)?;
         self.query.validate()?;
-        let outcomes = match data.column(self.query.outcome).map_err(CausalError::from)? {
-            antecedent_data::ColumnView::Float64(column) => column.values.as_slice(),
-            _ => {
+        let antecedent_data::ColumnView::Float64(column) =
+            data.column(self.query.outcome).map_err(CausalError::from)?
+        else {
+            return Err(CausalError::Unsupported {
+                message: "randomized ITT outcome must be continuous",
+            });
+        };
+        let raw_outcomes = column.values.as_slice();
+        let method = RandomizedMethod::of(&self.query);
+        let observed: Vec<bool> =
+            (0..raw_outcomes.len()).map(|i| column.validity.is_valid(i)).collect();
+        let complete = observed.iter().all(|seen| *seen);
+        let adjusted_outcomes;
+        let (fit, outcomes) = if complete {
+            if raw_outcomes.iter().any(|y| !y.is_finite()) {
                 return Err(CausalError::Unsupported {
-                    message: "randomized ITT outcome must be continuous",
+                    message: "randomized ITT requires finite outcomes",
                 });
             }
+            adjusted_outcomes = self.cuped_adjusted_outcomes(data, raw_outcomes)?;
+            let outcomes = adjusted_outcomes.as_deref().unwrap_or(raw_outcomes);
+            (fit_randomized(&self.query, data, outcomes)?, outcomes)
+        } else {
+            if data.storage().weights().is_some() {
+                return Err(CausalError::Estimate(
+                    antecedent_estimate::sampling_weights::unsupported_route(
+                        "sampling weights and missing outcomes are not combined: the responder \
+                         estimators read no weights",
+                    ),
+                ));
+            }
+            let declaration = self.require_missing_policy(data)?;
+            (
+                fit_missing_outcomes(&self.query, data, raw_outcomes, &observed, declaration)?
+                    .closed(),
+                raw_outcomes,
+            )
         };
-        if outcomes.iter().any(|y| !y.is_finite()) {
-            return Err(CausalError::Unsupported {
-                message: "randomized ITT requires complete finite outcomes",
-            });
-        }
-        let adjusted_outcomes = self.cuped_adjusted_outcomes(data, outcomes)?;
-        let outcomes = adjusted_outcomes.as_deref().unwrap_or(outcomes);
-        let method = RandomizedMethod::of(&self.query);
-        let fit = fit_randomized(&self.query, data, outcomes)?;
         if !fit.effect.is_finite() || !fit.variance.is_finite() || fit.variance < 0.0 {
             return Err(CausalError::Unsupported {
                 message: "randomized effect or design variance is not finite under the declared probabilities",
             });
         }
+        let weighted = self.extra.as_ref().filter(|_| !complete);
         let interval_published = fit.interval_95.is_some();
-        let uncertainty = Arc::<str>::from(method.uncertainty(interval_published));
-        let diagnostic = method.diagnostic(interval_published);
+        let sampled = fit.sampling.is_some();
+        let uncertainty = Arc::<str>::from(match weighted {
+            Some(declaration) => responder_uncertainty(declaration.policy, method),
+            None if sampled => SAMPLING_WEIGHTED_UNCERTAINTY,
+            None => method.uncertainty(interval_published),
+        });
+        let diagnostic = match weighted {
+            Some(declaration) => responder_diagnostic(declaration.policy, method),
+            None if sampled => SAMPLING_WEIGHTED_DIAGNOSTIC,
+            None => method.diagnostic(interval_published),
+        };
         let exact_test = self
             .query
             .exact_randomization_test
@@ -122,6 +235,7 @@ impl CheckedRandomizedOperation {
         if interval_published && method.clustered_standard_error() {
             estimate = estimate.with_se_kind(antecedent_estimate::AnalyticSeKind::Cluster);
         }
+        estimate = estimate.with_sampling_weights(fit.sampling);
         let started = Instant::now();
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
@@ -152,6 +266,19 @@ impl CheckedRandomizedOperation {
                 extras: IdentifiedExecuteExtras::default(),
             },
         );
+        let sampling_record = fit.sampling;
+        if let Some(record) = sampling_record {
+            result.diagnostics.push(Diagnostic::new(
+                "estimate.randomized.sampling_weights",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "{} rows used, {} zero-weight rows excluded; Kish effective sample size {:.2}; \
+                     the estimate speaks for the weighted population the sampling weights represent",
+                    record.rows_used, record.zero_weight_rows, record.effective_sample_size,
+                ),
+            ));
+        }
         result.payload = crate::result::ResultPayload::RandomizedEffect(self.randomized_payload(
             fit,
             method,
@@ -163,7 +290,99 @@ impl CheckedRandomizedOperation {
         }
         result.rebind_interval(false);
         result.treatment = None;
+        result.missing_data = Some(self.missing_report(data, &observed)?);
         Ok(result)
+    }
+
+    /// The declared policy that handles missing outcomes, or the refusal naming the first
+    /// missing cell and the policies this design can execute.
+    fn require_missing_policy(
+        &self,
+        data: &TabularData,
+    ) -> Result<&antecedent_data::MissingDeclaration, CausalError> {
+        let supported = missing_data::MissingRoute::Randomized.supported();
+        let Some(declaration) = self.extra.as_ref().filter(|declaration| {
+            declaration.policy != antecedent_data::MissingPolicy::ErrorOnMissing
+        }) else {
+            let cell = antecedent_data::first_missing_cell(data, &[self.query.outcome])?.ok_or(
+                CausalError::Unsupported {
+                    message: "randomized ITT outcome validity changed during execution",
+                },
+            )?;
+            return Err(CausalError::Estimate(
+                antecedent_estimate::missing_policy::policy_required(
+                    &cell,
+                    missing_data::MissingRoute::Randomized.label(),
+                    &supported[1..],
+                ),
+            ));
+        };
+        if self.query.exact_randomization_test {
+            return Err(CausalError::Estimate(
+                antecedent_estimate::missing_policy::policy_not_applicable(
+                    declaration.policy,
+                    missing_data::MissingRoute::Randomized.label(),
+                    "exact randomization inference enumerates assignments of fully observed outcomes",
+                    supported,
+                ),
+            ));
+        }
+        Ok(declaration)
+    }
+
+    /// Policy, assumption and row accounting by arm.
+    ///
+    /// Complete case keeps the responders. Inverse-probability weighting keeps every assigned
+    /// participant in its arm's denominator and reweights the responders.
+    fn missing_report(
+        &self,
+        data: &TabularData,
+        observed: &[bool],
+    ) -> Result<crate::result::MissingDataReport, CausalError> {
+        let (policy, declared) = missing_data::effective_policy(
+            missing_data::MissingRoute::Randomized,
+            self.extra.as_ref(),
+        );
+        let mask = data.storage().analysis_mask();
+        let accounting = antecedent_data::RowAccounting::from_selection(
+            data,
+            mask,
+            policy,
+            &[self.query.outcome],
+            observed,
+        )?;
+        let arms = [&self.query.treatment_arms.0, &self.query.treatment_arms.1];
+        let labels: Vec<Arc<str>> = self
+            .query
+            .realized_assignment
+            .iter()
+            .map(|assigned| Arc::clone(arms[usize::from(*assigned)]))
+            .collect();
+        let accounting = accounting.with_groups(&labels, observed, observed)?;
+        let accounting =
+            if policy == antecedent_data::MissingPolicy::InverseProbabilityOfObservation {
+                let rows = accounting.rows_total;
+                accounting.with_denominator(rows)
+            } else {
+                let kept = accounting.rows_kept;
+                accounting.with_denominator(kept)
+            };
+        let covariates = self.extra.as_ref().map_or_else(
+            || Arc::from([]),
+            |declaration| {
+                declaration
+                    .covariates
+                    .iter()
+                    .filter_map(|&id| data.schema().get(id).ok().map(|v| Arc::clone(&v.name)))
+                    .collect::<Arc<[_]>>()
+            },
+        );
+        Ok(missing_data::report(
+            missing_data::MissingRoute::Randomized,
+            declared,
+            covariates,
+            accounting,
+        ))
     }
 
     /// Outcomes minus the fixed CUPED covariate term, when the query declares one.
@@ -331,6 +550,7 @@ impl CheckedRandomizedOperation {
                     fit.multi_arm_values.iter().map(|(_, _, _, count)| *count).min().unwrap_or(0)
                 },
                 min_probability: assignment_probability_floor(&self.query, true),
+                min_expected_arm_units: expected_arm_units(&self.query),
                 reported_intervals,
                 all_reported_intervals,
                 covariates: self.query.ancova_covariates.len(),

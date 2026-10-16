@@ -683,7 +683,8 @@ impl CausalError {
                 EstimationError::Refused { code, .. }
                 | EstimationError::RefusedWithFields { code, .. },
             )
-            | Self::Serialization(IoError::Refused { code, .. }) => return Some(code),
+            | Self::Serialization(IoError::Refused { code, .. })
+            | Self::Discovery(DiscoveryError::Refused { code, .. }) => return Some(code),
             // The multi-source limited-experiment route's frozen (code, detail) pairs.
             Self::Identify(error) => {
                 return antecedent_identify::mz_transport_refusal(error)

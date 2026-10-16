@@ -29,6 +29,7 @@ use super::prepare::{
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
+use crate::sampling_weights::SamplingWeights;
 use crate::se::{AnalyticSeKind, SeSpec};
 use crate::util::{sample_std, stats_err};
 
@@ -58,6 +59,13 @@ pub enum CaliperScale {
 ///
 /// Analytic SEs use Abadie–Imbens (2006) donor-reuse variance; see module docs for the
 /// bootstrap caveat (Abadie–Imbens 2008).
+///
+/// **Sampling weights.** With [`Self::sampling_weights`] the propensity model is the weighted
+/// logistic fit, donors are still the nearest rows of the sample, and the effect is the
+/// weighted mean of the matched unit effects with each matched unit weighted by its sampling
+/// weight (times its target weight). Its variance is the Abadie–Imbens form for a weighted
+/// matched mean: `σ̂² Σ c_i²`, where `c_i` is a row's own weight plus the weights of the
+/// matched units it donates to. The interval it supports is a separate calibration claim.
 ///
 /// **Caliper scale:** [`Self::caliper`] is interpreted on [`Self::caliper_scale`], which
 /// defaults to [`CaliperScale::Logit`] — the field-standard convention (Rosenbaum & Rubin
@@ -99,6 +107,8 @@ pub struct PropensityMatching {
     /// exclusion that restricts the target population to the rows at the two declared levels
     /// must be declared.
     pub other_levels: OtherLevels,
+    /// Sampling weights of every row of the source table (see [`crate::sampling_weights`]).
+    pub sampling_weights: Option<SamplingWeights>,
 }
 
 impl Default for PropensityMatching {
@@ -124,7 +134,15 @@ impl PropensityMatching {
             multiway_ids: None,
             panel_times: None,
             other_levels: OtherLevels::default(),
+            sampling_weights: None,
         }
+    }
+
+    /// Declare sampling weights for every row of the source table.
+    #[must_use]
+    pub fn with_sampling_weights(mut self, weights: SamplingWeights) -> Self {
+        self.sampling_weights = Some(weights);
+        self
     }
 
     /// Declare what to do with rows whose treatment is at neither declared level (see
@@ -227,6 +245,7 @@ impl PropensityMatching {
             self.overlap,
             self.population_registry.as_ref(),
             self.other_levels,
+            self.sampling_weights.as_ref(),
         )
     }
 
@@ -268,10 +287,27 @@ impl PropensityMatching {
             1,
             retained.as_deref(),
         );
-        let tw_used: Option<Vec<f64>> = problem.target_weights.as_ref().map(|w| match &retained {
-            Some(idx) => idx.iter().map(|&i| w[i]).collect(),
-            None => w.to_vec(),
-        });
+        let weights_used = |weights: &[f64]| -> Vec<f64> {
+            match &retained {
+                Some(idx) => idx.iter().map(|&i| weights[i]).collect(),
+                None => weights.to_vec(),
+            }
+        };
+        // Target and sampling weights compose by product: the matched units are averaged over
+        // the target law within the weighted population.
+        let tw_used: Option<Vec<f64>> =
+            match (problem.target_weights.as_deref(), problem.sampling_weights.as_ref()) {
+                (None, None) => None,
+                (Some(target), None) => Some(weights_used(target)),
+                (None, Some(sampling)) => Some(weights_used(&sampling.weights)),
+                (Some(target), Some(sampling)) => Some(
+                    weights_used(target)
+                        .into_iter()
+                        .zip(weights_used(&sampling.weights))
+                        .map(|(t, s)| t * s)
+                        .collect(),
+                ),
+            };
         let clusters_used = gather_optional_row_labels(
             self.cluster_ids.as_deref(),
             problem.nrows,
@@ -325,6 +361,7 @@ impl PropensityMatching {
             .with_n_obs(u64::try_from(result.n_obs).unwrap_or(u64::MAX))
             .with_overlap_report(overlap_report)
             .with_treatment_levels(problem.treatment_levels)
+            .with_sampling_weights(problem.sampling_weights.as_ref().map(|s| s.record))
             .with_retained_memory_bytes(Some(workspace.retained_memory_bytes())))
     }
 }
@@ -554,12 +591,12 @@ pub(crate) fn matching_contrast(
         _ => treated_idx.len() + control_idx.len(),
     };
     let retained_fraction = per_unit_effects.len() as f64 / n_eligible.max(1) as f64;
-    let ate = if matches!(target, TargetPopulation::CustomDistribution(_)) {
-        let Some(tw) = target_weights else {
-            return Err(EstimationError::unsupported(
-                "CustomDistribution requires PopulationRegistry weights on the prepared problem",
-            ));
-        };
+    if matches!(target, TargetPopulation::CustomDistribution(_)) && target_weights.is_none() {
+        return Err(EstimationError::unsupported(
+            "CustomDistribution requires PopulationRegistry weights on the prepared problem",
+        ));
+    }
+    let ate = if let Some(tw) = target_weights {
         let mut num = 0.0;
         let mut den = 0.0;
         for (i, &eff) in per_unit_effects.iter().enumerate() {
@@ -578,20 +615,22 @@ pub(crate) fn matching_contrast(
     };
     // One-arm (ATT/ATC) vs two-arm ATE Abadie–Imbens variance.
     let ate_form = !matches!(target, TargetPopulation::Treated | TargetPopulation::Untreated);
-    // Under a custom target the estimator is the target-weighted matched mean, so each unit's
-    // outcome enters with its query weight plus the weights of the queries it donates to;
-    // the equal-weight `(1 + K)/n` coefficients would describe a different estimator.
-    let weighted_coefficients = match (target, target_weights) {
-        (TargetPopulation::CustomDistribution(_), Some(tw)) => Some(custom_unit_coefficients(
+    // Under a custom target or sampling weights the estimator is the weighted matched mean, so
+    // each unit's outcome enters with its query weight plus the weights of the queries it
+    // donates to; the equal-weight `(1 + K)/n` coefficients would describe a different
+    // estimator.
+    let weighted_coefficients = target_weights.map(|tw| {
+        custom_unit_coefficients(
             tw,
             &effect_rows,
             &donor_usage,
             &treated_idx,
             &control_idx,
             treatment.len(),
-        )),
-        _ => None,
-    };
+            ate_form,
+            matches!(target, TargetPopulation::Untreated),
+        )
+    });
     let se_analytic = match se_kind {
         AnalyticSeKind::Homoskedastic => match &weighted_coefficients {
             Some(coefficients) => {
@@ -650,9 +689,22 @@ pub(crate) fn matching_contrast(
     Ok(MatchedEstimate { ate, se_analytic, retained_fraction, n_obs: per_unit_effects.len() })
 }
 
-/// Coefficient `c_i` of each sample row's outcome in the target-weighted pooled matching
-/// estimator `τ̂ = Σ_q w̃_q τ̂_q` (`w̃` normalised over the matched queries): the row's own query
-/// weight plus the weights of the queries it donates to. Equal weights give `(1 + K_i)/n`.
+/// Coefficient `c_i` of each sample row's outcome in the weighted pooled matching estimator
+/// `τ̂ = Σ_q w̃_q τ̂_q` (`w̃_q = w_q / M`, `M = Σ_q w_q` over the matched queries): the row's own
+/// query weight `w_i / M` plus the weighted donor reuse `K^w_i / M`, where
+/// `K^w_i = Σ_{q: donor(q) = i} w_q` is the weight of the queries row `i` donates to.
+///
+/// With the ATE form every unit is a query once, so a unit dropped by the caliper still counts
+/// its own `w_i / M` (the unweighted Abadie–Imbens ATE sum `Σ_j (1 + K_j)²` runs over every
+/// unit, `K_j = 0` included); the one-arm (ATT/ATC) form counts matched queries only.
+///
+/// At constant weights `w_i = w` this is `c_i = (1 + K_i) / n` (ATE) and `c_q = 1/n`,
+/// `c_j = K_j / n` (ATT), the coefficients behind the unweighted `(1 + K_j)²` and `n + ΣK²`
+/// sums, whatever the scale of `w`.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the coefficients need the weights, both arms' rows and the donor mapping"
+)]
 fn custom_unit_coefficients(
     target_weights: &[f64],
     effect_rows: &[usize],
@@ -660,23 +712,48 @@ fn custom_unit_coefficients(
     treated_idx: &[usize],
     control_idx: &[usize],
     nrows: usize,
+    ate_form: bool,
+    donors_are_treated: bool,
 ) -> Vec<f64> {
     let n_control = control_idx.len();
     let weight = |row: usize| target_weights.get(row).copied().unwrap_or(0.0);
     let mass: f64 = effect_rows.iter().map(|&r| weight(r)).sum();
     let mut coefficient = vec![0.0; nrows];
+    if ate_form {
+        for (row, slot) in coefficient.iter_mut().enumerate() {
+            *slot = weight(row) / mass;
+        }
+        for &row in effect_rows {
+            coefficient[row] -= weight(row) / mass;
+        }
+    }
     for (&row, &donor) in effect_rows.iter().zip(donor_local) {
         let w = weight(row) / mass;
         coefficient[row] += w;
-        let donor_row =
-            if donor < n_control { control_idx[donor] } else { treated_idx[donor - n_control] };
+        // The ATC match draws its donors from the treated arm alone, indexed without the
+        // control offset the pooled (ATE) donor list carries for its ATC half.
+        let donor_row = if donors_are_treated {
+            treated_idx[donor]
+        } else if donor < n_control {
+            control_idx[donor]
+        } else {
+            treated_idx[donor - n_control]
+        };
         coefficient[donor_row] += w;
     }
     coefficient
 }
 
-/// Abadie–Imbens homoskedastic SE of the target-weighted matched mean:
-/// `Var = σ̂² Σ_i c_i²`, `σ̂² = ½ Σ_q w̃_q (τ̂_q − τ̂)²`.
+/// Abadie–Imbens homoskedastic SE of the weighted matched mean:
+/// `Var = σ̂² Σ_i c_i²`, `σ̂² = ½ · Σ_q w̃_q (τ̂_q − τ̂)² / (1 − Σ_q w̃_q²)`.
+///
+/// The denominator is the reliability-weights degrees-of-freedom correction of the weighted
+/// variance, so it generalizes the unweighted `Var(τ̂ᵢ)/2` with its `n − 1` divisor. At
+/// constant weights `w̃_q = 1/n`, so `1 − Σ w̃² = (n − 1)/n`,
+/// `σ̂² = ½ Σ(τ̂_q − τ̂)² / (n − 1)` and, with the coefficients of
+/// [`custom_unit_coefficients`], `Var = σ̂² Σ_j (1 + K_j)² / n²` (ATE) or
+/// `σ̂² (n + ΣK²) / n²` (ATT/ATC): exactly [`abadie_imbens_se`], independent of the scale of
+/// the weights. A single matched query has no variance estimate and returns `NaN`.
 fn weighted_abadie_imbens_se(
     effects: &[f64],
     ate: f64,
@@ -686,12 +763,18 @@ fn weighted_abadie_imbens_se(
 ) -> f64 {
     let weight = |row: usize| target_weights.get(row).copied().unwrap_or(0.0);
     let mass: f64 = effect_rows.iter().map(|&r| weight(r)).sum();
+    let concentration: f64 = effect_rows.iter().map(|&r| (weight(r) / mass).powi(2)).sum();
+    let denominator = 1.0 - concentration;
+    if denominator <= 0.0 {
+        return f64::NAN;
+    }
     let sigma2: f64 = 0.5
         * effects
             .iter()
             .zip(effect_rows)
             .map(|(e, &r)| weight(r) / mass * (e - ate).powi(2))
-            .sum::<f64>();
+            .sum::<f64>()
+        / denominator;
     (sigma2 * coefficients.iter().map(|c| c * c).sum::<f64>()).max(0.0).sqrt()
 }
 
@@ -1130,6 +1213,9 @@ mod tests {
         );
     }
 
+    /// Correction: the weighted variance now carries the reliability-weights factor
+    /// `1 / (1 − Σ w̃²)` in `σ̂²` (it reduces to the unweighted `n − 1` divisor at equal weights),
+    /// so custom-target and sampling-weighted matching SEs are larger than before by that factor.
     /// Four units, 1-D feature, target weights `[4, 1, 1, 2]`. The bias-corrected effects are
     /// hand-derived from the two per-arm donor OLS lines; the weighted variance is
     /// `σ̂²_w · Σ c_i²` with `c` the row coefficients of the weighted pooled mean.
@@ -1145,8 +1231,10 @@ mod tests {
         let rows = [0usize, 1, 2, 3];
         let w_sum: f64 = weights.iter().sum();
         let tau: f64 = effects.iter().zip(&weights).map(|(e, w)| e * w).sum::<f64>() / w_sum;
+        let concentration: f64 = weights.iter().map(|w| (w / w_sum).powi(2)).sum();
         let sigma2: f64 = 0.5
-            * effects.iter().zip(&weights).map(|(e, w)| w / w_sum * (e - tau).powi(2)).sum::<f64>();
+            * effects.iter().zip(&weights).map(|(e, w)| w / w_sum * (e - tau).powi(2)).sum::<f64>()
+            / (1.0 - concentration);
         // Donors: treated q0→control 0, q1→control 1, control q2→treated 0, q3→treated 1.
         let donor_of_query = [2usize, 3, 0, 1];
         let mut c = [0.0; 4];
@@ -1181,5 +1269,137 @@ mod tests {
         assert!((out.ate - tau).abs() < 1e-12, "ate {} vs {tau}", out.ate);
         assert!((out.se_analytic - expected).abs() < 1e-12, "se {} vs {expected}", out.se_analytic);
         assert!((out.se_analytic - equal_weight_se).abs() > 1e-3, "weights must matter");
+    }
+
+    fn contrast(
+        treatment: &[f64],
+        outcome: &[f64],
+        features: &[f64],
+        target: &TargetPopulation,
+        caliper: Option<f64>,
+        weights: Option<&[f64]>,
+    ) -> MatchedEstimate {
+        matching_contrast(
+            MatchingSample {
+                treatment,
+                outcome,
+                features,
+                dim: 1,
+                distance: MatchingDistance::Absolute,
+                ctx: &ExecutionContext::for_tests(1),
+            },
+            target,
+            caliper,
+            &mut PropensityEstimationWorkspace::default(),
+            homoskedastic(),
+            weights,
+        )
+        .unwrap()
+    }
+
+    /// Constant weights of any scale are the unweighted construction: the weighted matched
+    /// mean, its donor-reuse coefficients and its `(1 − Σ w̃²)`-corrected variance reduce to
+    /// the Abadie–Imbens estimator, for the ATE and the one-arm forms and with a unit dropped by
+    /// the caliper.
+    #[test]
+    fn constant_weights_reproduce_the_abadie_imbens_standard_error() {
+        let treatment = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0];
+        let outcome = [3.0, 5.0, 9.0, 1.0, 2.0, 2.5];
+        let features = [0.0, 1.0, 5.0, 0.1, 0.9, 1.2];
+        for target in
+            [TargetPopulation::AllObserved, TargetPopulation::Treated, TargetPopulation::Untreated]
+        {
+            for caliper in [None, Some(0.5)] {
+                let plain = contrast(&treatment, &outcome, &features, &target, caliper, None);
+                for scale in [1.0, 3.7, 1.0e-3] {
+                    let weights = [scale; 6];
+                    let weighted =
+                        contrast(&treatment, &outcome, &features, &target, caliper, Some(&weights));
+                    assert!((weighted.ate - plain.ate).abs() < 1e-12, "{target:?} ate");
+                    assert!(
+                        (weighted.se_analytic - plain.se_analytic).abs()
+                            < 1e-12 * (1.0 + plain.se_analytic),
+                        "{target:?} {caliper:?} scale {scale}: {} vs {}",
+                        weighted.se_analytic,
+                        plain.se_analytic
+                    );
+                }
+            }
+        }
+    }
+
+    /// Integer weights on the treated queries of an ATT match are repeated treated rows: a
+    /// duplicate query matches the same donor and the donor pool (hence the bias-correction
+    /// fit) is unchanged, so the weighted point estimate equals the unweighted estimate of the
+    /// replicated rows. The standard error is deliberately not that of the replicated rows:
+    /// a sampling weight is one unit standing for `w` units, not `w` independent draws, so
+    /// its variance is `σ̂² (Σ w_q² + Σ_j K^w_j²) / W²` with the `(1 − Σ w̃²)` correction.
+    #[test]
+    fn integer_query_weights_equal_replicated_queries_in_the_point_and_follow_the_definition() {
+        let treated_x = [0.0, 1.0, 1.6];
+        let treated_y = [3.0, 5.0, 6.0];
+        let counts = [3usize, 1, 2];
+        let controls_x = [0.1, 0.9, 1.5];
+        let controls_y = [1.0, 2.0, 2.5];
+        let assemble = |copies: &[usize]| {
+            let (mut t, mut y, mut x) = (vec![], vec![], vec![]);
+            for i in 0..3 {
+                for _ in 0..copies[i] {
+                    t.push(1.0);
+                    y.push(treated_y[i]);
+                    x.push(treated_x[i]);
+                }
+            }
+            for i in 0..3 {
+                t.push(0.0);
+                y.push(controls_y[i]);
+                x.push(controls_x[i]);
+            }
+            (t, y, x)
+        };
+        let (t, y, x) = assemble(&[1, 1, 1]);
+        let weights = [3.0, 1.0, 2.0, 1.0, 1.0, 1.0];
+        let weighted = contrast(&t, &y, &x, &TargetPopulation::Treated, None, Some(&weights));
+        let (rt, ry, rx) = assemble(&counts);
+        let replicated = contrast(&rt, &ry, &rx, &TargetPopulation::Treated, None, None);
+        assert!((weighted.ate - replicated.ate).abs() < 1e-12);
+
+        let unweighted = contrast(&t, &y, &x, &TargetPopulation::Treated, None, None);
+        let sparse = contrast(&t, &y, &x, &TargetPopulation::Treated, None, Some(&[1.0; 6]));
+        assert!((sparse.se_analytic - unweighted.se_analytic).abs() < 1e-12);
+        // Closed form, independent of the library. Bias-corrected unit effects: the nearest
+        // control of treated x = 0, 1, 1.6 is x = 0.1, 0.9, 1.5, and the correction slope is
+        // the OLS slope of control outcome on feature. Every donor is used by one query, so
+        // K^w = (3, 1, 2) = w and Σ w² = Σ (K^w)² = 14, W = 6.
+        let mean_x = controls_x.iter().sum::<f64>() / 3.0;
+        let mean_y = controls_y.iter().sum::<f64>() / 3.0;
+        let slope = controls_x
+            .iter()
+            .zip(&controls_y)
+            .map(|(x, y)| (x - mean_x) * (y - mean_y))
+            .sum::<f64>()
+            / controls_x.iter().map(|x| (x - mean_x).powi(2)).sum::<f64>();
+        let effects: Vec<f64> = (0..3)
+            .map(|q| (treated_y[q] - controls_y[q]) - slope * (treated_x[q] - controls_x[q]))
+            .collect();
+        let w = [3.0_f64, 1.0, 2.0];
+        let total: f64 = w.iter().sum();
+        let tau: f64 = effects.iter().zip(&w).map(|(e, w)| e * w).sum::<f64>() / total;
+        let concentration: f64 = w.iter().map(|w| (w / total).powi(2)).sum();
+        let sigma2 = 0.5
+            * effects.iter().zip(&w).map(|(e, w)| w / total * (e - tau).powi(2)).sum::<f64>()
+            / (1.0 - concentration);
+        let sum_w2: f64 = w.iter().map(|w| w * w).sum();
+        let expected = (sigma2 * (sum_w2 + sum_w2) / (total * total)).sqrt();
+        assert!((weighted.ate - tau).abs() < 1e-12, "ate {} vs {tau}", weighted.ate);
+        assert!(
+            (weighted.se_analytic - expected).abs() < 1e-12,
+            "se {} vs {expected}",
+            weighted.se_analytic
+        );
+        assert!(
+            (weighted.se_analytic - replicated.se_analytic).abs() > 1e-6,
+            "a weight is not a frequency: the variance must differ from the replicated rows"
+        );
     }
 }

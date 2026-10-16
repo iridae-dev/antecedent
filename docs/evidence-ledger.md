@@ -84,8 +84,15 @@ both succeed. `revise_source` applies add, update, replace, supersede and
 withdraw and returns the downstream classification. `synthesis` refuses a
 result that is no longer valid, so stale numbers are never served, and
 `pooled_interval` reports a 95% interval only for a measured construction
-(fixed-effect Wald z, or random-effects Hartung-Knapp t) bound to a currently
-attesting coverage record, and otherwise refuses `cell_not_licensed`. A result
+(fixed-effect Wald z, or random-effects Hartung-Knapp t with the actual study
+count less one degrees of freedom) bound to a currently attesting coverage
+record, and otherwise refuses `cell_not_licensed`. The measured family is 5 to
+30 independent studies, keyed by that range and by the observations of the
+smallest study (the sample its variance estimate rests on): a count inside the
+range is licensed because every count the measurement visited (5, 10, 15, 20,
+25 and 30) passed, under unequal study variances and, for the random-effects
+interval, absent, declared and strong between-study heterogeneity. Fewer than
+5 or more than 30 studies refuse. A result
 with no numbers, a borrowing posterior and an assumption range refuse.
 
 `refresh` with added or retired evidence:

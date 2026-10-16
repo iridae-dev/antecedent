@@ -10318,8 +10318,9 @@ notes = "Never a point or interval; a class larger than the sampler limit or the
 route = "antecedent_identify.discovered_transport.transport_across_pag"
 stage = "identify"
 status = "closed"
-reason_code = "discovered_structure_unresolved"
-notes = "A PAG is logically incoherent as stated: its members are ancestral graphs, so the structural rules do not describe them."
+reason_code = "invalid_argument"
+notes = "Closed interval route of an in_progress record: the rows of a temporal window overlap, the independent-row bootstrap does not apply, and a request for an interval is refused."
+
 [[routes]]
 route = "antecedent_discovery.selective.populations.PerPopulationDiscovery.run"
 stage = "evaluate"

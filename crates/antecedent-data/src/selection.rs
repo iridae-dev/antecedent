@@ -189,6 +189,33 @@ impl TabularData {
         Ok(Self::new(new_storage))
     }
 
+    /// Attach observation weights (one per row), replacing any existing ones; preserves
+    /// columns, validity and the analysis mask. The weights enter the table's content
+    /// identity, so a table with other weights is another table.
+    ///
+    /// # Errors
+    ///
+    /// A weight count that is not the row count, or weights that are not finite and
+    /// non-negative with positive total over the analysis rows
+    /// ([`DataError::InvalidWeights`] names the first offending row).
+    pub fn with_weights(&self, weights: Arc<[f64]>) -> Result<Self, DataError> {
+        let storage = self.storage();
+        if weights.len() != storage.row_count() {
+            return Err(DataError::LengthMismatch {
+                expected: storage.row_count(),
+                actual: weights.len(),
+                context: "observation weights",
+            });
+        }
+        let new_storage = OwnedColumnarStorage::try_new(
+            storage.schema().clone(),
+            storage.columns().to_vec(),
+            storage.analysis_mask().cloned(),
+            Some(weights),
+        )?;
+        Ok(Self::new(new_storage))
+    }
+
     /// Append a continuous float64 covariate; preserve existing columns/mask/weights.
     ///
     /// # Errors

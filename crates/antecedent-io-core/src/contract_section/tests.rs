@@ -363,6 +363,7 @@ fn contract_for(
         interference: None,
         distribution_factor_laws: None,
         participants: None,
+        missing: None,
         nested_counterfactual_fit: None,
         linear_fit_moments: None,
     };

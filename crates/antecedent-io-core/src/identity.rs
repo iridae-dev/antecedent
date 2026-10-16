@@ -1552,6 +1552,17 @@ pub struct ParticipantBindingWire {
     pub codes: String,
 }
 
+/// A declared missing-data policy that differs from the route's default, with the covariates
+/// of its observation model. Identifies how the analysed rows were chosen or weighted.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MissingPolicyWire {
+    /// Policy name (`error`, `complete_case`, `inverse_probability`, `balanced_panel`,
+    /// `available_case`).
+    pub policy: String,
+    /// Names of the observation-model covariates, in declared order.
+    pub covariates: Vec<String>,
+}
+
 /// Data-snapshot payload binding contents and ordered unit/environment partitions.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct DataSnapshotIdentityWire {
@@ -1588,6 +1599,11 @@ pub struct DataSnapshotIdentityWire {
     /// artifacts and on studies without participants, whose digests are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub participants: Option<ParticipantBindingWire>,
+    /// Missing-data policy, when the study declares one that differs from its route's default.
+    /// Absent on older artifacts and on studies that keep the default, whose digests are
+    /// unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub missing: Option<MissingPolicyWire>,
 }
 
 /// Sufficient statistics for replaying a checked homoskedastic OLS fit.
@@ -2400,6 +2416,10 @@ pub struct EstimatorConfigWire {
     /// estimator refuses such rows (the default), so existing digests are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub other_levels: Option<String>,
+    /// Digest of the declared sampling weights of every source row; absent when none are
+    /// declared, so existing digests are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampling_weights: Option<PayloadDigestWire>,
 }
 
 /// Portable estimator-spec identity (mirrors `antecedent::EstimatorSpec` variants).
@@ -3032,6 +3052,7 @@ mod tests {
             nested_counterfactual_fit: None,
             linear_fit_moments: None,
             participants: None,
+            missing: None,
         };
         let decoded: DataSnapshotIdentityWire = from_cbor(&to_cbor(&original).unwrap()).unwrap();
         assert_eq!(original, decoded);

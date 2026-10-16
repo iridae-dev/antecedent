@@ -1453,6 +1453,25 @@ class SplitEffect:
         return MeasuredInference._from_native(native)
 
 
+def _effect_columns(
+    data: Mapping[str, Any], treatment: str, outcome: str
+) -> tuple[list[str], list[np.ndarray]]:
+    """Variable names and contiguous float columns of ``data``, with the roles checked."""
+    if not isinstance(data, Mapping):
+        raise CausalTypeError("data must map variable names to 1-D arrays")
+    names = [_name(name, "variable") for name in data]
+    for role, label in ((treatment, "treatment"), (outcome, "outcome")):
+        if role not in data:
+            raise CausalValueError(f"{label} {role!r} is not a column of data")
+    columns = []
+    for name in names:
+        column = np.ascontiguousarray(np.asarray(data[name], dtype=np.float64))
+        if column.ndim != 1:
+            raise CausalValueError(f"column {name!r} must be 1-D")
+        columns.append(column)
+    return names, columns
+
+
 def sample_split_effect(
     data: Mapping[str, Any],
     *,
@@ -1479,18 +1498,7 @@ def sample_split_effect(
             into the treatment.
         CausalDiscoveryError: the discovery algorithm failed or was cancelled.
     """
-    if not isinstance(data, Mapping):
-        raise CausalTypeError("data must map variable names to 1-D arrays")
-    names = [_name(name, "variable") for name in data]
-    for role, label in ((treatment, "treatment"), (outcome, "outcome")):
-        if role not in data:
-            raise CausalValueError(f"{label} {role!r} is not a column of data")
-    columns = []
-    for name in names:
-        column = np.ascontiguousarray(np.asarray(data[name], dtype=np.float64))
-        if column.ndim != 1:
-            raise CausalValueError(f"column {name!r} must be 1-D")
-        columns.append(column)
+    names, columns = _effect_columns(data, treatment, outcome)
     text, source, refusal = _native.sample_split_effect(
         names,
         columns,

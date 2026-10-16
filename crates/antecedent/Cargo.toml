@@ -172,6 +172,14 @@ name = "transport"
 harness = false
 
 [[test]]
+name = "missing_outcome_calibration"
+path = "tests/missing_outcome_calibration.rs"
+
+[[test]]
+name = "missing_data_routes"
+path = "tests/missing_data_routes.rs"
+
+[[test]]
 name = "adjusted_recalc_precision"
 path = "tests/adjusted_recalc_precision.rs"
 
@@ -374,6 +382,10 @@ path = "tests/panel_calibration.rs"
 [[test]]
 name = "predictive_score_interval_calibration"
 path = "tests/predictive_score_interval_calibration.rs"
+
+[[test]]
+name = "practitioner_scale_calibration"
+path = "tests/practitioner_scale_calibration.rs"
 
 [[test]]
 name = "prepared_analysis"

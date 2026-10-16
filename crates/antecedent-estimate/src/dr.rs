@@ -18,8 +18,9 @@ use crate::overlap::OverlapPolicy;
 use crate::prepare::{require_adjustment_shaped, validate_ate_query_with_targets};
 use crate::propensity::{
     PreparedPropensityProblem, clip_of, default_propensity_overlap,
-    prepare_propensity_problem_with_registry, trim_of, trim_retained_rows,
+    prepare_propensity_problem_with_levels, trim_of, trim_retained_rows,
 };
+use crate::sampling_weights::SamplingWeights;
 
 /// Cross-fitted DR-Learner: CATE from a final-stage regression on the DR score.
 #[derive(Clone, Debug, PartialEq)]
@@ -38,6 +39,12 @@ pub struct DrLearner {
     /// are fit on other units, and the marginal ATE's standard error is the cluster sandwich
     /// of the cross-fitted scores.
     pub units: DeclaredUnits,
+    /// Sampling weights of every row of the source table (see [`crate::sampling_weights`]).
+    /// The nuisance learners, the marginal ATE and the final-stage regression are all fit
+    /// under them (each learner must carry prior weights). The final-stage linear HC0
+    /// pointwise standard errors and exact-support profiles are unweighted formulas and are
+    /// withheld; a weighted fit keeps no retargetable score table.
+    pub sampling_weights: Option<SamplingWeights>,
 }
 
 /// A prespecified profile in the complete ordered adjustment set.
@@ -95,7 +102,15 @@ impl DrLearner {
                 second: None,
                 second_source: None,
             },
+            sampling_weights: None,
         }
+    }
+
+    /// Declare sampling weights for every row of the source table.
+    #[must_use]
+    pub fn with_sampling_weights(mut self, weights: SamplingWeights) -> Self {
+        self.sampling_weights = Some(weights);
+        self
     }
 
     /// Declare whole-cluster cross-fitting over the unit labels set with
@@ -191,8 +206,21 @@ impl DrLearner {
         require_adjustment_shaped(estimand, "DRLearner requires an adjustment-shaped estimand")?;
         validate_ate_query_with_targets(query)?;
         self.units.check_source_rows(data.row_count())?;
-        let mut problem =
-            prepare_propensity_problem_with_registry(data, estimand, query, self.overlap, None)?;
+        if self.sampling_weights.is_some() && self.units.spec.is_some() {
+            return Err(crate::sampling_weights::unsupported_route(
+                "a cluster-DML declaration reads the unweighted cross-fitted score table; a \
+                 weighted cluster sandwich is available on the AIPW estimator only",
+            ));
+        }
+        let mut problem = prepare_propensity_problem_with_levels(
+            data,
+            estimand,
+            query,
+            self.overlap,
+            None,
+            crate::propensity::OtherLevels::default(),
+            self.sampling_weights.as_ref(),
+        )?;
         self.units.declare(
             &mut problem,
             query.outcome_functional == antecedent_core::OutcomeFunctional::Mean,
@@ -273,6 +301,12 @@ impl DrLearner {
                 "pointwise DR CATE inference requires an unpenalized linear final stage",
             ));
         }
+        if problem.sampling_weights.is_some() {
+            return Err(crate::sampling_weights::unsupported_route(
+                "pointwise CATE profiles use the unweighted HC0 formula and exact-support \
+                 counts of the retained rows; they have no sampling-weighted form here",
+            ));
+        }
         let (effect, results) = self.fit_with_profiles(problem, profiles, ctx, assumptions)?;
         let effect = self.units.publish(effect, problem)?;
         let results = results.ok_or_else(|| {
@@ -343,20 +377,31 @@ impl DrLearner {
             }
             None => view,
         };
+        let final_weights = problem.sampling_weights.as_ref().map(|s| &*s.weights);
+        if final_weights.is_some() {
+            crate::learn_nuisance::require_weight_capable(factory.as_ref(), self.final_learner)?;
+        }
         let fitted = factory
-            .fit(fit_view, antecedent_learn::TargetView::new(&phi), None, ctx)
+            .fit(fit_view, antecedent_learn::TargetView::new(&phi), final_weights, ctx)
             .map_err(learn_err)?;
         FINAL_EFFECT_FITS.with(|count| count.set(count.get().saturating_add(1)));
         let mut cate = vec![0.0; problem.nrows];
         fitted.predict(view, &mut cate, ctx).map_err(learn_err)?;
         let mut effect = crate::dml::attach_crossfit_aipw_table(
-            effect.with_cate(Some(Arc::from(cate.clone()))).with_cate_se(linear_cate_pointwise_se(
-                self.final_learner,
-                view,
-                &phi,
-                &cate,
-                retained.as_deref(),
-            )),
+            effect.with_cate(Some(Arc::from(cate.clone()))).with_cate_se(
+                if final_weights.is_some() {
+                    // The HC0 map is the unweighted OLS sandwich; no interval is invented.
+                    None
+                } else {
+                    linear_cate_pointwise_se(
+                        self.final_learner,
+                        view,
+                        &phi,
+                        &cate,
+                        retained.as_deref(),
+                    )
+                },
+            ),
             problem,
             &nuisance,
             crate::dml::CrossfitAipwTableContext {

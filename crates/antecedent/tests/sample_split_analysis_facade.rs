@@ -9,7 +9,8 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use antecedent::analysis::sample_split_analysis::{
-    SplitRule, WHOLE_METHOD_CALIBRATION, discover_on_split, split_evidence_sources,
+    AnalysisEffectRequest, SplitAnalysisEffect, SplitRule, WHOLE_METHOD_CALIBRATION,
+    discover_on_split, split_evidence_sources,
 };
 use antecedent::analysis::selective_discovery::discovery_data_source;
 use antecedent_contract::evidence_ledger::{EvidenceLedger, Overlap};
@@ -344,4 +345,110 @@ fn reusing_the_rows_that_selected_is_refused_and_the_ledger_sees_the_overlap() {
         ledger.overlap(analysis, unsplit).unwrap(),
         Overlap::SharedObservations { shared: split.receipt().n_analysis as _ }
     );
+}
+
+/// Weighted least squares of `y` on `[1, x]` over rows of positive weight, and the HC1 sandwich
+/// standard error of the slope, from the normal equations.
+fn weighted_slope(x: &[f64], y: &[f64], weights: &[f64]) -> (f64, f64) {
+    let rows: Vec<usize> = (0..x.len()).filter(|&i| weights[i] > 0.0).collect();
+    let n = rows.len() as f64;
+    let scale = n / rows.iter().map(|&i| weights[i]).sum::<f64>();
+    let w = |i: usize| weights[i] * scale;
+    let (sw, sx, sxx, sy, sxy) = rows.iter().fold((0.0, 0.0, 0.0, 0.0, 0.0), |a, &i| {
+        (
+            a.0 + w(i),
+            a.1 + w(i) * x[i],
+            a.2 + w(i) * x[i] * x[i],
+            a.3 + w(i) * y[i],
+            a.4 + w(i) * x[i] * y[i],
+        )
+    });
+    let det = sw * sxx - sx * sx;
+    let slope = (sw * sxy - sx * sy) / det;
+    let intercept = (sxx * sy - sx * sxy) / det;
+    // Bread rows (2x2 inverse) and the meat sum of w^2 e^2 [1 x]'[1 x].
+    let inv = [[sxx / det, -sx / det], [-sx / det, sw / det]];
+    let mut meat = [[0.0_f64; 2]; 2];
+    for &i in &rows {
+        let e = y[i] - intercept - slope * x[i];
+        let v = [1.0, x[i]];
+        for a in 0..2 {
+            for b in 0..2 {
+                meat[a][b] += (w(i) * e).powi(2) * v[a] * v[b];
+            }
+        }
+    }
+    let mut variance = 0.0;
+    for a in 0..2 {
+        for b in 0..2 {
+            variance += inv[1][a] * meat[a][b] * inv[b][1];
+        }
+    }
+    (slope, (variance * n / (n - 2.0)).sqrt())
+}
+
+#[test]
+fn the_analysis_part_is_estimated_under_its_own_weights_with_its_effective_size() {
+    let data = table(9);
+    let weights: Vec<f64> = (0..ROWS).map(|i| [0.0, 1.0, 2.5, 4.0][i % 4]).collect();
+    let weighted = with_rows(&data, Some(weights.clone()), None);
+    let mut weighted_contract = contract();
+    weighted_contract.ci_test = CiTestSpec::named("weighted_parcorr");
+    let split = discover_on_split(&weighted_contract, &weighted, rule(3), &ctx()).unwrap();
+
+    let request = AnalysisEffectRequest {
+        treatment: VariableId::from_raw(0),
+        outcome: VariableId::from_raw(1),
+        adjustment: vec![],
+        levels: (0.0, 1.0),
+        clusters: None,
+    };
+    let effect: SplitAnalysisEffect = split.estimate_analysis_effect(&request, &ctx()).unwrap();
+
+    let rows = split.analysis_rows();
+    let x = rows.float64_values(VariableId::from_raw(0)).unwrap();
+    let y = rows.float64_values(VariableId::from_raw(1)).unwrap();
+    let analysis_weights = split.analysis_weights().unwrap();
+    let (slope, se) = weighted_slope(&x, &y, analysis_weights);
+    assert!((effect.effect - slope).abs() < 1e-9, "{} vs {slope}", effect.effect);
+    assert!((effect.standard_error - se).abs() < 1e-9, "{} vs {se}", effect.standard_error);
+
+    // The weights' accounting: zero-weight rows are counted, the Kish size is the part's own.
+    let record = effect.sampling_weights.expect("a weighted analysis part reports its record");
+    let zeros = analysis_weights.iter().filter(|w| **w == 0.0).count() as u64;
+    assert_eq!(record.zero_weight_rows, zeros);
+    assert_eq!(record.rows_used + zeros, rows.row_count() as u64);
+    let kish = split.analysis_effective_sample_size().unwrap();
+    assert!((record.effective_sample_size - kish).abs() < 1e-9 * kish);
+    assert_eq!(effect.analysis_row_ids, split.analysis_row_ids());
+    assert_eq!(effect.binding, split.check_analysis_table(rows).unwrap());
+
+    // Rescaling the source weights changes no estimate and no effective size.
+    let scaled = with_rows(&data, Some(weights.iter().map(|w| w * 250.0).collect()), None);
+    let scaled_split = discover_on_split(&weighted_contract, &scaled, rule(3), &ctx()).unwrap();
+    let again = scaled_split.estimate_analysis_effect(&request, &ctx()).unwrap();
+    assert!((again.effect - effect.effect).abs() < 1e-9);
+    assert!((again.standard_error - effect.standard_error).abs() < 1e-9);
+    let rescaled = again.sampling_weights.unwrap();
+    assert!((rescaled.effective_sample_size - record.effective_sample_size).abs() < 1e-9 * kish);
+}
+
+#[test]
+fn an_unweighted_analysis_part_reports_no_weight_record() {
+    let data = table(4);
+    let split = discover_on_split(&contract(), &data, rule(8), &ctx()).unwrap();
+    let request = AnalysisEffectRequest {
+        treatment: VariableId::from_raw(0),
+        outcome: VariableId::from_raw(1),
+        adjustment: vec![],
+        levels: (0.0, 1.0),
+        clusters: None,
+    };
+    let effect = split.estimate_analysis_effect(&request, &ctx()).unwrap();
+    assert!(effect.sampling_weights.is_none());
+    let rows = split.analysis_rows();
+    let x = rows.float64_values(VariableId::from_raw(0)).unwrap();
+    let y = rows.float64_values(VariableId::from_raw(1)).unwrap();
+    let (slope, se) = weighted_slope(&x, &y, &vec![1.0; x.len()]);
+    assert!((effect.effect - slope).abs() < 1e-9 && (effect.standard_error - se).abs() < 1e-9);
 }

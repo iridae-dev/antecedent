@@ -66,6 +66,7 @@ pub mod latent_class_effects;
 mod learn_nuisance;
 pub mod local_polynomial_ratio;
 pub mod mechanism_discrepancy;
+pub mod missing_policy;
 pub mod mixed_source;
 pub mod multi_arm;
 pub mod nested_markov_binary;
@@ -79,6 +80,7 @@ pub mod prediction;
 pub mod prepare;
 pub mod propensity;
 pub mod quantile;
+pub mod randomized_missing;
 pub mod randomized_neyman;
 pub mod randomized_scores;
 pub mod rd;
@@ -87,6 +89,7 @@ pub mod recovery_chain;
 pub mod recovery_sampled;
 pub mod response;
 pub mod retarget;
+pub mod sampling_weights;
 pub mod scenario_covariance;
 pub mod scenario_invariance_report;
 pub mod scores;
@@ -183,9 +186,10 @@ pub(crate) use bayesian::require_bayesian_n_draws;
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
     CausalPosterior, CompiledGCompAte, GCompAteEvaluator, HydrateMapping, HydrateSource,
-    HydrateTarget, PosteriorFunctionalEvaluator, PreparedBayesianProblem,
-    coefficient_covariance_from_draws, hmc_draw_floor_from_notes, hydrate_prior,
-    hydrate_prior_from_coefficient_moments, nonidentified_with_prior,
+    HydrateTarget, LAPLACE_INTERVAL_DRAWS, LAPLACE_INTERVAL_DRAWS_NOTE_PREFIX,
+    PosteriorFunctionalEvaluator, PreparedBayesianProblem, coefficient_covariance_from_draws,
+    hmc_draw_floor_from_notes, hydrate_prior, hydrate_prior_from_coefficient_moments,
+    nonidentified_with_prior,
 };
 pub use causal_forest::CausalForest;
 pub use cell_aipw::{
@@ -314,6 +318,7 @@ pub use retarget::{
     exceedance_cdf_values, retarget, summarize_functional, weighted_overlap_fields,
     weighted_support_fields,
 };
+pub use sampling_weights::{RetainedSamplingWeights, SamplingWeightRecord, SamplingWeights};
 pub use scores::{
     LinearContrast, ScoreColumn, ScoreInference, ScoreSummary, ScoreSupport, ScoreTable,
     ScoreTableWire, inference_from_influence_columns,
@@ -338,9 +343,10 @@ pub use statistical_transport::{
     mz_transport_bootstrap_law_draws,
 };
 pub use temporal_adjustment::{
-    NestedDirectFitMoments, TemporalDependenceSe, TemporalDesignInputs, TemporalLinearAdjustment,
-    TemporalSlopeSpec, is_temporal_coefficient_name, nested_direct_fit_moments,
-    temporal_coefficient_names, temporal_conditional_marginal_effect, temporal_linear_slopes,
+    GapSelection, NestedDirectFitMoments, TemporalDependenceSe, TemporalDesignInputs,
+    TemporalLinearAdjustment, TemporalSlopeSpec, is_temporal_coefficient_name,
+    nested_direct_fit_moments, temporal_coefficient_names, temporal_conditional_marginal_effect,
+    temporal_linear_slopes,
 };
 pub use temporal_block::{
     AlignedRows, BlockBootstrap, CircularBlockFamily, RowBlockDraws, aligned_block_bootstrap,

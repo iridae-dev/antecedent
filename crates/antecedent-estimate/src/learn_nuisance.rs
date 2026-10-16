@@ -13,7 +13,7 @@
 use antecedent_core::ExecutionContext;
 use antecedent_learn::{
     CrossFittedPrediction, DesignView, LearnerFactory, LearnerSpec, NuisanceDiagnostics,
-    PredictionTask, RowSelection, TargetView, cross_fit_with_folds, diagnose, resolve_for,
+    PredictionTask, RowSelection, TargetView, cross_fit_with_folds_weighted, diagnose, resolve_for,
 };
 
 use crate::crossfit_plan::{
@@ -105,11 +105,27 @@ pub(crate) struct AipwLearners {
     pub(crate) treatment: LearnerSpec,
 }
 
+/// Refuse prior weights for a learner that cannot fit under them, naming the learner.
+pub(crate) fn require_weight_capable(
+    factory: &dyn LearnerFactory,
+    spec: LearnerSpec,
+) -> Result<(), EstimationError> {
+    if factory.capabilities().sample_weights {
+        return Ok(());
+    }
+    Err(crate::sampling_weights::unsupported_route(&format!(
+        "the {} nuisance learner cannot be fit under sampling weights; use a linear, ridge, \
+         logistic or gradient-boosted learner, which carry prior weights through every fold",
+        spec.identity()
+    )))
+}
+
 pub(crate) fn cross_fit_nuisance(
     spec: LearnerSpec,
     task: PredictionTask,
     design: NuisanceDesign<'_>,
     y: &[f64],
+    weights: Option<&[f64]>,
     folds: usize,
     ctx: &ExecutionContext,
 ) -> Result<CrossFittedPrediction, EstimationError> {
@@ -118,6 +134,9 @@ pub(crate) fn cross_fit_nuisance(
         return Err(nuisance_cancelled());
     }
     let (factory, _) = resolve_nuisance(spec, task, design, nrows, ncols, y, ctx)?;
+    if weights.is_some() {
+        require_weight_capable(factory.as_ref(), spec)?;
+    }
     let view = design_for_spec(spec, design, nrows, ncols)?;
     let rows: Vec<u32> = (0..nrows)
         .map(|i| {
@@ -143,8 +162,16 @@ pub(crate) fn cross_fit_nuisance(
             })
         })
         .collect::<Result<_, _>>()?;
-    cross_fit_with_folds(factory.as_ref(), view, TargetView::new(y), plan, ctx, None)
-        .map_err(learn_err)
+    cross_fit_with_folds_weighted(
+        factory.as_ref(),
+        view,
+        TargetView::new(y),
+        weights,
+        plan,
+        ctx,
+        None,
+    )
+    .map_err(learn_err)
 }
 
 /// Per-arm outcome models + propensity, trained on `train ∩ arm` and scored on the valid fold.
@@ -153,9 +180,9 @@ pub(crate) fn cross_fit_aipw_nuisances(
     design: NuisanceDesign<'_>,
     y: &[f64],
     t: &[f64],
-    folds: usize,
+    (folds, fold_ids): (usize, Vec<u16>),
     ctx: &ExecutionContext,
-    fold_ids: Vec<u16>,
+    weights: Option<&[f64]>,
 ) -> Result<AipwPredictions, EstimationError> {
     let AipwLearners { outcome, treatment } = learners;
     let NuisanceDesign { values: design, nrows, ncols } = design;
@@ -170,6 +197,10 @@ pub(crate) fn cross_fit_aipw_nuisances(
         t,
         ctx,
     )?;
+    if weights.is_some() {
+        require_weight_capable(outcome_factory.as_ref(), outcome)?;
+        require_weight_capable(treat_factory.as_ref(), treatment)?;
+    }
     let x_outcome = design_for_spec(outcome, design, nrows, ncols)?;
     let x_treat = design_for_spec(treatment, design, nrows, ncols)?;
     let plan = CrossfitPlan::from_fold_ids(folds, fold_ids.iter().map(|&f| u32::from(f)).collect());
@@ -180,6 +211,7 @@ pub(crate) fn cross_fit_aipw_nuisances(
         x_treat,
         y,
         t,
+        weights,
     };
     let fold_parts = plan
         .map_folds(ctx, |rows, inner| fit_aipw_fold(&models, rows, inner))
@@ -222,6 +254,8 @@ struct AipwFoldModels<'a> {
     x_treat: DesignView<'a>,
     y: &'a [f64],
     t: &'a [f64],
+    /// Prior weight of every row (mean one), or `None` for the unweighted fits.
+    weights: Option<&'a [f64]>,
 }
 
 struct AipwFold {
@@ -241,7 +275,7 @@ fn fit_aipw_fold(
     rows: FoldRows<'_>,
     ctx: &ExecutionContext,
 ) -> Result<AipwFold, antecedent_learn::LearnError> {
-    let AipwFoldModels { outcome, treatment, x_outcome, x_treat, y, t } = *models;
+    let AipwFoldModels { outcome, treatment, x_outcome, x_treat, y, t, weights } = *models;
     // The fold is the unit of work: cancellation is observed before its three fits.
     if ctx.cancellation.is_cancelled() {
         return Err(antecedent_learn::LearnError::Backend(
@@ -268,9 +302,12 @@ fn fit_aipw_fold(
     }
     let y_view = TargetView::new(y);
     let t_view = TargetView::new(t);
-    let mu0 = outcome.fit(x_outcome.with_rows(RowSelection::new(&train0))?, y_view, None, ctx)?;
-    let mu1 = outcome.fit(x_outcome.with_rows(RowSelection::new(&train1))?, y_view, None, ctx)?;
-    let ehat = treatment.fit(x_treat.with_rows(RowSelection::new(&train))?, t_view, None, ctx)?;
+    let mu0 =
+        outcome.fit(x_outcome.with_rows(RowSelection::new(&train0))?, y_view, weights, ctx)?;
+    let mu1 =
+        outcome.fit(x_outcome.with_rows(RowSelection::new(&train1))?, y_view, weights, ctx)?;
+    let ehat =
+        treatment.fit(x_treat.with_rows(RowSelection::new(&train))?, t_view, weights, ctx)?;
     let valid_out = x_outcome.with_rows(RowSelection::new(&valid))?;
     let valid_t = x_treat.with_rows(RowSelection::new(&valid))?;
     let mut m0 = vec![0.0; valid.len()];
@@ -352,6 +389,8 @@ pub(crate) struct AipwCacheEntry {
     fold_units: Option<std::sync::Arc<[u32]>>,
     fold_unit_kind: crate::cluster_dml_aipw::IndependenceUnit,
     fold_seed: u64,
+    /// Sampling weights the nuisances were fit under (compared by identity).
+    weights: Option<std::sync::Arc<[f64]>>,
     result: std::sync::Mutex<Option<std::sync::Arc<AipwPredictions>>>,
 }
 
@@ -442,6 +481,11 @@ pub(crate) fn cached_aipw_nuisances(
                 && entry.fold_units == problem.fold_units
                 && entry.fold_unit_kind == problem.fold_unit_kind
                 && entry.fold_seed == problem.fold_seed
+                && match (&entry.weights, problem.sampling_weights.as_ref()) {
+                    (None, None) => true,
+                    (Some(a), Some(b)) => Arc::ptr_eq(a, &b.weights),
+                    _ => false,
+                }
                 && match (&entry.fold_assignment, &problem.fold_assignment) {
                     (None, None) => true,
                     (Some(a), Some(b)) => Arc::ptr_eq(a, b),
@@ -473,6 +517,7 @@ pub(crate) fn cached_aipw_nuisances(
                 fold_units: problem.fold_units.clone(),
                 fold_unit_kind: problem.fold_unit_kind,
                 fold_seed: problem.fold_seed,
+                weights: problem.sampling_weights.as_ref().map(|s| Arc::clone(&s.weights)),
                 result: std::sync::Mutex::new(None),
             });
             // All eight slots can be initialized concurrently. An additional key
@@ -506,9 +551,9 @@ pub(crate) fn cached_aipw_nuisances(
         NuisanceDesign::of(problem),
         &problem.outcome,
         &problem.treatment,
-        folds,
+        (folds, fold_ids),
         ctx,
-        fold_ids,
+        problem.sampling_weights.as_ref().map(|s| &*s.weights),
     )?);
     check_cancel()?;
     *slot = Some(Arc::clone(&result));

@@ -849,6 +849,19 @@ impl super::Study {
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        let mut result = self.execute_tabular_route_rows(route, data, physical, execution, ctx)?;
+        self.report_missing_data(route, data, &mut result)?;
+        Ok(result)
+    }
+
+    fn execute_tabular_route_rows(
+        &self,
+        route: AnalysisRoute,
+        data: &TabularData,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        execution: &super::super::prepared::PreparedExecution,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         match route {
             AnalysisRoute::TemporalCrossWorld => Err(CausalError::Unsupported {
                 message: "temporal cross-world effect requires series data and a TemporalDag",

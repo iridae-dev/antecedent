@@ -53,6 +53,83 @@ pub fn complete_unit_itt(treated: &[f64], control: &[f64]) -> Option<CompleteItt
     Some(CompleteItt { effect, variance_upper_bound, interval_95 })
 }
 
+/// A sampling-weighted two-arm intention-to-treat contrast.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WeightedItt {
+    /// Difference of the arms' Hajek means in the weighted population.
+    pub effect: f64,
+    /// Linearized variance of the contrast, treating the rows as independent draws.
+    pub variance: f64,
+    /// Rows with positive weight assigned to treatment.
+    pub treated_units: usize,
+    /// Rows with positive weight assigned to control.
+    pub control_units: usize,
+    /// Rows of weight zero, excluded from the contrast.
+    pub zero_weight_rows: usize,
+    /// Kish effective sample size of the weights of the rows used.
+    pub effective_sample_size: f64,
+}
+
+/// Estimate a two-arm ITT in the population the sampling `weights` represent.
+///
+/// Each arm's mean is the Hajek (self-normalized) mean with row weight
+/// `a_i = s_i / P(arm_i)`, the sampling weight over the known probability of the assigned arm
+/// (`arm_probability`; for complete randomization it is constant within an arm and cancels).
+/// The variance linearizes the two ratio estimators, `Var(m_a) = n_a/(n_a−1) · Σ a_i²(y_i −
+/// m_a)² / (Σ a_i)²`, which for equal weights is Neyman's conservative `s_a²/n_a`: the
+/// unobservable effect heterogeneity is omitted, so the variance is an upper bound. Rows of
+/// weight zero are excluded and counted.
+///
+/// Returns `None` for non-finite inputs, a negative weight, or fewer than two positive-weight
+/// rows in an arm.
+#[must_use]
+pub fn weighted_itt(
+    outcomes: &[f64],
+    treated: &[bool],
+    arm_probability: &[f64],
+    weights: &[f64],
+) -> Option<WeightedItt> {
+    let n = outcomes.len();
+    if treated.len() != n
+        || arm_probability.len() != n
+        || weights.len() != n
+        || outcomes.iter().any(|y| !y.is_finite())
+        || weights.iter().any(|w| !w.is_finite() || *w < 0.0)
+        || arm_probability.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0)
+    {
+        return None;
+    }
+    let zero_weight_rows = weights.iter().filter(|w| **w == 0.0).count();
+    let used: Vec<usize> = (0..n).filter(|&i| weights[i] > 0.0).collect();
+    let arm_rows =
+        |arm: bool| -> Vec<usize> { used.iter().copied().filter(|&i| treated[i] == arm).collect() };
+    let (treated_rows, control_rows) = (arm_rows(true), arm_rows(false));
+    if treated_rows.len() < 2 || control_rows.len() < 2 {
+        return None;
+    }
+    let arm_mean_variance = |rows: &[usize]| -> (f64, f64) {
+        let a: Vec<f64> = rows.iter().map(|&i| weights[i] / arm_probability[i]).collect();
+        let mass: f64 = a.iter().sum();
+        let mean = rows.iter().zip(&a).map(|(&i, ai)| ai * outcomes[i]).sum::<f64>() / mass;
+        let count = rows.len() as f64;
+        let spread: f64 =
+            rows.iter().zip(&a).map(|(&i, ai)| (ai * (outcomes[i] - mean)).powi(2)).sum::<f64>();
+        (mean, spread * count / (count - 1.0) / (mass * mass))
+    };
+    let (m1, v1) = arm_mean_variance(&treated_rows);
+    let (m0, v0) = arm_mean_variance(&control_rows);
+    let used_weights: Vec<f64> = used.iter().map(|&i| weights[i]).collect();
+    let (effect, variance) = (m1 - m0, v1 + v0);
+    (effect.is_finite() && variance.is_finite() && variance >= 0.0).then(|| WeightedItt {
+        effect,
+        variance,
+        treated_units: treated_rows.len(),
+        control_units: control_rows.len(),
+        zero_weight_rows,
+        effective_sample_size: antecedent_kernels::kish_ess(&used_weights),
+    })
+}
+
 /// Minimum treated and control units within every block for a blocked interval.
 pub(crate) const MIN_UNITS_PER_BLOCK_ARM_FOR_INTERVAL: usize = 15;
 
@@ -567,5 +644,54 @@ mod tests {
         let rate = covered as f64 / REPLICATES as f64;
         eprintln!("cluster Neyman boundary interval: {covered}/{REPLICATES} = {rate:.4}");
         assert!((0.93..=0.985).contains(&rate));
+    }
+    #[test]
+    fn equal_weights_reproduce_the_neyman_variance_bound() {
+        let treated = [3.0, 5.0, 4.0, 8.0, 6.0];
+        let control = [1.0, 2.0, 2.5, 4.0];
+        let outcomes: Vec<f64> = treated.iter().chain(&control).copied().collect();
+        let arms: Vec<bool> = (0..outcomes.len()).map(|i| i < treated.len()).collect();
+        let neyman = complete_unit_itt(&treated, &control).unwrap();
+        let weighted =
+            weighted_itt(&outcomes, &arms, &vec![0.5; outcomes.len()], &[7.0; 9]).unwrap();
+        assert!((weighted.effect - neyman.effect).abs() < 1e-12);
+        assert!((weighted.variance - neyman.variance_upper_bound).abs() < 1e-12);
+        assert_eq!((weighted.treated_units, weighted.control_units), (5, 4));
+    }
+
+    #[test]
+    fn weights_move_the_arm_means_and_zero_weight_rows_are_excluded_and_counted() {
+        let outcomes = [1.0, 3.0, 9.0, 2.0, 4.0, 100.0];
+        let arms = [true, true, true, false, false, false];
+        let probability = [0.5; 6];
+        let weights = [1.0, 1.0, 2.0, 1.0, 3.0, 0.0];
+        let fit = weighted_itt(&outcomes, &arms, &probability, &weights).unwrap();
+        // Hajek means: (1 + 3 + 18) / 4 and (2 + 12) / 4.
+        assert!((fit.effect - (22.0 / 4.0 - 14.0 / 4.0)).abs() < 1e-12);
+        assert_eq!(fit.zero_weight_rows, 1);
+        assert_eq!((fit.treated_units, fit.control_units), (3, 2));
+        let kept =
+            weighted_itt(&outcomes[..5], &arms[..5], &probability[..5], &weights[..5]).unwrap();
+        assert!(
+            (kept.effect - fit.effect).abs() < 1e-15
+                && (kept.variance - fit.variance).abs() < 1e-15
+        );
+        assert!(
+            weighted_itt(&outcomes, &arms, &probability, &[1.0, 1.0, 1.0, 1.0, 0.0, 0.0]).is_none()
+        );
+    }
+
+    #[test]
+    fn weights_rescale_without_changing_the_contrast() {
+        let outcomes = [1.0, 3.0, 9.0, 2.0, 4.0, 7.0, 5.0];
+        let arms = [true, true, true, false, false, false, false];
+        let p = [0.4, 0.5, 0.45, 0.6, 0.55, 0.5, 0.6];
+        let w = [1.0, 2.0, 0.5, 3.0, 1.0, 1.5, 2.0];
+        let base = weighted_itt(&outcomes, &arms, &p, &w).unwrap();
+        let scaled: Vec<f64> = w.iter().map(|v| v * 1.0e4).collect();
+        let big = weighted_itt(&outcomes, &arms, &p, &scaled).unwrap();
+        assert!((base.effect - big.effect).abs() < 1e-12);
+        assert!((base.variance - big.variance).abs() < 1e-12);
+        assert!((base.effective_sample_size - big.effective_sample_size).abs() < 1e-9);
     }
 }

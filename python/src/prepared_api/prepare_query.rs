@@ -598,7 +598,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<Self> {
         let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         req.refuse_design("a randomized ITT query")?;
-        let data = req.load_columns(py, columns)?;
+        let data = req.load_weighted_columns(py, columns)?;
         req.off_gil(py, move |req| {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
             let design = match design_kind.as_str() {
