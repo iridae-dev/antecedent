@@ -14,8 +14,9 @@ use antecedent::{
 use antecedent_core::{AverageEffectQuery, ExecutionContext, IdentificationStatus, VariableId};
 use antecedent_data::TabularData;
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg,
-    admg_from_adjacency_mask, dag_from_adjacency_mask, mask_is_dag, set_edge,
+    AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, SamplingSummary,
+    adjacency_mask_from_admg, admg_from_adjacency_mask, dag_from_adjacency_mask, mask_is_dag,
+    set_edge,
 };
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_prob::InferenceDiagnostics;
@@ -85,8 +86,8 @@ fn query_from_pin(pin: &serde_json::Value) -> AverageEffectQuery {
 /// A 3-node bow `T→Y` plus `T↔Y` cannot be packed (both-bits already mean
 /// bidirected). Invalid construction is the same unidentified-mass rule DAG
 /// graph-posterior uses when `dag_from_adjacency_mask` fails.
-fn cyclic_mask(n: usize) -> u64 {
-    let mut mask = 0_u64;
+fn cyclic_mask(n: usize) -> AdjacencyMask {
+    let mut mask = AdjacencyMask::EMPTY;
     mask = set_edge(mask, n, 0, 1, true);
     if n >= 3 {
         mask = set_edge(mask, n, 1, 2, true);
@@ -97,7 +98,7 @@ fn cyclic_mask(n: usize) -> u64 {
     mask
 }
 
-fn admg_posterior(n: usize, weights: &[f64], masks: &[u64]) -> GraphPosterior {
+fn admg_posterior(n: usize, weights: &[f64], masks: &[AdjacencyMask]) -> GraphPosterior {
     GraphPosterior::new(
         n,
         weights.to_vec(),

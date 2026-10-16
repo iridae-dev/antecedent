@@ -14,15 +14,15 @@ use antecedent::discovery::{
 };
 use antecedent::discovery_defaults::resolve_ci;
 use antecedent_discovery::{
-    GraphPosteriorAtomKind, adjacency_mask_from_admg, adjacency_mask_from_cpdag,
-    adjacency_masks_from_pag, has_edge, mask_is_dag, n_directed_edges,
+    AdjacencyMask, GraphPosteriorAtomKind, MAX_POSTERIOR_NODES, adjacency_mask_from_admg,
+    adjacency_mask_from_cpdag, adjacency_masks_from_pag, has_edge, mask_is_dag, n_directed_edges,
 };
 use antecedent_graph::Cpdag as RustCpdag;
 use antecedent_prob::InferenceDiagnostics;
 use antecedent_stats::{FdrAdjustment, PartialCorrelation};
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyModule};
+use pyo3::types::{PyBytes, PyDict, PyList, PyModule};
 
 use crate::{
     columns_to_batch, detach_catch, py_err, py_execution_context, py_msg, series_from_batch,
@@ -40,8 +40,7 @@ pub struct PyGraphPosterior {
     n_graphs: usize,
     #[pyo3(get)]
     weights: Vec<f64>,
-    #[pyo3(get)]
-    adjacency: Vec<u64>,
+    adjacency: Vec<AdjacencyMask>,
     #[pyo3(get)]
     edge_marginals: Vec<f64>,
     #[pyo3(get)]
@@ -65,14 +64,65 @@ pub struct PyGraphPosterior {
     #[pyo3(get)]
     atom_kind: String,
     /// Optional PAG circle-endpoint masks, same length as `adjacency`.
+    mark_masks: Option<Vec<AdjacencyMask>>,
+    /// Monte-Carlo standard error of each edge marginal (`None` for exact posteriors).
     #[pyo3(get)]
-    mark_masks: Option<Vec<u64>>,
+    edge_mcse: Option<Vec<f64>>,
+    /// Split R-hat of each edge indicator across chains (`None` for exact posteriors).
+    #[pyo3(get)]
+    edge_rhat: Option<Vec<f64>>,
+    /// Bulk effective sample size of each edge indicator across chains (`None` for exact
+    /// posteriors).
+    #[pyo3(get)]
+    edge_ess: Option<Vec<f64>>,
     /// Backend identifier carried from the producing diagnostics.
     backend_id: String,
 }
 
-/// Width of the packed adjacency / lag masks.
+/// Width of the packed lag masks.
 const MASK_BITS: usize = u64::BITS as usize;
+
+/// Python `int` holding the packed edge bits of `mask` (bit layout `edge_bit`).
+fn mask_to_pyint(py: Python<'_>, mask: AdjacencyMask) -> PyResult<Bound<'_, PyAny>> {
+    py.import("builtins")?
+        .getattr("int")?
+        .call_method1("from_bytes", (PyBytes::new(py, &mask.to_le_bytes()), "little"))
+}
+
+/// Packed edge bits from a non-negative Python `int` below `2**256`.
+fn mask_from_pyint(value: &Bound<'_, PyAny>) -> PyResult<AdjacencyMask> {
+    let refuse = || {
+        crate::value_err(
+            "adjacency masks must be non-negative integers below 2**256 (at most 16 variables)",
+        )
+    };
+    let bytes: Vec<u8> =
+        value.call_method1("to_bytes", (32, "little")).map_err(|_| refuse())?.extract()?;
+    let bytes: [u8; 32] = bytes.try_into().map_err(|_| refuse())?;
+    Ok(AdjacencyMask::from_le_bytes(bytes))
+}
+
+/// Every edge bit of an `n_vars`-variable graph.
+fn full_edge_set(n_vars: usize) -> AdjacencyMask {
+    (0..n_directed_edges(n_vars)).fold(AdjacencyMask::EMPTY, |set, bit| {
+        set.with_bit(u32::try_from(bit).unwrap_or(u32::MAX), true)
+    })
+}
+
+/// Arguments of [`PyGraphPosterior::from_atom_inputs`]: explicit posterior atoms.
+struct AtomInputs {
+    names: Vec<String>,
+    weights: Vec<f64>,
+    adjacency: Vec<AdjacencyMask>,
+    edge_marginals: Option<Vec<f64>>,
+    orientation_marginals: Option<Vec<f64>>,
+    lagged_edge_marginals: Option<Vec<f64>>,
+    lag_masks: Option<Vec<u64>>,
+    max_lag: Option<u32>,
+    ess: Option<f64>,
+    atom_kind: GraphPosteriorAtomKind,
+    mark_masks: Option<Vec<AdjacencyMask>>,
+}
 
 impl PyGraphPosterior {
     fn from_rust(names: Vec<String>, post: RustGraphPosterior) -> Self {
@@ -93,6 +143,9 @@ impl PyGraphPosterior {
             algorithm: post.algorithm.as_deref().map(str::to_owned),
             atom_kind: post.atom_kind.as_str().to_owned(),
             mark_masks: post.mark_masks.as_ref().map(|v| v.as_ref().to_vec()),
+            edge_mcse: post.edge_mcse.as_ref().map(|v| v.as_ref().to_vec()),
+            edge_rhat: post.edge_rhat.as_ref().map(|v| v.as_ref().to_vec()),
+            edge_ess: post.edge_ess.as_ref().map(|v| v.as_ref().to_vec()),
             backend_id: post.diagnostics.backend_id.to_string(),
         }
     }
@@ -124,6 +177,12 @@ impl PyGraphPosterior {
         if let Some(mark_masks) = &self.mark_masks {
             post = post.with_mark_masks(mark_masks.clone()).map_err(py_msg)?;
         }
+        if let Some(mcse) = &self.edge_mcse {
+            post = post.with_edge_mcse(mcse.clone()).map_err(py_msg)?;
+        }
+        if let (Some(rhat), Some(ess)) = (&self.edge_rhat, &self.edge_ess) {
+            post = post.with_edge_chain_diagnostics(rhat.clone(), ess.clone()).map_err(py_msg)?;
+        }
         Ok(match &self.algorithm {
             Some(algorithm) => post.with_algorithm(algorithm.as_str()),
             None => post,
@@ -146,12 +205,28 @@ impl PyGraphPosterior {
 
 #[pymethods]
 impl PyGraphPosterior {
+    /// Packed adjacency of every atom: bit `from * (n_vars - 1) + (to if to < from else to - 1)`
+    /// of the Python `int` is the edge `from -> to`.
+    #[getter]
+    fn adjacency<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyAny>>> {
+        self.adjacency.iter().map(|&mask| mask_to_pyint(py, mask)).collect()
+    }
+
+    /// Optional PAG circle-endpoint masks, same packing as `adjacency`.
+    #[getter]
+    fn mark_masks<'py>(&self, py: Python<'py>) -> PyResult<Option<Vec<Bound<'py, PyAny>>>> {
+        self.mark_masks
+            .as_ref()
+            .map(|masks| masks.iter().map(|&mask| mask_to_pyint(py, mask)).collect())
+            .transpose()
+    }
+
     /// Summary dict compatible with weighted-graph envelope consumers.
     fn to_weighted_samples<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let d = PyDict::new(py);
         d.set_item("n_samples", self.n_graphs)?;
         d.set_item("weights", self.weights.clone())?;
-        d.set_item("graph_keys", self.adjacency.clone())?;
+        d.set_item("graph_keys", self.adjacency.iter().map(|m| m.key()).collect::<Vec<_>>())?;
         d.set_item("edge_marginals", self.edge_marginals.clone())?;
         d.set_item("orientation_marginals", self.orientation_marginals.clone())?;
         d.set_item("ess", self.ess)?;
@@ -200,7 +275,7 @@ impl PyGraphPosterior {
         _cls: &Bound<'_, pyo3::types::PyType>,
         names: Vec<String>,
         weights: Vec<f64>,
-        adjacency: Vec<u64>,
+        adjacency: Vec<Bound<'_, PyAny>>,
         edge_marginals: Option<Vec<f64>>,
         orientation_marginals: Option<Vec<f64>>,
         lagged_edge_marginals: Option<Vec<f64>>,
@@ -208,8 +283,76 @@ impl PyGraphPosterior {
         max_lag: Option<u32>,
         ess: Option<f64>,
         atom_kind: &str,
-        mark_masks: Option<Vec<u64>>,
+        mark_masks: Option<Vec<Bound<'_, PyAny>>>,
     ) -> PyResult<Self> {
+        let adjacency = adjacency.iter().map(mask_from_pyint).collect::<PyResult<Vec<_>>>()?;
+        let mark_masks = mark_masks
+            .map(|masks| masks.iter().map(mask_from_pyint).collect::<PyResult<Vec<_>>>())
+            .transpose()?;
+        Self::from_atom_inputs(AtomInputs {
+            names,
+            weights,
+            adjacency,
+            edge_marginals,
+            orientation_marginals,
+            lagged_edge_marginals,
+            lag_masks,
+            max_lag,
+            ess,
+            atom_kind: parse_atom_kind(atom_kind)?,
+            mark_masks,
+        })
+    }
+
+    /// Pack typed graphs into a posterior. Every atom must share one class.
+    #[classmethod]
+    #[pyo3(signature = (names, weights, graphs, *, ess=None))]
+    fn from_graphs(
+        _cls: &Bound<'_, pyo3::types::PyType>,
+        names: Vec<String>,
+        weights: Vec<f64>,
+        graphs: Vec<Bound<'_, PyAny>>,
+        ess: Option<f64>,
+    ) -> PyResult<Self> {
+        if graphs.len() != weights.len() {
+            return Err(crate::value_err("graphs/weights length mismatch"));
+        }
+        if graphs.is_empty() {
+            return Err(crate::value_err("from_graphs requires at least one atom"));
+        }
+        let (atom_kind, adjacency, mark_masks) = pack_static_atoms(&names, &graphs)?;
+        Self::from_atom_inputs(AtomInputs {
+            names,
+            weights,
+            adjacency,
+            edge_marginals: None,
+            orientation_marginals: None,
+            lagged_edge_marginals: None,
+            lag_masks: None,
+            max_lag: None,
+            ess,
+            atom_kind,
+            mark_masks,
+        })
+    }
+}
+
+impl PyGraphPosterior {
+    /// Validate explicit atoms and build the posterior handle.
+    fn from_atom_inputs(inputs: AtomInputs) -> PyResult<Self> {
+        let AtomInputs {
+            names,
+            weights,
+            adjacency,
+            edge_marginals,
+            orientation_marginals,
+            lagged_edge_marginals,
+            lag_masks,
+            max_lag,
+            ess,
+            atom_kind: kind,
+            mark_masks,
+        } = inputs;
         let n_vars = names.len();
         if adjacency.len() != weights.len() {
             return Err(crate::value_err("adjacency/weights length mismatch"));
@@ -217,15 +360,14 @@ impl PyGraphPosterior {
         if n_vars == 0 {
             return Err(crate::value_err("from_atoms requires at least one variable"));
         }
-        let edge_bits = n_directed_edges(n_vars);
-        if edge_bits > MASK_BITS {
-            return Err(crate::value_err(
-                "from_atoms supports at most 8 variables (64-bit adjacency masks)",
-            ));
+        if n_vars > MAX_POSTERIOR_NODES {
+            return Err(crate::value_err(format!(
+                "from_atoms supports at most {MAX_POSTERIOR_NODES} variables"
+            )));
         }
-        let kind = parse_atom_kind(atom_kind)?;
+        let all_edges = full_edge_set(n_vars);
         for (index, mask) in adjacency.iter().enumerate() {
-            if edge_bits < MASK_BITS && (mask >> edge_bits) != 0 {
+            if !all_edges.contains_all(*mask) {
                 return Err(crate::value_err(format!(
                     "adjacency atom {index} sets edge bits beyond {n_vars} variables"
                 )));
@@ -309,39 +451,6 @@ impl PyGraphPosterior {
         }
         Ok(Self::from_rust(names, post.with_algorithm("from_atoms")))
     }
-
-    /// Pack typed graphs into a posterior. Every atom must share one class.
-    #[classmethod]
-    #[pyo3(signature = (names, weights, graphs, *, ess=None))]
-    fn from_graphs(
-        cls: &Bound<'_, pyo3::types::PyType>,
-        names: Vec<String>,
-        weights: Vec<f64>,
-        graphs: Vec<Bound<'_, PyAny>>,
-        ess: Option<f64>,
-    ) -> PyResult<Self> {
-        if graphs.len() != weights.len() {
-            return Err(crate::value_err("graphs/weights length mismatch"));
-        }
-        if graphs.is_empty() {
-            return Err(crate::value_err("from_graphs requires at least one atom"));
-        }
-        let (kind, adjacency, mark_masks) = pack_static_atoms(&names, &graphs)?;
-        Self::from_atoms(
-            cls,
-            names,
-            weights,
-            adjacency,
-            None,
-            None,
-            None,
-            None,
-            None,
-            ess,
-            kind.as_str(),
-            mark_masks,
-        )
-    }
 }
 
 fn parse_atom_kind(name: &str) -> PyResult<GraphPosteriorAtomKind> {
@@ -369,7 +478,7 @@ fn require_graph_names(graph_names: &[String], names: &[String], kind: &str) -> 
 fn pack_static_atoms(
     names: &[String],
     graphs: &[Bound<'_, PyAny>],
-) -> PyResult<(GraphPosteriorAtomKind, Vec<u64>, Option<Vec<u64>>)> {
+) -> PyResult<(GraphPosteriorAtomKind, Vec<AdjacencyMask>, Option<Vec<AdjacencyMask>>)> {
     let first = &graphs[0];
     if first.extract::<crate::graphs::Dag>().is_ok() {
         let mut adjacency = Vec::with_capacity(graphs.len());
@@ -420,6 +529,13 @@ fn bayesian_params() -> BayesianDiscoverParams {
     BayesianDiscoverParams::default()
 }
 
+/// Default Bayesian parameters with an optional cap on the number of parents of any node.
+fn bayesian_params_capped(max_parents: Option<usize>) -> BayesianDiscoverParams {
+    let mut params = bayesian_params();
+    params.prior.constraints.max_parents = max_parents;
+    params
+}
+
 fn schedule_from_args(n_chains: u32, n_warmup: u32, n_draws: u32, thin: u32) -> GraphMcmcSchedule {
     GraphMcmcSchedule { n_chains, n_warmup, n_draws, thin }
 }
@@ -459,7 +575,9 @@ fn discover_exact_dag_posterior(
     })
 }
 
-/// Order MCMC DAG posterior (Gaussian BIC).
+/// Order MCMC DAG posterior (Gaussian BIC), up to 16 variables.
+///
+/// `max_parents` caps the number of parents of any node (`None`: no cap).
 #[pyfunction]
 #[pyo3(signature = (
     names,
@@ -470,6 +588,7 @@ fn discover_exact_dag_posterior(
     n_draws=1000,
     thin=1,
     require_diagnostics_gate=true,
+    max_parents=None,
     seed=1,
     threads=None
 ))]
@@ -482,6 +601,7 @@ fn discover_order_mcmc(
     n_draws: u32,
     thin: u32,
     require_diagnostics_gate: bool,
+    max_parents: Option<usize>,
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<PyGraphPosterior> {
@@ -494,7 +614,7 @@ fn discover_order_mcmc(
         let post = facade_discover_order_mcmc(
             &data,
             &variables,
-            &bayesian_params(),
+            &bayesian_params_capped(max_parents),
             &schedule,
             require_diagnostics_gate,
             &ctx,
@@ -504,7 +624,9 @@ fn discover_order_mcmc(
     })
 }
 
-/// Structure MCMC DAG posterior (Gaussian BIC).
+/// Structure MCMC DAG posterior (Gaussian BIC), up to 16 variables.
+///
+/// `max_parents` caps the number of parents of any node (`None`: no cap).
 #[pyfunction]
 #[pyo3(signature = (
     names,
@@ -514,6 +636,7 @@ fn discover_order_mcmc(
     n_warmup=500,
     n_draws=1000,
     thin=1,
+    max_parents=None,
     seed=1,
     threads=None
 ))]
@@ -525,6 +648,7 @@ fn discover_structure_mcmc(
     n_warmup: u32,
     n_draws: u32,
     thin: u32,
+    max_parents: Option<usize>,
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<PyGraphPosterior> {
@@ -534,9 +658,14 @@ fn discover_structure_mcmc(
         let (data, variables) = tabular_from_batch(&batch)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin);
-        let post =
-            facade_discover_structure_mcmc(&data, &variables, &bayesian_params(), &schedule, &ctx)
-                .map_err(py_err)?;
+        let post = facade_discover_structure_mcmc(
+            &data,
+            &variables,
+            &bayesian_params_capped(max_parents),
+            &schedule,
+            &ctx,
+        )
+        .map_err(py_err)?;
         Ok(PyGraphPosterior::from_rust(names, post))
     })
 }

@@ -26,6 +26,101 @@ Practical distinction:
 
 Priors never upgrade an unidentified atom into an identified one. Failed estimation on an identified atom is **unevaluable** mass, not unidentified mass—keep those axes separate when reading diagnostics.
 
+## Completion search budgets
+
+Completions of a CPDAG or PAG are enumerated under a search budget, not under a count of
+undirected edges, circle endpoints or nodes. The walk over endpoint assignments prunes every
+subtree whose already-decided edges cannot be ancestral, so a CPDAG with more than 64
+undirected edges, or a PAG with more than 16 circle endpoints, completes whenever its class
+is structured enough for the pruning to keep the visited states within the budget (an
+undirected tree on `n` nodes has exactly `n` members however large `n` is).
+
+The budget bounds the states visited (and, for a PAG, the m-separation queries of the
+equivalence audit), the live memory, and observes cancellation. Exhausting it is a typed
+partial result, never a statement about the unvisited completions: the sampler reports the
+bound that stopped it (`search_stop`) with a receipt of the limits in force, the work done
+and the region left unexamined. A partial enumeration withdraws every class-wide claim: the
+envelope is at most partially identified and carries the stop in its critical graph
+features, and PAG class-wide m-separation answers `Undetermined`. The same holds when the
+equivalence audit is skipped because a single member's m-separation signature (one query
+per node pair and conditioning subset) would not fit the budget.
+
+## Graph posteriors above six variables
+
+`ExactDagPosterior` enumerates every labeled DAG and stops at **6** variables. For more,
+`OrderMcmc` and `StructureMcmc` (and `CiScreenedPosterior`, which runs structure MCMC on the
+pairs its screen kept) sample the same Gaussian-BIC pseudo-posterior over DAGs and accept up to
+**16** variables. The posterior carries each atom's directed edges as a packed edge set whose
+first word is the earlier 64-bit encoding unchanged: a graph on at most eight variables is
+exactly the integer it was before, and a stored one decodes as it is. `GraphPosterior.adjacency`
+in Python holds one Python `int` per atom, so graphs of up to 16 variables decode with ordinary
+integer arithmetic (bit `from * (n_vars - 1) + (to if to < from else to - 1)` is the edge
+`from -> to`). The DBN posterior keeps its own smaller bound, set by its lag-edge space. The
+identity of a frozen posterior is built from each atom's canonical graph, not from the packed
+integer, so it does not depend on the packing.
+
+Conditions of the validated 10- and 12-variable workflow:
+
+| Condition | Value |
+| --- | --- |
+| Variables | 10 or 12 (up to 16 run; cost below) |
+| Parents per node | at most 3 (`max_parents` in the prior's constraints) |
+| Chains | 4, each running 4 replicas at inverse temperatures 1, 1/2, 1/4, 1/8 (replica exchange every 10 iterations) |
+| Warmup per chain | 3 000 iterations |
+| Retained draws per chain | 12 000, thinned by 2 (24 000 post-warmup iterations) |
+| Publication gate | split R-hat below 1.2 over every edge indicator, bulk ESS above 10, every edge's Monte-Carlo standard error at most 0.05, and every chain made a structural move |
+
+A schedule far shorter than this is refused by the gate rather than published.
+
+Single-edge add/delete/reverse moves alone get trapped on interacting structures: in a ring of
+colliders where each parent is shared by two children, chains settle in local modes 100 nats
+below the truth and split R-hat stays far above 1.2. Both samplers therefore run replica
+exchange, and structure MCMC adds a paired parent-set move:
+
+- **Replica exchange.** Each chain runs one replica per entry of `temperatures`; replica `k`
+  targets the posterior raised to `b_k`, and neighbouring temperatures exchange replicas with the
+  Metropolis probability `min(1, exp((b_k - b_{k+1})(f_{k+1} - f_k)))`, so the `b = 1` replica
+  (the only one recorded) has exactly the target as its stationary law. `temperatures = [1]` is
+  a single chain. Order MCMC keeps its correction for the number of topological orders inside
+  the tempered density, `(exp(score) / orders)^b`, so the order-modular bias stays removed.
+- **Paired parent-set resampling** (structure MCMC, probability 0.1 per iteration; a
+  generalisation of the new-edge-reversal move of Grzegorczyk and Husmeier, 2008). Two nodes are
+  drawn uniformly and their parent sets are redrawn jointly from the exact conditional of the
+  target given everybody else's parents. It contains an edge reversal together with the parent
+  changes the reversal needs, is always accepted, and keeps the target invariant. It is disabled
+  when a node has more than 4 096 allowed parent sets (set `max_parents`).
+- **Start states.** Every chain after the first begins with a short random walk at inverse
+  temperature 0.1, so chains start dispersed but biased toward the target, and R-hat compares
+  chains that began in different places.
+
+Acceptance cases at the published conditions: independent colliders and the interacting ring,
+each at 10 and 12 variables, with both samplers clearing the gate and agreeing with each other,
+and the interacting ring's twelve-edge skeleton compared with an exhaustive enumeration of its
+3^12 states.
+
+Chain diagnostics are reported per edge, not only as a worst case:
+`GraphPosterior.edge_rhat`, `edge_ess` and `edge_mcse` (Python and Rust) hold the split R-hat,
+bulk ESS and Monte-Carlo standard error of each `n_vars x n_vars` edge indicator across the
+chains, aligned with `edge_marginals`. A cell whose indicator never varied reports R-hat 1.
+`diagnostics.rhat_max` and `ess_bulk_min` are the worst of them. Read the cells before trusting
+a marginal near 0.5: the gate bounds the worst edge, and it is the ambiguous edges that mix
+slowest.
+
+What is checked, and what is not:
+
+- The samplers are compared with exhaustive enumeration at five variables (all 29 281 DAGs) and,
+  at twelve, with an exhaustive enumeration of the 3^12 states of a twelve-pair candidate
+  skeleton scored by a separate Gaussian-BIC implementation. Their proposal kernels are
+  compared with a closed-form law with no data: the uniform prior on DAGs with at most one
+  parent per node has `(n + 1)^(n - 1)` members and an exact edge-count law.
+- Four independent, strongly identified 12-variable colliders are recovered through the multi-word encoding.
+- The paired move is checked against the exact conditional from every one of the 543 four-variable DAGs, and the whole samplers (paired moves alone, then the default ladder) against all 543 DAGs of four variables and all 29 281 of five.
+- **No calibration is claimed.** Whether a reported skeleton marginal of 0.7 means that 70% of
+  such pairs are adjacent at 10 or 12 variables is a registered measurement
+  (`scripts/gate_calibration.sh`, `antecedent-discovery`, skeleton edge-marginal calibration)
+  with no result recorded. The weights are a BIC pseudo-posterior, not an integrated Bayesian
+  posterior, and the marginals are conditional on the prior and the parent cap.
+
 ## Reading `unidentified_mass` and envelope cases
 
 After `analyze(...)` with a graph posterior or class envelope, inspect the result

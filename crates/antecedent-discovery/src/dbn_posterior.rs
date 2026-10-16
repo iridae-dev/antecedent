@@ -21,6 +21,7 @@ use antecedent_graph::{
 use antecedent_prob::kish_ess;
 use antecedent_state::{GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
+use crate::adjacency_mask::AdjacencyMask;
 use crate::error::DiscoveryError;
 use crate::exact_enumeration::enumerate_unique_dags;
 use crate::graph_mcmc::{MaskAccept, MaskCancel, MaskChain, MaskChainPlan, run_mask_chain};
@@ -168,9 +169,9 @@ impl DbnPosterior {
                 "DBN posterior requires at least one variable",
             ));
         }
-        crate::graph_posterior::ensure_directed_mask_fits(
+        crate::graph_posterior::ensure_nodes_fit(
             p,
-            "DBN contemporaneous adjacency exceeds 63 directed edges",
+            "DBN posterior supports at most 16 variables (MAX_POSTERIOR_NODES)",
         )?;
         let max_lag = self.max_lag;
         let n_lag_bits = (max_lag as usize).saturating_mul(p.saturating_mul(p));
@@ -315,13 +316,14 @@ impl DbnPosterior {
                 Ok((run.traces, run.samples, run.rejected))
             })?;
 
-        let (diagnostics, param_mcse) = diagnostics_from_traces(
+        let (diagnostics, summary) = diagnostics_from_traces(
             &schedule,
             &traces,
             n_params,
             true,
             "DBN MCMC diagnostics gate refused posterior",
         )?;
+        let param_mcse = summary.mcse;
         // Trace parameters: contemporaneous edges (i != j, row-major), then lag bits.
         let mut edge_mcse = vec![0.0; p * p];
         let mut idx = 0;
@@ -335,7 +337,7 @@ impl DbnPosterior {
         }
         let lagged_mcse = param_mcse[idx..].to_vec();
 
-        let mut counts: HashMap<(u64, u64), u64> = HashMap::new();
+        let mut counts: HashMap<(AdjacencyMask, u64), u64> = HashMap::new();
         for chain in &samples {
             for &key in chain {
                 *counts.entry(key).or_insert(0) += 1;
@@ -376,9 +378,9 @@ impl DbnPosterior {
 /// # Errors
 ///
 /// The required-edge template is cyclic, violates a constraint, or has no finite score.
-fn initial_dbn_state(target: &DbnTarget<'_>) -> Result<(u64, u64, f64), DiscoveryError> {
+fn initial_dbn_state(target: &DbnTarget<'_>) -> Result<(AdjacencyMask, u64, f64), DiscoveryError> {
     let DbnTarget { p, max_lag, prior, variables, .. } = *target;
-    let mut cmask = 0u64;
+    let mut cmask = AdjacencyMask::EMPTY;
     let mut lmask = 0u64;
     for i in 0..p {
         for j in 0..p {
@@ -460,7 +462,7 @@ fn has_lag_edge(lmask: u64, p: usize, max_lag: u32, lag: u32, from: usize, to: u
 ///
 /// Invalid contemporaneous DAG or graph mutation failures.
 pub fn temporal_dag_from_dbn_masks(
-    cmask: u64,
+    cmask: impl Into<AdjacencyMask>,
     lmask: u64,
     n_vars: usize,
     max_lag: u32,
@@ -469,6 +471,8 @@ pub fn temporal_dag_from_dbn_masks(
     use antecedent_core::Lag;
     use antecedent_graph::TemporalDag;
     use antecedent_graph::unfold::ensure_lagged;
+
+    let cmask = cmask.into();
 
     if variables.len() != n_vars {
         return Err(DiscoveryError::data_msg(
@@ -584,12 +588,13 @@ fn insert_lagged_directed<G: LaggedGraph>(
 ///
 /// Variable-count mismatch or a graph mutation the `TemporalCpdag` rejects.
 pub fn temporal_cpdag_from_dbn_masks(
-    cmask: u64,
+    cmask: impl Into<AdjacencyMask>,
     lmask: u64,
     n_vars: usize,
     max_lag: u32,
     variables: &[VariableId],
 ) -> Result<TemporalCpdag, DiscoveryError> {
+    let cmask = cmask.into();
     if variables.len() != n_vars {
         return Err(DiscoveryError::data_msg(
             "temporal_cpdag_from_dbn_masks: variables length != n_vars",
@@ -627,13 +632,14 @@ pub fn temporal_cpdag_from_dbn_masks(
 ///
 /// Variable-count mismatch or a graph mutation the `TemporalPag` rejects.
 pub fn temporal_pag_from_dbn_masks(
-    cmask: u64,
+    cmask: impl Into<AdjacencyMask>,
     lmask: u64,
-    mark_mask: u64,
+    mark_mask: impl Into<AdjacencyMask>,
     n_vars: usize,
     max_lag: u32,
     variables: &[VariableId],
 ) -> Result<TemporalPag, DiscoveryError> {
+    let (cmask, mark_mask) = (cmask.into(), mark_mask.into());
     if variables.len() != n_vars {
         return Err(DiscoveryError::data_msg(
             "temporal_pag_from_dbn_masks: variables length != n_vars",
@@ -679,7 +685,7 @@ pub fn temporal_pag_from_dbn_masks(
 }
 
 fn score_dbn_template(
-    cmask: u64,
+    cmask: AdjacencyMask,
     lmask: u64,
     target: &DbnTarget<'_>,
     cache: &mut LocalScoreCache,
@@ -768,15 +774,15 @@ struct DbnWalker<'a> {
     p: usize,
     max_lag: u32,
     n_lag_bits: usize,
-    cmask: u64,
+    cmask: AdjacencyMask,
     lmask: u64,
     cur: f64,
-    pending_c: u64,
+    pending_c: AdjacencyMask,
     pending_l: u64,
 }
 
 impl MaskChain for DbnWalker<'_> {
-    type Sample = (u64, u64);
+    type Sample = (AdjacencyMask, u64);
 
     fn current_score(&self) -> f64 {
         self.cur
@@ -824,18 +830,18 @@ impl MaskChain for DbnWalker<'_> {
         }
     }
 
-    fn sample(&self) -> (u64, u64) {
+    fn sample(&self) -> (AdjacencyMask, u64) {
         (self.cmask, self.lmask)
     }
 }
 
 fn propose_dbn(
-    cmask: u64,
+    cmask: AdjacencyMask,
     lmask: u64,
     p: usize,
     max_lag: u32,
     rng: &mut antecedent_core::CausalRng,
-) -> (u64, u64, u64) {
+) -> (AdjacencyMask, u64, u64) {
     let mut rejected = 0u64;
     if rng.next_f64() < 0.5 {
         // Flip a contemporaneous directed edge.

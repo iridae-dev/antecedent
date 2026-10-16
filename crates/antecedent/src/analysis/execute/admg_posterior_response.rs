@@ -519,7 +519,10 @@ impl super::Study {
     }
 }
 
-fn mask_for_atom_key(gp: &GraphPosterior, key: u64) -> Result<u64, CausalError> {
+fn mask_for_atom_key(
+    gp: &GraphPosterior,
+    key: u64,
+) -> Result<antecedent_discovery::AdjacencyMask, CausalError> {
     gp.graph_keys
         .iter()
         .zip(gp.adjacency.iter())
@@ -533,7 +536,7 @@ fn mask_for_atom_key(gp: &GraphPosterior, key: u64) -> Result<u64, CausalError> 
 /// An ADMG posterior atom's adjacency bitmask and the variable count it indexes.
 #[derive(Clone, Copy)]
 struct AtomAdjacency {
-    mask: u64,
+    mask: antecedent_discovery::AdjacencyMask,
     n_vars: usize,
 }
 

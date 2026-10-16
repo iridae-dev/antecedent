@@ -85,7 +85,10 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
     }
     let mapped = map_posterior_graphs(posterior, ctx, |i, _inner| {
         let key = dbn_envelope_key(i)?;
-        let mark = posterior.mark_masks.as_ref().map_or(0, |marks| marks[i]);
+        let mark = posterior
+            .mark_masks
+            .as_ref()
+            .map_or(antecedent_discovery::AdjacencyMask::EMPTY, |marks| marks[i]);
         let cached = match posterior.atom_kind {
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
                 let Ok(cpdag) = temporal_cpdag_from_dbn_masks(

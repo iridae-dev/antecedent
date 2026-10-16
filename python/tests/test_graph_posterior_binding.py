@@ -78,8 +78,8 @@ def test_from_atoms_validates_atoms_and_weights():
         from_atoms(names, [1.0], [1 << 6])
     with pytest.raises(ValueError, match="sum to 1"):
         from_atoms(names, [0.5, 0.3], [set_edge(0, 3, 0, 1), 0])
-    with pytest.raises(ValueError, match="at most 8 variables"):
-        from_atoms([f"v{i}" for i in range(9)], [1.0], [0])
+    with pytest.raises(ValueError, match="at most 16 variables"):
+        from_atoms([f"v{i}" for i in range(17)], [1.0], [0])
     with pytest.raises(ValueError, match="lag_masks require max_lag"):
         from_atoms(["pressure", "defect"], [1.0], [0], lag_masks=[2])
     with pytest.raises(ValueError, match="beyond max_lag=1"):

@@ -180,7 +180,10 @@ impl super::Study {
                         by_horizon: vec![(horizon, atom.envelope.clone())],
                     })
                 });
-            let mark = gp.mark_masks.as_ref().map_or(0, |marks| marks[i]);
+            let mark = gp
+                .mark_masks
+                .as_ref()
+                .map_or(antecedent_discovery::AdjacencyMask::EMPTY, |marks| marks[i]);
             let reconstructed = reconstruct_temporal_class_atom(
                 gp.atom_kind,
                 gp.adjacency[i],
@@ -785,7 +788,8 @@ fn identify_posterior_atom_pulse(
     i: usize,
     pulse: &TemporalEffectQuery,
 ) -> Option<Arc<crate::analysis::prepared::CachedTemporalClassIdentification>> {
-    let mark = gp.mark_masks.as_ref().map_or(0, |marks| marks[i]);
+    let mark =
+        gp.mark_masks.as_ref().map_or(antecedent_discovery::AdjacencyMask::EMPTY, |marks| marks[i]);
     let graph = reconstruct_temporal_class_atom(
         gp.atom_kind,
         gp.adjacency[i],
@@ -807,9 +811,9 @@ fn identify_posterior_atom_pulse(
 
 fn reconstruct_temporal_class_atom(
     kind: antecedent_discovery::GraphPosteriorAtomKind,
-    adjacency: u64,
+    adjacency: antecedent_discovery::AdjacencyMask,
     lag_mask: u64,
-    mark: u64,
+    mark: antecedent_discovery::AdjacencyMask,
     n_vars: usize,
     max_lag: u32,
     variables: &[VariableId],

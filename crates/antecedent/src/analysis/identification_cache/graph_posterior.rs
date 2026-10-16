@@ -246,7 +246,10 @@ fn build_class_graph_posterior_identification_cache(
     crate::analysis::execute::report_identify_compute(ctx);
     let resolved = map_posterior_graphs(posterior, ctx, |i, _inner| {
         let mask = posterior.adjacency[i];
-        let mark = posterior.mark_masks.as_ref().map_or(0, |marks| marks[i]);
+        let mark = posterior
+            .mark_masks
+            .as_ref()
+            .map_or(antecedent_discovery::AdjacencyMask::EMPTY, |marks| marks[i]);
         let key = posterior.graph_keys[i];
         let cached = match posterior.atom_kind {
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
@@ -332,7 +335,7 @@ fn cache_class_envelope<G>(
 mod tests {
     use super::*;
     use antecedent_core::VariableId;
-    use antecedent_discovery::{SamplingSummary, set_edge};
+    use antecedent_discovery::{AdjacencyMask, SamplingSummary, set_edge};
     use antecedent_prob::InferenceDiagnostics;
 
     /// A static posterior whose samples repeat a handful of confounding structures, as an
@@ -340,7 +343,8 @@ mod tests {
     fn repeated_posterior(n_graphs: usize) -> GraphPosterior {
         const N: usize = 4;
         let edges = |list: &[(usize, usize)]| {
-            list.iter().fold(0_u64, |mask, &(from, to)| set_edge(mask, N, from, to, true))
+            list.iter()
+                .fold(AdjacencyMask::EMPTY, |mask, &(from, to)| set_edge(mask, N, from, to, true))
         };
         let structures = [
             edges(&[(0, 1)]),
@@ -352,7 +356,8 @@ mod tests {
             edges(&[(2, 0), (2, 1)]),
             edges(&[(0, 1), (1, 2)]),
         ];
-        let adjacency: Vec<u64> = (0..n_graphs).map(|i| structures[i % structures.len()]).collect();
+        let adjacency: Vec<AdjacencyMask> =
+            (0..n_graphs).map(|i| structures[i % structures.len()]).collect();
         GraphPosterior::new(
             N,
             vec![1.0 / n_graphs as f64; n_graphs],

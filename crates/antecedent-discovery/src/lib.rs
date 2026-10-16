@@ -40,6 +40,7 @@ mod debug_ci {
 
 pub(crate) use debug_ci::debug_with_ci;
 
+pub mod adjacency_mask;
 pub mod ci;
 pub mod ci_screened_posterior;
 pub mod combinations;
@@ -54,6 +55,8 @@ pub mod fci;
 pub mod ges;
 pub mod graph_mcmc;
 pub mod graph_posterior;
+#[cfg(test)]
+mod graph_posterior_calibration;
 pub mod graph_score;
 mod indexing;
 pub mod jpcmci_plus;
@@ -81,6 +84,7 @@ mod test_tables;
 pub mod uncovered_paths;
 pub mod weakly_minimal;
 
+pub use adjacency_mask::{AdjacencyMask, MAX_POSTERIOR_NODES};
 pub use ci::{
     CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult, CiWorkspace,
     ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, PartialCorrelation,

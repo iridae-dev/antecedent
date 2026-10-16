@@ -805,11 +805,18 @@ class ExactDagPosterior:
 
 @dataclass(frozen=True)
 class OrderMcmc:
+    """Order-MCMC graph posterior over up to 16 variables.
+
+    ``max_parents`` caps the parents of any node (``None``: no cap). Each step costs a
+    ``2**n``-state dynamic program, so the run time doubles with every variable.
+    """
+
     n_chains: int = 4
     n_warmup: int = 500
     n_draws: int = 1000
     thin: int = 1
     require_diagnostics_gate: bool = True
+    max_parents: int | None = None
     kind: Literal["order_mcmc"] = "order_mcmc"
 
     algorithm_id: ClassVar[str] = "order_mcmc"
@@ -822,6 +829,7 @@ class OrderMcmc:
             "mcmc_draws": self.n_draws,
             "thin": self.thin,
             "require_diagnostics_gate": self.require_diagnostics_gate,
+            **({} if self.max_parents is None else {"max_parents": self.max_parents}),
         }
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
@@ -834,6 +842,7 @@ class OrderMcmc:
             n_draws=self.n_draws,
             thin=self.thin,
             require_diagnostics_gate=self.require_diagnostics_gate,
+            **({} if self.max_parents is None else {"max_parents": self.max_parents}),
             seed=seed,
             threads=threads,
         )
@@ -841,30 +850,20 @@ class OrderMcmc:
 
 @dataclass(frozen=True)
 class StructureMcmc:
-    """Structure-MCMC graph posterior.
+    """Structure-MCMC graph posterior over up to 16 variables.
 
-    Unlike its sibling :class:`OrderMcmc`, this config has **no**
-    ``require_diagnostics_gate`` field: the native ``discover_structure_mcmc``
-    entry point takes no such parameter, so there is nothing here to plumb it
-    through to. Concretely, this means R-hat / ESS convergence diagnostics are
-    **never gated** on a ``StructureMcmc`` posterior the way they can be on
-    ``OrderMcmc(require_diagnostics_gate=True)`` (the default there) — a
-    non-converged chain's posterior is returned exactly the same as a
-    converged one. This package cannot add the parameter from the Python side
-    (it would require a change to the Rust ``discover_structure_mcmc``
-    signature, which is out of scope for a ``python/antecedent`` change); the
-    long-term fix is adding a ``require_diagnostics_gate`` parameter to
-    ``discover_structure_mcmc`` in Rust to match ``discover_order_mcmc``, then
-    threading it through here the same way :class:`OrderMcmc` already does.
-    Callers that need a diagnostics gate today should use
-    ``GraphPosterior.converged`` / ``.rejected_invalid`` /
-    ``.ess`` on the returned posterior themselves, or prefer ``OrderMcmc``.
+    The multi-chain diagnostics gate is always on: the run is refused unless split R-hat,
+    bulk ESS and every edge's Monte-Carlo error clear the publication bar, so there is no
+    ``require_diagnostics_gate`` switch here (unlike :class:`OrderMcmc`). Per-edge
+    ``edge_rhat`` / ``edge_ess`` / ``edge_mcse`` on the result report the chain diagnostics.
+    ``max_parents`` caps the parents of any node (``None``: no cap).
     """
 
     n_chains: int = 4
     n_warmup: int = 500
     n_draws: int = 1000
     thin: int = 1
+    max_parents: int | None = None
     kind: Literal["structure_mcmc"] = "structure_mcmc"
 
     algorithm_id: ClassVar[str] = "structure_mcmc"
@@ -876,6 +875,7 @@ class StructureMcmc:
             "n_warmup": self.n_warmup,
             "mcmc_draws": self.n_draws,
             "thin": self.thin,
+            **({} if self.max_parents is None else {"max_parents": self.max_parents}),
         }
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
@@ -887,6 +887,7 @@ class StructureMcmc:
             n_warmup=self.n_warmup,
             n_draws=self.n_draws,
             thin=self.thin,
+            **({} if self.max_parents is None else {"max_parents": self.max_parents}),
             seed=seed,
             threads=threads,
         )
@@ -1074,7 +1075,12 @@ def discovery_algorithm(discovery: Any) -> dict[str, Any]:
 
 
 def graph_posterior_map_edges(post: GraphPosterior) -> list[tuple[str, str]]:
-    """Oriented edges from the maximum-weight adjacency mask in a graph posterior."""
+    """Oriented edges from the maximum-weight adjacency mask in a graph posterior.
+
+    ``post.adjacency`` holds one Python ``int`` per atom; bit
+    ``from * (n_vars - 1) + (to if to < from else to - 1)`` is the edge ``from -> to``.
+    The integers are not limited to 64 bits, so graphs of up to 16 variables decode.
+    """
     import numpy as np
 
     if post.n_graphs < 1 or not post.weights:

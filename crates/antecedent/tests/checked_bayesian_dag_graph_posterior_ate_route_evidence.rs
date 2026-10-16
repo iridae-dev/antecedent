@@ -33,7 +33,7 @@ fn data() -> TabularData {
 fn adjusted_graph() -> u64 {
     let graph = set_edge(0, 3, 0, 1, true);
     let graph = set_edge(graph, 3, 2, 0, true);
-    set_edge(graph, 3, 2, 1, true)
+    set_edge(graph, 3, 2, 1, true).to_word().expect("a three-variable graph fits one word")
 }
 
 fn posterior() -> GraphPosterior {

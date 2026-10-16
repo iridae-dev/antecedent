@@ -11,9 +11,10 @@ papers = [
 ]
 
 implementation_deviations = [
+ "Adds the paired parent-set resampling move (an exact Gibbs draw of two nodes' parent sets from their joint conditional, generalising the new-edge-reversal move of Grzegorczyk and Husmeier, 2008) and parallel tempering (replica exchange over a declared inverse-temperature ladder); both keep the BIC pseudo-posterior invariant.",
  "Targets a continuous linear-Gaussian pseudo-posterior proportional to exp(Gaussian-BIC/2), rather than Madigan and York's exact discrete-data marginal posterior.",
  "Uses finite add/delete/reverse MC3 chains and empirical sample frequencies; optional candidate-pair restrictions further limit posterior support.",
- "The u64 adjacency representation limits the sampler to at most 63 directed-edge bits.",
+ "The four-word adjacency representation limits the sampler to at most 16 variables (240 directed-edge bits).",
 ]
 
 upstream_implementations_observed = []
@@ -22,4 +23,6 @@ test_sources = [
  "crates/antecedent-discovery/src/structure_mcmc.rs unit tests",
  "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs (finite-chain edge marginals against a clean-room exhaustive Gaussian-BIC target on three-node cases)",
  "conformance/discovery/graph_mcmc_exact (small exhaustive Gaussian-BIC target; not an external full-method Structure MCMC oracle)",
+ "crates/antecedent-discovery/tests/graph_posterior_wide.rs (five-variable exhaustive DAG enumeration; twelve-variable enumeration of the 3^12 states of a twelve-pair candidate skeleton scored by a separate Gaussian-BIC implementation)",
+ "crates/antecedent-discovery/src/structure_mcmc.rs (prior-only proposal kernel against the closed-form rooted-forest law on twelve nodes)",
 ]

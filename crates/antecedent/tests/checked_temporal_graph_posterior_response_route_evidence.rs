@@ -108,7 +108,7 @@ fn class_posterior(kind: GraphPosteriorAtomKind) -> GraphPosterior {
         GraphPosteriorAtomKind::Pag => {
             (set_edge(set_edge(0, 3, 2, 0, true), 3, 2, 1, true), lag_bit(3, 0, 1))
         }
-        _ => (0, lag_bit(3, 0, 1) | lag_bit(3, 2, 1)),
+        _ => (antecedent_discovery::AdjacencyMask::EMPTY, lag_bit(3, 0, 1) | lag_bit(3, 2, 1)),
     };
     GraphPosterior::new(
         n,

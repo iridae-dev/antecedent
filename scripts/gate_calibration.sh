@@ -911,6 +911,12 @@ echo "== Discovery null FPR / power (antecedent-discovery) =="
 run_ignored antecedent-discovery pc_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_planted_lag1_power
+# Skeleton edge-marginal calibration of the graph-posterior samplers at ten and twelve variables
+# (crates/antecedent-discovery/src/graph_posterior_calibration.rs): published conditions only.
+run_ignored antecedent-discovery structure_mcmc_skeleton_marginals_calibrated_at_ten_variables
+run_ignored antecedent-discovery structure_mcmc_skeleton_marginals_calibrated_at_twelve_variables
+run_ignored antecedent-discovery order_mcmc_skeleton_marginals_calibrated_at_ten_variables
+run_ignored antecedent-discovery order_mcmc_skeleton_marginals_calibrated_at_twelve_variables
 
 echo "== coordinates measured at the level the facade publishes (0.95) and at 0.90 =="
 run_suite() {

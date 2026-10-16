@@ -25,6 +25,8 @@ mod discovery_pcmci_plus_lag0;
 mod discovery_vector_vars_pcmci;
 #[path = "graph_mcmc_oracle.rs"]
 mod graph_mcmc_oracle;
+#[path = "graph_posterior_wide.rs"]
+mod graph_posterior_wide;
 #[path = "jpcmci_plus_oracle_matrix.rs"]
 mod jpcmci_plus_oracle_matrix;
 #[path = "lpcmci_evidence_reconciliation.rs"]

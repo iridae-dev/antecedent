@@ -72,7 +72,7 @@ fn t_to_y_lag_mask() -> u64 {
 }
 
 fn z_confounds_t_contemp() -> u64 {
-    set_edge(0, 3, 2, 0, true)
+    set_edge(0, 3, 2, 0, true).to_word().expect("a three-variable graph fits one word")
 }
 
 fn z_confounds_lag_mask() -> u64 {
@@ -230,6 +230,8 @@ fn fixture_sustained() -> TemporalEffectQuery {
 fn two_completion_contemp() -> u64 {
     // t — z at lag 0
     set_edge(set_edge(0, 3, 0, 2, true), 3, 2, 0, true)
+        .to_word()
+        .expect("a three-variable graph fits one word")
 }
 
 fn has_policy(result: &antecedent::StudyResult, policy: StructuralAggregationPolicy) -> bool {
@@ -330,6 +332,8 @@ fn temporal_cpdag_graph_posterior_pulse_mixes() {
 fn visible_pag_contemp() -> u64 {
     // z → t and z → y at lag 0: unfolding puts an arrowhead into t@-1.
     set_edge(set_edge(0, 3, 2, 0, true), 3, 2, 1, true)
+        .to_word()
+        .expect("a three-variable graph fits one word")
 }
 
 #[test]

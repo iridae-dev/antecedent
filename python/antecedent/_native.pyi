@@ -875,6 +875,9 @@ class GraphPosterior:
     algorithm: str | None
     atom_kind: str
     mark_masks: list[int] | None
+    edge_mcse: list[float] | None
+    edge_rhat: list[float] | None
+    edge_ess: list[float] | None
     def to_weighted_samples(self) -> dict[str, object]: ...
     def edge_marginal_matrix(self) -> list[list[float]]: ...
     @classmethod
@@ -2614,6 +2617,7 @@ def discover_order_mcmc(
     n_draws: int = 1000,
     thin: int = 1,
     require_diagnostics_gate: bool = True,
+    max_parents: int | None = None,
     seed: int = 1,
     threads: int | None = None,
 ) -> GraphPosterior: ...
@@ -2625,6 +2629,7 @@ def discover_structure_mcmc(
     n_warmup: int = 500,
     n_draws: int = 1000,
     thin: int = 1,
+    max_parents: int | None = None,
     seed: int = 1,
     threads: int | None = None,
 ) -> GraphPosterior: ...

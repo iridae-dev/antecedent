@@ -30,9 +30,9 @@ use antecedent_core::{
     VariableId,
 };
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, admg_from_adjacency_mask, cpdag_from_adjacency_mask,
-    dag_from_adjacency_mask, pag_from_adjacency_mask, temporal_cpdag_from_dbn_masks,
-    temporal_dag_from_dbn_masks, temporal_pag_from_dbn_masks,
+    AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, admg_from_adjacency_mask,
+    cpdag_from_adjacency_mask, dag_from_adjacency_mask, pag_from_adjacency_mask,
+    temporal_cpdag_from_dbn_masks, temporal_dag_from_dbn_masks, temporal_pag_from_dbn_masks,
 };
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{
@@ -1127,7 +1127,7 @@ pub fn graph_posterior_atom_identities(
 fn posterior_atom_graph_wire(
     posterior: &GraphPosterior,
     index: usize,
-    adjacency: u64,
+    adjacency: AdjacencyMask,
     max_lag: u32,
     ids: &[VariableId],
 ) -> Result<PosteriorAtomGraphWire, IoError> {
@@ -1164,7 +1164,7 @@ fn posterior_atom_graph_wire(
                     .as_ref()
                     .and_then(|masks| masks.get(index))
                     .copied()
-                    .unwrap_or(0);
+                    .unwrap_or(AdjacencyMask::EMPTY);
                 let graph = temporal_pag_from_dbn_masks(
                     adjacency,
                     lag_mask,
@@ -1228,7 +1228,7 @@ fn posterior_atom_graph_wire(
                 .as_ref()
                 .and_then(|masks| masks.get(index))
                 .copied()
-                .unwrap_or(0);
+                .unwrap_or(AdjacencyMask::EMPTY);
             let pag = pag_from_adjacency_mask(adjacency, mark_mask, posterior.n_vars)
                 .map_err(|err| IoError::Convert(err.to_string()))?;
             let GraphIdentityWire::Pag(wire) = pag_identity(&pag)? else {
@@ -3213,7 +3213,7 @@ mod tests {
         assert_eq!(labels.get("active").map(String::as_str), Some("1"));
     }
 
-    fn static_posterior(weights: [f64; 3], graphs: [u64; 3]) -> GraphPosterior {
+    fn static_posterior(weights: [f64; 3], graphs: [AdjacencyMask; 3]) -> GraphPosterior {
         let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
         GraphPosterior::new(
             3,
@@ -3257,6 +3257,56 @@ mod tests {
         let atoms = graph_posterior_atom_identities(&base).unwrap();
         assert_eq!(atoms.iter().map(|atom| atom.execution_key).collect::<Vec<_>>(), [0, 1, 2]);
         assert!(matches!(atoms[0].graph, PosteriorAtomGraphWire::Static(_)));
+    }
+
+    /// The identity of an atom is its canonical graph, not its packing: a stored single-word
+    /// adjacency, the same graph built through the wide edge set, and the canonical wire agree,
+    /// and a twelve-variable atom (edge bits past the first word) encodes as its twelve nodes.
+    #[test]
+    fn static_posterior_atom_identity_is_independent_of_the_adjacency_packing() {
+        use antecedent_discovery::{edge_bit, set_edge};
+        let n = 3;
+        let stored: u64 = (1 << edge_bit(n, 0, 1)) | (1 << edge_bit(n, 2, 0));
+        let from_word = AdjacencyMask::from_word(stored);
+        let built = set_edge(set_edge(AdjacencyMask::EMPTY, n, 0, 1, true), n, 2, 0, true);
+        assert_eq!(from_word, built);
+        let empty = AdjacencyMask::EMPTY;
+        let legacy = static_posterior([0.5, 0.3, 0.2], [from_word, empty, empty]);
+        let wide = static_posterior([0.5, 0.3, 0.2], [built, empty, empty]);
+        assert_eq!(posterior_premises(&legacy), posterior_premises(&wide));
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+        let atoms = graph_posterior_atom_identities(&legacy).unwrap();
+        assert_eq!(
+            atoms[0].graph,
+            PosteriorAtomGraphWire::Static(canonical_dag_wire(&dag).unwrap())
+        );
+
+        let n = 12;
+        let chain =
+            (0..n - 1).fold(AdjacencyMask::EMPTY, |mask, i| set_edge(mask, n, i, i + 1, true));
+        assert_eq!(chain.to_word(), None, "twelve variables need more than one word");
+        let posterior = GraphPosterior::new(
+            n,
+            vec![1.0],
+            vec![chain],
+            vec![0.0; n * n],
+            vec![0.0; n * n],
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: antecedent_prob::InferenceDiagnostics::analytic("wide"),
+                rejected_invalid: 0,
+            },
+        )
+        .unwrap();
+        let atoms = graph_posterior_atom_identities(&posterior).unwrap();
+        let PosteriorAtomGraphWire::Static(wire) = &atoms[0].graph else {
+            panic!("a twelve-variable DAG atom encodes as a static graph");
+        };
+        assert_eq!(wire.node_count, 12);
+        let expected: Vec<(u32, u32)> = (0..11).map(|i| (i, i + 1)).collect();
+        assert_eq!(wire.edges, expected);
     }
 
     #[test]

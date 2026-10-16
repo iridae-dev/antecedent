@@ -11,20 +11,34 @@
 
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::TabularData;
-use antecedent_state::{GraphScoreData, GraphScoreFamily, LocalScoreCache};
+use antecedent_state::GraphScoreFamily;
 
+use crate::adjacency_mask::AdjacencyMask;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::graph_mcmc::{
-    FinishMaskPosterior, GraphMcmcSchedule, MaskAccept, MaskCancel, MaskChain, MaskChainPlan,
-    run_mask_chain, run_parallel_mask_chains,
+    DEFAULT_TEMPERATURES, FinishMaskPosterior, GraphMcmcSchedule, MaskAccept, MaskCancel,
+    MaskChain, MaskChainPlan, run_parallel_mask_chains, run_tempered_mask_chain,
+    validate_temperatures,
 };
 use crate::graph_posterior::{
-    GraphPosterior, GraphPosteriorEngine, GraphPrior, has_edge, n_directed_edges, set_edge,
+    GraphPosterior, GraphPosteriorEngine, GraphPrior, GraphPriorTable, has_edge, n_directed_edges,
+    set_edge,
 };
-use crate::graph_score::{initial_scored_mask, score_dag_mask_with_parents, tabular_score_data};
+use crate::graph_score::{
+    ChainTarget, ScoredTarget, SharedTarget, initial_scored_mask, tabular_score_data,
+};
 
 /// Order MCMC over topological orders and compatible forward edges.
+///
+/// Supports up to [`crate::MAX_POSTERIOR_NODES`] variables; each step costs a `2^n`-state dynamic
+/// program (the topological-order correction), so it doubles with every variable. Cap the parents
+/// of any node with `GraphPrior::constraints.max_parents`.
+///
+/// Every chain runs replicas at the inverse temperatures of [`Self::temperatures`] and exchanges
+/// them (parallel tempering), which carries chains across the local modes single-step moves
+/// cannot leave; only the replica at temperature 1 is recorded. The order-modular prior is
+/// corrected, not tempered away: the tempered family is `(exp(score) / |orders|)^beta`.
 #[derive(Clone, Debug)]
 pub struct OrderMcmc {
     /// Number of chains (≥ 2 for R-hat).
@@ -37,6 +51,9 @@ pub struct OrderMcmc {
     pub thin: u32,
     /// When true (default), refuse if [`crate::graph_posterior::allows_graph_posterior`] fails.
     pub require_diagnostics_gate: bool,
+    /// Inverse-temperature ladder of the replicas in every chain: `1 = b_0 > b_1 > ... > 0`
+    /// (default `[1, 1/2, 1/4, 1/8]`; `[1]` is a single untempered chain).
+    pub temperatures: Vec<f64>,
 }
 
 impl Default for OrderMcmc {
@@ -49,7 +66,21 @@ impl OrderMcmc {
     /// Default sampler.
     #[must_use]
     pub fn new() -> Self {
-        Self { n_chains: 4, n_warmup: 500, n_draws: 1000, thin: 1, require_diagnostics_gate: true }
+        Self {
+            n_chains: 4,
+            n_warmup: 500,
+            n_draws: 1000,
+            thin: 1,
+            require_diagnostics_gate: true,
+            temperatures: DEFAULT_TEMPERATURES.to_vec(),
+        }
+    }
+
+    /// Set the inverse-temperature ladder (validated when the sampler runs).
+    #[must_use]
+    pub fn with_temperatures(mut self, temperatures: impl Into<Vec<f64>>) -> Self {
+        self.temperatures = temperatures.into();
+        self
     }
 
     /// Configure chain lengths.
@@ -102,9 +133,9 @@ impl OrderMcmc {
         if n == 0 {
             return Err(DiscoveryError::unsupported("order MCMC requires at least one variable"));
         }
-        crate::graph_posterior::ensure_directed_mask_fits(
+        crate::graph_posterior::ensure_nodes_fit(
             n,
-            "order MCMC adjacency exceeds 63 directed edges",
+            "order MCMC supports at most 16 variables (MAX_POSTERIOR_NODES)",
         )?;
         if !matches!(score_family, GraphScoreFamily::GaussianBic) {
             return Err(DiscoveryError::unsupported(
@@ -113,10 +144,12 @@ impl OrderMcmc {
         }
         let schedule = self.schedule();
         schedule.require_min_chains(2, "order MCMC requires at least 2 chains for R-hat")?;
+        validate_temperatures(&self.temperatures)?;
 
         let score_data = tabular_score_data(data, variables)?;
         let (initial_mask, initial_score) =
             initial_scored_mask(n, &score_data, score_family, prior, variables)?;
+        let prior_table = GraphPriorTable::new(n, prior, variables);
         let mut initial_order = Vec::with_capacity(n);
         while initial_order.len() < n {
             let next = (0..n)
@@ -139,29 +172,29 @@ impl OrderMcmc {
         let (traces, sample_masks, rejected) =
             run_parallel_mask_chains(ctx, n_chains, n_draws, n_params, |chain, inner| {
                 let mut rng = inner.rng.stream_for(StreamDomain::McmcOrder, chain as u64);
-                let mut walker = OrderWalker {
-                    n,
-                    score_data: &score_data,
-                    cache: LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
-                        score_family,
+                let target = SharedTarget(std::rc::Rc::new(std::cell::RefCell::new(
+                    ScoredTarget::new(n, &score_data, score_family, &prior_table),
+                )));
+                let mut replicas: Vec<_> = self
+                    .temperatures
+                    .iter()
+                    .map(|_| OrderWalker {
                         n,
-                        score_data.n_rows,
-                    )),
-                    prior,
-                    variables,
-                    order: initial_order.clone(),
-                    mask: initial_mask,
-                    cur: initial_score,
-                    pending_order: initial_order.clone(),
-                    pending_mask: initial_mask,
-                    pos_scratch: Vec::with_capacity(n),
-                    parent_scratch: Vec::with_capacity(n),
-                };
-                let run = run_mask_chain(
+                        target: target.clone(),
+                        order: initial_order.clone(),
+                        mask: initial_mask,
+                        cur: initial_score,
+                        pending_order: initial_order.clone(),
+                        pending_mask: initial_mask,
+                        pos_scratch: Vec::with_capacity(n),
+                    })
+                    .collect();
+                let run = run_tempered_mask_chain(
                     &MaskChainPlan { chain_index: chain, n_warmup, n_draws, thin, n_params },
                     inner,
                     &mut rng,
-                    &mut walker,
+                    &mut replicas,
+                    &self.temperatures,
                 )?;
                 Ok((run.traces, run.samples, run.rejected))
             })?;
@@ -201,23 +234,21 @@ impl GraphPosteriorEngine for OrderMcmc {
     }
 }
 
-struct OrderWalker<'a> {
+/// One order-MCMC replica. `target` is the log target of a mask before the topological-order
+/// correction: BIC + log prior in a run, and whatever a test needs to isolate the kernel.
+struct OrderWalker<T> {
     n: usize,
-    score_data: &'a GraphScoreData,
-    cache: LocalScoreCache,
-    prior: &'a GraphPrior,
-    variables: &'a [VariableId],
+    target: T,
     order: Vec<usize>,
-    mask: u64,
+    mask: AdjacencyMask,
     cur: f64,
     pending_order: Vec<usize>,
-    pending_mask: u64,
+    pending_mask: AdjacencyMask,
     pos_scratch: Vec<usize>,
-    parent_scratch: Vec<u32>,
 }
 
-impl MaskChain for OrderWalker<'_> {
-    type Sample = u64;
+impl<T: ChainTarget> MaskChain for OrderWalker<T> {
+    type Sample = AdjacencyMask;
 
     fn current_score(&self) -> f64 {
         self.cur
@@ -246,16 +277,9 @@ impl MaskChain for OrderWalker<'_> {
     }
 
     fn proposed_score(&mut self) -> Option<f64> {
-        score_dag_mask_with_parents(
-            self.pending_mask,
-            self.n,
-            self.score_data,
-            &mut self.cache,
-            self.prior,
-            self.variables,
-            &mut self.parent_scratch,
-        )
-        .map(|score| score - log_topological_order_count(self.pending_mask, self.n))
+        self.target
+            .score(self.pending_mask)
+            .map(|score| score - log_topological_order_count(self.pending_mask, self.n))
     }
 
     fn commit(&mut self, score: f64) {
@@ -277,19 +301,19 @@ impl MaskChain for OrderWalker<'_> {
         }
     }
 
-    fn sample(&self) -> u64 {
+    fn sample(&self) -> AdjacencyMask {
         self.mask
     }
 }
 
 fn propose_order(
     order: &[usize],
-    mask: u64,
+    mask: AdjacencyMask,
     n: usize,
     rng: &mut CausalRng,
     new_order: &mut Vec<usize>,
     pos: &mut Vec<usize>,
-) -> u64 {
+) -> AdjacencyMask {
     new_order.clear();
     new_order.extend_from_slice(order);
     let mut new_mask = mask;
@@ -326,9 +350,14 @@ fn fill_position_map(order: &[usize], pos: &mut Vec<usize>) {
     }
 }
 
-fn reorient_skeleton(mask: u64, order: &[usize], n: usize, pos: &mut Vec<usize>) -> u64 {
+fn reorient_skeleton(
+    mask: AdjacencyMask,
+    order: &[usize],
+    n: usize,
+    pos: &mut Vec<usize>,
+) -> AdjacencyMask {
     fill_position_map(order, pos);
-    let mut out = 0u64;
+    let mut out = AdjacencyMask::EMPTY;
     for a in 0..n {
         for b in a + 1..n {
             if has_edge(mask, n, a, b) || has_edge(mask, n, b, a) {
@@ -340,26 +369,27 @@ fn reorient_skeleton(mask: u64, order: &[usize], n: usize, pos: &mut Vec<usize>)
     out
 }
 
-fn log_topological_order_count(mask: u64, n: usize) -> f64 {
+/// `ln` of the number of linear extensions of the DAG `mask`: a `2^n`-state subset DP, so the
+/// per-step cost of order MCMC grows as `n * 2^n`.
+fn log_topological_order_count(mask: AdjacencyMask, n: usize) -> f64 {
     let states = 1usize << n;
-    let mut parent_masks = vec![0usize; n];
-    for (node, parents) in parent_masks.iter_mut().enumerate() {
-        for parent in 0..n {
-            if parent != node && has_edge(mask, n, parent, node) {
-                *parents |= 1usize << parent;
-            }
-        }
-    }
+    let parents: Vec<usize> = (0..n)
+        .map(|node| usize::from(crate::graph_posterior::parent_bits(mask, n, node)))
+        .collect();
     let mut ways = vec![0u64; states];
     ways[0] = 1;
     for placed in 0..states {
-        if ways[placed] == 0 {
+        let w = ways[placed];
+        if w == 0 {
             continue;
         }
-        for (node, &parents) in parent_masks.iter().enumerate() {
-            let bit = 1usize << node;
-            if placed & bit == 0 && parents & !placed == 0 {
-                ways[placed | bit] = ways[placed | bit].saturating_add(ways[placed]);
+        let mut open = !placed & (states - 1);
+        while open != 0 {
+            let node = open.trailing_zeros() as usize;
+            open &= open - 1;
+            if parents[node] & !placed == 0 {
+                let next = placed | (1 << node);
+                ways[next] = ways[next].saturating_add(w);
             }
         }
     }
@@ -378,13 +408,78 @@ mod tests {
     fn topological_order_count_matches_known_dags() {
         let n = 3;
         // Empty DAG: all 3! = 6 orders.
-        assert!((log_topological_order_count(0, n) - (6.0f64).ln()).abs() < 1e-12);
+        assert!(
+            (log_topological_order_count(AdjacencyMask::EMPTY, n) - (6.0f64).ln()).abs() < 1e-12
+        );
         // Chain 0→1→2: unique order.
-        let chain = set_edge(set_edge(0, n, 0, 1, true), n, 1, 2, true);
+        let chain = set_edge(set_edge(AdjacencyMask::EMPTY, n, 0, 1, true), n, 1, 2, true);
         assert!((log_topological_order_count(chain, n) - 0.0).abs() < 1e-12);
         // V-structure 0→2←1: two orders (0 before 1, or 1 before 0).
-        let v = set_edge(set_edge(0, n, 0, 2, true), n, 1, 2, true);
+        let v = set_edge(set_edge(AdjacencyMask::EMPTY, n, 0, 2, true), n, 1, 2, true);
         assert!((log_topological_order_count(v, n) - (2.0f64).ln()).abs() < 1e-12);
+    }
+
+    /// The order kernel with its `log |orders|` correction and replica exchange, with the data
+    /// removed: the target is the uniform prior on rooted forests (at most one parent per node),
+    /// whose edge-count law is exact. Without the correction the DAGs with many topological
+    /// orders are over-weighted and the law is off; a wrong exchange rule shifts it too.
+    #[test]
+    fn prior_only_tempered_chain_follows_the_rooted_forest_law_on_ten_nodes() {
+        let n = 10;
+        let table = crate::test_tables::rooted_forest_prior_table(n);
+        let ctx = ExecutionContext::for_tests(31);
+        let (draws, thin) = (6_000usize, 5usize);
+        let n_params = n_directed_edges(n);
+        let ladder = [1.0, 0.5];
+        let (_, samples, _) = run_parallel_mask_chains(&ctx, 4, draws, n_params, |chain, inner| {
+            let mut rng = inner.rng.stream_for(StreamDomain::McmcOrder, chain as u64);
+            let mut replicas: Vec<_> = ladder
+                .iter()
+                .map(|_| OrderWalker {
+                    n,
+                    target: crate::test_tables::PriorOnlyTarget(&table),
+                    order: (0..n).collect(),
+                    mask: AdjacencyMask::EMPTY,
+                    cur: -log_topological_order_count(AdjacencyMask::EMPTY, n),
+                    pending_order: (0..n).collect(),
+                    pending_mask: AdjacencyMask::EMPTY,
+                    pos_scratch: Vec::with_capacity(n),
+                })
+                .collect();
+            let plan = MaskChainPlan {
+                chain_index: chain,
+                n_warmup: 5_000,
+                n_draws: draws,
+                thin,
+                n_params,
+            };
+            let run = run_tempered_mask_chain(&plan, inner, &mut rng, &mut replicas, &ladder)?;
+            Ok((run.traces, run.samples, run.rejected))
+        })
+        .unwrap();
+        crate::test_tables::assert_rooted_forest_law(
+            n,
+            &samples,
+            600,
+            &[(0, 1), (4, 7), (9, 8), (8, 9), (9, 0)],
+        );
+    }
+
+    #[test]
+    fn more_than_sixteen_variables_are_refused_before_any_work() {
+        let data = crate::test_tables::tabular_n(17, 20);
+        let vars: Vec<_> = (0..17).map(VariableId::from_raw).collect();
+        let err = OrderMcmc::new()
+            .run(
+                &data,
+                &vars,
+                &GraphPrior::uniform(),
+                GraphScoreFamily::GaussianBic,
+                &mut DiscoveryWorkspace::default(),
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("at most 16 variables"), "{err}");
     }
 
     fn chain_data(n_rows: usize) -> (TabularData, Vec<VariableId>) {

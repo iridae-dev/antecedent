@@ -35,11 +35,13 @@ fn data(shift: f64) -> TabularData {
 /// `z -> t -> y` as an adjacency mask over `(t, y, z)`.
 fn chain_mask() -> u64 {
     set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true)
+        .to_word()
+        .expect("a three-variable graph fits one word")
 }
 
 /// `y -> t` (reverse causal): no adjustment identifies `do(t)`.
 fn reverse_mask() -> u64 {
-    set_edge(0, 3, 1, 0, true)
+    set_edge(0, 3, 1, 0, true).to_word().expect("a three-variable graph fits one word")
 }
 
 fn posterior(kind: GraphPosteriorAtomKind, masks: Vec<u64>, weights: Vec<f64>) -> GraphPosterior {
