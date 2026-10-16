@@ -1,4 +1,4 @@
-# Recovery of the final crate from an already published, immutable release.
+# Recovery of missing crates from an already published, immutable release.
 name: recover-published-crate
 
 on:
@@ -62,7 +62,7 @@ jobs:
       - name: Test recovery refusal boundaries
         run: python3 tooling/scripts/test_recover_published_crate.py
 
-      - name: Verify original evidence, repair packaging and publish the final crate
+      - name: Verify original evidence, repair packaging and publish missing crates
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: iridae-dev/antecedent

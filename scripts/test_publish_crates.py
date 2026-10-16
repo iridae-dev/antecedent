@@ -21,6 +21,9 @@ class PublishVersionTests(unittest.TestCase):
         *,
         self_version: str | None = None,
         self_dependency: bool = False,
+        private_dependency: bool = False,
+        mode: str = "--dry-run",
+        separate_source: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         packages = [
             {
@@ -44,37 +47,61 @@ class PublishVersionTests(unittest.TestCase):
                 ],
             },
         ]
+        if private_dependency:
+            packages[0]["publish"] = []
         with tempfile.TemporaryDirectory() as directory:
             manifest = Path(directory) / "consumer.toml"
             self_spec = 'path = "."'
             if self_version is not None:
                 self_spec += f', version = "{self_version}"'
             manifest.write_text(
-                f"[dev-dependencies]\nantecedent-consumer = {{ {self_spec} }}\n",
+                f"[dev-dependencies]\n{'antecedent-core' if private_dependency else 'antecedent-consumer'} = {{ {self_spec} }}\n",
                 encoding="utf-8",
             )
             packages[1]["manifest_path"] = str(manifest)
             cargo = Path(directory) / "cargo"
             cargo.write_text(
                 "#!/usr/bin/env python3\nimport os, sys\n"
+                'if "PUBLISH_TEST_SOURCE" in os.environ:\n'
+                '    assert os.path.samefile(os.getcwd(), os.environ["PUBLISH_TEST_SOURCE"])\n'
                 'if sys.argv[1] == "metadata":\n'
                 '    print(os.environ["PUBLISH_TEST_METADATA"])\n'
-                'elif sys.argv[1] == "publish" and "--dry-run" in sys.argv:\n'
-                '    print("TEST_PACKAGE_VERIFIED")\n'
+                'elif sys.argv[1] == "publish":\n'
+                '    print("TEST_PACKAGE_VERIFIED", " ".join(sys.argv[1:]))\n'
                 "else:\n"
-                '    sys.exit("unexpected cargo invocation")\n'
-            , encoding="utf-8", newline="\n")
+                '    sys.exit("unexpected cargo invocation")\n',
+                encoding="utf-8",
+                newline="\n",
+            )
             cargo.chmod(0o755)
             env = os.environ.copy()
             env["PATH"] = directory + os.pathsep + env["PATH"]
             env["PUBLISH_TEST_METADATA"] = json.dumps(
                 {"packages": packages, "workspace_members": ["core", "consumer"]}
             )
+            arguments = [mode]
+            if separate_source:
+                source = Path(directory) / "release-source"
+                source.mkdir()
+                (source / "Cargo.toml").write_text(
+                    f'[workspace.package]\nversion = "{VERSION}"\n'
+                )
+                env["PUBLISH_TEST_SOURCE"] = str(source)
+                arguments += ["--source", str(source), "--allow-dirty"]
+            if mode == "--execute":
+                curl = Path(directory) / "curl"
+                curl.write_text(
+                    "#!/usr/bin/env python3\nimport sys\n"
+                    'print("200" if "/antecedent-core/" in sys.argv[-1] else "404")\n'
+                )
+                curl.chmod(0o755)
+                env["CARGO_REGISTRY_TOKEN"] = "test-token"
+                env["PUBLISH_SLEEP_SECS"] = "0"
             return subprocess.run(
                 [
                     "bash",
                     str(Path(__file__).with_name("publish_crates.sh")),
-                    "--dry-run",
+                    *arguments,
                 ],
                 env=env,
                 text=True,
@@ -124,6 +151,52 @@ class PublishVersionTests(unittest.TestCase):
         result = self.run_gate("*", "dev", self_dependency=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("packaged=2 check-only=0", result.stdout)
+
+    def test_versioned_private_dev_dependency_refuses_before_packaging(self) -> None:
+        result = self.run_gate(f"^{VERSION}", "dev", private_dependency=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("unpublished dependency antecedent-core", result.stderr)
+        self.assertNotIn("TEST_PACKAGE_VERIFIED", result.stdout)
+
+    def test_private_runtime_and_build_dependencies_refuse(self) -> None:
+        for kind in (None, "build"):
+            with self.subTest(kind=kind):
+                result = self.run_gate("*", kind, private_dependency=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("path-only dev dependency", result.stderr)
+                self.assertNotIn("TEST_PACKAGE_VERIFIED", result.stdout)
+
+    def test_path_only_private_dev_dependency_is_omitted_and_allowed(self) -> None:
+        result = self.run_gate("*", "dev", private_dependency=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("packaged=1 check-only=0", result.stdout)
+        self.assertNotIn("-p antecedent-core", result.stdout)
+
+    def test_wildcard_private_dev_dependency_is_still_versioned(self) -> None:
+        result = self.run_gate("*", "dev", private_dependency=True, self_version="*")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "versioned unpublished dev dependency must be path-only", result.stderr
+        )
+        self.assertNotIn("TEST_PACKAGE_VERIFIED", result.stdout)
+
+    def test_execute_skips_published_crates_and_verifies_missing_crate(self) -> None:
+        result = self.run_gate(f"^{VERSION}", mode="--execute")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("published=1 skipped=1", result.stdout)
+        self.assertIn(
+            "TEST_PACKAGE_VERIFIED publish -p antecedent-consumer --locked",
+            result.stdout,
+        )
+        self.assertNotIn("--allow-dirty", result.stdout)
+
+    def test_recovery_packages_separate_source_with_reviewed_manifest_repair(
+        self,
+    ) -> None:
+        result = self.run_gate(f"^{VERSION}", mode="--execute", separate_source=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("published=1 skipped=1", result.stdout)
+        self.assertIn("--allow-dirty", result.stdout)
 
 
 if __name__ == "__main__":
