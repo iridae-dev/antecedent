@@ -898,7 +898,7 @@ configuration = { variables = 10, max_degree = 4, transformation = "linear", con
 expected = { kind = "value", outputs = ["graph with uncertainty status", "total effect or intervention mean ratio for the prespecified query", "published signal-strength, causal-sufficiency, distributional and intervention-support conditions"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "PC with degree <= 4 on <= 20 variables at <= 4,000 rows runs in seconds; budget covers CI tests and held-out estimation." }
 dataset = { generator = "sparse_connected_scm", seed = 9406696, n = 2000, variables = 10, max_degree = 4, transformation = "linear", edge_density = "sparse", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::sparse_linear_study_of_ten_variables_recovers_the_total_effect" }
 
 [[case]]
 id = "discovery_estimation_sparse_linear_15_variables"
@@ -908,7 +908,7 @@ configuration = { variables = 15, max_degree = 4, transformation = "linear", con
 expected = { kind = "value", outputs = ["graph with uncertainty status", "total effect or intervention mean ratio for the prespecified query", "published signal-strength, causal-sufficiency, distributional and intervention-support conditions"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "PC with degree <= 4 on <= 20 variables at <= 4,000 rows runs in seconds; budget covers CI tests and held-out estimation." }
 dataset = { generator = "sparse_connected_scm", seed = 6543082, n = 2000, variables = 15, max_degree = 4, transformation = "linear", edge_density = "sparse", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::sparse_linear_study_of_fifteen_variables_recovers_the_total_effect" }
 
 [[case]]
 id = "discovery_estimation_sparse_linear_20_variables"
@@ -918,7 +918,7 @@ configuration = { variables = 20, max_degree = 4, transformation = "linear", con
 expected = { kind = "value", outputs = ["graph with uncertainty status", "total effect or intervention mean ratio for the prespecified query", "published signal-strength, causal-sufficiency, distributional and intervention-support conditions"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "PC with degree <= 4 on <= 20 variables at <= 4,000 rows runs in seconds; budget covers CI tests and held-out estimation." }
 dataset = { generator = "sparse_connected_scm", seed = 8318872, n = 2000, variables = 20, max_degree = 4, transformation = "linear", edge_density = "sparse", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::sparse_linear_study_of_twenty_variables_recovers_the_total_effect" }
 
 [[case]]
 id = "discovery_estimation_sparse_log_linear_10_variables"
@@ -928,7 +928,7 @@ configuration = { variables = 10, max_degree = 4, transformation = "log_linear",
 expected = { kind = "value", outputs = ["graph with uncertainty status", "total effect or intervention mean ratio for the prespecified query", "published signal-strength, causal-sufficiency, distributional and intervention-support conditions"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "PC with degree <= 4 on <= 20 variables at <= 4,000 rows runs in seconds; budget covers CI tests and held-out estimation." }
 dataset = { generator = "sparse_connected_scm", seed = 1861980, n = 2000, variables = 10, max_degree = 4, transformation = "log_linear", edge_density = "sparse", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::sparse_log_linear_study_of_ten_variables_recovers_the_mean_ratio" }
 
 [[case]]
 id = "discovery_estimation_sparse_log_linear_15_variables"
@@ -938,7 +938,7 @@ configuration = { variables = 15, max_degree = 4, transformation = "log_linear",
 expected = { kind = "value", outputs = ["graph with uncertainty status", "total effect or intervention mean ratio for the prespecified query", "published signal-strength, causal-sufficiency, distributional and intervention-support conditions"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "PC with degree <= 4 on <= 20 variables at <= 4,000 rows runs in seconds; budget covers CI tests and held-out estimation." }
 dataset = { generator = "sparse_connected_scm", seed = 7681054, n = 2000, variables = 15, max_degree = 4, transformation = "log_linear", edge_density = "sparse", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::sparse_log_linear_study_of_fifteen_variables_recovers_the_mean_ratio" }
 
 [[case]]
 id = "discovery_estimation_sparse_log_linear_20_variables"
@@ -948,7 +948,7 @@ configuration = { variables = 20, max_degree = 4, transformation = "log_linear",
 expected = { kind = "value", outputs = ["graph with uncertainty status", "total effect or intervention mean ratio for the prespecified query", "published signal-strength, causal-sufficiency, distributional and intervention-support conditions"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "PC with degree <= 4 on <= 20 variables at <= 4,000 rows runs in seconds; budget covers CI tests and held-out estimation." }
 dataset = { generator = "sparse_connected_scm", seed = 6203180, n = 2000, variables = 20, max_degree = 4, transformation = "log_linear", edge_density = "sparse", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::sparse_log_linear_study_of_twenty_variables_recovers_the_mean_ratio" }
 
 [[case]]
 id = "discovery_log_linear_requires_positive_inputs"
@@ -958,7 +958,7 @@ configuration = { transformation = "log_linear", nonpositive_values = 5 }
 expected = { kind = "refusal", outputs = ["names the nonpositive column"], refusal = "log-linear inputs not positive" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Pre-fit validation." }
 dataset = { generator = "sparse_connected_scm", seed = 6305011, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::log_linear_inputs_must_be_positive_and_the_refusal_names_the_column" }
 
 [[case]]
 id = "discovery_transformation_must_be_declared_before_analysis"
@@ -968,7 +968,7 @@ configuration = { transformation = "undeclared" }
 expected = { kind = "refusal", outputs = ["refusal states the declaration is required before data are touched"], refusal = "transformation undeclared" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Pre-fit validation." }
 dataset = { generator = "sparse_connected_scm", seed = 8637246, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::the_transformation_must_be_declared_before_the_data_are_touched" }
 
 [[case]]
 id = "discovery_degree_above_four_refused"
@@ -978,7 +978,7 @@ configuration = { variables = 15, max_degree = 5 }
 expected = { kind = "refusal", outputs = ["names the declared and supported maximum degree"], refusal = "graph degree above supported" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Pre-fit validation." }
 dataset = { generator = "sparse_connected_scm", seed = 9971232, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::a_maximum_degree_above_four_is_refused_with_both_degrees_named" }
 
 [[case]]
 id = "discovery_supported_conditions_published"
@@ -988,7 +988,7 @@ configuration = { families = ["linear", "log_linear"] }
 expected = { kind = "receipt", outputs = ["signal strength, causal sufficiency, distributional and intervention-support conditions listed per family"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "PC with degree <= 4 on <= 20 variables at <= 4,000 rows runs in seconds; budget covers CI tests and held-out estimation." }
 dataset = { generator = "documentation_check", seed = 6162961, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::the_published_conditions_are_listed_for_each_family" }
 
 [[case]]
 id = "discovery_parent_adjustment_linear_total_effect"
@@ -998,7 +998,7 @@ configuration = { variables = 15, participants = 2000, split_fraction = 0.5, pc 
 expected = { kind = "value", outputs = ["total effect on held-out rows", "analysis rows disjoint from discovery rows", "equal to independent oracle on the known parent set"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "A single discovery-then-estimate run at 2,000 rows and 15 variables." }
 dataset = { generator = "sparse_connected_scm", seed = 6342250, n = 2000, variables = 15, effect = 0.5, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::the_total_effect_is_the_least_squares_coefficient_given_the_true_parents_on_the_analysis_rows" }
 
 [[case]]
 id = "discovery_parent_adjustment_log_linear_mean_ratio"
@@ -1008,7 +1008,7 @@ configuration = { variables = 15, participants = 2000, outcome = "log_linear" }
 expected = { kind = "value", outputs = ["prespecified intervention mean ratio on held-out rows"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "A single discovery-then-estimate run at 2,000 rows and 15 variables." }
 dataset = { generator = "sparse_connected_scm", seed = 2036678, n = 2000, variables = 15, transformation = "log_linear", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::the_mean_ratio_is_the_exponential_of_the_log_scale_coefficient_and_its_interval" }
 
 [[case]]
 id = "discovery_unambiguous_parents_with_unresolved_unrelated_edges"
@@ -1018,7 +1018,7 @@ configuration = { variables = 15, unresolved_unrelated_edges = 3 }
 expected = { kind = "value", outputs = ["effect reported", "unresolved edges listed, not completed"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "A single discovery-then-estimate run at 2,000 rows and 15 variables." }
 dataset = { generator = "sparse_connected_scm", seed = 9455105, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::unambiguous_treatment_parents_are_accepted_with_unrelated_edges_unresolved" }
 
 [[case]]
 id = "discovery_ambiguous_treatment_parents_refused"
@@ -1028,7 +1028,7 @@ configuration = { variables = 15, ambiguous_treatment_parent_orientation = true 
 expected = { kind = "refusal", outputs = ["no arbitrary completion; ambiguous parents listed"], refusal = "treatment parent set ambiguous" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Refusal precedes estimation." }
 dataset = { generator = "sparse_connected_scm", seed = 6837750, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::an_undirected_edge_at_the_treatment_is_refused_and_named_not_completed" }
 
 [[case]]
 id = "discovery_seeded_split_reproducible"
@@ -1038,7 +1038,7 @@ configuration = { seed_repeat = 2 }
 expected = { kind = "receipt", outputs = ["identical split, graph and estimate under the same seed", "different split under another seed"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "A single discovery-then-estimate run at 2,000 rows and 15 variables." }
 dataset = { generator = "sparse_connected_scm", seed = 8313357, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::the_same_seeds_give_the_same_split_graph_and_estimate_and_another_seed_another_split" }
 
 [[case]]
 id = "discovery_graph_uncertainty_preserved_in_claim"
@@ -1048,7 +1048,7 @@ configuration = { variables = 10 }
 expected = { kind = "receipt", outputs = ["claim carries the discovered-graph status and acceptance reason"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "A single discovery-then-estimate run at 2,000 rows and 15 variables." }
 dataset = { generator = "sparse_connected_scm", seed = 6725388, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::the_result_preserves_the_graph_status_and_the_attestation_reports_it" }
 
 [[case]]
 id = "pc_required_edges_supported_positive_example"

@@ -119,6 +119,7 @@ pub mod recovery_chain;
 pub mod repair;
 pub mod sample_split_analysis;
 pub mod sample_split_effect;
+pub mod sample_split_parent_set_effect;
 pub mod scientific_bridge;
 pub mod selective_discovery;
 pub mod sensitivity_decision;

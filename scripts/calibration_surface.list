@@ -156,6 +156,9 @@ key estimator.counterfactual_transport estimator sampled_counterfactual_transpor
 estimator.sample_split_effect crates/antecedent-io/src/measured_inference/split_effect.rs
 estimator.sample_split_effect crates/antecedent/src/analysis/sample_split_effect.rs
 key estimator.sample_split_effect estimator sample_split.*
+estimator.split_parent_set_effect crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs
+estimator.split_parent_set_effect crates/antecedent/src/analysis/sample_split_parent_set_effect.rs
+key estimator.split_parent_set_effect estimator parent_set_split.*
 
 # ---- identification paths --------------------------------------------------
 identity.backdoor crates/antecedent-identify/src/backdoor.rs
@@ -351,6 +354,7 @@ suite.calibration_design_bayesian crates/antecedent/tests/calibration_design_bay
 suite.calibration_temporal_class crates/antecedent/tests/calibration_temporal_class.rs
 suite.class_posterior_calibration crates/antecedent/tests/class_posterior_calibration.rs
 suite.sample_split_effect_calibration crates/antecedent/tests/sample_split_effect_calibration.rs
+suite.sample_split_parent_set_effect_calibration crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs
 suite.transport_statistical_calibration crates/antecedent/tests/transport_statistical_calibration.rs
 suite.discovered_transport_calibration crates/antecedent/tests/discovered_transport_calibration.rs
 suite.z_transport_surrogate_calibration crates/antecedent/tests/z_transport_surrogate_calibration.rs
@@ -1058,6 +1062,7 @@ allow design crates/antecedent/src/analysis/prepared/info.rs antecedent_io
 allow design crates/antecedent/src/analysis/provider_callbacks.rs antecedent_contract antecedent_io refusal refused
 allow design crates/antecedent/src/analysis/sample_split_analysis.rs antecedent_contract finish refused
 allow design crates/antecedent/src/analysis/sample_split_effect.rs antecedent_io
+allow design crates/antecedent/src/analysis/sample_split_parent_set_effect.rs antecedent_io names
 allow design crates/antecedent/src/analysis/scientific_bridge.rs antecedent_contract antecedent_io export prepare quantity refusal seal
 allow design crates/antecedent/src/analysis/selective_discovery.rs NodeKind antecedent_contract finish refusal
 allow design crates/antecedent/src/analysis/sequential_evaluation.rs ActionRole ActionSpec ActionSupport BeliefTracker CensoringRule ComparisonKind ComparisonReport ComparisonRow ComparisonSpec ContingentPolicy DecisionReceipt DelayedOutcome EvaluationIdentities EvaluationLimits ExpectedEvaluation FiniteSequentialModel HistoryKey HistoryReceipt HistoryStep LoggedStep LoggedTrajectory MAX_ACTIONS MAX_HORIZON MAX_LOGGED_TRAJECTORIES MAX_POLICY_ENTRIES MAX_ROLLOUTS MAX_SEQUENTIAL_EVALUATION_ARTIFACT_BYTES MAX_STATES NodeKind ObservationChannel ObservationReceipt OffPolicyEstimate OffPolicyInput PolicyEvaluation PolicySpec RolloutConfig RolloutEstimate SEQUENTIAL_EVALUATION_ARTIFACT_FEATURE SEQUENTIAL_EVALUATION_ARTIFACT_VERSION SEQUENTIAL_EVALUATION_IDENTITY_VERSION SEQUENTIAL_EVALUATION_INFERENCE STREAM_SCHEME SequentialAssumptions SequentialEvaluationArtifact SequentialEvaluationBody SequentialEvaluationError SequentialRequest SequentialResult StoppingBoundary StreamRole VoiCheck VoiRequest antecedent_contract antecedent_design antecedent_io compare_policies consume design_crate design_exports evaluate evaluate_off_policy evaluate_policy export request_interval rollout_policy seal sequential_evaluation sequential_evaluation_artifact stream_uniform value_of_collecting_evidence
@@ -1227,6 +1232,7 @@ suite.inverse_forward_sources_facade_oracle crates/antecedent/tests/inverse_forw
 suite.per_population_discovery_facade_oracle crates/antecedent/tests/per_population_discovery_facade.rs
 suite.sample_split_analysis_facade_oracle crates/antecedent/tests/sample_split_analysis_facade.rs
 suite.sample_split_effect_facade_oracle crates/antecedent/tests/sample_split_effect_facade.rs
+suite.sample_split_parent_set_effect_facade_oracle crates/antecedent/tests/sample_split_parent_set_effect_facade.rs
 suite.transport_sensitivity_facade_oracle crates/antecedent/tests/transport_sensitivity_facade.rs
 suite.transported_cohort_facade_oracle crates/antecedent/tests/transported_cohort_facade.rs
 suite.transported_constructors_facade_oracle crates/antecedent/tests/transported_constructors_facade.rs

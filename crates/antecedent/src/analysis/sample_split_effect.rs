@@ -73,8 +73,39 @@ pub fn estimate_effect_on_split(
     split_seed: u64,
     ctx: &ExecutionContext,
 ) -> Result<SplitEffect, IoError> {
+    let roles = table_roles(data, treatment, outcome)?;
+    let source = SplitEffectSource::new(
+        roles.names,
+        roles.columns,
+        roles.treatment,
+        roles.outcome,
+        split_seed,
+        ctx.rng.master_seed(),
+    );
+    let run = split_effect::run(&source, ctx)?;
+    Ok(SplitEffect { run, source: source.to_bytes()? })
+}
+
+/// A table as a replayable source holds it: names, float columns and the role indices.
+pub(super) struct TableRoles {
+    pub(super) names: Vec<String>,
+    pub(super) columns: Vec<Vec<f64>>,
+    pub(super) treatment: u32,
+    pub(super) outcome: u32,
+}
+
+/// Read every column of `data` as float64 and locate the treatment and outcome among them.
+///
+/// # Errors
+///
+/// A column that is not float64, or a treatment or outcome that is not a column.
+pub(super) fn table_roles(
+    data: &TabularData,
+    treatment: VariableId,
+    outcome: VariableId,
+) -> Result<TableRoles, IoError> {
     let storage = data.storage();
-    let mut labels = Vec::new();
+    let mut names = Vec::new();
     let mut columns = Vec::new();
     let (mut treatment_at, mut outcome_at) = (None, None);
     for (at, spec) in storage.schema().variables().iter().enumerate() {
@@ -82,7 +113,7 @@ pub fn estimate_effect_on_split(
             code: antecedent_core::reason_code!("invalid_argument"),
             message: format!("split_effect.source_invalid: {error}"),
         })?;
-        labels.push(spec.name.to_string());
+        names.push(spec.name.to_string());
         columns.push(values);
         let index = u32::try_from(at).unwrap_or(u32::MAX);
         if spec.id == treatment {
@@ -92,7 +123,7 @@ pub fn estimate_effect_on_split(
             outcome_at = Some(index);
         }
     }
-    let (Some(treatment_at), Some(outcome_at)) = (treatment_at, outcome_at) else {
+    let (Some(treatment), Some(outcome)) = (treatment_at, outcome_at) else {
         return Err(IoError::Refused {
             code: antecedent_core::reason_code!("invalid_argument"),
             message: "split_effect.source_invalid: the treatment and outcome must be columns of \
@@ -100,16 +131,7 @@ pub fn estimate_effect_on_split(
                 .to_owned(),
         });
     };
-    let source = SplitEffectSource::new(
-        labels,
-        columns,
-        treatment_at,
-        outcome_at,
-        split_seed,
-        ctx.rng.master_seed(),
-    );
-    let run = split_effect::run(&source, ctx)?;
-    Ok(SplitEffect { run, source: source.to_bytes()? })
+    Ok(TableRoles { names, columns, treatment, outcome })
 }
 
 impl SplitEffect {

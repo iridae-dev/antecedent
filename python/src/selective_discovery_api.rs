@@ -19,6 +19,10 @@ use antecedent::analysis::sample_split_analysis::{
 use antecedent::analysis::sample_split_effect::{
     SplitEffect, estimate_effect_on_split, measure_source,
 };
+use antecedent::analysis::sample_split_parent_set_effect::{
+    ParentSetEffect, ParentSetOptions, Transformation, estimate_parent_set_effect,
+    measure_source as measure_parent_set_source,
+};
 use antecedent::analysis::selective_discovery::{
     DeclaredCompletion, DiscoveryClaimKeys, DiscoverySnapshot, add_discovery_claims,
     discovered_graph_source, discovery_data_source, discovery_rows_source,
@@ -1554,20 +1558,37 @@ fn effect_json(estimate: &SplitEffect) -> String {
         "adjustment_set": estimate.adjustment_set(),
         "receipt_identity": hex(estimate.receipt_identity()),
         "structure_identity": hex(estimate.structure_identity()),
-        "basis": {
-            "query": &*basis.query,
-            "graph_class": &*basis.graph_class,
-            "structure": &*basis.structure,
-            "modality": &*basis.modality,
-            "inference": &*basis.inference,
-            "estimator": &*basis.estimator,
-            "interval_method": &*basis.interval_method,
-            "se_kind": &*basis.se_kind,
-            "dependence": &*basis.dependence,
-            "functional": &*basis.functional,
-            "identification": &*basis.identification,
-            "row_count": basis.row_count,
-        },
+        "basis": basis_json(&estimate.keyed_basis()),
+    })
+    .to_string()
+}
+
+fn parent_set_effect_json(estimate: &ParentSetEffect) -> String {
+    let reported = estimate.reported();
+    let unresolved: Vec<Json> = estimate
+        .unresolved_edges()
+        .iter()
+        .map(|edge| json!({ "a": edge.a, "b": edge.b, "reason": edge.reason }))
+        .collect();
+    json!({
+        "scalar": reported.name,
+        "effect": reported.point,
+        "lower": reported.lower,
+        "upper": reported.upper,
+        "level": estimate.level(),
+        "standard_error": reported.standard_error,
+        "coefficient": estimate.coefficient(),
+        "transformation": estimate.transformation().name(),
+        "analysis_rows": estimate.analysis_rows(),
+        "discovery_rows": estimate.discovery_rows(),
+        "treatment_parents": estimate.treatment_parents(),
+        "treatment_children": estimate.treatment_children(),
+        "unresolved_edges": unresolved,
+        "edge_count": estimate.edge_count(),
+        "acceptance": estimate.acceptance(),
+        "receipt_identity": hex(estimate.receipt_identity()),
+        "structure_identity": hex(estimate.structure_identity()),
+        "basis": basis_json(&estimate.keyed_basis()),
     })
     .to_string()
 }
@@ -1631,6 +1652,82 @@ fn sample_split_effect_measure(
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let result = crate::detach_catch(py, move || Ok(measure_source(&source, &ctx)))?;
+    match result {
+        Ok(measured) => Ok((
+            Some(crate::measured_inference_api::NativeMeasuredInference::from_io(measured)?),
+            None,
+        )),
+        Err(error) => Ok((None, Some(effect_refusal(error)?))),
+    }
+}
+
+/// The effect of a treatment on an outcome after PC discovery on one half of a seeded row split,
+/// accepted on the treatment's parent set, for a declared linear or log-linear study.
+///
+/// The transformation is parsed before any data are read. Returns
+/// `(estimate_json, source_bytes, refusal)`.
+#[pyfunction]
+#[pyo3(signature = (names, columns, treatment, outcome, split_seed, seed, transformation, max_degree, log_shift=None, *, threads=None, cancel=None))]
+#[allow(clippy::too_many_arguments, reason = "one request: data, roles, declarations and seeds")]
+fn sample_split_parent_set_effect(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    treatment: u32,
+    outcome: u32,
+    split_seed: u64,
+    seed: u64,
+    transformation: &str,
+    max_degree: u32,
+    log_shift: Option<f64>,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<Effect> {
+    let transformation = match Transformation::parse(transformation) {
+        Ok(declared) => declared,
+        Err(error) => return Ok((None, None, Some(effect_refusal(error)?))),
+    };
+    let options = ParentSetOptions { transformation, max_degree, log_shift };
+    let batch = crate::columns_to_batch(&names, &columns)?;
+    let ctx =
+        crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
+    let result = crate::detach_catch(py, move || {
+        let (data, _): (TabularData, _) = crate::discovery_api::tabular_from_batch(&batch)?;
+        Ok(estimate_parent_set_effect(
+            &data,
+            VariableId::from_raw(treatment),
+            VariableId::from_raw(outcome),
+            options,
+            split_seed,
+            &ctx,
+        ))
+    })?;
+    match result {
+        Ok(estimate) => Ok((
+            Some(parent_set_effect_json(&estimate)),
+            Some(estimate.source_artifact().to_vec()),
+            None,
+        )),
+        Err(error) => Ok((None, None, Some(effect_refusal(error)?))),
+    }
+}
+
+/// Replay a parent-set split-effect source and attest its interval from the coverage records.
+///
+/// Returns `(measured, refusal)`; a refusal is `cell_not_licensed` when no current attesting
+/// record covers the construction at this variable count, degree and analysis row count.
+#[pyfunction]
+#[pyo3(signature = (source, seed, *, threads=None, cancel=None))]
+fn sample_split_parent_set_effect_measure(
+    py: Python<'_>,
+    source: Vec<u8>,
+    seed: u64,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<Measured> {
+    let ctx =
+        crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
+    let result = crate::detach_catch(py, move || Ok(measure_parent_set_source(&source, &ctx)))?;
     match result {
         Ok(measured) => Ok((
             Some(crate::measured_inference_api::NativeMeasuredInference::from_io(measured)?),
@@ -1753,5 +1850,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(sample_split_discover, module)?)?;
     module.add_function(wrap_pyfunction!(sample_split_effect, module)?)?;
     module.add_function(wrap_pyfunction!(sample_split_effect_measure, module)?)?;
+    module.add_function(wrap_pyfunction!(sample_split_parent_set_effect, module)?)?;
+    module.add_function(wrap_pyfunction!(sample_split_parent_set_effect_measure, module)?)?;
     Ok(())
 }

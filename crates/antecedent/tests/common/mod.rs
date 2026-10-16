@@ -11,4 +11,5 @@ pub mod lagged_ols;
 pub mod panel_dgp;
 pub mod persistent_dgp;
 pub mod reported;
+pub mod sparse_scm;
 pub mod static_dgp;

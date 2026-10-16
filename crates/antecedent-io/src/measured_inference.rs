@@ -23,6 +23,7 @@ pub mod count_fitted_interval;
 pub(crate) mod nested;
 pub(crate) mod recovery_temporal;
 pub mod split_effect;
+pub mod split_parent_set_effect;
 pub(crate) mod transport;
 
 /// A caller's immutable expected source and reported question. This is a
@@ -153,6 +154,7 @@ impl MeasuredInference {
             "adaptive_interval" => crate::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::consume_measured_interval(bytes, expected, ctx),
             "sampled_counterfactual_transport" => crate::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire::consume_measured(bytes, expected, crate::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits::default(), ctx),
             "split_effect" => crate::measured_inference::split_effect::consume_measured(bytes, expected, ctx),
+            "split_parent_set_effect" => crate::measured_inference::split_parent_set_effect::consume_measured(bytes, expected, ctx),
             _ => Err(refusal("measured_inference.unsupported_route", "no measured native consumer is registered for the requested route")),
         }
     }

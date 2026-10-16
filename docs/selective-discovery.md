@@ -279,6 +279,89 @@ how the search behaves, not a license: the license is the coverage record of the
 | 5 to 7 | 600 | 400 | 0.975 | 0.978 |
 | 5 to 7 | 1,200 | 400 | 0.975 | 0.975 |
 
+## Effect after discovery on a treatment parent set
+
+`antecedent::analysis::sample_split_parent_set_effect::estimate_parent_set_effect` (Python:
+`selective_discovery.sample_split_parent_set_effect`) is the construction for sparse studies of
+ten to twenty connected variables whose equivalence class is not fully orientable. It differs
+from the fully directed construction above in one step, the acceptance rule, and adds the
+declared analysis scale:
+
+1. **Declare the scale first.** `linear`, or `log_linear`. Anything else is refused before the
+   data are read (`parent_set_effect.transformation_undeclared`). A log-linear study requires
+   every searched column to be positive (`parent_set_effect.log_linear_input_not_positive`,
+   naming the column), and the natural logarithm is applied to every column before the split,
+   so discovery and estimation both run on the declared scale.
+2. **Split and discover.** A seeded half split; PC with the partial-correlation test
+   (alpha 0.01) on the discovery half, with a conditioning-set size and a parent limit equal to
+   the declared maximum degree. A degree above four is refused
+   (`parent_set_effect.degree_above_supported`, naming the declared and the supported degree). If
+   the parent limit removes an adjacency no test separated, the orientations rest on the limit and
+   the run is refused (`parent_set_effect.parent_limit_bound`).
+3. **Accept on the treatment's parent set.** The class is accepted when the search finished and
+   every edge incident to the treatment is directed. A directed edge of a completed partially
+   directed graph is directed in every member of the class, so the treatment's parents are the
+   same in every member. Edges elsewhere may stay undirected: the result lists them
+   (`ParentSetEffect.unresolved_edges`, with `treatment_parents`, `treatment_children` and the
+   acceptance reason) and nothing completes them. An undirected edge at the treatment is refused
+   with the edges named (`parent_set_effect.treatment_parents_ambiguous`): the class then holds
+   graphs with different parent sets, and no member is chosen.
+4. **Estimate on the other half.** Adjust for the treatment's parents. A linear study reports
+   the total effect with the least-squares Student interval. A log-linear study reports the
+   intervention mean ratio `exp(shift * beta)` of multiplying the treatment by `exp(shift)`
+   (shift 1 reports `exp(beta)`), its interval the exponential image of the log-scale Student
+   interval, and its delta-method standard error.
+
+Each configuration is its own calibration key: structure
+`discovered_sample_split.treatment_parent_set`, the estimator of the declared transformation and
+a functional naming the variable count, the declared degree and the topology, so no record is
+borrowed from the fully directed five-to-seven-variable construction or from another count. The
+measured grid is ten, fifteen and twenty variables at 1,000, 2,000 and 4,000 participants (half
+to each part), gated separately for each transformation and each topology
+(`hub_confounded_multi_path`, `layered_multi_mediator_nuisance`), in
+`crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs`. A table does not
+announce its topology, so `ParentSetEffect.measure` licenses a cell only when the records of
+every topology attest it at that variable count, degree, transformation and analysis row count:
+the conservative intersection. Until the records exist `measure` refuses with
+`cell_not_licensed`. Named boundary designs at fifteen variables (weak signal below the published
+margin, an exactly cancelling path, and skewed noise the partial-correlation test cannot see
+through) are recorded under their own keys and license nothing.
+
+### Linear family
+
+* **Signal strength.** Every adjacent pair, and every pair with a common neighbour, keeps a
+  population partial correlation of at least 0.15 in magnitude given each conditioning set PC can
+  form from the true neighbours (at most four of one endpoint's) that does not d-separate it and
+  is no larger than the smallest set that does (strong faithfulness). The measured family draws
+  standardized coefficients of magnitude 0.4 to 0.7 and redraws until this holds
+  (`crates/antecedent/tests/common/sparse_scm.rs`).
+* **Faithfulness.** The only conditional independences of the population are those the graph
+  implies, with the margin above; cancelling paths are outside the family.
+* **Causal sufficiency.** No unmeasured common cause of any two searched variables.
+* **Distribution.** Independent rows from a linear Gaussian structural model with
+  homoskedastic noise; the partial-correlation test and the Student interval rely on it.
+* **Maximum degree.** No variable has more than the declared number of neighbours, at most four.
+* **Intervention support.** The treatment varies given its parents (a positive conditional
+  variance), and the effect is a total effect per unit change over the observed range.
+
+### Log-linear family
+
+* **Signal strength.** The same margin, on the logarithmic scale of the searched columns.
+* **Faithfulness.** As above, on the logarithmic scale.
+* **Causal sufficiency.** As above.
+* **Distribution.** Every searched column is positive, and its logarithm follows the linear
+  Gaussian model above (the columns are jointly log-normal). The transformation is declared
+  before analysis and frozen in the source; positivity is checked, never repaired.
+* **Maximum degree.** As above.
+* **Intervention support.** The prespecified intervention multiplies the treatment by
+  `exp(shift)` and the treatment's observed support covers that move given its parents; the
+  reported ratio compares the outcome's mean under that intervention to its mean without it, and
+  is not extrapolated to other multipliers.
+
+The graph recovered on one table is an estimate: sufficiency and faithfulness cannot be tested
+from the table discovery ran on, so these conditions are the family the coverage was measured
+over, never a per-table certificate.
+
 ## Lifecycle
 
 * **prepare / estimate:** a contract and data produce an outcome and a plan; accepting
@@ -323,7 +406,7 @@ interval, no posterior). Paradigm: neither Frequentist nor Bayesian output is pr
 `mask=`) and `SampleSplit` (`receipt`, `verify`, `verify_source`, `analysis_row_ids`,
 `analysis_weights`, `analysis_effective_sample_size`), `SelectiveDiscovery`
 (`run`, `plan`, `outcome`, `export_state`, `resume`, `request_recovery_claim`,
-`request_downstream_interval`, `request_selection_diagram`), `sample_split_effect` and `SplitEffect` (with `measure`), `Outcome` (structure with
+`request_downstream_interval`, `request_selection_diagram`), `sample_split_effect` and `SplitEffect` (with `measure`), `sample_split_parent_set_effect` and `ParentSetEffect` (with `measure`), `Outcome` (structure with
 `unresolved_edges`, `directed_edges`, evidence, bounded-search receipts), `RunReport` and
 `WorkUnits`, `inspect_selective_discovery_artifact`, `consume_selective_discovery_artifact`,
 `request_score_search_reuse` and `SelectiveDiscoveryRefusal`. Contract seeds default to 0.

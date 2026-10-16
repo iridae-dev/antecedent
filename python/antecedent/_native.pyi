@@ -7464,6 +7464,27 @@ def sample_split_effect_measure(
     threads: int | None = None,
     cancel: Any = None,
 ) -> tuple[NativeMeasuredInference | None, str | None]: ...
+def sample_split_parent_set_effect(
+    names: list[str],
+    columns: list[Any],
+    treatment: int,
+    outcome: int,
+    split_seed: int,
+    seed: int,
+    transformation: str,
+    max_degree: int,
+    log_shift: float | None = None,
+    *,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> tuple[str | None, bytes | None, str | None]: ...
+def sample_split_parent_set_effect_measure(
+    source: bytes,
+    seed: int,
+    *,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> tuple[NativeMeasuredInference | None, str | None]: ...
 def discovered_transport_run(
     contract_json: str,
     names: list[str],

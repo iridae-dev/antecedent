@@ -1177,6 +1177,18 @@ status = "bound"
 python = "native:python/src/selective_discovery_api.rs"
 
 [[entry]]
+rust = "antecedent::analysis::sample_split_parent_set_effect::estimate_parent_set_effect"
+kind = "fn"
+status = "bound"
+python = "native:python/src/selective_discovery_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::sample_split_parent_set_effect::measure_source"
+kind = "fn"
+status = "bound"
+python = "native:python/src/selective_discovery_api.rs"
+
+[[entry]]
 rust = "antecedent::analysis::selective_discovery::accepted_graph_stage_identity"
 kind = "fn"
 status = "internal"

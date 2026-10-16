@@ -274,6 +274,8 @@ markers below and compares it. Prose outside those markers is not read.
 | adaptive_inference.participant_family | max_replications | 1000000 | `crates/antecedent-stats/src/adaptive_inference/procedure_simulation.rs` |
 | discovery.sample_split_effect | min_variables | 5 | `crates/antecedent-io/src/measured_inference/split_effect.rs` |
 | discovery.sample_split_effect | max_variables | 7 | `crates/antecedent-io/src/measured_inference/split_effect.rs` |
+| discovery.sample_split_parent_set_effect | min_variables | 10 | `crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs` |
+| discovery.sample_split_parent_set_effect | max_variables | 20 | `crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs` |
 <!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.

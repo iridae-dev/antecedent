@@ -16586,6 +16586,147 @@ measurement_design_status = "implemented_whole_method_harness_not_run"
 truth_grid_allocation = "Same grid and replicate counts as the gated design; each probe is its own test and its own key."
 
 [[record]]
+id = "discovery.sample_split_parent_set_effect"
+capability = "discovery.sample_split_parent_set_effect"
+status = "in_progress"
+consumer_question = "After discovery on one half of a table of ten to twenty variables, when only the treatment's parent set is unambiguous, what is the total effect (linear study) or intervention mean ratio (log-linear study) of a treatment on an outcome estimated by parent adjustment on the disjoint other half, with the unrelated undirected edges preserved, and over which measured family of generating processes does its interval cover the truth?"
+theorem = "The analysis scale is declared first: linear, or log-linear, which requires every searched column to be positive and analyses its natural logarithm. Rows are split by a seeded permutation into disjoint discovery and analysis halves. PC with the partial-correlation test, a conditioning-set size and a parent limit equal to the declared maximum degree (at most four) runs on the discovery half only; the class is accepted when the search finished without conflict, no adjacency was removed by the parent limit and every edge incident to the treatment is directed. A directed edge of a completed partially directed graph is directed in every member of the class, so the treatment's parents are the same in every member; if the class contains the true graph and the model is linear Gaussian on the declared scale those parents are a valid backdoor set, the coefficient of the treatment in the least-squares regression of the outcome on the treatment and its parents on the analysis half is the total effect, and the Student interval is exact conditional on the accepted class. For a log-linear study the reported intervention mean ratio is the exponential of the shift times that coefficient, with the exponential image of its interval. Undirected edges elsewhere are listed and never completed; an undirected edge at the treatment is refused. Faithfulness and causal sufficiency are not testable from the discovery half, so coverage over discovery outcomes is a property of the whole method over a declared family and is licensed only from a measured coverage record keyed discovered_sample_split.treatment_parent_set."
+reference = "provenance/discovery.sample_split_parent_set_effect.toml"
+guarantee = "whole_method_coverage_of_the_true_effect_measured_over_a_declared_family_never_a_per_dataset_recovery_statement"
+graph_class = "A static float64 table of ten to twenty searched variables, connected, of maximum degree at most four, whose generating DAG is linear Gaussian (log-normal on the original scale for a log-linear study), causally sufficient and strongly faithful, with every edge incident to the treatment oriented in its equivalence class."
+population_semantics = "One population of exchangeable rows split disjointly by a seeded permutation; weighted, masked, temporal, panel or clustered rows are refused."
+evidence_family = "A float64 table, the treatment and outcome columns, the declared transformation, maximum degree and log shift, a split seed and a discovery seed; the whole table travels in the replayable source."
+provider = "antecedent::analysis::sample_split_parent_set_effect::estimate_parent_set_effect and ParentSetEffect::measure; antecedent_io::measured_inference::split_parent_set_effect (source, replay and measured consumer under the route name split_parent_set_effect); antecedent.selective_discovery.sample_split_parent_set_effect and ParentSetEffect.measure in Python."
+estimand = "The total effect of the treatment on the outcome per unit (linear), or the ratio of the outcome's mean under the intervention that multiplies the treatment by exp(shift) to its mean without it (log-linear), with a 0.95 interval."
+inference_claim = "calibrated"
+inference_notes = "estimate_parent_set_effect returns the classical least-squares interval, or its exponential image, as a model-conditional computation; it is attested only by measure, which replays the source and resolves the interval to a current attesting non-boundary coverage record of structure discovered_sample_split.treatment_parent_set, the estimator of the declared transformation, a functional naming the variable count, declared degree and topology (a cell is attested only when both topologies' records attest it), level 0.95 and the analysis row count. The fully directed five-to-seven-variable record is never inherited and none of these records widens it. The reporting share, per-topology coverage, interval width and treatment-parent recovery are printed by the harness and published as a measured table, not as a license."
+owners = ["antecedent-io", "antecedent", "python/antecedent"]
+identity_inputs = ["the table's columns, names and values", "the treatment and outcome columns", "the declared transformation, maximum degree and log shift", "the split seed and the discovery seed", "the measured construction: PC, partial correlation, alpha 0.01, discovery fraction 0.5, level 0.95"]
+wire_changes = ["None. The replayable source is one canonical CBOR value of the table, roles and declarations under a new route; the measured envelope is the existing measured_inference_v1 under the route name split_parent_set_effect."]
+compatibility = "Additive. The fully directed construction, its source encoding and its records are unchanged; selective discovery's recovery claim and the interval on reused rows stay refused with their registered details."
+search = false
+prerequisite_records = ["discovery.sample_split_analysis", "inference.measured_scalar"]
+prerequisite_reason = "The split and its receipt are the sample-split analysis; the attestation is the measured scalar facade, which resolves the interval against current coverage records."
+bounds = { cancellation = true, min_variables = 10, max_variables = 20 }
+inference_inventory_disposition = "outputs_listed"
+coverage_records = [
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_weak_signal_boundary_95",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_cancelling_path_boundary_95",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_misspecified_test_boundary_95",
+]
+refusals = [
+  { code = "invalid_argument", detail = "parent_set_effect.source_invalid", when = "The table has missing or non-finite values, unequal columns, fewer than eight rows, the treatment and outcome are not two distinct columns, the declared degree is zero, or the log shift is missing, zero or non-finite for a log-linear study or present for a linear one.", remedy = "Supply a finite rectangular float table, two distinct role columns and a consistent declaration." },
+  { code = "invalid_argument", detail = "parent_set_effect.source_not_canonical", when = "A source's bytes are not the canonical encoding of the value they decode to.", remedy = "Use the source bytes the estimate exported." },
+  { code = "invalid_argument", detail = "parent_set_effect.discovery_failed", when = "The discovery run failed or retained no outcome.", remedy = "Check the table and rerun discovery." },
+  { code = "invalid_argument", detail = "parent_set_effect.transformation_undeclared", when = "The transformation is not declared as linear or log_linear before the data are read.", remedy = "Declare linear or log_linear." },
+  { code = "invalid_argument", detail = "parent_set_effect.log_linear_input_not_positive", when = "A log-linear study has a column with a value that is not positive.", remedy = "Supply positive values for every searched column, or declare a linear study." },
+  { code = "cell_not_licensed", detail = "parent_set_effect.variable_count_not_measured", when = "The table does not have ten to twenty searched variables.", remedy = "Restrict the search to ten to twenty variables, or use the fully directed construction for five to seven." },
+  { code = "cell_not_licensed", detail = "parent_set_effect.degree_above_supported", when = "The declared maximum graph degree is above four.", remedy = "Declare a maximum degree of at most four." },
+  { code = "cell_not_licensed", detail = "parent_set_effect.search_not_finished", when = "The discovery search exhausted a bound or met conflicting orientation evidence.", remedy = "Raise the search bounds or resolve the conflicting evidence, then split again." },
+  { code = "cell_not_licensed", detail = "parent_set_effect.parent_limit_bound", when = "The parent limit removed adjacencies that no test separated, so the orientations rest on the limit.", remedy = "Declare a larger degree up to four, or check that the graph is sparse." },
+  { code = "cell_not_licensed", detail = "parent_set_effect.treatment_parents_ambiguous", when = "An edge incident to the treatment is undirected in the discovered class, so the class holds graphs with different parent sets; the edges are named and no completion is chosen.", remedy = "Orient the named edges with background knowledge or more rows, or analyse under a declared graph." },
+  { code = "cell_not_licensed", detail = "parent_set_effect.structure_class", when = "The structure is not a completed partially directed graph over static searched variables.", remedy = "Use static constraint-based discovery with PC." },
+  { code = "cell_not_licensed", detail = "parent_set_effect.outcome_precedes_treatment", when = "The discovered structure orients the outcome into the treatment.", remedy = "Check the roles; a total effect of the treatment on its own ancestor is zero." },
+]
+routes = [
+  { name = "antecedent.sample_split_parent_set_effect.estimate_parent_set_effect", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.python.selective_discovery.sample_split_parent_set_effect", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.sample_split_parent_set_effect.ParentSetEffect.measure", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", refusal_assertion = "an_unmeasured_variable_count_is_computed_and_never_attested" },
+  { name = "antecedent.python.selective_discovery.ParentSetEffect.measure", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_sample_split_parent_set_effect.py", refusal_assertion = "test_an_unmeasured_variable_count_is_computed_and_never_attested" },
+]
+fixtures = [
+  { id = "discovery.sample_split_parent_set_effect.known_truth_linear.positive", role = "positive", intent = "On a sparse connected linear law of fifteen variables the reported total effect equals an independently solved least-squares coefficient of the treatment given its true parents on the analysis half, with its standard error and Student interval, and lies within four standard errors of the truth computed from the structural coefficients.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "the_total_effect_is_the_least_squares_coefficient_given_the_true_parents_on_the_analysis_rows" },
+  { id = "discovery.sample_split_parent_set_effect.python_surface.positive", role = "positive", intent = "Python: a linear hub-confounded study reports the total effect within four standard errors of the path-sum truth, the treatment's parents and the three undirected nuisance edges.", evidence_test = "python/tests/test_sample_split_parent_set_effect.py", evidence_assertion = "test_a_linear_study_reports_the_total_effect_and_the_unresolved_edges" },
+  { id = "discovery.sample_split_parent_set_effect.mean_ratio.truth", role = "truth", intent = "A log-linear study reports exp(shift * beta) with the exponential image of the log-scale Student interval and the delta-method standard error, equal to an independent computation.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "the_mean_ratio_is_the_exponential_of_the_log_scale_coefficient_and_its_interval" },
+  { id = "discovery.sample_split_parent_set_effect.unresolved_unrelated_edges.truth", role = "truth", intent = "With unrelated edges left undirected the effect is reported and exactly the nuisance-chain edges the class cannot orient are listed, none invented and none at the treatment.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "unambiguous_treatment_parents_are_accepted_with_unrelated_edges_unresolved" },
+  { id = "discovery.sample_split_parent_set_effect.split_basis_key.truth", role = "truth", intent = "The calibration basis names structure discovered_sample_split.treatment_parent_set, disjoint-row dependence, the estimator of the declared transformation and a functional with the variable count and degree, never the keys of the fully directed construction or of a declared graph.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "the_basis_is_keyed_under_its_own_structure_estimator_and_variable_count" },
+  { id = "discovery.sample_split_parent_set_effect.ambiguous_treatment_parents.negative", role = "negative", intent = "An undirected edge at the treatment is refused with the edge named and no completion chosen.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "an_undirected_edge_at_the_treatment_is_refused_and_named_not_completed" },
+  { id = "discovery.sample_split_parent_set_effect.log_linear_positivity.negative", role = "negative", intent = "A non-positive value in a log-linear study is refused naming the column; the same table is a valid linear study.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "log_linear_inputs_must_be_positive_and_the_refusal_names_the_column" },
+  { id = "discovery.sample_split_parent_set_effect.transformation_declared.negative", role = "negative", intent = "An undeclared transformation is refused before the data are read.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "the_transformation_must_be_declared_before_the_data_are_touched" },
+  { id = "discovery.sample_split_parent_set_effect.degree_above_four.negative", role = "negative", intent = "A declared maximum degree of five is refused naming both the declared and the supported degree.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "a_maximum_degree_above_four_is_refused_with_both_degrees_named" },
+  { id = "discovery.sample_split_parent_set_effect.source_replay.artifact", role = "artifact", intent = "A source that states another format version, equal treatment and outcome, or non-canonical bytes is refused before any replay.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "a_source_that_states_another_format_or_roles_is_refused" },
+  { id = "discovery.sample_split_parent_set_effect.deterministic_source.invariance", role = "invariance", intent = "The same table, roles, declarations and seeds give the same estimate, graph identity and source bytes; another split seed is another receipt.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "the_same_seeds_give_the_same_split_graph_and_estimate_and_another_seed_another_split" },
+  { id = "discovery.sample_split_parent_set_effect.attested_replay.calibration", role = "calibration", intent = "Inside a measured construction the interval resolves to a current attesting record and the claim carries the acceptance reason and the unresolved edges; without such a record it is refused as not attesting.", evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", evidence_assertion = "the_result_preserves_the_graph_status_and_the_attestation_reports_it" },
+]
+
+[[record.inference_outputs]]
+id = "sample_split_parent_set_effect.1"
+fields = ["effect", "lower", "upper"]
+method = "declared transformation; seeded half split; PC with partial correlation (alpha 0.01, conditioning-set size and parent limit equal to the declared maximum degree) on the discovery half; treatment-parent-set acceptance; parent-adjusted least-squares coefficient with a classical Student-t interval at 0.95 on the analysis half, mapped through the exponential for a log-linear study"
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-io"
+operation_or_object = "sample_split_parent_set_effect"
+public_producers = ["antecedent.sample_split_parent_set_effect.estimate_parent_set_effect", "antecedent.python.selective_discovery.sample_split_parent_set_effect"]
+closed_producers = ["antecedent.sample_split_parent_set_effect.ParentSetEffect.measure", "antecedent.python.selective_discovery.ParentSetEffect.measure"]
+independent_consumers = ["discovery.sample_split_parent_set_effect.attested_replay.calibration"]
+method_source = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs"
+truth_design = "Standardized linear-Gaussian DAGs of ten, fifteen and twenty variables, connected, of maximum degree four, with two topologies (hub_confounded_multi_path, layered_multi_mediator_nuisance) whose weights are redrawn until the strong-faithfulness margin of tests/common/sparse_scm.rs holds; the log-linear studies exponentiate every column; truth is the sum over directed paths of coefficient products (the total effect) or its exponential times the shift (the mean ratio), never taken from simulated rows."
+truth_fixtures = ["crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::the_total_effect_is_the_least_squares_coefficient_given_the_true_parents_on_the_analysis_rows"]
+nominal_level = "0.95"
+acceptance_threshold = "Shared frozen rules: nominal 0.95 +/- 3 MCSE at 400 replicates, a 2000-replicate recheck when more than two points from the level, precision floor and ceiling +/- 2 MCSE from 1000 replicates, at every grid point; replicates that report no interval are excluded from coverage and their share must stay at least 0.9 for each topology. No measurement has run."
+measurement_suite = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs"
+allocated_coverage_records = [
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+]
+inherited_coverage_records = []
+boundary = "A statement about the method over the measured family only: not about one dataset's graph, not outside ten to twenty variables, a maximum degree above four, the measured row range, weak or cancelling edges, a misspecified test, a declared completion or reused rows."
+activation_disposition = "retain_closed_cell_not_licensed_until_measured"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "Total rows grid_n(2000): 1000, 2000, 4000 (half to each part); twelve tests (linear and log-linear at 10, 15 and 20 variables, one per topology), 400 replicates per grid point. A table does not announce its topology, so the runtime licenses a cell only when the records of both topologies attest it (conservative intersection)."
+
+[[record.inference_outputs]]
+id = "sample_split_parent_set_effect.2"
+fields = ["effect", "lower", "upper"]
+method = "the same construction measured outside the published conditions at fifteen variables: coefficients below the margin, an exactly cancelling path, and right-skewed noise that the partial-correlation test cannot see through"
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-io"
+operation_or_object = "sample_split_parent_set_effect"
+public_producers = []
+closed_producers = ["antecedent.sample_split_parent_set_effect.ParentSetEffect.measure"]
+independent_consumers = ["discovery.sample_split_parent_set_effect.attested_replay.calibration"]
+method_source = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs"
+truth_design = "The gated families with weak coefficients (magnitude 0.1 to 0.25), the confounder's coefficient on the outcome set to cancel the mediated path exactly, and unit-variance right-skewed noise; truth is the path-product total effect."
+truth_fixtures = ["crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::the_basis_is_keyed_under_its_own_structure_estimator_and_variable_count"]
+nominal_level = "0.95"
+acceptance_threshold = "Named boundaries: measured and recorded, never gated, always a boundary record under a key that cannot match a gated execution."
+measurement_suite = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs"
+allocated_coverage_records = [
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_weak_signal_boundary_95",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_cancelling_path_boundary_95",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_misspecified_test_boundary_95",
+]
+inherited_coverage_records = []
+boundary = "Outside the published conditions: the measured coverage states where the construction stops holding and licenses nothing."
+activation_disposition = "retain_closed_cell_not_licensed_until_measured"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "Same grid and replicate counts as the gated designs; each probe is its own test and its own key."
+
+[[record]]
 id = "transport.provider_source_admission"
 capability = "transport.provider_source_admission"
 status = "in_progress"

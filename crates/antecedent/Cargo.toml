@@ -412,6 +412,10 @@ name = "sample_split_effect_calibration"
 path = "tests/sample_split_effect_calibration.rs"
 
 [[test]]
+name = "sample_split_parent_set_effect_calibration"
+path = "tests/sample_split_parent_set_effect_calibration.rs"
+
+[[test]]
 name = "scientific_bridge_interval_calibration"
 path = "tests/scientific_bridge_interval_calibration.rs"
 

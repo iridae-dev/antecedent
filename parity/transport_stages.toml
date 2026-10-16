@@ -10499,6 +10499,44 @@ stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
 notes = "Attested only from a current attesting coverage record of structure discovered_sample_split."
+
+
+[[routes]]
+route = "antecedent.sample_split_parent_set_effect.estimate_parent_set_effect"
+stage = "evaluate"
+status = "licensed"
+graph = "static_float64_table_of_ten_to_twenty_variables_sparse_linear_gaussian_oriented_treatment_neighbourhood"
+evidence = "float64_table_with_treatment_and_outcome_columns_declared_transformation_degree_and_two_seeds"
+functional = "total_effect_or_intervention_mean_ratio_of_the_treatment_adjusted_for_its_parents_in_the_accepted_class"
+guarantee = "whole_method_coverage_of_the_true_effect_measured_over_a_declared_family_never_a_per_dataset_recovery_statement"
+evidence_test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs"
+evidence_assertion = "the_total_effect_is_the_least_squares_coefficient_given_the_true_parents_on_the_analysis_rows"
+notes = "The interval is a model-conditional computation until measure attests it from a current coverage record."
+
+[[routes]]
+route = "antecedent.python.selective_discovery.sample_split_parent_set_effect"
+stage = "evaluate"
+status = "licensed"
+graph = "static_float64_table_of_ten_to_twenty_variables_sparse_linear_gaussian_oriented_treatment_neighbourhood"
+evidence = "float64_table_with_treatment_and_outcome_columns_declared_transformation_degree_and_two_seeds"
+functional = "total_effect_or_intervention_mean_ratio_of_the_treatment_adjusted_for_its_parents_in_the_accepted_class"
+guarantee = "whole_method_coverage_of_the_true_effect_measured_over_a_declared_family_never_a_per_dataset_recovery_statement"
+evidence_test = "python/tests/test_sample_split_parent_set_effect.py"
+evidence_assertion = "test_a_linear_study_reports_the_total_effect_and_the_unresolved_edges"
+
+[[routes]]
+route = "antecedent.sample_split_parent_set_effect.ParentSetEffect.measure"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Attested only from a current attesting coverage record of structure discovered_sample_split.treatment_parent_set."
+
+[[routes]]
+route = "antecedent.python.selective_discovery.ParentSetEffect.measure"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+
 [[routes]]
 route = "antecedent_contract.provider_transport.ProviderTransportSource.admit"
 stage = "prepare"

@@ -2174,3 +2174,21 @@ documentation = [{ path = "crates/antecedent-io/src/measured_inference/split_eff
 guard = { path = "crates/antecedent-io/src/measured_inference/split_effect.rs", pattern = "if\\ !\\(MIN_VARIABLES\\.\\.=MAX_VARIABLES\\)\\.contains\\(&k\\)\\ \\{" }
 refusal = { path = "crates/antecedent-io/src/measured_inference/split_effect.rs", pattern = "if\\ !\\(MIN_VARIABLES\\.\\.=MAX_VARIABLES\\)\\.contains\\(&k\\)\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent/tests/sample_split_effect_facade.rs", pattern = "split_effect\\.variable_count_not_measured" }
+
+[[bound]]
+record = "discovery.sample_split_parent_set_effect"
+key = "min_variables"
+implementation = [{ path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", constant = "MIN_VARIABLES" }]
+documentation = [{ path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", constant = "MIN_VARIABLES" }]
+guard = { path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", pattern = "if\\ !\\(MIN_VARIABLES\\.\\.=MAX_VARIABLES\\)\\.contains\\(&k\\)\\ \\{" }
+refusal = { path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", pattern = "if\\ !\\(MIN_VARIABLES\\.\\.=MAX_VARIABLES\\)\\.contains\\(&k\\)\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+scope_fixture = { path = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", pattern = "parent_set_effect\\.variable_count_not_measured" }
+
+[[bound]]
+record = "discovery.sample_split_parent_set_effect"
+key = "max_variables"
+implementation = [{ path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", constant = "MAX_VARIABLES" }]
+documentation = [{ path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", constant = "MAX_VARIABLES" }]
+guard = { path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", pattern = "if\\ !\\(MIN_VARIABLES\\.\\.=MAX_VARIABLES\\)\\.contains\\(&k\\)\\ \\{" }
+refusal = { path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", pattern = "if\\ !\\(MIN_VARIABLES\\.\\.=MAX_VARIABLES\\)\\.contains\\(&k\\)\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+scope_fixture = { path = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", pattern = "parent_set_effect\\.variable_count_not_measured" }

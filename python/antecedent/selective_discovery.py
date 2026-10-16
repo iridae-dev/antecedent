@@ -44,6 +44,12 @@ What is claimed, and what is not:
   coverage of the true effect is measured (a seeded half split, PC with the partial-correlation
   test, a resolved structure, parent adjustment on the analysis half) and its
   :meth:`SplitEffect.measure` attests the interval from the coverage records.
+* **Effect after discovery on a treatment parent set.** :func:`sample_split_parent_set_effect`
+  accepts the discovered class when every edge incident to the treatment is oriented, whatever
+  the state of the unrelated edges, and reports the total effect of a linear study or the
+  intervention mean ratio of a log-linear study. The analysis scale is declared before the data
+  are touched; undirected edges elsewhere are listed on the result and never completed; an
+  undirected edge at the treatment is refused by name.
 
 Work is observed at the algorithm boundaries: CI tests handed to the test (attempted and
 completed), requests answered from a retained statistic (reused), orientation rounds and applied
@@ -93,10 +99,12 @@ __all__ = [
     "PopulationEdge",
     "PopulationResult",
     "SampleSplit",
+    "ParentSetEffect",
     "SplitEffect",
     "SplitReceipt",
     "discover_on_split",
     "sample_split_effect",
+    "sample_split_parent_set_effect",
     "Edge",
     "ExportedState",
     "ConsumedSelectiveDiscovery",
@@ -1505,6 +1513,159 @@ def sample_split_effect(
         analysis_rows=int(wire["analysis_rows"]),
         discovery_rows=int(wire["discovery_rows"]),
         adjustment_set=tuple(names[int(i)] for i in wire["adjustment_set"]),
+        receipt_identity=str(wire["receipt_identity"]),
+        structure_identity=str(wire["structure_identity"]),
+        basis=freeze(wire["basis"]),
+        _source=bytes(source),
+        _seed=_count(seed, "seed"),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ParentSetEffect:
+    """The effect of a treatment on an outcome after discovery on a row split, accepted on the
+    treatment's parent set.
+
+    ``effect`` with ``lower``/``upper`` at ``level`` is the total effect per unit of the treatment
+    (``scalar == "total_effect"``, a linear study) or the intervention mean ratio of multiplying
+    the treatment by ``exp(log_shift)`` (``scalar == "intervention_mean_ratio"``, a log-linear
+    study; ``standard_error`` is then the delta-method image of the log-scale coefficient's).
+    ``coefficient`` is the treatment's least-squares coefficient on the declared analysis scale.
+
+    The graph's uncertainty is part of the result. ``treatment_parents`` is the adjustment set and
+    ``treatment_children`` the treatment's directed children; ``unresolved_edges`` lists, by
+    variable name, every edge elsewhere in the class that is not a definite directed edge, as
+    ``(a, b, reason)``. They are reported, never completed. ``acceptance`` records why the class
+    was accepted: every edge incident to the treatment is oriented. ``basis`` is the calibration
+    key the interval is looked up under. The interval is a computed value until :meth:`measure`
+    attests it; the attestation is a statement about the whole method over the measured family,
+    never about this dataset's graph.
+    """
+
+    scalar: str
+    effect: float
+    lower: float
+    upper: float
+    level: float
+    standard_error: float
+    coefficient: float
+    transformation: str
+    analysis_rows: int
+    discovery_rows: int
+    treatment_parents: tuple[str, ...]
+    treatment_children: tuple[str, ...]
+    unresolved_edges: tuple[tuple[str, str, str], ...]
+    edge_count: int
+    acceptance: str
+    receipt_identity: str
+    structure_identity: str
+    basis: Mapping[str, Any]
+    _source: bytes = field(repr=False)
+    _seed: int = field(repr=False)
+
+    def measure(self, *, threads: int | None = None, cancel: Any = None) -> Any:
+        """Replay the source and attest the interval from the current coverage records.
+
+        Returns:
+            A :class:`antecedent.MeasuredInference` carrying the effect, its interval, the
+            acceptance reason, the unresolved edges and the governing record.
+
+        Raises:
+            SelectiveDiscoveryRefusal: ``cell_not_licensed`` when no current attesting,
+                non-boundary record measured this construction at this variable count, degree
+                and analysis row count.
+        """
+        from ._measured_inference import MeasuredInference
+
+        native, refusal = _native.sample_split_parent_set_effect_measure(
+            self._source, self._seed, threads=threads, cancel=cancel
+        )
+        _raise(refusal)
+        assert native is not None
+        return MeasuredInference._from_native(native)
+
+
+def sample_split_parent_set_effect(
+    data: Mapping[str, Any],
+    *,
+    treatment: str,
+    outcome: str,
+    transformation: str,
+    split_seed: int,
+    max_degree: int = 4,
+    log_shift: float | None = None,
+    seed: int = 0,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> ParentSetEffect:
+    """Discover on half of the rows and estimate the treatment's effect on the other half,
+    accepting the class when the treatment's parent set is unambiguous.
+
+    ``data`` maps ten to twenty searched variables to finite 1-D float arrays of exchangeable
+    rows. ``transformation`` is declared before the data are touched: ``"linear"``, or
+    ``"log_linear"``, which requires every column to be positive and analyses its natural
+    logarithm (``log_shift`` is then the log-scale size of the prespecified intervention, default
+    one, so the treatment is multiplied by ``e`` and the reported ratio is ``exp(beta)``; a
+    linear study takes none). ``max_degree`` (at most four) is the declared maximum graph degree
+    and sets PC's conditioning-set size and parent limit.
+
+    The rows are split by a seeded permutation (half to discovery), PC with the partial
+    correlation test (``alpha = 0.01``) runs on the discovery half, the class is accepted when
+    the search finished and every edge incident to the treatment is oriented, and the effect is
+    estimated on the analysis half adjusting for the treatment's parents.
+
+    Raises:
+        SelectiveDiscoveryRefusal: an undeclared transformation
+            (``parent_set_effect.transformation_undeclared``, ``invalid_argument``), a
+            non-positive log-linear value (``parent_set_effect.log_linear_input_not_positive``,
+            naming the column), a degree above four
+            (``parent_set_effect.degree_above_supported``), a table outside ten to twenty
+            variables, an unfinished search, an undirected edge at the treatment
+            (``parent_set_effect.treatment_parents_ambiguous``, naming the edges), or an outcome
+            oriented into the treatment.
+        CausalDiscoveryError: the discovery algorithm failed or was cancelled.
+    """
+    if not isinstance(transformation, str):
+        raise CausalTypeError("transformation must be declared as 'linear' or 'log_linear'")
+    names, columns = _effect_columns(data, treatment, outcome)
+    if transformation == "log_linear" and log_shift is None:
+        log_shift = 1.0
+    shift = None if log_shift is None else float(log_shift)
+    text, source, refusal = _native.sample_split_parent_set_effect(
+        names,
+        columns,
+        names.index(treatment),
+        names.index(outcome),
+        _count(split_seed, "split_seed"),
+        _count(seed, "seed"),
+        transformation,
+        _count(max_degree, "max_degree"),
+        shift,
+        threads=threads,
+        cancel=cancel,
+    )
+    _raise(refusal)
+    assert text is not None and source is not None
+    wire = json.loads(text)
+    return ParentSetEffect(
+        scalar=str(wire["scalar"]),
+        effect=float(wire["effect"]),
+        lower=float(wire["lower"]),
+        upper=float(wire["upper"]),
+        level=float(wire["level"]),
+        standard_error=float(wire["standard_error"]),
+        coefficient=float(wire["coefficient"]),
+        transformation=str(wire["transformation"]),
+        analysis_rows=int(wire["analysis_rows"]),
+        discovery_rows=int(wire["discovery_rows"]),
+        treatment_parents=tuple(names[int(i)] for i in wire["treatment_parents"]),
+        treatment_children=tuple(names[int(i)] for i in wire["treatment_children"]),
+        unresolved_edges=tuple(
+            (names[int(e["a"])], names[int(e["b"])], str(e["reason"]))
+            for e in wire["unresolved_edges"]
+        ),
+        edge_count=int(wire["edge_count"]),
+        acceptance=str(wire["acceptance"]),
         receipt_identity=str(wire["receipt_identity"]),
         structure_identity=str(wire["structure_identity"]),
         basis=freeze(wire["basis"]),

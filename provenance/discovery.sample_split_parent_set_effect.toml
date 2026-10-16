@@ -1,0 +1,34 @@
+feature_id = "discovery.sample_split_parent_set_effect"
+implementation_crate = "antecedent-io"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Discovery on one half of the rows, estimation on the disjoint other half, accepted on the
+# treatment's parent set. The single-split idea is cited as the closest published statement. The
+# parent-set acceptance rests on the fact that an edge incident to a node that is directed in a
+# completed partially directed graph is directed in every member of the class, so the node's
+# parents are the same in every member and their adjustment gives the total effect for the whole
+# class (the identifiability condition of the IDA procedure); the whole-method coverage statement
+# and the measured family are original bookkeeping. PC and partial correlation are the standard
+# constraint-based algorithm and test, reimplemented in this repository; the delta-method standard
+# error and the exponential image of the log-scale interval are textbook.
+papers = [
+  { title = "A note on data-splitting for the evaluation of significance levels (Cox, Biometrika 62, 1975)", doi = "10.1093/biomet/62.2.441", sections = ["selection on one part of the data and evaluation on the other"] },
+  { title = "Causation, Prediction, and Search (Spirtes, Glymour, Scheines, 2nd ed., MIT Press, 2000)", doi = "10.7551/mitpress/1754.001.0001", sections = ["the PC algorithm and collider orientation"] },
+  { title = "Estimating high-dimensional intervention effects from observational data (Maathuis, Kalisch, Buhlmann, Annals of Statistics 37, 2009)", doi = "10.1214/09-AOS685", sections = ["effects identified by the parents of the treatment when its edges are oriented in the CPDAG"] },
+]
+implementation_deviations = [
+  "The interval's coverage is a measured property of the whole method over the declared family (linear Gaussian on the analysis scale, causally sufficient, strongly faithful, maximum degree four, ten to twenty variables, an oriented treatment neighbourhood). It is not a statement about the graph discovered on one dataset: faithfulness and causal sufficiency are not testable from that dataset.",
+  "The class is accepted when every edge incident to the treatment is oriented. Undirected edges elsewhere are listed on the result and never completed. An undirected edge at the treatment, an exhausted search bound, conflicting orientation evidence or a parent limit that removed adjacencies reports no interval; a declared completion is a different design with no record.",
+  "PC runs with a conditioning-set size and a parent limit equal to the declared maximum graph degree. The parent limit removes adjacencies no test separated, so a run in which it bound is refused rather than reported.",
+  "A log-linear study applies the natural logarithm to every searched column before the split and analyses that scale; the reported intervention mean ratio is the exponential of the log-scale coefficient times the prespecified shift and its interval is the exponential image of the log-scale Student interval, whose delta-method standard error is reported as well.",
+  "The test, threshold, split share and level are fixed to the measured values and are not request fields.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs",
+  "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs",
+  "python/tests/test_sample_split_parent_set_effect.py",
+]
