@@ -1372,6 +1372,7 @@ fn panel_refit_effect_round_trip_matches_copy_all() {
         kernel_policy: &ctx.kernel_policy,
         time_index: None,
         panel: Some(&panel),
+        gaps: false,
     };
     let problem = RefutationProblem::new(
         &stacked,
@@ -2173,6 +2174,7 @@ fn composed_bootstrap_refute_uses_the_interval_block_length_and_reports_the_stan
         kernel_policy: &ctx.kernel_policy,
         time_index: Some(series.time_index()),
         panel: None,
+        gaps: false,
     };
     let ate_q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     // The check centres on the full-sample refit, not on this published value.

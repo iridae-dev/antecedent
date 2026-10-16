@@ -226,12 +226,6 @@ impl DmlAte {
             self.other_levels,
             self.sampling_weights.as_ref(),
         )?;
-        if self.sampling_weights.is_some() && self.units.spec.is_some() {
-            return Err(crate::sampling_weights::unsupported_route(
-                "a cluster-DML declaration reads the unweighted cross-fitted score table; a \
-                 weighted cluster sandwich is available on the AIPW estimator only",
-            ));
-        }
         if self.units.spec.is_some() && !matches!(self.score, DmlScore::Aipw) {
             return Err(EstimationError::unsupported(
                 "a cluster-DML declaration needs the AIPW score, whose per-arm scores the \
@@ -270,7 +264,20 @@ impl DmlAte {
             DmlScore::Aipw => self.fit_aipw(problem, ctx, assumptions),
             DmlScore::PartiallyLinear => self.fit_plr(problem, ctx, assumptions),
         }?;
-        let estimate = self.units.publish(estimate, problem)?;
+        let estimate = if problem.sampling_weights.is_some() && self.units.spec.is_some() {
+            let nuisance =
+                cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
+            let fold_ids: Vec<u32> =
+                nuisance.3.fold_assignment.iter().map(|&f| u32::from(f)).collect();
+            self.units.publish_weighted(
+                estimate,
+                problem,
+                &fold_ids,
+                u32::try_from(self.folds).unwrap_or(u32::MAX),
+            )?
+        } else {
+            self.units.publish(estimate, problem)?
+        };
         Ok(estimate.with_treatment_levels(problem.treatment_levels))
     }
 

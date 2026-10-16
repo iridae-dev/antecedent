@@ -94,9 +94,16 @@ the outcome innovation given the lagged regressors. The circular-block bootstrap
 draws its blocks on the original time axis: two windows share a block only when they are
 adjacent in time, a replicate keeps the intact windows its blocks cover, and no block joins
 windows across a gap. Its Bartlett kernel-bias inflation is not applied (it is defined for
-consecutive scores), and no interval is published. The refuters refit through contiguous
-windows and are refused. The multi-step sustained, conditional, Bayesian, class and mediation
-estimators jointly resample several lagged samples and still refuse a series with gaps.
+consecutive scores), and no interval is published. The refuters refit the perturbed series
+through the same gap-aware design (the perturbations keep the gaps in place), and the bootstrap
+refuter resamples on the window axis. The multi-step sustained contrast, the one-modifier
+conditional effect and the frequentist temporal mediation contrasts run the same way: every
+mechanism is fitted on the intact windows at their original times, and their block bootstraps
+draw blocks on the original window axis (the sustained and mediation refuters are not gap-aware
+and must be off). The Bayesian single-window and sequential posteriors, the mixtures over
+graph classes and the dynamic-Bayesian-network estimators still refuse a series with gaps,
+because their serial-dependence tempering and shared aligned bootstraps are defined on
+consecutive rows.
 
 **NOTEARS, `complete_case`.** Rows with a missing value in any discovery variable are dropped
 and reported in `result.row_accounting`. The graph equals the one learned on the complete rows

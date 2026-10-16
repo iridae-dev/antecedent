@@ -188,10 +188,9 @@ pub(crate) use bayesian::require_bayesian_n_draws;
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
     CausalPosterior, CompiledGCompAte, GCompAteEvaluator, HydrateMapping, HydrateSource,
-    HydrateTarget, LAPLACE_RANK_INTERVAL_BELOW_DRAWS,
-    PosteriorFunctionalEvaluator, PreparedBayesianProblem, coefficient_covariance_from_draws,
-    hmc_draw_floor_from_notes, hydrate_prior, hydrate_prior_from_coefficient_moments,
-    nonidentified_with_prior,
+    HydrateTarget, LAPLACE_RANK_INTERVAL_BELOW_DRAWS, PosteriorFunctionalEvaluator,
+    PreparedBayesianProblem, coefficient_covariance_from_draws, hmc_draw_floor_from_notes,
+    hydrate_prior, hydrate_prior_from_coefficient_moments, nonidentified_with_prior,
 };
 pub use causal_forest::CausalForest;
 pub use cell_aipw::{
@@ -348,13 +347,13 @@ pub use temporal_adjustment::{
     GapSelection, NestedDirectFitMoments, TemporalDependenceSe, TemporalDesignInputs,
     TemporalLinearAdjustment, TemporalSlopeSpec, is_temporal_coefficient_name,
     nested_direct_fit_moments, temporal_coefficient_names, temporal_conditional_marginal_effect,
-    temporal_linear_slopes,
+    temporal_conditional_marginal_effect_with_gaps, temporal_linear_slopes,
 };
 pub use temporal_block::{
     AlignedRows, BlockBootstrap, CircularBlockFamily, RowBlockDraws, aligned_block_bootstrap,
     circular_fixed_b_scale, common_time_window, dependence_block_length, effective_rows,
-    kernel_bias_scale, normal_equation_scores, normal_equation_scores_of_residuals,
-    row_block_bootstrap_vec, score_effective_rows,
+    gapped_row_block_bootstrap, kernel_bias_scale, normal_equation_scores,
+    normal_equation_scores_of_residuals, row_block_bootstrap_vec, score_effective_rows,
 };
 pub use temporal_mediation::{
     MediationPosteriorSummary, PreparedTemporalMediation, SharedMediationBlockSe,
@@ -375,7 +374,7 @@ pub use temporal_response_dispersion::{CellDispersion, RESPONSE_SHORT_SERIES_ROW
 pub use temporal_sequential::{
     SequenceTarget, SequentialContrastDesign, SequentialInference, SequentialMechanismOverlay,
     SequentialNodeOverlay, SequentialProblem, estimate_sequence_mechanisms,
-    estimate_sequence_overlays, estimate_sustained_window,
+    estimate_sequence_overlays, estimate_sustained_window, estimate_sustained_window_with_gaps,
 };
 pub use temporal_sequential_tuples::{
     PreparedSequenceLevel, SequenceColumnReplacement, prepare_sequence_level,

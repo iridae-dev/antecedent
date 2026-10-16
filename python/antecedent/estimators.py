@@ -919,8 +919,8 @@ class Aipw:
     are fit by weighted logistic and weighted least squares, scores are averaged under the
     weights and the estimate is the effect in the weighted population. This covers the
     cross-fitted ATE, the in-sample ATT / ATC and trimmed ATE, and ``cluster_dml`` (the cluster
-    sandwich of the weighted influence). A penalized propensity and a penalized fallback select
-    their penalty by an unweighted criterion and refuse them (``option_not_applicable``).
+    sandwich of the weighted influence). A penalized propensity or fallback chooses its penalty
+    by the weighted out-of-fold log loss and fits every fold under the weights.
     """
 
     bootstrap: int | None = None
@@ -948,17 +948,6 @@ class Aipw:
             cluster=self.cluster,
         )
         _validate_weights(self.weights)
-        if self.weights is not None and (
-            self.propensity_penalty is not None
-            or isinstance(self.nuisance_fallback, PropensityPenalty)
-            or self.nuisance_fallback not in (None, "none")
-        ):
-            raise CausalValueError(
-                "weights= are read by the unpenalized propensity; a penalized propensity and a "
-                "penalized fallback select their penalty by an unweighted out-of-fold criterion "
-                "and have no sampling-weighted nuisance fit",
-                reason_code="option_not_applicable",
-            )
         if self.cluster_dml is not None:
             if not isinstance(self.cluster_dml, ClusterDml):
                 raise CausalValueError(
@@ -1056,20 +1045,13 @@ class GlmAdjustment:
             cluster=self.cluster,
         )
         _validate_weights(self.weights)
-        if self.weights is not None:
-            if self.family == "negative_binomial":
-                raise CausalValueError(
-                    "weights= are not read by the negative-binomial family (its dispersion has "
-                    "no prior-weighted fit); use the logit, probit, Poisson or Gaussian family",
-                    reason_code="option_not_applicable",
-                )
-            if self.se == "homoskedastic":
-                raise CausalValueError(
-                    "se='homoskedastic' treats weights as precision and is invalid for sampling "
-                    "weights; use se='hc1' (the default with weights), another hc kind or "
-                    "'cluster'",
-                    reason_code="option_not_applicable",
-                )
+        if self.weights is not None and self.se == "homoskedastic":
+            raise CausalValueError(
+                "se='homoskedastic' treats weights as precision and is invalid for sampling "
+                "weights; use se='hc1' (the default with weights), another hc kind or "
+                "'cluster'",
+                reason_code="option_not_applicable",
+            )
 
     @property
     def estimator_id(self) -> str:
@@ -1263,12 +1245,6 @@ class DML:
         if self.cluster_dml is not None and not isinstance(self.cluster_dml, ClusterDml):
             raise CausalValueError(f"cluster_dml must be a ClusterDml, got {self.cluster_dml!r}")
         _validate_weights(self.weights)
-        if self.weights is not None and self.cluster_dml is not None:
-            raise CausalValueError(
-                "weights= with cluster_dml= is available on Aipw only: the DML cluster sandwich "
-                "reads the unweighted score table",
-                reason_code="option_not_applicable",
-            )
         if self.cluster_dml is not None and self.score == "partially_linear":
             raise CausalValueError(
                 "DML(cluster_dml=...) needs the AIPW score (reason=route_not_supported)"
@@ -1329,12 +1305,6 @@ class DRLearner:
         if self.cluster_dml is not None and not isinstance(self.cluster_dml, ClusterDml):
             raise CausalValueError(f"cluster_dml must be a ClusterDml, got {self.cluster_dml!r}")
         _validate_weights(self.weights)
-        if self.weights is not None and self.cluster_dml is not None:
-            raise CausalValueError(
-                "weights= with cluster_dml= is available on Aipw only: the DR-learner cluster "
-                "sandwich reads the unweighted score table",
-                reason_code="option_not_applicable",
-            )
         if self.folds is not None and self.folds < 2:
             raise ValueError(f"DRLearner folds must be at least 2, got {self.folds!r}")
 

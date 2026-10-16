@@ -188,6 +188,47 @@ fn fit_sustained(
     };
     let mut assumptions = identification.required_assumptions.clone();
     assumptions.push(sequential_linear_sem_assumption(SUSTAINED_LINEAR_SEM));
+    let variables = graph_variables(inputs);
+    if let Some(cell) = antecedent_data::first_missing_cell(data, &variables)? {
+        require_gap_policy(inputs, &cell, false)?;
+        require_no_refuters(inputs)?;
+        let (estimate, selection) =
+            antecedent_estimate::temporal_sequential::estimate_sustained_window_with_gaps(
+                &antecedent_estimate::SequentialProblem { data, graph, indexer, estimand },
+                query,
+                antecedent_estimate::SequentialInference {
+                    status: identification.status,
+                    assumptions,
+                    bootstrap_replicates: inputs.bootstrap_replicates,
+                    bayesian: None,
+                },
+                ctx,
+                None,
+            )
+            .map_err(CausalError::from)?;
+        let selection = selection.ok_or(CausalError::Unsupported {
+            message: "gap-aware sequential fit did not report its windows",
+        })?;
+        let report = gap_report(data, &variables, &selection)?;
+        return Ok(TemporalEffectFit {
+            bootstrap_replicates_ok: estimate.uncertainty.bootstrap.replicates_ok,
+            cancelled: estimate.uncertainty.bootstrap.cancelled,
+            estimate,
+            estimator_id: EstimatorId::TemporalSequentialGcomp,
+            refutations: Vec::new(),
+            diagnostics: vec![Diagnostic::new(
+                "estimate.temporal.sustained_window_gaps",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "sustained contrast on the intact lag windows of a series with gaps; every mechanism is fitted on windows at their original times and the block bootstrap draws blocks on the original window axis, so no block joins windows across a gap",
+            )],
+            posterior: None,
+            predictive_checks: Vec::new(),
+            point_only: false,
+            missing_data: Some(report),
+            estimate_provenance: SEQUENTIAL_PROVENANCE,
+        });
+    }
     let mut mechanisms = Vec::new();
     let (estimate, mut posterior) =
         antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
@@ -290,14 +331,35 @@ fn fit_conditional(
         }
         InferenceMode::Frequentist => None,
     };
-    let point = antecedent_estimate::temporal_conditional_marginal_effect(
+    let mut variables = single_window_variables(inputs)?;
+    for &modifier in query.effect_modifiers.iter() {
+        if !variables.contains(&modifier) {
+            variables.push(modifier);
+        }
+    }
+    let first_gap = antecedent_data::first_missing_cell(inputs.data, &variables)?;
+    if let Some(cell) = &first_gap {
+        // The ridge point is a row-wise regression, so a gap only removes the windows that
+        // read it.
+        require_gap_policy(inputs, cell, true)?;
+    }
+    let (point, selection) = antecedent_estimate::temporal_conditional_marginal_effect_with_gaps(
         inputs.data,
         inputs.estimand,
         query,
         inputs.indexer,
         &ctx.kernel_policy,
         prior_scale,
+        first_gap.is_some(),
     )?;
+    let missing_data = match &selection {
+        Some(selection) => Some(gap_report(inputs.data, &variables, selection)?),
+        None => complete_window_report(
+            inputs,
+            &variables,
+            antecedent_data::TableView::row_count(inputs.data.storage()),
+        )?,
+    };
     let estimate = EffectEstimate::new(
         point,
         f64::NAN,
@@ -319,7 +381,7 @@ fn fit_conditional(
         bootstrap_replicates_ok: None,
         cancelled: false,
         point_only: true,
-        missing_data: None,
+        missing_data,
         estimate_provenance: LINEAR_PROVENANCE,
     })
 }
@@ -436,6 +498,7 @@ fn single_window_refutations(
     estimate: &EffectEstimate,
     estimator_id: EstimatorId,
     dependence_se: Option<&antecedent_estimate::TemporalDependenceSe>,
+    gaps: bool,
     ctx: &ExecutionContext,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
     let TemporalEffectInputs { data, query, estimand, indexer, refute, .. } = *inputs;
@@ -449,6 +512,7 @@ fn single_window_refutations(
         kernel_policy: &ctx.kernel_policy,
         time_index: Some(data.time_index()),
         panel: None,
+        gaps,
     };
     let (refutations, mut diagnostics) = RefutationRun {
         data: &tabular,
@@ -505,11 +569,12 @@ const TEMPORAL_ROUTE: crate::analysis::missing_data::MissingRoute =
 ///
 /// Dropping the windows that read a missing value leaves the surviving windows at their own
 /// times, so the point estimate is the regression on intact windows and the circular-block
-/// bootstrap draws blocks on the original time axis, keeping the intact windows each covers.
-/// The refuters refit through contiguous windows and are refused.
+/// bootstrap draws blocks on the original time axis, keeping the intact windows each covers;
+/// the refuters refit the perturbed series through the same gap-aware design.
 fn require_gap_policy(
     inputs: &TemporalEffectInputs<'_>,
     cell: &antecedent_data::MissingCell,
+    point_only: bool,
 ) -> Result<(), CausalError> {
     use antecedent_data::MissingPolicy;
     let supported = TEMPORAL_ROUTE.supported();
@@ -538,17 +603,44 @@ fn require_gap_policy(
             &supported[..1],
         ))
     };
-    if inputs.refute != RefuteSuite::None {
+    if inputs.split.is_some()
+        || (!point_only && !matches!(inputs.inference, InferenceMode::Frequentist))
+    {
         return Err(refuse(
-            "the refuters refit the lagged design through contiguous windows, which a series with gaps does not have; request no refuters (the block bootstrap runs on the original time axis and is available)",
-        ));
-    }
-    if !matches!(inputs.inference, InferenceMode::Frequentist) || inputs.split.is_some() {
-        return Err(refuse(
-            "gap-aware windows are executed for the frequentist linear adjustment on an unsplit series",
+            "gap-aware windows are executed on an unsplit series, and for a Bayesian fit only where it is a row-wise point (its serial-dependence tempering is defined on consecutive rows)",
         ));
     }
     Ok(())
+}
+
+/// Every series variable the unfolded graph names, plus the effect modifiers.
+fn graph_variables(inputs: &TemporalEffectInputs<'_>) -> Vec<antecedent_core::VariableId> {
+    let mut variables: Vec<antecedent_core::VariableId> = Vec::new();
+    for node in inputs.graph.nodes() {
+        let variable = node.variable();
+        if !variables.contains(&variable) {
+            variables.push(variable);
+        }
+    }
+    for &modifier in inputs.query.effect_modifiers.iter() {
+        if !variables.contains(&modifier) {
+            variables.push(modifier);
+        }
+    }
+    variables
+}
+
+/// Refuters refit through machinery that is not gap-aware for this fit.
+fn require_no_refuters(inputs: &TemporalEffectInputs<'_>) -> Result<(), CausalError> {
+    if inputs.refute == RefuteSuite::None {
+        return Ok(());
+    }
+    Err(CausalError::Estimate(antecedent_estimate::missing_policy::policy_not_applicable(
+        antecedent_data::MissingPolicy::CompleteCase,
+        TEMPORAL_ROUTE.label(),
+        "the sequential refuters resample aligned windows jointly across several designs; request no refuters on a series with gaps",
+        &TEMPORAL_ROUTE.supported()[..1],
+    )))
 }
 
 /// Accounting of the windows a series with gaps lost: the dropped windows by their original
@@ -616,7 +708,7 @@ fn fit_single_window(
     let first_gap = antecedent_data::first_missing_cell(data, &variables)?;
     let mut gap_selection = None;
     let (prep, gap_report) = if let Some(cell) = &first_gap {
-        require_gap_policy(inputs, cell)?;
+        require_gap_policy(inputs, cell, false)?;
         let (prep, selection) = estimator
             .prepare_with_gaps(data, estimand, query, indexer, &ctx.kernel_policy)
             .map_err(CausalError::from)?;
@@ -672,8 +764,14 @@ fn fit_single_window(
     } else {
         EstimatorId::TemporalLinearAdjustment
     };
-    let (mut refutations, mut diagnostics) =
-        single_window_refutations(inputs, &estimate, estimator_id, dependence_se.as_ref(), ctx)?;
+    let (mut refutations, mut diagnostics) = single_window_refutations(
+        inputs,
+        &estimate,
+        estimator_id,
+        dependence_se.as_ref(),
+        gap_selection.is_some(),
+        ctx,
+    )?;
 
     // Bayesian temporal: prior/posterior PPC + prior sensitivity on Full (mirror static).
     // Both run against the resolved prior in force and the fitted (tempered) design.

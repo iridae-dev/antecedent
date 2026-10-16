@@ -987,17 +987,46 @@ fn aipw_cluster_dml_reads_weights_through_the_weighted_cluster_sandwich() {
     close(scaled.se_analytic(), weighted.se_analytic(), 1e-9, "rescaled cluster-DML SE");
 }
 
+/// A penalized propensity under weights: the penalty is chosen by the weighted inner
+/// cross-validated log loss and every fold fit is the prior-weighted penalized likelihood. Unit
+/// weights reproduce the unweighted penalized fit and the scale of the weights changes nothing.
 #[test]
-fn aipw_refuses_a_penalized_propensity_and_a_non_mean_functional_under_weights() {
-    let study = small_study(120, 18);
+fn a_penalized_propensity_reads_weights_through_a_weighted_penalty_selection() {
+    let study = small_study(320, 18);
+    let ones = Study { w: vec![1.0; study.len()], ..study.clone() };
+    let tuning = || RidgeTuning::new(&[0.1, 1.0, 10.0], 3).unwrap();
+    for nuisance in
+        [PropensityNuisance::ridge_logistic(tuning()), PropensityNuisance::lasso_with(tuning())]
+    {
+        let run = |s: &Study, weighted: bool| {
+            aipw(s, |e| {
+                let e = AipwAte { propensity: nuisance.clone(), ..e };
+                if weighted { e.with_sampling_weights(s.weights()) } else { e }
+            })
+        };
+        let (unit, plain) = (run(&ones, true), run(&ones, false));
+        close(unit.ate, plain.ate, 1e-9, "unit-weight penalized point");
+        close(unit.se_analytic(), plain.se_analytic(), 1e-9, "unit-weight penalized SE");
+        let (base, scaled) = (run(&study, true), run(&study.rescaled(80.0), true));
+        close(scaled.ate, base.ate, 1e-9, "rescaled penalized point");
+        close(scaled.se_analytic(), base.se_analytic(), 1e-9, "rescaled penalized SE");
+        assert!((base.ate - run(&study, false).ate).abs() > 1e-6, "the weights must move it");
+        assert!(base.diagnostics.sampling_weights.is_some());
+    }
+}
+
+#[test]
+fn aipw_refuses_a_non_mean_functional_under_weights() {
+    let study = small_study(120, 19);
     let (data, estimand) = study.data();
-    let penalized = AipwAte {
-        propensity: PropensityNuisance::ridge_logistic(RidgeTuning::new(&[0.1, 1.0], 3).unwrap()),
-        ..AipwAte::new().with_sampling_weights(study.weights())
-    };
-    let error = penalized.prepare(&data, &estimand, &query()).unwrap_err().to_string();
+    let mut non_mean = query();
+    non_mean.outcome_functional = antecedent_core::OutcomeFunctional::exceedance(0.0);
+    let error = AipwAte::new()
+        .with_sampling_weights(study.weights())
+        .prepare(&data, &estimand, &non_mean)
+        .unwrap_err()
+        .to_string();
     assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
-    assert!(error.contains("penalty"), "{error}");
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1039,7 +1068,7 @@ fn the_glm_poisson_and_probit_families_read_integer_weights_like_replicated_rows
 }
 
 #[test]
-fn glm_refuses_the_classical_se_and_the_negative_binomial_family_under_weights() {
+fn glm_refuses_the_classical_se_under_weights() {
     let study = binary_outcome(&small_study(120, 37));
     let (data, estimand) = study.data();
     let classical = GlmAdjustmentAte::new()
@@ -1048,12 +1077,26 @@ fn glm_refuses_the_classical_se_and_the_negative_binomial_family_under_weights()
     let error = classical.prepare(&data, &estimand, &query()).unwrap_err().to_string();
     assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
     assert!(error.contains("precision"), "{error}");
-    let negative_binomial = GlmAdjustmentAte::new()
-        .with_family(GlmFamily::NegativeBinomial)
-        .with_se_kind(AnalyticSeKind::Hc1)
-        .with_sampling_weights(study.weights());
-    let error = negative_binomial.prepare(&data, &estimand, &query()).unwrap_err().to_string();
-    assert!(error.contains("negative-binomial"), "{error}");
+}
+
+/// The negative-binomial family reads weights through a weighted dispersion update: the fit
+/// is finite under unequal weights and reduces to the unweighted fit at unit weights.
+#[test]
+fn the_negative_binomial_glm_reads_weights_through_a_weighted_dispersion() {
+    let base = integer_study(300, 44);
+    let counts = Study {
+        y: base.y.iter().zip(&base.z).map(|(y, z)| (y.abs() * 3.0 + z.abs()).round()).collect(),
+        ..base.clone()
+    };
+    let weighted = glm(&counts, GlmFamily::NegativeBinomial, true, |e| e);
+    assert!(weighted.ate.is_finite() && weighted.se_analytic() > 0.0);
+    let unit = Study { w: vec![1.0; counts.len()], ..counts.clone() };
+    let (a, b) = (
+        glm(&unit, GlmFamily::NegativeBinomial, true, |e| e),
+        glm(&unit, GlmFamily::NegativeBinomial, false, |e| e),
+    );
+    close(a.ate, b.ate, 1e-9, "unit-weight negative-binomial point");
+    close(a.se_analytic(), b.se_analytic(), 1e-9, "unit-weight negative-binomial SE");
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1127,6 +1170,32 @@ fn dml_and_the_dr_learner_are_invariant_to_the_scale_of_the_weights_and_move_wit
     assert!(base.heterogeneity.cate.is_some());
 }
 
+/// The linear final stage's pointwise standard errors are the HC0 sandwich of the weighted least
+/// squares: unit weights reproduce the unweighted ones and the scale of the weights changes
+/// nothing.
+#[test]
+fn the_dr_learner_publishes_weighted_pointwise_standard_errors() {
+    let study = small_study(260, 45);
+    let ones = Study { w: vec![1.0; study.len()], ..study.clone() };
+    let se = |fit: &EffectEstimate| {
+        fit.heterogeneity
+            .cate_se
+            .as_ref()
+            .expect("weighted linear final stage keeps cate_se")
+            .to_vec()
+    };
+    let (unit, plain) = (se(&dr_learner(&ones, true)), se(&dr_learner(&ones, false)));
+    for (a, b) in unit.iter().zip(&plain) {
+        close(*a, *b, 1e-9, "unit-weight pointwise SE");
+    }
+    let base = se(&dr_learner(&study, true));
+    let scaled = se(&dr_learner(&study.rescaled(0.02), true));
+    for (a, b) in scaled.iter().zip(&base) {
+        close(*a, *b, 1e-8, "rescaled pointwise SE");
+    }
+    assert!(base.iter().all(|v| v.is_finite() && *v > 0.0));
+}
+
 #[test]
 fn a_learner_without_prior_weights_is_refused_naming_it() {
     let study = small_study(160, 41);
@@ -1141,16 +1210,42 @@ fn a_learner_without_prior_weights_is_refused_naming_it() {
 }
 
 #[test]
-fn the_weighted_cluster_dml_sandwich_is_available_on_aipw_only() {
-    let study = small_study(160, 42);
-    let (data, estimand) = study.data();
-    let groups: Vec<u32> = (0..study.len()).map(|i| (i / 8) as u32).collect();
-    let estimator = DmlAte::new()
-        .with_cluster_dml(ClusterDml::new(20).unwrap())
-        .with_source_cluster_ids(groups)
-        .with_sampling_weights(study.weights());
-    let error = estimator.prepare(&data, &estimand, &query()).unwrap_err().to_string();
-    assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
+fn dml_and_the_dr_learner_publish_the_weighted_cluster_sandwich() {
+    let study = small_study(300, 42);
+    let groups: Vec<u32> = (0..study.len()).map(|i| (i / 10) as u32).collect();
+    let ones = Study { w: vec![1.0; study.len()], ..study.clone() };
+    let run_dml = |s: &Study, weighted: bool| {
+        let (data, estimand) = s.data();
+        let mut estimator = DmlAte::new()
+            .with_cluster_dml(ClusterDml::new(20).unwrap())
+            .with_source_cluster_ids(groups.clone());
+        if weighted {
+            estimator = estimator.with_sampling_weights(s.weights());
+        }
+        let prepared = estimator.prepare(&data, &estimand, &query()).unwrap();
+        estimator.fit(&prepared, &ctx(), AssumptionSet::new()).unwrap()
+    };
+    let run_dr = |s: &Study, weighted: bool| {
+        let (data, estimand) = s.data();
+        let mut estimator = DrLearner::new()
+            .with_cluster_dml(ClusterDml::new(20).unwrap())
+            .with_source_cluster_ids(groups.clone());
+        if weighted {
+            estimator = estimator.with_sampling_weights(s.weights());
+        }
+        let prepared = estimator.prepare(&data, &estimand, &query()).unwrap();
+        estimator.fit(&prepared, &ctx(), AssumptionSet::new()).unwrap()
+    };
+    // Unit weights: the weighted cluster sandwich of the weighted influence is the unweighted
+    // cluster-DML sandwich of the score contrast.
+    close(run_dml(&ones, true).se_analytic(), run_dml(&ones, false).se_analytic(), 1e-9, "dml");
+    close(run_dr(&ones, true).se_analytic(), run_dr(&ones, false).se_analytic(), 1e-9, "dr");
+    // The scale of the weights changes nothing; unequal weights move the point.
+    let (base, scaled) = (run_dml(&study, true), run_dml(&study.rescaled(30.0), true));
+    close(scaled.ate, base.ate, 1e-8, "rescaled dml point");
+    close(scaled.se_analytic(), base.se_analytic(), 1e-8, "rescaled dml SE");
+    assert!(base.se_analytic().is_finite() && base.se_analytic() > 0.0);
+    assert!((base.ate - run_dml(&study, false).ate).abs() > 1e-6);
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -41,9 +41,9 @@ pub struct DrLearner {
     pub units: DeclaredUnits,
     /// Sampling weights of every row of the source table (see [`crate::sampling_weights`]).
     /// The nuisance learners, the marginal ATE and the final-stage regression are all fit
-    /// under them (each learner must carry prior weights). The final-stage linear HC0
-    /// pointwise standard errors and exact-support profiles are unweighted formulas and are
-    /// withheld; a weighted fit keeps no retargetable score table.
+    /// under them (each learner must carry prior weights). The linear final stage's pointwise
+    /// standard errors and profile inference are the HC0 sandwich of the weighted least-squares
+    /// fit; a weighted fit keeps no retargetable score table.
     pub sampling_weights: Option<SamplingWeights>,
 }
 
@@ -206,12 +206,6 @@ impl DrLearner {
         require_adjustment_shaped(estimand, "DRLearner requires an adjustment-shaped estimand")?;
         validate_ate_query_with_targets(query)?;
         self.units.check_source_rows(data.row_count())?;
-        if self.sampling_weights.is_some() && self.units.spec.is_some() {
-            return Err(crate::sampling_weights::unsupported_route(
-                "a cluster-DML declaration reads the unweighted cross-fitted score table; a \
-                 weighted cluster sandwich is available on the AIPW estimator only",
-            ));
-        }
         let mut problem = prepare_propensity_problem_with_levels(
             data,
             estimand,
@@ -275,6 +269,29 @@ impl DrLearner {
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         let (effect, _) = self.fit_with_profiles(problem, &[], ctx, assumptions)?;
+        self.publish_units(effect, problem, ctx)
+    }
+
+    /// Replace the iid standard error by the declared unit's cluster sandwich (the weighted
+    /// influence's, for a sampling-weighted fit that keeps no score table).
+    fn publish_units(
+        &self,
+        effect: EffectEstimate,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if problem.sampling_weights.is_some() && self.units.spec.is_some() {
+            let nuisance =
+                cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
+            let fold_ids: Vec<u32> =
+                nuisance.3.fold_assignment.iter().map(|&f| u32::from(f)).collect();
+            return self.units.publish_weighted(
+                effect,
+                problem,
+                &fold_ids,
+                u32::try_from(self.folds).unwrap_or(u32::MAX),
+            );
+        }
         self.units.publish(effect, problem)
     }
 
@@ -301,14 +318,8 @@ impl DrLearner {
                 "pointwise DR CATE inference requires an unpenalized linear final stage",
             ));
         }
-        if problem.sampling_weights.is_some() {
-            return Err(crate::sampling_weights::unsupported_route(
-                "pointwise CATE profiles use the unweighted HC0 formula and exact-support \
-                 counts of the retained rows; they have no sampling-weighted form here",
-            ));
-        }
         let (effect, results) = self.fit_with_profiles(problem, profiles, ctx, assumptions)?;
-        let effect = self.units.publish(effect, problem)?;
+        let effect = self.publish_units(effect, problem, ctx)?;
         let results = results.ok_or_else(|| {
             EstimationError::data_msg(
                 "pointwise CATE profiles were requested but the fit returned none",
@@ -388,20 +399,14 @@ impl DrLearner {
         let mut cate = vec![0.0; problem.nrows];
         fitted.predict(view, &mut cate, ctx).map_err(learn_err)?;
         let mut effect = crate::dml::attach_crossfit_aipw_table(
-            effect.with_cate(Some(Arc::from(cate.clone()))).with_cate_se(
-                if final_weights.is_some() {
-                    // The HC0 map is the unweighted OLS sandwich; no interval is invented.
-                    None
-                } else {
-                    linear_cate_pointwise_se(
-                        self.final_learner,
-                        view,
-                        &phi,
-                        &cate,
-                        retained.as_deref(),
-                    )
-                },
-            ),
+            effect.with_cate(Some(Arc::from(cate.clone()))).with_cate_se(linear_cate_pointwise_se(
+                self.final_learner,
+                view,
+                &phi,
+                &cate,
+                retained.as_deref(),
+                final_weights,
+            )),
             problem,
             &nuisance,
             crate::dml::CrossfitAipwTableContext {
@@ -453,6 +458,7 @@ impl DrLearner {
                 &cate,
                 raw_e,
                 retained.as_deref(),
+                final_weights,
             )?))
         };
         Ok((effect, pointwise))
@@ -471,6 +477,7 @@ fn pointwise_profile_results(
     cate: &[f64],
     propensity: &[f64],
     retained: Option<&[usize]>,
+    weights: Option<&[f64]>,
 ) -> Result<Vec<PointwiseCateEstimate>, EstimationError> {
     if !matches!(spec, LearnerSpec::Linear(_)) {
         return Err(EstimationError::data_msg("pointwise CATE requires a linear final stage"));
@@ -525,7 +532,19 @@ fn pointwise_profile_results(
                     if c == 0 { 1.0 } else { problem.covariates[c - 1][r] };
             }
         }
-        let residuals: Vec<f64> = rows.iter().map(|&r| phi[r] - cate[r]).collect();
+        let mut residuals: Vec<f64> = rows.iter().map(|&r| phi[r] - cate[r]).collect();
+        if let Some(weights) = weights {
+            // Weighted least squares is ordinary least squares on rows scaled by √m, and its
+            // HC0 sandwich is `(X'WX)⁻¹ Σ m² e² x xᵀ (X'WX)⁻¹`.
+            let m = rows.len();
+            for (k, &r) in rows.iter().enumerate() {
+                let root = weights[r].sqrt();
+                residuals[k] *= root;
+                for c in 0..p {
+                    design[c * m + k] *= root;
+                }
+            }
+        }
         let covariance =
             coefficient_covariance(&design, rows.len(), p, &residuals, SandwichKind::Hc0)
                 .map_err(|_| EstimationError::data_msg("CATE HC0 covariance is not estimable"))?;
@@ -567,6 +586,7 @@ fn linear_cate_pointwise_se(
     phi: &[f64],
     cate: &[f64],
     rows: Option<&[usize]>,
+    weights: Option<&[f64]>,
 ) -> Option<Arc<[f64]>> {
     if !matches!(spec, LearnerSpec::Linear(_)) {
         return None;
@@ -596,7 +616,16 @@ fn linear_cate_pointwise_se(
             sub[c * m + k] = design[c * n + r];
         }
     }
-    let residuals: Vec<f64> = used.iter().map(|&r| phi[r] - cate[r]).collect();
+    let mut residuals: Vec<f64> = used.iter().map(|&r| phi[r] - cate[r]).collect();
+    if let Some(weights) = weights {
+        for (k, &r) in used.iter().enumerate() {
+            let root = weights[r].sqrt();
+            residuals[k] *= root;
+            for c in 0..p {
+                sub[c * m + k] *= root;
+            }
+        }
+    }
     let cov = coefficient_covariance(&sub, m, p, &residuals, SandwichKind::Hc0).ok()?;
     let mut se = vec![0.0; n];
     for i in 0..n {
@@ -938,6 +967,7 @@ mod tests {
             &phi,
             &cate,
             Some(&rows),
+            None,
         )
         .unwrap();
         // XᵀX = [[4, 6], [6, 14]], inverse = 1/20 · [[14, −6], [−6, 4]].

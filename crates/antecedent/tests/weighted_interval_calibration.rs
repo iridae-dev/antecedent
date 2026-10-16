@@ -30,7 +30,8 @@ use antecedent_estimate::{
     AipwAte, AipwWorkspace, AnalyticSeKind, ClusterDml, DistanceMatching, DmlAte, DrLearner,
     EffectEstimate, EstimationWorkspace, GlmAdjustmentAte, GlmAdjustmentWorkspace,
     LinearAdjustmentAte, OverlapPolicy, PropensityEstimationWorkspace, PropensityMatching,
-    PropensityStratification, PropensityWeighting, SamplingWeights,
+    PropensityNuisance, PropensityStratification, PropensityWeighting, RidgeTuning,
+    SamplingWeights,
 };
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_kernels::{sigmoid, standard_normal};
@@ -846,6 +847,158 @@ fn weighted_aipw_cluster_dml_interval() {
         |n, seed| {
             let s = sample(n, seed, Effect::Heterogeneous, true);
             scored(aipw_cluster_dml(&s), n)
+        },
+    );
+}
+
+/// Sampled units with a negative-binomial count outcome: `Y | T, z` has mean
+/// `exp(-0.3 + 0.8 T + 0.6 z)` times a mean-one Gamma(2) multiplier, with the informative
+/// sampling and assignment of [`sample`].
+fn count_sample(n: usize, seed: u64) -> Sample {
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x5A05);
+    let mut out = Sample { t: vec![], y: vec![], z: vec![], w: vec![], cluster: vec![] };
+    while out.t.len() < n {
+        let z = standard_normal(&mut rng);
+        let t = f64::from(rng.next_f64() < sigmoid(-0.3 + 0.8 * z));
+        let gamma = -(rng.next_f64().max(1e-300)).ln() - (rng.next_f64().max(1e-300)).ln();
+        let mean = (-0.3 + 0.8 * t + 0.6 * z).exp() * gamma / 2.0;
+        // Knuth's Poisson sampler; the means here are small.
+        let limit = (-mean).exp();
+        let (mut count, mut product) = (0.0, rng.next_f64());
+        while product > limit {
+            count += 1.0;
+            product *= rng.next_f64();
+        }
+        let inclusion = sigmoid(-1.4 + z);
+        if rng.next_f64() < inclusion {
+            out.t.push(t);
+            out.y.push(count);
+            out.z.push(z);
+            out.w.push(1.0 / inclusion);
+            out.cluster.push(u32::try_from(out.t.len()).unwrap_or(u32::MAX));
+        }
+    }
+    out
+}
+
+/// `E_z[exp(0.5 + 0.6 z) - exp(-0.3 + 0.6 z)] = exp(-0.3 + 0.18) (e^0.8 - 1)` for `z ~ N(0, 1)`.
+fn count_population_effect() -> f64 {
+    (-0.3_f64 + 0.18).exp() * (0.8_f64.exp() - 1.0)
+}
+
+fn penalized_aipw(sample: &Sample, nuisance: PropensityNuisance) -> Option<EffectEstimate> {
+    let (data, estimand) = table(sample)?;
+    let mut estimator = AipwAte::new()
+        .with_bootstrap_replicates(0)
+        .with_sampling_weights(SamplingWeights::new(sample.w.clone()).ok()?);
+    estimator.propensity = nuisance;
+    let prepared = estimator.prepare(&data, &estimand, &query()).ok()?;
+    estimator
+        .fit(
+            &prepared,
+            &mut AipwWorkspace::default(),
+            &ExecutionContext::for_tests(1),
+            AssumptionSet::new(),
+        )
+        .ok()
+}
+
+fn clustered_flexible(sample: &Sample, dr: bool) -> Option<EffectEstimate> {
+    let (data, estimand) = table(sample)?;
+    let weights = SamplingWeights::new(sample.w.clone()).ok()?;
+    let unit = ClusterDml::new(20).ok()?;
+    let context = ExecutionContext::for_tests(1);
+    if dr {
+        let estimator = DrLearner::new()
+            .with_sampling_weights(weights)
+            .with_cluster_dml(unit)
+            .with_source_cluster_ids(sample.cluster.clone());
+        let prepared = estimator.prepare(&data, &estimand, &query()).ok()?;
+        estimator.fit(&prepared, &context, AssumptionSet::new()).ok()
+    } else {
+        let estimator = DmlAte::new()
+            .with_sampling_weights(weights)
+            .with_cluster_dml(unit)
+            .with_source_cluster_ids(sample.cluster.clone());
+        let prepared = estimator.prepare(&data, &estimand, &query()).ok()?;
+        estimator.fit(&prepared, &context, AssumptionSet::new()).ok()
+    }
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn weighted_aipw_ridge_propensity_interval() {
+    measure(
+        "weighted_aipw_ridge_propensity_interval",
+        "informative_sampling_heterogeneous_effect",
+        1200,
+        &construction("aipw", "homoskedastic", "iid", "AverageEffect"),
+        |n, seed| {
+            let s = sample(n, seed, Effect::Heterogeneous, false);
+            let tuning = RidgeTuning::new(&[0.1, 1.0, 10.0], 3).ok()?;
+            scored(penalized_aipw(&s, PropensityNuisance::ridge_logistic(tuning)), n)
+        },
+    );
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn weighted_aipw_lasso_propensity_interval() {
+    measure(
+        "weighted_aipw_lasso_propensity_interval",
+        "informative_sampling_heterogeneous_effect",
+        1200,
+        &construction("aipw", "homoskedastic", "iid", "AverageEffect"),
+        |n, seed| {
+            let s = sample(n, seed, Effect::Heterogeneous, false);
+            let tuning = RidgeTuning::new(&[0.1, 1.0, 10.0], 3).ok()?;
+            scored(penalized_aipw(&s, PropensityNuisance::lasso_with(tuning)), n)
+        },
+    );
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn weighted_glm_negative_binomial_interval() {
+    measure_against(
+        count_population_effect(),
+        "weighted_glm_negative_binomial_interval",
+        "informative_sampling_overdispersed_counts",
+        1200,
+        &construction("glm.adjustment", "hc1", "iid", "AverageEffect"),
+        |n, seed| {
+            let s = count_sample(n, seed);
+            scored(glm(&s, GlmFamily::NegativeBinomial), n)
+        },
+    );
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn weighted_dml_cluster_interval() {
+    measure(
+        "weighted_dml_cluster_interval",
+        "informative_sampling_clustered_heterogeneous_effect",
+        1200,
+        &construction("dml", "cluster", "cluster", "AverageEffect"),
+        |n, seed| {
+            let s = sample(n, seed, Effect::Heterogeneous, true);
+            scored(clustered_flexible(&s, false), n)
+        },
+    );
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn weighted_dr_learner_cluster_interval() {
+    measure(
+        "weighted_dr_learner_cluster_interval",
+        "informative_sampling_clustered_heterogeneous_effect",
+        1200,
+        &construction("dr.learner", "cluster", "cluster", "AverageEffect"),
+        |n, seed| {
+            let s = sample(n, seed, Effect::Heterogeneous, true);
+            scored(clustered_flexible(&s, true), n)
         },
     );
 }

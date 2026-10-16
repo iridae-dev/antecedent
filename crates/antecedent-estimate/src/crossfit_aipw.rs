@@ -199,11 +199,6 @@ fn build_scores_pass(
     let penalized = problem.propensity.fold_penalty();
     // Nuisances fit under sampling weights are not the unweighted fits a shared cache holds.
     let share = share && penalized.is_none() && problem.sampling_weights.is_none();
-    if penalized.is_some() && problem.sampling_weights.is_some() {
-        return Err(crate::sampling_weights::unsupported_route(
-            "a penalized propensity has no sampling-weighted nuisance fit",
-        ));
-    }
     let sampling = problem.sampling_weights.as_ref().map(|s| &*s.weights);
     let local_ctx =
         (penalized.is_some() && ctx.is_none()).then(|| ExecutionContext::production(fold_seed, 1));
@@ -322,6 +317,7 @@ fn build_scores_pass(
                 gather(shared, valid)
             } else if let Some(((fold_penalty, tuning), ridge_ctx)) = penalized {
                 let units: Vec<u32> = train.iter().map(|&i| problem.row_index[i]).collect();
+                let train_weights = sampling.map(|weights| gather(weights, train));
                 let (predicted, selection) = fit_penalized_fold(
                     fold_penalty,
                     tuning,
@@ -335,6 +331,7 @@ fn build_scores_pass(
                         units: &units,
                         fold,
                         seed: fold_seed,
+                        weights: train_weights.as_deref(),
                     },
                     ridge_ctx,
                 )?;

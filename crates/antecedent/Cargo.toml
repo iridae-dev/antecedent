@@ -176,8 +176,20 @@ name = "missing_outcome_calibration"
 path = "tests/missing_outcome_calibration.rs"
 
 [[test]]
+name = "weighted_interval_calibration"
+path = "tests/weighted_interval_calibration.rs"
+
+[[test]]
 name = "missing_data_routes"
 path = "tests/missing_data_routes.rs"
+
+[[test]]
+name = "observational_survival_policy_routes"
+path = "tests/observational_survival_policy_routes.rs"
+
+[[test]]
+name = "sampling_weight_routes"
+path = "tests/sampling_weight_routes.rs"
 
 [[test]]
 name = "adjusted_recalc_precision"

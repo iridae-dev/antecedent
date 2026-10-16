@@ -161,7 +161,8 @@ def test_invalid_weights_are_refused_naming_the_first_offender():
         weights = data["w"].copy()
         weights[9] = bad
         with pytest.raises(
-            CausalValueError, match=rf"sampling_weights\.invalid: sampling weight {text} at source row 9"
+            CausalValueError,
+            match=rf"sampling_weights\.invalid: sampling weight {text} at source row 9",
         ) as raised:
             _run({**data, "w": weights}, LinearAdjustment(weights="w"))
         assert "source row 9" in str(raised.value)
@@ -193,8 +194,6 @@ def test_an_estimator_that_reads_no_weights_refuses_them():
     data = _survey()
     with pytest.raises(CausalUnsupportedError, match="does not read"):
         _run(data, "iv.2sls", estimator_config={"weights": "w"})
-    with pytest.raises(CausalValueError, match="penalized propensity"):
-        Aipw(weights="w", propensity_penalty=ant.estimators.PropensityPenalty())
     with pytest.raises(CausalValueError, match="ordinary least-squares"):
         LinearAdjustment(weights="w", fit="ridge", fit_lambda=1.0)
 
@@ -444,14 +443,29 @@ def test_the_newly_weighted_estimators_move_with_the_weights_and_report_the_reco
     assert record.effective_sample_size < 240
 
 
-def test_the_classical_se_and_the_negative_binomial_family_are_refused_with_glm_weights():
+def test_the_classical_se_is_refused_with_glm_weights():
     with pytest.raises(CausalValueError, match="precision"):
         GlmAdjustment(weights="w", se="homoskedastic")
-    with pytest.raises(CausalValueError, match="negative-binomial"):
-        GlmAdjustment(weights="w", family="negative_binomial")
 
 
-def test_a_cluster_dml_declaration_with_weights_is_available_on_aipw_only():
+def test_cluster_dml_with_weights_reads_the_weighted_cluster_sandwich():
+    data = _survey(400)
+    data["site"] = np.array([f"s{i // 10}" for i in range(400)])
     for estimator in (DML, DRLearner):
-        with pytest.raises(CausalValueError, match="Aipw only"):
-            estimator(weights="w", cluster_dml=ClusterDml(cluster_ids=[0, 1, 2]))
+        weighted = _run(
+            data, estimator(weights="w", cluster_dml=ClusterDml(cluster="site")), bootstrap=0
+        )
+        assert np.isfinite(weighted.estimate.ate) and weighted.estimate.se_analytic > 0
+        assert weighted.estimate.sampling_weights.rows_used == 400
+
+
+def test_a_penalized_propensity_reads_weights_through_a_weighted_penalty_selection():
+    data = _survey(300)
+    penalty = ant.estimators.PropensityPenalty()
+    weighted = _run(data, Aipw(weights="w", bootstrap=0, propensity_penalty=penalty))
+    plain = _run(
+        {k: v for k, v in data.items() if k != "w"},
+        Aipw(bootstrap=0, propensity_penalty=penalty),
+    )
+    assert abs(weighted.estimate.ate - plain.estimate.ate) > 1e-6
+    assert weighted.estimate.sampling_weights.rows_used == 300

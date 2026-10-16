@@ -109,7 +109,7 @@ pub struct GlmAdjustmentAte {
     /// The family is fit by prior-weighted IRLS, the g-computation contrast is averaged under
     /// the weights, and the standard error is the weighted score sandwich (the classical
     /// Fisher delta method treats weights as precision and is refused). Logit, probit,
-    /// Poisson and Gaussian families only.
+    /// Poisson, negative-binomial (weighted dispersion update) and Gaussian families.
     pub sampling_weights: Option<SamplingWeights>,
 }
 
@@ -292,13 +292,6 @@ impl GlmAdjustmentAte {
             self.population_registry.as_ref(),
         )?;
         if self.sampling_weights.is_some() {
-            if matches!(self.family, GlmFamily::NegativeBinomial) {
-                return Err(crate::sampling_weights::unsupported_route(
-                    "the negative-binomial family estimates its dispersion jointly with the mean \
-                     and has no prior-weighted fit; use the logit, probit, Poisson or Gaussian \
-                     family",
-                ));
-            }
             if matches!(self.se_kind, AnalyticSeKind::Homoskedastic) {
                 return Err(crate::sampling_weights::unsupported_route(
                     "the Fisher delta-method standard error treats weights as precision and is \

@@ -117,18 +117,23 @@ diagnostic.
 
 ## Where weights are refused
 
-- AIPW with a penalized propensity (ridge, lasso, or a penalized fallback) refuses weights: the
-  penalty is chosen by an unweighted out-of-fold criterion and there is no weighted selection
-  rule. Non-mean outcome functionals refuse them.
+- AIPW refuses non-mean outcome functionals. A penalized propensity (ridge, lasso, or a
+  penalized fallback) reads weights: each fold's penalty is chosen by the weighted inner
+  cross-validated log loss (columns standardized by weighted training moments) and every fit
+  is the prior-weighted penalized likelihood.
 - `LinearAdjustment` reads weights in its OLS fit; ridge, lasso and Huber refuse them.
-- `GlmAdjustment` refuses the negative-binomial family (its dispersion is estimated jointly
-  with the mean and has no prior-weighted update) and the Fisher delta-method standard error.
+- `GlmAdjustment` refuses the Fisher delta-method standard error; the negative-binomial
+  dispersion is updated from the weighted data (weighted Pearson moment or weighted profile
+  likelihood).
 - DML and DR-learner need nuisance and final-stage learners that carry prior weights through
-  every fold (linear, ridge, logistic and gradient-boosted); elastic net, forests, neural nets
-  and a ridge-penalized logistic refuse, naming the learner. A weighted fit keeps no
-  row-identified score table, so it is not retargetable; the DR-learner's pointwise HC0
-  profiles are unweighted formulas and are refused, and its `cate_se` is withheld. A
-  cluster-DML declaration with weights is available on `Aipw` only.
+  every fold (linear, ridge, logistic and gradient-boosted); elastic net, forests and neural
+  nets refuse, naming the learner. A weighted fit keeps no row-identified score table, so it
+  is not retargetable. The DR-learner's `cate_se` and pointwise profiles are the HC0 sandwich of
+  the weighted least squares. A `cluster_dml` declaration with weights takes the cluster
+  sandwich of the weighted influence.
+- A time series with zero-weight lag windows keeps them in the design so the windows stay
+  consecutive; they contribute no score, and the block length is sized on the windows of
+  positive weight.
 - `RandomizedEffect` reads weights for unadjusted Bernoulli and complete randomization.
   Cluster, stratified, factorial, multi-arm, switchback, receipt-adjusted, CUPED, ANCOVA and
   exact-randomization designs, and outcomes with missing values under a missing-data policy,

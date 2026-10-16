@@ -42,6 +42,10 @@ pub struct TemporalRefitContext<'a> {
     pub time_index: Option<&'a TimeIndex>,
     /// Panel units when refitting stacked panel designs.
     pub panel: Option<&'a PanelData>,
+    /// The series has missing time points. Refits go through the gap-aware design (intact
+    /// lag windows at their original times), so a perturbation that keeps the gaps in place
+    /// is refit without any window spanning one.
+    pub gaps: bool,
 }
 
 impl TemporalRefitContext<'_> {
@@ -646,19 +650,24 @@ pub(crate) fn refit_effect_shared(
     };
     let series = TimeSeriesData::try_new(data.storage().clone(), series_time_index)
         .map_err(ValidationError::from)?;
-    let prep = estimator
-        .prepare_with_extras(
-            &antecedent_estimate::TemporalDesignInputs {
-                data: &series,
-                estimand,
-                query: temporal.temporal_query,
-                indexer: temporal.indexer,
-                split: temporal.split,
-                policy: temporal.kernel_policy,
-            },
-            extra_contemporaneous,
-        )
-        .map_err(ValidationError::from)?;
+    let inputs = antecedent_estimate::TemporalDesignInputs {
+        data: &series,
+        estimand,
+        query: temporal.temporal_query,
+        indexer: temporal.indexer,
+        split: temporal.split,
+        policy: temporal.kernel_policy,
+    };
+    let prep = if temporal.gaps {
+        estimator
+            .prepare_with_gaps_extras(&inputs, extra_contemporaneous)
+            .map_err(ValidationError::from)?
+            .0
+    } else {
+        estimator
+            .prepare_with_extras(&inputs, extra_contemporaneous)
+            .map_err(ValidationError::from)?
+    };
     estimator
         .fit(&prep, workspace, ctx, antecedent_core::AssumptionSet::new())
         .map_err(ValidationError::from)
@@ -1570,14 +1579,26 @@ pub(crate) fn temporal_diagnostic_design(
             problem.data.storage().clone(),
             time_index.clone(),
         )?;
-        estimator.prepare(
-            &series,
-            problem.estimand,
-            temporal.temporal_query,
-            temporal.indexer,
-            temporal.split,
-            temporal.kernel_policy,
-        )?
+        let inputs = antecedent_estimate::TemporalDesignInputs {
+            data: &series,
+            estimand: problem.estimand,
+            query: temporal.temporal_query,
+            indexer: temporal.indexer,
+            split: temporal.split,
+            policy: temporal.kernel_policy,
+        };
+        if temporal.gaps {
+            estimator.prepare_with_gaps_extras(&inputs, &[])?.0
+        } else {
+            estimator.prepare(
+                &series,
+                problem.estimand,
+                temporal.temporal_query,
+                temporal.indexer,
+                temporal.split,
+                temporal.kernel_policy,
+            )?
+        }
     };
     Ok(prep)
 }

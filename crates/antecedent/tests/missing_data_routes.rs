@@ -438,17 +438,6 @@ fn a_series_with_gaps_refuses_without_a_policy_and_without_a_point_estimate_path
     let declared = run_series(&data, Some(declare(MissingPolicy::ErrorOnMissing)), 0).unwrap_err();
     assert_eq!(declared.reason_code(), Some("missing_policy_required"), "{declared}");
     assert!(declared.to_string().contains("column `x` at row 100"), "{declared}");
-    // Refuters refit through contiguous windows, which a series with gaps lacks.
-    let builder = Study::series(data.clone())
-        .query(pulse())
-        .graph(temporal_graph())
-        .refute(RefuteSuite::Cheap)
-        .bootstrap_replicates(0)
-        .missing(declare(MissingPolicy::CompleteCase));
-    let refuted = builder.build().unwrap().prepare(&ctx()).unwrap().estimate_retained(&ctx());
-    let refuted = refuted.unwrap_err();
-    assert_eq!(refuted.reason_code(), Some("missing_policy_not_applicable"), "{refuted}");
-    assert!(refuted.to_string().contains("refuters"), "{refuted}");
 }
 
 #[test]
@@ -607,4 +596,182 @@ fn the_block_bootstrap_on_a_series_with_gaps_runs_on_the_original_time_axis() {
     // The point estimate is the one the point-only fit gives; the bootstrap adds uncertainty only.
     let point = run_series(&data, Some(declare(MissingPolicy::CompleteCase)), 0).unwrap();
     assert_eq!(estimate.ate, point.estimate.as_effect().unwrap().ate);
+}
+
+#[test]
+fn refuters_on_a_series_with_gaps_refit_through_the_intact_windows() {
+    let (data, x, y) = series(400, &[120, 121, 250]);
+    let result = Study::series(data)
+        .query(pulse())
+        .graph(temporal_graph())
+        .refute(RefuteSuite::Cheap)
+        .bootstrap_replicates(0)
+        .missing(declare(MissingPolicy::CompleteCase))
+        .build()
+        .unwrap()
+        .prepare(&ctx())
+        .unwrap()
+        .estimate_retained(&ctx())
+        .unwrap();
+    assert!(!result.refutations.is_empty(), "the cheap suite ran");
+    // The point estimate is still the regression on the intact windows.
+    let kept: Vec<usize> = (1..400).filter(|t| ![120, 121, 250].contains(&(t - 1))).collect();
+    let (mx, my) = (
+        kept.iter().map(|&t| x[t - 1]).sum::<f64>() / kept.len() as f64,
+        kept.iter().map(|&t| y[t]).sum::<f64>() / kept.len() as f64,
+    );
+    let slope = kept.iter().map(|&t| (x[t - 1] - mx) * (y[t] - my)).sum::<f64>()
+        / kept.iter().map(|&t| (x[t - 1] - mx).powi(2)).sum::<f64>();
+    assert!((result.estimate.as_effect().unwrap().ate - slope).abs() < 1e-9);
+}
+
+/// `y_t = 2 t_{t-1} + 0.8 t_{t-2} + small deterministic term`, with `t` missing at `gaps`.
+fn sustained_series(n: usize, gaps: &[usize]) -> (TimeSeriesData, Vec<f64>, Vec<f64>) {
+    let t: Vec<f64> =
+        (0..n).map(|i| (0.31 * i as f64).sin() + 0.4 * (1.7 * i as f64).cos()).collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| {
+            if i < 2 {
+                0.0
+            } else {
+                2.0 * t[i - 1] + 0.8 * t[i - 2] + 0.05 * (5.3 * i as f64).sin()
+            }
+        })
+        .collect();
+    let observed: Vec<f64> =
+        t.iter().enumerate().map(|(i, v)| if gaps.contains(&i) { f64::NAN } else { *v }).collect();
+    let data =
+        TimeSeriesData::from_f64_columns([("t", observed.as_slice()), ("y", y.as_slice())], 1)
+            .unwrap();
+    (data, t, y)
+}
+
+#[test]
+fn sustained_windows_on_a_series_with_gaps_match_the_intact_window_regression() {
+    let gaps = [90, 91, 200];
+    let n = 360;
+    let (data, t, y) = sustained_series(n, &gaps);
+    let mut graph = TemporalDag::empty();
+    let t1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let t2 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+    let y0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    graph.insert_directed(t2, y0).unwrap();
+    let query = CausalQuery::TemporalEffect(
+        TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_policy(TemporalPolicy::sustained(-2, -1)),
+    );
+    let run = |bootstrap: u32| {
+        Study::series(data.clone())
+            .query(query.clone())
+            .graph(graph.clone())
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(bootstrap)
+            .missing(declare(MissingPolicy::CompleteCase))
+            .build()?
+            .prepare(&ctx())?
+            .estimate_retained(&ctx())
+    };
+    let result = run(0).unwrap();
+
+    // Independent computation: OLS of y_i on (1, t_{i-1}, t_{i-2}) over the windows whose
+    // regressors are all observed; the sustained contrast is the sum of the two slopes.
+    let rows: Vec<usize> =
+        (2..n).filter(|i| !gaps.contains(&(i - 1)) && !gaps.contains(&(i - 2))).collect();
+    let design: Vec<[f64; 3]> = rows.iter().map(|&i| [1.0, t[i - 1], t[i - 2]]).collect();
+    let mut gram = [[0.0; 3]; 3];
+    let mut moment = [0.0; 3];
+    for (row, &i) in design.iter().zip(&rows) {
+        for a in 0..3 {
+            moment[a] += row[a] * y[i];
+            for b in 0..3 {
+                gram[a][b] += row[a] * row[b];
+            }
+        }
+    }
+    let beta = solve3(gram, moment);
+    let expected = beta[1] + beta[2];
+    let ate = result.estimate.as_effect().unwrap().ate;
+    assert!((ate - expected).abs() < 1e-6, "ate {ate} vs intact-window OLS {expected}");
+    assert!((ate - 2.8).abs() < 0.05, "ate {ate}");
+
+    // Windows that read a gap are dropped, each by its own time; no window spans one.
+    let accounting = &result.missing_data.as_ref().unwrap().accounting;
+    let dropped: Vec<usize> = (2..n).filter(|i| !rows.contains(i)).collect();
+    assert_eq!(accounting.dropped_rows.iter().map(|r| *r as usize).collect::<Vec<_>>(), dropped);
+    // The block bootstrap runs on the original window axis.
+    let boot = run(120).unwrap();
+    let se = boot.estimate.as_effect().unwrap().se_bootstrap().expect("bootstrap SE");
+    assert!(se.is_finite() && se > 0.0, "{se}");
+    assert_eq!(boot.estimate.as_effect().unwrap().ate, ate);
+}
+
+fn solve3(mut a: [[f64; 3]; 3], mut b: [f64; 3]) -> [f64; 3] {
+    for col in 0..3 {
+        let pivot = (col..3).max_by(|&i, &j| a[i][col].abs().total_cmp(&a[j][col].abs())).unwrap();
+        a.swap(col, pivot);
+        b.swap(col, pivot);
+        for row in col + 1..3 {
+            let f = a[row][col] / a[col][col];
+            for k in col..3 {
+                a[row][k] -= f * a[col][k];
+            }
+            b[row] -= f * b[col];
+        }
+    }
+    let mut x = [0.0; 3];
+    for row in (0..3).rev() {
+        let tail: f64 = (row + 1..3).map(|k| a[row][k] * x[k]).sum();
+        x[row] = (b[row] - tail) / a[row][row];
+    }
+    x
+}
+
+#[test]
+fn the_conditional_marginal_effect_on_a_series_with_gaps_uses_the_intact_windows() {
+    let n = 120;
+    let gap = 30;
+    let x: Vec<f64> = (0..n).map(|i| ((i as f64) * 0.37).sin()).collect();
+    let w: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 0.0 } else { 1.0 }).collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| if i == 0 { 0.0 } else { 1.5 * x[i - 1] + 0.2 * w[i] + 0.8 * x[i - 1] * w[i] })
+        .collect();
+    let observed: Vec<f64> =
+        x.iter().enumerate().map(|(i, v)| if i == gap { f64::NAN } else { *v }).collect();
+    let data = TimeSeriesData::from_f64_columns(
+        [("x", observed.as_slice()), ("y", y.as_slice()), ("w", w.as_slice())],
+        1,
+    )
+    .unwrap();
+    let mut graph = TemporalDag::empty();
+    let x1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let y0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let w0 = ensure_lagged(&mut graph, VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(x1, y0).unwrap();
+    graph.insert_directed(w0, y0).unwrap();
+    let query = CausalQuery::TemporalEffect(
+        TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_horizon_steps(1)
+            .with_max_history_lag(Some(1))
+            .with_effect_modifiers([VariableId::from_raw(2)])
+            .with_policy(TemporalPolicy::pulse(-1)),
+    );
+    let result = Study::series(data)
+        .query(query)
+        .graph(graph)
+        .refute(RefuteSuite::None)
+        .missing(declare(MissingPolicy::CompleteCase))
+        .build()
+        .unwrap()
+        .prepare(&ctx())
+        .unwrap()
+        .estimate_retained(&ctx())
+        .unwrap();
+    // y is exactly linear in x_{t-1}, w_t and their product, so any set of intact windows
+    // gives slope 1.5 + 0.8 mean(w) with the mean over the windows kept.
+    let kept: Vec<usize> = (1..n).filter(|t| t - 1 != gap).collect();
+    let wbar = kept.iter().map(|&t| w[t]).sum::<f64>() / kept.len() as f64;
+    let ate = result.estimate.as_effect().unwrap().ate;
+    assert!((ate - (1.5 + 0.8 * wbar)).abs() < 1e-8, "ate {ate} vs {}", 1.5 + 0.8 * wbar);
+    assert_eq!(result.missing_data.as_ref().unwrap().accounting.dropped_rows.as_ref(), [31]);
 }

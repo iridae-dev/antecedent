@@ -326,6 +326,10 @@ fn case_design(case: &Case) -> Design {
 // -- Scoring one replicate -------------------------------------------------------------------------
 
 #[derive(Clone, Debug)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "one flag per scored coverage and error event of a replicate"
+)]
 struct Score {
     every_look: bool,
     at_stop: bool,

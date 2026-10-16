@@ -292,6 +292,7 @@ impl SequentialPass<'_> {
             kernel_policy: &ctx.kernel_policy,
             time_index: Some(data.time_index()),
             panel: None,
+            gaps: false,
         };
         let problem = RefutationProblem::new(
             table,

@@ -554,21 +554,14 @@ impl AipwAte {
     }
 
     /// Sampling weights are read by every mean-functional construction (cross-fitted ATE or
-    /// custom target, the in-sample ATT, ATC and trimmed ATE, and the cluster-DML sandwich).
-    /// Non-mean functionals have no sampling-weighted score here, and a penalized propensity
-    /// has no weighted penalty-selection criterion, so both refuse rather than ignore them.
+    /// custom target, penalized propensities with a weighted penalty-selection criterion, the
+    /// in-sample ATT, ATC and trimmed ATE, and the cluster-DML sandwich). Non-mean functionals
+    /// have no sampling-weighted score here and refuse rather than ignore them.
     fn require_weighted_scope(&self, query: &AverageEffectQuery) -> Result<(), EstimationError> {
         if query.outcome_functional != antecedent_core::OutcomeFunctional::Mean {
             return Err(crate::sampling_weights::unsupported_route(
                 "AIPW reads sampling weights on the mean functional; a non-mean outcome \
                  functional has no sampling-weighted score here",
-            ));
-        }
-        if self.propensity.is_penalized() {
-            return Err(crate::sampling_weights::unsupported_route(
-                "a penalized propensity selects its penalty by an unweighted out-of-fold \
-                 criterion and has no sampling-weighted nuisance fit; use the unpenalized \
-                 propensity with weights",
             ));
         }
         Ok(())
@@ -2722,6 +2715,7 @@ mod tests {
                     units: &units,
                     fold: selection.fold,
                     seed: replicate.fold_seed,
+                    weights: None,
                 },
                 &ctx(),
             )

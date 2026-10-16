@@ -153,6 +153,11 @@ pub struct TemporalMediationEstimator {
     /// rows of one series are serially dependent, so `se_analytic` is NaN for all
     /// three contrasts unless this is set. The name is historical.
     pub allow_iid_sobel_se: bool,
+    /// When true, a series with missing time points is fitted on its intact lag windows (each
+    /// at its original time with its own lags) and the block bootstrap draws blocks on the
+    /// original window axis, so no window and no block spans a gap. Default false: a missing
+    /// value refuses.
+    pub allow_gaps: bool,
 }
 
 impl Default for TemporalMediationEstimator {
@@ -161,6 +166,7 @@ impl Default for TemporalMediationEstimator {
             backend: FaerBackend,
             allow_natural_controlled_alias: false,
             allow_iid_sobel_se: false,
+            allow_gaps: false,
         }
     }
 }
@@ -188,6 +194,13 @@ impl TemporalMediationEstimator {
     #[must_use]
     pub const fn with_allow_iid_sobel_se(mut self, allow: bool) -> Self {
         self.allow_iid_sobel_se = allow;
+        self
+    }
+
+    /// Fit on the intact lag windows of a series with gaps; see [`Self::allow_gaps`].
+    #[must_use]
+    pub const fn with_allow_gaps(mut self, allow: bool) -> Self {
+        self.allow_gaps = allow;
         self
     }
 
@@ -237,7 +250,15 @@ impl TemporalMediationEstimator {
         ctx: &ExecutionContext,
     ) -> Result<TemporalMediationEstimate, EstimationError> {
         let (mediator, delta) = self.validate(estimand, query)?;
-        let design = Self::prepare_design(data, mediator, query, adjustment, extra, ctx)?;
+        let design = Self::prepare_design_with_gaps(
+            data,
+            mediator,
+            query,
+            adjustment,
+            extra,
+            ctx,
+            self.allow_gaps,
+        )?;
         let fit = self.fit_design(&design, None, delta)?;
         Ok(self.estimate_from_fit(query, &fit))
     }
@@ -326,7 +347,15 @@ impl TemporalMediationEstimator {
     ) -> Result<(TemporalMediationEstimate, TemporalMediationBlockSe), EstimationError> {
         let crate::temporal_block::BlockBootstrap { replicates, stream_base } = bootstrap;
         let (mediator, delta) = self.validate(estimand, query)?;
-        let design = Self::prepare_design(data, mediator, query, adjustment, &[], ctx)?;
+        let design = Self::prepare_design_with_gaps(
+            data,
+            mediator,
+            query,
+            adjustment,
+            &[],
+            ctx,
+            self.allow_gaps,
+        )?;
         let point = self.fit_design(&design, None, delta)?;
         let mut estimate = self.estimate_from_fit(query, &point);
         let structural_span = mediation_design_max_lag(query, adjustment) as usize + 1;
@@ -337,7 +366,12 @@ impl TemporalMediationEstimator {
         // join the contrast scores, as on the single-window effect path. The scan
         // reads every score; without replicates no interval is published and the
         // rule length is reported instead.
-        let block_length = if replicates > 0 {
+        let block_length = if design.window_complete.is_some() {
+            // The scores of compacted rows are not consecutive; the structural rule stands,
+            // on the original window axis.
+            let windows = design.window_complete.as_ref().map_or(design.n, Vec::len);
+            antecedent_data::circular_block_length(structural_span, windows)
+        } else if replicates > 0 {
             let normal_scores = shared::mechanism_normal_scores(&point);
             let score_refs: Vec<&[f64]> = influence_refs
                 .iter()
@@ -362,27 +396,42 @@ impl TemporalMediationEstimator {
             replicates_ok: 0,
             replicates_attempted: 0,
             block_length,
-            rows: design.n,
+            rows: design.window_complete.as_ref().map_or(design.n, Vec::len),
             effective_rows: crate::temporal_block::score_effective_rows(
                 &contrast_scores,
                 block_length,
             ),
-            kernel_bias: crate::temporal_block::kernel_bias_scale(&influence_refs, block_length),
+            kernel_bias: if design.window_complete.is_some() {
+                1.0
+            } else {
+                crate::temporal_block::kernel_bias_scale(&influence_refs, block_length)
+            },
         };
         if replicates > 0 {
-            let boot = crate::temporal_block::row_block_bootstrap_vec(
-                design.n,
-                block.block_length,
-                replicates,
-                stream_base,
-                ctx,
-                |rows| {
-                    self.fit_design(&design, Some(rows), delta)
-                        .ok()
-                        .map(|fit| vec![fit.total, fit.direct, fit.mediated])
-                },
-            )
-            .with_kernel_bias(&influence_refs);
+            let fit_rows = |rows: &[usize]| {
+                self.fit_design(&design, Some(rows), delta)
+                    .ok()
+                    .map(|fit| vec![fit.total, fit.direct, fit.mediated])
+            };
+            let boot = match &design.window_complete {
+                Some(complete) => crate::temporal_block::gapped_row_block_bootstrap(
+                    complete,
+                    block.block_length,
+                    replicates,
+                    stream_base,
+                    ctx,
+                    fit_rows,
+                ),
+                None => crate::temporal_block::row_block_bootstrap_vec(
+                    design.n,
+                    block.block_length,
+                    replicates,
+                    stream_base,
+                    ctx,
+                    fit_rows,
+                )
+                .with_kernel_bias(&influence_refs),
+            };
             let [total, direct, mediated] = [0, 1, 2].map(|k| boot.se_result(k));
             block.total = total.se;
             block.direct = direct.se;
@@ -397,6 +446,29 @@ impl TemporalMediationEstimator {
             estimate.effect = estimate.effect.with_bootstrap(Some(requested));
         }
         Ok((estimate, block))
+    }
+
+    /// Which lag windows of a series with gaps are intact for this horizon's design (window `w`
+    /// ends at series time `first_time + w`), for the row accounting of a gap-aware fit.
+    ///
+    /// # Errors
+    ///
+    /// Validation failures or fewer than four intact windows.
+    pub fn window_selection(
+        &self,
+        data: &TimeSeriesData,
+        estimand: &IdentifiedEstimand,
+        query: &MediationQuery,
+        adjustment: &[LaggedColumn],
+        ctx: &ExecutionContext,
+    ) -> Result<crate::GapSelection, EstimationError> {
+        let (mediator, _) = self.validate(estimand, query)?;
+        let design =
+            Self::prepare_design_with_gaps(data, mediator, query, adjustment, &[], ctx, true)?;
+        Ok(crate::GapSelection {
+            first_time: mediation_design_max_lag(query, adjustment) as usize,
+            complete: design.window_complete.unwrap_or_default(),
+        })
     }
 
     fn validate(
@@ -447,6 +519,20 @@ impl TemporalMediationEstimator {
         extra: &[antecedent_core::VariableId],
         ctx: &ExecutionContext,
     ) -> Result<MediationDesign, EstimationError> {
+        Self::prepare_design_with_gaps(data, mediator, query, adjustment, extra, ctx, false)
+    }
+
+    /// [`Self::prepare_design`], optionally keeping only the intact windows of a series with
+    /// gaps (and remembering which windows they are).
+    fn prepare_design_with_gaps(
+        data: &TimeSeriesData,
+        mediator: antecedent_core::VariableId,
+        query: &MediationQuery,
+        adjustment: &[LaggedColumn],
+        extra: &[antecedent_core::VariableId],
+        ctx: &ExecutionContext,
+        gaps: bool,
+    ) -> Result<MediationDesign, EstimationError> {
         let mut cols = vec![
             LaggedColumn { variable: query.treatment, lag: Lag::from_raw(treatment_lag(query)) },
             LaggedColumn { variable: mediator, lag: Lag::CONTEMPORANEOUS },
@@ -461,8 +547,14 @@ impl TemporalMediationEstimator {
         let plan =
             data.plan_lagged_sample(max_lag, Arc::from(cols)).map_err(EstimationError::from)?;
         let mut ws = LaggedSampleWorkspace::default();
-        let prep =
-            plan.prepare(data, &mut ws, &ctx.kernel_policy).map_err(EstimationError::from)?;
+        let (prep, window_complete) = if gaps {
+            let (prep, complete) = plan
+                .prepare_complete_windows(data, &mut ws, &ctx.kernel_policy)
+                .map_err(EstimationError::from)?;
+            (prep, Some(complete))
+        } else {
+            (plan.prepare(data, &mut ws, &ctx.kernel_policy).map_err(EstimationError::from)?, None)
+        };
         let n = prep.n;
         if n < 4 {
             return Err(EstimationError::data_msg("insufficient effective samples for mediation"));
@@ -471,7 +563,7 @@ impl TemporalMediationEstimator {
         for c in 0..ncols {
             columns.extend_from_slice(prep.column(c));
         }
-        Ok(MediationDesign { columns, n, n_extra: ncols - 3 })
+        Ok(MediationDesign { columns, n, n_extra: ncols - 3, window_complete })
     }
 
     /// Fit the three mechanism regressions on the design, or on the replicate
@@ -482,14 +574,17 @@ impl TemporalMediationEstimator {
         rows: Option<&[usize]>,
         delta: f64,
     ) -> Result<ContrastFit, EstimationError> {
-        let n = design.n;
+        // A replicate may have a different number of rows than the design (a bootstrap on a
+        // series with gaps keeps the intact windows its blocks cover).
+        let source_rows = design.n;
+        let n = rows.map_or(source_rows, <[usize]>::len);
         let gathered;
         let columns = match rows {
             None => &design.columns,
             Some(rows) => {
                 gathered = design
                     .columns
-                    .chunks_exact(n)
+                    .chunks_exact(source_rows)
                     .flat_map(|col| rows.iter().map(move |&r| col[r]))
                     .collect::<Vec<f64>>();
                 &gathered
@@ -529,6 +624,8 @@ struct MediationDesign {
     columns: Vec<f64>,
     n: usize,
     n_extra: usize,
+    /// `Some(complete)` when the series has gaps and the rows are its intact windows only.
+    window_complete: Option<Vec<bool>>,
 }
 
 impl MediationDesign {
@@ -922,6 +1019,98 @@ mod tests {
         (data, q, estimand)
     }
 
+    /// Solve a small dense system by Gaussian elimination with partial pivoting.
+    fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
+        let k = b.len();
+        for col in 0..k {
+            let pivot =
+                (col..k).max_by(|&i, &j| a[i][col].abs().total_cmp(&a[j][col].abs())).unwrap();
+            a.swap(col, pivot);
+            b.swap(col, pivot);
+            for row in col + 1..k {
+                let f = a[row][col] / a[col][col];
+                for c in col..k {
+                    a[row][c] -= f * a[col][c];
+                }
+                b[row] -= f * b[col];
+            }
+        }
+        let mut x = vec![0.0; k];
+        for row in (0..k).rev() {
+            let tail: f64 = (row + 1..k).map(|c| a[row][c] * x[c]).sum();
+            x[row] = (b[row] - tail) / a[row][row];
+        }
+        x
+    }
+
+    fn ols(columns: &[Vec<f64>], y: &[f64]) -> Vec<f64> {
+        let k = columns.len();
+        let gram = (0..k)
+            .map(|i| {
+                (0..k)
+                    .map(|j| columns[i].iter().zip(&columns[j]).map(|(a, b)| a * b).sum())
+                    .collect()
+            })
+            .collect();
+        let moment = (0..k).map(|i| columns[i].iter().zip(y).map(|(a, b)| a * b).sum()).collect();
+        solve(gram, moment)
+    }
+
+    #[test]
+    fn gaps_are_admitted_only_when_declared_and_use_the_intact_windows() {
+        let n = 300;
+        let (clean, query, estimand) = mediated_series(n);
+        let gaps = [100usize, 101];
+        let t: Vec<f64> =
+            (0..n).map(|i| (0.071 * i as f64).sin() + 0.35 * (0.137 * i as f64).cos()).collect();
+        let mut gapped_t = t.clone();
+        for &g in &gaps {
+            gapped_t[g] = f64::NAN;
+        }
+        let data = clean.with_replaced_float(VariableId::from_raw(0), Arc::from(gapped_t)).unwrap();
+        let ctx = ExecutionContext::for_tests(3);
+        let refusing = TemporalMediationEstimator::new();
+        assert!(refusing.estimate(&data, &estimand, &query, &ctx).is_err());
+
+        let estimator = TemporalMediationEstimator::new().with_allow_gaps(true);
+        let (estimate, block) = estimator
+            .estimate_with_block_bootstrap(
+                &data,
+                &estimand,
+                &query,
+                &[],
+                crate::temporal_block::BlockBootstrap { replicates: 80, stream_base: 7 },
+                &ctx,
+            )
+            .unwrap();
+        // Window i regresses on t_{i-1}, m_i, y_i: lost when t_{i-1} is missing.
+        let kept: Vec<usize> = (1..n).filter(|i| !gaps.contains(&(i - 1))).collect();
+        let m: Vec<f64> = (0..n)
+            .map(|i| if i == 0 { 0.0 } else { 0.8 * t[i - 1] + 0.12 * (0.43 * i as f64).sin() })
+            .collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| {
+                if i == 0 {
+                    0.0
+                } else {
+                    0.25 * t[i - 1] + 0.55 * m[i] + 0.09 * (0.29 * i as f64).cos()
+                }
+            })
+            .collect();
+        let ones = vec![1.0; kept.len()];
+        let tk: Vec<f64> = kept.iter().map(|&i| t[i - 1]).collect();
+        let mk: Vec<f64> = kept.iter().map(|&i| m[i]).collect();
+        let yk: Vec<f64> = kept.iter().map(|&i| y[i]).collect();
+        let a = ols(&[ones.clone(), tk.clone()], &mk)[1];
+        let b = ols(&[ones, tk, mk.clone()], &yk)[2];
+        assert!((estimate.effect.ate - a * b).abs() < 1e-9, "{} vs {}", estimate.effect.ate, a * b);
+        assert_eq!(block.rows, n - 1, "the bootstrap axis is the original window axis");
+        assert!(block.total.is_some_and(f64::is_finite));
+
+        let selection = estimator.window_selection(&data, &estimand, &query, &[], &ctx).unwrap();
+        assert_eq!(selection.dropped_times(), [101, 102]);
+    }
+
     #[test]
     fn recovers_positive_mediated_effect() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
@@ -1007,8 +1196,12 @@ mod tests {
         let y: Vec<f64> = (0..n)
             .map(|i| 0.5 * t[i] + 0.7 * m[i] - 0.3 * x[i] + 0.25 * (0.9 * i as f64).cos())
             .collect();
-        let design =
-            MediationDesign { columns: [t.as_slice(), &m, &y, &x].concat(), n, n_extra: 1 };
+        let design = MediationDesign {
+            columns: [t.as_slice(), &m, &y, &x].concat(),
+            n,
+            n_extra: 1,
+            window_complete: None,
+        };
         let estimator = TemporalMediationEstimator::new();
         let fit = estimator.fit_design(&design, None, 1.0).unwrap();
         let scores = shared::mechanism_normal_scores(&fit);
@@ -1049,8 +1242,12 @@ mod tests {
         let y: Vec<f64> = (0..n)
             .map(|i| 0.5 * t[i] + 0.7 * m[i] - 0.3 * x[i] + 0.25 * (0.9 * i as f64).cos())
             .collect();
-        let design =
-            MediationDesign { columns: [t.as_slice(), &m, &y, &x].concat(), n, n_extra: 1 };
+        let design = MediationDesign {
+            columns: [t.as_slice(), &m, &y, &x].concat(),
+            n,
+            n_extra: 1,
+            window_complete: None,
+        };
         let estimator = TemporalMediationEstimator::new();
         let fit = estimator.fit_design(&design, None, 1.0).unwrap();
         let [total, direct, mediated] = design.contrast_scores(estimator.backend, &fit).unwrap();

@@ -96,6 +96,7 @@ impl super::Study {
             kernel_policy: &ctx.kernel_policy,
             time_index: None,
             panel: Some(panel),
+            gaps: false,
         };
         let (mut refutations, na_diagnostics) = self.refute_pooled_panel(
             panel,
@@ -691,6 +692,7 @@ impl super::Study {
                 kernel_policy: &ctx.kernel_policy,
                 time_index: None,
                 panel: Some(panel),
+                gaps: false,
             };
             let (mut local, local_diagnostics) = RefutationRun {
                 data: &stacked,

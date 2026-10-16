@@ -418,27 +418,62 @@ impl ClusterDml {
                 "the weighted influence must align with the score table rows",
             ));
         }
-        if clusters.len() != table.n_rows || table.fold_ids.len() != table.n_rows {
-            return Err(EstimationError::data_msg(
-                "cluster labels and fold ids must align with the score table rows",
-            ));
-        }
         if table.columns.len() != 2 {
             return Err(EstimationError::unsupported(
                 "the cluster-DML receipt covers the mean functional's two arm columns",
             ));
         }
-        let found = distinct_count(clusters);
         let psi_of = || -> Result<Vec<f64>, EstimationError> {
             if let Some(values) = influence {
                 return Ok(values.to_vec());
             }
             Ok(table.column(0)?.iter().zip(table.column(1)?).map(|(&a, &b)| b - a).collect())
         };
+        self.receipt_core(table.n_rows, &table.fold_ids, table.n_folds, clusters, second, &psi_of)
+    }
+
+    /// The receipt of a fit that keeps no score table (a sampling-weighted cross-fit): the fold
+    /// plan of the cross-fit and the weighted influence `m_i (ψ_i − τ̂)` of every row.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::receipt`], or an influence or fold plan that does not align with the labels.
+    pub fn receipt_from_folds(
+        &self,
+        fold_ids: &[u32],
+        n_folds: u32,
+        clusters: &[u32],
+        second: Option<&[u32]>,
+        influence: &[f64],
+    ) -> Result<ClusterDmlReceipt, EstimationError> {
+        if influence.len() != clusters.len() {
+            return Err(EstimationError::data_msg(
+                "the weighted influence must align with the cluster labels",
+            ));
+        }
+        let psi_of = || -> Result<Vec<f64>, EstimationError> { Ok(influence.to_vec()) };
+        self.receipt_core(clusters.len(), fold_ids, n_folds, clusters, second, &psi_of)
+    }
+
+    fn receipt_core(
+        &self,
+        n_rows: usize,
+        fold_ids: &[u32],
+        n_folds: u32,
+        clusters: &[u32],
+        second: Option<&[u32]>,
+        psi_of: &dyn Fn() -> Result<Vec<f64>, EstimationError>,
+    ) -> Result<ClusterDmlReceipt, EstimationError> {
+        if clusters.len() != n_rows || fold_ids.len() != n_rows {
+            return Err(EstimationError::data_msg(
+                "cluster labels and fold ids must align with the score table rows",
+            ));
+        }
+        let found = distinct_count(clusters);
         let (units, n_second, se) = match (self.unit, second) {
             (IndependenceUnit::Cluster, None) => {
                 self.require_cluster_count(found, "clusters")?;
-                require_whole_clusters_per_fold(clusters, &table.fold_ids)?;
+                require_whole_clusters_per_fold(clusters, fold_ids)?;
                 (clusters.to_vec(), None, crate::se::cluster_influence_se(&psi_of()?, clusters)?)
             }
             (IndependenceUnit::Cluster, Some(_)) => {
@@ -456,7 +491,7 @@ impl ClusterDml {
                 ));
             }
             (IndependenceUnit::Dyad, Some(second)) => {
-                if second.len() != table.n_rows {
+                if second.len() != n_rows {
                     return Err(EstimationError::data_msg(
                         "second-endpoint labels must align with the score table rows",
                     ));
@@ -465,7 +500,7 @@ impl ClusterDml {
                 self.require_cluster_count(found, "first-endpoint clusters")?;
                 self.require_cluster_count(found_second, "second-endpoint clusters")?;
                 let units = dyad_units(clusters, second)?;
-                require_whole_clusters_per_fold(&units, &table.fold_ids)?;
+                require_whole_clusters_per_fold(&units, fold_ids)?;
                 let se = crate::se::multiway_influence_se(
                     &psi_of()?,
                     &[clusters.to_vec(), second.to_vec()],
@@ -481,8 +516,8 @@ impl ClusterDml {
             n_components: n_second.map(|_| distinct_count(&units)),
             reference_df,
             min_clusters: self.min_clusters,
-            n_rows: table.n_rows,
-            folds: table.n_folds as usize,
+            n_rows,
+            folds: n_folds as usize,
             unit_digest: unit_digest(&units),
             cluster_sandwich_se: se,
         })
@@ -860,6 +895,47 @@ impl DeclaredUnits {
             ));
         };
         let receipt = spec.receipt(table, &first, second.as_deref())?;
+        Ok(self.apply_receipt(estimate, &receipt))
+    }
+
+    /// [`Self::publish`] for a sampling-weighted fit, which keeps no score table: the cluster
+    /// sandwich is taken over the fit's weighted influence `m_i (ψ_i − τ̂)` under the cross-fit's
+    /// whole-unit fold plan (`fold_ids`, `n_folds`).
+    ///
+    /// # Errors
+    ///
+    /// Missing labels or weighted influence, or a refusal of [`ClusterDml::receipt_from_folds`].
+    pub(crate) fn publish_weighted(
+        &self,
+        estimate: crate::adjustment::EffectEstimate,
+        problem: &crate::propensity::PreparedPropensityProblem,
+        fold_ids: &[u32],
+        n_folds: u32,
+    ) -> Result<crate::adjustment::EffectEstimate, EstimationError> {
+        let Some(spec) = self.spec else {
+            return Ok(estimate);
+        };
+        if problem.fold_units.is_none() {
+            return Err(EstimationError::data_msg(
+                "the cluster-DML declaration differs from the one the problem was prepared with",
+            ));
+        }
+        let (first, second) = self.labels(&problem.row_index)?;
+        let (Some(first), Some(influence)) = (first, estimate.scores.influence.clone()) else {
+            return Err(EstimationError::data_msg(
+                "a weighted cluster-DML fit needs unit labels and the weighted influence",
+            ));
+        };
+        let receipt =
+            spec.receipt_from_folds(fold_ids, n_folds, &first, second.as_deref(), &influence)?;
+        Ok(self.apply_receipt(estimate, &receipt))
+    }
+
+    fn apply_receipt(
+        &self,
+        mut estimate: crate::adjustment::EffectEstimate,
+        receipt: &ClusterDmlReceipt,
+    ) -> crate::adjustment::EffectEstimate {
         estimate.uncertainty.analytic.se = receipt.cluster_sandwich_se;
         estimate.uncertainty.analytic.reference_df =
             Some(f64::from(u32::try_from(receipt.reference_df).unwrap_or(u32::MAX)));
@@ -871,7 +947,7 @@ impl DeclaredUnits {
         estimate.joint.covariance = None;
         estimate.scores.inference = None;
         estimate.scores.influence = None;
-        Ok(estimate)
+        estimate
     }
 }
 

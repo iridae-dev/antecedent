@@ -197,10 +197,8 @@ def test_temporal_gaps_refuse_then_drop_only_the_windows_that_read_them():
         ant.analyze(data, missing="error", bootstrap=0, refute="none", **kwargs)
     assert getattr(raised.value, "reason_code", None) == "missing_policy_required"
     assert "column `x` at row 100" in str(raised.value)
-    with pytest.raises(CausalError) as refuted:
-        ant.analyze(data, missing="complete_case", bootstrap=0, refute="cheap", **kwargs)
-    assert getattr(refuted.value, "reason_code", None) == "missing_policy_not_applicable"
-    assert "refuters" in str(refuted.value)
+    refuted = ant.analyze(data, missing="complete_case", bootstrap=0, refute="cheap", **kwargs)
+    assert refuted.validation.ran
     boot = ant.analyze(data, missing="complete_case", bootstrap=150, refute="none", **kwargs)
     assert boot.estimate.se_bootstrap and boot.estimate.se_bootstrap > 0
 

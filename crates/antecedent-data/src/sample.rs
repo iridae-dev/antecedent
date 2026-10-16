@@ -299,6 +299,51 @@ impl LaggedSamplePlan {
         })
     }
 
+    /// Like [`Self::prepare_with_gaps`], with the incomplete windows removed from the sample.
+    ///
+    /// The returned sample holds only the intact windows, in time order, each with its own
+    /// lags read at its original time; `complete[i]` tells which of the plan's windows they
+    /// are (window `i` is the one whose anchor is `base_row + i`), so a caller that needs the
+    /// time axis (a block bootstrap that must not cross a gap) still has it. A series without
+    /// gaps returns exactly the sample [`Self::prepare`] returns.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::prepare_with_gaps`].
+    pub fn prepare_complete_windows<'a>(
+        &'a self,
+        data: &TimeSeriesData,
+        workspace: &'a mut LaggedSampleWorkspace,
+        policy: &KernelPolicy,
+    ) -> Result<(LaggedPreparedSample<'a>, Vec<bool>), DataError> {
+        let complete = self.gather(data, workspace, *policy, true)?.unwrap_or_default();
+        let n = self.lag_map.n_effective;
+        let ncols = self.columns.len();
+        let kept = complete.iter().filter(|intact| **intact).count();
+        if kept < n {
+            // Compact each column block in place, front to back: a destination index never
+            // exceeds its source index, and a block's destination ends where the next
+            // block's source begins, so no unread value is overwritten.
+            for c in 0..ncols {
+                let mut write = c * kept;
+                for (i, intact) in complete.iter().enumerate() {
+                    if *intact {
+                        workspace.values[write] = workspace.values[c * n + i];
+                        write += 1;
+                    }
+                }
+            }
+        }
+        let sample = LaggedPreparedSample {
+            n: kept,
+            ncols,
+            values: &workspace.values[..kept * ncols],
+            columns: &self.columns,
+            dropped: DropSummary { requested: self.lag_map.series_len, retained: kept },
+        };
+        Ok((sample, complete))
+    }
+
     /// Fill `workspace` with the planned columns. With `allow_gaps`, returns which windows are
     /// intact instead of refusing a column with missing values.
     fn gather(

@@ -1254,6 +1254,7 @@ pub(super) fn run(
                 kernel_policy: &ctx.kernel_policy,
                 time_index: Some(frame.time_index),
                 panel: None,
+                gaps: false,
             }),
             _ => None,
         };

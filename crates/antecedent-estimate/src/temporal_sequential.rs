@@ -227,6 +227,41 @@ pub fn estimate_sustained_window(
     estimate_sustained_window_with_validation(problem, query, inference, ctx, None)
 }
 
+/// A Frequentist multi-step Sustained contrast on a series that may have missing time points.
+///
+/// Windows that read a missing value are dropped as a whole (every mechanism is fitted on the
+/// intact windows, each at its own time with its own lags); the block bootstrap draws circular
+/// blocks on the original window axis, so no block joins windows across a gap, and applies no
+/// kernel-bias widening. A Bayesian composition is not offered.
+///
+/// # Errors
+///
+/// As [`estimate_sustained_window`]; a Bayesian inference; fewer than three intact windows.
+pub fn estimate_sustained_window_with_gaps(
+    problem: &SequentialProblem<'_>,
+    query: &TemporalEffectQuery,
+    inference: SequentialInference<'_>,
+    ctx: &ExecutionContext,
+    validation: Option<&mut Vec<SequentialBayesianMechanism>>,
+) -> Result<(EffectEstimate, Option<crate::GapSelection>), EstimationError> {
+    let (overlays, delta) = sustained_contrast_overlays(query, problem.estimand, inference.status)?;
+    let (effect, _, selection) = estimate_sequential_with_gaps(
+        problem,
+        &SequenceTarget {
+            outcome: query.outcome,
+            outcome_offset: query.outcome_offset(),
+            overlays: &overlays,
+        },
+        SequentialEval::Contrast { delta },
+        inference,
+        ctx,
+        query.effect_modifiers.as_ref(),
+        validation,
+        true,
+    )?;
+    Ok((effect, selection))
+}
+
 /// A fitted stationary mechanism, retained for predictive validation of the actual SEM.
 #[derive(Clone, Debug)]
 pub struct SequentialBayesianMechanism {
@@ -553,6 +588,9 @@ struct SequentialSetup {
     interaction_at: Vec<Vec<Vec<usize>>>,
     /// Modifier columns at each fitted node's lag, used to recompute `E[W]` on a row map.
     node_modifier_values: Vec<Vec<Vec<f64>>>,
+    /// `Some(complete)` when the series has gaps and the rows are its intact windows only:
+    /// `complete[w]` says whether the window at position `w` of the original axis is one.
+    window_complete: Option<Vec<bool>>,
 }
 
 /// Full-sample OLS solves of a [`SequentialSetup`], one per fitted mechanism in fitting order.
@@ -575,6 +613,25 @@ impl SequentialSetup {
         eval: SequentialEval,
         modifiers: &[VariableId],
         ctx: &ExecutionContext,
+    ) -> Result<Self, EstimationError> {
+        Self::build_with_gaps(problem, target, eval, modifiers, ctx, false)
+    }
+
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+    )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "resolve the unfolded graph, order the needed nodes, plan the lagged columns and gather the per-mechanism designs; every step reads the same node order"
+    )]
+    fn build_with_gaps(
+        problem: &SequentialProblem<'_>,
+        target: &SequenceTarget<'_>,
+        eval: SequentialEval,
+        modifiers: &[VariableId],
+        ctx: &ExecutionContext,
+        gaps: bool,
     ) -> Result<Self, EstimationError> {
         let SequentialProblem { data, graph, indexer, .. } = *problem;
         let SequenceTarget { outcome, outcome_offset, overlays } = *target;
@@ -683,7 +740,13 @@ impl SequentialSetup {
         }
         let plan = data.plan_lagged_sample(max_lag, Arc::from(columns.clone()))?;
         let mut workspace = LaggedSampleWorkspace::default();
-        let sample = plan.prepare(data, &mut workspace, &ctx.kernel_policy)?;
+        let (sample, window_complete) = if gaps {
+            let (sample, complete) =
+                plan.prepare_complete_windows(data, &mut workspace, &ctx.kernel_policy)?;
+            (sample, Some(complete))
+        } else {
+            (plan.prepare(data, &mut workspace, &ctx.kernel_policy)?, None)
+        };
         let n = sample.n;
         if n < 3 {
             return Err(EstimationError::unsupported(
@@ -791,6 +854,7 @@ impl SequentialSetup {
             modifiers: modifiers.to_vec(),
             interaction_at,
             node_modifier_values,
+            window_complete,
         })
     }
 
@@ -1173,11 +1237,37 @@ fn estimate_sequential(
     inference: SequentialInference<'_>,
     ctx: &ExecutionContext,
     modifiers: &[VariableId],
-    mut validation: Option<&mut Vec<SequentialBayesianMechanism>>,
+    validation: Option<&mut Vec<SequentialBayesianMechanism>>,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
+    estimate_sequential_with_gaps(
+        problem, target, eval, inference, ctx, modifiers, validation, false,
+    )
+    .map(|(effect, posterior, _)| (effect, posterior))
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the sequential estimator's inputs plus the gap switch; each is a distinct caller input"
+)]
+fn estimate_sequential_with_gaps(
+    problem: &SequentialProblem<'_>,
+    target: &SequenceTarget<'_>,
+    eval: SequentialEval,
+    inference: SequentialInference<'_>,
+    ctx: &ExecutionContext,
+    modifiers: &[VariableId],
+    mut validation: Option<&mut Vec<SequentialBayesianMechanism>>,
+    gaps: bool,
+) -> Result<(EffectEstimate, Option<CausalPosterior>, Option<crate::GapSelection>), EstimationError>
+{
     let SequentialProblem { data, indexer, estimand, .. } = *problem;
     let SequentialInference { status, assumptions, bootstrap_replicates, bayesian } = inference;
-    let setup = SequentialSetup::build(problem, target, eval, modifiers, ctx)?;
+    if gaps && bayesian.is_some() {
+        return Err(EstimationError::unsupported(
+            "a series with gaps is not combined with the composed Bayesian sequential posterior: its mechanism likelihoods are tempered by long-run variances of consecutive rows",
+        ));
+    }
+    let setup = SequentialSetup::build_with_gaps(problem, target, eval, modifiers, ctx, gaps)?;
     let order = &setup.order;
     let parents = &setup.parents;
     let designs = &setup.designs;
@@ -1474,7 +1564,7 @@ fn estimate_sequential(
             posterior.assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );
-        return Ok((effect, Some(posterior)));
+        return Ok((effect, Some(posterior), None));
     }
     let full = setup.fit_full(&mut ls_ws);
     let coefficients = setup.coefficients_of(&full)?;
@@ -1491,21 +1581,39 @@ fn estimate_sequential(
     // mechanism for its scores and scans each; without replicates no interval
     // is published and the rule length is returned instead.
     let influence = setup.influence_from(&coefficients);
-    let block_length = if bootstrap_replicates > 0 {
-        setup.dependence_block_length_with(influence.as_deref(), &full)
-    } else {
-        antecedent_data::circular_block_length(setup.max_lag as usize + 1, setup.n)
+    let resampled_rows = setup.window_complete.as_ref().map_or(setup.n, Vec::len);
+    let block_length = match &setup.window_complete {
+        // On a series with gaps the scores of the compacted rows are not consecutive, so the
+        // dependence-adaptive length is not defined; the structural rule stands, on the
+        // original window axis.
+        Some(_) => {
+            antecedent_data::circular_block_length(setup.max_lag as usize + 1, resampled_rows)
+        }
+        None if bootstrap_replicates > 0 => {
+            setup.dependence_block_length_with(influence.as_deref(), &full)
+        }
+        None => antecedent_data::circular_block_length(setup.max_lag as usize + 1, setup.n),
     };
     let target: Vec<&[f64]> = influence.as_deref().into_iter().collect();
-    let boot = crate::temporal_block::row_block_bootstrap_vec(
-        setup.n,
-        block_length,
-        bootstrap_replicates,
-        SEQUENTIAL_BLOCK_STREAM,
-        ctx,
-        |rows| setup.evaluate(Some(rows), &mut ls_ws).ok().map(|value| vec![value]),
-    )
-    .with_kernel_bias(&target);
+    let boot = match &setup.window_complete {
+        Some(complete) => crate::temporal_block::gapped_row_block_bootstrap(
+            complete,
+            block_length,
+            bootstrap_replicates,
+            SEQUENTIAL_BLOCK_STREAM,
+            ctx,
+            |rows| setup.evaluate(Some(rows), &mut ls_ws).ok().map(|value| vec![value]),
+        ),
+        None => crate::temporal_block::row_block_bootstrap_vec(
+            setup.n,
+            block_length,
+            bootstrap_replicates,
+            SEQUENTIAL_BLOCK_STREAM,
+            ctx,
+            |rows| setup.evaluate(Some(rows), &mut ls_ws).ok().map(|value| vec![value]),
+        )
+        .with_kernel_bias(&target),
+    };
     let kernel_bias = boot.kernel_bias;
     let se = boot.se_result(0);
     let mut effect = EffectEstimate::from_parts(
@@ -1524,9 +1632,16 @@ fn estimate_sequential(
         None,
     );
     effect.scores.influence = influence.map(Arc::from);
-    effect.uncertainty.block.resampling =
-        Some(crate::adjustment::BlockResampling { block_length, rows: setup.n, kernel_bias });
-    Ok((effect, None))
+    effect.uncertainty.block.resampling = Some(crate::adjustment::BlockResampling {
+        block_length,
+        rows: resampled_rows,
+        kernel_bias,
+    });
+    let selection = setup
+        .window_complete
+        .clone()
+        .map(|complete| crate::GapSelection { first_time: setup.max_lag as usize, complete });
+    Ok((effect, None, selection))
 }
 
 #[cfg(test)]

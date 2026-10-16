@@ -64,7 +64,8 @@ fn trial(n: usize, seed: u64, informative: bool) -> Trial {
             continue;
         }
         let treated = rng.next_f64() < 0.5;
-        outcome.push(x + if treated { 1.0 + 0.5 * x } else { 0.0 } + 0.7 * standard_normal(&mut rng));
+        outcome
+            .push(x + if treated { 1.0 + 0.5 * x } else { 0.0 } + 0.7 * standard_normal(&mut rng));
         assigned.push(treated);
         weight.push(1.0 / inclusion);
     }
@@ -98,7 +99,8 @@ fn weighted_table(outcome: &[f64], weight: &[f64]) -> TabularData {
 fn hajek_oracle(trial: &Trial, weight: &[f64]) -> (f64, f64, usize, usize) {
     let rows: Vec<usize> = (0..trial.outcome.len()).filter(|&i| weight[i] > 0.0).collect();
     let arm = |treated: bool| -> (f64, f64, usize) {
-        let members: Vec<usize> = rows.iter().copied().filter(|&i| trial.assigned[i] == treated).collect();
+        let members: Vec<usize> =
+            rows.iter().copied().filter(|&i| trial.assigned[i] == treated).collect();
         let a = |i: usize| {
             let p = if treated { trial.probability[i] } else { 1.0 - trial.probability[i] };
             weight[i] / p
@@ -147,7 +149,12 @@ fn a_weighted_bernoulli_trial_is_the_hajek_contrast_with_its_linearized_variance
     assert_eq!(record.rows_used, 240);
     assert_eq!(record.zero_weight_rows, 0);
     close(record.effective_sample_size, kish_ess(&trial.weight), 1e-12, "Kish size");
-    assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.randomized.sampling_weights"));
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "estimate.randomized.sampling_weights")
+    );
 
     // The unweighted trial speaks for the sampled units, not the population.
     let plain = {
@@ -173,7 +180,12 @@ fn weights_rescale_and_zero_weight_rows_are_counted_for_a_trial() {
     let rescaled = run_trial(bernoulli_query(&trial), &trial.outcome, &scaled);
     let rescaled_fit = rescaled.randomized_effect().unwrap();
     close(rescaled_fit.effect, base_fit.effect, 1e-10, "rescaled effect");
-    close(rescaled_fit.variance_upper_bound, base_fit.variance_upper_bound, 1e-10, "rescaled variance");
+    close(
+        rescaled_fit.variance_upper_bound,
+        base_fit.variance_upper_bound,
+        1e-10,
+        "rescaled variance",
+    );
 
     // Rows of weight zero with garbage outcomes: the same contrast, and the count.
     let mut padded = Trial {
@@ -239,7 +251,8 @@ fn designs_without_a_weighted_contrast_refuse_the_weights() {
         units(n),
         ("control", "treated"),
     );
-    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx()).unwrap();
+    let prepared =
+        Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx()).unwrap();
     let error = prepared.estimate(&data, &ctx()).unwrap_err().to_string();
     assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
     assert!(error.starts_with("reason=option_not_applicable"), "{error}");
@@ -287,7 +300,10 @@ fn the_weighted_trial_result_round_trips_through_its_artifact() {
     let bytes = prepared.encode_contracted_result(&result, "weighted-trial", &ctx()).unwrap();
     let (_, _, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let encoded = artifact.randomized_effect.unwrap();
-    assert_eq!(encoded.uncertainty.as_ref(), "sampling_weighted_hajek_linearized_variance_no_interval");
+    assert_eq!(
+        encoded.uncertainty.as_str(),
+        "sampling_weighted_hajek_linearized_variance_no_interval"
+    );
     assert!(encoded.interval_95.is_none());
 }
 
@@ -382,7 +398,8 @@ fn run_panel(panel: &Panel, weights: &[f64]) -> antecedent::StudyResult {
         panel.clusters.clone(),
     );
     let data = weighted_table(&panel.outcome, weights);
-    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx()).unwrap();
+    let prepared =
+        Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx()).unwrap();
     prepared.estimate(&data, &ctx()).unwrap()
 }
 
@@ -454,7 +471,8 @@ fn a_subject_whose_two_rows_carry_different_weights_is_refused() {
         panel.clusters.clone(),
     );
     let data = weighted_table(&panel.outcome, &weights);
-    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx()).unwrap();
+    let prepared =
+        Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx()).unwrap();
     let error = prepared.estimate(&data, &ctx()).unwrap_err().to_string();
     assert!(error.contains("same sampling weight"), "{error}");
 }
@@ -464,7 +482,12 @@ fn a_weighted_panel_recovers_the_population_effect_the_unweighted_one_misses() {
     let panel = panel(150, 14);
     let weighted = run_panel(&panel, &panel.weight);
     let fit = weighted.panel_did().unwrap();
-    assert!((fit.effect - 1.0).abs() < 4.0 * fit.standard_error, "{} (se {})", fit.effect, fit.standard_error);
+    assert!(
+        (fit.effect - 1.0).abs() < 4.0 * fit.standard_error,
+        "{} (se {})",
+        fit.effect,
+        fit.standard_error
+    );
     let unit = vec![1.0; panel.weight.len()];
     let unweighted = run_panel(&panel, &unit);
     assert!(
@@ -486,7 +509,8 @@ fn repeated_cross_sections_and_staggered_designs_refuse_weights() {
         panel.clusters.clone(),
     );
     let data = weighted_table(&panel.outcome, &panel.weight);
-    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx()).unwrap();
+    let prepared =
+        Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx()).unwrap();
     let error = prepared.estimate(&data, &ctx()).unwrap_err().to_string();
     assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
 }
@@ -541,42 +565,21 @@ fn run_series(t: &[f64], y: &[f64], weights: &[f64]) -> Result<antecedent::Study
         .map_err(|e| e.to_string())
 }
 
-/// Weighted least squares of `y_i` on `[1, t_{i-1}, t_{i-2}]` for `i >= 2`, window `i` weighted
-/// by the weight of the observation it ends at; the coefficient of `t_{i-1}`.
+/// Weighted least squares of `y_i` on `[1, t_{i-1}]` for `i >= 1`, window `i` weighted by the
+/// weight of the observation it ends at; the coefficient of `t_{i-1}`. The lag-1 pulse adjusts
+/// for no other lag (the lag-2 treatment is independent of it), so the windows start at the
+/// first row with a lag-1 value.
 fn temporal_oracle(t: &[f64], y: &[f64], weights: &[f64]) -> f64 {
-    let rows: Vec<usize> = (2..t.len()).collect();
-    let mut xtwx = [[0.0_f64; 3]; 3];
-    let mut xtwy = [0.0_f64; 3];
-    for &i in &rows {
-        let x = [1.0, t[i - 1], t[i - 2]];
-        for a in 0..3 {
-            xtwy[a] += weights[i] * x[a] * y[i];
-            for b in 0..3 {
-                xtwx[a][b] += weights[i] * x[a] * x[b];
-            }
-        }
+    let (mut sw, mut sx, mut sxx, mut sy, mut sxy) = (0.0, 0.0, 0.0, 0.0, 0.0);
+    for i in 1..t.len() {
+        let (w, x) = (weights[i], t[i - 1]);
+        sw += w;
+        sx += w * x;
+        sxx += w * x * x;
+        sy += w * y[i];
+        sxy += w * x * y[i];
     }
-    // Gaussian elimination on the 3x3 normal equations.
-    let mut a = xtwx;
-    let mut b = xtwy;
-    for col in 0..3 {
-        let pivot = (col..3).max_by(|&i, &j| a[i][col].abs().total_cmp(&a[j][col].abs())).unwrap();
-        a.swap(col, pivot);
-        b.swap(col, pivot);
-        for row in col + 1..3 {
-            let f = a[row][col] / a[col][col];
-            for c in col..3 {
-                a[row][c] -= f * a[col][c];
-            }
-            b[row] -= f * b[col];
-        }
-    }
-    let mut beta = [0.0_f64; 3];
-    for row in (0..3).rev() {
-        let tail: f64 = (row + 1..3).map(|c| a[row][c] * beta[c]).sum();
-        beta[row] = (b[row] - tail) / a[row][row];
-    }
-    beta[1]
+    (sw * sxy - sx * sy) / (sw * sxx - sx * sx)
 }
 
 #[test]
@@ -589,8 +592,8 @@ fn a_weighted_temporal_window_is_weighted_least_squares_on_lag_windows() {
     let effect = result.estimate.as_effect().unwrap();
     close(effect.ate, temporal_oracle(&t, &y, &weights), 1e-9, "weighted window coefficient");
     let record = effect.diagnostics.sampling_weights.expect("record");
-    assert_eq!(record.rows_used, (n - 2) as u64);
-    close(record.effective_sample_size, kish_ess(&weights[2..]), 1e-12, "Kish size of the windows");
+    assert_eq!(record.rows_used, (n - 1) as u64);
+    close(record.effective_sample_size, kish_ess(&weights[1..]), 1e-12, "Kish size of the windows");
 
     // Rescaling the weights changes nothing.
     let scaled: Vec<f64> = weights.iter().map(|w| w * 40.0).collect();
@@ -606,13 +609,13 @@ fn temporal_windows_of_weight_zero_stay_in_sequence_and_are_counted() {
     for i in (10..n).step_by(17) {
         weights[i] = 0.0;
     }
-    let zeros = weights[2..].iter().filter(|w| **w == 0.0).count() as u64;
+    let zeros = weights[1..].iter().filter(|w| **w == 0.0).count() as u64;
     let result = run_series(&t, &y, &weights).unwrap();
     let effect = result.estimate.as_effect().unwrap();
     close(effect.ate, temporal_oracle(&t, &y, &weights), 1e-9, "coefficient with zero weights");
     let record = effect.diagnostics.sampling_weights.unwrap();
     assert_eq!(record.zero_weight_rows, zeros);
-    assert_eq!(record.rows_used, (n - 2) as u64 - zeros);
+    assert_eq!(record.rows_used, (n - 1) as u64 - zeros);
 }
 
 #[test]

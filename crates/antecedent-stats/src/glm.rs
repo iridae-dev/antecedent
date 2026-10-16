@@ -596,16 +596,16 @@ pub fn fit_logistic_weighted(
 /// whose estimating equation `Σ w_i x_i s_i(β) = 0` is the weighted-population score when the
 /// weights are sampling weights.
 ///
-/// Logit, probit, Poisson and Gaussian families are supported. The negative-binomial family
-/// estimates its dispersion jointly with the mean and has no prior-weighted moment or
-/// likelihood update here, so it is refused. Separation diagnostics are those of the
-/// unweighted rows and the separation ridge refit is not offered. The Gaussian `deviance` is
-/// the weighted residual sum of squares `Σ w_i r_i²`.
+/// Logit, probit, Poisson, negative-binomial and Gaussian families are supported. The
+/// negative-binomial dispersion is updated from the weighted data (weighted Pearson moment or
+/// weighted profile likelihood, per [`GlmOptions::nb_alpha`]). Separation diagnostics are those
+/// of the unweighted rows and the separation ridge refit is not offered. The Gaussian
+/// `deviance` is the weighted residual sum of squares `Σ w_i r_i²`.
 ///
 /// # Errors
 ///
 /// Shape mismatch, a weight that is negative or not finite, outcomes invalid for the family,
-/// the negative-binomial family, or a linear-algebra failure.
+/// or a linear-algebra failure.
 pub fn fit_glm_weighted(
     family: GlmFamily,
     design: GlmDesignRef<'_>,
@@ -623,9 +623,9 @@ pub fn fit_glm_weighted(
         }
         GlmFamily::PoissonLog => fit_poisson_weighted(design, weights, backend, workspace, options),
         GlmFamily::GaussianIdentity => fit_gaussian_weighted(design, weights, backend, workspace),
-        GlmFamily::NegativeBinomial => Err(StatsError::Shape {
-            message: "the negative-binomial family has no prior-weighted fit",
-        }),
+        GlmFamily::NegativeBinomial => {
+            fit_negbin_prior(design, Some(weights), backend, workspace, options)
+        }
     }
 }
 
@@ -764,6 +764,7 @@ fn finish_binomial(
                     options,
                     lambda,
                     Some(separated),
+                    None,
                 );
             }
         }
@@ -831,7 +832,28 @@ fn fit_negbin(
     workspace: &mut LeastSquaresWorkspace,
     options: &GlmOptions,
 ) -> Result<GlmFit, StatsError> {
+    fit_negbin_prior(design, None, backend, workspace, options)
+}
+
+/// NB2 fit under optional nonnegative prior (case) weights. With weights the mean is the
+/// prior-weighted IRLS fit and the dispersion is updated from the weighted data: the weighted
+/// Pearson moment `α = max(Σ m_i e_i² − (Σ m_i − p), 0) / Σ m_i μ_i` with
+/// `e_i = (y_i − μ_i)/√μ_i`, or the weighted profile likelihood `Σ m_i ℓ_i(θ)` maximized over
+/// `θ = 1/α`, per the dispersion policy. Unit weights are the unweighted fit.
+#[allow(
+    clippy::needless_range_loop,
+    clippy::too_many_lines,
+    reason = "index-based loops over parallel arrays; one routine for the unweighted and weighted dispersion policies"
+)]
+fn fit_negbin_prior(
+    design: GlmDesignRef<'_>,
+    prior: Option<&[f64]>,
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+) -> Result<GlmFit, StatsError> {
     validate_glm_shape(design)?;
+    let share = |r: usize| prior.map_or(1.0, |m| m[r]);
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     for &yi in y {
         if !(yi.is_finite() && yi >= 0.0) {
@@ -842,8 +864,12 @@ fn fit_negbin(
     }
 
     let mut mom_alpha = || -> Result<f64, StatsError> {
-        let poisson = fit_poisson(design, backend, workspace, options)?;
+        let poisson = match prior {
+            Some(weights) => fit_poisson_weighted(design, weights, backend, workspace, options)?,
+            None => fit_poisson(design, backend, workspace, options)?,
+        };
         let mut pearson_ss = 0.0;
+        let mut mass = 0.0;
         let mut sum_mu = 0.0;
         for r in 0..nrows {
             let mut eta = 0.0;
@@ -852,10 +878,11 @@ fn fit_negbin(
             }
             let mu = eta.exp().max(1e-12);
             let e = (y[r] - mu) / mu.sqrt();
-            pearson_ss += e * e;
-            sum_mu += mu;
+            pearson_ss += share(r) * e * e;
+            sum_mu += share(r) * mu;
+            mass += share(r);
         }
-        let df = (nrows as f64 - ncols as f64).max(1.0);
+        let df = (mass - ncols as f64).max(1.0);
         let excess = (pearson_ss - df).max(0.0);
         Ok((excess / sum_mu.max(1e-12)).max(1e-8))
     };
@@ -865,15 +892,16 @@ fn fit_negbin(
             if !(a.is_finite() && a > 0.0) {
                 return Err(StatsError::Shape { message: "nb_alpha Fixed must be finite and > 0" });
             }
-            fit_negbin_fixed_alpha(design, backend, workspace, options, a)
+            fit_negbin_fixed_alpha(design, prior, backend, workspace, options, a)
         }
         NbAlphaPolicy::MethodOfMoments => {
             let alpha = mom_alpha()?;
-            fit_negbin_fixed_alpha(design, backend, workspace, options, alpha)
+            fit_negbin_fixed_alpha(design, prior, backend, workspace, options, alpha)
         }
         NbAlphaPolicy::NestedMle { max_outer, tol_alpha } => {
             let mut alpha = mom_alpha()?;
-            let mut fit = fit_negbin_fixed_alpha(design, backend, workspace, options, alpha)?;
+            let mut fit =
+                fit_negbin_fixed_alpha(design, prior, backend, workspace, options, alpha)?;
             let mut outer_ok = false;
             for _ in 0..max_outer.max(1) {
                 let mut mu = vec![0.0; nrows];
@@ -884,9 +912,10 @@ fn fit_negbin(
                     }
                     mu[r] = eta.exp().max(1e-12);
                 }
-                let alpha_new = mle_nb_alpha(y, &mu, alpha);
+                let alpha_new = mle_nb_alpha(y, &mu, prior, alpha);
                 let beta_prev = fit.coefficients.clone();
-                fit = fit_negbin_fixed_alpha(design, backend, workspace, options, alpha_new)?;
+                fit =
+                    fit_negbin_fixed_alpha(design, prior, backend, workspace, options, alpha_new)?;
                 let mut max_db = 0.0_f64;
                 for c in 0..ncols {
                     max_db = max_db.max((fit.coefficients[c] - beta_prev[c]).abs());
@@ -906,7 +935,7 @@ fn fit_negbin(
 }
 
 /// 1-D MLE for NB2 α given fitted means (digamma/trigamma Newton on θ=1/α, safeguarded).
-fn mle_nb_alpha(y: &[f64], mu: &[f64], alpha0: f64) -> f64 {
+fn mle_nb_alpha(y: &[f64], mu: &[f64], prior: Option<&[f64]>, alpha0: f64) -> f64 {
     use crate::special::{digamma, trigamma};
 
     // Work in θ = 1/α (more stable); clamp to a wide but finite range.
@@ -914,15 +943,16 @@ fn mle_nb_alpha(y: &[f64], mu: &[f64], alpha0: f64) -> f64 {
     for _ in 0..80 {
         let mut score = 0.0;
         let mut hess = 0.0;
-        for (&yi, &mui) in y.iter().zip(mu.iter()) {
+        for (r, (&yi, &mui)) in y.iter().zip(mu.iter()).enumerate() {
+            let m = prior.map_or(1.0, |w| w[r]);
             let d_theta = digamma(yi + theta) - digamma(theta)
                 + (theta / (theta + mui)).ln()
                 + (mui - yi) / (theta + mui);
             let d2_theta = trigamma(yi + theta) - trigamma(theta) + 1.0 / theta
                 - 1.0 / (theta + mui)
                 - (mui - yi) / ((theta + mui) * (theta + mui));
-            score += d_theta;
-            hess += d2_theta;
+            score += m * d_theta;
+            hess += m * d2_theta;
         }
         if !score.is_finite() {
             break;
@@ -952,14 +982,16 @@ fn mle_nb_alpha(y: &[f64], mu: &[f64], alpha0: f64) -> f64 {
 
 fn fit_negbin_fixed_alpha(
     design: GlmDesignRef<'_>,
+    prior: Option<&[f64]>,
     backend: &impl DenseLinearAlgebra,
     workspace: &mut LeastSquaresWorkspace,
     options: &GlmOptions,
     alpha: f64,
 ) -> Result<GlmFit, StatsError> {
     let ncols = design.ncols;
+    let root: Option<Vec<f64>> = prior.map(|w| w.iter().map(|m| m.sqrt()).collect());
     let (beta, iterations, converged) =
-        irls_fit(design, backend, workspace, options, true, |eta, yi| {
+        irls_fit_scaled(design, backend, workspace, options, true, root.as_deref(), |eta, yi| {
             let mu = eta.exp().max(1e-12);
             let var = mu * (1.0 + alpha * mu);
             let w = (mu * mu / var).sqrt();
@@ -994,6 +1026,7 @@ fn fit_binomial_ridge(
     options: &GlmOptions,
     lambda: f64,
     fallback_separated: Option<bool>,
+    prior: Option<&[f64]>,
 ) -> Result<GlmFit, StatsError> {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let mut beta = vec![0.0; ncols];
@@ -1033,6 +1066,7 @@ fn fit_binomial_ridge(
                 }
                 _ => unreachable!("ridge fallback is binomial-only"),
             };
+            let w_fisher = w_fisher * prior.map_or(1.0, |m| m[r]);
             for i in 0..ncols {
                 let xi = row[i];
                 xtwz[i] += xi * w_fisher * working;
@@ -1125,9 +1159,42 @@ pub fn fit_glm_ridge(
             if design.y.iter().any(|&yi| yi != 0.0 && yi != 1.0) {
                 return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
             }
-            fit_binomial_ridge(family, design, workspace, options, lambda, None)
+            fit_binomial_ridge(family, design, workspace, options, lambda, None, None)
         },
     )
+}
+
+/// [`fit_glm_ridge`] with nonnegative prior (case) weights: the maximizer of
+/// `Σ w_i ℓ_i(β) − ½ λ |β_{1..}|²` (a constant first column is the unpenalized intercept).
+///
+/// # Errors
+///
+/// As [`fit_glm_ridge`], or a weights length different from the row count or a weight that is
+/// negative or not finite.
+#[allow(clippy::float_cmp, reason = "binomial outcomes must be exactly the coded values 0 or 1")]
+pub fn fit_glm_ridge_weighted(
+    family: GlmFamily,
+    design: GlmDesignRef<'_>,
+    weights: &[f64],
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+    lambda: f64,
+) -> Result<GlmFit, StatsError> {
+    check_prior_weights(design, weights)?;
+    let _ = backend;
+    if !matches!(family, GlmFamily::BinomialLogit | GlmFamily::BinomialProbit) {
+        return Err(StatsError::Shape {
+            message: "ridge GLM currently requires a binomial family",
+        });
+    }
+    if !lambda.is_finite() || lambda <= 0.0 {
+        return Err(StatsError::Shape { message: "ridge lambda must be finite and positive" });
+    }
+    if design.y.iter().any(|&yi| yi != 0.0 && yi != 1.0) {
+        return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
+    }
+    fit_binomial_ridge(family, design, workspace, options, lambda, None, Some(weights))
 }
 
 /// Multinomial logit design: column-major `X` and integer category codes.

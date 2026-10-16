@@ -1402,6 +1402,11 @@ run_wi weighted_aipw_att_interval
 run_wi weighted_aipw_atc_interval
 run_wi weighted_aipw_trimmed_interval
 run_wi weighted_aipw_cluster_dml_interval
+run_wi weighted_aipw_ridge_propensity_interval
+run_wi weighted_aipw_lasso_propensity_interval
+run_wi weighted_glm_negative_binomial_interval
+run_wi weighted_dml_cluster_interval
+run_wi weighted_dr_learner_cluster_interval
 
 echo "== randomized missing-outcome candidate intervals (antecedent) =="
 # Designs for the responder-weighted and complete-case normal intervals; the routes publish no

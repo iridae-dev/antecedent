@@ -87,8 +87,8 @@ pub use gam::{
 };
 pub use glm::{
     DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MultinomialDesignRef,
-    MultinomialFit, NbAlphaPolicy, fit_glm, fit_glm_ridge, fit_glm_weighted, fit_logistic_weighted,
-    fit_multinomial_logit, fit_multinomial_logit_weighted,
+    MultinomialFit, NbAlphaPolicy, fit_glm, fit_glm_ridge, fit_glm_ridge_weighted,
+    fit_glm_weighted, fit_logistic_weighted, fit_multinomial_logit, fit_multinomial_logit_weighted,
 };
 pub use gram::{
     accumulate_xtx_xty_row, chol_log_det, chol_solve, cholesky_spd, column_is_constant, form_xtx,

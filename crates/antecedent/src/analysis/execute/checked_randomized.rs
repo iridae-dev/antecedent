@@ -48,7 +48,7 @@ fn responder_diagnostic(
     method: RandomizedMethod,
 ) -> &'static str {
     if !matches!(method, RandomizedMethod::Bernoulli | RandomizedMethod::Complete) {
-        return "Responder-weighted ITT for this design: each outcome is replaced by its inverse-probability-of-observation pseudo-outcome (zero for a non-responder) and the design's own estimator and variance run on every assigned unit; the variance ignores that the observation probabilities are estimated, which is conservative; no confidence interval is reported";
+        return "Responder-weighted ITT for this design: each outcome is replaced by its inverse-probability-of-observation pseudo-outcome (adjusted by the influence term of the fitted observation model) and the design's own estimator and variance run on every assigned unit; no confidence interval is reported";
     }
     match policy {
         antecedent_data::MissingPolicy::InverseProbabilityOfObservation => {

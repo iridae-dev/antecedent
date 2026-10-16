@@ -62,6 +62,15 @@ pub struct TemporalDependenceSe {
 /// design: the unfolded window (`history + horizon` slices), the treatment
 /// influence and every normal-equation score of the regression (the intercept's
 /// score is the residual series).
+/// The lag windows that carry weight: all of them without sampling weights, else the windows of
+/// positive weight (a zero-weight window stays in the design to keep consecutive times but
+/// contributes no score).
+fn analysed_windows(prep: &PreparedEstimationProblem) -> usize {
+    prep.sampling_weights
+        .map_or(prep.design.nrows, |record| usize::try_from(record.rows_used).unwrap_or(usize::MAX))
+        .min(prep.design.nrows)
+}
+
 fn single_window_block_length(
     prep: &PreparedEstimationProblem,
     indexer: &TemporalIndexer,
@@ -86,7 +95,10 @@ fn single_window_block_length(
     })?;
     let scores: Vec<&[f64]> =
         influence.into_iter().chain(normal_scores.iter().map(Vec::as_slice)).collect();
-    Ok(crate::temporal_block::dependence_block_length(structural_span, rows, &scores))
+    // Windows of weight zero contribute no score: the block length is sized on the windows
+    // that carry the effect, not on the padded series.
+    let counted = analysed_windows(prep);
+    Ok(crate::temporal_block::dependence_block_length(structural_span, counted, &scores))
 }
 
 /// What a lag-aligned temporal adjustment design is prepared from.
@@ -306,6 +318,25 @@ impl TemporalLinearAdjustment {
             &[],
             true,
         )?;
+        let selection = selection.ok_or(EstimationError::Unsupported {
+            message: "gap-aware preparation did not report its windows",
+        })?;
+        Ok((prep, selection))
+    }
+
+    /// [`Self::prepare_with_gaps`] with lag-0 schema covariates, for refits of a perturbed
+    /// series that keeps its gaps (the refuters).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::prepare_with_gaps`].
+    pub fn prepare_with_gaps_extras(
+        &self,
+        inputs: &TemporalDesignInputs<'_>,
+        extra_contemporaneous: &[VariableId],
+    ) -> Result<(PreparedEstimationProblem, GapSelection), EstimationError> {
+        let inputs = TemporalDesignInputs { split: None, ..*inputs };
+        let (prep, _, selection) = self.prepare_windows(&inputs, extra_contemporaneous, true)?;
         let selection = selection.ok_or(EstimationError::Unsupported {
             message: "gap-aware preparation did not report its windows",
         })?;
@@ -661,7 +692,7 @@ impl TemporalLinearAdjustment {
             single_window_block_length(prep, indexer, point.scores.influence.as_deref())?
         } else {
             let structural_span = (indexer.history() as usize + indexer.horizon() as usize).max(1);
-            antecedent_data::circular_block_length(structural_span, rows)
+            antecedent_data::circular_block_length(structural_span, analysed_windows(prep))
         };
         let target: Vec<&[f64]> = point.scores.influence.as_deref().into_iter().collect();
         let kernel_bias = crate::temporal_block::kernel_bias_scale(&target, block_length);
@@ -738,30 +769,16 @@ impl TemporalLinearAdjustment {
         point.uncertainty.analytic.se = f64::NAN;
         let structural_span = (indexer.history() as usize + indexer.horizon() as usize).max(1);
         let block_length = antecedent_data::circular_block_length(structural_span, windows);
-        // Design row of each intact window, by position on the original axis.
-        let mut row_of = vec![usize::MAX; windows];
-        let mut next = 0;
-        for (position, intact) in selection.complete.iter().enumerate() {
-            if *intact {
-                row_of[position] = next;
-                next += 1;
-            }
-        }
         let replicates = self.inner.bootstrap_replicates;
         let p = prep.design.ncols;
         let boot = (replicates > 0).then(|| {
-            crate::temporal_block::row_block_bootstrap_vec(
-                windows,
+            crate::temporal_block::gapped_row_block_bootstrap(
+                &selection.complete,
                 block_length,
                 replicates,
                 TEMPORAL_BLOCK_STREAM,
                 ctx,
-                |positions| {
-                    let row_src: Vec<usize> = positions
-                        .iter()
-                        .map(|&position| row_of[position])
-                        .filter(|&row| row != usize::MAX)
-                        .collect();
+                |row_src| {
                     if row_src.len() <= p {
                         return None;
                     }
@@ -771,7 +788,7 @@ impl TemporalLinearAdjustment {
                         .ate_on_row_indices_into(
                             prep,
                             &mut workspace,
-                            &row_src,
+                            row_src,
                             &mut x_boot,
                             &mut y_boot,
                         )
@@ -1002,6 +1019,37 @@ pub fn temporal_conditional_marginal_effect(
     policy: &antecedent_core::KernelPolicy,
     prior_scale: Option<f64>,
 ) -> Result<f64, EstimationError> {
+    temporal_conditional_marginal_effect_with_gaps(
+        data,
+        estimand,
+        query,
+        indexer,
+        policy,
+        prior_scale,
+        false,
+    )
+    .map(|(effect, _)| effect)
+}
+
+/// [`temporal_conditional_marginal_effect`] on a series that may have missing time points.
+///
+/// With `allow_gaps` the windows that read a missing value are dropped and the surviving
+/// windows keep their own times and lags (nothing is concatenated across a gap); without it a
+/// missing value refuses as before.
+///
+/// # Errors
+///
+/// As [`temporal_conditional_marginal_effect`]. Also returns, with `allow_gaps`, which windows
+/// were intact.
+pub fn temporal_conditional_marginal_effect_with_gaps(
+    data: &TimeSeriesData,
+    estimand: &IdentifiedEstimand,
+    query: &TemporalEffectQuery,
+    indexer: &TemporalIndexer,
+    policy: &antecedent_core::KernelPolicy,
+    prior_scale: Option<f64>,
+    allow_gaps: bool,
+) -> Result<(f64, Option<GapSelection>), EstimationError> {
     if query.effect_modifiers.len() != 1 {
         return Err(EstimationError::unsupported(
             "temporal conditional effect fits exactly one modifier",
@@ -1052,7 +1100,14 @@ pub fn temporal_conditional_marginal_effect(
         .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
         .map_err(EstimationError::from)?;
     let mut sample_ws = LaggedSampleWorkspace::default();
-    let prep = plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?;
+    let (prep, selection) = if allow_gaps {
+        let (prep, complete) = plan
+            .prepare_complete_windows(data, &mut sample_ws, policy)
+            .map_err(EstimationError::from)?;
+        (prep, Some(GapSelection { first_time: max_lag as usize, complete }))
+    } else {
+        (plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?, None)
+    };
     let n = prep.n;
     if n < 8 {
         return Err(EstimationError::data_msg(
@@ -1093,7 +1148,7 @@ pub fn temporal_conditional_marginal_effect(
         )?;
     }
     let w_bar = w.iter().sum::<f64>() / n as f64;
-    Ok((coef[1] + coef[3] * w_bar) * delta)
+    Ok(((coef[1] + coef[3] * w_bar) * delta, selection))
 }
 
 /// The outcome, treatments and their time offsets of a [`temporal_linear_slopes`] fit.

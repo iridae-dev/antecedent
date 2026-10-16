@@ -695,6 +695,42 @@ pub fn row_block_bootstrap_vec(
     RowBlockDraws { draws, attempted, cancelled, block_length, rows, kernel_bias: 1.0 }
 }
 
+/// Circular-block bootstrap over the original window axis of a series with gaps.
+///
+/// `complete[w]` says whether window `w` (position `w` on the original axis) is intact.
+/// Circular blocks of `block_length` positions are drawn over all `complete.len()` positions,
+/// so two windows share a block only when they are adjacent in time; a replicate keeps the
+/// intact windows its blocks cover, as indices into the intact windows in time order (the rows
+/// of a design built from them). A block never joins windows across a gap, and replicate
+/// sizes vary. The Bartlett kernel-bias inflation is not applied (it is defined for
+/// consecutive scores): the returned draws carry `kernel_bias = 1`.
+pub fn gapped_row_block_bootstrap(
+    complete: &[bool],
+    block_length: usize,
+    replicates: u32,
+    stream_base: u64,
+    ctx: &ExecutionContext,
+    mut estimate: impl FnMut(&[usize]) -> Option<Vec<f64>>,
+) -> RowBlockDraws {
+    let windows = complete.len();
+    let mut row_of = vec![usize::MAX; windows];
+    let mut next = 0;
+    for (position, intact) in complete.iter().enumerate() {
+        if *intact {
+            row_of[position] = next;
+            next += 1;
+        }
+    }
+    row_block_bootstrap_vec(windows, block_length, replicates, stream_base, ctx, |positions| {
+        let rows: Vec<usize> = positions
+            .iter()
+            .map(|&position| row_of[position])
+            .filter(|&row| row != usize::MAX)
+            .collect();
+        if rows.is_empty() { None } else { estimate(&rows) }
+    })
+}
+
 /// The replicate loop shared by every row-block bootstrap: circular blocks of
 /// `block_length` over `0..rows`, one RNG stream per replicate, and a replicate
 /// with any non-finite target dropped for every target.

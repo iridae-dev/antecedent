@@ -402,8 +402,9 @@ pub(super) fn fit_missing_outcomes(
 /// a non-responder), fitted within the unit's assignment group, and the design's own estimator
 /// and variance run on every assigned unit. Assignment, blocks, clusters and periods are
 /// untouched, and the design's variance (cluster totals, stratum weights, cell contrasts,
-/// sequence scores) is applied to the pseudo-outcomes; it ignores that the observation
-/// probabilities are estimated, which is conservative.
+/// sequence scores) is applied to the pseudo-outcomes, which carry the influence of the fitted
+/// observation model, so estimating the probabilities is accounted for (blocks and clusters
+/// are treated as independent of the shared coefficients).
 fn fit_design_with_missing_outcomes(
     query: &RandomizedEffectQuery,
     data: &TabularData,

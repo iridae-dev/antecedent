@@ -794,9 +794,11 @@ impl super::Study {
                 horizons: &clicks,
                 inference,
                 validation: self.refute,
+                missing: self.missing.as_ref(),
             },
             ctx,
         )?;
+        let missing_data = fit.missing_data.clone();
         let args = fit.finish_args(
             physical,
             query,
@@ -804,7 +806,9 @@ impl super::Study {
             self.graph.version(),
             elapsed_ns(started),
         );
-        Ok(self.finish_identified_execute(args))
+        let mut result = self.finish_identified_execute(args);
+        result.missing_data = missing_data;
+        Ok(result)
     }
 
     pub(super) fn execute_temporal_response(
