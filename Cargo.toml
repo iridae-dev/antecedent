@@ -105,7 +105,7 @@ antecedent-model = { version = "2.4.0", path = "crates/antecedent-model" }
 antecedent-prob = { version = "2.4.0", path = "crates/antecedent-prob" }
 antecedent-state = { version = "2.4.0", path = "crates/antecedent-state" }
 antecedent-stats = { version = "2.4.0", path = "crates/antecedent-stats" }
-antecedent-test-support = { version = "2.4.0", path = "crates/antecedent-test-support" }
+antecedent-test-support = { path = "crates/antecedent-test-support" }
 antecedent-validate = { version = "2.4.0", path = "crates/antecedent-validate" }
 
 [workspace.lints.rust]

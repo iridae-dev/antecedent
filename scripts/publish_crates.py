@@ -12,11 +12,15 @@ meta = json.loads(
         text=True,
     )
 )
-members = {
+workspace = {
     pkg["name"]: pkg
     for pkg in meta["packages"]
     if pkg["id"] in set(meta["workspace_members"])
-    and pkg["name"] != "antecedent-py"
+}
+members = {
+    name: pkg
+    for name, pkg in workspace.items()
+    if pkg["name"] != "antecedent-py"
     # `publish = false` crates (antecedent-test-support) are dev-only.
     and pkg.get("publish") != []
 }
@@ -24,7 +28,19 @@ deps = {name: set() for name in members}
 version_errors = []
 for name, pkg in members.items():
     for dep in pkg.get("dependencies", []):
-        if dep["name"] == name and dep.get("kind") == "dev":
+        private = (
+            dep["name"] in workspace and workspace[dep["name"]].get("publish") == []
+        )
+        if (
+            dep["name"] in workspace
+            and workspace[dep["name"]].get("publish") == []
+            and (dep.get("kind") != "dev" or dep["req"] != "*")
+        ):
+            version_errors.append(
+                f"{name}: unpublished dependency {dep['name']} must be a "
+                "path-only dev dependency without a version"
+            )
+        if (dep["name"] == name or private) and dep.get("kind") == "dev":
             # A versioned self dependency survives Cargo packaging and tries to
             # resolve this not-yet-published crate from the registry. A path-only
             # self dependency is omitted from the published dev dependencies.
@@ -36,16 +52,26 @@ for name, pkg in members.items():
                 target.get("dev-dependencies", {})
                 for target in manifest.get("target", {}).values()
             )
-            alias = dep.get("rename") or name
+            alias = dep.get("rename") or dep["name"]
+            specifications = [table.get(alias) for table in tables]
+            if any(
+                isinstance(spec, dict) and spec.get("workspace")
+                for spec in specifications
+            ):
+                root = Path(meta["workspace_root"]) / "Cargo.toml"
+                specifications.append(
+                    tomllib.loads(root.read_text(encoding="utf-8"))
+                    .get("workspace", {})
+                    .get("dependencies", {})
+                    .get(alias)
+                )
             versioned = any(
-                isinstance(table.get(alias), str)
-                or isinstance(table.get(alias), dict)
-                and "version" in table[alias]
-                for table in tables
+                isinstance(spec, str) or isinstance(spec, dict) and "version" in spec
+                for spec in specifications
             )
             if versioned or dep["req"] != "*":
                 version_errors.append(
-                    f"{name}: versioned self dev dependency must be path-only; "
+                    f"{name}: versioned {'unpublished' if private else 'self'} dev dependency must be path-only; "
                     "remove its version before packaging"
                 )
         if dep["name"] in members:

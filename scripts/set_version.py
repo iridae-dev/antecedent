@@ -245,10 +245,10 @@ def main(argv: list[str]) -> None:
     path_pat = re.compile(
         r'(antecedent(?:-[a-z0-9-]+)?\s*=\s*\{\s*version\s*=\s*")[^"]+(")'
     )
-    for path in sorted(root.glob("crates/*/Cargo.toml")) + [root / "python" / "Cargo.toml"]:
+    for path in [cargo] + sorted(root.glob("crates/*/Cargo.toml")) + [root / "python" / "Cargo.toml"]:
         if not path.is_file():
             continue
-        current = path.read_text(encoding="utf-8")
+        current = edits.get(path, path.read_text(encoding="utf-8"))
         updated, n = path_pat.subn(rf"\g<1>{version}\2", current)
         if n:
             edits[path] = updated
