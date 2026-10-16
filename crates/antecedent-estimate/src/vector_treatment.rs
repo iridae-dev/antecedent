@@ -514,11 +514,32 @@ fn full_covariance(
 ) -> Result<Vec<f64>, EstimationError> {
     let p = design.cols.len();
     let n = ols.residuals.len();
-    let df = count(n - p);
     if kind == VectorCovariance::ModelBased {
-        let sigma2 = dot(&ols.residuals, &ols.residuals) / df;
+        let sigma2 = dot(&ols.residuals, &ols.residuals) / count(n - p);
         return Ok(ols.ginv.iter().map(|v| sigma2 * v).collect());
     }
+    let meat = robust_meat(design, ols, kind)?;
+    Ok(sandwich(&ols.ginv, &meat, p))
+}
+
+/// `(X'X)^-1 M (X'X)^-1` for the meat `M` of a robust estimator.
+fn sandwich(ginv: &[f64], meat: &[f64], p: usize) -> Vec<f64> {
+    matmul(&matmul(ginv, meat, p), ginv, p)
+}
+
+/// The meat `sum_i w_i e_i^2 x_i x_i'` of the declared robust estimator, accumulated row by row.
+///
+/// One pass after `(X'X)^-1`: HC2 and HC3 take each leverage `h_i = x_i' (X'X)^-1 x_i` from the
+/// same row they weight. HC1 folds its `n / (n - p)` scale into the weights, so the matrix is
+/// the whole of what the sandwich needs and a replay needs no row.
+fn robust_meat(
+    design: &Design,
+    ols: &Ols,
+    kind: VectorCovariance,
+) -> Result<Vec<f64>, EstimationError> {
+    let p = design.cols.len();
+    let n = ols.residuals.len();
+    let df = count(n - p);
     let mut meat = vec![0.0; p * p];
     for (r, e) in ols.residuals.iter().enumerate() {
         let x = row_of(design, r);
@@ -548,7 +569,7 @@ fn full_covariance(
             }
         }
     }
-    Ok(matmul(&matmul(&ols.ginv, &meat, p), &ols.ginv, p))
+    Ok(meat)
 }
 
 /// `x' V^-1 x` from the Cholesky factor of `V`.
@@ -819,8 +840,8 @@ fn assemble(
 ///
 /// The design is `[intercept, adjustment columns..., treatment columns...]`; `gram` is the
 /// row-major `p x p` matrix `X'X`, `xty` is `X'y`, and `rss` the residual sum of squares of the
-/// producer's fit. A heteroskedasticity-robust covariance needs the rows themselves and has no
-/// summary replay.
+/// producer's fit. A heteroskedasticity-robust covariance additionally needs the meat of its
+/// sandwich, which [`RobustDesignSummary`] carries.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DesignSummary {
     /// Rows `n` of the snapshot.
@@ -876,6 +897,67 @@ pub fn summarize_vector_design(
     input: &VectorTreatmentInput,
 ) -> Result<DesignSummary, EstimationError> {
     summarize_joint(input, 2)
+}
+
+/// Sufficient statistics of a heteroskedasticity-robust joint fit: the [`DesignSummary`] and the
+/// meat `sum_i w_i e_i^2 x_i x_i'` of the declared estimator (`w_i` is `1` for HC0, `n / (n - p)`
+/// for HC1, `1 / (1 - h_i)` for HC2 and `1 / (1 - h_i)^2` for HC3).
+///
+/// `X'X`, `X'y`, the residual sum of squares and the meat are all a replay needs: the
+/// coefficients are `(X'X)^-1 X'y` and the covariance is `(X'X)^-1 meat (X'X)^-1`, so a robust
+/// fit replays without a row, bit for bit. The meat belongs to one estimator; it is not
+/// interchangeable between HC kinds.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RobustDesignSummary {
+    /// The model-based sufficient statistics of the same design.
+    pub design: DesignSummary,
+    /// Row-major `p x p` meat of the declared robust estimator.
+    pub meat: Vec<f64>,
+}
+
+/// Validate and fit once, then keep the sufficient statistics and the sandwich meat of the
+/// robust estimator `kind` (shared with the categorical route).
+pub(crate) fn summarize_joint_robust(
+    input: &VectorTreatmentInput,
+    min_treatments: usize,
+    kind: VectorCovariance,
+) -> Result<RobustDesignSummary, EstimationError> {
+    if kind == VectorCovariance::ModelBased {
+        return Err(refuse(
+            reason_code!("invalid_argument"),
+            "vector_treatment.summary_inconsistent",
+            "a robust summary needs a heteroskedasticity-robust covariance kind",
+        ));
+    }
+    validate_input(input, min_treatments)?;
+    let design = build_design(input);
+    check_design(&design, input)?;
+    let ols = fit_ols(&design, &input.outcome)?;
+    let meat = robust_meat(&design, &ols, kind)?;
+    Ok(RobustDesignSummary {
+        design: DesignSummary {
+            n_rows: input.outcome.len(),
+            first_treatment: design.first_treatment,
+            gram: gram_of(&design),
+            xty: design.cols.iter().map(|col| dot(col, &input.outcome)).collect(),
+            rss: dot(&ols.residuals, &ols.residuals),
+        },
+        meat,
+    })
+}
+
+/// Sufficient statistics of the robust joint fit of `input` under `covariance`.
+///
+/// # Errors
+///
+/// The refusals of [`fit_vector_treatment`] for the input, its design and the leverages
+/// (`vector_treatment.leverage_one` for HC2/HC3), and `vector_treatment.summary_inconsistent`
+/// for the model-based kind, which has [`summarize_vector_design`].
+pub fn summarize_vector_design_robust(
+    input: &VectorTreatmentInput,
+    covariance: VectorCovariance,
+) -> Result<RobustDesignSummary, EstimationError> {
+    summarize_joint_robust(input, 2, covariance)
 }
 
 /// Posterior mean of the treatment coefficients under independent normal priors
@@ -976,16 +1058,61 @@ pub(crate) fn fit_joint_from_summary(
     options: &VectorTreatmentOptions,
     min_treatments: usize,
 ) -> Result<VectorTreatmentFit, EstimationError> {
-    let invalid = reason_code!("invalid_argument");
-    let inconsistent =
-        |message: &str| refuse(invalid, "vector_treatment.summary_inconsistent", message);
     if options.covariance != VectorCovariance::ModelBased {
         return Err(refuse(
             reason_code!("route_not_supported"),
             "vector_treatment.summary_model_based_only",
-            "a robust covariance needs the rows; a summary replays the model-based covariance only",
+            "a robust covariance needs its meat; a plain summary replays the model-based \
+             covariance only",
         ));
     }
+    fit_joint_from_statistics(summary, None, names, options, min_treatments)
+}
+
+/// Joint fit of the robust estimator `options.covariance` from sufficient statistics and the
+/// sandwich meat, bit-identical to the fit of the rows the summary came from.
+///
+/// # Errors
+///
+/// `invalid_argument` with `vector_treatment.summary_inconsistent` for a model-based kind or a
+/// malformed summary, plus the refusals of [`fit_vector_treatment`] that do not need the rows.
+pub fn fit_vector_treatment_from_robust_summary(
+    summary: &RobustDesignSummary,
+    names: &[String],
+    options: &VectorTreatmentOptions,
+) -> Result<VectorTreatmentFit, EstimationError> {
+    fit_joint_from_robust_summary(summary, names, options, 2)
+}
+
+pub(crate) fn fit_joint_from_robust_summary(
+    summary: &RobustDesignSummary,
+    names: &[String],
+    options: &VectorTreatmentOptions,
+    min_treatments: usize,
+) -> Result<VectorTreatmentFit, EstimationError> {
+    if options.covariance == VectorCovariance::ModelBased {
+        return Err(refuse(
+            reason_code!("invalid_argument"),
+            "vector_treatment.summary_inconsistent",
+            "a robust summary replays a heteroskedasticity-robust covariance, not the \
+             model-based one",
+        ));
+    }
+    fit_joint_from_statistics(&summary.design, Some(&summary.meat), names, options, min_treatments)
+}
+
+/// The one solve behind every summary replay: the model-based covariance when `meat` is absent,
+/// the sandwich of `meat` otherwise.
+fn fit_joint_from_statistics(
+    summary: &DesignSummary,
+    meat: Option<&[f64]>,
+    names: &[String],
+    options: &VectorTreatmentOptions,
+    min_treatments: usize,
+) -> Result<VectorTreatmentFit, EstimationError> {
+    let invalid = reason_code!("invalid_argument");
+    let inconsistent =
+        |message: &str| refuse(invalid, "vector_treatment.summary_inconsistent", message);
     let k = names.len();
     if k < min_treatments {
         return Err(refuse(
@@ -1022,7 +1149,15 @@ pub(crate) fn fit_joint_from_summary(
             "the joint fit needs more rows than coefficients",
         ));
     }
-    let finite = summary.gram.iter().chain(&summary.xty).all(|v| v.is_finite())
+    if meat.is_some_and(|meat| meat.len() != p * p) {
+        return Err(inconsistent("the meat matrix does not match the declared columns"));
+    }
+    let finite = summary
+        .gram
+        .iter()
+        .chain(&summary.xty)
+        .chain(meat.unwrap_or_default())
+        .all(|v| v.is_finite())
         && summary.rss.is_finite()
         && summary.rss >= 0.0;
     if !finite {
@@ -1041,7 +1176,10 @@ pub(crate) fn fit_joint_from_summary(
     };
     let beta: Vec<f64> = (0..p).map(|i| dot(&ginv[i * p..(i + 1) * p], &summary.xty)).collect();
     let sigma2 = summary.rss / count(n - p);
-    let full: Vec<f64> = ginv.iter().map(|v| sigma2 * v).collect();
+    let full: Vec<f64> = match meat {
+        Some(meat) => sandwich(&ginv, meat, p),
+        None => ginv.iter().map(|v| sigma2 * v).collect(),
+    };
     if beta.iter().chain(&full).any(|v| !v.is_finite()) {
         return Err(refuse(
             invalid,

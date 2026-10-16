@@ -211,10 +211,10 @@ def test_vector_artifact_round_trip_recomputes_everything() -> None:
     assert mapped.identity == result.identity
 
 
-def test_vector_robust_covariance_embeds_the_rows_and_replays() -> None:
+def test_vector_robust_covariance_embeds_a_summary_and_replays() -> None:
     model = fit()
     robust = fit(covariance="hc1")
-    assert robust.replay == "rows"
+    assert robust.replay == "robust_summary"
     assert robust.covariance_kind == "hc1"
     assert not np.allclose(robust.covariance, model.covariance)
     assert robust.estimates == pytest.approx(model.estimates, abs=1e-12)
@@ -222,18 +222,48 @@ def test_vector_robust_covariance_embeds_the_rows_and_replays() -> None:
     assert np.array_equal(again.covariance, robust.covariance)
 
 
-def test_vector_robust_replay_above_the_row_cap_is_refused() -> None:
-    n = 4097
-    index = np.arange(n)
-    columns = {"t1": (index % 7).astype(float), "t2": ((index + 3) % 7).astype(float)}
-    outcome = ((index + 2) % 7).astype(float)
+def sandwich(x: np.ndarray, y: np.ndarray, kind: str) -> np.ndarray:
+    """Independent HC0-HC3 covariance of the full coefficient vector."""
+    n, p = x.shape
+    ginv = np.linalg.inv(x.T @ x)
+    e = y - x @ (ginv @ (x.T @ y))
+    h = np.einsum("ij,jk,ik->i", x, ginv, x)
+    weight = {
+        "hc0": np.ones(n),
+        "hc1": np.full(n, n / (n - p)),
+        "hc2": 1.0 / (1.0 - h),
+        "hc3": 1.0 / (1.0 - h) ** 2,
+    }[kind]
+    return ginv @ (x.T * (weight * e * e)) @ x @ ginv
+
+
+@pytest.mark.parametrize("kind", ["hc0", "hc1", "hc2", "hc3"])
+def test_vector_robust_fit_has_no_row_ceiling_and_matches_an_independent_sandwich(kind) -> None:
+    n = 30_000
+    rng = np.random.default_rng(5)
+    t1 = rng.normal(size=n)
+    t2 = 0.5 * t1 + rng.normal(size=n)
+    outcome = 1.0 + 2.0 * t1 - t2 + (0.5 + t1**2) * rng.normal(size=n)
+    result = joint_effects(outcome, {"t1": t1, "t2": t2}, covariance=kind)
+    assert result.n_rows == n
+    assert result.replay == "robust_summary"
+    design = np.column_stack([np.ones(n), t1, t2])
+    expected = sandwich(design, outcome, kind)[1:, 1:]
+    assert result.covariance == pytest.approx(expected, rel=1e-8, abs=1e-14)
+    # The artifact is a summary of fixed size, and a fresh consumer replays it bit for bit.
+    assert len(result.export()) < 64 * 1024
+    again = consume_joint_effects(result.export(), expected_identity=result.identity)
+    assert np.array_equal(again.covariance, result.covariance)
+
+
+def test_vector_consume_respects_the_memory_limit() -> None:
+    result = fit(covariance="hc1")
+    assert consume_joint_effects(result.export(), memory_limit_bytes=10_000_000).identity == (
+        result.identity
+    )
     with pytest.raises(VectorTreatmentRefusal) as refused:
-        joint_effects(outcome, columns, covariance="hc0")
-    assert refused.value.reason_code == "route_not_supported"
-    assert refused.value.detail == "vector_treatment.hc_replay_row_cap_exceeded"
-    assert_registered_refusal(refused.value)
-    # The model-based covariance replays from a summary and has no row cap.
-    assert joint_effects(outcome, columns).replay == "summary"
+        consume_joint_effects(result.export(), memory_limit_bytes=1)
+    assert refused.value.detail == "vector_treatment.memory_budget_exceeded"
 
 
 def test_vector_resealed_change_is_refused_against_the_retained_identity() -> None:

@@ -5648,7 +5648,10 @@ def evaluate_vector_treatment(
     artifact_id: str,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_vector_treatment_artifact(
-    artifact: bytes, expected_identity_json: str | None = None
+    artifact: bytes,
+    expected_identity_json: str | None = None,
+    *,
+    memory_limit_bytes: int | None = None,
 ) -> tuple[str | None, str | None]: ...
 def evaluate_categorical_treatment(
     outcome: NDArray[np.float64] | list[float],
@@ -5658,7 +5661,10 @@ def evaluate_categorical_treatment(
     artifact_id: str,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_categorical_treatment_artifact(
-    artifact: bytes, expected_identity_json: str | None = None
+    artifact: bytes,
+    expected_identity_json: str | None = None,
+    *,
+    memory_limit_bytes: int | None = None,
 ) -> tuple[str | None, str | None]: ...
 def build_compact_export(
     spec_json: str, artifact_id: str
@@ -5738,9 +5744,22 @@ def evaluate_nonlinear_mediation(
     premises_json: str,
     config_json: str,
     artifact_id: str,
+    *,
+    digest_bound: bool = False,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_nonlinear_mediation_artifact(
-    artifact: bytes, expected_identity_json: str | None = None
+    artifact: bytes,
+    expected_identity_json: str | None = None,
+    *,
+    memory_limit_bytes: int | None = None,
+    data: tuple[
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        list[str],
+        list[NDArray[np.float64]],
+    ]
+    | None = None,
 ) -> tuple[str | None, str | None]: ...
 def evaluate_latent_class_effects(
     outcome: NDArray[np.float64],
@@ -5749,9 +5768,16 @@ def evaluate_latent_class_effects(
     covariate_names: list[str],
     config_json: str,
     artifact_id: str,
+    *,
+    digest_bound: bool = False,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_latent_class_artifact(
-    artifact: bytes, expected_identity_json: str | None = None
+    artifact: bytes,
+    expected_identity_json: str | None = None,
+    *,
+    memory_limit_bytes: int | None = None,
+    data: tuple[NDArray[np.float64], NDArray[np.float64], list[str], list[NDArray[np.float64]]]
+    | None = None,
 ) -> tuple[str | None, str | None]: ...
 def evaluate_temporal_counterfactual(
     request_json: str, artifact_id: str, *, seed: int = 0

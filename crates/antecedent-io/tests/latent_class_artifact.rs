@@ -1,7 +1,8 @@
 //! Latent-class artifact: the hand-derived two-class fixed point of the core tests through
 //! the container, a refitting consumer that checks the canonical output bit for bit, label
 //! handling, resealed-mutation refusals against a retained identity, the premise records, unknown
-//! versions, the row cap and the unmeasured calibration coordinate.
+//! versions, the computation, export and replay budgets of a fit with no row ceiling, and the
+//! unmeasured calibration coordinate.
 //!
 //! Oracle (identical to `antecedent-estimate/tests/latent_class_effects.rs`): class `P` (24
 //! rows, `a in {0, 1}`, `x in {-1, 0, 1}`, `y = a + 0.5 x + e`) and class `Q` (16 rows,
@@ -9,10 +10,10 @@
 //! `{+0.5, -0.5, +0.25, -0.25}`. So `pi = (0.6, 0.4)`, `tau = (1, -2)`, the canonical (ascending
 //! `tau`) order is `Q, P`, and the mixture-average effect is `-0.2`.
 
+use antecedent_core::{ExecutionContext, MemoryBudget};
 use antecedent_io::latent_class_artifact::{
-    LATENT_CLASS_ARTIFACT_MAX_ROWS, LATENT_CLASS_ARTIFACT_VERSION, LatentClassArtifact,
-    LatentClassArtifactError, LatentClassConfigWire, LatentClassDataWire, LatentClassRequestWire,
-    decode_parts, encode_parts,
+    LATENT_CLASS_ARTIFACT_VERSION, LatentClassArtifact, LatentClassArtifactError,
+    LatentClassConfigWire, LatentClassDataWire, LatentClassRequestWire, decode_parts, encode_parts,
 };
 
 const NOISE: [f64; 4] = [0.5, -0.5, 0.25, -0.25];
@@ -301,25 +302,131 @@ fn latent_artifact_refuses_unknown_versions_features_and_corruption() {
 }
 
 #[test]
-fn latent_artifact_caps_embedded_rows_and_replicates() {
-    let rows = LATENT_CLASS_ARTIFACT_MAX_ROWS + 1;
-    let big = LatentClassRequestWire {
-        config: config(1, 0),
-        data: LatentClassDataWire {
-            outcome: vec![0.0; rows],
-            treatment: vec![0.0; rows],
-            covariate_names: vec![],
-            covariates: vec![],
-        },
-    };
-    assert!(matches!(
-        LatentClassArtifact::seal(&big),
-        Err(LatentClassArtifactError::LimitsExceeded("rows"))
-    ));
+fn latent_artifact_caps_bootstrap_replicates() {
     let mut replicates = request(1, 0);
     replicates.config.bootstrap_replicates = 1_000_000;
     assert!(matches!(
         LatentClassArtifact::seal(&replicates),
         Err(LatentClassArtifactError::LimitsExceeded("bootstrap replicates"))
     ));
+}
+
+/// The 40-row oracle dataset repeated `copies` times. Repetition scales every sufficient
+/// statistic alike, so the fixed point (`pi = (0.6, 0.4)`, `tau = (1, -2)`) is unchanged.
+fn scaled_request(copies: usize) -> LatentClassRequestWire {
+    let base = build().data;
+    let repeat = |column: &[f64]| -> Vec<f64> {
+        column.iter().copied().cycle().take(column.len() * copies).collect()
+    };
+    LatentClassRequestWire {
+        config: config(7, 0),
+        data: LatentClassDataWire {
+            outcome: repeat(&base.outcome),
+            treatment: repeat(&base.treatment),
+            covariate_names: base.covariate_names.clone(),
+            covariates: base.covariates.iter().map(|c| repeat(c)).collect(),
+        },
+    }
+}
+
+fn assert_fixed_point(artifact: &LatentClassArtifact, rows: u64) {
+    let meta = artifact.meta();
+    assert_eq!(meta.n_rows, rows);
+    assert_eq!(meta.responsibilities.rows, rows);
+    close(meta.classes[0].effect, -2.0, 1e-6, "tau q");
+    close(meta.classes[0].weight, 0.4, 1e-9, "pi q");
+    close(meta.classes[1].effect, 1.0, 1e-6, "tau p");
+    close(meta.classes[1].weight, 0.6, 1e-9, "pi p");
+    close(meta.mixture_average_effect, -0.2, 1e-6, "mixture average");
+}
+
+fn context_with_memory(hard_limit_bytes: u64) -> ExecutionContext {
+    let mut ctx = ExecutionContext::production(0, 1);
+    ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(hard_limit_bytes) };
+    ctx
+}
+
+/// Fit, export under a budget, bind by digest and replay a fit of `copies * 40` rows.
+fn exercise_budgets(copies: usize) {
+    let request = scaled_request(copies);
+    let rows = u64::try_from(40 * copies).unwrap();
+    let artifact = LatentClassArtifact::seal(&request).unwrap();
+    assert_fixed_point(&artifact, rows);
+
+    // Export: the dataset is embedded only inside the budget, and a refusal names the bytes.
+    let embedded = artifact.to_bytes("scaled").unwrap();
+    assert_eq!(artifact.to_bytes_within("scaled", embedded.len()).unwrap(), embedded);
+    let error = artifact.to_bytes_within("scaled", embedded.len() - 1).unwrap_err();
+    let (code, detail, text) = error.refusal().expect("a registered refusal");
+    assert_eq!(
+        (code, detail.as_str()),
+        ("route_not_supported", "latent_class.export_budget_exceeded")
+    );
+    assert!(text.contains(&format!("{} bytes", embedded.len())), "{text}");
+    let error = artifact.to_bytes_within("scaled", 1_000).unwrap_err();
+    assert_eq!(refusal(&error).1, "latent_class.export_budget_exceeded");
+    // The refusal costs the caller nothing: the fit is still complete in memory.
+    assert_eq!(artifact.report().responsibilities.len(), request.data.outcome.len());
+    assert_fixed_point(&artifact, rows);
+
+    // Replay: the digest-bound record carries no rows and needs the dataset it is bound to.
+    let bound = artifact.to_bytes_digest_bound("bound").unwrap();
+    assert!(decode_parts(&bound).unwrap().1.is_empty());
+    assert!(!decode_parts(&embedded).unwrap().1.is_empty());
+    let ctx = ExecutionContext::production(0, 1);
+    let identity = artifact.identity();
+    let error =
+        LatentClassArtifact::from_bytes_with(&bound, Some(identity), None, &ctx).unwrap_err();
+    assert_eq!(refusal(&error), ("route_not_supported", "latent_class.data_required".into()));
+    let replay =
+        LatentClassArtifact::from_bytes_with(&bound, Some(identity), Some(&request.data), &ctx)
+            .unwrap();
+    assert_eq!(replay.meta(), artifact.meta());
+    let mut other = request.data.clone();
+    other.outcome[0] += 1.0;
+    assert!(matches!(
+        LatentClassArtifact::from_bytes_with(&bound, None, Some(&other), &ctx),
+        Err(LatentClassArtifactError::IdentityMismatch { field: "data" })
+    ));
+    // An artifact that embeds its dataset takes none, and replays on its own.
+    assert!(matches!(
+        LatentClassArtifact::from_bytes_with(&embedded, None, Some(&request.data), &ctx),
+        Err(LatentClassArtifactError::UnsupportedSemantics(_))
+    ));
+    let replay = LatentClassArtifact::from_bytes(&embedded, Some(identity)).unwrap();
+    assert_eq!(replay.meta(), artifact.meta());
+}
+
+#[test]
+fn latent_fit_has_no_row_ceiling_and_export_and_replay_are_budgeted() {
+    // 30,000 rows: three times the former embedded-row ceiling.
+    exercise_budgets(750);
+}
+
+#[test]
+#[ignore = "fits 100,000 rows; run with --ignored"]
+fn latent_fit_runs_at_one_hundred_thousand_rows() {
+    exercise_budgets(2_500);
+}
+
+#[test]
+fn latent_computation_budget_refuses_before_work_and_honours_cancellation() {
+    let request = request(1, 0);
+    // 40 rows need about 6 kB of working set.
+    let error = LatentClassArtifact::seal_with(&request, &context_with_memory(1_000)).unwrap_err();
+    assert_eq!(
+        refusal(&error),
+        ("route_not_supported", "latent_class.memory_budget_exceeded".into())
+    );
+    assert!(LatentClassArtifact::seal_with(&request, &context_with_memory(1_000_000)).is_ok());
+    let bytes = seal(1, 0).1;
+    let error =
+        LatentClassArtifact::from_bytes_with(&bytes, None, None, &context_with_memory(1_000))
+            .unwrap_err();
+    assert_eq!(refusal(&error).1, "latent_class.memory_budget_exceeded");
+
+    let cancelled = ExecutionContext::production(0, 1);
+    cancelled.cancellation.cancel();
+    let error = LatentClassArtifact::seal_with(&request, &cancelled).unwrap_err();
+    assert_eq!(refusal(&error), ("cancelled_no_claim", "latent_class.cancelled".into()));
 }

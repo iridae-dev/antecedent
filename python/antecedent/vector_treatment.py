@@ -36,9 +36,10 @@ What the answer is **not**:
 
 Every coefficient, covariance entry, contrast, Holm value, identity digest, refusal rule and the
 artifact is computed in Rust; this module builds the declaration and presents the result. The
-exported artifact embeds a compact design (``X'X``, ``X'y`` and the residual sum of squares for
-the model-based covariance; the rows, capped, for a heteroskedasticity-robust covariance) from
-which the consumer recomputes everything bit for bit. Pass the :attr:`JointEffects.identity` you
+exported artifact embeds a compact design (``X'X``, ``X'y`` and the residual sum of squares, and
+for a heteroskedasticity-robust covariance also the meat of its sandwich) from which the consumer
+recomputes everything bit for bit; the fit has no row ceiling and the artifact does not grow
+with the rows. Pass the :attr:`JointEffects.identity` you
 retained out-of-band as ``expected_identity=`` to refuse a *resealed* change.
 """
 
@@ -236,8 +237,8 @@ class JointEffects:
 
     ``covariance`` is the read-only ``k x k`` matrix in the order of :attr:`names`.
     ``calibration`` is ``"unmeasured"`` and ``inference_claim`` names the asymptotic Wald basis;
-    read :attr:`caveats`. ``replay`` is ``"summary"`` (model-based covariance) or ``"rows"``
-    (robust covariance) and states what the artifact embeds.
+    read :attr:`caveats`. ``replay`` is ``"summary"`` (model-based covariance) or
+    ``"robust_summary"`` (robust covariance) and states what the artifact embeds.
     """
 
     null: str
@@ -257,10 +258,20 @@ class JointEffects:
     calibration: str
     inference_claim: str
     identity: VectorTreatmentIdentity
-    artifact: bytes = field(repr=False)
+    #: ``None`` when the artifact would exceed its export byte budget; the fit above stands.
+    artifact: bytes | None = field(repr=False)
+    _export_refusal: str | None = field(default=None, repr=False)
 
     def export(self) -> bytes:
-        """The checksummed ``vector_treatment_v1`` artifact."""
+        """The checksummed ``vector_treatment_v1`` artifact.
+
+        Raises :class:`VectorTreatmentRefusal` (``route_not_supported``,
+        ``vector_treatment.export_budget_exceeded``) when the artifact would not fit the export
+        byte budget; the fit itself is unaffected.
+        """
+        if self.artifact is None:
+            assert self._export_refusal is not None
+            raise VectorTreatmentRefusal(json.loads(self._export_refusal))
         return self.artifact
 
     @property
@@ -338,7 +349,9 @@ class JointEffects:
         }
 
 
-def _result(report_json: str, artifact: bytes) -> JointEffects:
+def _result(
+    report_json: str, artifact: bytes | None, export_refusal: str | None = None
+) -> JointEffects:
     report = json.loads(report_json)
     result = report["result"]
     names = tuple(report["treatments"])
@@ -389,6 +402,7 @@ def _result(report_json: str, artifact: bytes) -> JointEffects:
         inference_claim=report["inference_claim"],
         identity=VectorTreatmentIdentity(**report["identity"]),
         artifact=artifact,
+        _export_refusal=export_refusal,
     )
 
 
@@ -419,10 +433,9 @@ def joint_effects(
     declares linear contrasts of the named coefficients; their standard errors use the full
     covariance and their p-values get a Holm adjustment across the declared family.
     ``covariance`` is ``"model_based"`` (``sigma^2 (X'X)^-1``) or the robust sandwich ``"hc0"``,
-    ``"hc1"``, ``"hc2"`` or ``"hc3"``; a robust covariance embeds the rows in the artifact and
-    refuses above a row cap (``vector_treatment.hc_replay_row_cap_exceeded``). ``snapshot``
-    names the row snapshot all columns come from; omitted, it is a content digest of the
-    columns.
+    ``"hc1"``, ``"hc2"`` or ``"hc3"``; a robust covariance embeds the meat of its sandwich beside
+    ``X'X`` (no rows), so it has no row ceiling and replays bit for bit. ``snapshot`` names the
+    row snapshot all columns come from; omitted, it is a content digest of the columns.
 
     Raises :class:`VectorTreatmentRefusal` (a
     :class:`~antecedent.errors.CausalUnsupportedError`) for treatments that do not share the
@@ -477,6 +490,8 @@ def joint_effects(
         json.dumps(declaration, allow_nan=False),
         _name(artifact_id, "artifact_id"),
     )
+    if report is not None and artifact is None and refusal is not None:
+        return _result(report, None, refusal)  # the export was refused; the fit stands
     if refusal is not None:
         raise VectorTreatmentRefusal(json.loads(refusal))
     if report is None or artifact is None:  # pragma: no cover - the native contract
@@ -488,6 +503,7 @@ def consume_joint_effects(
     artifact: bytes,
     *,
     expected_identity: VectorTreatmentIdentity | Mapping[str, str] | None = None,
+    memory_limit_bytes: int | None = None,
 ) -> JointEffects:
     """Recompute an exported joint-fit artifact and accept only an identical one.
 
@@ -499,6 +515,8 @@ def consume_joint_effects(
     (:class:`VectorTreatmentRefusal`, ``route_not_supported``,
     ``vector_treatment.wrong_contract``). Corruption and unknown major versions raise
     :class:`~antecedent.errors.CausalSerializationError`.
+
+    ``memory_limit_bytes`` bounds the replay's planned working set (``*.memory_budget_exceeded``).
     """
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
@@ -511,7 +529,7 @@ def consume_joint_effects(
     else:
         raise CausalTypeError("expected_identity must be a VectorTreatmentIdentity or a mapping")
     data = bytes(artifact)
-    report, refusal = _consume(data, expected_json)
+    report, refusal = _consume(data, expected_json, memory_limit_bytes=memory_limit_bytes)
     if refusal is not None:
         raise VectorTreatmentRefusal(json.loads(refusal))
     if report is None:  # pragma: no cover - the native contract

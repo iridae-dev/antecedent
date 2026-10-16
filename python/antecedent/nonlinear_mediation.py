@@ -43,10 +43,10 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
@@ -261,7 +261,9 @@ class MediationEffects(ScientificResult):
     inference_claim: str
     caveats: tuple[str, ...]
     identity: MediationIdentity
-    _artifact_bytes: bytes
+    #: ``None`` when the artifact would exceed its export byte budget; the estimate above stands.
+    _artifact_bytes: bytes | None
+    _export_refusal: str | None = field(default=None, repr=False)
 
     def artifact(self) -> ExportedArtifact[MediationEffects]:
         """Typed bytes envelope for shared scientific consumption."""
@@ -270,7 +272,15 @@ class MediationEffects(ScientificResult):
         return exported_artifact(self)
 
     def export(self) -> bytes:
-        """The checksummed ``nonlinear_mediation_v1`` artifact."""
+        """The checksummed ``nonlinear_mediation_v1`` artifact.
+
+        Raises :class:`MediationRefusal` (``route_not_supported``,
+        ``nonlinear_mediation.export_budget_exceeded``) when the embedded dataset would not fit
+        the export byte budget; the estimate itself is unaffected.
+        """
+        if self._artifact_bytes is None:
+            raise_refusal(self._export_refusal, MediationRefusal)
+        assert self._artifact_bytes is not None
         return self._artifact_bytes
 
     def to_dict(self) -> dict[str, Any]:
@@ -313,7 +323,9 @@ class MediationEffects(ScientificResult):
         }
 
 
-def _result(report_json: str, artifact: bytes) -> MediationEffects:
+def _result(
+    report_json: str, artifact: bytes | None, export_refusal: str | None = None
+) -> MediationEffects:
     meta = json.loads(report_json)
     r = meta["result"]
     overlap = r["overlap"]
@@ -371,6 +383,7 @@ def _result(report_json: str, artifact: bytes) -> MediationEffects:
         caveats=tuple(meta["caveats"]),
         identity=MediationIdentity(**meta["identity"]),
         _artifact_bytes=artifact,
+        _export_refusal=export_refusal,
     )
 
 
@@ -447,6 +460,7 @@ def mediation_effects(
     max_support_violation: float = 0.25,
     bootstrap_replicates: int = 200,
     seed: int = DEFAULT_SEED,
+    data_binding: Literal["embedded", "digest"] = "embedded",
 ) -> MediationEffects:
     """Estimate the natural direct, indirect and total effects through a continuous mediator.
 
@@ -460,10 +474,13 @@ def mediation_effects(
     deviation, ``min_arm_count`` the fewest rows per arm and ``max_support_violation`` the
     largest accepted share of the cross-world mediator law outside the treated arm's observed
     mediator range. ``bootstrap_replicates`` and ``seed`` fix the bootstrap (``0`` reports no
-    standard errors).
+    standard errors). ``data_binding="digest"`` exports a record that holds no rows, bound to the
+    dataset by its digest; :func:`consume_mediation_artifact` then needs the dataset passed back.
 
-    The artifact embeds the dataset (at most 20000 rows, 64 covariates, 2000 bootstrap
-    replicates).
+    The estimator has no row ceiling. The artifact embeds the dataset (at most 64 covariates,
+    2000 bootstrap replicates) when it fits the 16 MiB export budget; above it the estimate is
+    returned with no artifact and :meth:`MediationEffects.export` raises :class:`MediationRefusal`
+    (``nonlinear_mediation.export_budget_exceeded``).
 
     Raises :class:`MediationRefusal` (a :class:`~antecedent.errors.CausalUnsupportedError`) for
     declared confounding (``effect_not_identified``, ``nonlinear_mediation.confounding``), a
@@ -510,7 +527,10 @@ def mediation_effects(
         json.dumps(premises._wire(), allow_nan=False),
         json.dumps(config, allow_nan=False),
         "nonlinear_mediation",
+        digest_bound=data_binding == "digest",
     )
+    if report is not None and artifact is None and refusal is not None:
+        return _result(report, None, refusal)  # the export was refused; the estimate stands
     raise_refusal(refusal, MediationRefusal)
     if report is None or artifact is None:  # pragma: no cover - the native contract
         raise CausalValueError(
@@ -523,6 +543,11 @@ def consume_mediation_artifact(
     artifact: bytes,
     *,
     expected_identity: MediationIdentity | Mapping[str, str] | None = None,
+    memory_limit_bytes: int | None = None,
+    treatment: Any = None,
+    mediator: Any = None,
+    outcome: Any = None,
+    covariates: Any = None,
 ) -> MediationEffects:
     """Re-estimate an exported mediation artifact and accept only an identical one.
 
@@ -533,6 +558,13 @@ def consume_mediation_artifact(
     (:class:`MediationRefusal`, ``route_not_supported``, ``nonlinear_mediation.wrong_contract``).
     Corruption and unknown major versions raise
     :class:`~antecedent.errors.CausalSerializationError`.
+
+    ``memory_limit_bytes`` bounds the re-estimation's planned working set
+    (``nonlinear_mediation.memory_budget_exceeded``). An artifact exported with
+    ``data_binding="digest"`` holds no rows: pass ``treatment``, ``mediator``, ``outcome`` and
+    ``covariates`` (the dataset it was estimated on); any other dataset is refused
+    (``IdentityMismatch``, ``data``) and omitting it refuses with
+    ``nonlinear_mediation.data_required``.
     """
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
@@ -545,7 +577,29 @@ def consume_mediation_artifact(
     else:
         raise CausalTypeError("expected_identity must be a MediationIdentity or a mapping")
     data = bytes(artifact)
-    report, refusal = _consume(data, expected_json)
+    given = [treatment, mediator, outcome]
+    supplied = None
+    if any(v is not None for v in given):
+        if any(v is None for v in given):
+            raise CausalValueError(
+                "treatment, mediator and outcome must be supplied together",
+                reason_code="invalid_argument",
+            )
+        names, columns = _covariate_columns(covariates)
+        supplied = (
+            _column(treatment, "treatment"),
+            _column(mediator, "mediator"),
+            _column(outcome, "outcome"),
+            names,
+            columns,
+        )
+    elif covariates is not None:
+        raise CausalValueError(
+            "covariates need treatment, mediator and outcome", reason_code="invalid_argument"
+        )
+    report, refusal = _consume(
+        data, expected_json, memory_limit_bytes=memory_limit_bytes, data=supplied
+    )
     raise_refusal(refusal, MediationRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")

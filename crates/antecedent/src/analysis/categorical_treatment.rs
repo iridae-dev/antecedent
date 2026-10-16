@@ -12,6 +12,12 @@
 //! **unmeasured**. The monotonicity p-value is a conservative union-intersection bound whose
 //! rejection is evidence against monotonicity; failing to reject does not prove it.
 //!
+//! The fit has no row ceiling, and every covariance kind (HC0 to HC3 included) exports a
+//! summary of fixed size bound to the rows by a digest. [`CategoricalTreatment::evaluate_with`]
+//! and [`CategoricalTreatment::consume_with`] run under an [`ExecutionContext`] memory budget and
+//! cancellation, [`CategoricalTreatment::export_within`] under an export byte budget, and
+//! [`CategoricalTreatment::verify_data`] checks held rows against the digest.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::categorical_treatment::{
@@ -27,6 +33,7 @@ pub use antecedent_io::categorical_treatment_artifact::{
     MonotonicityWire, PairContrastWire,
 };
 
+use antecedent_core::ExecutionContext;
 use antecedent_estimate::categorical_treatment::CategoricalTreatmentFit;
 
 use crate::error::CausalError;
@@ -50,6 +57,19 @@ impl CategoricalTreatment {
         Ok(Self { artifact: CategoricalTreatmentArtifact::seal(request)? })
     }
 
+    /// Fit under the computation budget of `ctx`: its hard memory limit bounds the planned
+    /// working set and a cancelled context stops the run. No row ceiling applies.
+    ///
+    /// # Errors
+    /// The refusals of [`Self::evaluate`], `categorical_treatment.memory_budget_exceeded` and
+    /// `categorical_treatment.cancelled`.
+    pub fn evaluate_with(
+        request: &CategoricalTreatmentRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CategoricalTreatmentArtifactError> {
+        Ok(Self { artifact: CategoricalTreatmentArtifact::seal_with(request, ctx)? })
+    }
+
     /// Consume an exported artifact by recomputing every coefficient, contrast, Holm value and
     /// test from its embedded design.
     ///
@@ -65,12 +85,50 @@ impl CategoricalTreatment {
         Ok(Self { artifact: CategoricalTreatmentArtifact::from_bytes(bytes, expected)? })
     }
 
+    /// Consume within the replay budget of `ctx`.
+    ///
+    /// # Errors
+    /// The refusals of [`Self::consume`], `categorical_treatment.memory_budget_exceeded` and
+    /// `categorical_treatment.cancelled`.
+    pub fn consume_with(
+        bytes: &[u8],
+        expected: Option<&CategoricalTreatmentIdentity>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CategoricalTreatmentArtifactError> {
+        Ok(Self { artifact: CategoricalTreatmentArtifact::from_bytes_with(bytes, expected, ctx)? })
+    }
+
     /// Export the checksummed artifact.
     ///
     /// # Errors
     /// An empty id or an oversized payload.
     pub fn export(&self, artifact_id: &str) -> Result<Vec<u8>, CategoricalTreatmentArtifactError> {
         self.artifact.to_bytes(artifact_id)
+    }
+
+    /// Export within `export_budget` bytes. A refusal
+    /// (`categorical_treatment.export_budget_exceeded`) leaves the fit available.
+    ///
+    /// # Errors
+    /// An empty id or `categorical_treatment.export_budget_exceeded`.
+    pub fn export_within(
+        &self,
+        artifact_id: &str,
+        export_budget: usize,
+    ) -> Result<Vec<u8>, CategoricalTreatmentArtifactError> {
+        self.artifact.to_bytes_within(artifact_id, export_budget)
+    }
+
+    /// Check rows still held against the digest the artifact's summary was computed from.
+    ///
+    /// # Errors
+    /// `IdentityMismatch` (`data`) for other rows; `categorical_treatment.data_not_bound` for a
+    /// legacy artifact that embeds its rows.
+    pub fn verify_data(
+        &self,
+        request: &CategoricalTreatmentRequest,
+    ) -> Result<(), CategoricalTreatmentArtifactError> {
+        self.artifact.verify_data(request)
     }
 
     /// The core fit.

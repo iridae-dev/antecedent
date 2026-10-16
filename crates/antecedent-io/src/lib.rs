@@ -132,6 +132,7 @@ pub use antecedent_io_core::{
     weight_basis_name, wire,
 };
 
+mod artifact_budget;
 mod artifact_kinds;
 mod width;
 

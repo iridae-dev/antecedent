@@ -43,9 +43,9 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
@@ -199,10 +199,20 @@ class LatentClassEffects:
     inference_claim: str
     caveat: str
     identity: LatentClassIdentity
-    artifact: bytes
+    #: ``None`` when the artifact would exceed its export byte budget; the fit above stands.
+    artifact: bytes | None
+    _export_refusal: str | None = field(default=None, repr=False, compare=False)
 
     def export(self) -> bytes:
-        """The checksummed ``latent_class_effects_v1`` artifact."""
+        """The checksummed ``latent_class_effects_v1`` artifact.
+
+        Raises :class:`LatentClassRefusal` (``route_not_supported``,
+        ``latent_class.export_budget_exceeded``) when the embedded dataset would not fit the
+        export byte budget; the fit itself is unaffected.
+        """
+        if self.artifact is None:
+            raise_refusal(self._export_refusal, LatentClassRefusal)
+        assert self.artifact is not None
         return self.artifact
 
     @property
@@ -262,7 +272,9 @@ def _optional(value: float | None) -> float | None:
     return None if value is None else float(value)
 
 
-def _result(report_json: str, artifact: bytes) -> LatentClassEffects:
+def _result(
+    report_json: str, artifact: bytes | None, export_refusal: str | None = None
+) -> LatentClassEffects:
     report = json.loads(report_json)
     meta = report["meta"]
     names = meta["covariate_names"]
@@ -323,6 +335,7 @@ def _result(report_json: str, artifact: bytes) -> LatentClassEffects:
         caveat=meta["caveat"],
         identity=LatentClassIdentity(**meta["identity"]),
         artifact=artifact,
+        _export_refusal=export_refusal,
     )
 
 
@@ -408,6 +421,7 @@ def latent_class_effects(
     variance_floor: float = 1e-8,
     bootstrap_replicates: int = 200,
     initial_labels: Sequence[int] | None = None,
+    data_binding: Literal["embedded", "digest"] = "embedded",
 ) -> LatentClassEffects:
     """Fit a ``classes``-component mixture of Gaussian linear outcome models and report effects.
 
@@ -423,8 +437,13 @@ def latent_class_effects(
     ``variance_floor`` (a fraction of the outcome variance) marks a class as degenerate.
     ``bootstrap_replicates`` (0 reports no standard errors) resamples rows with label alignment.
 
-    The artifact embeds the dataset (at most 10000 rows, 32 covariates, 1000 bootstrap
-    replicates).
+    ``data_binding="digest"`` exports a record that holds no rows, bound to the dataset by its
+    digest; :func:`consume_latent_class_artifact` then needs the dataset passed back.
+
+    The fit has no row ceiling. The artifact embeds the dataset (at most 32 covariates, 1000
+    bootstrap replicates) when it fits the 16 MiB export budget; above it the fit is returned
+    with ``artifact`` ``None`` and :meth:`LatentClassEffects.export` raises
+    :class:`LatentClassRefusal` (``latent_class.export_budget_exceeded``).
 
     Raises :class:`LatentClassRefusal` (a :class:`~antecedent.errors.CausalUnsupportedError`):
     ``required_option_missing`` / ``latent_class.randomization_not_declared``;
@@ -457,9 +476,21 @@ def latent_class_effects(
         "initial_labels": _labels(initial_labels),
         "assume_conditional_randomization": within_class_randomization,
     }
+    if data_binding not in ("embedded", "digest"):
+        raise CausalValueError(
+            "data_binding must be 'embedded' or 'digest'", reason_code="invalid_argument"
+        )
     report, artifact, refusal = _evaluate(
-        y, a, columns, names, json.dumps(config, allow_nan=False), "latent_class_effects"
+        y,
+        a,
+        columns,
+        names,
+        json.dumps(config, allow_nan=False),
+        "latent_class_effects",
+        digest_bound=data_binding == "digest",
     )
+    if report is not None and artifact is None and refusal is not None:
+        return _result(report, None, refusal)  # the export was refused; the fit stands
     raise_refusal(refusal, LatentClassRefusal)
     if report is None or artifact is None:  # pragma: no cover - the native contract
         raise CausalValueError(
@@ -472,6 +503,10 @@ def consume_latent_class_artifact(
     artifact: bytes,
     *,
     expected_identity: LatentClassIdentity | Mapping[str, str] | None = None,
+    memory_limit_bytes: int | None = None,
+    outcome: Any = None,
+    treatment: Any = None,
+    covariates: Any = None,
 ) -> LatentClassEffects:
     """Refit an exported latent-class artifact and accept only an identical one.
 
@@ -483,6 +518,12 @@ def consume_latent_class_artifact(
     (:class:`LatentClassRefusal`, ``route_not_supported``, ``latent_class.wrong_contract``).
     Corruption and unknown major versions raise
     :class:`~antecedent.errors.CausalSerializationError`.
+
+    ``memory_limit_bytes`` bounds the refit's planned working set
+    (``latent_class.memory_budget_exceeded``). An artifact exported with
+    ``data_binding="digest"`` holds no rows: pass ``outcome``, ``treatment`` and ``covariates``
+    (the dataset it was fitted on); any other dataset is refused (``IdentityMismatch``, ``data``)
+    and omitting it refuses with ``latent_class.data_required``.
     """
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
@@ -495,7 +536,21 @@ def consume_latent_class_artifact(
     else:
         raise CausalTypeError("expected_identity must be a LatentClassIdentity or a mapping")
     data = bytes(artifact)
-    report, refusal = _consume(data, expected_json)
+    supplied = None
+    if outcome is not None or treatment is not None:
+        if outcome is None or treatment is None:
+            raise CausalValueError(
+                "outcome and treatment must be supplied together", reason_code="invalid_argument"
+            )
+        names, columns = _covariate_columns(covariates)
+        supplied = (_column(outcome, "outcome"), _column(treatment, "treatment"), names, columns)
+    elif covariates is not None:
+        raise CausalValueError(
+            "covariates need outcome and treatment", reason_code="invalid_argument"
+        )
+    report, refusal = _consume(
+        data, expected_json, memory_limit_bytes=memory_limit_bytes, data=supplied
+    )
     raise_refusal(refusal, LatentClassRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")

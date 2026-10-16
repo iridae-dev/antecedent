@@ -51,9 +51,19 @@ fn parse<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResult<T> 
     })
 }
 
-/// Fit the mixture on declared columns: `(report json, artifact bytes, refusal json)`.
+/// The dataset a digest-bound artifact is consumed against: outcome, treatment, covariate names
+/// and covariate columns.
+type LatentClassColumns<'py> = (
+    PyReadonlyArray1<'py, f64>,
+    PyReadonlyArray1<'py, f64>,
+    Vec<String>,
+    Vec<PyReadonlyArray1<'py, f64>>,
+);
+
+/// Fit the mixture on declared columns: `(report json, artifact bytes, refusal json)`; an export
+/// over its byte budget returns the report and the refusal with no artifact.
 #[pyfunction]
-#[pyo3(signature = (outcome, treatment, covariates, covariate_names, config_json, artifact_id))]
+#[pyo3(signature = (outcome, treatment, covariates, covariate_names, config_json, artifact_id, *, digest_bound=false))]
 fn evaluate_latent_class_effects(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
@@ -62,6 +72,7 @@ fn evaluate_latent_class_effects(
     covariate_names: Vec<String>,
     config_json: &str,
     artifact_id: &str,
+    digest_bound: bool,
 ) -> PyResult<EvaluatePayload> {
     let config: LatentClassConfigWire = parse(config_json, "config")?;
     let request = LatentClassRequestWire {
@@ -76,10 +87,22 @@ fn evaluate_latent_class_effects(
     let artifact_id = artifact_id.to_owned();
     detach_catch(py, move || match LatentClassEffects::fit(&request) {
         Ok(done) => {
-            let bytes = done.export(&artifact_id).map_err(|e| failure(&e))?;
             let report = serde_json::to_string(&done.report())
                 .map_err(|e| crate::serialization_err(e.to_string()))?;
-            Ok((Some(report), Some(bytes), None))
+            // An export over its byte budget refuses on its own: the fit is complete and its
+            // report returns with the refusal in place of the artifact.
+            let exported = if digest_bound {
+                done.export_digest_bound(&artifact_id)
+            } else {
+                done.export(&artifact_id)
+            };
+            match exported {
+                Ok(bytes) => Ok((Some(report), Some(bytes), None)),
+                Err(error) => match refusal_json(&error, "export") {
+                    Some(json) => Ok((Some(report), None, Some(json))),
+                    None => Err(failure(&error)),
+                },
+            }
         }
         Err(error) => match refusal_json(&error, "fit") {
             Some(json) => Ok((None, None, Some(json))),
@@ -93,26 +116,37 @@ fn evaluate_latent_class_effects(
 /// `expected_identity_json` is an identity the caller retained independently; a changed
 /// configuration, dataset or result is refused against it.
 #[pyfunction]
-#[pyo3(signature = (artifact, expected_identity_json=None))]
+#[pyo3(signature = (artifact, expected_identity_json=None, *, memory_limit_bytes=None, data=None))]
 fn consume_latent_class_artifact(
     py: Python<'_>,
     artifact: Vec<u8>,
     expected_identity_json: Option<String>,
+    memory_limit_bytes: Option<u64>,
+    data: Option<LatentClassColumns<'_>>,
 ) -> PyResult<ConsumePayload> {
     let expected: Option<LatentClassIdentity> = match expected_identity_json {
         Some(text) => Some(parse(&text, "identity")?),
         None => None,
     };
-    detach_catch(py, move || match LatentClassEffects::consume(&artifact, expected.as_ref()) {
-        Ok(done) => {
-            let report = serde_json::to_string(&done.report())
-                .map_err(|e| crate::serialization_err(e.to_string()))?;
-            Ok((Some(report), None))
+    let data = data.map(|(outcome, treatment, covariate_names, covariates)| LatentClassDataWire {
+        outcome: outcome.as_array().to_vec(),
+        treatment: treatment.as_array().to_vec(),
+        covariate_names,
+        covariates: covariates.iter().map(|c| c.as_array().to_vec()).collect(),
+    });
+    let ctx = crate::measured_inference_api::context(0, memory_limit_bytes, None);
+    detach_catch(py, move || {
+        match LatentClassEffects::consume_with(&artifact, expected.as_ref(), data.as_ref(), &ctx) {
+            Ok(done) => {
+                let report = serde_json::to_string(&done.report())
+                    .map_err(|e| crate::serialization_err(e.to_string()))?;
+                Ok((Some(report), None))
+            }
+            Err(error) => match refusal_json(&error, "consume") {
+                Some(json) => Ok((None, Some(json))),
+                None => Err(failure(&error)),
+            },
         }
-        Err(error) => match refusal_json(&error, "consume") {
-            Some(json) => Ok((None, Some(json))),
-            None => Err(failure(&error)),
-        },
     })
 }
 

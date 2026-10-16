@@ -1,7 +1,9 @@
 //! Joint vector-treatment artifact: hand-derived coefficients and full covariance through the
-//! container, a recomputing consumer (summary replay for the model-based covariance, row replay
-//! for a robust one), the row cap, resealed-mutation refusals against a retained identity,
-//! unresealed tampering, unknown versions and the unmeasured calibration coordinate.
+//! container, a recomputing consumer (summary replay for every covariance kind, bit-identical to
+//! the row-based fit and checked against an independent sandwich computation), the absence of a
+//! row ceiling, the computation and export budgets, the digest binding of a summary to its rows,
+//! resealed-mutation refusals against a retained identity, unresealed tampering, unknown
+//! versions and the unmeasured calibration coordinate.
 //!
 //! Frozen dataset (n = 6, columns `1, t1, t2`): `t1 = [1,0,1,0,0,1]`, `t2 = [1,1,1,0,0,0]`,
 //! `y = [3,2,5,1,0,4]`. `b = [2.75, 0.75]`, `RSS = 3.25`, `sigma^2 = 3.25 / 3`, and the treatment
@@ -9,14 +11,15 @@
 //! (coverage, Type I error, power) is deliberately NOT measured here.
 #![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
 
+use antecedent_core::{ExecutionContext, MemoryBudget};
 use antecedent_estimate::vector_treatment::{
     Contrast, NamedColumn, TreatmentColumn, VectorCovariance, VectorTreatmentInput,
     VectorTreatmentOptions, fit_vector_treatment,
 };
 use antecedent_io::vector_treatment_artifact::{
     AdjustmentColumnRequest, ContrastWire, TreatmentRequest, VECTOR_TREATMENT_ARTIFACT_VERSION,
-    VECTOR_TREATMENT_CALIBRATION, VECTOR_TREATMENT_HC_ROW_CAP, VectorTreatmentArtifact,
-    VectorTreatmentArtifactError, VectorTreatmentRequest, decode_parts, encode_parts,
+    VECTOR_TREATMENT_CALIBRATION, VectorTreatmentArtifact, VectorTreatmentArtifactError,
+    VectorTreatmentRequest, decode_parts, encode_parts,
 };
 use antecedent_kernels::erfc;
 
@@ -181,31 +184,96 @@ fn vector_artifact_summary_replay_is_bit_identical_to_the_core_fit() {
     assert_eq!(artifact.meta().adjustment, ["w"]);
 }
 
-#[test]
-fn vector_artifact_robust_covariance_replays_from_the_rows() {
-    let mut hc = request();
-    hc.covariance = "hc1".into();
-    let (artifact, bytes) = export(&hc);
-    assert_eq!(artifact.report().replay, "rows");
-    let consumed = VectorTreatmentArtifact::from_bytes(&bytes, Some(artifact.identity())).unwrap();
-    assert_eq!(consumed.report(), artifact.report());
-    let input = VectorTreatmentInput {
-        outcome: Y.to_vec(),
+/// Deterministic pseudo-random draws in `[-1, 1)` (a 64-bit LCG), enough to make a heteroskedastic
+/// design without a dependency.
+struct Draws(u64);
+
+impl Draws {
+    fn next(&mut self) -> f64 {
+        self.0 =
+            self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        (self.0 >> 11) as f64 / (1_u64 << 52) as f64 - 1.0
+    }
+}
+
+/// `n` rows of one adjustment column `w`, two treatments and a heteroskedastic outcome.
+fn synthetic(n: usize, covariance: &str) -> VectorTreatmentRequest {
+    let mut draws = Draws(0x5eed);
+    let (mut w, mut a, mut b, mut y) = (vec![], vec![], vec![], vec![]);
+    for _ in 0..n {
+        let wi = draws.next();
+        let ai = wi + draws.next();
+        let bi = 0.5 * ai + draws.next();
+        y.push(1.0 + 0.5 * wi + 2.0 * ai - bi + (0.5 + wi * wi) * draws.next());
+        w.push(wi);
+        a.push(ai);
+        b.push(bi);
+    }
+    VectorTreatmentRequest {
+        outcome: y,
         row_snapshot: "snap".into(),
-        adjustment: vec![],
-        treatments: ["t1", "t2"]
+        adjustment: vec![AdjustmentColumnRequest { name: "w".into(), values: w }],
+        treatments: vec![treatment("t1", &a, &["w"]), treatment("t2", &b, &["w"])],
+        covariance: covariance.into(),
+        contrasts: contrasts(),
+    }
+}
+
+/// The core row-based fit of a request.
+fn row_fit(
+    request: &VectorTreatmentRequest,
+    covariance: VectorCovariance,
+) -> antecedent_estimate::vector_treatment::VectorTreatmentFit {
+    let input = VectorTreatmentInput {
+        outcome: request.outcome.clone(),
+        row_snapshot: request.row_snapshot.clone(),
+        adjustment: request
+            .adjustment
             .iter()
-            .zip([X1, X2])
-            .map(|(name, values)| TreatmentColumn {
-                name: (*name).into(),
-                values: values.to_vec(),
-                adjustment_set: vec![],
-                row_snapshot: "snap".into(),
+            .map(|c| NamedColumn { name: c.name.clone(), values: c.values.clone() })
+            .collect(),
+        treatments: request
+            .treatments
+            .iter()
+            .map(|t| TreatmentColumn {
+                name: t.name.clone(),
+                values: t.values.clone(),
+                adjustment_set: t.adjustment_set.clone(),
+                row_snapshot: t.row_snapshot.clone(),
             })
             .collect(),
     };
-    let options = VectorTreatmentOptions { covariance: VectorCovariance::Hc1, contrasts: vec![] };
-    let core = fit_vector_treatment(&input, &options).unwrap();
+    let options = VectorTreatmentOptions {
+        covariance,
+        contrasts: request
+            .contrasts
+            .iter()
+            .map(|c| Contrast { name: c.name.clone(), weights: c.weights.clone() })
+            .collect(),
+    };
+    fit_vector_treatment(&input, &options).unwrap()
+}
+
+const ROBUST: [(&str, VectorCovariance); 4] = [
+    ("hc0", VectorCovariance::Hc0),
+    ("hc1", VectorCovariance::Hc1),
+    ("hc2", VectorCovariance::Hc2),
+    ("hc3", VectorCovariance::Hc3),
+];
+
+#[test]
+fn vector_artifact_robust_covariance_replays_from_a_summary() {
+    let mut hc = request();
+    hc.covariance = "hc1".into();
+    let (artifact, bytes) = export(&hc);
+    let report = artifact.report();
+    assert_eq!(report.replay, "robust_summary");
+    // The summary is X'X, X'y, RSS and the meat of a p = 3 design: no row is embedded.
+    let (_, numbers) = decode_parts(&bytes).unwrap();
+    assert_eq!(numbers.len(), (2 * 9 + 3 + 1) * 8);
+    let consumed = VectorTreatmentArtifact::from_bytes(&bytes, Some(artifact.identity())).unwrap();
+    assert_eq!(consumed.report(), report);
+    let core = row_fit(&hc, VectorCovariance::Hc1);
     assert_eq!(consumed.fit().covariance, core.covariance);
     // HC1 differs from the model-based covariance on this design.
     assert_ne!(
@@ -215,26 +283,236 @@ fn vector_artifact_robust_covariance_replays_from_the_rows() {
 }
 
 #[test]
-fn vector_artifact_robust_replay_above_the_row_cap_is_refused() {
-    let n = VECTOR_TREATMENT_HC_ROW_CAP + 1;
-    let column = |shift: usize| -> Vec<f64> { (0..n).map(|i| ((i + shift) % 7) as f64).collect() };
-    let big = VectorTreatmentRequest {
-        outcome: column(2),
-        row_snapshot: "snap".into(),
-        adjustment: vec![],
-        treatments: vec![treatment("t1", &column(0), &[]), treatment("t2", &column(3), &[])],
-        covariance: "hc0".into(),
-        contrasts: vec![],
+fn vector_summary_replay_equals_the_row_based_fit_for_every_robust_estimator() {
+    for (tag, kind) in ROBUST {
+        let request = synthetic(400, tag);
+        let artifact = VectorTreatmentArtifact::seal(&request).unwrap();
+        let core = row_fit(&request, kind);
+        // Bit for bit: the summary holds the same meat the row-based sandwich accumulates.
+        assert_eq!(artifact.fit(), &core, "{tag}");
+        let consumed = VectorTreatmentArtifact::from_bytes(
+            &artifact.to_bytes("t").unwrap(),
+            Some(artifact.identity()),
+        )
+        .unwrap();
+        assert_eq!(consumed.fit(), &core, "{tag} after the artifact round trip");
+        // The estimator is part of the summary: the meats differ between kinds.
+        assert_ne!(
+            artifact.fit().covariance,
+            VectorTreatmentArtifact::seal(&synthetic(400, "model_based")).unwrap().fit().covariance
+        );
+    }
+}
+
+/// Gauss-Jordan inverse of a `p x p` row-major matrix (the oracle's own solver).
+fn invert(matrix: &[f64], p: usize) -> Vec<f64> {
+    let mut a: Vec<f64> = matrix.to_vec();
+    let mut inverse: Vec<f64> = (0..p * p).map(|k| f64::from(k / p == k % p)).collect();
+    for col in 0..p {
+        let pivot = (col..p)
+            .max_by(|&i, &j| a[i * p + col].abs().total_cmp(&a[j * p + col].abs()))
+            .unwrap();
+        for k in 0..p {
+            a.swap(col * p + k, pivot * p + k);
+            inverse.swap(col * p + k, pivot * p + k);
+        }
+        let scale = a[col * p + col];
+        for k in 0..p {
+            a[col * p + k] /= scale;
+            inverse[col * p + k] /= scale;
+        }
+        for row in (0..p).filter(|&row| row != col) {
+            let factor = a[row * p + col];
+            for k in 0..p {
+                a[row * p + k] -= factor * a[col * p + k];
+                inverse[row * p + k] -= factor * inverse[col * p + k];
+            }
+        }
+    }
+    inverse
+}
+
+/// Independent HC0 to HC3 sandwich covariance of the full coefficient vector, straight from the
+/// textbook definitions with a dense inverse.
+fn oracle_covariance(request: &VectorTreatmentRequest, kind: &str) -> Vec<f64> {
+    let n = request.outcome.len();
+    let columns: Vec<&Vec<f64>> = request
+        .adjustment
+        .iter()
+        .map(|c| &c.values)
+        .chain(request.treatments.iter().map(|t| &t.values))
+        .collect();
+    let p = 1 + columns.len();
+    let row = |i: usize| -> Vec<f64> {
+        std::iter::once(1.0).chain(columns.iter().map(|c| c[i])).collect()
     };
-    let (code, detail, _) = VectorTreatmentArtifact::seal(&big).unwrap_err().refusal().unwrap();
-    assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "vector_treatment.hc_replay_row_cap_exceeded");
-    // The model-based covariance replays from a summary and has no row cap.
-    let mut model = big;
-    model.covariance = "model_based".into();
-    let sealed = VectorTreatmentArtifact::seal(&model).unwrap();
-    assert_eq!(sealed.report().replay, "summary");
-    assert_eq!(sealed.meta().n_rows, n as u64);
+    let mut gram = vec![0.0; p * p];
+    let mut xty = vec![0.0; p];
+    for i in 0..n {
+        let x = row(i);
+        for a in 0..p {
+            xty[a] += x[a] * request.outcome[i];
+            for b in 0..p {
+                gram[a * p + b] += x[a] * x[b];
+            }
+        }
+    }
+    let inverse = invert(&gram, p);
+    let beta: Vec<f64> =
+        (0..p).map(|a| (0..p).map(|b| inverse[a * p + b] * xty[b]).sum()).collect();
+    let mut meat = vec![0.0; p * p];
+    for i in 0..n {
+        let x = row(i);
+        let e = request.outcome[i] - x.iter().zip(&beta).map(|(x, b)| x * b).sum::<f64>();
+        let h: f64 =
+            (0..p).map(|a| x[a] * (0..p).map(|b| inverse[a * p + b] * x[b]).sum::<f64>()).sum();
+        let weight = match kind {
+            "hc0" => 1.0,
+            "hc1" => n as f64 / (n - p) as f64,
+            "hc2" => 1.0 / (1.0 - h),
+            _ => 1.0 / ((1.0 - h) * (1.0 - h)),
+        };
+        for a in 0..p {
+            for b in 0..p {
+                meat[a * p + b] += weight * e * e * x[a] * x[b];
+            }
+        }
+    }
+    let mut left = vec![0.0; p * p];
+    for a in 0..p {
+        for b in 0..p {
+            left[a * p + b] = (0..p).map(|c| inverse[a * p + c] * meat[c * p + b]).sum();
+        }
+    }
+    let mut full = vec![0.0; p * p];
+    for a in 0..p {
+        for b in 0..p {
+            full[a * p + b] = (0..p).map(|c| left[a * p + c] * inverse[c * p + b]).sum();
+        }
+    }
+    full
+}
+
+#[test]
+fn vector_robust_summary_matches_an_independent_sandwich_oracle() {
+    for (tag, _) in ROBUST {
+        let request = synthetic(300, tag);
+        let artifact = VectorTreatmentArtifact::seal(&request).unwrap();
+        let full = oracle_covariance(&request, tag);
+        let p = 4;
+        let t0 = 2;
+        let covariance = &artifact.fit().covariance;
+        for i in 0..2 {
+            for j in 0..2 {
+                let expected = 0.5 * (full[(t0 + i) * p + t0 + j] + full[(t0 + j) * p + t0 + i]);
+                let actual = covariance[i * 2 + j];
+                assert!(
+                    (actual - expected).abs() <= 1e-9 * expected.abs().max(1e-12),
+                    "{tag} V[{i}][{j}]: {actual} vs {expected}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn vector_robust_fit_has_no_row_ceiling_and_the_artifact_does_not_grow_with_the_rows() {
+    let small = synthetic(300, "hc3");
+    let big = synthetic(30_000, "hc3");
+    let small_artifact = VectorTreatmentArtifact::seal(&small).unwrap();
+    let artifact = VectorTreatmentArtifact::seal(&big).unwrap();
+    assert_eq!(artifact.meta().n_rows, 30_000);
+    assert_eq!(artifact.fit(), &row_fit(&big, VectorCovariance::Hc3));
+    // Same summary size however many rows were fitted.
+    let bytes = artifact.to_bytes("big").unwrap();
+    assert!(bytes.len() < 2 * small_artifact.to_bytes("small").unwrap().len());
+    let consumed = VectorTreatmentArtifact::from_bytes(&bytes, Some(artifact.identity())).unwrap();
+    assert_eq!(consumed.fit(), artifact.fit());
+}
+
+#[test]
+#[ignore = "fits 100,000 rows; run with --ignored"]
+fn vector_robust_fit_runs_at_one_hundred_thousand_rows() {
+    let big = synthetic(100_000, "hc2");
+    let artifact = VectorTreatmentArtifact::seal(&big).unwrap();
+    assert_eq!(artifact.fit(), &row_fit(&big, VectorCovariance::Hc2));
+    let bytes = artifact.to_bytes("big").unwrap();
+    assert!(bytes.len() < 64 * 1024);
+    assert!(VectorTreatmentArtifact::from_bytes(&bytes, Some(artifact.identity())).is_ok());
+}
+
+#[test]
+fn vector_summary_is_bound_to_its_rows_by_a_digest() {
+    for tag in ["model_based", "hc2"] {
+        let request = synthetic(120, tag);
+        let artifact = VectorTreatmentArtifact::seal(&request).unwrap();
+        let digest = artifact.meta().data_digest.clone().expect("a summary records its digest");
+        assert_eq!(digest.len(), 64);
+        assert_eq!(artifact.report().data_digest.as_deref(), Some(digest.as_str()));
+        artifact.verify_data(&request).unwrap();
+        // One changed value, a renamed column or a reordered row fails the binding.
+        let mut value = request.clone();
+        value.outcome[7] += 1e-9;
+        assert_eq!(
+            artifact.verify_data(&value),
+            Err(VectorTreatmentArtifactError::IdentityMismatch { field: "data" })
+        );
+        let mut renamed = request.clone();
+        renamed.treatments[0].name = "u1".into();
+        assert!(artifact.verify_data(&renamed).is_err());
+        let mut reordered = request.clone();
+        reordered.outcome.swap(0, 1);
+        assert!(artifact.verify_data(&reordered).is_err());
+        // The digest is part of the design identity: a forged one under the stored identity refuses.
+        let (meta, numbers) = decode_parts(&artifact.to_bytes("t").unwrap()).unwrap();
+        let mut forged = meta;
+        forged.data_digest = Some("0".repeat(64));
+        let reencoded = encode_parts(&forged, &numbers, "forged").unwrap();
+        assert_eq!(
+            VectorTreatmentArtifact::from_bytes(&reencoded, None).unwrap_err(),
+            VectorTreatmentArtifactError::IdentityMismatch { field: "design" }
+        );
+    }
+}
+
+#[test]
+fn vector_budgets_refuse_with_precise_details_and_keep_the_fit() {
+    let request = synthetic(2_000, "hc1");
+    let mut tight = ExecutionContext::production(0, 1);
+    tight.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(10_000) };
+    let error = VectorTreatmentArtifact::seal_with(&request, &tight).unwrap_err();
+    let (code, detail, text) = error.refusal().unwrap();
+    assert_eq!(
+        (code, detail.as_str()),
+        ("route_not_supported", "vector_treatment.memory_budget_exceeded")
+    );
+    assert!(text.contains("10000-byte"), "{text}");
+    let mut roomy = ExecutionContext::production(0, 1);
+    roomy.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(10_000_000) };
+    let artifact = VectorTreatmentArtifact::seal_with(&request, &roomy).unwrap();
+
+    let cancelled = ExecutionContext::production(0, 1);
+    cancelled.cancellation.cancel();
+    let error = VectorTreatmentArtifact::seal_with(&request, &cancelled).unwrap_err();
+    let (code, detail, _) = error.refusal().unwrap();
+    assert_eq!((code, detail.as_str()), ("cancelled_no_claim", "vector_treatment.cancelled"));
+
+    // Export: an artifact above its budget refuses and names the bytes; the fit survives.
+    let bytes = artifact.to_bytes("fit").unwrap();
+    assert_eq!(artifact.to_bytes_within("fit", bytes.len()).unwrap(), bytes);
+    let error = artifact.to_bytes_within("fit", bytes.len() - 1).unwrap_err();
+    let (code, detail, text) = error.refusal().unwrap();
+    assert_eq!(
+        (code, detail.as_str()),
+        ("route_not_supported", "vector_treatment.export_budget_exceeded")
+    );
+    assert!(text.contains(&format!("{} bytes", bytes.len())), "{text}");
+    assert_eq!(artifact.fit().n_rows, 2_000);
+
+    // Replay runs under the same kind of context.
+    let error = VectorTreatmentArtifact::from_bytes_with(&bytes, None, &cancelled).unwrap_err();
+    assert_eq!(error.refusal().unwrap().1, "vector_treatment.cancelled");
+    assert!(VectorTreatmentArtifact::from_bytes_with(&bytes, None, &roomy).is_ok());
 }
 
 #[test]
