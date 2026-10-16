@@ -1,8 +1,9 @@
 //! Temporal PAG endpoint refinements retaining directed and bidirected MAGs.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+use crate::completion::default_completion_search;
 use crate::{CompletionSampler, CompletionValidationReport, GraphError, NodeRef, Pag, TemporalPag};
-use antecedent_core::TemporalIndexer;
+use antecedent_core::{ExecutionContext, SearchLimits, SearchReceipt, SearchStop, TemporalIndexer};
 
 /// One definite mixed-graph refinement of a temporal PAG.
 #[derive(Clone, Debug)]
@@ -28,7 +29,7 @@ impl TemporalPagCompletionSampler {
     /// Selection-variable tail-tail edges remain outside the directed/bidirected family.
     ///
     /// # Errors
-    /// Conflict/selection marks, excessive circle sites, or invalid graph coordinates.
+    /// Conflict/selection marks or invalid graph coordinates.
     pub fn new(pag: TemporalPag, max_completions: usize) -> Result<Self, GraphError> {
         if pag.edges().iter().any(|e| e.is_conflict() || e.is_undirected()) {
             return Err(GraphError::InvalidEndpoints {
@@ -50,12 +51,30 @@ impl TemporalPagCompletionSampler {
     }
     /// Enumerate templates whose stationary copies are valid MAGs in a supplied window.
     ///
+    /// The walk is bounded by [`crate::DEFAULT_COMPLETION_OPERATIONS`]; see
+    /// [`Self::for_window_with_budget`].
+    ///
     /// # Errors
-    /// Invalid source marks, coordinates, or excessive endpoint-assignment space.
+    /// Invalid source marks or coordinates.
     pub fn for_window(
         pag: TemporalPag,
         max_completions: usize,
         indexer: &TemporalIndexer,
+    ) -> Result<Self, GraphError> {
+        let (limits, ctx) = default_completion_search();
+        Self::for_window_with_budget(pag, max_completions, indexer, limits, &ctx)
+    }
+    /// [`Self::for_window`] under an explicit search budget; a stop is reported by
+    /// [`Self::search_stop`] and makes [`Self::class_audit_incomplete`] true.
+    ///
+    /// # Errors
+    /// Invalid source marks or coordinates.
+    pub fn for_window_with_budget(
+        pag: TemporalPag,
+        max_completions: usize,
+        indexer: &TemporalIndexer,
+        limits: SearchLimits,
+        ctx: &ExecutionContext,
     ) -> Result<Self, GraphError> {
         if pag.edges().iter().any(|e| e.is_conflict() || e.is_undirected()) {
             return Err(GraphError::InvalidEndpoints {
@@ -63,11 +82,17 @@ impl TemporalPagCompletionSampler {
             });
         }
         let projected = pag.as_static_pag_for_alg()?;
-        let inner = CompletionSampler::with_projection(&projected, max_completions, |candidate| {
-            refine(&pag, candidate)
-                .and_then(|graph| graph.unfold(indexer.clone()).ok())
-                .map(|unfolded| unfolded.pag)
-        })?;
+        let inner = CompletionSampler::with_projection(
+            &projected,
+            max_completions,
+            limits,
+            ctx,
+            |candidate| {
+                refine(&pag, candidate)
+                    .and_then(|graph| graph.unfold(indexer.clone()).ok())
+                    .map(|unfolded| unfolded.pag)
+            },
+        )?;
         Ok(Self { base: pag, inner, max_completions })
     }
     /// Maximum retained valid templates.
@@ -75,10 +100,27 @@ impl TemporalPagCompletionSampler {
     pub const fn max_completions(&self) -> usize {
         self.max_completions
     }
-    /// Whether valid templates were omitted by the retention bound.
+    /// Whether valid templates were omitted by the retention bound, or a search bound
+    /// stopped the walk before every template was classified.
     #[must_use]
     pub fn hit_cap(&self) -> bool {
         self.inner.hit_cap()
+    }
+    /// Whether the yielded templates are unproved as one Markov class: the audit was skipped
+    /// as too expensive or a search bound stopped the walk.
+    #[must_use]
+    pub const fn class_audit_incomplete(&self) -> bool {
+        self.inner.class_audit_incomplete()
+    }
+    /// The bound that stopped the walk, if any.
+    #[must_use]
+    pub const fn search_stop(&self) -> Option<SearchStop> {
+        self.inner.search_stop()
+    }
+    /// The limits in force and the work consumed, once a bound has stopped the walk.
+    #[must_use]
+    pub const fn search_receipt(&self) -> Option<&SearchReceipt> {
+        self.inner.search_receipt()
     }
     /// Full template assignment and equivalence audit, including constraint rejects.
     #[must_use]

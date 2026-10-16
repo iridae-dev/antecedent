@@ -24,24 +24,6 @@ refusal = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pat
 scope_fixture = { path = "crates/antecedent-io/tests/distribution_artifact.rs", pattern = "\\bresealed_axes_alignment_and_meaning_changes_are_refused\\b" }
 
 [[bound]]
-record = "transport.cpdag_completion"
-key = "max_nodes"
-implementation = [{ path = "crates/antecedent-identify/src/sid/cpdag_completion.rs", constant = "CPDAG_MAX_NODES" }]
-documentation = [{ path = "crates/antecedent-identify/src/sid/cpdag_completion.rs", constant = "CPDAG_MAX_NODES" }]
-guard = { path = "crates/antecedent-identify/src/sid/cpdag_completion.rs", pattern = "if\\ cpdag\\.node_count\\(\\)\\ >\\ CPDAG_MAX_NODES\\ \\{" }
-refusal = { path = "crates/antecedent-identify/src/sid/cpdag_completion.rs", pattern = "if\\ cpdag\\.node_count\\(\\)\\ >\\ CPDAG_MAX_NODES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-identify/tests/cpdag_completion.rs", pattern = "\\bcpdag_missing_evidence_refusals\\b" }
-
-[[bound]]
-record = "transport.cpdag_completion"
-key = "max_completions"
-implementation = [{ path = "crates/antecedent-identify/src/sid/scenarios.rs", constant = "SCENARIO_MAX_COUNT" }]
-documentation = [{ path = "crates/antecedent-identify/src/sid/scenarios.rs", constant = "SCENARIO_MAX_COUNT" }]
-guard = { path = "crates/antecedent-identify/src/sid/scenarios.rs", pattern = "if\\ scenarios\\.len\\(\\)\\ >\\ SCENARIO_MAX_COUNT\\ \\{" }
-refusal = { path = "crates/antecedent-identify/src/sid/scenarios.rs", pattern = "if\\ scenarios\\.len\\(\\)\\ >\\ SCENARIO_MAX_COUNT\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-identify/tests/cpdag_completion.rs", pattern = "\\bcpdag_missing_evidence_refusals\\b" }
-
-[[bound]]
 record = "transport.shared_scenario_covariance"
 key = "max_completions"
 implementation = [{ path = "crates/antecedent-estimate/src/scenario_covariance.rs", constant = "MAX_SCENARIOS" }]

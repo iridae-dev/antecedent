@@ -468,18 +468,17 @@ fn limits_above_the_declared_maxima_refuse_as_bounds_exceeded() {
 }
 
 #[test]
-fn graph_and_controllable_bounds_refuse_as_bounds_exceeded() {
+fn controllable_bounds_refuse_as_bounds_exceeded_and_the_graph_size_is_not_capped() {
+    use antecedent_identify::validate_mz_transport_query;
     let exceeded = IdentificationError::UnsupportedInput { code: "mz_transport.bounds_exceeded" };
     let ctx = ExecutionContext::for_tests(1);
-    // Thirteen observed variables.
-    let mut large = Admg::with_variables(13);
+    // Twenty observed variables, far past the old ceiling of twelve, are admitted.
+    let mut large = Admg::with_variables(20);
     for (a, b) in [(Z1, X), (X, Z2), (Z2, Y)] {
         large.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
     }
     let q = query(vec![source_a(), source_b()]);
-    let refused =
-        decide_mz_transport(&large, &q, &catalog(vec![]), MZ_TRANSPORT_DEFAULT_LIMITS, &ctx);
-    assert_eq!(refused.unwrap_err(), exceeded);
+    assert!(validate_mz_transport_query(&large, &q, &catalog(vec![])).is_ok());
     // Five controllables in one source.
     let mut wide = Admg::with_variables(6);
     for (a, b) in [(Z1, X), (X, Z2), (Z2, Y)] {

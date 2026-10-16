@@ -30,8 +30,6 @@ markers below and compares it. Prose outside those markers is not read.
 | --- | --- | ---: | --- |
 | distribution.joint_alignment | max_draws | 100000 | `crates/antecedent-io-core/src/distribution_artifact.rs` |
 | distribution.joint_alignment | max_coordinates | 1024 | `crates/antecedent-io-core/src/distribution_artifact.rs` |
-| transport.cpdag_completion | max_nodes | 6 | `crates/antecedent-identify/src/sid/cpdag_completion.rs` |
-| transport.cpdag_completion | max_completions | 64 | `crates/antecedent-identify/src/sid/scenarios.rs` |
 | transport.shared_scenario_covariance | max_completions | 64 | `crates/antecedent-estimate/src/scenario_covariance.rs` |
 | transport.shared_scenario_covariance | max_replicates | 2000 | `crates/antecedent-estimate/src/scenario_covariance.rs` |
 | transport.shared_scenario_covariance | max_exact_rows | 24 | `crates/antecedent-estimate/src/scenario_covariance.rs` |

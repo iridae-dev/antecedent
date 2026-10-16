@@ -559,21 +559,7 @@ def test_one_restricted_source_identifies_without_the_other():
     assert result.transport.formula == "single_source_z_transport_cited_joints_sound_incomplete"
 
 
-def test_restricted_experiment_keeps_the_z_transport_bounds():
-    names = [f"v{index}" for index in range(13)]
-    graph = Admg.from_edges(names, [(names[index], names[index + 1]) for index in range(12)])
-    query = transport.Transport(
-        ResponseCurve("v12", "v11", grid=[0.0, 1.0]),
-        target="target",
-        evidence=transport.Evidence(
-            source=transport.Source(
-                "source", kind="experimental", interventions=["v0"], sampling="independent"
-            ),
-            target_sampling="representative_sample",
-        ),
-    )
-    with pytest.raises(CausalUnsupportedError, match="z_transport.unsupported_observed_count"):
-        identify(graph=graph, query=query)
+def test_restricted_experiment_keeps_the_z_transport_controllable_bound():
     controllable = ["c0", "c1", "c2", "c3", "c4"]
     small = Admg.from_edges(
         ["x", "y", *controllable],

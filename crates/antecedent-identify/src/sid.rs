@@ -87,12 +87,11 @@ pub use mixed_source::{
 };
 pub use mz_transport::{
     BoundMzTransportFunctional, MZ_TRANSPORT_DEFAULT_LIMITS, MZ_TRANSPORT_MAX_CANDIDATE_REGIMES,
-    MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE, MZ_TRANSPORT_MAX_OBSERVED, MZ_TRANSPORT_MAX_SOURCES,
-    MZ_TRANSPORT_MEMORY_BYTES, MzSearchInspection, MzSearchRecord, MzStageRecord,
-    MzTransportDecision, MzTransportDerivation, MzTransportDerivationRecord,
-    MzTransportObstruction, MzTransportQuery, MzTransportRoute, ValidatedMzTransportQuery,
-    bind_mz_transport_catalog, decide_mz_transport, mz_transport_refusal,
-    validate_mz_transport_query, verify_mz_transport_obstruction,
+    MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE, MZ_TRANSPORT_MAX_SOURCES, MZ_TRANSPORT_MEMORY_BYTES,
+    MzSearchInspection, MzSearchRecord, MzStageRecord, MzTransportDecision, MzTransportDerivation,
+    MzTransportDerivationRecord, MzTransportObstruction, MzTransportQuery, MzTransportRoute,
+    ValidatedMzTransportQuery, bind_mz_transport_catalog, decide_mz_transport,
+    mz_transport_refusal, validate_mz_transport_query, verify_mz_transport_obstruction,
 };
 pub use study_planning::{
     STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES, STUDY_PLAN_MAX_PROPOSALS,

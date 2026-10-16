@@ -55,7 +55,8 @@ pub mod workspace;
 pub use admg::{Admg, CopyLabels};
 pub use antecedent_core::NodeRef;
 pub use completion::{
-    CompletionSampler, CompletionValidationReport, PagCompletion, is_mag_completion,
+    CompletionSampler, CompletionValidationReport, DEFAULT_COMPLETION_OPERATIONS, PagCompletion,
+    is_mag_completion,
 };
 pub use cpdag::{Cpdag, CpdagReview, TemporalCpdag};
 pub use cpdag_completion::{CpdagCompletion, CpdagCompletionSampler, is_mec_member};

@@ -1,7 +1,7 @@
 """DAG completions of a supplied CPDAG, and the shared-data covariance of scenario estimates.
 
-:func:`cpdag_completion_scenarios` takes a CPDAG of at most six fully observed nodes
-and treats every consistent DAG completion (every directed edge kept, every
+:func:`cpdag_completion_scenarios` takes a CPDAG of fully observed nodes (any size
+the search budget can enumerate) and treats every consistent DAG completion (every directed edge kept, every
 undirected edge oriented with no cycle and no new unshielded collider) as one
 scenario of the finite scenario route. Each completion has a canonical identity (a
 domain-separated digest of its sorted edge list, so node and edge insertion order
@@ -452,9 +452,8 @@ def cpdag_completion_scenarios(
     """Enumerate every DAG completion of ``cpdag`` and decide each against its own evidence.
 
     ``cpdag`` is a :class:`~antecedent.graph.Cpdag` (or a discovery result holding
-    one) over at most six fully observed nodes; selection or latent structure
-    refuses with ``cpdag_scenarios.selection_or_latent``, more than six nodes with
-    ``cpdag_scenarios.bounds_exceeded`` and a graph that is not a maximally
+    one) of fully observed nodes; selection or latent structure
+    refuses with ``cpdag_scenarios.selection_or_latent`` and a graph that is not a maximally
     oriented CPDAG with ``cpdag_scenarios.not_a_cpdag``. ``evidence`` is one
     :class:`CompletionEvidence` shared by every completion, or a sequence of them
     each bound to one completion (by identity or by edges); a completion with none

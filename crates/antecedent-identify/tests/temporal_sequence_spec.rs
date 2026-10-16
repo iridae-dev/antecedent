@@ -94,7 +94,7 @@ fn sequences_are_one_action_per_step_over_the_alphabet() {
 }
 
 #[test]
-fn caps_on_actions_coordinates_and_histories_refuse_as_bounds_exceeded() {
+fn caps_on_actions_and_histories_refuse_as_bounds_exceeded() {
     let (slots, graph) = chain();
     let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
     let mut wide = coordinates(6);
@@ -115,18 +115,6 @@ fn caps_on_actions_coordinates_and_histories_refuse_as_bounds_exceeded() {
     }
     assert_eq!(
         detail(TemporalSequenceSpec::try_new(2, slots, diagram, large)),
-        TEMPORAL_BOUNDS_EXCEEDED
-    );
-    let many = Admg::with_variables(13);
-    let slots = TemporalSlots {
-        baseline: (0..8).map(v).collect(),
-        covariates: [vec![v(8)], vec![v(9)]],
-        actions: [v(10), v(11)],
-        outcome: v(12),
-    };
-    let diagram = SelectionDiagram::try_new(many, Arc::<[VariableId]>::from([])).unwrap();
-    assert_eq!(
-        detail(TemporalSequenceSpec::try_new(2, slots, diagram, coordinates(13))),
         TEMPORAL_BOUNDS_EXCEEDED
     );
 }
@@ -169,8 +157,8 @@ fn a_template_unrolls_through_the_temporal_dag_unfolding() {
 }
 
 #[test]
-fn the_caps_admit_exactly_the_bound_and_refuse_one_more() {
-    // Coordinates: twelve admitted, thirteen refused.
+fn the_history_cap_admits_exactly_the_bound_and_refuses_one_more() {
+    // The number of coordinates is not capped: the old limit of twelve admits thirteen.
     let twelve = TemporalSlots {
         baseline: (0..7).map(v).collect(),
         covariates: [vec![v(7)], vec![v(8)]],
@@ -192,7 +180,7 @@ fn the_caps_admit_exactly_the_bound_and_refuse_one_more() {
         actions: [v(10), v(11)],
         outcome: v(12),
     };
-    assert_eq!(detail(build(13, thirteen)), TEMPORAL_BOUNDS_EXCEEDED);
+    assert!(build(13, thirteen).is_ok());
     // Complete histories: 16 * 16 * 16 = 4096 is admitted; 17 * 241 = 4097 is one more.
     let (slots, graph) = chain();
     let with_levels = |baseline: u32, first: u32, second: u32| {

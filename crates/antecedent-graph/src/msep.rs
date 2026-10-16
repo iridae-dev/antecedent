@@ -515,8 +515,9 @@ pub enum PagSeparation {
     /// m-connected in every member of the class.
     Connected,
     /// Neither holds for the whole class, or the class could not be examined
-    /// (conflict marks, more circle endpoints than the completion audit
-    /// enumerates, or marks that admit no maximal ancestral graph).
+    /// (conflict marks, a completion audit that exhausts its search budget or
+    /// cannot afford the equivalence audit, or marks that admit no maximal
+    /// ancestral graph).
     Undetermined,
 }
 
@@ -601,8 +602,8 @@ impl Pag {
             Some(false) => return Ok(ClassSeparation::Connected(path.unwrap_or_default())),
             None => {}
         }
-        // The marks leave it open: ask every member. The audit refuses more
-        // circle endpoints than it can enumerate, and yields nothing for marks
+        // The marks leave it open: ask every member. The audit is refused when its search
+        // budget cannot enumerate and certify the whole class, and yields nothing for marks
         // no maximal ancestral graph satisfies; neither is a separation.
         let enumerated;
         let members: &[Admg] = match self.class_members() {

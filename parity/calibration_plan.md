@@ -1127,7 +1127,7 @@ Emitter: to be written. Decision: pass/fail gates per population; cross-populati
 
 **24. cpdag_envelope_recovery** (structural envelope; recovery frequency).
 Claim: the frequency with which the true DAG is a member of the enumerated equivalence class under sufficiency, faithfulness and CI tests correct within bounds (`ENVELOPE_ASSUMPTIONS`).
-Design: PC recovery study over random DAGs; class enumeration with the member bound. Probes: classes at 64 undirected edges and at the member bound (partial/refused), non-unique completions.
+Design: PC recovery study over random DAGs; class enumeration with the member bound. Probes: classes beyond 64 undirected edges, classes stopped by the completion search budget, and classes at the member bound (partial/refused), non-unique completions.
 Emitter: to be written. Decision: a recovery frequency recorded as evidence about the assumptions, not as a coverage license; the envelope itself carries no probability.
 
 ### Calibration decision per new route

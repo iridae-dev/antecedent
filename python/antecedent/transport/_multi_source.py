@@ -3,9 +3,10 @@
 Several source populations, each able to experiment only on its own declared
 controllable variables, may together identify a target effect none of them
 identifies alone. The search is sound and incomplete within declared bounds:
-two to four sources, twelve observed variables, four controllable variables per
-source and 64 candidate regimes. A factor is always taken from one source; a
-joint over several sources' interventions is never fabricated.
+two to four sources, four controllable variables per
+source and 64 candidate regimes, over any number of observed variables. A factor
+is always taken from one source; a joint over several sources' interventions is
+never fabricated.
 """
 
 from __future__ import annotations

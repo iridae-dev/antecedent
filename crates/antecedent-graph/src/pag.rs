@@ -405,9 +405,14 @@ impl Pag {
             .clone()
     }
 
-    /// Run the completion audit; `None` when it refuses the graph.
+    /// Run the completion audit; `None` when it refuses the graph or cannot certify the
+    /// enumerated members as the whole class (the audit was skipped or a search bound
+    /// stopped the walk). Class-wide answers are drawn only from a certified class.
     pub(crate) fn build_class_members(&self) -> Option<Vec<Admg>> {
         let sampler = crate::completion::CompletionSampler::new(self.clone(), usize::MAX).ok()?;
+        if sampler.class_audit_incomplete() {
+            return None;
+        }
         Some(sampler.map(|member| crate::completion::as_admg(&member.graph)).collect())
     }
 

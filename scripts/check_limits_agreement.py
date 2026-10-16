@@ -199,18 +199,10 @@ MAPPING: tuple[Bound, ...] = (
     # ---- mz-transportability
     Bound(
         "transport.multi_source_limited_experiment",
-        "max_observed",
-        rust=(C(MZ, "MZ_TRANSPORT_MAX_OBSERVED"),),
-
-        python=(L(MZ_PY, r"two to four sources, (\w+) observed variables"),),
-        refusal=r"more than (\d+) observed",
-    ),
-    Bound(
-        "transport.multi_source_limited_experiment",
         "max_sources",
         rust=(C(MZ, "MZ_TRANSPORT_MAX_SOURCES"),),
 
-        python=(L(MZ_PY, r"two to (\w+) sources, \w+ observed variables"),),
+        python=(L(MZ_PY, r"two to (\w+) sources, \w+ controllable variables per"),),
         refusal=r"Sources outside 2-(\d+)",
     ),
     Bound(
@@ -218,7 +210,7 @@ MAPPING: tuple[Bound, ...] = (
         "max_controllable_per_source",
         rust=(C(MZ, "MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE"),),
 
-        python=(L(MZ_PY, r"observed variables, (\w+) controllable variables per"),),
+        python=(L(MZ_PY, r"two to \w+ sources, (\w+) controllable variables per"),),
         refusal=r"controllables per source outside 1-(\d+)",
     ),
     Bound(
@@ -275,12 +267,6 @@ MAPPING: tuple[Bound, ...] = (
             L(SCEN_PY, r"One to (\d+) scenarios"),
         ),
     ),
-    Bound(
-        "transport.finite_scenario_envelope",
-        "max_observed",
-        rust=(C(SCEN, "SCENARIO_MAX_OBSERVED"),),
-
-    ),
     # ---- learned continuous trial transport
     Bound(
         "transport.learned_continuous_trial",
@@ -335,19 +321,11 @@ MAPPING: tuple[Bound, ...] = (
     ),
     Bound(
         "transport.two_step_temporal",
-        "max_observed",
-        rust=(C(TEMP, "TEMPORAL_MAX_OBSERVED"),),
-
-        python=(L(TEMP_PY, r"at most (\w+) coordinates and [\d,]+\s+complete"),),
-        refusal=r"more than (\d+) coordinates",
-    ),
-    Bound(
-        "transport.two_step_temporal",
         "max_history_states",
         rust=(C(TEMP, "TEMPORAL_MAX_HISTORY_STATES"),),
 
         python=(
-            L(TEMP_PY, r"coordinates and ([\d,]+)\s+complete covariate histories"),
+            L(TEMP_PY, r"at most ([\d,]+)\s+complete covariate histories"),
         ),
         refusal=r"more than (\d+) complete covariate histories",
     ),

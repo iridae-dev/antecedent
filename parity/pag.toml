@@ -28,7 +28,7 @@ evidence_kind = "internal_known_truth"
 evidence_test = "crates/antecedent-graph/src/msep.rs"
 evidence_assertion = "class_wide_answers_match_every_member_on_small_graphs"
 known_truth_fixture = "conformance/graph/definite_status_separation"
-limitations = "A PAG answer is about every MAG the completion audit enumerates (maximal, ancestral, same unshielded colliders, one Markov class). More than 16 circle endpoints, conflict marks the members cannot settle, or marks no MAG satisfies give Undetermined (GraphError::SeparationUndetermined from the boolean API), never separated; an exhausted path budget is an error."
+limitations = "A PAG answer is about every MAG the completion audit enumerates (maximal, ancestral, same unshielded colliders, one Markov class). A completion search that its budget (operations, memory or cancellation) stops before every endpoint assignment is classified, an equivalence audit one signature of which exceeds that budget, conflict marks the members cannot settle, or marks no MAG satisfies give Undetermined (GraphError::SeparationUndetermined from the boolean API), never separated; an exhausted path budget is an error."
 notes = "ADMG moralization m-sep. PAG m-separation is class-wide: Separated / Connected / Undetermined (Pag::m_separation_status). Definite-status paths follow Zhang (2008) including unshielded circle-circle non-colliders; paths of indefinite status are checked for possible activity and then settled by enumerating the member MAGs. Brute force: every mark assignment on 3 nodes and strided samples on 4 and 5 nodes (2637 PAGs with members, 80312 queries) agree with m-separation in each member (msep::pag_msep_tests::class_wide_answers_match_every_member_on_small_graphs)"
 
 [[capabilities]]

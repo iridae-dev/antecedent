@@ -56,15 +56,13 @@ use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 use antecedent_graph::SelectionDiagram;
 
 use super::z_transport::{
-    TrzCall, TrzDomain, TrzTerminalFailure, Z_TRANSPORT_MAX_CONTROLLABLE, Z_TRANSPORT_MAX_OBSERVED,
-    ZTransportDecision, ZTransportDerivation, ZTransportLimitsReceipt, ZTransportMissingEvidence,
-    ZTransportQuery, ZTransportSourceSpec, bind_recursive_expression, bind_z_transport_catalog,
-    cited_regimes, decide_z_transport_reporting, search_trz_call, validate_z_transport_query,
+    TrzCall, TrzDomain, TrzTerminalFailure, Z_TRANSPORT_MAX_CONTROLLABLE, ZTransportDecision,
+    ZTransportDerivation, ZTransportLimitsReceipt, ZTransportMissingEvidence, ZTransportQuery,
+    ZTransportSourceSpec, bind_recursive_expression, bind_z_transport_catalog, cited_regimes,
+    decide_z_transport_reporting, search_trz_call, validate_z_transport_query,
 };
 use super::{IdentificationError, SearchCharge, SharedSearch, SidLimits, SidMeter};
 
-/// Observed variables in the shared graph.
-pub const MZ_TRANSPORT_MAX_OBSERVED: usize = Z_TRANSPORT_MAX_OBSERVED;
 /// Source populations in one query. One source is the single-source z route.
 pub const MZ_TRANSPORT_MAX_SOURCES: usize = 4;
 /// Controllable variables declared per source.
@@ -223,10 +221,10 @@ pub struct ValidatedMzTransportQuery {
 /// Validate a multi-source query against the shared graph and supplied catalog.
 ///
 /// Bounds: two to [`MZ_TRANSPORT_MAX_SOURCES`] sources (one source is the
-/// single-source z route), at most [`MZ_TRANSPORT_MAX_OBSERVED`] observed
-/// variables, one to [`MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE`] controllables
-/// per source, and at most [`MZ_TRANSPORT_MAX_CANDIDATE_REGIMES`] available
-/// source regimes. Each source must otherwise pass the single-source
+/// single-source z route), one to [`MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE`]
+/// controllables per source, and at most [`MZ_TRANSPORT_MAX_CANDIDATE_REGIMES`]
+/// available source regimes. The number of observed variables is bounded only by the
+/// search budget the decision runs under. Each source must otherwise pass the single-source
 /// z-transport contract on its own selection diagram; populations are distinct
 /// and none is the target; every available source experiment intervenes only
 /// on a subset of that source's declared controllable set; and the target
@@ -247,7 +245,6 @@ pub fn validate_mz_transport_query(
 ) -> Result<ValidatedMzTransportQuery, IdentificationError> {
     let query = query.canonical();
     if !(2..=MZ_TRANSPORT_MAX_SOURCES).contains(&query.sources.len())
-        || graph.node_count() > MZ_TRANSPORT_MAX_OBSERVED
         || query.sources.iter().any(|s| {
             s.controllable.is_empty()
                 || s.controllable.len() > MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE

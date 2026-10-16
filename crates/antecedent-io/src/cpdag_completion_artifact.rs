@@ -42,8 +42,8 @@ use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData, Law
 use antecedent_graph::{Cpdag, DenseNodeId};
 use antecedent_identify::ClassicalTransportQuery;
 use antecedent_identify::sid::cpdag_completion::{
-    CPDAG_MAX_NODES, CompletionEvidenceBinding, CpdagCompletionInput, CpdagEvidence,
-    CpdagScenarioError, decide_cpdag_completions,
+    CompletionEvidenceBinding, CpdagCompletionInput, CpdagEvidence, CpdagScenarioError,
+    decide_cpdag_completions,
 };
 use antecedent_identify::sid::scenarios::ScenarioCoordinate;
 use serde::{Deserialize, Serialize};
@@ -231,10 +231,10 @@ impl CompletionCpdagWire {
     /// Rebuild the CPDAG (nodes added in ascending variable order).
     ///
     /// # Errors
-    /// More nodes than the completion route accepts, a repeated variable, or an
+    /// More nodes than the artifact may store, a repeated variable, or an
     /// edge naming a variable that is not a node.
     pub fn to_cpdag(&self) -> Result<Cpdag, IoError> {
-        if self.variables.len() > CPDAG_MAX_NODES {
+        if self.variables.len() > MAX_STORED_ITEMS {
             return Err(CpdagArtifactError::LimitsExceeded("cpdag node count").into());
         }
         let mut graph = Cpdag::empty();
@@ -749,7 +749,7 @@ impl CpdagCompletionArtifactWire {
         ) {
             return Err(exceeded(what));
         }
-        if self.cpdag.variables.len() > CPDAG_MAX_NODES {
+        if self.cpdag.variables.len() > MAX_STORED_ITEMS {
             return Err(exceeded("cpdag node count"));
         }
         if self.report.completions.len() > MAX_STORED_ITEMS

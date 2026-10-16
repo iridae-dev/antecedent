@@ -38,8 +38,8 @@ Every refusal is a pair of a registered reason code and a detail of the form
 does it span, across every DAG completion of a supplied CPDAG when each
 completion receives evidence bound to its own assumptions?
 
-- Scope: a maximally oriented CPDAG over at most six fully observed nodes (no
-  selection or latent structure) and supplied exact laws (counted laws refuse).
+- Scope: a maximally oriented CPDAG over fully observed nodes (no selection or
+  latent structure; no node-count or completion-count ceiling, the search budget bounds it) and supplied exact laws (counted laws refuse).
   Enumeration and per-completion decisions share one search budget; a stopped
   search keeps the completions found, marks undecided ones `unevaluated` and
   counts never-enumerated ones.
@@ -51,7 +51,7 @@ completion receives evidence bound to its own assumptions?
 - Entry points: `antecedent.transport.advanced.cpdag_completion_scenarios` and
   `consume_cpdag_scenarios_artifact`.
 - Refusals: `cpdag_scenarios.*`, for example `selection_or_latent`,
-  `bounds_exceeded`, `not_a_cpdag` and `exact_laws_only`.
+  `not_a_cpdag` and `exact_laws_only`.
 
 **Shared-row covariance.** How correlated are point estimates from identified
 completions that reuse the same observed units?

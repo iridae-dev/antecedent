@@ -88,6 +88,26 @@ pub struct GeneralizedAdjustmentConfig {
     /// multi-treatment search has no such shortcut: its budget ends the whole search and the
     /// result is a bounded search, not a refutation.
     pub max_examinations: u64,
+    /// Operations the completion search may charge: one per endpoint assignment or partial
+    /// orientation visited, and one per m-separation query of the equivalence audit. A stop is
+    /// a resource outcome that withdraws every class-wide claim (the envelope is at most
+    /// partially identified), never a statement that the unvisited completions identify.
+    pub completion_operations: usize,
+}
+
+impl GeneralizedAdjustmentConfig {
+    /// Limits and context of the completion search these settings configure.
+    pub(crate) fn completion_search(
+        &self,
+    ) -> (antecedent_core::SearchLimits, antecedent_core::ExecutionContext) {
+        (
+            antecedent_core::SearchLimits {
+                operations: self.completion_operations,
+                depth: usize::MAX,
+            },
+            antecedent_core::ExecutionContext::production(0, 1),
+        )
+    }
 }
 
 impl Default for GeneralizedAdjustmentConfig {
@@ -97,6 +117,7 @@ impl Default for GeneralizedAdjustmentConfig {
             per_completion_weight: 1.0,
             max_candidates: 40,
             max_examinations: 1_000_000,
+            completion_operations: antecedent_graph::DEFAULT_COMPLETION_OPERATIONS,
         }
     }
 }
@@ -179,8 +200,10 @@ impl GeneralizedAdjustmentIdentifier {
         pag: &Pag,
         mut identify: impl FnMut(&Pag) -> Result<IdentificationResult, IdentificationError>,
     ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
-        let mut sampler = CompletionSampler::new(pag.clone(), self.config.max_completions)
-            .map_err(IdentificationError::from)?;
+        let (limits, ctx) = self.config.completion_search();
+        let mut sampler =
+            CompletionSampler::with_budget(pag, self.config.max_completions, limits, &ctx)
+                .map_err(IdentificationError::from)?;
         let mut cases = Vec::new();
         let w = ProbabilityMass(self.config.per_completion_weight);
         for completion in sampler.by_ref() {
@@ -206,17 +229,31 @@ impl GeneralizedAdjustmentIdentifier {
                 validation.equivalence_audit_skipped,
             )),
         }]);
-        // The global class audit is exponential in node count and is skipped on larger
-        // graphs. Local validity still holds for every case, but "identified in every
-        // member of the equivalence class" is exactly the claim the skipped audit would
+        // The global class audit is exponential in node count and is skipped when one
+        // signature exceeds the search budget; a budget stop leaves the class only partly
+        // enumerated. Local validity still holds for every case, but "identified in every
+        // member of the equivalence class" is exactly the claim the incomplete audit would
         // have supported, so it is downgraded here rather than asserted.
         if sampler.class_audit_incomplete() {
+            let reason = sampler.search_stop().map_or_else(
+                || {
+                    "the global m-separation equivalence audit was too expensive for this graph"
+                        .to_owned()
+                },
+                |stop| {
+                    format!(
+                        "the completion search stopped ({}) before every endpoint assignment \
+                         was classified",
+                        stop.code()
+                    )
+                },
+            );
             envelope.push_features([GraphFeature {
                 kind: Arc::from("completion_equivalence_audit_skipped"),
-                detail: Arc::from(
-                    "the global m-separation equivalence audit was too expensive for this graph; \
-                     completions are locally valid but not certified to form one Markov class",
-                ),
+                detail: Arc::from(format!(
+                    "{reason}; completions are locally valid but not certified to form one \
+                     Markov class"
+                )),
             }]);
             if envelope.status == IdentificationStatus::NonparametricallyIdentified {
                 envelope.status = IdentificationStatus::PartiallyIdentified;
@@ -288,7 +325,13 @@ impl GeneralizedAdjustmentIdentifier {
             &antecedent_graph::Dag,
         ) -> Result<IdentificationResult, IdentificationError>,
     ) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, IdentificationError> {
-        let mut sampler = CpdagCompletionSampler::new(cpdag.clone(), self.config.max_completions)?;
+        let (limits, ctx) = self.config.completion_search();
+        let mut sampler = CpdagCompletionSampler::with_budget(
+            cpdag.clone(),
+            self.config.max_completions,
+            limits,
+            &ctx,
+        )?;
         let mut cases = Vec::new();
         let w = ProbabilityMass(self.config.per_completion_weight);
         for completion in sampler.by_ref() {
@@ -298,10 +341,13 @@ impl GeneralizedAdjustmentIdentifier {
         let mut envelope = IdentificationEnvelope::from_cases(cases);
         envelope.push_features(cpdag_undirected_features(cpdag));
         if sampler.hit_cap() {
+            let stopped = sampler
+                .search_stop()
+                .map_or_else(String::new, |stop| format!(" (search stopped: {})", stop.code()));
             envelope.push_features([GraphFeature {
                 kind: Arc::from("completion_enumeration_capped"),
                 detail: Arc::from(format!(
-                    "retained {} MEC DAG completion(s) under max_completions={}; \
+                    "retained {} MEC DAG completion(s) under max_completions={}{stopped}; \
                      identification is established only over the deterministic retained subset",
                     envelope.cases.len(),
                     self.config.max_completions
@@ -1237,6 +1283,100 @@ mod tests {
             !result.diagnostics.iter().any(|d| d.kind == DiagnosticKind::Execution),
             "{:?}",
             result.diagnostics
+        );
+    }
+
+    /// `0 -> 1` beside an all-circle K4 on `{2, 3, 4, 5}`: the effect is unconfounded and so
+    /// identified in every completion, which leaves a partial enumeration as the only reason
+    /// to withdraw the class-wide claim. The K4 has 12 circle endpoints and 219 members
+    /// (the ancestral complete graphs on four nodes).
+    fn effect_beside_circle_clique() -> Pag {
+        let mut pag = Pag::with_variables(6);
+        pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        for a in 2..6 {
+            for b in (a + 1)..6 {
+                pag.insert_circle_circle(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
+                    .unwrap();
+            }
+        }
+        pag
+    }
+
+    fn audit_withdrawn(env: &IdentificationEnvelope<Pag>) -> Option<String> {
+        env.critical_graph_features
+            .iter()
+            .find(|f| &*f.kind == "completion_equivalence_audit_skipped")
+            .map(|f| f.detail.to_string())
+    }
+
+    #[test]
+    fn a_completed_completion_search_keeps_the_class_wide_claim() {
+        let pag = effect_beside_circle_clique();
+        let id = GeneralizedAdjustmentIdentifier {
+            config: GeneralizedAdjustmentConfig {
+                max_completions: 1_000,
+                completion_operations: 10_000_000,
+                ..Default::default()
+            },
+        };
+        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let env = id.identify_pag_envelope(&pag, &q).unwrap();
+        assert_eq!(env.cases.len(), 219);
+        assert!(audit_withdrawn(&env).is_none(), "a completed search withdraws nothing");
+        assert!(
+            env.critical_graph_features.iter().all(|f| &*f.kind != "completion_enumeration_capped")
+        );
+    }
+
+    #[test]
+    fn a_partial_completion_search_refuses_the_class_wide_claim() {
+        let pag = effect_beside_circle_clique();
+        // One audited signature costs 6 nodes: 15 pairs x 2^4 subsets = 240 operations, so
+        // 400 operations classify one member and stop during the next.
+        let id = GeneralizedAdjustmentIdentifier {
+            config: GeneralizedAdjustmentConfig {
+                max_completions: 1_000,
+                completion_operations: 400,
+                ..Default::default()
+            },
+        };
+        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let env = id.identify_pag_envelope(&pag, &q).unwrap();
+        assert!(env.cases.len() < 219);
+        assert_ne!(
+            env.status,
+            IdentificationStatus::NonparametricallyIdentified,
+            "a prefix of the class cannot support identification in every member"
+        );
+        let detail = audit_withdrawn(&env).expect("the withdrawal is recorded");
+        assert!(detail.contains("search.operations"), "{detail}");
+    }
+
+    #[test]
+    fn a_partial_cpdag_completion_search_refuses_the_class_wide_claim() {
+        // Six nodes, all pairs undirected: 720 members, more than 100 operations can visit.
+        let mut cpdag = Cpdag::with_variables(6);
+        for a in 0..6 {
+            for b in (a + 1)..6 {
+                cpdag
+                    .insert_undirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
+                    .unwrap();
+            }
+        }
+        let id = GeneralizedAdjustmentIdentifier {
+            config: GeneralizedAdjustmentConfig {
+                max_completions: usize::MAX,
+                completion_operations: 100,
+                ..Default::default()
+            },
+        };
+        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let env = id.identify_cpdag_envelope(&cpdag, &q).unwrap();
+        assert!(env.cases.len() < 720);
+        assert_ne!(env.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(
+            env.critical_graph_features.iter().any(|f| &*f.kind == "completion_enumeration_capped"
+                && f.detail.contains("search.operations"))
         );
     }
 

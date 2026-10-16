@@ -9,25 +9,23 @@
 //! Search orients one undirected edge at a time and rejects a partial assignment
 //! as soon as it creates a directed cycle or an unshielded collider absent from
 //! the CPDAG — so sparse classes (e.g. long undirected chains) finish by pruning
-//! instead of scanning `2^k` full masks. A hard ceiling
-//! ([`MAX_UNDIRECTED_EDGES`]) still refuses pathological unconstrained instances.
+//! instead of scanning `2^k` full masks, however many undirected edges they carry.
+//! No edge-count ceiling applies: a [`SearchBudget`](antecedent_core::SearchBudget)
+//! (operations, memory, cancellation) bounds the visited states, and a stop is typed
+//! ([`CpdagCompletionSampler::search_stop`]) and counted by [`CpdagCompletionSampler::hit_cap`].
 //! The search itself is shared with the temporal sampler (`crate::mec_search`).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::{ExecutionContext, SearchLimits, SearchReceipt, SearchStop};
+
+use crate::completion::default_completion_search;
 use crate::cpdag::Cpdag;
 use crate::dag::Dag;
 use crate::error::GraphError;
 use crate::mec_search::{self, MecSearch};
 #[cfg(test)]
 use crate::types::DenseNodeId;
-
-/// Hard ceiling on undirected edges accepted by the completion search.
-///
-/// Partial-assignment pruning handles sparse classes (chains, trees) well above
-/// the ~25-edge hang of a blind mask scan. This ceiling only stops fully
-/// unconstrained `2^k` blow-ups; it sits above that practical hang threshold.
-pub(crate) const MAX_UNDIRECTED_EDGES: usize = 64;
 
 /// One DAG completion of a CPDAG (MEC member).
 #[derive(Clone, Debug)]
@@ -47,16 +45,36 @@ pub struct CpdagCompletionSampler {
 impl CpdagCompletionSampler {
     /// Build a sampler that yields at most `max_completions` **valid** MEC DAGs.
     ///
+    /// The visited states are bounded by [`crate::DEFAULT_COMPLETION_OPERATIONS`]; use
+    /// [`Self::with_budget`] to choose the limits, memory cap and cancellation.
+    ///
     /// # Errors
     ///
-    /// Conflict edges present, or more than [`MAX_UNDIRECTED_EDGES`] undirected edges.
+    /// Conflict edges present.
     pub fn new(cpdag: Cpdag, max_completions: usize) -> Result<Self, GraphError> {
+        let (limits, ctx) = default_completion_search();
+        Self::with_budget(cpdag, max_completions, limits, &ctx)
+    }
+
+    /// [`Self::new`] under an explicit search budget: `limits.operations` bounds the partial
+    /// orientations visited, and `ctx` supplies cancellation and the hard memory limit. A stop
+    /// ends the stream; see [`Self::search_stop`].
+    ///
+    /// # Errors
+    ///
+    /// Conflict edges present.
+    pub fn with_budget(
+        cpdag: Cpdag,
+        max_completions: usize,
+        limits: SearchLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, GraphError> {
         let search = MecSearch::new(
             cpdag,
             max_completions,
-            MAX_UNDIRECTED_EDGES,
+            limits,
+            ctx,
             "CpdagCompletionSampler refuses conflict (x-x) edges",
-            "CpdagCompletionSampler supports at most 64 undirected edges",
         )?;
         Ok(Self { search })
     }
@@ -73,12 +91,27 @@ impl CpdagCompletionSampler {
         self.search.n_undirected()
     }
 
-    /// Whether the retention cap stopped the stream before the search finished.
+    /// Whether the stream ended before the search finished, because the retention cap was
+    /// reached or the search budget stopped it ([`Self::search_stop`]).
     /// Local validity still holds for yielded DAGs; the unexplored remainder is
-    /// not certified empty of further MEC members.
+    /// not certified empty of further MEC members, so no class-wide claim is earned.
     #[must_use]
     pub fn hit_cap(&self) -> bool {
         self.search.hit_cap()
+    }
+
+    /// The bound that stopped the search (operations, depth, memory or cancellation), if a
+    /// budget rather than the retention cap ended the stream.
+    #[must_use]
+    pub fn search_stop(&self) -> Option<SearchStop> {
+        self.search.search_stop()
+    }
+
+    /// The limits in force, the states visited and the orientations left pending, once a
+    /// budget has stopped the search.
+    #[must_use]
+    pub fn search_receipt(&self) -> Option<SearchReceipt> {
+        self.search.search_receipt()
     }
 }
 
@@ -210,15 +243,176 @@ mod tests {
         }
     }
 
-    #[test]
-    fn refuses_above_hard_undirected_ceiling() {
-        let n = u32::try_from(MAX_UNDIRECTED_EDGES + 2).unwrap();
+    /// An undirected tree on `n` nodes (node `i > 0` hangs off `parent_of(i)`).
+    fn undirected_tree(n: u32, parent_of: impl Fn(u32) -> u32) -> Cpdag {
         let mut g = Cpdag::with_variables(n);
-        for i in 0..(n - 1) {
-            g.insert_undirected(DenseNodeId::from_raw(i), DenseNodeId::from_raw(i + 1)).unwrap();
+        for i in 1..n {
+            g.insert_undirected(DenseNodeId::from_raw(parent_of(i)), DenseNodeId::from_raw(i))
+                .unwrap();
         }
-        assert_eq!(g.undirected_edge_count(), MAX_UNDIRECTED_EDGES + 1);
-        let err = CpdagCompletionSampler::new(g, 4).unwrap_err();
-        assert!(matches!(err, GraphError::InvalidEndpoints { .. }));
+        g
+    }
+
+    /// The class of an undirected tree on `n` nodes is exactly its `n` rootings: one DAG per
+    /// choice of the single source, every edge pointing away from it.
+    fn assert_one_dag_per_rooting(g: &Cpdag, n: u32, completions: &[CpdagCompletion]) {
+        assert_eq!(completions.len(), n as usize, "an undirected tree has one member per node");
+        let skeleton: Vec<(u32, u32)> = g.edges().iter().map(|e| (e.a.raw(), e.b.raw())).collect();
+        let mut roots = std::collections::BTreeSet::new();
+        for c in completions {
+            let sources: Vec<u32> =
+                (0..n).filter(|&v| c.graph.parents(DenseNodeId::from_raw(v)).is_empty()).collect();
+            assert_eq!(sources.len(), 1, "a rooted orientation has a single source");
+            let root = sources[0];
+            assert!(roots.insert(root), "each root is realised once");
+            // Breadth-first distance from the root over the skeleton.
+            let mut dist = vec![u32::MAX; n as usize];
+            dist[root as usize] = 0;
+            let mut queue = std::collections::VecDeque::from([root]);
+            while let Some(u) = queue.pop_front() {
+                for &(a, b) in &skeleton {
+                    let next = if a == u {
+                        b
+                    } else if b == u {
+                        a
+                    } else {
+                        continue;
+                    };
+                    if dist[next as usize] == u32::MAX {
+                        dist[next as usize] = dist[u as usize] + 1;
+                        queue.push_back(next);
+                    }
+                }
+            }
+            for &(a, b) in &skeleton {
+                let a_to_b =
+                    c.graph.children(DenseNodeId::from_raw(a)).contains(&DenseNodeId::from_raw(b));
+                assert_eq!(a_to_b, dist[a as usize] < dist[b as usize]);
+            }
+            assert!(is_mec_member(g, &c.graph));
+        }
+        assert_eq!(roots.len(), n as usize);
+    }
+
+    #[test]
+    fn a_seventy_one_edge_path_completes_with_one_dag_per_source() {
+        let n = 72u32;
+        let g = undirected_tree(n, |i| i - 1);
+        assert_eq!(g.undirected_edge_count(), 71);
+        let mut sampler = CpdagCompletionSampler::new(g.clone(), 128).unwrap();
+        let collected: Vec<_> = sampler.by_ref().collect();
+        assert_eq!(sampler.n_undirected(), 71);
+        assert!(!sampler.hit_cap());
+        assert_eq!(sampler.search_stop(), None);
+        assert_one_dag_per_rooting(&g, n, &collected);
+    }
+
+    #[test]
+    fn an_eighty_node_binary_tree_completes_with_one_dag_per_rooting() {
+        let n = 80u32;
+        let g = undirected_tree(n, |i| (i - 1) / 2);
+        assert_eq!(g.undirected_edge_count(), 79);
+        let mut sampler = CpdagCompletionSampler::new(g.clone(), 128).unwrap();
+        let collected: Vec<_> = sampler.by_ref().collect();
+        assert!(!sampler.hit_cap());
+        assert_one_dag_per_rooting(&g, n, &collected);
+    }
+
+    #[test]
+    fn disjoint_edges_beyond_the_old_ceiling_stream_up_to_the_retention_cap() {
+        // 72 disjoint undirected edges: 2^72 members, far past any enumeration, but the
+        // first ones are reached depth-first and the cap is reported, not an error.
+        let mut g = Cpdag::with_variables(144);
+        for i in 0..72 {
+            g.insert_undirected(DenseNodeId::from_raw(2 * i), DenseNodeId::from_raw(2 * i + 1))
+                .unwrap();
+        }
+        let mut sampler = CpdagCompletionSampler::new(g.clone(), 3).unwrap();
+        assert_eq!(sampler.n_undirected(), 72);
+        let collected: Vec<_> = sampler.by_ref().collect();
+        assert_eq!(collected.len(), 3);
+        assert!(sampler.hit_cap());
+        assert_eq!(sampler.search_stop(), None, "the retention cap is not a budget stop");
+        for c in &collected {
+            assert!(is_mec_member(&g, &c.graph));
+        }
+    }
+
+    fn complete_undirected(n: u32) -> Cpdag {
+        let mut g = Cpdag::with_variables(n);
+        for a in 0..n {
+            for b in (a + 1)..n {
+                g.insert_undirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+            }
+        }
+        g
+    }
+
+    #[test]
+    fn an_exhausted_operation_budget_is_a_typed_partial_result() {
+        // K8 has 8! = 40320 members; 500 visited states cannot enumerate them.
+        let g = complete_undirected(8);
+        let ctx = ExecutionContext::for_tests(0);
+        let limits = SearchLimits { operations: 500, depth: usize::MAX };
+        let mut sampler =
+            CpdagCompletionSampler::with_budget(g.clone(), usize::MAX, limits, &ctx).unwrap();
+        let collected: Vec<_> = sampler.by_ref().collect();
+        assert!(collected.len() < 40_320);
+        assert_eq!(sampler.search_stop(), Some(SearchStop::Operations));
+        assert!(sampler.hit_cap(), "a stopped search must not be read as the whole class");
+        let receipt = sampler.search_receipt().unwrap();
+        assert_eq!(receipt.stop, SearchStop::Operations);
+        assert_eq!(receipt.operations_consumed, Some(500));
+        assert!(receipt.explored[0].contains("500 orientation states"));
+        assert!(!receipt.unevaluated.is_empty());
+        for c in &collected {
+            assert!(is_mec_member(&g, &c.graph), "yielded members stay locally valid");
+        }
+        assert!(sampler.next().is_none(), "a budget stop is sticky");
+    }
+
+    #[test]
+    fn a_budget_large_enough_completes_the_same_class() {
+        // K6: 6! = 720 members.
+        let g = complete_undirected(6);
+        let ctx = ExecutionContext::for_tests(0);
+        let limits = SearchLimits { operations: 1_000_000, depth: usize::MAX };
+        let mut sampler = CpdagCompletionSampler::with_budget(g, usize::MAX, limits, &ctx).unwrap();
+        assert_eq!(sampler.by_ref().count(), 720);
+        assert!(!sampler.hit_cap());
+        assert_eq!(sampler.search_stop(), None);
+        assert!(sampler.search_receipt().is_none());
+    }
+
+    #[test]
+    fn cancellation_stops_the_search_before_and_during_enumeration() {
+        let g = complete_undirected(8);
+        let limits = SearchLimits { operations: 1_000_000, depth: usize::MAX };
+
+        let ctx = ExecutionContext::for_tests(0);
+        ctx.cancellation.cancel();
+        let mut sampler =
+            CpdagCompletionSampler::with_budget(g.clone(), usize::MAX, limits, &ctx).unwrap();
+        assert!(sampler.next().is_none());
+        assert_eq!(sampler.search_stop(), Some(SearchStop::Cancelled));
+        assert!(sampler.hit_cap());
+
+        let mut ctx = ExecutionContext::for_tests(0);
+        ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(200);
+        let mut sampler = CpdagCompletionSampler::with_budget(g, usize::MAX, limits, &ctx).unwrap();
+        let yielded = sampler.by_ref().count();
+        assert!(yielded < 40_320);
+        assert_eq!(sampler.search_stop(), Some(SearchStop::Cancelled));
+    }
+
+    #[test]
+    fn a_memory_limit_below_one_partial_orientation_stops_the_search() {
+        let g = complete_undirected(4);
+        let mut ctx = ExecutionContext::for_tests(0);
+        ctx.memory.hard_limit_bytes = Some(1);
+        let limits = SearchLimits { operations: 1_000_000, depth: usize::MAX };
+        let mut sampler = CpdagCompletionSampler::with_budget(g, usize::MAX, limits, &ctx).unwrap();
+        assert!(sampler.next().is_none());
+        assert_eq!(sampler.search_stop(), Some(SearchStop::Memory));
     }
 }

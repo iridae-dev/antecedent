@@ -45,8 +45,6 @@ pub struct ZTransportQuery {
     pub target: Arc<str>,
 }
 
-/// Explicit observed-variable bound for the single-source z-transport contract.
-pub(crate) const Z_TRANSPORT_MAX_OBSERVED: usize = 12;
 /// Explicit bound for controllable variables.
 pub(crate) const Z_TRANSPORT_MAX_CONTROLLABLE: usize = 4;
 /// Largest source-experiment family enumerated for a negative certificate.
@@ -693,22 +691,19 @@ impl ZTransportResult {
 
 /// Validate the graph/query portion of the bounded z-transport contract.
 ///
-/// This check does not imply that experiments exist. Callers must bind every
-/// formula factor to an available exact joint regime with matching population,
-/// measurement scope, intervention set, and intervention values.
+/// The number of observed variables is not bounded here: the search that consumes the
+/// query charges its steps, depth, memory and cancellation to a budget, and a stop is a
+/// limits receipt, never a verdict. This check does not imply that experiments exist.
+/// Callers must bind every formula factor to an available exact joint regime with
+/// matching population, measurement scope, intervention set, and intervention values.
 ///
 /// # Errors
 /// Returns a stable validation error when the graph, query, population identities,
-/// or declared computational bound is invalid.
+/// or declared controllable bound is invalid.
 pub fn validate_z_transport_query(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
 ) -> Result<(), IdentificationError> {
-    if diagram.causal_graph().node_count() > Z_TRANSPORT_MAX_OBSERVED {
-        return Err(IdentificationError::UnsupportedInput {
-            code: "z_transport.unsupported_observed_count",
-        });
-    }
     if query.controllable.is_empty() || query.controllable.len() > Z_TRANSPORT_MAX_CONTROLLABLE {
         return Err(IdentificationError::UnsupportedInput {
             code: "z_transport.unsupported_controllable_count",
@@ -2095,17 +2090,107 @@ mod tests {
     }
 
     #[test]
-    fn bounded_query_contract_refuses_oversized_graph_and_controllable_set() {
-        let (diagram, oversized_graph_query) = query(13, &[1]);
-        assert_eq!(
-            validate_z_transport_query(&diagram, &oversized_graph_query).unwrap_err().to_string(),
-            "z_transport.unsupported_observed_count"
-        );
+    fn query_contract_has_no_observed_variable_ceiling() {
+        let (diagram, query) = query(64, &[1, 2, 3, 4]);
+        validate_z_transport_query(&diagram, &query).unwrap();
+    }
+
+    #[test]
+    fn bounded_query_contract_refuses_oversized_controllable_set() {
         let (diagram, oversized_control_query) = query(12, &[0, 1, 2, 3, 4]);
         assert_eq!(
             validate_z_transport_query(&diagram, &oversized_control_query).unwrap_err().to_string(),
             "z_transport.unsupported_controllable_count"
         );
+    }
+
+    /// A Markovian chain `0 -> 1 -> ... -> n-1` (no latent confounding): the effect of a
+    /// middle node on the last is identified by ordinary adjustment, so the recursion reaches
+    /// a formula without any source experiment on the treatment.
+    fn chain_fixture(n: u32, treatment: u32) -> (SelectionDiagram, ZTransportQuery) {
+        let mut graph = Admg::with_variables(n);
+        for i in 0..(n - 1) {
+            graph.insert_directed(DenseNodeId::from_raw(i), DenseNodeId::from_raw(i + 1)).unwrap();
+        }
+        let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
+        let query = ZTransportQuery {
+            outcomes: Arc::from([VariableId::from_raw(n - 1)]),
+            treatments: Arc::from([VariableId::from_raw(treatment)]),
+            controllable: Arc::from([VariableId::from_raw(0)]),
+            experiment_assignment: Arc::from([]),
+            source: Arc::from("source"),
+            target: Arc::from("target"),
+        };
+        (diagram, query)
+    }
+
+    #[test]
+    fn graphs_beyond_the_old_twelve_variable_ceiling_are_identified_and_replayed() {
+        // Sixteen observed variables, fourteen past the old ceiling's reach in the chain.
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        let (diagram, query) = chain_fixture(16, 5);
+        let ZTransportResult::Identified(proof) =
+            identify_z_transport(&diagram, &query, super::super::SidLimits::default(), &ctx)
+                .unwrap()
+        else {
+            panic!("an unconfounded chain of sixteen variables must be identified");
+        };
+        assert_eq!(proof.kind, ZFormulaKind::Recursive);
+        verify_z_transport_derivation(
+            &diagram,
+            &query,
+            &proof,
+            super::super::SidLimits::default(),
+            &ctx,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn a_direct_source_exchange_is_identified_on_a_wide_graph() {
+        // The treatment is the controllable variable with a concrete level, on 20 variables.
+        let (diagram, mut query) = chain_fixture(20, 3);
+        query.controllable = Arc::from([VariableId::from_raw(3)]);
+        query.experiment_assignment = Arc::from([CatalogInterventionAssignment {
+            variable: VariableId::from_raw(3),
+            value: Value::Bool(true),
+        }]);
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        let ZTransportResult::Identified(proof) =
+            identify_z_transport(&diagram, &query, super::super::SidLimits::default(), &ctx)
+                .unwrap()
+        else {
+            panic!("a concrete source exchange must be identified");
+        };
+        assert_eq!(proof.kind, ZFormulaKind::DirectJoint);
+    }
+
+    #[test]
+    fn a_wide_graph_search_stops_at_its_budget_with_a_receipt_not_a_verdict() {
+        let (diagram, query) = chain_fixture(24, 2);
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        // Cutting the treatment's incoming edge leaves the two upstream variables outside the
+        // outcome's ancestry, so the first rule recurses and needs a second step.
+        let limits = super::super::SidLimits { steps: 1, depth: 24 };
+        let mut receipt = None;
+        let error = identify_z_transport_reporting(&diagram, &query, limits, &ctx, &mut receipt)
+            .unwrap_err();
+        assert!(error.is_budget_or_cancel());
+        let receipt = receipt.expect("a stopped search records what it consumed");
+        assert_eq!(receipt.steps_limit, 1);
+        let cancelled = antecedent_core::ExecutionContext::for_tests(0);
+        cancelled.cancellation.cancel();
+        let mut receipt = None;
+        let error = identify_z_transport_reporting(
+            &diagram,
+            &query,
+            super::super::SidLimits::default(),
+            &cancelled,
+            &mut receipt,
+        )
+        .unwrap_err();
+        assert!(matches!(error, IdentificationError::Cancelled));
+        assert_eq!(receipt.unwrap().budget, ZTransportBudgetKind::Cancelled);
     }
 
     #[test]

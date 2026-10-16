@@ -18,10 +18,10 @@ use antecedent_core::{
 use antecedent_graph::{Cpdag, DenseNodeId, NodeRef};
 use antecedent_identify::ClassicalTransportQuery;
 use antecedent_identify::sid::cpdag_completion::{
-    CPDAG_BOUNDS_EXCEEDED_DETAIL, CPDAG_EVIDENCE_MISMATCH_DETAIL, CPDAG_NO_EVIDENCE_DETAIL,
-    CPDAG_NOT_A_CPDAG_DETAIL, CPDAG_SELECTION_OR_LATENT_DETAIL, CompletionEvidenceBinding,
-    CpdagCompletionDecision, CpdagCompletionInput, CpdagEnumeration, CpdagEvidence,
-    CpdagScenarioError, decide_cpdag_completions, enumerate_cpdag_completions,
+    CPDAG_EVIDENCE_MISMATCH_DETAIL, CPDAG_NO_EVIDENCE_DETAIL, CPDAG_NOT_A_CPDAG_DETAIL,
+    CPDAG_SELECTION_OR_LATENT_DETAIL, CompletionEvidenceBinding, CpdagCompletionDecision,
+    CpdagCompletionInput, CpdagEnumeration, CpdagEvidence, CpdagScenarioError,
+    decide_cpdag_completions, enumerate_cpdag_completions,
 };
 use antecedent_identify::sid::scenarios::{ScenarioCoordinate, ScenarioOutcome};
 
@@ -269,20 +269,48 @@ fn refusal(error: CpdagScenarioError) -> (&'static str, &'static str) {
 }
 
 #[test]
+fn classes_beyond_the_old_six_node_bound_enumerate_under_the_budget() {
+    let ctx = ExecutionContext::for_tests(1);
+    // An undirected path on 20 nodes has one completion per source (19 undirected edges).
+    let mut path = Cpdag::with_variables(20);
+    for i in 0..19 {
+        path.insert_undirected(d(i), d(i + 1)).unwrap();
+    }
+    let all =
+        enumerate_cpdag_completions(&CpdagCompletionInput::new(path.clone()), BIG, &ctx).unwrap();
+    assert_eq!(all.completions.len(), 20);
+    assert!(all.is_exportable());
+    let identities: BTreeSet<_> = all.completions.iter().map(|c| c.identity.clone()).collect();
+    assert_eq!(identities.len(), 20, "every completion has its own identity");
+    // Every completion has exactly one source, the root of its orientation.
+    for completion in &all.completions {
+        let sources =
+            (0..20).filter(|&n| completion.edges.iter().all(|&(_, child)| child != v(n))).count();
+        assert_eq!(sources, 1);
+    }
+    // The complete undirected graph on five nodes has 5! = 120 completions, more than the
+    // 64 a supplied scenario list may hold.
+    let mut complete = Cpdag::with_variables(5);
+    for a in 0..5 {
+        for b in (a + 1)..5 {
+            complete.insert_undirected(d(a), d(b)).unwrap();
+        }
+    }
+    let k5 = enumerate_cpdag_completions(&CpdagCompletionInput::new(complete), BIG, &ctx).unwrap();
+    assert_eq!(k5.completions.len(), 120);
+    // A budget too small for the class stops with a receipt and a conservative remainder.
+    let starved = SearchLimits { operations: 5, depth: 64 };
+    let stopped =
+        enumerate_cpdag_completions(&CpdagCompletionInput::new(path), starved, &ctx).unwrap();
+    let receipt = stopped.receipt.as_ref().expect("the budget stops the enumeration");
+    assert_eq!(receipt.stop, SearchStop::Operations);
+    assert!(!stopped.is_exportable());
+    assert!(stopped.not_enumerated > 0);
+}
+
+#[test]
 fn cpdag_missing_evidence_refusals() {
     let ctx = ExecutionContext::for_tests(1);
-    // More than six nodes.
-    let mut seven = Cpdag::with_variables(7);
-    for i in 0..6 {
-        seven.insert_undirected(d(i), d(i + 1)).unwrap();
-    }
-    let refused =
-        enumerate_cpdag_completions(&CpdagCompletionInput::new(seven), BIG, &ctx).unwrap_err();
-    assert_eq!(
-        (refused.code, refused.detail),
-        ("route_not_supported", CPDAG_BOUNDS_EXCEEDED_DETAIL)
-    );
-    assert_eq!(CPDAG_BOUNDS_EXCEEDED_DETAIL, "cpdag_scenarios.bounds_exceeded");
     // A selection target and a latent pair.
     let chain = || CpdagCompletionInput::new(cpdag(&case_named("chain")));
     let mut selected = chain();
