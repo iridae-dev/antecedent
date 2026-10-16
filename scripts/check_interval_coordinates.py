@@ -177,7 +177,7 @@ def expand_shell_loops(gate_text: str) -> str:
             body = block[i + 1 : j - 1]
             for word in m.group(2).split():
                 sub = [
-                    re.sub(r"\$\{%s\}|\$%s\b" % (m.group(1), m.group(1)), word, line)
+                    re.sub(rf"\${{{m.group(1)}}}|\${m.group(1)}\b", word, line)
                     for line in body
                 ]
                 for line in expand(sub):

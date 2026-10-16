@@ -170,8 +170,8 @@ def apply_release_snippets(root: Path, version: str, edits: dict[Path, str]) -> 
     )
 
     notebooks = sorted((root / "examples" / "notebooks").glob("*.ipynb"))
-    if len(notebooks) != 5:
-        raise SnippetError(f"expected 5 notebooks, found {len(notebooks)}")
+    if len(notebooks) != 6:
+        raise SnippetError(f"expected 6 notebooks, found {len(notebooks)}")
     pin = python_pin(version)
     major, minor = major_minor(version).split(".")
     minor_check = f"!= ({int(major)}, {int(minor)})"

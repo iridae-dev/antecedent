@@ -107,7 +107,7 @@ def rewrite_manifest(manifest: str, keep, suites: list[str]) -> str:
         manifest = re.sub(r"(\[package\][^\[]*)", lambda m: m.group(1).rstrip("\n") + "\nautotests = false\n\n", manifest, count=1)
     existing = declared_targets(manifest)
     additions = []
-    for path, meta in keep:
+    for path, _meta in keep:
         rel = f"tests/{path.name}"
         if rel in existing:
             continue
@@ -141,12 +141,12 @@ def main() -> int:
         print(f"{crate.name:28} {before:4} files -> {after:3} binaries (keep {len(keep)}, fold {len(fold)})")
         if not write:
             continue
-        for name, group in zip(names, groups):
+        for name, group in zip(names, groups, strict=True):
             (crate / "tests" / f"{name}.rs").write_text(render_suite(group), encoding="utf-8")
         (crate / "Cargo.toml").write_text(rewrite_manifest(manifest, keep, names), encoding="utf-8")
         mapping = crate / "tests" / "suite_map.txt"
         mapping.write_text(
-            "".join(f"{name}: {', '.join(p.stem for p in group)}\n" for name, group in zip(names, groups)),
+            "".join(f"{name}: {', '.join(p.stem for p in group)}\n" for name, group in zip(names, groups, strict=True)),
             encoding="utf-8",
         )
     print(f"total {total_before} -> {total_after}")

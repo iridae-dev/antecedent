@@ -29,6 +29,8 @@ _REASON_PROSE = {
     "support_closed.toml",
     "support_n_a.toml",
     "support_axes.toml",
+    # Facade-surface `reason` explains how Python reaches an entry or why it has none.
+    "python_facade_surface.toml",
 }
 for path in sorted(root.glob("parity/*.toml")):
     if path.name in _REASON_PROSE:
@@ -174,6 +176,10 @@ def _resolves(spec: str) -> bool:
     # while the function is `transport_frozen_data`. Renaming those functions
     # would drift the suite facet after the replay waivers.
     if re.search(r'dgp:\s*"' + re.escape(fn) + r'"', text):
+        return True
+    # A suite whose records share one helper passes the label as a string argument
+    # (`measure(design, "...", "<label>", seed)`); the label is written in the suite.
+    if re.search(r'"' + re.escape(fn) + r'"', text):
         return True
     if fn in collector.conditional_record_dgp_labels(path):
         return True
