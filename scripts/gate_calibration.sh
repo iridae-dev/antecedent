@@ -97,6 +97,9 @@ grid_group() {
     # decision-reliability expectation prints diagnostics, emits no record and runs once.
     adaptive_inference_calibration:group_sequential_power_matches_the_numerical_integration) return 1 ;;
     adaptive_inference_calibration:*|adaptive_procedure_prior_predictive_calibration:*) return 0 ;;
+    # Whole-procedure participant-level designs: pass/fail gates that print their measured
+    # summaries, emit no coverage record and run once (the default arm below).
+    adaptive_whole_procedure_calibration:*) return 1 ;;
     # Native linear cohort effect: the gated randomized/confounded designs and the named boundaries.
     cohort_linear_effect_calibration:*) return 0 ;;
     count_fitted_posterior_calibration:*) return 0 ;;
@@ -455,6 +458,27 @@ run_adaptive_inference anytime_valid_sequence_contrast_record_l95
 run_adaptive_inference group_sequential_repeated_interval_null_effect_l95
 run_adaptive_inference group_sequential_repeated_interval_moderate_effect_l95
 run_adaptive_inference group_sequential_repeated_interval_large_effect_l95
+
+run_adaptive_whole_procedure() {
+  local name="$1"
+  check "adaptive_whole_procedure_calibration: ${name}" cargo test --release -p antecedent-stats --test adaptive_whole_procedure_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== participant-level adaptive procedure: recruitment, assignment, stopping, selection and reporting together =="
+run_adaptive_whole_procedure adaptive_full_procedure_null_effects_600
+run_adaptive_whole_procedure adaptive_full_procedure_null_effects_1200
+run_adaptive_whole_procedure adaptive_full_procedure_null_effects_2400
+run_adaptive_whole_procedure adaptive_full_procedure_near_ties_600
+run_adaptive_whole_procedure adaptive_full_procedure_near_ties_1200
+run_adaptive_whole_procedure adaptive_full_procedure_near_ties_2400
+run_adaptive_whole_procedure adaptive_full_procedure_separated_effects_600
+run_adaptive_whole_procedure adaptive_full_procedure_separated_effects_1200
+run_adaptive_whole_procedure adaptive_full_procedure_separated_effects_2400
+run_adaptive_whole_procedure adaptive_full_procedure_strong_correlation_600
+run_adaptive_whole_procedure adaptive_full_procedure_strong_correlation_1200
+run_adaptive_whole_procedure adaptive_full_procedure_strong_correlation_2400
+run_adaptive_whole_procedure adaptive_full_procedure_misleading_priors_600
+run_adaptive_whole_procedure adaptive_full_procedure_misleading_priors_1200
+run_adaptive_whole_procedure adaptive_full_procedure_misleading_priors_2400
 
 run_adaptive_prior_predictive() {
   local name="$1"

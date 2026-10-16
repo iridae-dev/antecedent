@@ -239,6 +239,51 @@ when present, so contracts and artifacts produced earlier derive their original
 identities and replay unchanged. The participant procedure has its own identity
 (`PARTICIPANT_PROCEDURE_VERSION`).
 
+## Whole-procedure validation of the participant-level family
+
+`crates/antecedent-stats/tests/adaptive_whole_procedure_calibration.rs` simulates
+the entire loop in every replicate: recruitment in eight batches with one look of
+follow-up delay, Thompson allocation with an exploration floor from the exact
+posterior of the completed participants, correlated beta-binomial responses
+(six per participant, four arms), the posterior update, the expected-loss
+stopping rule, the selection of an arm, and the anytime-valid reading at every
+look. The retained history of each replicate is read back under the declared
+procedure, so the scored numbers are those a consumer of the sealed contract
+recomputes.
+
+Five scenarios at 600, 1,200 and 2,400 participants (fifteen cases, each its own
+`#[ignore]` test named by the acceptance-manifest case it binds, registered in
+`scripts/gate_calibration.sh`, 2,000 replicates each):
+
+| Scenario | True means (control 0.4) | Correlation | Priors | Case-specific gate |
+| --- | --- | --- | --- | --- |
+| `null_effects` | all equal | 0.3 | uniform | false superiority at most 0.05 |
+| `near_ties` | +0, +0, +0.02, +0.03 | 0.3 | uniform | mean regret at most 0.02 |
+| `separated_effects` | +0, +0.05, +0.1, +0.2 | 0.3 | uniform | best-arm identification at least 0.6, 0.9, 0.99 |
+| `strong_correlation` | +0, +0.05, +0.1, +0.15 | 0.7 | uniform | none |
+| `misleading_priors` | +0, +0.05, +0.1, +0.15 | 0.3 | history 0.15 above each truth, 200 trials at discount 0.5 | none |
+
+Every case gates, at the manifest's frozen targets: a reporting rate of 1;
+simultaneous coverage of 0.93 or more of every arm's sequence at every look up to
+the stop, of the same at the stopping look, and of the selected arm's comparison
+with the control at every look and at the stop; and a median arm half-width at
+the stop of at most 0.2, 0.14 and 0.1 at 600, 1,200 and 2,400 participants.
+False superiority is a treatment comparison whose lower bound exceeds zero at any
+look.
+
+Each case prints one `adaptive_whole_procedure_summary` JSON line with the
+published measurements: the coverages above, the median and 90th-percentile arm
+half-width and the median selected-comparison width at the stop, the false
+superiority rate, the selection-error and best-arm-identification rates, mean
+regret, the stopping-look counts and stopping-reason fractions, and the mean
+participants enrolled and completed and the fraction of the plan used. These are
+measured properties of the simulation under the stated truth; they are not a
+coverage claim for any other design, and the claim stays `derived_unmeasured`
+until a record exists. The default suite checks the harness against scenarios
+with an exact answer (a recruitment cap fixing the stopping look and the sample
+used, an unmistakable best arm, the summary arithmetic, and agreement of the
+thresholds with the manifest).
+
 ## Artifacts
 
 * `adaptive_monitoring_contract_v1` holds the contract, the paradigm, the
